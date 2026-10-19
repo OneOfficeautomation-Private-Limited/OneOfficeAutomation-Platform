@@ -1,0 +1,54 @@
+{
+  "name": "009_continue_on_error",
+  "description": "continueOnError and errorHandling.default=continue keep going.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c9",
+    "name": "c9",
+    "variables": [
+      {
+        "name": "done",
+        "type": "Boolean",
+        "direction": "output",
+        "default": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "x",
+        "action": "core/throw",
+        "args": {
+          "code": "E.ONE",
+          "message": "1"
+        },
+        "continueOnError": true
+      },
+      {
+        "id": "y",
+        "action": "core/throw",
+        "args": {
+          "code": "E.TWO",
+          "message": "2"
+        }
+      },
+      {
+        "id": "z",
+        "action": "core/set",
+        "args": {
+          "variable": "done",
+          "value": true
+        }
+      }
+    ],
+    "errorHandling": {
+      "default": "continue"
+    }
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "done": true
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "015_dates",
+  "description": "dateAdd/dateDiff/formatDate are deterministic for fixed inputs.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c15",
+    "name": "c15",
+    "variables": [
+      {
+        "name": "d",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "n",
+        "type": "Number",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "a",
+        "action": "core/set",
+        "args": {
+          "variable": "d",
+          "value": {
+            "expr": "formatDate(dateAdd('2026-01-31', 1, 'months'), '%Y-%m-%d')"
+          }
+        }
+      },
+      {
+        "id": "b",
+        "action": "core/set",
+        "args": {
+          "variable": "n",
+          "value": {
+            "expr": "dateDiff('2026-10-01', '2026-10-18T12:00:00', 'days')"
+          }
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "d": "2026-02-28",
+      "n": 17.5
+    }
+  }
+}

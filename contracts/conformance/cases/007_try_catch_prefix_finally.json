@@ -1,0 +1,96 @@
+{
+  "name": "007_try_catch_prefix_finally",
+  "description": "Catch matches code prefixes; finally always runs; 'as' receives the error.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c7",
+    "name": "c7",
+    "variables": [
+      {
+        "name": "err",
+        "type": "Dictionary"
+      },
+      {
+        "name": "log",
+        "type": "String",
+        "direction": "output",
+        "default": ""
+      }
+    ],
+    "steps": [
+      {
+        "id": "t",
+        "action": "core/try",
+        "children": [
+          {
+            "id": "x",
+            "action": "core/throw",
+            "args": {
+              "code": "BUSINESS.DUPLICATE",
+              "message": "dup",
+              "suggested_fix": "skip it"
+            }
+          },
+          {
+            "id": "never",
+            "action": "core/set",
+            "args": {
+              "variable": "log",
+              "value": "bad"
+            }
+          }
+        ],
+        "catch": [
+          {
+            "codes": [
+              "UI.*"
+            ],
+            "children": [
+              {
+                "id": "ui",
+                "action": "core/set",
+                "args": {
+                  "variable": "log",
+                  "value": "ui"
+                }
+              }
+            ]
+          },
+          {
+            "codes": [
+              "BUSINESS.*"
+            ],
+            "as": "err",
+            "children": [
+              {
+                "id": "bz",
+                "action": "core/set",
+                "args": {
+                  "variable": "log",
+                  "value": "caught ${err.code} at ${err.stepId}: ${err.suggestedFix}"
+                }
+              }
+            ]
+          }
+        ],
+        "finally": [
+          {
+            "id": "f",
+            "action": "core/set",
+            "args": {
+              "variable": "log",
+              "value": "${log}; finally"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "log": "caught BUSINESS.DUPLICATE at x: skip it; finally"
+    }
+  }
+}

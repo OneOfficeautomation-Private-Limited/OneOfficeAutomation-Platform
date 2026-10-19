@@ -1,0 +1,7 @@
+{
+  "connections": [
+    {"name": "default", "provider": "anthropic", "model": "claude-sonnet-4-6", "apiKeyEnv": "ANTHROPIC_API_KEY",
+     "inputUsdPerMtok": 3.0, "outputUsdPerMtok": 15.0, "default": true, "region": "us"}
+  ],
+  "budgets": {"default": 5.0}
+}

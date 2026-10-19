@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "ApiTask",
+  "id": "check_refund_policy",
+  "name": "Check refund policy",
+  "description": "Apply the refund policy to an order and a reason; returns whether a refund is allowed and the maximum amount.",
+  "tags": ["refunds", "read-only"],
+  "requires": {"packages": {"ooa.json": "^1.0.0"}, "capabilities": ["filesystem"]},
+  "variables": [
+    {"name": "order_id", "type": "String", "direction": "input", "required": true, "description": "Order id."},
+    {"name": "reason", "type": "String", "direction": "input", "required": true, "enum": ["damaged", "late", "changed_mind", "other"], "description": "Customer's reason for the refund."},
+    {"name": "orders", "type": "Dictionary"},
+    {"name": "policy", "type": "Dictionary"},
+    {"name": "order", "type": "Dictionary"},
+    {"name": "days_since_delivery", "type": "Number", "direction": "output", "description": "Days between delivery and the evaluation date."},
+    {"name": "eligible", "type": "Boolean", "direction": "output", "default": false, "description": "True when the policy allows a refund."},
+    {"name": "max_refund", "type": "Number", "direction": "output", "default": 0, "description": "Largest amount the policy allows."},
+    {"name": "policy_note", "type": "String", "direction": "output", "default": "", "description": "Policy explanation to quote to the customer."}
+  ],
+  "steps": [
+    {"id": "load", "action": "core/step", "args": {"title": "Load data"}, "children": [
+      {"id": "read_orders", "action": "ooa.json/read_file", "args": {"path": "data/orders.json"}, "out": {"value": "orders"}},
+      {"id": "read_policy", "action": "ooa.json/read_file", "args": {"path": "data/refund_policy.json"}, "out": {"value": "policy"}},
+      {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders, upper(trim($order_id)))"}}}
+    ]},
+    {"id": "missing", "action": "core/if", "args": {"condition": {"op": "empty", "left": "$order"}}, "children": [
+      {"id": "throw_missing", "action": "core/throw", "args": {"code": "BUSINESS.ORDER_NOT_FOUND", "message": "Order ${order_id} does not exist", "suggested_fix": "Ask the customer to confirm the order id."}}
+    ]},
+    {"id": "age", "action": "core/set", "args": {"variable": "days_since_delivery", "value": {"expr": "dateDiff($order.delivered_on, coalesce($policy.as_of, today()), 'days')"}}},
+    {"id": "note", "action": "core/set", "args": {"variable": "policy_note", "value": "$policy.notes[$reason]"}},
+    {"id": "decide", "action": "core/if",
+     "args": {"condition": {"all": ["$days_since_delivery <= $policy.window_days", {"op": "gt", "left": "$policy.reason_rates[$reason]", "right": 0}]}},
+     "children": [
+       {"id": "eligible_yes", "action": "core/set", "args": {"variable": "eligible", "value": true}},
+       {"id": "amount", "action": "core/set", "args": {"variable": "max_refund", "value": {"expr": "round($order.total * $policy.reason_rates[$reason], 2)"}}}
+     ],
+     "else": [
+       {"id": "why_not", "action": "core/if", "args": {"condition": "$days_since_delivery > $policy.window_days"}, "children": [
+         {"id": "late_note", "action": "core/set", "args": {"variable": "policy_note", "value": "Outside the ${policy.window_days}-day refund window (delivered ${days_since_delivery} days ago)."}}
+       ]}
+     ]}
+  ]
+}

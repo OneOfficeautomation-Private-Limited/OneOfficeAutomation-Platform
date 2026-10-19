@@ -1,0 +1,13 @@
+# Build output and local tooling (never part of the source)
+.gradle/
+**/build/
+out/
+*.class
+.idea/
+*.iml
+.vscode/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.ooa/

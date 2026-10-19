@@ -1,0 +1,48 @@
+# Requirements traceability (reference implementation)
+
+Status: **Built** = implemented and tested here; **Partial** = core behaviour built, production parts missing;
+**Planned** = not in this slice. IDs are from the Product Specification v1.1.
+
+| ID | Requirement | Status | Where | Notes |
+| --- | --- | --- | --- | --- |
+| FR-STU-005 | Typed variables | Built | `ooa/sdk/types.py`, `runner/interpreter.py` (Scope) | Decimal Number; Credential = SecureString |
+| FR-STU-006 | Expressions | Built | `runner/expressions.py` | Sandboxed grammar, allow-listed functions; Java port uses ANTLR |
+| FR-STU-007 | Validation with links to steps | Built | `runner/validate.py` | Returns all problems with stepId + suggestedFix |
+| FR-STU-008 | Debugger | Partial | `Debugger.before_step` hook | Live control channel to Studio is Planned |
+| FR-STU-010 | Child bots | Built | `core/run_bot` | Depth limit 10; child errors keep their code |
+| FR-STU-011 | Error handling design | Built | `core/try`, step `retry`, `errorHandling` | Catch by code/prefix, finally, backoff |
+| FR-STU-001..004, 009, 012..019 | Studio UI | Planned | — | React app; manifests already drive command panels |
+| FR-REC-* | Recorder | Planned | — | Selector model lives in the Flow schema description |
+| FR-PKG-001 | Package SDK | Built (Python) | `ooa/sdk/package.py` | Java SDK with annotations is Planned; manifest format shared |
+| FR-PKG-002 | Manifest-driven UI | Built (data) | `build_manifest`, `ooa manifest` | Studio rendering Planned |
+| FR-PKG-003 | Signing and verification | Built | `sdk/registry.py` | Ed25519 stands in for Sigstore/cosign |
+| FR-PKG-004 | Versioning | Built | `satisfies`, `resolve`, `set_default` | ^ ~ >= exact ranges |
+| FR-PKG-005 | Dependency isolation | Planned | — | Java: PF4J classloader per version |
+| FR-PKG-006 | Usage index | Partial | `record_usage` | Delete-blocking Planned |
+| FR-PKG-007 | Publisher allow-list | Built | `PackageRegistry.allowed_publishers` | |
+| FR-DOC-* | Document Intelligence | Planned | — | Next slice; reuses AI Gateway + approvals |
+| FR-GAI-001 | Prompt with schema output | Built | `ooa.genai/prompt`, `extract_to_schema` | Schema-validated output |
+| FR-GAI-002 | Task actions | Partial | classify, summarize, extract_to_schema | Translate, Sentiment, Embed Planned |
+| FR-GAI-003 | Prompt templates | Planned | — | |
+| FR-GAI-004 | Run AI agent | Built | `ooa.agents/run_agent` | |
+| FR-EXE-009 | Run isolation | Partial | Per-run scope, sessions closed, secrets wiped | Process/cgroup isolation is the Agent's job (Planned) |
+| FR-EXE-010 | Remote stop | Built (engine) | `cancel_event` | Control-plane wiring Planned |
+| FR-EXE-001..008, 011..014 | Agent service | Planned | — | Java service, gRPC, MSI |
+| FR-CC-AUT004/005 | Check-in, versions, production version | Built | `governance.Repository` | File-backed; PostgreSQL Planned |
+| FR-CC-AUT010 | Run now | Built (CLI) | `ooa run` | |
+| FR-CC-RES003/004 | Credentials and lockers | Partial | `vault.py` | Consumer check per locker; OpenBao adapter Planned |
+| FR-CC-ADM004 | Roles with scopes | Built | `governance.Policy` | OPA/Rego in production |
+| FR-CC-ADM007 | Tamper-evident audit | Built | `governance.AuditLog` | Hash chain verified by `ooa audit verify` |
+| FR-AI-001 | Model connections | Built | `ai/gateway.py`, `ai/providers.py` | Anthropic, OpenAI-compatible (LiteLLM/vLLM), scripted |
+| FR-AI-002 | Model access control and budgets | Built | `allowed_roles`, `BudgetManager` | 80%/100% alerts; rate limits Planned |
+| FR-AI-003 | PII masking | Built | `PiiGuard` | Regex adapter; Presidio adapter Planned |
+| FR-AI-004 | AI governance log | Built | `GovernanceLog` | No raw prompts stored |
+| FR-AI-006 | AI agents | Built | `agents/runtime.py` | Tool allow-list, schema checks, step and cost limits, checkpoints |
+| FR-AI-007 | Human approval for tools | Built | `agents/approvals.py` | Separation of duties; Assist inbox UI Planned |
+| FR-AI-009 | MCP server | Built | `agents/mcp_server.py` | stdio; OAuth HTTP transport Planned |
+| FR-AI-011 | LLM-readable docs | Built | `docs/llms.txt` | |
+| FR-AI-012 | Structured errors | Built | `sdk/errors.py` | |
+| FR-API-*, FR-AST-*, FR-VOX-*, FR-INS-* | API, Assist, Voice, Insights | Planned | — | |
+| NFR-007 | Secrets never shown | Built | SecureString, log redaction | Tested in `test_runner.py`, conformance 012 |
+| NFR-008 | Signed supply chain | Partial | Package signing | Images/agents/SBOM Planned |
+| NFR-011 | Immutable, hash-chained audit | Built | `AuditLog` | Retention/SIEM Planned |

@@ -1,0 +1,79 @@
+{
+  "name": "003_if_elseif_else",
+  "description": "First true branch wins.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c3",
+    "name": "c3",
+    "variables": [
+      {
+        "name": "score",
+        "type": "Number",
+        "direction": "input",
+        "required": true
+      },
+      {
+        "name": "grade",
+        "type": "String",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/if",
+        "args": {
+          "condition": "$score >= 90"
+        },
+        "children": [
+          {
+            "id": "a",
+            "action": "core/set",
+            "args": {
+              "variable": "grade",
+              "value": "A"
+            }
+          }
+        ],
+        "elseIf": [
+          {
+            "condition": {
+              "op": "ge",
+              "left": "$score",
+              "right": 75
+            },
+            "children": [
+              {
+                "id": "b",
+                "action": "core/set",
+                "args": {
+                  "variable": "grade",
+                  "value": "B"
+                }
+              }
+            ]
+          }
+        ],
+        "else": [
+          {
+            "id": "c",
+            "action": "core/set",
+            "args": {
+              "variable": "grade",
+              "value": "C"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {
+    "score": 80
+  },
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "grade": "B"
+    }
+  }
+}

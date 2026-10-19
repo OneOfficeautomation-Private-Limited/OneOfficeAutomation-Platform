@@ -1,0 +1,36 @@
+{
+  "name": "006_while_limit",
+  "description": "A runaway while loop fails with LOOP.LIMIT.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c6",
+    "name": "c6",
+    "variables": [],
+    "steps": [
+      {
+        "id": "w",
+        "action": "core/loop",
+        "args": {
+          "iterator": "while",
+          "condition": true,
+          "max_iterations": 50
+        },
+        "children": [
+          {
+            "id": "n",
+            "action": "core/comment",
+            "args": {
+              "text": "spin"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "LOOP.LIMIT",
+    "errorStepId": "w"
+  }
+}

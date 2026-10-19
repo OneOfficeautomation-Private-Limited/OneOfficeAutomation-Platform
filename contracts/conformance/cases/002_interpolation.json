@@ -1,0 +1,68 @@
+{
+  "name": "002_interpolation",
+  "description": "${name} interpolates a variable; ${expr} interpolates an expression; $ref keeps type.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c2",
+    "name": "c2",
+    "variables": [
+      {
+        "name": "name",
+        "type": "String",
+        "direction": "input",
+        "required": true
+      },
+      {
+        "name": "items",
+        "type": "List",
+        "default": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "msg",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "copy",
+        "type": "List",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/set",
+        "args": {
+          "variable": "msg",
+          "value": "Hi ${name}, you have ${len($items)} items"
+        }
+      },
+      {
+        "id": "s2",
+        "action": "core/set",
+        "args": {
+          "variable": "copy",
+          "value": "$items"
+        }
+      }
+    ]
+  },
+  "inputs": {
+    "name": "Ann"
+  },
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "msg": "Hi Ann, you have 3 items",
+      "copy": [
+        1,
+        2,
+        3
+      ]
+    }
+  }
+}

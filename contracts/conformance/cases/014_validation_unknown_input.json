@@ -1,0 +1,33 @@
+{
+  "name": "014_validation_unknown_input",
+  "description": "Unknown action inputs are rejected with a suggested fix.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c14",
+    "name": "c14",
+    "variables": [
+      {
+        "name": "r",
+        "type": "String"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s",
+        "action": "ooa.string/split",
+        "args": {
+          "text": "a",
+          "delim": ","
+        },
+        "out": {
+          "items": "r"
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "FLOW.INVALID"
+  }
+}

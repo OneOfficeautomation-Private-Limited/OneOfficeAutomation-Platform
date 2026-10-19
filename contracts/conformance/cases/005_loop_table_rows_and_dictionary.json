@@ -1,0 +1,128 @@
+{
+  "name": "005_loop_table_rows_and_dictionary",
+  "description": "table_rows yields records; dictionary yields key/value; index is zero-based.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c5",
+    "name": "c5",
+    "variables": [
+      {
+        "name": "t",
+        "type": "Table",
+        "default": {
+          "columns": [
+            "sku",
+            "qty"
+          ],
+          "rows": [
+            [
+              "A",
+              2
+            ],
+            [
+              "B",
+              3
+            ]
+          ]
+        }
+      },
+      {
+        "name": "d",
+        "type": "Dictionary",
+        "default": {
+          "x": 1,
+          "y": 2
+        }
+      },
+      {
+        "name": "row",
+        "type": "Record"
+      },
+      {
+        "name": "kv",
+        "type": "Dictionary"
+      },
+      {
+        "name": "i",
+        "type": "Number"
+      },
+      {
+        "name": "qty",
+        "type": "Number",
+        "direction": "output",
+        "default": 0
+      },
+      {
+        "name": "keys",
+        "type": "String",
+        "direction": "output",
+        "default": ""
+      },
+      {
+        "name": "last",
+        "type": "Number",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "l1",
+        "action": "core/loop",
+        "args": {
+          "iterator": "table_rows",
+          "over": "$t",
+          "as": "row",
+          "index": "i"
+        },
+        "children": [
+          {
+            "id": "q",
+            "action": "core/set",
+            "args": {
+              "variable": "qty",
+              "value": {
+                "expr": "$qty + $row.qty"
+              }
+            }
+          },
+          {
+            "id": "li",
+            "action": "core/set",
+            "args": {
+              "variable": "last",
+              "value": "$i"
+            }
+          }
+        ]
+      },
+      {
+        "id": "l2",
+        "action": "core/loop",
+        "args": {
+          "iterator": "dictionary",
+          "over": "$d",
+          "as": "kv"
+        },
+        "children": [
+          {
+            "id": "k",
+            "action": "core/set",
+            "args": {
+              "variable": "keys",
+              "value": "${keys}${kv.key}"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "qty": 5,
+      "keys": "xy",
+      "last": 1
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "010_validation_undeclared",
+  "description": "Undeclared variables are rejected before execution (FLOW.INVALID).",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c10",
+    "name": "c10",
+    "variables": [],
+    "steps": [
+      {
+        "id": "x",
+        "action": "core/log",
+        "args": {
+          "message": "${ghost}"
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "FLOW.INVALID"
+  }
+}

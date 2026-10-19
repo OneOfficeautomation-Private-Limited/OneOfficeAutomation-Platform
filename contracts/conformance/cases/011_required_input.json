@@ -1,0 +1,28 @@
+{
+  "name": "011_required_input",
+  "description": "Missing required input fails with RUN.INPUT_MISSING.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c11",
+    "name": "c11",
+    "variables": [
+      {
+        "name": "who",
+        "type": "String",
+        "direction": "input",
+        "required": true
+      }
+    ],
+    "steps": [
+      {
+        "id": "x",
+        "action": "core/comment"
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "RUN.INPUT_MISSING"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "invoice_summary",
+  "name": "Invoice summary",
+  "description": "Read invoices from an Excel workbook, total them, and write invoices above a threshold to a 'Review' sheet sorted by amount.",
+  "tags": ["finance", "excel"],
+  "requires": {"packages": {"ooa.excel": "^1.0.0", "ooa.datatable": "^1.0.0"}, "capabilities": ["filesystem"]},
+  "variables": [
+    {"name": "workbook", "type": "File", "direction": "input", "required": true, "description": "Path to the invoices .xlsx (columns Invoice, Vendor, Amount)."},
+    {"name": "threshold", "type": "Number", "direction": "input", "default": 1000, "description": "Invoices above this amount go to review."},
+    {"name": "invoices", "type": "Table"},
+    {"name": "review", "type": "Table"},
+    {"name": "row", "type": "Record"},
+    {"name": "total", "type": "Number", "direction": "output", "default": 0, "description": "Sum of all invoice amounts."},
+    {"name": "flagged", "type": "Number", "direction": "output", "default": 0, "description": "Number of invoices sent to review."}
+  ],
+  "steps": [
+    {"id": "open", "action": "ooa.excel/open", "args": {"path": "$workbook"}},
+    {"id": "try", "action": "core/try", "children": [
+      {"id": "read", "action": "ooa.excel/get_all_cells", "args": {}, "out": {"table": "invoices"}},
+      {"id": "sum", "action": "core/loop", "args": {"iterator": "table_rows", "over": "$invoices", "as": "row"}, "children": [
+        {"id": "add", "action": "core/set", "args": {"variable": "total", "value": {"expr": "$total + coalesce($row.Amount, 0)"}}}
+      ]},
+      {"id": "filter", "action": "ooa.datatable/filter", "args": {"table": "$invoices", "column": "Amount", "operator": "gt", "value": "$threshold"}, "out": {"table": "review", "count": "flagged"}},
+      {"id": "sort", "action": "ooa.datatable/sort", "args": {"table": "$review", "column": "Amount", "descending": true}, "out": {"table": "review"}},
+      {"id": "sheet", "action": "ooa.excel/add_sheet", "args": {"name": "Review"}},
+      {"id": "write", "action": "ooa.excel/write_table", "args": {"table": "$review", "sheet": "Review"}},
+      {"id": "save", "action": "ooa.excel/save", "args": {}},
+      {"id": "log", "action": "core/log", "args": {"message": "Total ${total}; ${flagged} invoice(s) above ${threshold} sent to review"}}
+    ],
+    "catch": [{"codes": ["EXCEL.*", "TABLE.*"], "children": [
+      {"id": "rethrow", "action": "core/throw", "args": {"code": "BUSINESS.WORKBOOK_FORMAT", "message": "The workbook does not have the expected Invoice/Vendor/Amount layout", "suggested_fix": "Check the first sheet has headers Invoice, Vendor and Amount in row 1."}}
+    ]}],
+    "finally": [{"id": "close", "action": "ooa.excel/close", "args": {}}]}
+  ]
+}

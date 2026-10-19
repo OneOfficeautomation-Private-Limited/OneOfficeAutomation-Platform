@@ -1,0 +1,67 @@
+{
+  "name": "001_decimal_arithmetic",
+  "description": "Number is decimal: 0.1 + 0.2 == 0.3 exactly; round half up.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c1",
+    "name": "c1",
+    "variables": [
+      {
+        "name": "a",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "b",
+        "type": "Boolean",
+        "direction": "output"
+      },
+      {
+        "name": "c",
+        "type": "Number",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/set",
+        "args": {
+          "variable": "a",
+          "value": {
+            "expr": "0.1 + 0.2"
+          }
+        }
+      },
+      {
+        "id": "s2",
+        "action": "core/set",
+        "args": {
+          "variable": "b",
+          "value": {
+            "expr": "$a == 0.3"
+          }
+        }
+      },
+      {
+        "id": "s3",
+        "action": "core/set",
+        "args": {
+          "variable": "c",
+          "value": {
+            "expr": "round(2.345, 2)"
+          }
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "a": 0.3,
+      "b": true,
+      "c": 2.35
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "name": "013_package_action_and_condition",
+  "description": "Package actions write outputs; package conditions work in If.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c13",
+    "name": "c13",
+    "variables": [
+      {
+        "name": "parts",
+        "type": "List",
+        "direction": "output"
+      },
+      {
+        "name": "ok",
+        "type": "Boolean",
+        "direction": "output",
+        "default": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s",
+        "action": "ooa.string/split",
+        "args": {
+          "text": "a, b ,c",
+          "delimiter": ","
+        },
+        "out": {
+          "items": "parts"
+        }
+      },
+      {
+        "id": "i",
+        "action": "core/if",
+        "args": {
+          "condition": {
+            "not": {
+              "condition": "ooa.file/exists",
+              "args": {
+                "path": "does/not/exist.txt"
+              }
+            }
+          }
+        },
+        "children": [
+          {
+            "id": "y",
+            "action": "core/set",
+            "args": {
+              "variable": "ok",
+              "value": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "parts": [
+        "a",
+        "b",
+        "c"
+      ],
+      "ok": true
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "window_days": 30,
+  "as_of": "2026-10-18",
+  "reason_rates": {"damaged": 1.0, "late": 0.2, "changed_mind": 0.9, "other": 0},
+  "notes": {
+    "damaged": "Full refund for items damaged on arrival.",
+    "late": "Goodwill credit of 20% for late delivery.",
+    "changed_mind": "Refund minus 10% restocking fee.",
+    "other": "Not covered by automatic policy; escalate to a person."
+  }
+}

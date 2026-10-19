@@ -1,0 +1,7 @@
+<configuration>
+  <!-- Quiet console for CLI and Studio; the Agent uses structured JSON logging (architecture s6). -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder><pattern>%d{HH:mm:ss} %-5level %logger{20} - %msg%n</pattern></encoder>
+  </appender>
+  <root level="WARN"><appender-ref ref="CONSOLE"/></root>
+</configuration>

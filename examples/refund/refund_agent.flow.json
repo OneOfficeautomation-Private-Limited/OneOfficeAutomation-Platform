@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "Agent",
+  "id": "refund_agent",
+  "name": "Customer refund agent",
+  "description": "Reads a customer email, applies the refund policy and issues refunds with human approval.",
+  "variables": [
+    {"name": "customer_email", "type": "String", "direction": "input", "required": true, "description": "Full text of the customer's email."}
+  ],
+  "agent": {
+    "instructions": "You are the refunds agent for a retail company. For each customer email: identify the order id and the reason (damaged, late, changed_mind or other); look up the order; check the refund policy; if eligible, issue a refund for at most the policy maximum; if not eligible or the reason is 'other', do not refund and escalate. Write a short, polite reply to the customer that quotes the policy note.",
+    "goalTemplate": "Handle this customer email:\n\n${customer_email}",
+    "modelConnection": "default",
+    "tools": [
+      {"automation": "lookup_order"},
+      {"automation": "check_refund_policy"},
+      {"automation": "issue_refund", "sensitive": true}
+    ],
+    "maxSteps": 8,
+    "maxCostUsd": 0.5,
+    "temperature": 0,
+    "outputSchema": {
+      "type": "object",
+      "required": ["decision", "order_id", "amount", "reply_to_customer"],
+      "properties": {
+        "decision": {"enum": ["refunded", "declined", "escalated"]},
+        "order_id": {"type": ["string", "null"]},
+        "amount": {"type": "number"},
+        "reply_to_customer": {"type": "string"}
+      }
+    }
+  }
+}

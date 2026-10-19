@@ -1,0 +1,33 @@
+# ONEOFFICEAUTOMATION
+
+> Enterprise intelligent-automation platform. Automations are OOA Flow JSON documents executed by the Runner;
+> every command is a signed package; AI agents call published automations as tools through one governed AI Gateway.
+
+This repository holds the contracts and the Python reference implementation (MVP slice 1 + agentic layer).
+The production platform is Java 21; it must pass the same conformance suite.
+
+## Contracts
+- [OOA Flow v1 JSON Schema](../contracts/flow-schema/flow.v1.json): kinds TaskBot, ApiTask, Process, Form, Agent; steps are a tree addressed `package/action`
+- [Conformance suite](../contracts/conformance/README.md): language-neutral cases every Runner must pass
+
+## Writing a Flow (rules an LLM must follow)
+- Every variable used as `$name` must be declared in `variables` with a type: String, Number, Boolean, DateTime, List, Dictionary, Table, Record, File, Window, UIElement, Credential, Any
+- Argument values: literal; `"$a.b[0]"` reference (keeps type); `"text ${name} ${len($xs)}"` interpolation; `{"expr": "$a * 2"}` expression; `{"literal": "$x"}` escape
+- Conditions: expression string, `{"op": "gt", "left": ..., "right": ...}`, `{"all": [...]}`, `{"any": [...]}`, `{"not": ...}`, or `{"condition": "package/condition", "args": {...}}`
+- Containers: `core/if` (children, elseIf, else), `core/loop` (iterator times|while|list|dictionary|table_rows|package/iterator, `as`, `index`), `core/try` (children, catch[codes, as], finally), `core/step`, `core/parallel`
+- Action outputs map to variables with `"out": {"outputName": "variableName"}`
+- Credentials are passed as `{"$credential": "locker/credential/attribute"}`; they can never be interpolated or copied to text
+- Expression functions: upper lower trim len concat contains startsWith endsWith replace substring split join toNumber toString toBoolean round abs min max sum now today dateAdd dateDiff formatDate parseDate coalesce isEmpty keys values get regexMatch regexExtract jsonParse jsonStringify if
+- Run `ooa manifest` for every action's inputs, outputs and descriptions; run `ooa validate FILE` before publishing
+
+## Agents
+- An Agent Flow declares `agent.instructions`, `agent.tools` (published automation ids; `sensitive: true` requires human approval), `maxSteps`, `maxCostUsd`, optional `outputSchema`
+- A tool's input schema is the automation's input variables; its result is the output variables
+
+## Errors
+Every error has `code`, `message`, `suggestedFix`, `retryable`, `stepId`. Catch blocks match codes or prefixes (`BUSINESS.*`).
+
+## Docs
+- [README](../README.md): quick start and CLI
+- [Traceability](TRACEABILITY.md): requirement IDs to code, tests and status
+- [Refund agent example](../examples/refund/refund_agent.flow.json)

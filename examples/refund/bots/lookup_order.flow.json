@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "ApiTask",
+  "id": "lookup_order",
+  "name": "Look up order",
+  "description": "Find an order by its id (format ORD-12345) and return its customer, item, total, currency and delivery date.",
+  "tags": ["refunds", "read-only"],
+  "requires": {"packages": {"ooa.json": "^1.0.0"}, "capabilities": ["filesystem"]},
+  "variables": [
+    {"name": "order_id", "type": "String", "direction": "input", "required": true, "description": "Order id, e.g. ORD-10042."},
+    {"name": "orders", "type": "Dictionary"},
+    {"name": "order", "type": "Dictionary", "direction": "output", "description": "Order record, empty when not found."},
+    {"name": "found", "type": "Boolean", "direction": "output", "default": false, "description": "True when the order exists."}
+  ],
+  "steps": [
+    {"id": "read", "action": "ooa.json/read_file", "args": {"path": "data/orders.json"}, "out": {"value": "orders"}},
+    {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders, upper(trim($order_id)))"}}},
+    {"id": "flag", "action": "core/set", "args": {"variable": "found", "value": {"expr": "not isEmpty($order)"}}}
+  ]
+}

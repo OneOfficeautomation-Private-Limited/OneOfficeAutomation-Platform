@@ -1,0 +1,7 @@
+{
+  "connections": [
+    {"name": "default", "provider": "scripted", "script": "demo_script.json", "model": "scripted-demo",
+     "inputUsdPerMtok": 3.0, "outputUsdPerMtok": 15.0, "default": true}
+  ],
+  "budgets": {"default": 5.0}
+}

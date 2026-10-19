@@ -1,0 +1,5 @@
+{
+  "ORD-10042": {"order_id": "ORD-10042", "customer": "Jane Doe", "item": "Tablet 10in", "total": 129.99, "currency": "GBP", "delivered_on": "2026-10-09", "status": "delivered"},
+  "ORD-10077": {"order_id": "ORD-10077", "customer": "Raj Patel", "item": "Desk lamp", "total": 39.50, "currency": "GBP", "delivered_on": "2026-08-02", "status": "delivered"},
+  "ORD-10101": {"order_id": "ORD-10101", "customer": "Li Wei", "item": "Monitor 27in", "total": 289.00, "currency": "GBP", "delivered_on": "2026-10-15", "status": "delivered"}
+}

@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "title": "OOA Flow v1",
+  "description": "Versioned definition of a ONEOFFICEAUTOMATION automation. Shared by Studio, Recorder, Runner, the AI co-pilot, the agent runtime, Git sync and import/export. Changes within v1 are additive only.",
+  "type": "object",
+  "required": ["kind", "id", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string", "description": "Schema URI; should be https://schemas.oneofficeautomation.com/flow/v1.json"},
+    "kind": {
+      "description": "Automation kind. TaskBot = desktop/UI bot; ApiTask = headless bot for containers; Process = long-running; Form = Assist form; Agent = AI agent definition.",
+      "enum": ["TaskBot", "ApiTask", "Process", "Form", "Agent"]
+    },
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$", "description": "Stable automation identifier, unique per tenant."},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Human-readable name shown in Control Center and used as the MCP tool title."},
+    "description": {"type": "string", "description": "What the automation does. Required for publishing as an agent tool, because the model reads it to decide when to call the tool."},
+    "version": {"type": "integer", "minimum": 0, "description": "Repository version number; assigned on check-in."},
+    "tags": {"type": "array", "items": {"type": "string"}, "description": "Free-form tags for search."},
+    "requires": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Execution prerequisites resolved before a run is dispatched.",
+      "properties": {
+        "packages": {
+          "type": "object",
+          "description": "Package id to semantic-version range (^1.2.0, ~1.2.0, >=1.2.0, 1.2.0).",
+          "additionalProperties": {"type": "string"}
+        },
+        "runtime": {"type": "string", "description": "Runner version range."},
+        "capabilities": {
+          "type": "array",
+          "description": "Device capabilities needed. ApiTask flows must not require 'desktop'.",
+          "items": {"enum": ["desktop", "browser", "network", "filesystem", "ai"]}
+        }
+      }
+    },
+    "variables": {
+      "type": "array",
+      "description": "Typed variables. Input variables become the tool input schema when the automation is exposed to agents or MCP clients; output variables become the tool result.",
+      "items": {"$ref": "#/$defs/variable"}
+    },
+    "steps": {"$ref": "#/$defs/stepList"},
+    "errorHandling": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Default error policy for the whole automation.",
+      "properties": {
+        "default": {"enum": ["stop", "continue"], "description": "What to do when a step fails outside any Try block."},
+        "retry": {"$ref": "#/$defs/retry"}
+      }
+    },
+    "agent": {"$ref": "#/$defs/agent"},
+    "ui": {
+      "type": "object",
+      "description": "Studio layout (canvas positions keyed by step id). Kept apart from logic so diffs and AI generation stay clean. Ignored by the Runner."
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "Agent"}}},
+      "then": {"required": ["agent"]},
+      "else": {"required": ["steps"]}
+    }
+  ],
+  "$defs": {
+    "type": {
+      "description": "OOA data type.",
+      "enum": ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"]
+    },
+    "variable": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$", "description": "Variable name, referenced in expressions as $name."},
+        "type": {"$ref": "#/$defs/type"},
+        "direction": {"enum": ["input", "output", "local"], "default": "local", "description": "input = supplied by caller; output = returned to caller; local = internal."},
+        "required": {"type": "boolean", "default": false, "description": "For inputs: the run is rejected when the value is missing and no default exists."},
+        "default": {"description": "Initial value. Not allowed for Credential variables."},
+        "description": {"type": "string", "description": "Shown in Studio and given to agents as the tool parameter description."},
+        "enum": {"type": "array", "description": "Allowed values for an input."}
+      }
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max": {"type": "integer", "minimum": 0, "maximum": 10, "description": "Maximum retry attempts after the first failure."},
+        "backoff": {"enum": ["fixed", "exponential"], "default": "fixed"},
+        "delayMs": {"type": "integer", "minimum": 0, "default": 500},
+        "codes": {"type": "array", "items": {"type": "string"}, "description": "Only retry these error codes. Default: errors marked retryable."}
+      }
+    },
+    "stepList": {"type": "array", "items": {"$ref": "#/$defs/step"}},
+    "step": {
+      "type": "object",
+      "required": ["id", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$", "description": "Stable step id used for breakpoints, logs, diffs and checkpoints. Unique within the flow."},
+        "action": {"type": "string", "pattern": "^[a-z][a-z0-9_.]*/[a-z][a-z0-9_]*$", "description": "Command address package/action, e.g. ooa.excel/get_cell or core/if."},
+        "description": {"type": "string"},
+        "disabled": {"type": "boolean", "default": false, "description": "Disabled steps are skipped."},
+        "args": {"type": "object", "description": "Action inputs, validated against the package manifest. Values may be literals, $references, '${expr}' interpolations or {\"expr\": \"...\"} objects."},
+        "out": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Map of action output name to variable name."},
+        "children": {"$ref": "#/$defs/stepList", "description": "Body of a container step (if/loop/try/step/parallel)."},
+        "else": {"$ref": "#/$defs/stepList", "description": "Else branch of core/if."},
+        "elseIf": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["condition", "children"], "additionalProperties": false,
+            "properties": {"condition": {}, "children": {"$ref": "#/$defs/stepList"}}
+          }
+        },
+        "catch": {
+          "type": "array",
+          "description": "Catch blocks of core/try, matched in order by error code.",
+          "items": {
+            "type": "object", "required": ["children"], "additionalProperties": false,
+            "properties": {
+              "codes": {"type": "array", "items": {"type": "string"}, "description": "Error codes or prefixes ending in '*'. Empty = catch all."},
+              "as": {"type": "string", "description": "Variable that receives the error as a Dictionary (code, message, suggestedFix, stepId)."},
+              "children": {"$ref": "#/$defs/stepList"}
+            }
+          }
+        },
+        "finally": {"$ref": "#/$defs/stepList"},
+        "retry": {"$ref": "#/$defs/retry"},
+        "timeoutSeconds": {"type": "number", "exclusiveMinimum": 0, "description": "Overrides the action's manifest timeout."},
+        "continueOnError": {"type": "boolean", "default": false}
+      }
+    },
+    "agent": {
+      "type": "object",
+      "required": ["instructions", "tools"],
+      "additionalProperties": false,
+      "description": "AI agent definition (kind = Agent). Agents run through the AI Gateway and call published automations as tools.",
+      "properties": {
+        "instructions": {"type": "string", "description": "System instructions: role, policy, tone."},
+        "goalTemplate": {"type": "string", "description": "Optional template turning input variables into the user goal, e.g. 'Handle this email: ${email}'."},
+        "modelConnection": {"type": "string", "description": "Name of a model connection configured by an AI admin."},
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object", "required": ["automation"], "additionalProperties": false,
+            "properties": {
+              "automation": {"type": "string", "description": "Id of a published automation exposed as a tool."},
+              "version": {"description": "Pinned version number or 'production' (default)."},
+              "sensitive": {"type": "boolean", "default": false, "description": "Sensitive tools need human approval before every call."},
+              "description": {"type": "string", "description": "Overrides the automation description given to the model."}
+            }
+          }
+        },
+        "maxSteps": {"type": "integer", "minimum": 1, "maximum": 100, "default": 12, "description": "Maximum model turns before the run stops with status limit_reached."},
+        "maxCostUsd": {"type": "number", "minimum": 0, "default": 1.0, "description": "Cost ceiling for one agent run."},
+        "temperature": {"type": "number", "minimum": 0, "maximum": 2, "default": 0},
+        "outputSchema": {"type": "object", "description": "Optional JSON Schema the final answer must satisfy."}
+      }
+    }
+  }
+}

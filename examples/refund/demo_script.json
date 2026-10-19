@@ -1,0 +1,6 @@
+[
+  {"content": "I'll look up the order first.", "tool_calls": [{"name": "lookup_order", "arguments": {"order_id": "ORD-10042"}}]},
+  {"tool_calls": [{"name": "check_refund_policy", "arguments": {"order_id": "ORD-10042", "reason": "damaged"}}]},
+  {"content": "The order is eligible for a full refund of 129.99 GBP.", "tool_calls": [{"name": "issue_refund", "arguments": {"order_id": "ORD-10042", "amount": 129.99, "note": "Damaged on arrival (cracked screen)"}}]},
+  {"content": "{\"decision\": \"refunded\", \"order_id\": \"ORD-10042\", \"amount\": 129.99, \"reply_to_customer\": \"Dear Jane, we're sorry your tablet arrived damaged. We have refunded 129.99 GBP to your original payment method (reference RF-ORD-10042). Full refund for items damaged on arrival.\"}"}
+]

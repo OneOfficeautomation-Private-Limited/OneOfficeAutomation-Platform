@@ -1,0 +1,89 @@
+{
+  "name": "004_loop_list_break_continue",
+  "description": "continue skips, break exits the innermost loop.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c4",
+    "name": "c4",
+    "variables": [
+      {
+        "name": "xs",
+        "type": "List",
+        "default": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "name": "x",
+        "type": "Number"
+      },
+      {
+        "name": "sum",
+        "type": "Number",
+        "direction": "output",
+        "default": 0
+      }
+    ],
+    "steps": [
+      {
+        "id": "l",
+        "action": "core/loop",
+        "args": {
+          "iterator": "list",
+          "over": "$xs",
+          "as": "x"
+        },
+        "children": [
+          {
+            "id": "skip",
+            "action": "core/if",
+            "args": {
+              "condition": "$x % 2 == 0"
+            },
+            "children": [
+              {
+                "id": "c",
+                "action": "core/continue"
+              }
+            ]
+          },
+          {
+            "id": "stop",
+            "action": "core/if",
+            "args": {
+              "condition": "$x > 4"
+            },
+            "children": [
+              {
+                "id": "b",
+                "action": "core/break"
+              }
+            ]
+          },
+          {
+            "id": "add",
+            "action": "core/set",
+            "args": {
+              "variable": "sum",
+              "value": {
+                "expr": "$sum + $x"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "sum": 4
+    }
+  }
+}

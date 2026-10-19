@@ -1,0 +1,26 @@
+{
+  "name": "008_uncaught_error",
+  "description": "An uncaught error fails the run with its code and step id.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c8",
+    "name": "c8",
+    "variables": [],
+    "steps": [
+      {
+        "id": "x",
+        "action": "core/throw",
+        "args": {
+          "code": "BUSINESS.STOP",
+          "message": "nope"
+        }
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "failed",
+    "errorCode": "BUSINESS.STOP",
+    "errorStepId": "x"
+  }
+}

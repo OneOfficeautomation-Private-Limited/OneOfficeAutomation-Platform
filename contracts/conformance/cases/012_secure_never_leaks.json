@@ -1,0 +1,41 @@
+{
+  "name": "012_secure_never_leaks",
+  "description": "Credential values cannot be interpolated or copied into String variables.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c12",
+    "name": "c12",
+    "variables": [
+      {
+        "name": "pwd",
+        "type": "Credential",
+        "direction": "input",
+        "required": true
+      },
+      {
+        "name": "s",
+        "type": "String"
+      }
+    ],
+    "steps": [
+      {
+        "id": "x",
+        "action": "core/set",
+        "args": {
+          "variable": "s",
+          "value": "pw=${pwd}"
+        }
+      }
+    ]
+  },
+  "inputs": {
+    "pwd": {
+      "$credential": "test/app/password"
+    }
+  },
+  "expect": {
+    "status": "failed",
+    "errorCode": "VAR.SECURE_LEAK",
+    "errorStepId": "x"
+  }
+}

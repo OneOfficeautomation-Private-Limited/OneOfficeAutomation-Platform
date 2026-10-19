@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "ApiTask",
+  "id": "issue_refund",
+  "name": "Issue refund",
+  "description": "Issue a refund to the customer's original payment method. Moves money; never exceed the policy maximum.",
+  "tags": ["refunds", "sensitive"],
+  "requires": {"packages": {"ooa.json": "^1.0.0", "ooa.file": "^1.0.0"}, "capabilities": ["filesystem"]},
+  "variables": [
+    {"name": "order_id", "type": "String", "direction": "input", "required": true, "description": "Order id."},
+    {"name": "amount", "type": "Number", "direction": "input", "required": true, "description": "Refund amount in the order currency."},
+    {"name": "note", "type": "String", "direction": "input", "default": "", "description": "Reason recorded with the refund."},
+    {"name": "orders", "type": "Dictionary"},
+    {"name": "order", "type": "Dictionary"},
+    {"name": "ledger", "type": "List", "default": []},
+    {"name": "entry", "type": "Dictionary"},
+    {"name": "refund_id", "type": "String", "direction": "output", "description": "Refund reference."},
+    {"name": "status", "type": "String", "direction": "output", "default": "not_issued", "description": "issued when the refund was booked."}
+  ],
+  "errorHandling": {"default": "stop"},
+  "steps": [
+    {"id": "read_orders", "action": "ooa.json/read_file", "args": {"path": "data/orders.json"}, "out": {"value": "orders"}},
+    {"id": "pick", "action": "core/set", "args": {"variable": "order", "value": {"expr": "get($orders, upper(trim($order_id)))"}}},
+    {"id": "guards", "action": "core/step", "args": {"title": "Business guards"}, "children": [
+      {"id": "no_order", "action": "core/if", "args": {"condition": {"op": "empty", "left": "$order"}}, "children": [
+        {"id": "t1", "action": "core/throw", "args": {"code": "BUSINESS.ORDER_NOT_FOUND", "message": "Order ${order_id} does not exist"}}]},
+      {"id": "bad_amount", "action": "core/if", "args": {"condition": "$amount <= 0 or $amount > $order.total"}, "children": [
+        {"id": "t2", "action": "core/throw", "args": {"code": "BUSINESS.REFUND_AMOUNT_INVALID", "message": "Refund ${amount} is outside 0..${order.total}", "suggested_fix": "Use check_refund_policy to get the allowed maximum."}}]}
+    ]},
+    {"id": "load_ledger", "action": "core/if", "args": {"condition": {"condition": "ooa.file/exists", "args": {"path": "data/refunds.json"}}}, "children": [
+      {"id": "read_ledger", "action": "ooa.json/read_file", "args": {"path": "data/refunds.json"}, "out": {"value": "ledger"}}]},
+    {"id": "dup_check", "action": "core/loop", "args": {"iterator": "list", "over": "$ledger", "as": "entry"}, "children": [
+      {"id": "dup", "action": "core/if", "args": {"condition": "$entry.order_id == $order.order_id"}, "children": [
+        {"id": "t3", "action": "core/throw", "args": {"code": "BUSINESS.ALREADY_REFUNDED", "message": "Order ${order_id} was already refunded as ${entry.refund_id}"}}]}]},
+    {"id": "ref", "action": "core/set", "args": {"variable": "refund_id", "value": "RF-${order.order_id}"}},
+    {"id": "entry", "action": "core/set", "args": {"variable": "entry", "value": {"refund_id": "$refund_id", "order_id": "$order.order_id", "amount": "$amount", "currency": "$order.currency", "note": "$note", "booked_at": {"expr": "formatDate(now(), '%Y-%m-%dT%H:%M:%SZ')"}}}},
+    {"id": "append", "action": "core/set", "args": {"variable": "ledger", "value": {"expr": "$ledger + [$entry]"}}},
+    {"id": "write", "action": "ooa.json/write_file", "args": {"path": "data/refunds.json", "value": "$ledger"}, "retry": {"max": 2, "backoff": "exponential", "delayMs": 200, "codes": ["ACTION.UNEXPECTED"]}},
+    {"id": "done", "action": "core/set", "args": {"variable": "status", "value": "issued"}},
+    {"id": "log", "action": "core/log", "args": {"message": "Refund ${refund_id} booked: ${amount} ${order.currency}"}}
+  ]
+}

@@ -1,0 +1,5 @@
+# Windows scripts must keep CRLF line endings or cmd.exe mis-handles goto labels
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew text eol=lf
+*.sh text eol=lf
