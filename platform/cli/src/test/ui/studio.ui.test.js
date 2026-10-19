@@ -7,7 +7,7 @@ let failures = 0;
 const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + name + (ok || extra === undefined ? "" : "  -> " + extra)); if (!ok) failures++; };
 
 (async () => {
-  const dom = new JSDOM(fs.readFileSync(S + "/index.html", "utf8").replace('<script src="/studio.js"></script>', ""), { url: BASE + "/", runScripts: "dangerously", pretendToBeVisual: true });
+  const dom = new JSDOM(fs.readFileSync(S + "/index.html", "utf8").replace('<script src="studio.js"></script>', ""), { url: BASE + "/", runScripts: "dangerously", pretendToBeVisual: true });
   const w = dom.window, d = w.document;
   w.fetch = (u, o) => fetch(new URL(u, BASE), o);
   w.CSS = w.CSS || {}; w.CSS.escape = w.CSS.escape || ((s) => s);
@@ -37,7 +37,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   await until(() => d.querySelectorAll(".pkg-head").length > 10);
   click(d.getElementById("btn-fold-groups"));
   // ---- branding and explorer ----
-  check("logo shown in header", d.querySelector(".topbar img.logo").getAttribute("src") === "/logo-mark.png");
+  check("logo shown in header", d.querySelector(".topbar img.logo").getAttribute("src") === "logo-mark.png");
   const logoRes = await fetch(BASE + "/logo-mark.png");
   check("logo served as PNG", logoRes.status === 200 && logoRes.headers.get("content-type") === "image/png");
   check("explorer shows seeded workspace", await until(() => node("Examples") && node("My Bots") && node("data")));
@@ -151,7 +151,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   click(d.querySelector('.rail-btn.active'));
   check("clicking the active rail icon collapses the panel", await until(() => d.body.classList.contains("no-left")));
   click(d.querySelector('.rail-btn[data-side="variables"]'));
-  check("variables open in the side panel", await until(() => !d.body.classList.contains("no-left") && !d.getElementById("side-variables").hidden && d.querySelector("#side-variables table")));
+  check("variables open in the side panel", await until(() => !d.body.classList.contains("no-left") && !d.getElementById("side-variables").hidden && d.querySelector("#side-variables .var-scroll")));
   click(d.getElementById("tg-right"));
   check("settings panel toggle", await until(() => d.body.classList.contains("no-right")));
   click(d.getElementById("tg-right"));
@@ -182,10 +182,15 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("settings use foldable sections", await until(() => d.querySelectorAll("#props details.acc").length >= 2));
 
   // ================= Recorder without the browser module =================
-  answers.push("https://example.com");
-  click(d.getElementById("btn-record"));
-  await sleep(600);
-  check("record explains when the Browser module is missing", lastToast.includes("STUDIO.NO_BROWSER_MODULE") || lastToast.includes("Inserted"), lastToast);
+  // With the optional Browser module installed, Record and Capture open a real browser, so these checks only run without it.
+  const hasBrowser = w.eval("state.packages.some((p) => p.id === 'ooa.browser')");
+  if (hasBrowser) console.log("  SKIP record/capture without the Browser module (packages-browser is installed here)");
+  else {
+    answers.push("https://example.com");
+    click(d.getElementById("btn-record"));
+    await sleep(600);
+    check("record explains when the Browser module is missing", lastToast.includes("STUDIO.NO_BROWSER_MODULE") || lastToast.includes("Inserted"), lastToast);
+  }
 
   // ================= Triggers (server side, end to end) =================
   fs.mkdirSync(path.join(WS, "inbox"), { recursive: true });
@@ -333,8 +338,96 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("panels have drag handles for resizing", d.querySelectorAll(".splitter").length === 3);
   w.eval("setSize('side', 360)");
   check("resizing is applied and remembered", d.documentElement.style.getPropertyValue("--side-w") === "360px" && JSON.parse(w.localStorage.getItem("ooa.studio.prefs")).sizes.side === 360);
-  const cap = await (await fetch(BASE + "/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: "https://example.com" }) })).json();
-  check("Capture explains when the Browser module is missing", cap.error && cap.error.code === "STUDIO.NO_BROWSER_MODULE");
+  if (!hasBrowser) {
+    const cap = await (await fetch(BASE + "/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: "https://example.com" }) })).json();
+    check("Capture explains when the Browser module is missing", cap.error && cap.error.code === "STUDIO.NO_BROWSER_MODULE");
+  }
+
+  // ================= Part 3: colours, Automation home, typed items, variables =================
+  check("commands are grouped by category with coloured icons", d.querySelectorAll("#library .pkg-head .tile").length >= 10 && [...d.querySelectorAll("#library .pkg-head .gname")].some((x) => x.textContent === "Logic and flow"));
+  w.eval("state.dirty = false; goHome()");
+  check("the Automation home lists the workspace with create cards and type filters", await until(() => !d.getElementById("welcome").hidden && d.querySelectorAll(".create-card").length >= 7 && d.querySelectorAll(".home-table tbody tr").length > 3 && d.querySelectorAll(".chips .chip").length >= 3));
+  check("the explorer has a Create menu for every item type", ["btn-new-bot", "btn-new-template", "btn-new-api", "btn-new-form", "btn-new-process", "btn-new-doc", "btn-new-skill", "btn-new-py", "btn-new-ps1", "btn-new-vbs", "btn-new-js"].every((id) => d.getElementById(id)));
+  click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  click(node("My Bots"));
+
+  answers.push("Leave request"); click(d.getElementById("btn-new-form"));
+  check("a new form opens in the form designer", await until(() => w.eval("state.item && state.item.type") === "form" && fsx("My Bots/Leave request.form.json") && d.querySelectorAll("#item-editor .fcard").length === 2));
+  click([...d.querySelectorAll("#item-editor .pal-item")].find((b) => b.textContent === "Drop-down"));
+  check("adding a field selects it and shows its settings", await until(() => w.eval("state.item.data.fields.length") === 3 && d.querySelector("#item-editor .designer-props textarea")));
+  click(d.querySelector('#item-editor [data-itab="preview"]'));
+  check("the form preview renders real controls", await until(() => d.querySelector("#item-editor .form-card.preview select")));
+  click(d.getElementById("btn-save"));
+  check("the form is saved as JSON", await until(() => { try { return JSON.parse(fs.readFileSync(path.join(WS, "My Bots/Leave request.form.json"), "utf8")).fields.length === 3; } catch (_) { return false; } }));
+
+  answers.push("Approvals"); click(d.getElementById("btn-new-process"));
+  check("a new process opens in the process designer", await until(() => w.eval("state.item && state.item.type") === "process"));
+  for (const label of ["Human task", "Approval", "Bot task"]) click([...d.querySelectorAll("#item-editor .pal-item")].find((b) => b.textContent === label));
+  check("stages are added to the flow", await until(() => d.querySelectorAll("#item-editor .pcard").length === 3 && w.eval("state.item.data.stages.length") === 3));
+  click(d.getElementById("btn-save"));
+  await until(() => !w.eval("state.dirty"));
+
+  answers.push("Invoices"); click(d.getElementById("btn-new-doc"));
+  check("a document automation opens with its field table", await until(() => w.eval("state.item && state.item.type") === "document" && d.querySelectorAll("#item-editor .doc-fields tbody tr").length === 2));
+  w.eval("generateExtractionBot(state.item)");
+  check("document automation generates a valid extraction bot", await until(() => w.eval("state.file") === "My Bots/Invoices extraction.flow.json" && w.eval("state.flow.steps.some(s => s.action === 'ooa.genai/extract')")));
+  click(d.getElementById("btn-validate"));
+  check("the generated extraction bot validates", await until(() => w.eval("state.problems.length") === 0, 4000), JSON.stringify(w.eval("state.problems")));
+
+  answers.push("triage"); click(d.getElementById("btn-new-skill"));
+  check("AI Skills are created in the ai-skills folder", await until(() => w.eval("state.file") === "ai-skills/triage.json" && fsx("ai-skills/triage.json") && d.getElementById("item-editor").textContent.includes("Prompt template")));
+
+  click(node("My Bots"));
+  answers.push("hello"); click(d.getElementById("btn-new-py"));
+  check("a Python script opens in the code editor", await until(() => w.eval("state.item && state.item.type") === "script" && d.querySelector("#item-editor textarea.code").value.includes("import sys")));
+  click(d.getElementById("btn-run"));
+  check("Run runs the script and shows its output", await until(() => { const r = w.eval("state.lastRun && state.lastRun.result"); return r && r.status === "success" && String(r.outputs.output).includes("received"); }, 20000), JSON.stringify(w.eval("state.lastRun && state.lastRun.result")));
+
+  const tpls = w.eval("JSON.stringify(availableTemplates().map((t) => ({ id: t.id, flow: { $schema: SCHEMA, kind: 'TaskBot', id: 't_' + t.id, name: t.name, variables: t.variables, steps: t.steps } })))");
+  const badTpl = [];
+  for (const t of JSON.parse(tpls)) {
+    const r = await (await fetch(BASE + "/api/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(t.flow) })).json();
+    if (r.problems.length) badTpl.push(t.id + ": " + JSON.stringify(r.problems));
+  }
+  check("every available bot template validates (" + JSON.parse(tpls).length + " templates)", JSON.parse(tpls).length >= 4 && badTpl.length === 0, badTpl.join("; "));
+  answers.push("CSV loop");
+  w.eval("createFromTemplate(TEMPLATES.find((t) => t.id === 'csv_rows'))");
+  check("a bot is created from a template", await until(() => w.eval("state.file") === "My Bots/CSV loop.flow.json" && w.eval("state.flow.steps.length") === 3));
+  check("container steps are drawn as coloured blocks", await until(() => d.querySelector("#steps .block > .section") && d.querySelector("#steps .step .tile.ico svg") && d.querySelector("#steps .step").style.getPropertyValue("--c")));
+  click([...d.querySelectorAll(".tab")].find((b) => b.dataset.tab === "deps"));
+  check("the Dependencies tab lists what the bot uses and who uses it", await until(() => d.querySelectorAll("#tab-deps .dep-group").length === 5));
+  click([...d.querySelectorAll(".tab")].find((b) => b.dataset.tab === "steps"));
+
+  // variables: create a List with the editor, pick it in a field, rename it everywhere
+  click(d.querySelector('.rail-btn[data-side="variables"]'));
+  if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="variables"]'));
+  await until(() => d.getElementById("btn-new-var"));
+  click(d.getElementById("btn-new-var"));
+  check("+ New opens the variable editor", await until(() => !d.getElementById("dialog").hidden && d.querySelectorAll("#dialog .type-opt").length === 13));
+  change(d.querySelector('#dialog input[aria-label="Variable name"]'), "amounts");
+  click([...d.querySelectorAll("#dialog .type-opt")].find((b) => b.textContent === "List"));
+  await until(() => [...d.querySelectorAll("#dialog button")].some((b) => b.textContent === "+ Item"));
+  click([...d.querySelectorAll("#dialog button")].find((b) => b.textContent === "+ Item"));
+  click([...d.querySelectorAll("#dialog button")].find((b) => b.textContent === "+ Item"));
+  const items = d.querySelectorAll('#dialog .ve input[aria-label^="Item"]');
+  change(items[0], "10"); change(items[1], "25.5");
+  d.querySelector('#dialog input[aria-label="Variable name"]').value = "amounts";
+  click([...d.querySelectorAll("#dialog-actions button")].find((b) => b.textContent === "Create variable"));
+  check("the List variable is created with its typed default", await until(() => JSON.stringify(w.eval("state.flow.variables.find((v) => v.name === 'amounts')")) === JSON.stringify({ name: "amounts", type: "List", default: [10, 25.5] })), JSON.stringify(w.eval("state.flow.variables.find((v) => v.name === 'amounts')")));
+  check("the variables pane groups variables and shows the new one", await until(() => d.querySelector('#side-variables .var-row[data-var="amounts"]') && d.getElementById("side-variables").textContent.includes("Inside the bot")));
+  w.eval("selectById('s2')");
+  await until(() => d.querySelector("#props .var-btn"));
+  click(d.querySelector("#props .var-btn"));
+  check("the {x} picker lists the bot's variables", await until(() => d.getElementById("var-pop") && [...d.querySelectorAll("#var-pop .var-pop-item")].some((b) => b.textContent.includes("$amounts"))));
+  click([...d.querySelectorAll("#var-pop .var-pop-item")].find((b) => b.textContent.includes("$amounts")));
+  check("picking a variable inserts it into the field", await until(() => String(w.eval("state.flow.steps[1].args.message")).includes("$amounts")), w.eval("state.flow.steps[1].args.message"));
+  w.eval("editVariable(state.flow.variables.find((v) => v.name === 'row_count'))");
+  await until(() => !d.getElementById("dialog").hidden);
+  d.querySelector('#dialog input[aria-label="Variable name"]').value = "rows_read";
+  click([...d.querySelectorAll("#dialog-actions button")].find((b) => b.textContent === "Save changes"));
+  check("renaming a variable updates $name, ${name} and outputs everywhere", await until(() => w.eval("state.flow.steps[1].args.message").includes("Read ${rows_read} rows") && w.eval("state.flow.steps[0].out.row_count") === "rows_read"), w.eval("JSON.stringify(state.flow.steps.slice(0, 2))"));
+  click(d.getElementById("btn-save")); await until(() => !w.eval("state.dirty"));
 
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));

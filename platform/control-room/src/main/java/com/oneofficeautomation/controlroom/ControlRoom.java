@@ -23,6 +23,7 @@ public final class ControlRoom {
     public final Audit audit;
     public final Vault vault;
     private final FlowValidator validator;
+    private final PackageRegistry registry;
     static final Duration SESSION = Duration.ofHours(8);
     static final Duration ONLINE = Duration.ofSeconds(60);
     static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.flow\\.json$");
@@ -33,6 +34,7 @@ public final class ControlRoom {
         this.audit = new Audit(db);
         this.vault = new Vault(dataDir);
         this.validator = new FlowValidator(registry, schema);
+        this.registry = registry;
         db.migrate();
     }
 
@@ -277,6 +279,14 @@ public final class ControlRoom {
         return Map.of("key", key, "expires_in_hours", hours);
     }
 
+    /** One-hour key for the Bot Agent that `ooa server` starts on this machine; no signed-in user is involved. */
+    public String localRegistrationKey() {
+        String key = "ooareg_" + Security.token(24);
+        db.update("INSERT INTO registration_keys (key_hash, created_by, created, expires) VALUES (?,?,?,?)", Security.sha256(key), "system", now(), now().plus(Duration.ofHours(1)));
+        audit.record("system", "device.registration_key", "device", null, Map.of("local_agent", true), "ok", null);
+        return key;
+    }
+
     public Map<String, Object> registerDevice(String key, String name, String hostname, String os, String agentVersion, String ip) {
         return db.tx(() -> {
             Map<String, Object> k = key == null ? null : db.one("SELECT * FROM registration_keys WHERE key_hash = ?", Security.sha256(key));
@@ -312,6 +322,14 @@ public final class ControlRoom {
             out.add(m);
         }
         return out;
+    }
+
+    public void renameDevice(User by, String deviceId, String name, String ip) {
+        require(by, "devices.manage", "manage devices");
+        String n = name == null ? "" : name.trim();
+        if (n.isEmpty() || n.length() > 120) throw new OoaException("CR.BAD_INPUT", "Device names have 1 to 120 characters");
+        if (db.update("UPDATE devices SET name = ? WHERE id = ?", n, deviceId) == 0) throw notFound("Device");
+        audit.record(by.username(), "device.rename", "device", deviceId, Map.of("name", n), "ok", ip);
     }
 
     public void setDeviceEnabled(User by, String deviceId, boolean enabled, String ip) {
@@ -465,6 +483,101 @@ public final class ControlRoom {
                 "r.error, r.pause_requested, r.cancel_requested, r.steps FROM runs r LEFT JOIN devices d ON d.id = r.device_id " + where + " ORDER BY r.created DESC LIMIT " + Math.max(1, Math.min(500, limit)));
     }
 
+    /**
+     * Runs with filters (filter=active|history, status, bot, device, user, source, q, from, to) and paging (offset, limit).
+     * Running runs carry their progress: steps finished, total steps and the step running now.
+     */
+    public Map<String, Object> runsPage(User by, Map<String, String> q) {
+        require(by, "runs.view", "view runs");
+        List<String> where = new ArrayList<>();
+        List<Object> p = new ArrayList<>();
+        String filter = q.getOrDefault("filter", "all");
+        if ("active".equals(filter)) where.add("r.status IN ('queued', 'running')");
+        else if ("history".equals(filter)) where.add("r.status IN ('success', 'failed', 'stopped')");
+        String status = q.get("status");
+        if (status != null && Set.of("queued", "running", "success", "failed", "stopped").contains(status)) { where.add("r.status = ?"); p.add(status); }
+        for (String[] f : new String[][] {{"bot", "r.bot_path"}, {"device", "r.device_id"}, {"user", "r.requested_by"}}) {
+            String v = q.get(f[0]);
+            if (v != null && !v.isBlank()) { where.add(f[1] + " = ?"); p.add(v); }
+        }
+        String source = q.get("source");
+        if (source != null && !source.isBlank()) { where.add("(r.source = ? OR r.source LIKE ?)"); p.add(source); p.add(source + ":%"); }
+        String text = q.get("q");
+        if (text != null && !text.isBlank()) {
+            String like = "%" + text.toLowerCase(Locale.ROOT) + "%";
+            where.add("(LOWER(r.bot_path) LIKE ? OR LOWER(r.id) LIKE ? OR LOWER(COALESCE(r.error, '')) LIKE ? OR LOWER(r.requested_by) LIKE ?)");
+            p.add(like); p.add(like); p.add(like); p.add(like);
+        }
+        Instant from = instant(q.get("from"), false), to = instant(q.get("to"), true);
+        if (from != null) { where.add("r.created >= ?"); p.add(from); }
+        if (to != null) { where.add("r.created < ?"); p.add(to); }
+        String w = where.isEmpty() ? "" : " WHERE " + String.join(" AND ", where);
+        int limit = Math.max(1, Math.min(500, intOr(q.get("limit"), 100))), offset = Math.max(0, intOr(q.get("offset"), 0));
+        long total = count("SELECT COUNT(*) AS n FROM runs r" + w, p.toArray());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.source, r.created, r.started, r.finished, " +
+                "r.duration_ms, r.error, r.pause_requested, r.cancel_requested, r.steps FROM runs r LEFT JOIN devices d ON d.id = r.device_id" + w +
+                " ORDER BY r.created DESC LIMIT " + limit + " OFFSET " + offset, p.toArray())) {
+            Map<String, Object> m = new LinkedHashMap<>(r);
+            if ("running".equals(r.get("status"))) m.put("progress", progress((String) r.get("id")));
+            out.add(m);
+        }
+        return Map.of("runs", out, "total", total, "offset", offset, "limit", limit);
+    }
+
+    static int intOr(String v, int dflt) { try { return v == null ? dflt : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return dflt; } }
+
+    /** An instant, or a date (YYYY-MM-DD, UTC); for an end date the day is included. */
+    static Instant instant(String v, boolean endOfDay) {
+        if (v == null || v.isBlank()) return null;
+        try { return Instant.parse(v.trim()); } catch (RuntimeException ignored) { }
+        try { LocalDate d = LocalDate.parse(v.trim()); return (endOfDay ? d.plusDays(1) : d).atStartOfDay(ZoneOffset.UTC).toInstant(); }
+        catch (RuntimeException e) { throw new OoaException("CR.BAD_INPUT", "Not a date: " + v, "Use YYYY-MM-DD."); }
+    }
+
+    /** Steps finished, total steps (top-level bot) and the step running now, from the run's live events. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> progress(String runId) {
+        int total = 0, finished = 0;
+        String stepId = null, action = null;
+        for (Map<String, Object> row : db.query("SELECT event FROM run_events WHERE run_id = ? ORDER BY seq", runId)) {
+            Map<String, Object> e;
+            try { e = (Map<String, Object>) JsonLite.parse((String) row.get("event")); } catch (RuntimeException bad) { continue; }
+            Map<String, Object> d = e.get("data") instanceof Map ? (Map<String, Object>) e.get("data") : Map.of();
+            String type = String.valueOf(e.get("type"));
+            if (type.equals("run.started") && total == 0 && d.get("totalSteps") instanceof Number n && (!(d.get("depth") instanceof Number dp) || dp.intValue() == 0)) total = n.intValue();
+            else if (type.equals("step.started")) { stepId = (String) e.get("stepId"); action = String.valueOf(d.get("action")); }
+            else if (type.equals("step.finished")) finished++;
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("total", total);
+        m.put("finished", finished);
+        m.put("step_id", stepId);
+        m.put("action", action);
+        return m;
+    }
+
+    /** Runs the bot again on the same device with the same inputs (the current production version). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rerun(User by, String runId, String ip) {
+        Map<String, Object> r = db.one("SELECT bot_path, device_id, inputs FROM runs WHERE id = ?", runId);
+        if (r == null) throw notFound("Run");
+        Map<String, Object> inputs = r.get("inputs") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) r.get("inputs"));
+        return startRun(by.username(), by.role(), (String) r.get("bot_path"), (String) r.get("device_id"), inputs, "rerun", ip);
+    }
+
+    /** Command names for the console's run log, e.g. "ooa.excel/open" -> "Open workbook". */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> actionNames() {
+        Map<String, Object> names = new TreeMap<>();
+        for (Map<String, Object> m : registry.allManifests())
+            for (Object a : (List<Object>) m.getOrDefault("actions", List.of())) {
+                Map<String, Object> am = (Map<String, Object>) a;
+                names.put(m.get("id") + "/" + am.get("id"), am.get("name"));
+            }
+        return names;
+    }
+
     public Map<String, Object> run(User by, String runId, long afterSeq) {
         require(by, "runs.view", "view runs");
         Map<String, Object> r = db.one("SELECT r.*, d.name AS device_name FROM runs r LEFT JOIN devices d ON d.id = r.device_id WHERE r.id = ?", runId);
@@ -529,6 +642,15 @@ public final class ControlRoom {
     }
 
     public List<Map<String, Object>> schedules(User by) { require(by, "schedules.view", "view schedules"); return db.query("SELECT * FROM schedules ORDER BY name"); }
+
+    /** Starts a schedule's bot now, with its device and inputs, as the person who asked. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> runScheduleNow(User by, String sid, String ip) {
+        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        if (s == null) throw notFound("Schedule");
+        Map<String, Object> inputs = s.get("inputs") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) s.get("inputs"));
+        return startRun(by.username(), by.role(), (String) s.get("bot_path"), (String) s.get("device_id"), inputs, "schedule:" + sid, ip);
+    }
 
     public void setScheduleEnabled(User by, String sid, boolean en, String ip) {
         require(by, "schedules.manage", "manage schedules");
@@ -761,6 +883,30 @@ public final class ControlRoom {
         m.put("success_24h", count("SELECT COUNT(*) AS n FROM runs WHERE status = 'success' AND finished > ?", day));
         m.put("failed_24h", count("SELECT COUNT(*) AS n FROM runs WHERE status = 'failed' AND finished > ?", day));
         m.put("schedules", count("SELECT COUNT(*) AS n FROM schedules WHERE enabled = TRUE"));
+        m.put("stopped_24h", count("SELECT COUNT(*) AS n FROM runs WHERE status = 'stopped' AND finished > ?", day));
+        long ok = (Long) m.get("success_24h"), bad = (Long) m.get("failed_24h");
+        m.put("success_rate_24h", ok + bad == 0 ? null : Math.round(100.0 * ok / (ok + bad)));
+        Map<String, Object> avg = db.one("SELECT AVG(duration_ms) AS a FROM runs WHERE status = 'success' AND finished > ?", day);
+        m.put("avg_duration_ms_24h", avg == null || avg.get("a") == null ? null : ((Number) avg.get("a")).longValue());
+        if (Rbac.allowed(by.role(), "runs.view")) {
+            // Runs per day for the last 7 days (UTC), by outcome.
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            Map<LocalDate, long[]> perDay = new TreeMap<>();
+            for (int i = 6; i >= 0; i--) perDay.put(today.minusDays(i), new long[4]);
+            for (Map<String, Object> r : db.query("SELECT status, created FROM runs WHERE created >= ?", today.minusDays(6).atStartOfDay(ZoneOffset.UTC).toInstant())) {
+                long[] c = perDay.get(Instant.parse(String.valueOf(r.get("created"))).atZone(ZoneOffset.UTC).toLocalDate());
+                if (c == null) continue;
+                switch (String.valueOf(r.get("status"))) { case "success" -> c[0]++; case "failed" -> c[1]++; case "stopped" -> c[2]++; default -> c[3]++; }
+            }
+            List<Map<String, Object>> days = new ArrayList<>();
+            perDay.forEach((d, c) -> days.add(Map.of("date", d.toString(), "success", c[0], "failed", c[1], "stopped", c[2], "active", c[3])));
+            m.put("days", days);
+            Instant week = now().minus(Duration.ofDays(7));
+            m.put("top_bots", db.query("SELECT bot_path, COUNT(*) AS runs, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed, AVG(duration_ms) AS avg_ms " +
+                    "FROM runs WHERE created >= ? GROUP BY bot_path ORDER BY runs DESC LIMIT 6", week));
+            m.put("recent_failures", db.query("SELECT r.id, r.bot_path, r.version, r.error, r.finished, d.name AS device_name FROM runs r LEFT JOIN devices d ON d.id = r.device_id " +
+                    "WHERE r.status = 'failed' ORDER BY r.finished DESC LIMIT 6"));
+        }
         m.put("user", publicUser(by));
         return m;
     }

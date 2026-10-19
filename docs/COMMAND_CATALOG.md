@@ -78,7 +78,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | AI, workload & process | AI Skills / AI Agent | ooa.ai_skills, ooa.ai_agent | Built | Agents call bots as tools; sensitive bots need approval; step and token limits |
 | AI, workload & process | Analyze | ooa.insights | Built | Tagged business values; dashboards in the Insights phase |
 | AI, workload & process | Workload | ooa.workload | Built | Local queues with retries and deferral; central queues and SLAs with Control Room |
-| AI, workload & process | Process / Co-Pilot | - | Planned | Needs the Assist portal (forms, task inbox); not a command |
+| AI, workload & process | Process / Co-Pilot | Studio Form and Process designers | Partial | Forms and processes are designed and versioned in Studio; running them needs the Assist portal (task inbox) |
 | AI, workload & process | Bot Store packages | - | Planned | Needs the Hub marketplace; not a command |
 | AI, workload & process | Run context | ooa.run_context | Built |  |
 

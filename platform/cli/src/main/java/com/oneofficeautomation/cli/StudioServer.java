@@ -46,6 +46,11 @@ public final class StudioServer {
     }
     private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
 
+    /** Path prefix when Studio shares a port with Control Room ("/studio"), or "" when it runs on its own port. */
+    private String base = "";
+    /** Control Room on the same server (`ooa server`), used to connect Studio automatically; null when standalone. */
+    private String sameServerControlRoom;
+
     StudioServer(Path workspace, int port, Path examples) throws IOException {
         this.ws = new Workspace(workspace);
         this.workspace = ws.root;
@@ -63,17 +68,35 @@ public final class StudioServer {
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/", this::handle);
         server.start();
-        cr = new ControlRoomLink(ws);
-        triggers = new TriggerService(ws, (botPath, inputs) -> runFile(botPath, inputs));
-        triggers.start();
+        startServices();
         System.out.println("ONEOFFICEAUTOMATION Studio (preview) is running.");
         System.out.println("  Open:      http://localhost:" + port);
         System.out.println("  Workspace: " + workspace);
         System.out.println("  Press Ctrl+C to stop.");
     }
 
+    /**
+     * Prepares Studio to be served by Control Room's server under a prefix such as /studio (see `ooa server`). Studio still
+     * answers only browsers on this machine, because it reads and writes the developer's private workspace.
+     */
+    com.sun.net.httpserver.HttpHandler mountedAt(String prefix, String controlRoomUrl) {
+        this.base = prefix;
+        this.sameServerControlRoom = controlRoomUrl;
+        startServices();
+        return this::handle;
+    }
+
+    Path workspaceRoot() { return workspace; }
+
+    private void startServices() {
+        cr = new ControlRoomLink(ws);
+        triggers = new TriggerService(ws, (botPath, inputs) -> runFile(botPath, inputs));
+        triggers.start();
+    }
+
     private void handle(HttpExchange ex) throws IOException {
         try {
+            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "Studio is only available on this computer"); return; }
             String host = Optional.ofNullable(ex.getRequestHeaders().getFirst("Host")).orElse("");
             if (!host.startsWith("localhost:") && !host.startsWith("127.0.0.1:")) { send(ex, 403, "text/plain", "Forbidden host"); return; }
             String origin = ex.getRequestHeaders().getFirst("Origin");
@@ -81,6 +104,11 @@ public final class StudioServer {
                 send(ex, 403, "text/plain", "Cross-site request refused"); return;
             }
             String path = ex.getRequestURI().getPath();
+            if (!base.isEmpty()) {
+                if (path.equals(base)) { ex.getResponseHeaders().set("Location", base + "/"); send(ex, 302, "text/plain", "Moved"); return; }
+                if (!path.startsWith(base + "/")) { send(ex, 404, "text/plain", "Not found"); return; }
+                path = path.substring(base.length());
+            }
             String method = ex.getRequestMethod();
             if (path.startsWith("/api/")) api(ex, method, path.substring(5));
             else asset(ex, path);
@@ -117,7 +145,12 @@ public final class StudioServer {
     @SuppressWarnings("unchecked")
     private void api(HttpExchange ex, String method, String route) throws IOException {
         if (method.equals("GET") && route.equals("info")) {
-            sendJson(ex, 200, Map.of("product", "ONEOFFICEAUTOMATION Studio", "edition", "preview", "workspace", workspace.toString()));
+            Map<String, Object> info = new LinkedHashMap<>();
+            info.put("product", "ONEOFFICEAUTOMATION Studio");
+            info.put("edition", "preview");
+            info.put("workspace", workspace.toString());
+            info.put("controlRoom", sameServerControlRoom == null ? null : "/");
+            sendJson(ex, 200, info);
         } else if (method.equals("GET") && route.equals("packages")) {
             sendJson(ex, 200, Map.of("packages", registry.allManifests()));
         } else if (method.equals("GET") && route.equals("tree")) {
@@ -144,12 +177,25 @@ public final class StudioServer {
                 case "folder" -> ws.createFolder(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")));
                 case "bot" -> ws.createBot(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")),
                         String.valueOf(b.getOrDefault("kind", "TaskBot")), v -> json.write(v, true));
+                case "item" -> ws.createItem(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")), String.valueOf(b.get("type")), v -> json.write(v, true));
                 case "rename" -> ws.rename(path, String.valueOf(b.get("name")));
                 case "move" -> ws.move(path, String.valueOf(b.getOrDefault("to", "")));
                 case "delete" -> ws.delete(path);
                 default -> throw new OoaException("STUDIO.UNKNOWN", "Unknown file operation " + route);
             };
             sendJson(ex, 200, Map.of("path", result));
+        } else if (route.equals("item")) {
+            String rel = query(ex).getOrDefault("path", "");
+            if (method.equals("GET")) {
+                Path p = ws.resolve(rel);
+                sendJson(ex, 200, Map.of("path", rel, "type", ws.typeOf(p), "text", ws.readItem(rel)));
+            } else if (method.equals("PUT")) {
+                Object b = body(ex);
+                String text = b instanceof Map<?, ?> m && m.get("text") instanceof String t ? t : null;
+                sendJson(ex, 200, Map.of("saved", ws.writeItem(rel, text, json::parse)));
+            } else send(ex, 405, "text/plain", "Method not allowed");
+        } else if (method.equals("GET") && route.equals("deps")) {
+            sendJson(ex, 200, dependencies(query(ex).getOrDefault("path", "")));
         } else if (method.equals("POST") && route.equals("validate")) {
             sendJson(ex, 200, Map.of("problems", validator().validate((Map<String, Object>) body(ex))));
         } else if (method.equals("POST") && route.equals("run")) {
@@ -162,7 +208,16 @@ public final class StudioServer {
         } else if (route.startsWith("cr/")) {
             String r = route.substring(3);
             Map<String, String> q = query(ex);
-            if (method.equals("GET") && r.equals("status")) sendJson(ex, 200, cr.status());
+            if (method.equals("GET") && r.equals("status")) {
+                // Same server as Control Room: reuse the browser's Control Room sign-in instead of asking again.
+                if (sameServerControlRoom != null && !cr.connected()) {
+                    String token = sessionCookie(ex);
+                    if (token != null) try { cr.adopt(sameServerControlRoom, token); } catch (OoaException ignored) { /* signed out, or a password change is pending */ }
+                }
+                Map<String, Object> st = new LinkedHashMap<>(cr.status());
+                st.put("sameServer", sameServerControlRoom != null);
+                sendJson(ex, 200, st);
+            }
             else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"))); }
             else if (method.equals("POST") && r.equals("disconnect")) { cr.disconnect(); sendJson(ex, 200, cr.status()); }
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
@@ -277,6 +332,69 @@ public final class StudioServer {
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
 
+    /** What a bot uses (child bots, agent tools, scripts, AI Skills, files) and which bots use it. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> dependencies(String rel) throws IOException {
+        Path self = ws.resolve(rel);
+        if (!Files.isRegularFile(self) || !rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not a bot file: " + rel);
+        Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(self));
+        Map<String, String> botsById = new LinkedHashMap<>();
+        Map<String, List<Map<String, Object>>> stepsByBot = new LinkedHashMap<>();
+        try (var st = Files.walk(ws.root, 12)) {
+            for (Path p : st.filter(f -> f.getFileName().toString().endsWith(Workspace.BOT_SUFFIX)).toList()) {
+                String r = ws.rel(p);
+                if (r.startsWith(".") || r.contains("/.")) continue;
+                try {
+                    Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
+                    botsById.putIfAbsent(String.valueOf(f.get("id")), r);
+                    stepsByBot.put(r, com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of())));
+                } catch (RuntimeException ignored) { /* unreadable bot */ }
+            }
+        }
+        List<Map<String, Object>> bots = new ArrayList<>(), scripts = new ArrayList<>(), skills = new ArrayList<>(), files = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+            String action = String.valueOf(step.get("action"));
+            Map<String, Object> args = step.get("args") instanceof Map ? (Map<String, Object>) step.get("args") : Map.of();
+            List<String> botIds = new ArrayList<>();
+            if (action.equals("core/run_bot") && args.get("automation") instanceof String a) botIds.add(a);
+            if (action.equals("ooa.ai_agent/run")) for (String k : List.of("tools", "sensitive_tools")) if (args.get(k) instanceof List<?> l) for (Object x : l) if (x instanceof String xs) botIds.add(xs);
+            for (String id : botIds) if (seen.add("bot:" + id)) bots.add(dep(id, botsById.get(id), step));
+            if (action.equals("ooa.ai_skills/run") && args.get("skill") instanceof String sk && !sk.startsWith("$") && seen.add("skill:" + sk)) {
+                String path = Workspace.SKILLS_FOLDER + "/" + sk + ".json";
+                skills.add(dep(sk, Files.isRegularFile(ws.root.resolve(path)) ? path : null, step));
+            }
+            for (Map.Entry<String, Object> e : args.entrySet()) {
+                if (!(e.getValue() instanceof String v) || v.startsWith("$") || v.length() > 300 || !v.matches("^[^<>|\"*?\\r\\n]+\\.[A-Za-z0-9]{1,8}$")) continue;
+                Path f;
+                try { f = ws.resolve(v); } catch (OoaException outside) { continue; }
+                if (!Files.isRegularFile(f) || !seen.add("file:" + v)) continue;
+                (action.startsWith("ooa.script/") ? scripts : files).add(dep(v, ws.rel(f), step));
+            }
+        }
+        List<Map<String, Object>> usedBy = new ArrayList<>();
+        String myId = String.valueOf(flow.get("id"));
+        stepsByBot.forEach((path, steps) -> {
+            if (path.equals(rel)) return;
+            for (Map<String, Object> st : steps) {
+                Map<String, Object> a = st.get("args") instanceof Map ? (Map<String, Object>) st.get("args") : Map.of();
+                boolean calls = "core/run_bot".equals(st.get("action")) && myId.equals(a.get("automation"));
+                if ("ooa.ai_agent/run".equals(st.get("action"))) for (String k : List.of("tools", "sensitive_tools")) if (a.get(k) instanceof List<?> l && l.contains(myId)) calls = true;
+                if (calls) { usedBy.add(Map.of("name", path.replaceAll("\\.flow\\.json$", ""), "path", path, "step", String.valueOf(st.get("id")))); return; }
+            }
+        });
+        return Map.of("bots", bots, "scripts", scripts, "skills", skills, "files", files, "usedBy", usedBy);
+    }
+
+    private static Map<String, Object> dep(String name, String path, Map<String, Object> step) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", name);
+        m.put("path", path);
+        m.put("missing", path == null);
+        m.put("step", String.valueOf(step.get("id")));
+        return m;
+    }
+
     /** Finds bots whose name, path, description, commands or variables match the query. */
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> search(String q) throws IOException {
@@ -360,6 +478,15 @@ public final class StudioServer {
         if (b.length > MAX_BODY) throw new OoaException("STUDIO.TOO_LARGE", "Request body exceeds 5 MB");
         String text = new String(b, StandardCharsets.UTF_8);
         return text.isBlank() ? null : json.parse(text);
+    }
+
+    private static String sessionCookie(HttpExchange ex) {
+        String cookie = ex.getRequestHeaders().getFirst("Cookie");
+        if (cookie != null) for (String c : cookie.split(";")) {
+            String[] kv = c.trim().split("=", 2);
+            if (kv.length == 2 && kv[0].equals(com.oneofficeautomation.controlroom.ControlRoomServer.COOKIE)) return kv[1];
+        }
+        return null;
     }
 
     private static Map<String, String> query(HttpExchange ex) {

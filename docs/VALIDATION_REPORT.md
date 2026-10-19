@@ -107,3 +107,42 @@ repository with check-in/check-out) gets its own report.
 - The agent runs as a scheduled task in the signed-in user's session; unattended auto-login and a Windows service wrapper
   are part of the installer phase.
 - Process Composer / Co-Pilot (forms and human tasks) and the Bot Store remain planned.
+
+---
+
+# Validation report: Part 3 (one address, Automation items, colourful designer, variables, full Activity)
+
+## What was added
+
+| Item | Result |
+| --- | --- |
+| One address and one-step start | `ooa server` (or `scripts\start-ooa.bat`, or a desktop shortcut) runs Control Room at `/`, Studio at `/studio/` and a self-registering Bot Agent in one window on one port, and opens the browser. Studio reuses the browser's Control Room sign-in. |
+| Colourful designer | Commands grouped into 13 colour-coded categories with icons and a "Recently used" group; canvas steps carry their category colour and icon; If/Loop/Try are drawn as tinted blocks with coloured section labels. |
+| Automation home and typed items | Home list with type filters, search and sort; + Create for Task Bot, API Task, bot from template (7 templates), Form, Process, Document automation, AI Skill and scripts (Python, PowerShell, VBScript, JavaScript), each with its own editor; a Dependencies tab on bots. |
+| Variables | Grouped pane (inputs, outputs, inside the bot, system, global) with type badges and use counts; an editor with a value editor for every type (Table grid, List and Dictionary rows, DateTime picker, file suggestions, JSON); rename updates every `$name` and `${name}`; `{x}` picker on every command field. Run inputs use the same typed editors. |
+| Control Room | Activity with live progress and the current step, history filters, paging, CSV export, Rerun, and a run details panel (error, timeline, filtered log, download, variables, inputs and outputs); dashboard with a 7-day chart, success rate, failures, most used bots and devices; bot, device and user details; version compare; Run now for schedules; device rename; search, sorting, paging and export on every list. |
+
+## Automated results
+
+| Suite | Result |
+| --- | --- |
+| All Java tests (Parts 1 and 2 plus the new `UnifiedServerTest`) | 81 passed, 0 failed |
+| `UnifiedServerTest`: one server (redirect, relative assets, health link, shared sign-in, check-in through `/studio`), local agent registers once and runs bots, history filters, paging, rerun, schedule Run now, device rename, dashboard, command names; workspace item types, safe save, rename keeps the type, dependencies and "used by" | passed |
+| Studio browser tests (now including Part 3: home, Create menu, form/process/document/skill/script editors, script run, every template validated, coloured blocks, dependencies, variable editor, picker, rename) | 122 passed, 0 failed (Record and Capture checks skipped where the optional Browser module is installed) |
+| Control Room console in a browser engine (now including the dashboard chart and Activity tabs, filters and export) | 24 passed, 0 failed |
+| Manual check in a real browser with `ooa server`: check-in from Studio through the shared sign-in, runs on the local agent, live In progress card, history, run details | passed |
+
+## Issues found and fixed during Part 3 validation
+
+1. `DatabasePackageTest` used a 20-character column for a 28-character test value: widened (test-only).
+2. Optional parts passed to `replaceChildren` were printed as the text "null": both consoles now skip empty parts.
+3. Switching Control Room sections quickly could let a slow page overwrite the newer one: each visit now renders into its own container, and late timers are not started.
+4. Run inputs with allowed values used JSON-encoded option values: now plain values.
+5. `${name}` interpolations were not counted or renamed with their variable: fixed.
+
+## Known limitations (tracked)
+
+- Processes are designed and saved, but running them needs the Assist portal (task inbox), which is still planned.
+- Document automation generates an extraction bot for PDF and text files; scanned images need an OCR step first.
+- The PGP test needs the Windows `gpg`; run the Java tests from PowerShell or cmd, not Git Bash.
+- Activity refreshes by polling every 2 to 2.5 seconds; a push channel can replace it when Control Room moves to the production stack.

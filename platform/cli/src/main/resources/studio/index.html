@@ -4,19 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ONEOFFICEAUTOMATION Studio</title>
-  <link rel="icon" href="/logo-mark.png">
-  <link rel="stylesheet" href="/studio.css">
+  <link rel="icon" href="logo-mark.png">
+  <link rel="stylesheet" href="studio.css">
 </head>
 <body data-theme="brand" class="dock-bottom">
   <header class="topbar">
     <div class="brand">
-      <img class="logo" src="/logo-mark.png" alt="">
+      <img class="logo" src="logo-mark.png" alt="">
       <span class="brand-name">ONEOFFICEAUTOMATION</span>
       <span class="brand-product">Studio</span>
     </div>
-    <nav class="crumbs" id="crumbs" aria-label="Open bot"></nav>
+    <button type="button" class="icon-btn" id="btn-home" aria-label="Automation home" title="Automation home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg></button>
+    <nav class="crumbs" id="crumbs" aria-label="Open item"></nav>
     <div class="actions">
       <span id="dirty" class="dirty" hidden>Unsaved</span>
+      <a id="btn-open-cr" class="button-link" href="../" target="ooa-control-room" hidden title="Open Control Room (repository, devices, runs) in another tab">Control Room</a>
       <div class="panel-toggles" aria-label="Panels">
         <button type="button" class="icon-btn" id="tg-left" aria-label="Show or hide the left panel" title="Left panel">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
@@ -65,7 +68,10 @@
       <div id="side-explorer" class="side-body">
         <div class="side-head"><span>Explorer</span></div>
         <div class="toolbar">
-          <button type="button" id="btn-new-bot" title="New bot in the selected folder">+ Bot</button>
+          <div class="create-menu">
+            <button type="button" id="btn-create" class="primary small" aria-haspopup="menu" aria-expanded="false" title="Create a bot, form, process, document automation, AI Skill or script">+ Create</button>
+            <div class="menu" id="create-pop" role="menu" hidden></div>
+          </div>
           <button type="button" id="btn-new-folder" title="New folder inside the selected folder">+ Folder</button>
           <button type="button" id="btn-rename">Rename</button>
           <button type="button" id="btn-delete" class="danger" title="Move to the workspace trash">Delete</button>
@@ -95,15 +101,13 @@
     </aside>
 
     <section class="center" id="center">
-      <div id="welcome" class="welcome">
-        <img src="/logo-full.png" alt="ONEOFFICEAUTOMATION">
-        <h1>Welcome to ONEOFFICEAUTOMATION Studio</h1>
-        <p>Open a bot from the Explorer, or create one with <strong>+ Bot</strong>.</p>
-      </div>
+      <div id="welcome" class="welcome"></div>
+      <div id="item-editor" class="item-editor" hidden></div>
       <div id="editor-body" class="editor-body" hidden>
         <nav class="tabs" role="tablist">
           <button type="button" class="tab active" data-tab="steps">Canvas</button>
           <button type="button" class="tab" data-tab="settings">Bot settings</button>
+          <button type="button" class="tab" data-tab="deps">Dependencies</button>
           <button type="button" class="tab" data-tab="json">JSON</button>
         </nav>
         <div class="canvas-bar" id="canvas-bar" role="toolbar" aria-label="Canvas tools">
@@ -129,8 +133,9 @@
           <span class="spacer"></span>
           <span class="hint" id="insert-hint"></span>
         </div>
-        <div id="tab-steps" class="tab-body"><div id="steps" class="steps"></div></div>
+        <div id="tab-steps" class="tab-body canvas-bg"><div id="steps" class="steps"></div></div>
         <div id="tab-settings" class="tab-body" hidden></div>
+        <div id="tab-deps" class="tab-body" hidden></div>
         <div id="tab-json" class="tab-body" hidden>
           <textarea id="json-text" spellcheck="false" aria-label="Bot JSON"></textarea>
           <div class="row-actions">
@@ -169,7 +174,14 @@
     </aside>
   </div>
 
+  <div id="dialog" class="dialog-backdrop" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <h2 id="dialog-title"></h2>
+      <div id="dialog-body" class="dialog-body"></div>
+      <div class="row-actions" id="dialog-actions"></div>
+    </div>
+  </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/studio.js"></script>
+  <script src="studio.js"></script>
 </body>
 </html>

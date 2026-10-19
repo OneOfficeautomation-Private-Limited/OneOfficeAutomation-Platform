@@ -23,6 +23,8 @@ final class ControlRoomLink {
     private final Workspace ws;
     private volatile String url, token;
     private volatile Map<String, Object> user;
+    /** True when the session belongs to the browser (same server); Studio then never signs it out. */
+    private volatile boolean adopted;
     static final String FOLDER = "Control Room";
 
     ControlRoomLink(Workspace ws) { this.ws = ws; }
@@ -78,14 +80,33 @@ final class ControlRoomLink {
             throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Control Room password must be changed first", "Sign in to Control Room in the browser (" + url + "), choose a new password, then connect again.");
         token = (String) r.get("token");
         user = u;
+        adopted = false;
         Files.createDirectories(stateFile("x").getParent());
         Files.writeString(stateFile("controlroom.json"), JsonLite.write(Map.of("url", url)), StandardCharsets.UTF_8);
         return status();
     }
 
+    /** Uses an existing Control Room sign-in (the browser's session on the same server) instead of a password. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> adopt(String crUrl, String sessionToken) {
+        String previous = url;
+        url = crUrl.replaceAll("/+$", "");
+        token = sessionToken;
+        try {
+            Map<String, Object> u = call("GET", "auth/me", null, true);
+            if (Boolean.TRUE.equals(u.get("must_change"))) throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Control Room password must be changed first");
+            user = u;
+            adopted = true;
+            return status();
+        } catch (OoaException e) {
+            token = null; user = null; url = previous;
+            throw e;
+        }
+    }
+
     void disconnect() {
-        try { if (token != null) call("POST", "auth/logout", null, true); } catch (OoaException ignored) { }
-        token = null; user = null;
+        try { if (token != null && !adopted) call("POST", "auth/logout", null, true); } catch (OoaException ignored) { }
+        token = null; user = null; adopted = false;
     }
 
     static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20"); }

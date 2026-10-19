@@ -43,7 +43,26 @@ Run the CLI:
 .\gradlew.bat :cli:run --args="validate ../examples/refund/bots/issue_refund.flow.json"
 ```
 
-Start the Studio (then open http://localhost:8710 in your browser):
+### One step: everything on one address
+
+Double-click `scripts\start-ooa.bat` (or run `.\gradlew.bat :cli:run --args="server"`). One window starts:
+
+| Address | What |
+| --- | --- |
+| http://localhost:8720/ | Control Room: repository, Activity, devices, schedules, triggers, credentials, users, audit log |
+| http://localhost:8720/studio/ | Studio: your private workspace and the bot designer (answers only browsers on this computer) |
+| (background) | A Bot Agent for this computer. It registers itself the first time, so bots can run here straight away |
+
+The browser opens by itself. Close the window (or press Ctrl+C) to stop everything. On the very first start the window
+shows a one-time `admin` password for Control Room. Studio uses your Control Room sign-in in the same browser for check-in
+and check-out, so you sign in once. Options: `--port 8730`, `--workspace D:\Bots`, `--data D:\OOA\cr`, `--no-agent`,
+`--no-browser` (for example `start-ooa.bat --port 8730`). `powershell -ExecutionPolicy Bypass -File scripts\create-desktop-shortcut.ps1`
+puts a shortcut on your desktop. The local agent keeps its registration in `%USERPROFILE%\.ooa-agent\local-agent.json`,
+separate from an agent registered by hand.
+
+The separate commands below still work, for example to run Control Room on a server and Studio on a laptop.
+
+Start the Studio on its own (then open http://localhost:8710 in your browser):
 
 ```
 .\gradlew.bat :cli:run --args="studio"
@@ -58,6 +77,17 @@ Studio features (design A): multi-select (Ctrl/Shift+click), cut, copy, paste, d
 hidden `.trash` folder); command library with search, click-to-add and drag-and-drop; canvas with drag-to-reorder
 and drop into If/Loop/Try blocks; command settings generated from package manifests; variables; live validation;
 run console with outputs, errors and run log; JSON view.
+
+Studio (Part 3): an **Automation** home lists everything in the workspace with type filters, search and sorting, and a
+**+ Create** menu makes Task Bots, API Tasks, bots from templates, **Forms** (`*.form.json`, form designer with preview),
+**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; running them needs the
+planned Assist portal), **Document automations** (`*.doc.json`, fields to extract; generates an AI extraction bot), **AI Skills**
+(`ai-skills/*.json`, prompt editor) and **scripts** (Python, PowerShell, VBScript, JavaScript; code editor with Run).
+Commands, canvas steps and If/Loop/Try blocks are colour-coded by category. The **Variables** pane groups inputs, outputs
+and working variables; every type (including Table, List, Dictionary, Record, DateTime, File, Window, UIElement and Credential)
+has its own editor for default values and run inputs, renaming a variable updates every use, and each command field has a
+`{x}` picker (also Ctrl+Space or typing `$`) that lists matching variables first. A bot's **Dependencies** tab shows the child
+bots, scripts, AI Skills and files it uses, and which bots use it.
 
 AI commands write a governance record of every model call (no prompt text) to `ai-governance.jsonl` in the workspace. AI Skills are JSON prompt templates in the workspace's `ai-skills` folder. Work queues live in `queues/`, insights in `insights/`, triggers in `triggers.json`.
 

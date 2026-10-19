@@ -37,6 +37,8 @@
       <span class="brand-name">ONEOFFICEAUTOMATION</span>
       <span class="brand-product">Control Room</span>
       <span class="spacer"></span>
+      <a id="btn-studio" class="button-link" href="/studio/" target="ooa-studio" hidden title="Build and test bots in Studio (this computer)">Open Studio</a>
+      <span id="avatar" class="avatar" aria-hidden="true"></span>
       <span id="who" class="muted"></span>
       <button type="button" id="btn-change-pw">Change password</button>
       <button type="button" id="btn-logout">Sign out</button>
@@ -45,6 +47,17 @@
       <nav id="nav" class="nav" aria-label="Control Room sections"></nav>
       <main id="main" class="main" tabindex="-1"></main>
     </div>
+  </div>
+
+  <div id="drawer" class="drawer" hidden>
+    <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <header class="drawer-head">
+        <h2 id="drawer-title"></h2>
+        <div id="drawer-actions" class="row-actions tight"></div>
+        <button type="button" id="drawer-close" class="icon-close" aria-label="Close">&#x2715;</button>
+      </header>
+      <div id="drawer-body" class="drawer-body"></div>
+    </aside>
   </div>
 
   <div id="modal" class="modal" hidden>

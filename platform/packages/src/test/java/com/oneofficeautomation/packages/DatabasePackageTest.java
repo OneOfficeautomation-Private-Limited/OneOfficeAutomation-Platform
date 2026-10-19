@@ -22,7 +22,7 @@ class DatabasePackageTest {
                           {"name":"evil","type":"String","default":"x'); DROP TABLE invoices; --"}],
              "steps":[
                {"id":"c","action":"ooa.database/connect","args":{"jdbc_url":"jdbc:h2:mem:ooa;DB_CLOSE_DELAY=-1"}},
-               {"id":"ct","action":"ooa.database/execute","args":{"sql":"CREATE TABLE invoices(id VARCHAR(20), amount DECIMAL(12,2))"}},
+               {"id":"ct","action":"ooa.database/execute","args":{"sql":"CREATE TABLE invoices(id VARCHAR(64), amount DECIMAL(12,2))"}},
                {"id":"i1","action":"ooa.database/execute","args":{"sql":"INSERT INTO invoices VALUES (?, ?)","parameters":["INV-1",1200.50]}},
                {"id":"i2","action":"ooa.database/execute","args":{"sql":"INSERT INTO invoices VALUES (?, ?)","parameters":["$evil",1]}},
                {"id":"b","action":"ooa.database/begin_transaction","args":{}},

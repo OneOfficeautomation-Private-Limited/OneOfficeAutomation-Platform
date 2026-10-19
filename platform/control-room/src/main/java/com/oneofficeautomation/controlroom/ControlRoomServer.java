@@ -3,6 +3,7 @@ package com.oneofficeautomation.controlroom;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -21,14 +22,18 @@ import java.util.concurrent.*;
  */
 public final class ControlRoomServer {
     static final int MAX_BODY = 5 * 1024 * 1024;
-    static final String COOKIE = "ooa_cr";
+    public static final String COOKIE = "ooa_cr";
     private final ControlRoom cr;
     private final String host;
     private final int port;
     private HttpServer server;
     private ScheduledExecutorService clock;
+    private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
     public ControlRoomServer(ControlRoom cr, String host, int port) { this.cr = cr; this.host = host; this.port = port; }
+
+    /** Serves another application under a path prefix on the same port (used by `ooa server` for Studio at /studio). Call before start(). */
+    public ControlRoomServer mount(String prefix, HttpHandler handler) { mounts.put(prefix, handler); return this; }
 
     public void start() throws IOException {
         try { server = HttpServer.create(new InetSocketAddress(host, port), 0); }
@@ -37,6 +42,7 @@ public final class ControlRoomServer {
         }
         server.setExecutor(Executors.newFixedThreadPool(16, r -> { Thread t = new Thread(r, "ooa-cr-http"); t.setDaemon(true); return t; }));
         server.createContext("/", this::handle);
+        mounts.forEach(server::createContext);
         server.start();
         clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
         clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
@@ -136,7 +142,14 @@ public final class ControlRoomServer {
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
             return;
         }
-        if (m.equals("GET") && route.equals("health")) { sendJson(ex, 200, Map.of("status", "ok")); return; }
+        if (m.equals("GET") && route.equals("health")) {
+            Map<String, Object> health = new LinkedHashMap<>();
+            health.put("status", "ok");
+            // Studio works on this machine's private files, so it is only offered to browsers on this machine.
+            if (mounts.containsKey("/studio") && ex.getRemoteAddress().getAddress().isLoopbackAddress()) health.put("studio", "/studio/");
+            sendJson(ex, 200, health);
+            return;
+        }
 
         // ---------- agents ----------
         if (seg[0].equals("agent")) {
@@ -175,6 +188,7 @@ public final class ControlRoomServer {
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u));
+            case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
             case "users" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("users", cr.users(u)));
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
@@ -201,21 +215,28 @@ public final class ControlRoomServer {
             case "devices" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("devices", cr.devices(u)));
                 else if (m.equals("POST") && route.equals("devices/registration-key")) sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) map(body(ex)).getOrDefault("hours", 24)).intValue(), ip));
-                else if (m.equals("PATCH") && seg.length == 2) { cr.setDeviceEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PATCH") && seg.length == 2) {
+                    Map<String, Object> b = map(body(ex));
+                    if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);
+                    if (b.containsKey("enabled")) cr.setDeviceEnabled(u, seg[1], Boolean.TRUE.equals(b.get("enabled")), ip);
+                    sendJson(ex, 200, Map.of("ok", true));
+                }
                 else notFound(ex);
             }
             case "runs" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("runs", cr.runs(u, q.getOrDefault("filter", "all"), Integer.parseInt(q.getOrDefault("limit", "100")))));
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.runsPage(u, q));
                 else if (m.equals("POST") && seg.length == 1) {
                     Map<String, Object> b = map(body(ex));
                     sendJson(ex, 200, cr.startRun(u.username(), u.role(), (String) b.get("bot_path"), (String) b.get("device_id"), (Map<String, Object>) b.getOrDefault("inputs", Map.of()), "manual", ip));
                 } else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.run(u, seg[1], Long.parseLong(q.getOrDefault("after", "0"))));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("rerun")) sendJson(ex, 200, cr.rerun(u, seg[1], ip));
                 else if (m.equals("POST") && seg.length == 3) { cr.control(u, seg[1], seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "schedules" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("schedules", cr.schedules(u)));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.createSchedule(u, map(body(ex)), ip));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) sendJson(ex, 200, cr.runScheduleNow(u, seg[1], ip));
                 else if (m.equals("PATCH") && seg.length == 2) { cr.setScheduleEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteSchedule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);

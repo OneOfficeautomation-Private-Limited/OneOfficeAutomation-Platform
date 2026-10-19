@@ -2,7 +2,11 @@
 
 ## 1. Start Control Room
 
-From PowerShell in the `platform` folder:
+**On a developer computer, use the one-step start**: double-click `platform\scripts\start-ooa.bat` (or
+`.\gradlew.bat :cli:run --args="server"`). Control Room, Studio (at `/studio/`) and a Bot Agent for this computer start
+together on http://localhost:8720, and the agent registers itself, so section 3 below is only needed for other machines.
+
+To run Control Room on its own (for example on a server), from PowerShell in the `platform` folder:
 
     .\gradlew.bat :cli:run --args="control-room"
 
@@ -63,7 +67,18 @@ The agent runs each bot in its own process, so a crashing bot never stops the ag
 
 - Automation > Run: choose a device and give inputs. Credential inputs are vault references such as
   `{"$credential": "finance/erp/password"}`, never the secret itself.
-- Activity shows queued and running bots with a live step log; Pause, Resume and Stop reach the device within seconds.
+- **Activity > In progress** shows every queued and running bot: the device, who started it and how, how long it has run,
+  a progress bar, and the step running now. Pause, Resume and Stop reach the device within seconds.
+- **Activity > History** lists finished runs with status, duration, steps and error code, filtered by status, bot, device,
+  source (manual, schedule, trigger, rerun), who started it, dates and free text, with paging and CSV export. **Rerun**
+  runs the current production version again on the same device with the same inputs.
+- Selecting a run opens its details: the error with the failed step and suggested fix, a step-by-step timeline with
+  durations, the full log (filter errors, log messages or variables; **Download log**), the last value of each variable,
+  and the inputs and outputs.
+- **Home** shows runs in the last 7 days, success rate, average run time, recent failures, the most used bots and device
+  health. **Automation** opens a bot's inputs, outputs, recent runs and versions, and compares two versions line by line.
+  **Devices** can be renamed and show what they are running and their history. **Schedules** have **Run now**. Every list
+  has search, sortable columns, paging and CSV export.
 - Schedules (every N minutes, daily, or weekly in a time zone) and Triggers (a file arriving in a folder on the device, or a
   webhook) start bots automatically. Studio keeps its own local triggers for development.
 

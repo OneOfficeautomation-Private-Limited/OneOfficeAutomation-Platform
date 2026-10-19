@@ -50,6 +50,12 @@ async function page() {
   const navItems = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
   check("an administrator sees all ten sections", navItems.length === 10 && navItems.includes("Users") && navItems.includes("Audit log"), navItems.join(","));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
+  check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
+  nav("Activity");
+  check("Activity has In progress and History tabs with an empty state", await until(() => d.getElementById("main").textContent.includes("In progress") && d.getElementById("main").textContent.includes("Nothing is running")));
+  click([...d.querySelectorAll("#main .tabs .tab")].find((b) => b.textContent.startsWith("History")));
+  check("History has filters and CSV export", await until(() => d.querySelector('#main select[aria-label="Any status"]') && d.querySelector('#main input[type=date]') && btn("Export CSV")));
+  nav("Home");
 
   nav("Users");
   await until(() => btn("New user"));

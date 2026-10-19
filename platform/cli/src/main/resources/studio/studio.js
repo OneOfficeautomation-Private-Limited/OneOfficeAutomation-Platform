@@ -2,8 +2,14 @@
    under a strict Content-Security-Policy. All user data is rendered with textContent (never innerHTML). */
 "use strict";
 
+// Optional parts are written as `cond ? node : null`; skip null/false (and flatten arrays) instead of printing "null".
+for (const m of ["append", "replaceChildren"]) {
+  const orig = Element.prototype[m];
+  Element.prototype[m] = function (...nodes) { return orig.apply(this, nodes.flat(Infinity).filter((n) => n !== null && n !== undefined && n !== false)); };
+}
+
 const SCHEMA = "https://schemas.oneofficeautomation.com/flow/v1.json";
-const TYPES = ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Credential", "Any"];
+const TYPES = ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"];
 const SECTIONS = {
   "core/if": [["children", "Then"], ["else", "Else"]],
   "core/loop": [["children", "Repeat"]],
@@ -12,7 +18,87 @@ const SECTIONS = {
   "core/try": [["children", "Try"], [["catch", 0, "children"], "Catch (on error)"], ["finally", "Finally (always)"]],
 };
 
-const PKG_COLORS = ["#0a7bbb", "#a371ed", "#1f9d8b", "#e07a2f", "#d0457a", "#5867dd", "#3b9c3b", "#b8860b", "#7a5af8", "#0f8fa8", "#c2410c", "#64748b"];
+// ---------- colours and icons: command categories, item types and variable types ----------
+const SVGNS = "http://www.w3.org/2000/svg";
+const ICONS = {
+  branch: "M12 3l8 9-8 9-8-9z", loop: "M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4",
+  shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z", varx: "M5 4c-2 4-2 12 0 16M19 4c2 4 2 12 0 16M9 9l6 6M15 9l-6 6",
+  note: "M5 4h14v16H5zM8 9h8M8 13h8M8 17h5", comment: "M4 5h16v11H9l-5 4z", clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 3",
+  bot: "M5 9h14v10H5zM12 5v4M9 13v1M15 13v1M9 16.5h6M12 3v1", group: "M3 5h18v14H3zM3 9h18", parallel: "M6 4v16M18 4v16M6 8h12M6 16h12",
+  jump: "M5 12h12M13 6l6 6-6 6", stop: "M8 3h8l5 5v8l-5 5H8l-5-5V8zM12 8v5M12 16v.5",
+  data: "M12 3c4.4 0 8 1.3 8 3s-3.6 3-8 3-8-1.3-8-3 3.6-3 8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  text: "M4 6h16M12 6v13M8 19h8", hash: "M9 3L7 21M17 3l-2 18M4 9h17M3 15h17", toggle: "M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7zM16 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4", list: "M9 6h11M9 12h11M9 18h11M4 6v.5M4 12v.5M4 18v.5",
+  braces: "M8 3c-2 0-3 1-3 3v3l-2 3 2 3v3c0 2 1 3 3 3M16 3c2 0 3 1 3 3v3l2 3-2 3v3c0 2-1 3-3 3", table: "M3 5h18v14H3zM3 10h18M3 15h18M9 5v14M15 5v14",
+  record: "M6 3h12v18H6zM9 8h6M9 12h6M9 16h3", file: "M6 3h8l4 4v14H6zM14 3v4h4", folder: "M3 6h6l2 2h10v11H3z",
+  window: "M3 5h18v14H3zM3 9h18M6 7v.5M9 7v.5", cursor: "M5 3l14 7-6 2-2 6z", lock: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
+  star: "M12 3l2.6 5.6 6 .6-4.5 4 1.3 6L12 16l-5.4 3.2 1.3-6-4.5-4 6-.6z", sheet: "M4 3h16v18H4zM4 9h16M4 15h16M10 3v18",
+  globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18", plug: "M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4",
+  mail: "M3 6h18v12H3zM3 6l9 7 9-7", cloud: "M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9a4.5 4.5 0 0 0 1 9z",
+  spark: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z",
+  gear: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1",
+  queue: "M4 5h16v4H4zM4 11h16v4H4zM4 17h10v3H4z", code: "M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16", desktop: "M3 4h18v12H3zM8 20h8M12 16v4",
+  form: "M5 3h14v18H5zM8 7h8M8 11h3M13 11h3M8 15h8", process: "M4 4h6v6H4zM14 14h6v6h-6zM7 10v5h7", doc: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6M9 8h2",
+  template: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7", home: "M3 11l9-8 9 8M5 10v10h14V10", plus: "M12 5v14M5 12h14",
+  image: "M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M15 9.5a1.5 1.5 0 1 0 0-.01", terminal: "M3 5h18v14H3zM7 10l3 2-3 2M12 15h5",
+  api: "M4 12h4l2-6 4 12 2-6h4", key: "M15 7a4 4 0 1 1-3.9 5H3v3h3v3h3v-3h2.1A4 4 0 0 1 15 7z", play: "M7 4l13 8-13 8z",
+};
+function svg(name, cls) {
+  const s = document.createElementNS(SVGNS, "svg");
+  s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true");
+  if (cls) s.setAttribute("class", cls);
+  const p = document.createElementNS(SVGNS, "path");
+  p.setAttribute("d", ICONS[name] || ICONS.star);
+  s.appendChild(p);
+  return s;
+}
+/** A coloured icon tile, e.g. tile("loop", "#ea580c"). */
+function tile(icon, color, cls) {
+  const t = h("span", { class: "tile" + (cls ? " " + cls : "") }, svg(icon));
+  t.style.setProperty("--c", color);
+  return t;
+}
+const CATS = {
+  logic: { name: "Logic and flow", color: "#7c3aed", icon: "branch" }, data: { name: "Data and variables", color: "#2563eb", icon: "data" },
+  files: { name: "Files and documents", color: "#059669", icon: "file" }, office: { name: "Excel, Word and PDF", color: "#16a34a", icon: "sheet" },
+  web: { name: "Browser and web", color: "#ea580c", icon: "globe" }, desktop: { name: "Desktop and applications", color: "#d97706", icon: "desktop" },
+  integration: { name: "APIs and databases", color: "#4f46e5", icon: "plug" }, email: { name: "Email and messaging", color: "#0891b2", icon: "mail" },
+  cloud: { name: "Cloud applications", color: "#0284c7", icon: "cloud" }, ai: { name: "AI", color: "#db2777", icon: "spark" },
+  scripts: { name: "Scripts", color: "#0f766e", icon: "code" }, workload: { name: "Work queues and insights", color: "#b45309", icon: "queue" },
+  system: { name: "System and security", color: "#475569", icon: "gear" }, other: { name: "Other", color: "#64748b", icon: "star" },
+};
+const PKG_CAT = {
+  core: "logic", "ooa.boolean": "data", "ooa.number": "data", "ooa.string": "data", "ooa.datetime": "data", "ooa.list": "data", "ooa.dictionary": "data",
+  "ooa.datatable": "data", "ooa.json": "data", "ooa.xml": "data", "ooa.csv": "data", "ooa.global_values": "data", "ooa.run_context": "data",
+  "ooa.file": "files", "ooa.folder": "files", "ooa.log": "files", "ooa.excel": "office", "ooa.excel_desktop": "office", "ooa.word": "office", "ooa.pdf": "office",
+  "ooa.browser": "web", "ooa.desktop": "desktop", "ooa.window": "desktop", "ooa.image": "desktop", "ooa.ocr": "desktop", "ooa.application": "desktop",
+  "ooa.terminal": "desktop", "ooa.sap": "desktop", "ooa.dll": "desktop", "ooa.sound": "desktop", "ooa.printer": "desktop",
+  "ooa.rest": "integration", "ooa.soap": "integration", "ooa.database": "integration", "ooa.network": "integration", "ooa.file_transfer": "integration",
+  "ooa.email": "email", "ooa.slack": "email", "ooa.microsoft365": "cloud", "ooa.google": "cloud", "ooa.salesforce": "cloud", "ooa.servicenow": "cloud",
+  "ooa.jira": "cloud", "ooa.workday": "cloud", "ooa.genai": "ai", "ooa.ai_skills": "ai", "ooa.ai_agent": "ai", "ooa.script": "scripts",
+  "ooa.workload": "workload", "ooa.insights": "workload", "ooa.system": "system", "ooa.services": "system", "ooa.crypto": "system", "ooa.pgp": "system",
+  "ooa.active_directory": "system",
+};
+const PKG_ICON = {
+  "ooa.string": "text", "ooa.number": "hash", "ooa.boolean": "toggle", "ooa.datetime": "calendar", "ooa.list": "list", "ooa.dictionary": "braces",
+  "ooa.datatable": "table", "ooa.csv": "table", "ooa.json": "braces", "ooa.xml": "code", "ooa.folder": "folder", "ooa.log": "note", "ooa.word": "doc",
+  "ooa.pdf": "doc", "ooa.window": "window", "ooa.image": "image", "ooa.ocr": "image", "ooa.terminal": "terminal", "ooa.database": "data", "ooa.rest": "api",
+  "ooa.soap": "api", "ooa.ai_agent": "bot", "ooa.crypto": "lock", "ooa.pgp": "key", "ooa.active_directory": "key", "ooa.global_values": "globe",
+};
+const CORE_STYLE = {
+  "core/if": { color: "#7c3aed", icon: "branch" }, "core/loop": { color: "#ea580c", icon: "loop" }, "core/try": { color: "#dc2626", icon: "shield" },
+  "core/throw": { color: "#dc2626", icon: "stop" }, "core/set": { color: "#0d9488", icon: "varx" }, "core/log": { color: "#475569", icon: "note" },
+  "core/comment": { color: "#94a3b8", icon: "comment" }, "core/delay": { color: "#0891b2", icon: "clock" }, "core/wait_until": { color: "#0891b2", icon: "clock" },
+  "core/run_bot": { color: "#2563eb", icon: "bot" }, "core/step": { color: "#64748b", icon: "group" }, "core/parallel": { color: "#9333ea", icon: "parallel" },
+  "core/break": { color: "#7c3aed", icon: "jump" }, "core/continue": { color: "#7c3aed", icon: "jump" },
+};
+/** Colour, icon and category of a command address such as "ooa.excel/open". */
+function styleFor(addr) {
+  const pkg = String(addr || "").split("/")[0];
+  const cat = PKG_CAT[pkg] || "other";
+  const core = CORE_STYLE[addr];
+  return { color: core ? core.color : CATS[cat].color, icon: core ? core.icon : PKG_ICON[pkg] || CATS[cat].icon, cat };
+}
 const state = {
   packages: [], specs: new Map(), flow: null, file: null,
   tree: null, workspace: "", expanded: new Set([""]), treeSel: null, dragNode: null, dragStep: null,
@@ -54,7 +140,7 @@ function toast(msg, isError) {
 }
 
 async function api(method, path, body) {
-  const res = await fetch("/api/" + path, {
+  const res = await fetch("api/" + path, {
     method, headers: body !== undefined ? { "Content-Type": "application/json" } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
@@ -119,25 +205,46 @@ async function init() {
   try {
     const pk = await api("GET", "packages");
     state.packages = pk.packages;
-    state.packages.forEach((p, i) => { p.color = PKG_COLORS[i % PKG_COLORS.length]; for (const a of p.actions) state.specs.set(p.id + "/" + a.id, { pkg: p, action: a }); });
+    state.packages.forEach((p) => { p.color = styleFor(p.id + "/x").color; for (const a of p.actions) state.specs.set(p.id + "/" + a.id, { pkg: p, action: a }); });
     renderLibrary();
     await loadTree();
     showEditor(false);
     crRefresh();
+    api("GET", "info").then((i) => { state.info = i; $("btn-open-cr").hidden = !i.controlRoom; }).catch(() => {});
   } catch (e) { toast("Cannot reach Studio server: " + e.message, true); }
 }
 
-function showEditor(open) {
-  $("welcome").hidden = open;
-  $("editor-body").hidden = !open;
+/** Centre view: "home" (Automation list), "bot" (canvas) or "item" (form, process, document, AI Skill, script or text editor). */
+function showView(mode) {
+  state.view = mode;
+  $("welcome").hidden = mode !== "home";
+  $("editor-body").hidden = mode !== "bot";
+  $("item-editor").hidden = mode !== "item";
+  document.body.dataset.view = mode;
+  document.body.classList.toggle("script-item", mode === "item" && !!state.item && state.item.type === "script");
+  $("btn-validate").hidden = mode !== "bot";
+  $("btn-save").hidden = mode === "home";
+  $("btn-run").hidden = !(mode === "bot" || (mode === "item" && state.item && state.item.type === "script"));
+  if (mode === "home") renderHome();
   renderCrumbs();
+}
+function showEditor(open) { showView(open ? "bot" : "home"); }
+
+function goHome() {
+  if (state.dirty && !confirm("Discard unsaved changes?")) return;
+  state.flow = null; state.file = null; state.item = null; state.selected = null; state.multi = new Set(); state.problems = [];
+  setDirty(false);
+  showView("home");
+  renderTree(); renderProps(); renderVariables(); renderProblems();
 }
 
 function renderCrumbs() {
   const c = $("crumbs");
-  if (!state.file) { c.replaceChildren(); return; }
+  const home = h("a", { class: "crumb-home", href: "#", title: "All automation items", onclick: (e) => { e.preventDefault(); goHome(); } }, "Automation");
+  if (!state.file) { c.replaceChildren(home); return; }
   const parts = state.file.split("/");
-  c.replaceChildren(h("span", { text: "Workspace / " + parts.slice(0, -1).map((p) => p + " / ").join("") }), h("strong", { text: parts[parts.length - 1].replace(/\.flow\.json$/, "") }));
+  const type = state.item ? state.item.type : "bot";
+  c.replaceChildren(home, h("span", { text: " / " + parts.slice(0, -1).map((p) => p + " / ").join("") }), h("strong", { text: displayName({ name: parts[parts.length - 1], type }) }));
 }
 
 async function openBot(path) {
@@ -148,6 +255,7 @@ async function openBot(path) {
 }
 
 function setFlow(flow, file) {
+  state.item = null;
   state.flow = flow;
   state.flow.variables = state.flow.variables || [];
   state.flow.steps = state.flow.steps || [];
@@ -170,6 +278,8 @@ async function loadTree() {
   state.workspace = data.workspace;
   $("workspace-path").textContent = "Workspace folder: " + data.workspace;
   renderTree();
+  if ($("ws-files")) fileOptions();
+  if (state.view === "home") renderHome();
 }
 
 function nodeByPath(path, node = state.tree) {
@@ -203,8 +313,8 @@ function renderTree() {
       ondragend: () => { state.dragNode = null; },
     },
       h("span", { class: "tw", text: isFolder ? (open ? "\u25BE" : "\u25B8") : "" }),
-      h("span", { class: "icon " + node.type }),
-      h("span", { text: node.type === "bot" ? node.name.replace(/\.flow\.json$/, "") : node.name }),
+      itemTile(node),
+      h("span", { class: "nm", text: node.path === "" ? "Workspace" : displayName(node) }),
       node.type === "file" ? h("span", { class: "size", text: fmtSize(node.size) }) : null);
     row.style.paddingLeft = 6 + depth * 14 + "px";
     if (isFolder) {
@@ -228,6 +338,7 @@ function onNodeClick(node) {
   state.treeSel = node.path;
   if (node.type === "folder") { if (state.expanded.has(node.path) && node.path !== "") state.expanded.delete(node.path); else state.expanded.add(node.path); renderTree(); }
   else if (node.type === "bot") { renderTree(); openBot(node.path).catch((e) => toast(e.message, true)); }
+  else if (node.type !== "file" || EDITABLE_FILE.test(node.name)) { renderTree(); openItem(node.path); }
   else { renderTree(); toast(node.name + " (" + fmtSize(node.size) + "). Bots can read this file using its path: " + node.path); }
 }
 
@@ -242,12 +353,12 @@ async function fileOp(op, body, okMsg) {
   } catch (e) { toast(e.message, true); return null; }
 }
 
-async function newBotHere() {
-  const name = prompt("Name of the new bot:", "New bot");
+async function newBotHere(kind) {
+  const name = prompt(kind === "ApiTask" ? "Name of the new API task:" : "Name of the new bot:", kind === "ApiTask" ? "New API task" : "New bot");
   if (!name) return;
   if (state.dirty && !confirm("Discard unsaved changes to the open bot?")) return;
   const folder = currentFolder();
-  const path = await fileOp("bot", { parent: folder, name }, "Bot created");
+  const path = await fileOp("bot", { parent: folder, name, kind: kind === "ApiTask" ? "ApiTask" : "TaskBot" }, kind === "ApiTask" ? "API task created" : "Bot created");
   if (path) { setDirty(false); expandTo(path); state.treeSel = path; await openBot(path); }
 }
 
@@ -262,7 +373,7 @@ async function newFolderHere() {
 async function renameSelected() {
   const node = state.treeSel && nodeByPath(state.treeSel);
   if (!node || node.path === "") { toast("Select a file or folder to rename.", true); return; }
-  const current = node.type === "bot" ? node.name.replace(/\.flow\.json$/, "") : node.name;
+  const current = node.type === "folder" || node.type === "file" ? node.name : displayName(node);
   const name = prompt("New name:", current);
   if (!name || name === current) return;
   const path = await fileOp("rename", { path: node.path, name }, "Renamed");
@@ -275,7 +386,7 @@ async function deleteSelectedNode() {
   if (!confirm("Move '" + node.name + "'" + (node.type === "folder" ? " and everything in it" : "") + " to the workspace trash?")) return;
   const path = await fileOp("delete", { path: node.path }, "Moved to trash (workspace .trash folder)");
   if (path !== null) {
-    if (state.file && (state.file === node.path || state.file.startsWith(node.path + "/"))) { state.file = null; state.flow = null; setDirty(false); showEditor(false); renderProps(); }
+    if (state.file && (state.file === node.path || state.file.startsWith(node.path + "/"))) { state.file = null; state.flow = null; state.item = null; setDirty(false); showEditor(false); renderProps(); }
     state.treeSel = null; renderTree();
   }
 }
@@ -289,6 +400,7 @@ async function moveNode(from, toFolder) {
 function afterPathChange(oldPath, newPath) {
   const remap = (p) => (p === oldPath ? newPath : p.startsWith(oldPath + "/") ? newPath + p.slice(oldPath.length) : p);
   if (state.file) state.file = remap(state.file);
+  if (state.item) state.item.path = remap(state.item.path);
   state.expanded = new Set([...state.expanded].map(remap));  // renamed or moved folders stay open
   expandTo(newPath);
   if (state.file) expandTo(state.file);                       // keep the open bot visible
@@ -352,30 +464,44 @@ function updateEditButtons() {
 }
 
 // ---------- library ----------
+const RECENT_KEY = "ooa.studio.recent";
+function recentCommands() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (_) { return []; } }
+function noteRecent(addr) {
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify([addr, ...recentCommands().filter((x) => x !== addr)].slice(0, 8))); } catch (_) { /* storage unavailable */ }
+}
+
 function renderLibrary() {
   const q = $("cmd-search").value.trim().toLowerCase();
+  const groups = new Map(Object.keys(CATS).map((c) => [c, []]));
+  for (const p of state.packages) for (const a of p.actions) {
+    if (q && !(a.name + " " + a.id + " " + a.description + " " + p.name + " " + (a.category || "")).toLowerCase().includes(q)) continue;
+    groups.get(styleFor(p.id + "/" + a.id).cat).push({ p, a, addr: p.id + "/" + a.id });
+  }
   const out = [];
   let count = 0;
-  for (const p of state.packages) {
-    const items = p.actions.filter((a) => !q || (a.name + " " + a.id + " " + a.description + " " + p.name).toLowerCase().includes(q));
+  const cmdRow = ({ p, a, addr }) => {
+    const st = styleFor(addr);
+    return h("div", {
+      class: "cmd", title: a.description + "\nClick to add, or drag onto the canvas.", tabindex: "0", draggable: "true", "data-action": addr,
+      onclick: () => addStep(addr),
+      onkeydown: (e) => { if (e.key === "Enter") addStep(addr); },
+      ondragstart: (e) => { e.dataTransfer.setData("text/x-ooa-command", addr); e.dataTransfer.effectAllowed = "copy"; document.body.classList.add("dnd"); },
+      ondragend: () => document.body.classList.remove("dnd"),
+    }, tile(st.icon, st.color, "sm"), h("span", { class: "cmd-name", text: a.name }), h("span", { class: "cmd-pkg", text: p.name }));
+  };
+  const group = (id, meta, items) => {
+    const open = q !== "" || state.groupsOpen.has(id);
+    out.push(h("button", { type: "button", class: "pkg-head", "aria-expanded": String(open),
+      onclick: () => { if (state.groupsOpen.has(id)) state.groupsOpen.delete(id); else state.groupsOpen.add(id); renderLibrary(); } },
+      h("span", { class: "chev", text: open ? "\u25BE" : "\u25B8" }), tile(meta.icon, meta.color, "sm"), h("span", { class: "gname", text: meta.name }), h("span", { class: "n", text: items.length })));
+    if (open) out.push(h("div", { class: "cmd-group" }, items.map(cmdRow)));
+  };
+  const recent = q ? [] : recentCommands().filter((x) => state.specs.has(x)).map((addr) => ({ p: state.specs.get(addr).pkg, a: state.specs.get(addr).action, addr }));
+  if (recent.length) group("recent", { name: "Recently used", color: "#64748b", icon: "clock" }, recent);
+  for (const [cat, items] of groups) {
     if (!items.length) continue;
     count += items.length;
-    const open = q !== "" || state.groupsOpen.has(p.id);
-    const sw = h("span", { class: "sw" });
-    sw.style.background = p.color;
-    out.push(h("button", { type: "button", class: "pkg-head", "aria-expanded": String(open),
-      onclick: () => { if (state.groupsOpen.has(p.id)) state.groupsOpen.delete(p.id); else state.groupsOpen.add(p.id); renderLibrary(); } },
-      sw, h("span", { text: (open ? "\u25BE " : "\u25B8 ") + p.name }), h("span", { class: "n", text: items.length })));
-    if (!open) continue;
-    for (const a of items) {
-      out.push(h("div", {
-        class: "cmd", title: a.description + "\nClick to add, or drag onto the canvas.", tabindex: "0", draggable: "true", "data-action": p.id + "/" + a.id,
-        onclick: () => addStep(p.id + "/" + a.id),
-        onkeydown: (e) => { if (e.key === "Enter") addStep(p.id + "/" + a.id); },
-        ondragstart: (e) => { e.dataTransfer.setData("text/x-ooa-command", p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; document.body.classList.add("dnd"); },
-        ondragend: () => document.body.classList.remove("dnd"),
-      }, a.name));
-    }
+    group(cat, CATS[cat], items);
   }
   $("library").replaceChildren(...out);
   $("cmd-count").textContent = "(" + count + ")";
@@ -410,6 +536,7 @@ function addStep(action, at) {
   state.selected = at.path.concat(at.index);
   state.multi = new Set([step.id]);
   state.target = SECTIONS[action] ? state.selected.concat("children") : null;
+  noteRecent(action);
   changed();
   renderProps();
   toast("Added " + spec.action.name);
@@ -425,9 +552,8 @@ function summary(step) {
   return parts.concat(outs).join("   ");
 }
 
-function makeSlot(listPath, index, depth) {
+function makeSlot(listPath, index) {
   const slot = h("div", { class: "slot", "data-list": JSON.stringify(listPath), "data-index": index });
-  slot.style.marginLeft = depth * 24 + "px";
   slot.addEventListener("dragover", (e) => { e.preventDefault(); slot.classList.add("over"); });
   slot.addEventListener("dragleave", () => slot.classList.remove("over"));
   slot.addEventListener("drop", (e) => { e.preventDefault(); slot.classList.remove("over"); dropAt(e, listPath, index); });
@@ -470,10 +596,6 @@ function toggleFold(id) { const c = collapsedSet(); if (c.has(id)) c.delete(id);
 function foldAll(collapse) {
   const ids = allSteps(state.flow.steps).filter((st) => SECTIONS[st.action]).map((st) => st.id);
   setCollapsed(collapse ? new Set(ids) : new Set());
-}
-function iconFor(spec) {
-  const name = spec ? spec.action.name : "?";
-  return name.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "?";
 }
 
 // ---------- multi-select, clipboard, context menu ----------
@@ -624,25 +746,21 @@ function renderSteps() {
   for (const p of state.problems) if (p.stepId) problemsBy.set(p.stepId, (problemsBy.get(p.stepId) || 0) + 1);
   const collapsed = collapsedSet();
 
-  function list(steps, path, depth, prefix) {
-    const out = [makeSlot(path, 0, depth)];
+  function list(steps, path, prefix) {
+    const out = [makeSlot(path, 0)];
     steps.forEach((s, i) => {
       const p = path.concat(i);
       const spec = state.specs.get(s.action);
+      const st = styleFor(s.action);
       const num = prefix + (i + 1);
       const isSel = state.multi.has(s.id) || (state.multi.size === 0 && sameList(p, state.selected));
       const live = state.liveSteps;
       const liveClass = live.running === s.id ? " running" : live.failed === s.id ? " failed-run" : live.done.has(s.id) ? " done" : "";
       const isContainer = !!SECTIONS[s.action];
       const folded = isContainer && collapsed.has(s.id);
-      const bar = h("span", { class: "bar" });
-      bar.style.background = spec ? spec.pkg.color : "#999";
-      const ico = h("span", { class: "ico", text: iconFor(spec), "aria-hidden": "true" });
-      ico.style.background = (spec ? spec.pkg.color : "#999") + "22";
-      ico.style.color = spec ? spec.pkg.color : "#999";
       const hiddenCount = folded ? allSteps([s]).length - 1 : 0;
       const row = h("div", {
-        class: "step" + (isSel ? " selected" : "") + (s.disabled ? " disabled" : "") + liveClass, tabindex: "0", draggable: "true", "data-step-id": s.id,
+        class: "step" + (isContainer ? " container" : "") + (isSel ? " selected" : "") + (s.disabled ? " disabled" : "") + liveClass, tabindex: "0", draggable: "true", "data-step-id": s.id,
         "aria-selected": String(isSel),
         onclick: (e) => { e.stopPropagation(); clickStep(e, p, s); },
         oncontextmenu: (e) => { e.stopPropagation(); showContextMenu(e, p, s); },
@@ -657,40 +775,46 @@ function renderSteps() {
         },
         ondragend: () => { row.classList.remove("dragging-source"); document.body.classList.remove("dnd"); state.dragStep = null; },
       },
-        bar,
         h("span", { class: "grip", title: "Drag to move", text: "\u22EE\u22EE" }),
         h("span", { class: "num", text: num }),
         isContainer ? h("button", { type: "button", class: "fold", "aria-expanded": String(!folded), "aria-label": folded ? "Expand block" : "Collapse block",
           onclick: (e) => { e.stopPropagation(); toggleFold(s.id); } }, folded ? "\u25B8" : "\u25BE") : null,
-        ico,
+        tile(st.icon, st.color, "ico"),
         h("span", { class: "title", text: spec ? spec.action.name : s.action }),
         h("span", { class: "pkg", text: spec ? spec.pkg.name : s.action.split("/")[0] }),
-        h("span", { class: "summary", text: summary(s) }),
+        h("span", { class: "summary", text: s.description ? s.description : summary(s) }),
         folded && hiddenCount ? h("span", { class: "hidden-pill", text: hiddenCount + (hiddenCount === 1 ? " step hidden" : " steps hidden") }) : null,
+        s.disabled ? h("span", { class: "off-pill", text: "Disabled" }) : null,
         problemsBy.get(s.id) ? h("span", { class: "flag", title: "Has problems; see the Problems tab", text: "!" + problemsBy.get(s.id) }) : null);
-      row.style.marginLeft = depth * 26 + "px";
+      row.style.setProperty("--c", st.color);
       out.push(row);
       let sections = SECTIONS[s.action] || [];
       if (s.action === "core/if") sections = [["children", "Then"], ...(s.elseIf || []).map((_, k) => [["elseIf", k, "children"], "Else if #" + (k + 1)]), ["else", "Else"]];
-      if (!folded) for (const [key, label] of sections) {
-        const k = Array.isArray(key) ? key : [key];
-        if (getAt(s, k) === undefined) continue;
-        const sp = p.concat(k);
-        const kids = getAt(s, k);
-        const sec = h("div", {
-          class: "section" + (sameList(sp, state.target) ? " target" : ""), tabindex: "0",
-          title: "Click to add new commands here, or drop a command on it",
-          onclick: (e) => { e.stopPropagation(); state.target = sp; state.selected = p; renderSteps(); renderProps(); },
-        }, label);
-        sec.style.marginLeft = (depth + 1) * 26 + "px";
-        sec.addEventListener("dragover", (e) => { e.preventDefault(); sec.classList.add("target"); });
-        sec.addEventListener("dragleave", () => sec.classList.toggle("target", sameList(sp, state.target)));
-        sec.addEventListener("drop", (e) => { e.preventDefault(); e.stopPropagation(); dropAt(e, sp, kids.length); });
-        out.push(sec);
-        if (kids.length) out.push(...list(kids, sp, depth + 1, num + "."));
-        else { out.push(makeSlot(sp, 0, depth + 1)); const em = h("div", { class: "empty", text: "Empty: drop a command here" }); em.style.marginLeft = (depth + 1) * 26 + "px"; out.push(em); }
+      if (!folded && sections.length) {
+        const blk = h("div", { class: "block" });
+        blk.style.setProperty("--c", st.color);
+        for (const [key, label] of sections) {
+          const k = Array.isArray(key) ? key : [key];
+          if (getAt(s, k) === undefined) continue;
+          const sp = p.concat(k);
+          const kids = getAt(s, k);
+          const sec = h("div", {
+            class: "section" + (sameList(sp, state.target) ? " target" : ""), tabindex: "0",
+            title: "Click to add new commands here, or drop a command on it",
+            onclick: (e) => { e.stopPropagation(); state.target = sp; state.selected = p; renderSteps(); renderProps(); },
+          }, label);
+          sec.addEventListener("dragover", (e) => { e.preventDefault(); sec.classList.add("target"); });
+          sec.addEventListener("dragleave", () => sec.classList.toggle("target", sameList(sp, state.target)));
+          sec.addEventListener("drop", (e) => { e.preventDefault(); e.stopPropagation(); dropAt(e, sp, kids.length); });
+          blk.append(sec);
+          const body = h("div", { class: "block-list" });
+          if (kids.length) body.append(...list(kids, sp, num + "."));
+          else body.append(makeSlot(sp, 0), h("div", { class: "empty", text: "Empty: drop a command here" }));
+          blk.append(body);
+        }
+        out.push(blk);
       }
-      out.push(makeSlot(path, i + 1, depth));
+      out.push(makeSlot(path, i + 1));
     });
     return out;
   }
@@ -699,7 +823,7 @@ function renderSteps() {
     zone.addEventListener("dragover", (e) => { e.preventDefault(); });
     zone.addEventListener("drop", (e) => { e.preventDefault(); dropAt(e, ["steps"], 0); });
     container.replaceChildren(zone);
-  } else container.replaceChildren(...list(state.flow.steps, ["steps"], 0, ""));
+  } else container.replaceChildren(...list(state.flow.steps, ["steps"], ""));
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
   $("insert-hint").textContent = state.target ? "Clicked commands go into the highlighted section."
@@ -802,13 +926,14 @@ function inputControl(step, name, prop, required) {
       placeholder: prop.default !== undefined ? "default: " + prop.default : type === "Credential" ? "$credential_variable" : type === "Number" ? "number or $variable" : "",
       onchange: (e) => set(type === "Number" ? parseLoose(e.target.value) : (e.target.value === "" ? undefined : e.target.value)) });
   }
+  if (control.tagName === "INPUT" || control.tagName === "TEXTAREA") { control.dataset.argName = name; control = withPicker(control, type); }
   if (name === "selector" && step.action.startsWith("ooa.browser/")) {
     const pick = h("button", { type: "button", title: "Open the page and click the element to capture its selector", onclick: () => pickSelector((sel) => { set(sel); renderProps(); }) }, "Pick");
     control = h("div", { class: "field-row" }, control, pick);
   }
   const help = [prop.description, prop.examples ? "Example: " + prop.examples[0] : null].filter(Boolean).join("  ");
   return h("div", { class: "field" },
-    h("label", {}, (prop["x-ooa-label"] || name), required ? h("span", { class: "req", text: " *" }) : null, h("span", { class: "muted", text: "  " + type })),
+    h("label", {}, (prop["x-ooa-label"] || name), required ? h("span", { class: "req", text: " *" }) : null, typeChip(type)),
     control, h("div", { class: "help", text: help }));
 }
 
@@ -885,18 +1010,18 @@ function conditionEditor(value, onChange) {
     if (r.kind === "compare") {
       const op = h("select", { "aria-label": "Operator", onchange: (e) => { r.op = e.target.value; commit(); } }, OPS.map(([v, t]) => h("option", { value: v, text: t })));
       op.value = r.op;
-      fields.push(h("input", { type: "text", value: r.left, placeholder: "$variable or value", "aria-label": "Left value", onchange: (e) => { r.left = e.target.value; commit(); } }), op);
-      if (!["empty", "notEmpty"].includes(r.op)) fields.push(h("input", { type: "text", value: r.right, placeholder: r.op === "in" ? '["a","b"]' : r.op === "matches" ? "^INV-\\d+$" : "value or $variable", "aria-label": "Right value", onchange: (e) => { r.right = e.target.value; commit(); } }));
+      fields.push(withPicker(h("input", { type: "text", value: r.left, placeholder: "$variable or value", "aria-label": "Left value", onchange: (e) => { r.left = e.target.value; commit(); } }), "Any"), op);
+      if (!["empty", "notEmpty"].includes(r.op)) fields.push(withPicker(h("input", { type: "text", value: r.right, placeholder: r.op === "in" ? '["a","b"]' : r.op === "matches" ? "^INV-\\d+$" : "value or $variable", "aria-label": "Right value", onchange: (e) => { r.right = e.target.value; commit(); } }), "Any"));
     } else if (r.kind === "bool") {
-      fields.push(h("input", { type: "text", value: r.left, placeholder: "$variable", "aria-label": "Value", onchange: (e) => { r.left = e.target.value; commit(); } }));
+      fields.push(withPicker(h("input", { type: "text", value: r.left, placeholder: "$variable", "aria-label": "Value", onchange: (e) => { r.left = e.target.value; commit(); } }), "Boolean"));
     } else {
       const c = catalog.find((x) => x.addr === r.addr);
       if (!c) fields.push(h("div", { class: "help", text: "Unknown condition " + r.addr + " (is its package installed?)" }));
       else for (const [name, prop] of Object.entries(c.spec.inputs.properties)) {
         const req = (c.spec.inputs.required || []).includes(name);
         fields.push(h("label", { class: "cond-arg" }, h("span", {}, name, req ? h("span", { class: "req", text: " *" }) : null),
-          h("input", { type: "text", value: showValue(r.args[name]), placeholder: prop.default !== undefined ? "default: " + prop.default : prop["x-ooa-type"] || "",
-            title: prop.description || "", onchange: (e) => { const v = parseLoose(e.target.value); if (v === undefined || e.target.value === "") delete r.args[name]; else r.args[name] = v; commit(); } })));
+          withPicker(h("input", { type: "text", value: showValue(r.args[name]), placeholder: prop.default !== undefined ? "default: " + prop.default : prop["x-ooa-type"] || "",
+            title: prop.description || "", onchange: (e) => { const v = parseLoose(e.target.value); if (v === undefined || e.target.value === "") delete r.args[name]; else r.args[name] = v; commit(); } }), prop["x-ooa-type"] || "Any")));
       }
     }
     return h("div", { class: "cond-row" },
@@ -935,9 +1060,11 @@ function renderProps() {
   const step = getAt(state.flow, state.selected);
   if (!step) { state.selected = null; return renderProps(); }
   const spec = state.specs.get(step.action);
+  const st = styleFor(step.action);
   const parts = [];
-  parts.push(h("h2", { class: "props-head", text: spec ? spec.action.name : step.action }));
-  parts.push(h("div", { class: "desc", text: (spec ? spec.pkg.name + " \u00B7 " : "") + step.action }));
+  parts.push(h("div", { class: "props-title" }, tile(st.icon, st.color, "lg"),
+    h("div", {}, h("h2", { class: "props-head", text: spec ? spec.action.name : step.action }),
+      h("div", { class: "desc", text: (spec ? spec.pkg.name + " \u00B7 " : "") + step.action }))));
   parts.push(h("p", { class: "desc", text: spec ? spec.action.description : "Unknown command" }));
 
   const general = [
@@ -965,7 +1092,7 @@ function renderProps() {
           if (e.target.value) step.out[oname] = e.target.value; else delete step.out[oname];
           if (!Object.keys(step.out).length) delete step.out;
           changed();
-        } }, h("option", { value: "", text: "(do not store)" }), varNames().map((n) => h("option", { value: n, text: n })));
+        } }, h("option", { value: "", text: "(do not store)" }), ...outputOptions(o["x-ooa-type"]));
         sel.value = (step.out || {})[oname] || "";
         const mk = h("button", { type: "button", title: "Create a new variable for this output", onclick: () => {
           const n = addVariable(oname, o["x-ooa-type"]);
@@ -973,7 +1100,7 @@ function renderProps() {
           changed(); renderProps(); renderVariables();
           toast("Created variable " + n);
         } }, "+ New");
-        return h("div", { class: "field" }, h("label", {}, oname, h("span", { class: "muted", text: "  " + o["x-ooa-type"] })),
+        return h("div", { class: "field" }, h("label", {}, oname, typeChip(o["x-ooa-type"] || "Any")),
           h("div", { class: "field-row" }, sel, mk), h("div", { class: "help", text: o.description || "" }));
       });
       parts.push(acc("Outputs", nodes, true));
@@ -1043,52 +1170,419 @@ function insertReference(ref) {
   }
 }
 
-function builtinSection(title, prefix, values, note) {
-  const rows = Object.entries(values || {}).map(([k, v]) => h("tr", {},
-    h("td", {}, h("code", { text: prefix + k })), h("td", { class: "muted", text: typeof v === "object" ? JSON.stringify(v) : String(v) }),
-    h("td", {}, h("button", { type: "button", class: "link-btn", title: "Insert into the field you last edited", onclick: () => insertReference(prefix + k) }, "Insert"))));
-  return h("details", { class: "acc", open: true }, h("summary", { text: title }),
-    h("div", { class: "acc-body" }, note ? h("div", { class: "help", text: note }) : null,
-      rows.length ? h("table", { class: "grid" }, h("tbody", {}, rows)) : h("div", { class: "empty", text: "None defined." })));
+// ---------- variable types, value editors and the variables pane ----------
+const TYPE_STYLE = {
+  String: { icon: "text", color: "#2563eb", hint: "Text" }, Number: { icon: "hash", color: "#059669", hint: "Whole or decimal number" },
+  Boolean: { icon: "toggle", color: "#7c3aed", hint: "True or false" }, DateTime: { icon: "calendar", color: "#d97706", hint: "Date and time" },
+  List: { icon: "list", color: "#0891b2", hint: "Ordered items" }, Dictionary: { icon: "braces", color: "#db2777", hint: "Named keys and values" },
+  Table: { icon: "table", color: "#16a34a", hint: "Rows and columns" }, Record: { icon: "record", color: "#9333ea", hint: "One row of named values" },
+  File: { icon: "file", color: "#64748b", hint: "File or folder path" }, Window: { icon: "window", color: "#ea580c", hint: "An application window" },
+  UIElement: { icon: "cursor", color: "#c2410c", hint: "An element on screen or in a web page" }, Credential: { icon: "lock", color: "#dc2626", hint: "Secret from the vault" },
+  Any: { icon: "star", color: "#475569", hint: "Any kind of value" },
+};
+function typeBadge(type) { const st = TYPE_STYLE[type] || TYPE_STYLE.Any; const b = tile(st.icon, st.color, "sm type-badge"); b.title = type + ": " + st.hint; return b; }
+function typeChip(type) { const c = h("span", { class: "type-chip", text: type }); c.style.setProperty("--c", (TYPE_STYLE[type] || TYPE_STYLE.Any).color); return c; }
+function guessType(v) {
+  if (typeof v === "number") return "Number";
+  if (typeof v === "boolean") return "Boolean";
+  if (Array.isArray(v)) return "List";
+  if (v && typeof v === "object") return Array.isArray(v.columns) && Array.isArray(v.rows) ? "Table" : "Dictionary";
+  return "String";
 }
+function preview(v) { const t = showValue(v); return t.length > 42 ? t.slice(0, 40) + "\u2026" : t; }
+/** Can a variable of type `have` be used where a command expects `want`? Strings accept most values (they are formatted). */
+function compatible(want, have) {
+  if (!want || want === "Any" || !have || have === "Any" || want === have) return true;
+  if (want === "String") return ["Number", "Boolean", "DateTime", "File"].includes(have);
+  if (want === "File") return have === "String";
+  return (want === "Record" && have === "Dictionary") || (want === "Dictionary" && have === "Record");
+}
+function outputOptions(want) {
+  const vars = state.flow.variables;
+  const fit = vars.filter((v) => compatible(want, v.type) || compatible(v.type, want)), rest = vars.filter((v) => !fit.includes(v));
+  const opt = (v) => h("option", { value: v.name, text: v.name + "  (" + v.type + ")" });
+  if (!rest.length) return fit.map(opt);
+  return [fit.length ? h("optgroup", { label: "Matching " + (want || "Any") }, fit.map(opt)) : null, h("optgroup", { label: "Other variables" }, rest.map(opt))];
+}
+/** Matches $name and the start of an interpolation ${name...}; group 1 keeps the "{" so a rename can put it back. */
+function varRegex(name) { return new RegExp("\\$(\\{\\s*)?" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9_])", "g"); }
+function usageCount(name) {
+  if (!state.flow) return 0;
+  const re = varRegex(name);
+  let n = 0;
+  for (const st of allSteps(state.flow.steps)) {
+    n += (JSON.stringify([st.args || {}, (st.elseIf || []).map((b) => b.condition)]).match(re) || []).length;
+    for (const v of Object.values(st.out || {})) if (v === name) n++;
+    for (const k of ["variable", "as", "index"]) if (st.args && st.args[k] === name) n++;
+    for (const c of st.catch || []) if (c.as === name) n++;
+  }
+  return n;
+}
+/** After a rename, every $old reference, output and loop/catch name in the bot points to the new name. */
+function renameVariableRefs(oldName, newName) {
+  const re = varRegex(oldName);
+  const map = (v) => typeof v === "string" ? v.replace(re, (m, brace) => "$" + (brace || "") + newName) : Array.isArray(v) ? v.map(map)
+    : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, map(x)])) : v;
+  for (const st of allSteps(state.flow.steps)) {
+    if (st.args) { st.args = map(st.args); for (const k of ["variable", "as", "index"]) if (st.args[k] === oldName) st.args[k] = newName; }
+    for (const b of st.elseIf || []) b.condition = map(b.condition);
+    for (const [k, v] of Object.entries(st.out || {})) if (v === oldName) st.out[k] = newName;
+    for (const c of st.catch || []) if (c.as === oldName) c.as = newName;
+  }
+}
+function uniqueVarName(base) {
+  let b = String(base || "variable").replace(/[^A-Za-z0-9_]+/g, "_").replace(/^([0-9])/, "_$1").slice(0, 56) || "variable";
+  let n = b, k = 2;
+  while (state.flow && state.flow.variables.some((v) => v.name === n)) n = b + "_" + k++;
+  return n;
+}
+
+function fileOptions() {
+  let dl = $("ws-files");
+  if (!dl) { dl = h("datalist", { id: "ws-files" }); document.body.appendChild(dl); }
+  const out = [];
+  const walk = (n) => { if (!n) return; if (n.type !== "folder") out.push(n.path); for (const c of n.children || []) walk(c); };
+  walk(state.tree);
+  dl.replaceChildren(...out.slice(0, 2000).map((p) => h("option", { value: p })));
+}
+
+/**
+ * An editor for one value of a variable type: text, number, true/false, date and time, list, keys and values, table grid,
+ * file path (with workspace suggestions) or JSON. The returned element has getValue(); undefined means "not set".
+ */
+function valueEditor(type, value, onChange, opts = {}) {
+  const emit = () => { if (onChange) onChange(el.getValue()); };
+  let el;
+  if (Array.isArray(opts.enum) && opts.enum.length) {
+    el = h("select", { "aria-label": opts.label || "Value", onchange: emit }, h("option", { value: "", text: "(not set)" }), opts.enum.map((x) => h("option", { value: String(x), text: String(x) })));
+    el.value = value === undefined ? "" : String(value);
+    el.getValue = () => (el.value === "" ? undefined : opts.enum.find((x) => String(x) === el.value));
+    return el;
+  }
+  switch (type) {
+    case "Boolean":
+      el = h("select", { "aria-label": opts.label || "Value", onchange: emit }, h("option", { value: "", text: "(not set)" }), h("option", { value: "true", text: "True" }), h("option", { value: "false", text: "False" }));
+      el.value = value === true ? "true" : value === false ? "false" : "";
+      el.getValue = () => (el.value === "" ? undefined : el.value === "true");
+      return el;
+    case "Number":
+      el = h("input", { type: "text", inputmode: "decimal", "aria-label": opts.label || "Value", value: value === undefined ? "" : showValue(value), placeholder: opts.placeholder || "e.g. 42 or 3.5" });
+      el.getValue = () => { const t = el.value.trim(); if (!t) return undefined; const n = Number(t); return Number.isFinite(n) ? n : t; };
+      el.addEventListener("change", () => { const v = el.getValue(); el.classList.toggle("invalid", typeof v === "string" && !v.startsWith("$")); emit(); });
+      return el;
+    case "DateTime": {
+      const iso = typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value) ? value.slice(0, 19) : "";
+      el = h("input", { type: "datetime-local", step: "1", "aria-label": opts.label || "Value", value: iso });
+      el.getValue = () => (el.value ? (el.value.length === 16 ? el.value + ":00" : el.value) : undefined);
+      el.addEventListener("change", emit);
+      return el;
+    }
+    case "List": case "Dictionary": case "Record": case "Table":
+      el = structuredEditor(type, value, () => emit());
+      return el;
+    case "Any":
+      el = h("textarea", { rows: 2, "aria-label": opts.label || "Value", value: showValue(value), placeholder: opts.placeholder || "Text, number, true/false or JSON" });
+      el.getValue = () => parseLoose(el.value);
+      el.addEventListener("change", emit);
+      return el;
+    case "File":
+      fileOptions();
+      el = h("input", { type: "text", list: "ws-files", "aria-label": opts.label || "Value", value: showValue(value), placeholder: opts.placeholder || "Path in the workspace, e.g. data/orders.csv, or C:\\Folder\\file.xlsx" });
+      el.getValue = () => (el.value.trim() === "" ? undefined : el.value.trim());
+      el.addEventListener("change", emit);
+      return el;
+    case "Credential":
+      el = h("input", { type: "text", "aria-label": opts.label || "Value", value: "", placeholder: opts.placeholder || "locker/credential/attribute" });
+      el.getValue = () => (el.value.trim() === "" ? undefined : el.value.trim());
+      el.addEventListener("change", emit);
+      return el;
+    default:
+      el = h("input", { type: "text", "aria-label": opts.label || "Value", value: value === undefined ? "" : showValue(value), placeholder: opts.placeholder || (type === "Window" ? "Window title, e.g. *Notepad" : type === "UIElement" ? "Selector, e.g. #submit" : "") });
+      el.getValue = () => (el.value === "" ? undefined : el.value);
+      el.addEventListener("change", emit);
+      return el;
+  }
+}
+
+/** Row editors for List, Dictionary/Record and Table values, with an "Edit as JSON" switch. */
+function structuredEditor(kind, value, emit) {
+  const box = h("div", { class: "ve" });
+  const isTable = kind === "Table", isList = kind === "List";
+  const fits = (v) => (isList ? Array.isArray(v) : isTable ? !!v && Array.isArray(v.columns) && Array.isArray(v.rows) : !!v && typeof v === "object" && !Array.isArray(v));
+  let cur = value === undefined ? (isList ? [] : isTable ? { columns: [], rows: [] } : {}) : JSON.parse(JSON.stringify(value));
+  let asJson = value !== undefined && !fits(value);
+  let pairs = !isList && !isTable && fits(cur) ? Object.entries(cur) : [];
+  const ta = h("textarea", { rows: 4, "aria-label": kind + " as JSON" });
+  const empty = () => (isList ? !cur.length : isTable ? !cur.columns.length : !pairs.length);
+  box.getValue = () => {
+    if (asJson) return parseLoose(ta.value);
+    if (!isList && !isTable) { cur = {}; for (const [k, v] of pairs) if (k !== "") cur[k] = v; }
+    return empty() ? undefined : JSON.parse(JSON.stringify(cur));
+  };
+  const changedNow = () => { emit(); };
+  const cell = (v, onSet, label) => h("input", { type: "text", value: showValue(v), "aria-label": label, onchange: (e) => { const x = parseLoose(e.target.value); onSet(x === undefined ? "" : x); changedNow(); } });
+  const x = (label, fn) => h("button", { type: "button", class: "icon-mini danger", "aria-label": label, title: label, onclick: () => { fn(); render(); changedNow(); } }, "\u2715");
+  function render() {
+    if (asJson) {
+      ta.value = typeof cur === "string" ? cur : value === undefined && empty() ? "" : JSON.stringify(fits(cur) ? box.getValueRaw() : cur, null, 2);
+      box.replaceChildren(ta, h("div", { class: "ve-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => {
+        const v = parseLoose(ta.value);
+        if (v !== undefined && !fits(v)) { toast("That JSON is not a " + kind + "; keep editing it as JSON.", true); return; }
+        cur = v === undefined ? (isList ? [] : isTable ? { columns: [], rows: [] } : {}) : v; pairs = !isList && !isTable ? Object.entries(cur) : pairs; asJson = false; render(); } }, "Use the " + kind.toLowerCase() + " editor")));
+      return;
+    }
+    const kids = [];
+    if (isList) {
+      cur.forEach((item, i) => kids.push(h("div", { class: "ve-row" }, h("span", { class: "ve-idx", text: String(i + 1) }), cell(item, (v) => { cur[i] = v; }, "Item " + (i + 1)), x("Remove item " + (i + 1), () => cur.splice(i, 1)))));
+      if (!cur.length) kids.push(h("div", { class: "empty", text: "No items yet." }));
+    } else if (isTable) {
+      const t = h("table", { class: "ve-table" },
+        h("thead", {}, h("tr", {}, cur.columns.map((c, j) => h("th", {}, h("div", { class: "ve-row" },
+          h("input", { type: "text", value: c, "aria-label": "Column " + (j + 1) + " name", onchange: (e) => { cur.columns[j] = e.target.value; changedNow(); } }),
+          x("Remove column " + c, () => { cur.columns.splice(j, 1); for (const r of cur.rows) r.splice(j, 1); })))), h("th", {}))),
+        h("tbody", {}, cur.rows.map((r, i) => h("tr", {}, cur.columns.map((_, j) => h("td", {}, cell(r[j], (v) => { r[j] = v; }, "Row " + (i + 1) + " " + cur.columns[j]))),
+          h("td", {}, x("Remove row " + (i + 1), () => cur.rows.splice(i, 1)))))));
+      kids.push(cur.columns.length ? h("div", { class: "ve-table-wrap" }, t) : h("div", { class: "empty", text: "Add a column to start the table." }));
+    } else {
+      pairs.forEach((pr, i) => kids.push(h("div", { class: "ve-row" },
+        h("input", { type: "text", value: pr[0], placeholder: "key", "aria-label": "Key " + (i + 1), onchange: (e) => { pr[0] = e.target.value.trim(); changedNow(); } }),
+        cell(pr[1], (v) => { pr[1] = v; }, "Value " + (i + 1)), x("Remove key " + (pr[0] || i + 1), () => pairs.splice(i, 1)))));
+      if (!pairs.length) kids.push(h("div", { class: "empty", text: "No keys yet." }));
+    }
+    const add = isList ? h("button", { type: "button", class: "small", onclick: () => { cur.push(""); render(); } }, "+ Item")
+      : isTable ? [h("button", { type: "button", class: "small", onclick: () => { cur.columns.push("column" + (cur.columns.length + 1)); for (const r of cur.rows) r.push(""); render(); changedNow(); } }, "+ Column"),
+        cur.columns.length ? h("button", { type: "button", class: "small", onclick: () => { cur.rows.push(cur.columns.map(() => "")); render(); changedNow(); } }, "+ Row") : null]
+      : h("button", { type: "button", class: "small", onclick: () => { pairs.push(["", ""]); render(); } }, "+ Key");
+    kids.push(h("div", { class: "ve-actions" }, add, h("span", { class: "spacer" }), h("button", { type: "button", class: "link-btn", onclick: () => { asJson = true; render(); } }, "Edit as JSON")));
+    box.replaceChildren(...kids);
+  }
+  box.getValueRaw = () => { if (!isList && !isTable) { const o = {}; for (const [k, v] of pairs) if (k !== "") o[k] = v; return o; } return cur; };
+  render();
+  return box;
+}
+
+// ---------- dialog ----------
+function openDialog(title, body, actions, opts = {}) {
+  $("dialog-title").textContent = title;
+  $("dialog-body").replaceChildren(...[].concat(body).filter(Boolean));
+  $("dialog-actions").replaceChildren(...actions, h("button", { type: "button", onclick: closeDialog }, opts.closeLabel || "Cancel"));
+  $("dialog").classList.toggle("wide", !!opts.wide);
+  $("dialog").hidden = false;
+  const first = $("dialog-body").querySelector("input, select, textarea, button");
+  if (first) first.focus();
+}
+function closeDialog() { $("dialog").hidden = true; }
+function field(label, control, help) { return h("div", { class: "field" }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null); }
+
+/** Create or edit a bot variable: name, type, use (input/output/inside), default value editor for the type, description. */
+function editVariable(existing, preset = {}) {
+  if (!state.flow) { toast("Open a bot first.", true); return; }
+  const isNew = !existing;
+  const v = isNew ? { name: uniqueVarName(preset.name || "new_variable"), type: preset.type || "String" } : JSON.parse(JSON.stringify(existing));
+  if (isNew && preset.direction && preset.direction !== "local") v.direction = preset.direction;
+  const name = h("input", { type: "text", value: v.name, spellcheck: "false", "aria-label": "Variable name" });
+  const typeGrid = h("div", { class: "type-grid", role: "radiogroup", "aria-label": "Type" });
+  const dirSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Use" });
+  const reqBox = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!v.required, onchange: (e) => { v.required = e.target.checked; } }), "Required: the bot cannot start without a value");
+  const defBox = h("div"), enumBox = h("div");
+  const desc = h("textarea", { rows: 2, value: v.description || "", placeholder: "What this variable holds. People running the bot and AI agents read this." });
+  let defEditor = null;
+  const keepDefault = () => { if (defEditor) { const d = defEditor.getValue(); if (d === undefined) delete v.default; else v.default = d; } };
+  const renderType = () => typeGrid.replaceChildren(...TYPES.map((t) => h("button", { type: "button", class: "type-opt", role: "radio", "aria-checked": String(v.type === t), title: (TYPE_STYLE[t] || {}).hint,
+    onclick: () => { if (v.type !== t) { v.type = t; delete v.default; delete v.enum; renderType(); renderDefault(); } } }, typeBadge(t), h("span", { text: t }))));
+  const renderDir = () => {
+    dirSeg.replaceChildren(...[["local", "Inside the bot"], ["input", "Input"], ["output", "Output"]].map(([d, l]) => h("button", { type: "button", role: "radio", "aria-checked": String((v.direction || "local") === d),
+      onclick: () => { keepDefault(); if (d === "local") delete v.direction; else v.direction = d; renderDir(); renderDefault(); } }, l)));
+    reqBox.hidden = v.direction !== "input";
+  };
+  const renderDefault = () => {
+    if (v.type === "Credential") {
+      defEditor = null; delete v.default;
+      defBox.replaceChildren(h("div", { class: "help", text: "Credentials never have a default. Whoever runs the bot gives a vault reference (locker/credential/attribute)." }));
+      enumBox.replaceChildren();
+      return;
+    }
+    defEditor = valueEditor(v.type, v.default, null, { label: "Default value", enum: v.enum });
+    defBox.replaceChildren(defEditor, h("div", { class: "help", text: v.direction === "input" ? "Used when the caller gives no value." : "The value the variable starts with. Leave empty for none." }));
+    if (v.direction === "input" && ["String", "Number"].includes(v.type)) {
+      const en = h("input", { type: "text", value: (v.enum || []).join(", "), placeholder: "Optional: the only values allowed, separated by commas" });
+      en.addEventListener("change", () => {
+        const vals = en.value.split(",").map((x) => x.trim()).filter(Boolean).map((x) => (v.type === "Number" && Number.isFinite(Number(x)) ? Number(x) : x));
+        keepDefault();
+        if (vals.length) v.enum = vals; else delete v.enum;
+        if (v.enum && v.default !== undefined && !v.enum.includes(v.default)) delete v.default;
+        renderDefault();
+      });
+      enumBox.replaceChildren(field("Allowed values", en));
+    } else enumBox.replaceChildren();
+  };
+  renderType(); renderDir(); renderDefault();
+  const save = h("button", { type: "button", class: "primary", onclick: () => {
+    const n = name.value.trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(n)) { toast("Variable names start with a letter or _ and use letters, digits and _.", true); name.focus(); return; }
+    if (state.flow.variables.some((x) => x.name === n && x !== existing)) { toast("Another variable is already called " + n + ".", true); name.focus(); return; }
+    keepDefault();
+    if (desc.value.trim()) v.description = desc.value.trim(); else delete v.description;
+    if (v.direction !== "input") { delete v.required; delete v.enum; }
+    if (!v.required) delete v.required;
+    v.name = n;
+    if (existing) {
+      if (existing.name !== n) renameVariableRefs(existing.name, n);
+      for (const k of Object.keys(existing)) delete existing[k];
+      Object.assign(existing, v);
+    } else state.flow.variables.push(v);
+    closeDialog();
+    changed(); renderVariables(); renderProps(); renderRunPanel();
+    toast((existing ? "Saved" : "Created") + " variable $" + n);
+    if (preset.onSave) preset.onSave(n);
+  } }, isNew ? "Create variable" : "Save changes");
+  openDialog(isNew ? "New variable" : "Edit variable $" + existing.name, [
+    field("Name", name, "Use it in any field as $" + v.name + ". Renaming updates every use in this bot."),
+    field("Type", typeGrid), h("div", { class: "field" }, h("label", { text: "Use" }), dirSeg, reqBox),
+    h("div", { class: "field" }, h("label", { text: "Default value" }), defBox), enumBox, field("Description", desc)], [save], { wide: true });
+}
+
+function insertReference(ref) {
+  const el = state.lastInput;
+  if (el && document.body.contains(el)) insertAt(el, ref, false);
+  else {
+    try { navigator.clipboard.writeText(ref); toast("Copied " + ref + "; paste it into any field."); } catch (_) { toast(ref); }
+  }
+}
+function insertAt(el, ref, replaceDollar) {
+  const st = el.selectionStart ?? el.value.length, en = el.selectionEnd ?? el.value.length;
+  const start = replaceDollar && el.value[st - 1] === "$" ? st - 1 : st;
+  el.value = el.value.slice(0, start) + ref + el.value.slice(en);
+  el.focus();
+  try { el.setSelectionRange(start + ref.length, start + ref.length); } catch (_) { /* not a text field */ }
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  toast("Inserted " + ref);
+}
+
+/** Adds a {x} button to a text field: pick a variable (matching the field's type first), or press Ctrl+Space or type $. */
+function withPicker(control, wantType) {
+  if (!control || !/^(INPUT|TEXTAREA)$/.test(control.tagName)) return control;
+  const btn = h("button", { type: "button", class: "var-btn", title: "Insert a variable (Ctrl+Space, or type $)", "aria-label": "Insert a variable",
+    onclick: (e) => { e.preventDefault(); e.stopPropagation(); openVarPicker(control, wantType, false); } }, "{x}");
+  control.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === " ") { e.preventDefault(); openVarPicker(control, wantType, false); } });
+  control.addEventListener("input", (e) => { if (e.data === "$") openVarPicker(control, wantType, true); });
+  return h("div", { class: "var-field" }, control, btn);
+}
+
+function openVarPicker(target, wantType, typedDollar) {
+  closeVarPicker();
+  if (!state.builtins) loadBuiltins();
+  const want = wantType && wantType !== "Any" ? wantType : null;
+  const q = h("input", { type: "search", placeholder: "Find a variable", "aria-label": "Find a variable" });
+  const list = h("div", { class: "var-pop-list", role: "listbox" });
+  const pick = (ref) => { closeVarPicker(); insertAt(target, ref, typedDollar); };
+  const item = (ref, type, note) => h("button", { type: "button", class: "var-pop-item", role: "option", onclick: () => pick(ref),
+    onkeydown: (e) => { if (e.key === "ArrowDown" && e.target.nextElementSibling) { e.preventDefault(); (e.target.parentElement.querySelectorAll(".var-pop-item")[[...e.target.parentElement.querySelectorAll(".var-pop-item")].indexOf(e.target) + 1] || e.target).focus(); }
+      if (e.key === "ArrowUp") { e.preventDefault(); const all = [...e.target.parentElement.querySelectorAll(".var-pop-item")]; (all[all.indexOf(e.target) - 1] || q).focus(); }
+      if (e.key === "Escape") { closeVarPicker(); target.focus(); } } },
+    typeBadge(type), h("span", { class: "mono", text: ref }), note ? h("span", { class: "muted vnote", text: note }) : null);
+  const render = () => {
+    const f = q.value.trim().toLowerCase();
+    const m = (n) => !f || n.toLowerCase().includes(f);
+    const vars = (state.flow ? state.flow.variables : []).filter((v) => m(v.name));
+    const good = vars.filter((v) => compatible(want, v.type)), other = vars.filter((v) => !compatible(want, v.type));
+    const sys = Object.entries((state.builtins || {}).sys || {}).filter(([k]) => m("sys." + k));
+    const glob = Object.entries((state.builtins || {}).global || {}).filter(([k]) => m("global." + k));
+    const parts = [];
+    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want ? "Variables that fit (" + want + ")" : "Bot variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? v.direction : "")));
+    if (other.length) parts.push(h("div", { class: "var-pop-head", text: "Other variables" }), ...other.map((v) => item("$" + v.name, v.type, v.type)));
+    if (sys.length) parts.push(h("div", { class: "var-pop-head", text: "System" }), ...sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val))));
+    if (glob.length) parts.push(h("div", { class: "var-pop-head", text: "Global values" }), ...glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val))));
+    if (!parts.length) parts.push(h("div", { class: "empty", text: "No variables match." }));
+    list.replaceChildren(...parts);
+  };
+  q.addEventListener("input", render);
+  q.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { closeVarPicker(); target.focus(); }
+    if (e.key === "Enter") { const first = list.querySelector(".var-pop-item"); if (first) { e.preventDefault(); first.click(); } }
+    if (e.key === "ArrowDown") { const first = list.querySelector(".var-pop-item"); if (first) { e.preventDefault(); first.focus(); } }
+  });
+  const add = h("button", { type: "button", class: "link-btn", onclick: () => {
+    closeVarPicker();
+    editVariable(null, { type: want || "String", name: target.dataset.argName || "new_variable", onSave: (n) => insertAt(target, "$" + n, typedDollar) });
+  } }, "+ New variable" + (want ? " (" + want + ")" : ""));
+  const pop = h("div", { class: "var-pop", id: "var-pop", role: "dialog", "aria-label": "Insert a variable" }, q, list, h("div", { class: "var-pop-foot" }, add));
+  document.body.appendChild(pop);
+  const r = target.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 330)) + "px";
+  pop.style.top = (r.bottom + 330 > window.innerHeight ? Math.max(8, r.top - 330) : r.bottom + 4) + "px";
+  render();
+  q.focus();
+}
+function closeVarPicker() { const p = $("var-pop"); if (p) p.remove(); }
 
 function renderVariables() {
   if (!state.builtins) { state.builtins = { sys: {}, global: {} }; loadBuiltins(); }
-  if (!state.flow) { $("side-variables").replaceChildren(h("div", { class: "side-head" }, h("span", { text: "Variables" })), h("p", { class: "desc", text: "Open a bot to see its variables." })); return; }
-  const vars = state.flow.variables;
-  const rows = vars.map((v, i) => {
-    const upd = (k, val) => { if (val === undefined || val === "" || val === false) delete v[k]; else v[k] = val; changed(); };
-    const type = h("select", { onchange: (e) => upd("type", e.target.value) }, TYPES.map((t) => h("option", { value: t, text: t })));
-    type.value = v.type;
-    const dir = h("select", { onchange: (e) => { upd("direction", e.target.value === "local" ? undefined : e.target.value); renderVariables(); } },
-      ["local", "input", "output"].map((d) => h("option", { value: d, text: d })));
-    dir.value = v.direction || "local";
-    return h("tr", {},
-      h("td", {}, h("input", { type: "text", value: v.name, onchange: (e) => {
-        const n = e.target.value.trim();
-        if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(n)) { toast("Variable names start with a letter or _ and use letters, digits and _.", true); e.target.value = v.name; return; }
-        v.name = n; changed();
-      } })),
-      h("td", {}, type), h("td", {}, dir),
-      h("td", {}, v.direction === "input" ? h("input", { type: "checkbox", checked: !!v.required, title: "Required input", onchange: (e) => upd("required", e.target.checked) }) : ""),
-      h("td", {}, v.type === "Credential" ? h("span", { class: "muted", text: "from vault" })
-        : h("input", { type: "text", value: showValue(v.default), placeholder: "default", onchange: (e) => upd("default", parseLoose(e.target.value)) })),
-      h("td", {}, h("input", { type: "text", value: v.description || "", placeholder: "description", onchange: (e) => upd("description", e.target.value) })),
-      h("td", {}, h("button", { type: "button", class: "danger", title: "Delete variable", onclick: () => { vars.splice(i, 1); changed(); renderVariables(); } }, "x")));
-  });
-  $("side-variables").replaceChildren(h("div", { class: "side-head" }, h("span", { text: "Variables" }), h("button", { type: "button", class: "link-btn", onclick: loadBuiltins }, "Refresh")),
-    builtinSection("System variables", "$sys.", state.builtins.sys, "Read-only values provided by the platform at run time, e.g. today's date or the machine name."),
-    builtinSection("Global values", "$global.", state.builtins.global, "Shared by all bots. Edit global-values.json in the workspace (managed in Control Room in Part 2)."),
-    h("div", { class: "side-head", text: "Bot variables" }),
-    h("p", { class: "desc", text: "Input variables are supplied when the bot runs (and become its inputs as a child bot or agent tool). Output variables are returned at the end." }),
-    h("div", { class: "side-scroll" }, h("table", { class: "grid" }, h("thead", {}, h("tr", {}, ["Name", "Type", "Direction", "Req.", "Default", "Description", ""].map((t) => h("th", { text: t })))), h("tbody", {}, rows))),
-    h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => { addVariable("var" + (vars.length + 1), "String"); changed(); renderVariables(); } }, "+ Add variable")));
+  const box = $("side-variables");
+  const head = h("div", { class: "side-head" }, h("span", { text: "Variables" }),
+    h("span", { class: "head-acts" }, h("button", { type: "button", class: "link-btn", onclick: loadBuiltins }, "Refresh"),
+      state.flow ? h("button", { type: "button", class: "small primary", id: "btn-new-var", onclick: () => editVariable(null) }, "+ New") : null));
+  if (!state.flow) { box.replaceChildren(head, h("p", { class: "desc", text: "Open a bot to see its variables." })); return; }
+  const search = h("input", { type: "search", placeholder: "Search variables", value: state.varQuery || "", "aria-label": "Search variables" });
+  const listBox = h("div", { class: "side-scroll var-scroll" });
+  search.addEventListener("input", () => { state.varQuery = search.value; renderList(); });
+  box.replaceChildren(head, search, listBox);
+  function row(v) {
+    const uses = usageCount(v.name);
+    const meta = [v.type, v.required ? "required" : null, v.default !== undefined ? "= " + (v.default === "" ? '""' : preview(v.default)) : null].filter(Boolean).join("  \u00B7  ");
+    const r = h("div", { class: "var-row", tabindex: "0", role: "button", title: (v.description ? v.description + "\n" : "") + "Click to edit", "data-var": v.name,
+      onclick: () => editVariable(v), onkeydown: (e) => { if (e.key === "Enter") editVariable(v); } },
+      typeBadge(v.type),
+      h("div", { class: "var-main" }, h("div", { class: "var-name", text: "$" + v.name }), h("div", { class: "var-meta", text: meta })),
+      h("span", { class: "uses" + (uses ? "" : " none"), title: uses + " use(s) in this bot", text: uses ? uses + (uses === 1 ? " use" : " uses") : "unused" }),
+      h("span", { class: "var-acts" },
+        h("button", { type: "button", class: "icon-mini", title: "Insert $" + v.name + " into the field you last edited", "aria-label": "Insert $" + v.name, onclick: (e) => { e.stopPropagation(); insertReference("$" + v.name); } }, "\u2192"),
+        h("button", { type: "button", class: "icon-mini", title: "Duplicate", "aria-label": "Duplicate $" + v.name, onclick: (e) => {
+          e.stopPropagation(); const c = JSON.parse(JSON.stringify(v)); c.name = uniqueVarName(v.name + "_copy"); state.flow.variables.push(c); changed(); renderVariables(); } }, "\u29C9"),
+        h("button", { type: "button", class: "icon-mini danger", title: "Delete", "aria-label": "Delete $" + v.name, onclick: (e) => {
+          e.stopPropagation();
+          if (uses && !confirm("$" + v.name + " is used " + uses + " time(s) in this bot. Delete it anyway?")) return;
+          state.flow.variables.splice(state.flow.variables.indexOf(v), 1); changed(); renderVariables(); renderProps(); renderRunPanel(); } }, "\u2715")));
+    r.style.setProperty("--c", (TYPE_STYLE[v.type] || TYPE_STYLE.Any).color);
+    return r;
+  }
+  function builtin(title, prefix, values, note) {
+    const rows = Object.entries(values || {}).filter(([k]) => !state.varQuery || (prefix + k).toLowerCase().includes(state.varQuery.toLowerCase())).map(([k, val]) => h("div", {
+      class: "var-row builtin", tabindex: "0", role: "button", title: "Insert " + prefix + k + " into the field you last edited",
+      onclick: () => insertReference(prefix + k), onkeydown: (e) => { if (e.key === "Enter") insertReference(prefix + k); } },
+      typeBadge(guessType(val)), h("div", { class: "var-main" }, h("div", { class: "var-name", text: prefix + k }), h("div", { class: "var-meta", text: preview(val) }))));
+    const d = h("details", { class: "var-builtins" }, h("summary", {}, h("span", { text: title }), h("span", { class: "n", text: rows.length })),
+      h("div", { class: "help", text: note }), rows.length ? h("div", { class: "var-list" }, rows) : h("div", { class: "empty", text: "None defined." }));
+    d.open = !!(state.varBuiltinsOpen || {})[title];
+    d.addEventListener("toggle", () => { state.varBuiltinsOpen = Object.assign({}, state.varBuiltinsOpen, { [title]: d.open }); });
+    return d;
+  }
+  function renderList() {
+    const f = (state.varQuery || "").toLowerCase();
+    const vars = state.flow.variables.filter((v) => !f || v.name.toLowerCase().includes(f) || (v.description || "").toLowerCase().includes(f) || v.type.toLowerCase().includes(f));
+    const parts = [h("div", { class: "var-section-title", text: "Bot variables" })];
+    if (!state.flow.variables.length) {
+      parts.push(h("div", { class: "var-empty" }, h("strong", { text: "No variables yet" }),
+        h("p", { text: "Variables hold values while the bot runs. Inputs are given when it starts; outputs are returned at the end." }),
+        h("button", { type: "button", class: "primary", onclick: () => editVariable(null) }, "+ Create a variable")));
+    } else for (const [dir, label, hint] of [["input", "Inputs", "Given when the bot starts"], ["output", "Outputs", "Returned when the bot ends"], ["local", "Inside the bot", "Working values"]]) {
+      const group = vars.filter((v) => (v.direction || "local") === dir);
+      parts.push(h("div", { class: "var-group" },
+        h("div", { class: "var-group-head" }, h("span", { class: "gname", text: label }), h("span", { class: "n", text: group.length }), h("span", { class: "muted gh", text: hint }),
+          h("button", { type: "button", class: "link-btn", title: "New " + label.toLowerCase() + " variable", onclick: () => editVariable(null, { direction: dir }) }, "+ Add")),
+        group.length ? h("div", { class: "var-list" }, group.map(row)) : h("div", { class: "empty", text: f ? "No matches." : "None." })));
+    }
+    parts.push(builtin("System variables", "$sys.", state.builtins.sys, "Read-only values from the platform at run time, such as today's date or the machine name."),
+      builtin("Global values", "$global.", state.builtins.global, "Shared by all bots. Managed in Control Room > Global values (or global-values.json in the workspace)."));
+    listBox.replaceChildren(...parts);
+  }
+  renderList();
 }
 
 function renderSettings() {
   const f = state.flow;
   const field = (label, control, help) => h("div", { class: "field" }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null);
-  const kind = h("select", { onchange: (e) => { f.kind = e.target.value; changed(); } }, ["TaskBot", "ApiTask"].map((k) => h("option", { value: k, text: k })));
+  const kind = h("select", { onchange: (e) => { f.kind = e.target.value; changed(); } }, [["TaskBot", "Task Bot"], ["ApiTask", "API Task"]].map(([k, t]) => h("option", { value: k, text: t })));
   kind.value = f.kind;
   $("tab-settings").replaceChildren(
     field("Bot id", h("input", { type: "text", value: f.id, onchange: (e) => { f.id = e.target.value.trim(); changed(); } }), "Used by child bots and agents to call this bot."),
@@ -1128,12 +1622,26 @@ function renderProblems() {
 
 // ---------- run ----------
 function renderRunPanel() {
-  if (!state.flow) return;
+  if (!state.flow) {
+    if (state.item && state.item.type === "script") {
+      $("ctab-run").replaceChildren(h("div", { class: "run-grid" },
+        h("div", {}, h("div", { class: "pane-title", text: "Script" }), h("div", { class: "mono", text: state.item.path }),
+          h("p", { class: "help", text: "Runs the saved script with the Scripts package, exactly as a bot would. Its output, error output and exit code appear on the right." }),
+          h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: runScript }, "Run script"))),
+        h("div", { id: "run-result" })));
+      renderRunResult();
+    }
+    return;
+  }
   const inputs = state.flow.variables.filter((v) => v.direction === "input");
-  const form = inputs.map((v) => h("div", { class: "field" },
-    h("label", {}, v.name, v.required ? h("span", { class: "req", text: " *" }) : null, h("span", { class: "muted", text: "  " + v.type })),
-    h("input", { type: "text", "data-input": v.name, placeholder: v.type === "Credential" ? "locker/credential/attribute" : v.default !== undefined ? "default: " + showValue(v.default) : "" }),
-    v.description ? h("div", { class: "help", text: v.description }) : null));
+  const form = inputs.map((v) => {
+    const ed = valueEditor(v.type, undefined, null, { enum: v.enum, label: v.name,
+      placeholder: v.type === "Credential" ? "locker/credential/attribute" : v.default !== undefined ? "default: " + showValue(v.default) : "" });
+    ed.setAttribute("data-input", v.name);
+    return h("div", { class: "field" },
+      h("label", {}, v.name, v.required ? h("span", { class: "req", text: " *" }) : null, typeChip(v.type)),
+      ed, v.description ? h("div", { class: "help", text: v.description }) : null);
+  });
   const left = h("div", {}, h("div", { class: "pane-title", text: "Inputs" }),
     ...(form.length ? form : [h("div", { class: "empty", text: "This bot has no input variables." })]),
     h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: runBot }, "Run bot")));
@@ -1144,19 +1652,27 @@ function renderRunPanel() {
 
 function collectInputs() {
   const out = {};
-  for (const el of document.querySelectorAll("[data-input]")) {
+  for (const el of document.querySelectorAll("#ctab-run [data-input]")) {
     const v = state.flow.variables.find((x) => x.name === el.dataset.input);
-    if (el.value.trim() === "") continue;
-    out[v.name] = v.type === "Credential" ? { $credential: el.value.trim() } : v.type === "String" || v.type === "File" ? el.value : parseLoose(el.value);
+    if (!v) continue;
+    const val = el.getValue ? el.getValue() : (el.value.trim() === "" ? undefined : el.value);
+    if (val === undefined || val === "") continue;
+    out[v.name] = v.type === "Credential" ? { $credential: String(val).trim() } : val;
   }
   return out;
 }
 
 async function runBot() {
+  if (state.item && state.item.type === "script") return runScript();
   if (!state.flow) { toast("Open a bot first.", true); return; }
+  return runFlow(state.flow, collectInputs());
+}
+
+/** Runs a Flow in Studio and follows it live in the Run dock (bots, and script test runs). */
+async function runFlow(flow, inputs) {
   if (state.running) return;
   state.running = true; state.runStarted = Date.now();
-  state.live = { id: null, state: "starting", events: [], seq: 0, total: allSteps(state.flow.steps).length, finished: 0, current: null };
+  state.live = { id: null, state: "starting", events: [], seq: 0, total: allSteps(flow.steps).length, finished: 0, current: null };
   state.liveSteps = { running: null, done: new Set(), failed: null };
   $("btn-run").disabled = true;
   $("run-progress").hidden = false;
@@ -1164,7 +1680,7 @@ async function runBot() {
   if (!document.body.classList.contains("dock-mini")) switchConsole("run");
   renderLive();
   try {
-    const start = await api("POST", "runs", { flow: state.flow, inputs: collectInputs() });
+    const start = await api("POST", "runs", { flow, inputs });
     state.live.id = start.run_id;
     while (true) {
       const r = await api("GET", "runs/" + state.live.id + "?after=" + state.live.seq);
@@ -1299,8 +1815,9 @@ function renderEvents() {
 // ---------- tabs, saving, wiring ----------
 function switchTab(name) {
   for (const b of document.querySelectorAll(".tab")) b.classList.toggle("active", b.dataset.tab === name);
-  for (const t of ["steps", "settings", "json"]) $("tab-" + t).hidden = t !== name;
+  for (const t of ["steps", "settings", "deps", "json"]) $("tab-" + t).hidden = t !== name;
   $("canvas-bar").hidden = name !== "steps";
+  if (name === "deps") renderDeps();
   if (name === "json") renderJson();
   if (name === "settings") renderSettings();
 }
@@ -1454,6 +1971,7 @@ function renderTriggers() {
 }
 
 async function save() {
+  if (state.item) return saveItem();
   if (!state.flow) return;
   try {
     const res = await api("PUT", "bot?path=" + encodeURIComponent(state.file), state.flow);
@@ -1475,6 +1993,13 @@ function renderCr() {
   const cr = state.cr || { connected: false };
   $("cr-state").textContent = cr.connected ? "(" + cr.user.username + ")" : "(not connected)";
   const body = $("cr-body");
+  if (!cr.connected && cr.sameServer) {
+    body.replaceChildren(h("div", { class: "cr-form" },
+      h("div", { class: "hint", text: "Studio and Control Room run together here. Sign in to Control Room in this browser and Studio uses that sign-in for check-in and check-out." }),
+      h("a", { class: "button-link", href: "../", target: "ooa-control-room" }, "Open Control Room to sign in"),
+      h("button", { type: "button", onclick: crRefresh }, "I have signed in")));
+    return;
+  }
   if (!cr.connected) {
     const url = h("input", { type: "text", value: cr.url || "http://localhost:8720", "aria-label": "Control Room address" });
     const user = h("input", { type: "text", autocomplete: "username", "aria-label": "User name" });
@@ -1492,7 +2017,8 @@ function renderCr() {
   q.addEventListener("input", () => { clearTimeout(q.t); q.t = setTimeout(() => crLoadRepo(q.value), 250); });
   body.replaceChildren(h("div", { class: "hint", text: cr.url }), q, h("div", { id: "cr-list" }),
     h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => crLoadRepo(q.value) }, "Refresh"),
-      h("button", { type: "button", onclick: async () => { await api("POST", "cr/disconnect"); state.cr = { connected: false }; renderCr(); } }, "Disconnect")));
+      cr.sameServer ? h("span", { class: "hint", text: "Signed in through Control Room" })
+        : h("button", { type: "button", onclick: async () => { await api("POST", "cr/disconnect"); state.cr = { connected: false }; renderCr(); } }, "Disconnect")));
   crLoadRepo();
 }
 
@@ -1553,6 +2079,618 @@ async function crVersions(b) {
   } catch (e) { toast(e.message, true); }
 }
 
+// ---------- automation items: types, home, create menu, editors ----------
+const ITEM_TYPES = {
+  folder: { label: "Folder", icon: "folder", color: "#e0a526" }, bot: { label: "Task Bot", icon: "bot", color: "#6d28d9" },
+  api: { label: "API Task", icon: "api", color: "#0d9488" }, form: { label: "Form", icon: "form", color: "#0891b2" },
+  process: { label: "Process", icon: "process", color: "#7c3aed" }, document: { label: "Document automation", icon: "doc", color: "#db2777" },
+  skill: { label: "AI Skill", icon: "spark", color: "#c026d3" }, script: { label: "Script", icon: "code", color: "#0f766e" },
+  file: { label: "File", icon: "file", color: "#64748b" },
+};
+const EDITABLE_FILE = /\.(json|txt|csv|xml|md|sql|html|ini|ya?ml|py|ps1|vbs|js)$/i;
+const SCRIPT_CMD = {
+  py: { action: "ooa.script/run_python", name: "Run Python" }, ps1: { action: "ooa.script/run_powershell", name: "Run PowerShell" },
+  vbs: { action: "ooa.script/run_vbscript", name: "Run VBScript" }, js: { action: "ooa.script/run_javascript", name: "Run JavaScript" },
+};
+function itemKind(n) { return n.type === "bot" && n.kind === "ApiTask" ? "api" : n.type; }
+function displayName(n) {
+  const name = String(n.name || "").split("/").pop();
+  if (n.type === "folder" || n.type === "file" || n.type === "script") return name;
+  const base = name.replace(/\.(flow|form|process|doc)\.json$/i, "");
+  return n.type === "skill" ? base.replace(/\.json$/i, "") : base;
+}
+function itemTile(n) { const t = ITEM_TYPES[itemKind(n)] || ITEM_TYPES.file; const el = tile(t.icon, t.color, "xs"); el.title = t.label; return el; }
+function allItems() { const out = []; const walk = (n) => { if (!n) return; if (n.type !== "folder") out.push(n); for (const c of n.children || []) walk(c); }; walk(state.tree); return out; }
+function scriptLang(path) { return (/\.([a-z0-9]+)$/i.exec(path) || [])[1].toLowerCase(); }
+function mini(text, label, fn, cls) { return h("button", { type: "button", class: "icon-mini" + (cls ? " " + cls : ""), title: label, "aria-label": label, onclick: (e) => { e.stopPropagation(); fn(); } }, text); }
+function ago(iso) {
+  if (!iso) return "";
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  if (s < 86400 * 7) return Math.floor(s / 86400) + " days ago";
+  return String(iso).slice(0, 10);
+}
+
+const CREATE_ITEMS = [
+  { id: "btn-new-bot", kind: "bot", label: "Task Bot", desc: "Automate apps, files, the desktop and the web", run: () => newBotHere("TaskBot") },
+  { id: "btn-new-template", kind: "template", label: "Bot from a template", desc: "Start from a ready-made pattern", icon: "template", color: "#2563eb", run: () => openTemplates() },
+  { id: "btn-new-api", kind: "api", label: "API Task", desc: "Headless automation, no desktop needed", run: () => newBotHere("ApiTask") },
+  { id: "btn-new-form", kind: "form", label: "Form", desc: "Collect information from people", run: () => newItemHere("form") },
+  { id: "btn-new-process", kind: "process", label: "Process", desc: "Chain bots, forms and approvals", run: () => newItemHere("process") },
+  { id: "btn-new-doc", kind: "document", label: "Document automation", desc: "Extract fields from documents with AI", run: () => newItemHere("document") },
+  { id: "btn-new-skill", kind: "skill", label: "AI Skill", desc: "A reusable, reviewed AI prompt", run: () => newItemHere("skill") },
+  { id: "btn-new-py", kind: "script", label: "Python script", desc: "Run with the Run Python command", run: () => newItemHere("script-python") },
+  { id: "btn-new-ps1", kind: "script", label: "PowerShell script", desc: "Run with the Run PowerShell command", run: () => newItemHere("script-powershell") },
+  { id: "btn-new-vbs", kind: "script", label: "VBScript", desc: "Run with the Run VBScript command", run: () => newItemHere("script-vbscript") },
+  { id: "btn-new-js", kind: "script", label: "JavaScript", desc: "Run with the Run JavaScript command (Node.js)", run: () => newItemHere("script-javascript") },
+];
+function createEntry(c, cls) {
+  const t = ITEM_TYPES[c.kind] || { icon: c.icon, color: c.color };
+  return h("button", { type: "button", id: cls === "menu-item" ? c.id : null, class: cls, role: cls === "menu-item" ? "menuitem" : null,
+    onclick: () => { closeCreateMenu(); c.run(); } }, tile(c.icon || t.icon, c.color || t.color, cls === "menu-item" ? "sm" : "lg"),
+    h("span", { class: "ci-text" }, h("strong", { text: c.label }), h("span", { class: "ci-desc", text: c.desc })));
+}
+function buildCreateMenu() {
+  $("create-pop").replaceChildren(...CREATE_ITEMS.map((c) => createEntry(c, "menu-item")), h("hr"),
+    h("button", { type: "button", class: "menu-item", role: "menuitem", onclick: () => { closeCreateMenu(); newFolderHere(); } }, tile("folder", ITEM_TYPES.folder.color, "sm"),
+      h("span", { class: "ci-text" }, h("strong", { text: "Folder" }), h("span", { class: "ci-desc", text: "Organise your items" }))));
+}
+function toggleCreateMenu() { const p = $("create-pop"); p.hidden = !p.hidden; $("btn-create").setAttribute("aria-expanded", String(!p.hidden)); }
+function closeCreateMenu() { const p = $("create-pop"); if (p && !p.hidden) { p.hidden = true; $("btn-create").setAttribute("aria-expanded", "false"); } }
+
+const NEW_LABELS = { form: "Form", process: "Process", document: "Document automation", skill: "AI Skill", "script-python": "Python script",
+  "script-powershell": "PowerShell script", "script-vbscript": "VBScript", "script-javascript": "JavaScript file" };
+const NEW_NAMES = { form: "New form", process: "New process", document: "New document type", skill: "new_skill", "script-python": "new_script",
+  "script-powershell": "new_script", "script-vbscript": "new_script", "script-javascript": "new_script" };
+async function newItemHere(type) {
+  const label = NEW_LABELS[type] || "item";
+  const name = prompt("Name of the new " + label.toLowerCase() + ":", NEW_NAMES[type] || "New item");
+  if (!name) return;
+  if (state.dirty && !confirm("Discard unsaved changes?")) return;
+  const path = await fileOp("item", { parent: currentFolder(), name, type }, (type === "skill" ? "AI Skill created in the ai-skills folder" : label + " created"));
+  if (path) { setDirty(false); expandTo(path); state.treeSel = path; renderTree(); await openItem(path); }
+}
+
+// ---- home: every item in the workspace ----
+const HOME_FILTERS = [["all", "All"], ["bot", "Task Bots"], ["api", "API Tasks"], ["form", "Forms"], ["process", "Processes"], ["document", "Documents"], ["skill", "AI Skills"], ["script", "Scripts"], ["file", "Files"]];
+function renderHome() {
+  const box = $("welcome");
+  const items = allItems();
+  const counts = {};
+  for (const it of items) { const k = itemKind(it); counts[k] = (counts[k] || 0) + 1; }
+  const f = state.homeFilter || "all";
+  const search = h("input", { type: "search", placeholder: "Search by name or folder", value: state.homeQuery || "", "aria-label": "Search items" });
+  const sort = h("select", { "aria-label": "Sort", onchange: (e) => { state.homeSort = e.target.value; rows(); } },
+    h("option", { value: "modified", text: "Recently changed" }), h("option", { value: "name", text: "Name" }), h("option", { value: "type", text: "Type" }));
+  sort.value = state.homeSort || "modified";
+  const tableBox = h("div", { class: "home-table" });
+  search.addEventListener("input", () => { state.homeQuery = search.value; rows(); });
+  const chips = h("div", { class: "chips", role: "tablist", "aria-label": "Filter by type" }, HOME_FILTERS.filter(([k]) => k === "all" || counts[k]).map(([k, label]) => {
+    const t = ITEM_TYPES[k];
+    const c = h("button", { type: "button", class: "chip", role: "tab", "aria-selected": String(f === k), onclick: () => { state.homeFilter = k; renderHome(); } },
+      t ? tile(t.icon, t.color, "xs") : null, label, h("span", { class: "n", text: k === "all" ? items.length : counts[k] }));
+    if (t) c.style.setProperty("--c", t.color);
+    return c;
+  }));
+  function rows() {
+    const q = (state.homeQuery || "").toLowerCase(), by = state.homeSort || "modified";
+    const list = items.filter((it) => (f === "all" || itemKind(it) === f) && (!q || it.path.toLowerCase().includes(q)));
+    list.sort(by === "name" ? (a, b) => displayName(a).localeCompare(displayName(b))
+      : by === "type" ? (a, b) => (ITEM_TYPES[itemKind(a)].label + displayName(a)).localeCompare(ITEM_TYPES[itemKind(b)].label + displayName(b))
+        : (a, b) => String(b.modified || "").localeCompare(String(a.modified || "")));
+    if (!list.length) { tableBox.replaceChildren(h("div", { class: "canvas-empty", text: items.length ? "Nothing matches." : "Your workspace is empty. Create your first item above." })); return; }
+    tableBox.replaceChildren(h("table", { class: "grid list" },
+      h("thead", {}, h("tr", {}, ["Name", "Type", "Folder", "Changed", "Size"].map((t) => h("th", { text: t })))),
+      h("tbody", {}, list.slice(0, 500).map((it) => {
+        const open = () => { state.treeSel = it.path; expandTo(it.path); onNodeClick(it); };
+        return h("tr", { class: "clickable", tabindex: "0", onclick: open, onkeydown: (e) => { if (e.key === "Enter") open(); } },
+          h("td", {}, h("span", { class: "name-cell" }, itemTile(it), h("strong", { text: displayName(it) }))),
+          h("td", { text: ITEM_TYPES[itemKind(it)].label }), h("td", { class: "muted", text: parentOf(it.path) || "\u2014" }),
+          h("td", { class: "muted", text: ago(it.modified) }), h("td", { class: "muted", text: fmtSize(it.size) }));
+      }))));
+  }
+  box.replaceChildren(h("div", { class: "home" },
+    h("div", { class: "home-head" }, h("div", {}, h("h1", { text: "Automation" }),
+      h("p", { class: "muted", text: "Everything in your private workspace: bots, forms, processes, document automations, AI Skills and scripts. Check bots in to Control Room to share and run them on other devices." }))),
+    h("div", { class: "pane-title", text: "Create" }),
+    h("div", { class: "create-grid" }, CREATE_ITEMS.filter((c) => !["btn-new-ps1", "btn-new-vbs", "btn-new-js"].includes(c.id)).map((c) => createEntry(c, "create-card"))),
+    h("div", { class: "home-tools" }, chips, h("span", { class: "spacer" }), search, sort),
+    tableBox));
+  rows();
+}
+
+// ---- opening and saving items ----
+async function openItem(path) {
+  if (state.dirty && path !== state.file && !confirm("Discard unsaved changes?")) return;
+  try {
+    const r = await api("GET", "item?path=" + encodeURIComponent(path));
+    let data = null;
+    if (["form", "process", "document", "skill"].includes(r.type)) { try { const d = JSON.parse(r.text); if (d && typeof d === "object" && !Array.isArray(d)) data = d; } catch (_) { /* opens as text */ } }
+    state.item = { path, type: r.type, text: r.text, data, tab: data ? "design" : "code", sel: null };
+    state.flow = null; state.file = path; state.selected = null; state.multi = new Set(); state.problems = []; state.lastRun = null;
+    setDirty(false);
+    if (state.side !== "explorer" && state.side !== "triggers") switchSide("explorer");
+    showView("item");
+    renderItemEditor(); renderTree(); renderProps(); renderVariables(); renderProblems(); renderRunPanel();
+  } catch (e) { toast(e.message, true); }
+}
+
+function touchItem() { const it = state.item; if (it && it.data) it.text = JSON.stringify(it.data, null, 2) + "\n"; setDirty(true); }
+
+async function saveItem() {
+  const it = state.item;
+  if (!it) return;
+  if (it.data && it.tab !== "code") it.text = JSON.stringify(it.data, null, 2) + "\n";
+  try {
+    await api("PUT", "item?path=" + encodeURIComponent(it.path), { text: it.text });
+    setDirty(false);
+    await loadTree();
+    toast("Saved " + it.path);
+  } catch (e) { toast(e.message, true); }
+}
+
+function renderItemEditor() {
+  const it = state.item, box = $("item-editor");
+  if (!it) return;
+  const meta = ITEM_TYPES[it.type] || ITEM_TYPES.file;
+  const designer = ["form", "process", "document", "skill"].includes(it.type);
+  const tabs = designer ? [["design", "Design"], ...(it.type === "form" ? [["preview", "Preview"]] : []), ["code", "JSON"]] : [];
+  const head = h("div", { class: "item-head" }, tile(meta.icon, meta.color, "lg"),
+    h("div", { class: "item-title" }, h("h2", { text: displayName({ name: it.path, type: it.type }) }), h("div", { class: "desc", text: meta.label + " \u00B7 " + it.path })),
+    h("span", { class: "spacer" }),
+    tabs.length ? h("div", { class: "seg item-tabs", role: "tablist" }, tabs.map(([k, l]) => h("button", { type: "button", role: "tab", "aria-selected": String(it.tab === k), "data-itab": k,
+      onclick: () => {
+        if (k !== "code" && it.tab === "code") { try { const d = JSON.parse(it.text); if (!d || typeof d !== "object" || Array.isArray(d)) throw new Error("not an object"); it.data = d; } catch (e) { toast("Fix the JSON first: " + e.message, true); return; } }
+        if (k === "code" && it.data) it.text = JSON.stringify(it.data, null, 2) + "\n";
+        it.tab = k; renderItemEditor();
+      } }, l))) : null);
+  head.style.setProperty("--c", meta.color);
+  let body;
+  if (!designer || it.tab === "code" || !it.data) body = codeEditor(it, it.type === "script");
+  else if (it.type === "form") body = it.tab === "preview" ? formPreview(it.data) : formDesigner(it);
+  else if (it.type === "process") body = processDesigner(it);
+  else if (it.type === "document") body = documentDesigner(it);
+  else body = skillDesigner(it);
+  box.replaceChildren(head, body);
+}
+
+function codeEditor(it, runnable) {
+  const ta = h("textarea", { class: "code", spellcheck: "false", wrap: "off", "aria-label": "Contents of " + it.path });
+  ta.value = it.text;
+  const gutter = h("pre", { class: "gutter", "aria-hidden": "true" });
+  const lines = () => { const n = ta.value.split("\n").length; let t = ""; for (let i = 1; i <= n; i++) t += i + "\n"; gutter.textContent = t; };
+  ta.addEventListener("input", () => {
+    it.text = ta.value;
+    if (it.path.toLowerCase().endsWith(".json")) { try { const d = JSON.parse(ta.value); if (d && typeof d === "object" && !Array.isArray(d)) it.data = d; } catch (_) { /* still typing */ } }
+    setDirty(true); lines();
+  });
+  ta.addEventListener("scroll", () => { gutter.scrollTop = ta.scrollTop; });
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      const a = ta.selectionStart, b = ta.selectionEnd;
+      ta.value = ta.value.slice(0, a) + "    " + ta.value.slice(b);
+      ta.selectionStart = ta.selectionEnd = a + 4;
+      ta.dispatchEvent(new Event("input"));
+    }
+  });
+  lines();
+  const cmd = SCRIPT_CMD[scriptLang(it.path)];
+  const bar = runnable && cmd ? h("div", { class: "item-bar" },
+    h("button", { type: "button", class: "primary", onclick: runScript }, svg("play"), "Run script"),
+    h("button", { type: "button", onclick: () => copyStep({ action: cmd.action, args: { file: it.path } }, cmd.name) }, "Copy as a bot step"),
+    h("span", { class: "hint", text: "Bots run this file with the " + cmd.name + " command. Ctrl+S saves." })) : null;
+  return h("div", { class: "code-pane" }, bar, h("div", { class: "code-wrap" }, gutter, ta));
+}
+
+function copyStep(step, label) {
+  state.clipboard = { steps: [Object.assign({ id: "s1" }, step)], variables: [] };
+  updateEditButtons();
+  toast("Copied a '" + label + "' step. Open a bot and press Ctrl+V (or Paste) to add it.");
+}
+
+async function runScript() {
+  const it = state.item;
+  if (!it || it.type !== "script") return;
+  const cmd = SCRIPT_CMD[scriptLang(it.path)];
+  if (!cmd || !state.specs.has(cmd.action)) { toast("The Scripts package cannot run this file type.", true); return; }
+  if (state.dirty) await saveItem();
+  const flow = { $schema: SCHEMA, kind: "TaskBot", id: "script_test", name: "Script test",
+    variables: [{ name: "output", type: "String", direction: "output" }, { name: "error_output", type: "String", direction: "output" },
+      { name: "exit_code", type: "Number", direction: "output" }, { name: "json", type: "Any", direction: "output" }],
+    steps: [{ id: "run", action: cmd.action, args: { file: it.path, fail_on_error: false }, out: { output: "output", error_output: "error_output", exit_code: "exit_code", json: "json" } }] };
+  renderRunPanel();
+  await runFlow(flow, {});
+}
+
+// ---- form designer ----
+const FORM_FIELDS = {
+  text: { label: "Text", icon: "text" }, multiline: { label: "Multi-line text", icon: "note" }, number: { label: "Number", icon: "hash" },
+  email: { label: "Email", icon: "mail" }, date: { label: "Date", icon: "calendar" }, dropdown: { label: "Drop-down", icon: "list" },
+  radio: { label: "Choice", icon: "list" }, checkbox: { label: "Checkbox", icon: "toggle" }, file: { label: "File upload", icon: "file" },
+  heading: { label: "Heading", icon: "text" }, paragraph: { label: "Text block", icon: "comment" },
+};
+function uniqueKey(list, base, key = "id") { let n = 1, k = base; while (list.some((x) => x[key] === k)) k = base + "_" + ++n; return k; }
+function setOrDelete(obj, k, v) { if (v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length)) delete obj[k]; else obj[k] = v; }
+
+function formDesigner(it) {
+  const d = it.data;
+  if (!Array.isArray(d.fields)) d.fields = [];
+  const wrap = h("div", { class: "designer" });
+  const touch = () => { touchItem(); render(); };
+  const move = (i, dl) => { const j = i + dl; if (j < 0 || j >= d.fields.length) return; [d.fields[i], d.fields[j]] = [d.fields[j], d.fields[i]]; it.sel = j; touch(); };
+  function fieldProps(f) {
+    const set = (k, v) => { setOrDelete(f, k, v); touch(); };
+    const isInput = !["heading", "paragraph"].includes(f.type);
+    const idIn = h("input", { type: "text", value: f.id || "", onchange: (e) => {
+      const v = e.target.value.trim();
+      if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(v) || d.fields.some((x) => x !== f && x.id === v)) { toast("Field ids are unique and use letters, digits and _.", true); e.target.value = f.id; return; }
+      f.id = v; touch(); } });
+    const typeSel = h("select", { onchange: (e) => set("type", e.target.value) }, Object.entries(FORM_FIELDS).map(([k, m]) => h("option", { value: k, text: m.label })));
+    typeSel.value = f.type;
+    const parts = [h("div", { class: "pane-title", text: "Field settings" }),
+      field("Label", h("input", { type: "text", value: f.label || "", onchange: (e) => set("label", e.target.value) })),
+      field("Type", typeSel)];
+    if (isInput) {
+      parts.push(field("Field id", idIn, "Bots and processes read the answer as form." + (f.id || "id") + "."),
+        h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!f.required, onchange: (e) => set("required", e.target.checked) }), "Required"));
+      if (["text", "multiline", "number", "email"].includes(f.type)) parts.push(field("Placeholder", h("input", { type: "text", value: f.placeholder || "", onchange: (e) => set("placeholder", e.target.value) })));
+      if (["dropdown", "radio"].includes(f.type)) parts.push(field("Options (one per line)", h("textarea", { rows: 4, value: (f.options || []).join("\n"), onchange: (e) => set("options", e.target.value.split("\n").map((x) => x.trim()).filter(Boolean)) })));
+      if (f.type === "number") parts.push(h("div", { class: "grid2" },
+        field("Minimum", h("input", { type: "number", value: f.min ?? "", onchange: (e) => set("min", e.target.value === "" ? undefined : Number(e.target.value)) })),
+        field("Maximum", h("input", { type: "number", value: f.max ?? "", onchange: (e) => set("max", e.target.value === "" ? undefined : Number(e.target.value)) }))));
+      if (f.type !== "file") parts.push(field("Default value", h("input", { type: "text", value: f.default ?? "", onchange: (e) => set("default", e.target.value) })));
+      parts.push(field("Help text", h("input", { type: "text", value: f.help || "", onchange: (e) => set("help", e.target.value) })));
+    } else if (f.type === "paragraph") parts.push(field("Text", h("textarea", { rows: 4, value: f.text || "", onchange: (e) => set("text", e.target.value) })));
+    parts.push(h("div", { class: "row-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => { it.sel = null; render(); } }, "\u2190 Form settings")));
+    return parts;
+  }
+  function formProps() {
+    const set = (k, v) => { setOrDelete(d, k, v); touch(); };
+    return [h("div", { class: "pane-title", text: "Form settings" }),
+      field("Form name", h("input", { type: "text", value: d.name || "", onchange: (e) => set("name", e.target.value) })),
+      field("Description", h("textarea", { rows: 3, value: d.description || "", onchange: (e) => set("description", e.target.value) })),
+      field("Submit button", h("input", { type: "text", value: d.submitLabel || "Submit", onchange: (e) => set("submitLabel", e.target.value) })),
+      h("p", { class: "help", text: "Answers are returned as a Dictionary keyed by field id. Select a field on the form to edit it." })];
+  }
+  function render() {
+    const palette = h("div", { class: "palette" }, h("div", { class: "pane-title", text: "Add a field" }),
+      Object.entries(FORM_FIELDS).map(([t, m]) => h("button", { type: "button", class: "pal-item", onclick: () => {
+        const f = { id: uniqueKey(d.fields, t === "heading" || t === "paragraph" ? t : t + "_field"), type: t, label: m.label };
+        if (t === "dropdown" || t === "radio") f.options = ["Option 1", "Option 2"];
+        if (t === "paragraph") f.text = "Explain what to fill in.";
+        d.fields.push(f); it.sel = d.fields.length - 1; touch();
+      } }, tile(m.icon, "#0891b2", "sm"), m.label)));
+    const cards = d.fields.map((f, i) => {
+      const m = FORM_FIELDS[f.type] || FORM_FIELDS.text;
+      return h("div", { class: "fcard" + (it.sel === i ? " selected" : ""), tabindex: "0", onclick: () => { it.sel = i; render(); }, onkeydown: (e) => { if (e.key === "Enter") { it.sel = i; render(); } } },
+        tile(m.icon, "#0891b2", "sm"),
+        h("div", { class: "fmain" }, h("div", { class: "flabel" }, f.label || f.id, f.required ? h("span", { class: "req", text: " *" }) : null),
+          h("div", { class: "fmeta", text: m.label + (["heading", "paragraph"].includes(f.type) ? "" : " \u00B7 " + f.id) })),
+        h("span", { class: "facts" }, mini("\u2191", "Move up", () => move(i, -1)), mini("\u2193", "Move down", () => move(i, 1)),
+          mini("\u2715", "Remove field", () => { d.fields.splice(i, 1); it.sel = null; touch(); }, "danger")));
+    });
+    const canvas = h("div", { class: "form-canvas" }, h("div", { class: "form-card" }, h("h3", { text: d.name || "Form" }), d.description ? h("p", { class: "desc", text: d.description }) : null,
+      cards.length ? cards : h("div", { class: "canvas-empty", text: "Add fields from the left." }),
+      h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", disabled: true }, d.submitLabel || "Submit"))));
+    const props = h("div", { class: "designer-props" }, ...(it.sel != null && d.fields[it.sel] ? fieldProps(d.fields[it.sel]) : formProps()));
+    wrap.replaceChildren(palette, canvas, props);
+  }
+  render();
+  return wrap;
+}
+
+function formPreview(d) {
+  const ctl = (f) => {
+    const common = { "aria-label": f.label || f.id, placeholder: f.placeholder || "" };
+    switch (f.type) {
+      case "multiline": return h("textarea", Object.assign({ rows: 3, value: f.default || "" }, common));
+      case "number": return h("input", Object.assign({ type: "number", value: f.default ?? "", min: f.min, max: f.max }, common));
+      case "email": return h("input", Object.assign({ type: "email", value: f.default || "" }, common));
+      case "date": return h("input", Object.assign({ type: "date", value: f.default || "" }, common));
+      case "dropdown": return h("select", common, h("option", { value: "", text: "(choose)" }), (f.options || []).map((o) => h("option", { value: o, text: o })));
+      case "radio": return h("div", { class: "radios" }, (f.options || []).map((o) => h("label", { class: "check" }, h("input", { type: "radio", name: f.id }), o)));
+      case "checkbox": return h("label", { class: "check" }, h("input", { type: "checkbox" }), f.label);
+      case "file": return h("input", Object.assign({ type: "file" }, common));
+      default: return h("input", Object.assign({ type: "text", value: f.default || "" }, common));
+    }
+  };
+  return h("div", { class: "form-canvas" }, h("form", { class: "form-card preview", onsubmit: (e) => { e.preventDefault(); toast("Preview only: forms are filled in through processes."); } },
+    h("h3", { text: d.name || "Form" }), d.description ? h("p", { class: "desc", text: d.description }) : null,
+    (d.fields || []).map((f) => f.type === "heading" ? h("h4", { text: f.label }) : f.type === "paragraph" ? h("p", { text: f.text || "" })
+      : h("div", { class: "field" }, f.type === "checkbox" ? null : h("label", {}, f.label || f.id, f.required ? h("span", { class: "req", text: " *" }) : null), ctl(f), f.help ? h("div", { class: "help", text: f.help }) : null)),
+    h("div", { class: "row-actions" }, h("button", { type: "submit", class: "primary" }, d.submitLabel || "Submit"))));
+}
+
+// ---- process designer ----
+const STAGE_TYPES = {
+  bot: { label: "Bot task", icon: "bot", color: "#6d28d9", desc: "Run a bot" }, form: { label: "Human task", icon: "form", color: "#0891b2", desc: "Someone fills in a form" },
+  approval: { label: "Approval", icon: "shield", color: "#d97706", desc: "Someone approves or rejects" }, decision: { label: "Decision", icon: "branch", color: "#7c3aed", desc: "Choose the next stage" },
+  notify: { label: "Notification", icon: "mail", color: "#0284c7", desc: "Send a message" },
+};
+function processDesigner(it) {
+  const d = it.data;
+  if (!Array.isArray(d.stages)) d.stages = [];
+  const wrap = h("div", { class: "designer" });
+  const touch = () => { touchItem(); render(); };
+  const items = allItems();
+  const bots = items.filter((x) => x.type === "bot"), forms = items.filter((x) => x.type === "form");
+  const pathSelect = (list, value, onSet, none) => { const s = h("select", { onchange: (e) => onSet(e.target.value) }, h("option", { value: "", text: none }), list.map((x) => h("option", { value: x.path, text: x.path }))); s.value = value || ""; return s; };
+  const targetSelect = (value, onSet) => { const s = h("select", { onchange: (e) => onSet(e.target.value) }, h("option", { value: "", text: "Next stage" }), h("option", { value: "end", text: "End the process" }), d.stages.map((x) => h("option", { value: x.id, text: x.name || x.id }))); s.value = value || ""; return s; };
+  function stageProps(st) {
+    const set = (k, v) => { setOrDelete(st, k, v); touch(); };
+    const t = STAGE_TYPES[st.type] || STAGE_TYPES.bot;
+    const parts = [h("div", { class: "pane-title", text: t.label }), field("Name", h("input", { type: "text", value: st.name || "", onchange: (e) => set("name", e.target.value) }))];
+    if (st.type === "bot") {
+      parts.push(field("Bot", pathSelect(bots, st.bot, (v) => set("bot", v), "(choose a bot)")),
+        field("Inputs (JSON)", h("textarea", { rows: 3, value: st.inputs ? JSON.stringify(st.inputs, null, 2) : "", placeholder: '{"order_id": "$form.order_id"}',
+          onchange: (e) => { const v = parseLoose(e.target.value); if (v !== undefined && (typeof v !== "object" || Array.isArray(v))) { toast("Inputs must be a JSON object.", true); return; } set("inputs", v); } })));
+    } else if (st.type === "form") {
+      parts.push(field("Form", pathSelect(forms, st.form, (v) => set("form", v), "(choose a form)")),
+        field("Assign to", h("input", { type: "text", value: st.assignee || "", placeholder: "role:bot_runner or user:jane", onchange: (e) => set("assignee", e.target.value) })),
+        field("Due within (hours)", h("input", { type: "number", min: "1", value: st.due_hours ?? "", onchange: (e) => set("due_hours", e.target.value === "" ? undefined : Number(e.target.value)) })));
+    } else if (st.type === "approval") {
+      const rej = h("select", { onchange: (e) => set("on_reject", e.target.value) }, h("option", { value: "end", text: "End the process" }), h("option", { value: "continue", text: "Continue anyway" }), d.stages.filter((x) => x !== st).map((x) => h("option", { value: x.id, text: "Go to " + (x.name || x.id) })));
+      rej.value = st.on_reject || "end";
+      parts.push(field("Approver", h("input", { type: "text", value: st.assignee || "", placeholder: "role:admin or user:fin.lead", onchange: (e) => set("assignee", e.target.value) })),
+        field("Due within (hours)", h("input", { type: "number", min: "1", value: st.due_hours ?? "", onchange: (e) => set("due_hours", e.target.value === "" ? undefined : Number(e.target.value)) })),
+        field("If rejected", rej));
+    } else if (st.type === "decision") {
+      parts.push(field("Condition", withPicker(h("input", { type: "text", value: st.condition || "", placeholder: "$amount > 1000", onchange: (e) => set("condition", e.target.value) }), "Any")),
+        field("If true, go to", targetSelect(st.if_true, (v) => set("if_true", v))), field("If false, go to", targetSelect(st.if_false, (v) => set("if_false", v))));
+    } else if (st.type === "notify") {
+      parts.push(field("To", h("input", { type: "text", value: st.to || "", placeholder: "user:jane, role:admin or an email address", onchange: (e) => set("to", e.target.value) })),
+        field("Message", h("textarea", { rows: 4, value: st.message || "", onchange: (e) => set("message", e.target.value) })));
+    }
+    parts.push(field("Notes", h("textarea", { rows: 2, value: st.description || "", onchange: (e) => set("description", e.target.value) })),
+      h("div", { class: "row-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => { it.sel = null; render(); } }, "\u2190 Process settings")));
+    return parts;
+  }
+  function processProps() {
+    const set = (k, v) => { setOrDelete(d, k, v); touch(); };
+    return [h("div", { class: "pane-title", text: "Process settings" }),
+      field("Name", h("input", { type: "text", value: d.name || "", onchange: (e) => set("name", e.target.value) })),
+      field("Description", h("textarea", { rows: 3, value: d.description || "", onchange: (e) => set("description", e.target.value) })),
+      h("p", { class: "help", text: "Select a stage to edit it. Stages run from top to bottom; decisions and approvals can jump to another stage." })];
+  }
+  function render() {
+    const palette = h("div", { class: "palette" }, h("div", { class: "pane-title", text: "Add a stage" }),
+      Object.entries(STAGE_TYPES).map(([t, m]) => h("button", { type: "button", class: "pal-item", title: m.desc, onclick: () => {
+        d.stages.push({ id: uniqueKey(d.stages, t), type: t, name: m.label + " " + (d.stages.filter((x) => x.type === t).length + 1) });
+        it.sel = d.stages.length - 1; touch();
+      } }, tile(m.icon, m.color, "sm"), m.label)));
+    const nameOf = (id) => id === "end" ? "End" : (d.stages.find((x) => x.id === id) || {}).name || "next stage";
+    const flow = [h("div", { class: "pnode start", text: "Start" })];
+    d.stages.forEach((st, i) => {
+      const m = STAGE_TYPES[st.type] || STAGE_TYPES.bot;
+      const detail = st.type === "bot" ? (st.bot || "No bot chosen") : st.type === "form" ? (st.form || "No form chosen") + (st.assignee ? " \u00B7 " + st.assignee : "")
+        : st.type === "approval" ? (st.assignee || "No approver") : st.type === "decision" ? (st.condition || "No condition") + "  \u2192 yes: " + nameOf(st.if_true) + ", no: " + nameOf(st.if_false)
+          : (st.to || "No recipient");
+      flow.push(h("div", { class: "parrow", "aria-hidden": "true" }));
+      const card = h("div", { class: "pcard" + (it.sel === i ? " selected" : ""), tabindex: "0", onclick: () => { it.sel = i; render(); }, onkeydown: (e) => { if (e.key === "Enter") { it.sel = i; render(); } } },
+        tile(m.icon, m.color, "lg"), h("div", { class: "fmain" }, h("div", { class: "flabel", text: st.name || st.id }), h("div", { class: "fmeta", text: m.label + " \u00B7 " + detail })),
+        h("span", { class: "facts" }, mini("\u2191", "Move up", () => { if (i > 0) { [d.stages[i - 1], d.stages[i]] = [d.stages[i], d.stages[i - 1]]; it.sel = i - 1; touch(); } }),
+          mini("\u2193", "Move down", () => { if (i < d.stages.length - 1) { [d.stages[i + 1], d.stages[i]] = [d.stages[i], d.stages[i + 1]]; it.sel = i + 1; touch(); } }),
+          mini("\u2715", "Remove stage", () => { d.stages.splice(i, 1); it.sel = null; touch(); }, "danger")));
+      card.style.setProperty("--c", m.color);
+      flow.push(card);
+    });
+    flow.push(h("div", { class: "parrow", "aria-hidden": "true" }), h("div", { class: "pnode end", text: "End" }));
+    const canvas = h("div", { class: "form-canvas" },
+      h("div", { class: "note", text: "Design preview: processes are saved and versioned with your bots. Running them needs the Assist portal (task inbox), which is not built yet." }),
+      h("div", { class: "pflow" }, flow), d.stages.length ? null : h("div", { class: "canvas-empty", text: "Add stages from the left: bot tasks, human tasks, approvals, decisions and notifications." }));
+    const props = h("div", { class: "designer-props" }, ...(it.sel != null && d.stages[it.sel] ? stageProps(d.stages[it.sel]) : processProps()));
+    wrap.replaceChildren(palette, canvas, props);
+  }
+  render();
+  return wrap;
+}
+
+// ---- document automation ----
+const DOC_TYPES = ["pdf", "txt", "csv", "xml", "json", "md", "html"];
+const AI_PROVIDERS = [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["openai_compatible", "OpenAI-compatible (local or other)"]];
+function providerSelect(value, onSet) { const s = h("select", { onchange: (e) => onSet(e.target.value) }, AI_PROVIDERS.map(([v, t]) => h("option", { value: v, text: t }))); s.value = value || "openai"; return s; }
+function documentDesigner(it) {
+  const d = it.data;
+  if (!Array.isArray(d.fields)) d.fields = [];
+  if (!Array.isArray(d.accept)) d.accept = ["pdf", "txt"];
+  const wrap = h("div", { class: "doc-designer" });
+  const set = (k, v) => { setOrDelete(d, k, v); touchItem(); };
+  function render() {
+    const fieldRows = d.fields.map((f, i) => {
+      const type = h("select", { "aria-label": "Type of " + f.name, onchange: (e) => { f.type = e.target.value; touchItem(); } }, ["String", "Number", "DateTime", "Boolean", "List"].map((t) => h("option", { value: t, text: t })));
+      type.value = f.type || "String";
+      return h("tr", {},
+        h("td", {}, h("input", { type: "text", value: f.name || "", "aria-label": "Field name", onchange: (e) => {
+          const v = e.target.value.trim();
+          if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(v)) { toast("Field names use letters, digits and _.", true); e.target.value = f.name || ""; return; }
+          f.name = v; touchItem(); } })),
+        h("td", {}, h("input", { type: "text", value: f.description || "", "aria-label": "What to extract", placeholder: "Describe the value for the AI", onchange: (e) => { f.description = e.target.value; touchItem(); } })),
+        h("td", {}, type),
+        h("td", { class: "ta-center" }, h("input", { type: "checkbox", checked: !!f.required, "aria-label": "Required", onchange: (e) => { f.required = e.target.checked; touchItem(); } })),
+        h("td", {}, mini("\u2715", "Remove field", () => { d.fields.splice(i, 1); touchItem(); render(); }, "danger")));
+    });
+    wrap.replaceChildren(
+      h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Document type" }),
+        h("div", { class: "grid2" }, field("Name", h("input", { type: "text", value: d.name || "", onchange: (e) => set("name", e.target.value) })),
+          field("AI provider", providerSelect(d.provider, (v) => set("provider", v)))),
+        h("div", { class: "grid2" }, field("Description", h("input", { type: "text", value: d.description || "", placeholder: "e.g. Supplier invoices in English", onchange: (e) => set("description", e.target.value) })),
+          field("Model", h("input", { type: "text", value: d.model || "", placeholder: "gpt-4o-mini", onchange: (e) => set("model", e.target.value) }))),
+        h("div", { class: "field" }, h("label", { text: "Accepted files" }), h("div", { class: "chips" }, DOC_TYPES.map((t) => h("label", { class: "chip check" },
+          h("input", { type: "checkbox", checked: d.accept.includes(t), onchange: (e) => { d.accept = e.target.checked ? [...new Set([...d.accept, t])] : d.accept.filter((x) => x !== t); touchItem(); } }), t.toUpperCase()))))),
+      h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Fields to extract" }),
+        h("table", { class: "grid list doc-fields" }, h("thead", {}, h("tr", {}, ["Field", "What to extract", "Type", "Required", ""].map((t) => h("th", { text: t })))), h("tbody", {}, fieldRows)),
+        d.fields.length ? null : h("div", { class: "empty", text: "No fields yet." }),
+        h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => { d.fields.push({ name: uniqueKey(d.fields, "field", "name"), description: "", type: "String" }); touchItem(); render(); } }, "+ Field"))),
+      h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Use it" }),
+        h("p", { class: "help", text: "Create a Task Bot that reads a document (PDF or text), sends the text to the AI provider with these field descriptions, and returns the fields as a Dictionary. Personal data is sent to the provider, so check your AI policy. Scanned images need OCR first." }),
+        h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: () => generateExtractionBot(it) }, "Create extraction bot"))));
+  }
+  render();
+  return wrap;
+}
+
+async function generateExtractionBot(it) {
+  const d = it.data;
+  if (!d.fields.length) { toast("Add at least one field first.", true); return; }
+  if (state.dirty) await saveItem();
+  const fields = {};
+  for (const f of d.fields) fields[f.name] = (f.description || f.name) + (f.type && f.type !== "String" ? " (" + f.type + ")" : "") + (f.required ? "" : " (may be missing)");
+  const usePdf = d.accept.includes("pdf") && state.specs.has("ooa.pdf/extract_text");
+  const read = { id: "s3", action: "ooa.file/read_text", args: { path: "$document" }, out: { text: "text" } };
+  const extract = { id: "s4", action: "ooa.genai/extract", args: { text: "$text", fields, model: d.model || "gpt-4o-mini", api_key: "$api_key" }, out: { fields: "fields" } };
+  if (d.provider && d.provider !== "openai") extract.args.provider = d.provider;
+  const steps = usePdf ? [{ id: "s1", action: "core/if", args: { condition: { op: "endsWith", left: "$document", right: ".pdf" } },
+    children: [{ id: "s2", action: "ooa.pdf/extract_text", args: { path: "$document" }, out: { text: "text" } }], else: [read] }, extract] : [read, extract];
+  const name = (d.name || "Document") + " extraction";
+  const path = await fileOp("bot", { parent: parentOf(it.path), name }, null);
+  if (!path) return;
+  const created = (await api("GET", "bot?path=" + encodeURIComponent(path))).flow;
+  Object.assign(created, { description: "Extracts " + Object.keys(fields).join(", ") + " from a document with AI. Generated from " + it.path + ".",
+    variables: [{ name: "document", type: "File", direction: "input", required: true, description: "The document to read (" + d.accept.join(", ") + ")." },
+      { name: "api_key", type: "Credential", direction: "input", description: "API key for the AI provider (a vault reference)." },
+      { name: "text", type: "String" }, { name: "fields", type: "Dictionary", direction: "output", description: "The extracted fields." }], steps });
+  await api("PUT", "bot?path=" + encodeURIComponent(path), created);
+  await loadTree();
+  setDirty(false);
+  expandTo(path); state.treeSel = path;
+  await openBot(path);
+  toast("Created " + path);
+}
+
+// ---- AI Skill ----
+function skillDesigner(it) {
+  const d = it.data;
+  const name = it.path.split("/").pop().replace(/\.json$/i, "");
+  const set = (k, v) => { setOrDelete(d, k, v); touchItem(); };
+  const holders = h("div", { class: "chips" });
+  const prompt = h("textarea", { rows: 8, value: d.prompt || "", "aria-label": "Prompt template", onchange: (e) => { d.prompt = e.target.value; touchItem(); renderHolders(); } });
+  const renderHolders = () => {
+    const names = [...new Set([...(String(d.prompt || "") + " " + String(d.system || "")).matchAll(/\$\{([A-Za-z_][A-Za-z0-9_.]*)\}/g)].map((m) => m[1]))];
+    holders.replaceChildren(...(names.length ? names.map((n) => h("span", { class: "chip mono", text: "${" + n + "}" })) : [h("span", { class: "muted", text: "No placeholders. Add ${name} where a value goes." })]));
+    return names;
+  };
+  const out = h("div", { class: "seg", role: "radiogroup", "aria-label": "Answer format" });
+  const renderOut = () => out.replaceChildren(...[["text", "Text"], ["json", "JSON (Dictionary)"]].map(([v, l]) => h("button", { type: "button", role: "radio", "aria-checked": String((d.output || "text") === v), onclick: () => { d.output = v; touchItem(); renderOut(); } }, l)));
+  renderOut();
+  const names = renderHolders();
+  return h("div", { class: "doc-designer" },
+    h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Prompt" }),
+      field("Description", h("input", { type: "text", value: d.description || "", placeholder: "What the skill does; shown in the AI Skills list", onchange: (e) => set("description", e.target.value) })),
+      field("Instructions (system)", h("textarea", { rows: 3, value: d.system || "", onchange: (e) => { set("system", e.target.value); renderHolders(); } })),
+      field("Prompt template", prompt, "Values from the bot replace ${name} placeholders."), holders),
+    h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Model" }),
+      h("div", { class: "grid2" }, field("Provider", providerSelect(d.provider, (v) => set("provider", v))),
+        field("Model", h("input", { type: "text", value: d.model || "", placeholder: "gpt-4o-mini", onchange: (e) => set("model", e.target.value) }))),
+      h("div", { class: "grid2" }, field("Temperature", h("input", { type: "number", min: "0", max: "2", step: "0.1", value: d.temperature ?? 0, onchange: (e) => set("temperature", e.target.value === "" ? undefined : Number(e.target.value)) }), "0 is the most predictable."),
+        field("Base URL (optional)", h("input", { type: "text", value: d.base_url || "", placeholder: "For Azure or an OpenAI-compatible server", onchange: (e) => set("base_url", e.target.value) }))),
+      h("div", { class: "field" }, h("label", { text: "Answer format" }), out),
+      h("label", { class: "check" }, h("input", { type: "checkbox", checked: d.mask_pii !== false, onchange: (e) => { d.mask_pii = e.target.checked; touchItem(); } }), "Mask personal data (emails, phone numbers, card numbers) before sending")),
+    h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Use it" }),
+      h("p", { class: "help", text: "Bots run this skill with the Run AI Skill command: skill = " + name + ". API keys never go in skill files; give the step an api_key credential." }),
+      h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => copyStep({ action: "ooa.ai_skills/run", args: { skill: name, values: Object.fromEntries(names.map((n) => [n, ""])) } }, "Run AI Skill") }, "Copy as a bot step"))));
+}
+
+// ---- templates ----
+const TEMPLATES = [
+  { id: "csv_rows", name: "Loop through a CSV file", icon: "table", color: "#2563eb", description: "Read a CSV file into a table and handle each row.",
+    variables: [{ name: "csv_file", type: "File", direction: "input", required: true, description: "The CSV file to read." }, { name: "rows", type: "Table" },
+      { name: "row", type: "Record" }, { name: "row_count", type: "Number", direction: "output", description: "How many rows were read." }],
+    steps: [{ id: "s1", action: "ooa.csv/read", args: { path: "$csv_file" }, out: { table: "rows", row_count: "row_count" } },
+      { id: "s2", action: "core/log", args: { message: "Read ${row_count} rows" } },
+      { id: "s3", action: "core/loop", args: { iterator: "table_rows", over: "$rows", as: "row" }, children: [
+        { id: "s4", action: "core/comment", args: { text: "Handle one row here; read a column with $row.column_name" } },
+        { id: "s5", action: "core/log", args: { message: "Row: ${row}" } }] }] },
+  { id: "excel_rows", name: "Loop through Excel rows", icon: "sheet", color: "#16a34a", description: "Open a workbook, read the first sheet as a table and handle each row.",
+    variables: [{ name: "workbook", type: "File", direction: "input", required: true, description: "The Excel workbook." }, { name: "rows", type: "Table" },
+      { name: "row", type: "Record" }, { name: "row_count", type: "Number", direction: "output" }],
+    steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } },
+      { id: "s2", action: "ooa.excel/get_all_cells", args: { header: true }, out: { table: "rows", row_count: "row_count" } },
+      { id: "s3", action: "core/loop", args: { iterator: "table_rows", over: "$rows", as: "row" }, children: [
+        { id: "s4", action: "core/comment", args: { text: "Handle one row here; read a column with $row.column_name" } }] },
+      { id: "s5", action: "ooa.excel/close", args: {} }] },
+  { id: "folder_files", name: "Process every file in a folder", icon: "folder", color: "#059669", description: "List the files in a folder and handle them one by one.",
+    variables: [{ name: "folder", type: "File", direction: "input", required: true, description: "The folder to process." }, { name: "pattern", type: "String", direction: "input", default: "*.*", description: "Which files, e.g. *.pdf" },
+      { name: "files", type: "List" }, { name: "file", type: "String" }],
+    steps: [{ id: "s1", action: "ooa.file/list", args: { folder: "$folder", pattern: "$pattern" }, out: { files: "files" } },
+      { id: "s2", action: "core/loop", args: { iterator: "list", over: "$files", as: "file" }, children: [
+        { id: "s3", action: "core/log", args: { message: "Processing ${file}" } },
+        { id: "s4", action: "core/comment", args: { text: "Handle $file here" } }] }] },
+  { id: "rest_api", name: "Call a REST API safely", icon: "api", color: "#4f46e5", description: "Call a web API with error handling and return its answer.",
+    variables: [{ name: "url", type: "String", direction: "input", required: true, default: "https://api.example.com/items", description: "The address to call." },
+      { name: "status", type: "Number", direction: "output" }, { name: "body", type: "Any", direction: "output" }, { name: "error", type: "Dictionary" }],
+    steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "ooa.rest/request", args: { url: "$url", method: "GET" }, out: { status: "status", json: "body" } }],
+      catch: [{ codes: [], as: "error", children: [{ id: "s3", action: "core/log", args: { message: "The request failed: ${error.message}", level: "error" } },
+        { id: "s4", action: "core/throw", args: { code: "BUSINESS.API_FAILED", message: "Could not call ${url}", suggested_fix: "Check the address and that the service is up." } }] }], finally: [] }] },
+  { id: "ai_summary", name: "Summarise a document with AI", icon: "spark", color: "#db2777", description: "Read a text file and summarise it with a language model.",
+    variables: [{ name: "text_file", type: "File", direction: "input", required: true, description: "The text file to summarise." },
+      { name: "api_key", type: "Credential", direction: "input", description: "API key for the AI provider." }, { name: "text", type: "String" },
+      { name: "summary", type: "String", direction: "output", description: "The summary." }],
+    steps: [{ id: "s1", action: "ooa.file/read_text", args: { path: "$text_file" }, out: { text: "text" } },
+      { id: "s2", action: "ooa.genai/summarize", args: { text: "$text", sentences: 3, model: "gpt-4o-mini", api_key: "$api_key" }, out: { summary: "summary" } }] },
+  { id: "web_text", name: "Read text from a web page", icon: "globe", color: "#ea580c", description: "Open a page in a browser, read the main heading and close it.",
+    variables: [{ name: "url", type: "String", direction: "input", default: "https://example.com", description: "The page to open." }, { name: "heading", type: "String", direction: "output" }],
+    steps: [{ id: "s1", action: "ooa.browser/open", args: { url: "$url" } }, { id: "s2", action: "ooa.browser/get_text", args: { selector: "h1" }, out: { text: "heading" } },
+      { id: "s3", action: "ooa.browser/close", args: {} }] },
+  { id: "error_handling", name: "Bot with error handling", icon: "shield", color: "#dc2626", description: "A Try / Catch / Finally skeleton that logs failures.",
+    variables: [{ name: "error", type: "Dictionary" }],
+    steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "core/comment", args: { text: "Put the main steps of the bot here." } }],
+      catch: [{ codes: [], as: "error", children: [{ id: "s3", action: "core/log", args: { message: "Failed: ${error.code} ${error.message}", level: "error" } }] }],
+      finally: [{ id: "s4", action: "core/log", args: { message: "Finished" } }] }] },
+];
+function availableTemplates() { return TEMPLATES.filter((t) => allSteps(t.steps).every((st) => state.specs.has(st.action))); }
+function openTemplates() {
+  openDialog("Create a bot from a template", h("div", { class: "tpl-grid" }, availableTemplates().map((t) => h("button", { type: "button", class: "tpl", onclick: () => { closeDialog(); createFromTemplate(t); } },
+    tile(t.icon, t.color, "lg"), h("strong", { text: t.name }), h("span", { class: "desc", text: t.description })))), [], { wide: true, closeLabel: "Close" });
+}
+async function createFromTemplate(t) {
+  const name = prompt("Name of the new bot:", t.name);
+  if (!name) return;
+  if (state.dirty && !confirm("Discard unsaved changes?")) return;
+  const path = await fileOp("bot", { parent: currentFolder(), name }, null);
+  if (!path) return;
+  try {
+    const created = (await api("GET", "bot?path=" + encodeURIComponent(path))).flow;
+    Object.assign(created, { description: t.description, variables: JSON.parse(JSON.stringify(t.variables)), steps: JSON.parse(JSON.stringify(t.steps)) });
+    await api("PUT", "bot?path=" + encodeURIComponent(path), created);
+    setDirty(false); expandTo(path); state.treeSel = path;
+    await loadTree(); await openBot(path);
+    toast("Created " + name + " from the template");
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---- dependencies of the open bot ----
+async function renderDeps() {
+  const box = $("tab-deps");
+  if (!state.flow || !state.file) return;
+  box.replaceChildren(h("p", { class: "muted", text: "Looking through the workspace\u2026" }));
+  try {
+    const r = await api("GET", "deps?path=" + encodeURIComponent(state.file));
+    const group = (title, icon, color, items, empty) => h("div", { class: "dep-group" },
+      h("div", { class: "dep-head" }, tile(icon, color, "sm"), h("strong", { text: title }), h("span", { class: "n", text: items.length })),
+      items.length ? items.map((x) => h("div", { class: "dep-row" + (x.missing ? " missing" : ""), tabindex: x.path ? "0" : null, role: x.path ? "button" : null,
+        onclick: () => { if (x.path) openAny(x.path); }, onkeydown: (e) => { if (e.key === "Enter" && x.path) openAny(x.path); } },
+        h("span", { class: "mono", text: x.path || x.name }), x.missing ? h("span", { class: "pill-warn", text: "Not in the workspace" }) : null,
+        h("span", { class: "spacer" }), x.step ? h("a", { class: "link", text: "step " + x.step, onclick: (e) => { if (x.path && title !== "Used by") { e.stopPropagation(); selectById(x.step); } } }) : null))
+        : h("div", { class: "empty", text: empty }));
+    box.replaceChildren(
+      state.dirty ? h("div", { class: "note", text: "Save the bot to include your latest changes." }) : null,
+      h("p", { class: "help", text: "What this bot needs to run, and which bots use it. Check in child bots too before running this bot from Control Room." }),
+      h("div", { class: "dep-grid" },
+        group("Child bots and agent tools", "bot", "#6d28d9", r.bots, "This bot does not call other bots."),
+        group("Scripts", "code", "#0f766e", r.scripts, "No script files."),
+        group("AI Skills", "spark", "#c026d3", r.skills, "No AI Skills."),
+        group("Files", "file", "#64748b", r.files, "No workspace files referenced."),
+        group("Used by", "jump", "#2563eb", r.usedBy, "No other bot in the workspace calls this bot.")));
+  } catch (e) { box.replaceChildren(h("p", { class: "error-box", text: e.message })); }
+}
+function openAny(path) {
+  if (path.endsWith(".flow.json")) { state.treeSel = path; expandTo(path); openBot(path).catch((e) => toast(e.message, true)); }
+  else { state.treeSel = path; expandTo(path); openItem(path); }
+}
+
 // ---------- capture (pick an element in the browser) ----------
 function defaultUrl() {
   const open = state.flow && allSteps(state.flow.steps).find((x) => x.action === "ooa.browser/open" && x.args && typeof x.args.url === "string" && !x.args.url.startsWith("$"));
@@ -1595,7 +2733,7 @@ function onTreeSearch() {
       box.hidden = false;
       box.replaceChildren(...(r.results.length ? r.results.map((x) => h("div", { class: "search-hit", tabindex: "0", role: "button",
         onclick: () => openBot(x.path), onkeydown: (e) => { if (e.key === "Enter") openBot(x.path); } },
-        h("span", { class: "icon bot" }), h("div", {}, h("div", { text: x.path.replace(/\.flow\.json$/, "") }), h("div", { class: "help", text: "Matches " + x.matches.join(", ") }))))
+        itemTile({ type: "bot", name: x.path }), h("div", {}, h("div", { text: x.path.replace(/\.flow\.json$/, "") }), h("div", { class: "help", text: "Matches " + x.matches.join(", ") }))))
         : [h("div", { class: "empty", text: "No bots match \u201C" + q + "\u201D." })]));
     } catch (e) { toast(e.message, true); }
   }, 250);
@@ -1652,15 +2790,18 @@ function wire() {
   $("btn-capture").addEventListener("click", captureStep);
   $("btn-checkin").addEventListener("click", crCheckin);
   $("tree-search").addEventListener("input", onTreeSearch);
-  document.addEventListener("focusin", (e) => { if (e.target.closest && e.target.closest("#props") && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) state.lastInput = e.target; });
-  document.addEventListener("click", (e) => { if (!e.target.closest("#ctx-menu")) closeContextMenu(); });
+  document.addEventListener("focusin", (e) => { if (e.target.closest && e.target.closest("#props, #item-editor") && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== "search") state.lastInput = e.target; });
+  document.addEventListener("click", (e) => { if (!e.target.closest("#ctx-menu")) closeContextMenu(); if (!e.target.closest("#var-pop, .var-btn")) closeVarPicker(); });
+  $("dialog").addEventListener("click", (e) => { if (e.target === $("dialog")) closeDialog(); });
   makeDockDraggable();
   $("cmd-search").addEventListener("input", renderLibrary);
   $("btn-fold-groups").addEventListener("click", () => {
-    if (state.groupsOpen.size) state.groupsOpen.clear(); else for (const p of state.packages) state.groupsOpen.add(p.id);
+    if (state.groupsOpen.size) state.groupsOpen.clear(); else for (const id of ["recent", ...Object.keys(CATS)]) state.groupsOpen.add(id);
     renderLibrary();
   });
-  $("btn-new-bot").addEventListener("click", newBotHere);
+  buildCreateMenu();
+  $("btn-create").addEventListener("click", (e) => { e.stopPropagation(); toggleCreateMenu(); });
+  $("btn-home").addEventListener("click", goHome);
   $("btn-new-folder").addEventListener("click", newFolderHere);
   $("btn-rename").addEventListener("click", renameSelected);
   $("btn-delete").addEventListener("click", deleteSelectedNode);
@@ -1680,7 +2821,10 @@ function wire() {
   $("sel-theme").addEventListener("change", (e) => setPref("theme", e.target.value));
   $("sel-density").addEventListener("change", (e) => setPref("density", e.target.value));
   $("btn-view").addEventListener("click", () => { const p = $("view-pop"); p.hidden = !p.hidden; $("btn-view").setAttribute("aria-expanded", String(!p.hidden)); });
-  document.addEventListener("click", (e) => { if (!e.target.closest(".view-menu")) { $("view-pop").hidden = true; $("btn-view").setAttribute("aria-expanded", "false"); } });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".view-menu")) { $("view-pop").hidden = true; $("btn-view").setAttribute("aria-expanded", "false"); }
+    if (!e.target.closest(".create-menu")) closeCreateMenu();
+  });
   $("btn-json-apply").addEventListener("click", () => {
     try {
       const f = JSON.parse($("json-text").value);
@@ -1699,6 +2843,8 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
     if (mod && k === "s") { e.preventDefault(); save(); return; }
+    if (e.key === "Escape" && $("var-pop")) { closeVarPicker(); return; }
+    if (e.key === "Escape" && !$("dialog").hidden) { closeDialog(); return; }
     if (e.key === "Escape") { closeContextMenu(); if (state.multi.size) { state.multi = new Set(); state.selected = null; renderSteps(); renderProps(); updateEditButtons(); } return; }
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
     if (typing || !state.flow) return;
