@@ -25,7 +25,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Core logic & data | Prompt | ooa.desktop/prompt_* | Built | Value, yes/no, password, file and folder |
 | Core logic & data | Play sound / Beep | ooa.sound | Built |  |
 | Core logic & data | Bot Migration / Legacy | - | Not needed | AA-specific |
-| Core logic & data | Global values | ooa.global_values | Built | Workspace global-values.json now; Control Room management later |
+| Core logic & data | Global values | ooa.global_values, $global | Built | Managed in Control Room; workspace file in Studio |
 | UI automation | Recorder | ooa.browser/record, ooa.browser/element_action (Capture), Studio Record, Capture and Pick | Partial | Web recorder and web Capture built; desktop, Java and SAP capture need the Bot Agent |
 | UI automation | Browser | ooa.browser | Built (library module, test on laptop) | Playwright; uses installed Edge or Chrome |
 | UI automation | Window | ooa.window | Built (library module, test on laptop) | Win32 via JNA |
@@ -70,8 +70,8 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | Ping / SNMP | ooa.network | Partial | SNMP planned |
 | Integration & system | Hash / Cryptography | ooa.crypto | Built | Hashes, HMAC, AES-256-GCM, RSA encrypt/sign |
 | Integration & system | PGP | ooa.pgp | Built | Needs GnuPG installed; tested with real GnuPG |
-| Integration & system | Credential / Vault | Credential type + vault adapters | Partial | Lockers screens come with Control Room |
-| Integration & system | Triggers (event) | Studio triggers | Partial | File, schedule and webhook built; email, window, hotkey and service triggers with the Bot Agent |
+| Integration & system | Credential / Vault | Credential type + Control Room lockers | Built | AES-256-GCM, owners and consumers, just-in-time delivery, audited |
+| Integration & system | Triggers (event) | Studio triggers + Control Room triggers on agents | Partial | File, schedule and webhook built in both; email, window, hotkey and service triggers planned |
 | Integration & system | Salesforce / ServiceNow / Workday / Jira | ooa.salesforce, ooa.servicenow, ooa.workday, ooa.jira | Built | Workday: workers + generic REST/RaaS |
 | AI, workload & process | Document Automation / IQ Bot | - | Excluded for now (your request) |  |
 | AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, self-hosted; PII masking; governance log |

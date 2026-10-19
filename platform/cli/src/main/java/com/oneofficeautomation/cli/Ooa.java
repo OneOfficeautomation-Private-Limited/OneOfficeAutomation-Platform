@@ -18,6 +18,10 @@ import java.util.stream.Stream;
  *   ooa run FLOW [-i key=value]...    run a Flow file
  *   ooa conformance DIR               run the language-neutral conformance suite
  *   ooa studio [--workspace DIR]      start the Studio preview on http://localhost:8710
+ *   ooa control-room [--port N] [--host H] [--data DIR] [--db-url URL --db-user U --db-password-env VAR]
+ *                                     start Control Room on http://localhost:8720
+ *   ooa agent register --url URL --key KEY [--name NAME] [--config FILE]
+ *   ooa agent start [--config FILE] [--workspace DIR]
  * picocli and GraalVM native image replace this hand-rolled parser in a later slice.
  */
 public final class Ooa {
@@ -48,6 +52,8 @@ public final class Ooa {
                 case "run" -> run(Arrays.copyOfRange(args, 1, args.length));
                 case "conformance" -> conformance(Path.of(args.length > 1 ? args[1] : "../contracts/conformance/cases"));
                 case "studio" -> studio(Arrays.copyOfRange(args, 1, args.length));
+                case "control-room" -> controlRoom(Arrays.copyOfRange(args, 1, args.length));
+                case "agent" -> agent(Arrays.copyOfRange(args, 1, args.length));
                 default -> { usage(); yield 1; }
             };
         } catch (OoaException e) {
@@ -59,7 +65,8 @@ public final class Ooa {
 
     static void usage() {
         System.err.println("usage: ooa manifest [--summary] | validate FLOW... | run FLOW [-i key=value]... | conformance [DIR]"
-                + " | studio [--workspace DIR] [--port N]");
+                + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
+                + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]");
     }
 
     static int studio(String[] a) throws Exception {
@@ -72,6 +79,67 @@ public final class Ooa {
         new StudioServer(workspace, port, Path.of("../examples/refund")).start();
         Thread.currentThread().join();
         return 0;
+    }
+
+    static Map<String, String> options(String[] a) {
+        Map<String, String> o = new HashMap<>();
+        for (int i = 0; i < a.length; i++) if (a[i].startsWith("--")) o.put(a[i].substring(2), i + 1 < a.length && !a[i + 1].startsWith("--") ? a[++i] : "true");
+        return o;
+    }
+
+    static int controlRoom(String[] a) throws Exception {
+        Map<String, String> o = options(a);
+        Path data = Path.of(o.getOrDefault("data", Path.of(System.getProperty("user.home"), "OOA Control Room").toString()));
+        Files.createDirectories(data);
+        int port = Integer.parseInt(o.getOrDefault("port", "8720"));
+        String host = o.getOrDefault("host", "127.0.0.1");
+        com.oneofficeautomation.controlroom.Db db;
+        if (o.containsKey("db-url")) {
+            String pw = o.containsKey("db-password-env") ? System.getenv(o.get("db-password-env")) : "";
+            db = new com.oneofficeautomation.controlroom.Db(o.get("db-url"), o.getOrDefault("db-user", ""), pw == null ? "" : pw);
+        } else db = com.oneofficeautomation.controlroom.Db.embedded(data);
+        var cr = new com.oneofficeautomation.controlroom.ControlRoom(db, data, FirstPartyPackages.registry(), schemaValidator());
+        String first = cr.bootstrap();
+        var server = new com.oneofficeautomation.controlroom.ControlRoomServer(cr, host, port);
+        server.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> { server.stop(); db.close(); }));
+        System.out.println("ONEOFFICEAUTOMATION Control Room is running.");
+        System.out.println("  Open:     http://" + (host.equals("0.0.0.0") ? "localhost" : host) + ":" + port);
+        System.out.println("  Database: " + (o.containsKey("db-url") ? o.get("db-url") : "embedded H2 in " + data));
+        System.out.println("  Vault key: " + cr.vault.keySource);
+        if (!host.equals("127.0.0.1") && !host.equals("localhost"))
+            System.out.println("  WARNING: listening on " + host + " without TLS; put Control Room behind an HTTPS reverse proxy before other machines use it.");
+        if (first != null) {
+            System.out.println();
+            System.out.println("  First start: sign in as  admin  with the one-time password  " + first);
+            System.out.println("  You will be asked to choose a new password. This password is shown only once.");
+        }
+        System.out.println("  Press Ctrl+C to stop.");
+        Thread.currentThread().join();
+        return 0;
+    }
+
+    static int agent(String[] a) throws Exception {
+        if (a.length == 0) { usage(); return 1; }
+        Map<String, String> o = options(Arrays.copyOfRange(a, 1, a.length));
+        Path config = Path.of(o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString()));
+        switch (a[0]) {
+            case "register" -> {
+                if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME]"); return 1; }
+                Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config);
+                System.out.println("Registered device '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
+                System.out.println("Start the agent with:  ooa agent start");
+                return 0;
+            }
+            case "start" -> {
+                Path ws = Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString()));
+                var agent = new com.oneofficeautomation.agent.Agent(config, ws);
+                Runtime.getRuntime().addShutdownHook(new Thread(agent::stop));
+                agent.run();
+                return 0;
+            }
+            default -> { usage(); return 1; }
+        }
     }
 
     static int manifest(boolean summary) {

@@ -17,7 +17,9 @@ Jackson/networknt adapters and the CLI. It passes the same conformance suite as 
 | `packages-transfer` *(optional)* | `ooa.file_transfer`: FTP, FTPS, SFTP | Commons Net, JSch |
 | `packages-windows` *(optional)* | `ooa.window` window control, `ooa.dll` native calls | JNA |
 | `adapters-jackson` | `JacksonJsonCodec`, `NetworkntFlowSchemaValidator` | Jackson, networknt |
-| `cli` | `ooa manifest`, `validate`, `run`, `conformance`, `studio` | Logback |
+| `control-room` | Control Room: users and roles, public repository with check-in/check-out and versions, devices, runs, schedules, triggers, credential lockers, global values, audit log, web console | H2 (embedded) or PostgreSQL |
+| `agent` | Bot Agent: device registration, heartbeats, jobs, one worker process per run, file triggers | none |
+| `cli` | `ooa manifest`, `validate`, `run`, `conformance`, `studio`, `control-room`, `agent register`, `agent start` | Logback |
 
 **Optional modules** are listed in `gradle.properties` (`ooa.optionalModules`). If one fails to build on your machine,
 remove it from that line: everything else keeps working and you can keep testing the other commands.
@@ -91,3 +93,6 @@ Remaining packages (Excel via Apache POI, Email, REST, Database, PDF, Browser vi
 agent runtime in Java, the AI developer assistant, Control Center (Spring Boot + PostgreSQL), Studio (React),
 Bot Agent for Windows. PF4J classloader isolation and the compile-time manifest annotation processor replace
 the runtime introspection used here.
+
+
+Control Room and Bot Agent setup: see `../docs/CONTROL_ROOM_AND_AGENT.md`.

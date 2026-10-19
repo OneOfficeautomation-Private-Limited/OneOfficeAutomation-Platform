@@ -251,3 +251,15 @@ body.dock-right .dock-split { order: 8; cursor: col-resize; width: 5px; height: 
 .search-hit { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 8px; cursor: pointer; }
 .search-hit:hover, .search-hit:focus-visible { background: var(--tint); }
 .search-hit .icon { margin-top: 3px; }
+
+/* Control Room section in the Explorer */
+.cr-panel { border-top: 1px solid var(--line); padding-top: 6px; max-height: 45%; overflow: auto; flex: 0 0 auto; }
+.cr-panel > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.cr-form { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+.cr-form label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; font-weight: 600; }
+.cr-bot { display: flex; flex-direction: column; gap: 3px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; margin: 4px 0; }
+.cr-bot .top { display: flex; gap: 6px; align-items: center; }
+.cr-bot .top strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-bot .acts { display: flex; gap: 4px; flex-wrap: wrap; }
+.cr-bot .acts button { padding: 2px 8px; font-size: 12px; }
+.lock { font-size: 11px; border-radius: 10px; padding: 0 8px; background: #efe9fd; color: #6b3fd4; }

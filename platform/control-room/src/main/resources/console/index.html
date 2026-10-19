@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ONEOFFICEAUTOMATION Control Room</title>
+  <link rel="icon" href="/logo-mark.png">
+  <link rel="stylesheet" href="/cr.css">
+</head>
+<body>
+  <div id="login-view" class="login" hidden>
+    <form id="login-form" class="card login-card">
+      <img src="/logo-full.png" alt="ONEOFFICEAUTOMATION" class="login-logo">
+      <h1>Control Room</h1>
+      <label>User name <input id="login-user" autocomplete="username" required></label>
+      <label>Password <input id="login-pass" type="password" autocomplete="current-password" required></label>
+      <button type="submit" class="primary">Sign in</button>
+      <p id="login-error" class="error" role="alert" hidden></p>
+    </form>
+  </div>
+
+  <div id="password-view" class="login" hidden>
+    <form id="password-form" class="card login-card">
+      <h1>Choose a new password</h1>
+      <p class="muted">At least 12 characters, with letters and digits.</p>
+      <label>Current password <input id="pw-current" type="password" autocomplete="current-password" required></label>
+      <label>New password <input id="pw-new" type="password" autocomplete="new-password" required></label>
+      <label>Repeat new password <input id="pw-repeat" type="password" autocomplete="new-password" required></label>
+      <button type="submit" class="primary">Change password</button>
+      <p id="pw-error" class="error" role="alert" hidden></p>
+    </form>
+  </div>
+
+  <div id="app" hidden>
+    <header class="topbar">
+      <img src="/logo-mark.png" alt="" class="logo">
+      <span class="brand-name">ONEOFFICEAUTOMATION</span>
+      <span class="brand-product">Control Room</span>
+      <span class="spacer"></span>
+      <span id="who" class="muted"></span>
+      <button type="button" id="btn-change-pw">Change password</button>
+      <button type="button" id="btn-logout">Sign out</button>
+    </header>
+    <div class="layout">
+      <nav id="nav" class="nav" aria-label="Control Room sections"></nav>
+      <main id="main" class="main" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 id="modal-title"></h2>
+      <div id="modal-body"></div>
+      <div class="row-actions" id="modal-actions"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/cr.js"></script>
+</body>
+</html>

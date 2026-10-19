@@ -5,6 +5,8 @@ val optionalModules = ((findProperty("ooa.optionalModules") as String?) ?: "")
 
 dependencies {
     implementation(project(":packages"))
+    implementation(project(":control-room"))
+    implementation(project(":agent"))
     optionalModules.forEach { runtimeOnly(project(":$it")) }
     runtimeOnly(project(":adapters-jackson"))
     runtimeOnly("ch.qos.logback:logback-classic:1.5.8")

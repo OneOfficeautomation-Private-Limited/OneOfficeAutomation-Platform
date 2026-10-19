@@ -210,7 +210,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("file trigger runs the bot with the arriving file", await until(() => fs.existsSync(outFile) && fs.readFileSync(outFile, "utf8").includes("INV-77.pdf"), 15000));
   check("files not matching the pattern are ignored", !fs.readFileSync(outFile, "utf8").includes("notes.txt"));
   const denied = await fetch(BASE + "/api/hooks/hook", { method: "POST", headers: { "X-OOA-Secret": "wrong" }, body: "{}" });
-  check("webhook refuses a wrong secret", denied.status === 400);
+  check("webhook refuses a wrong secret (403 Forbidden)", denied.status === 403);
   const acc = await fetch(BASE + "/api/hooks/hook", { method: "POST", headers: { "X-OOA-Secret": secret, "Content-Type": "application/json" }, body: JSON.stringify({ invoice: "INV-9" }) });
   check("webhook accepts the right secret", acc.status === 202);
   check("schedule trigger fires on its own", await until(async () => false, 1) || await (async () => { for (let i = 0; i < 40; i++) { const l = (await (await fetch(BASE + "/api/triggers")).json()).log; if (l.some((e) => e.trigger === "sched" && e.status === "success")) return true; await sleep(500); } return false; })());
@@ -335,6 +335,16 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("resizing is applied and remembered", d.documentElement.style.getPropertyValue("--side-w") === "360px" && JSON.parse(w.localStorage.getItem("ooa.studio.prefs")).sizes.side === 360);
   const cap = await (await fetch(BASE + "/api/capture", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: "https://example.com" }) })).json();
   check("Capture explains when the Browser module is missing", cap.error && cap.error.code === "STUDIO.NO_BROWSER_MODULE");
+
+  // ================= Part 2: Control Room section in Studio =================
+  click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  check("Explorer shows a Control Room section with a sign-in form", await until(() => d.querySelector("#cr-body input[type=password]") && d.getElementById("cr-state").textContent.includes("not connected")));
+  check("Explorer has a Check in button", !!d.getElementById("btn-checkin"));
+  const crInputs = d.querySelectorAll("#cr-body input");
+  crInputs[0].value = "http://127.0.0.1:1"; crInputs[1].value = "nobody"; crInputs[2].value = "x";
+  click([...d.querySelectorAll("#cr-body button")].find((b) => b.textContent === "Connect"));
+  check("connecting to an unreachable Control Room explains the problem", await until(() => lastToast.includes("Cannot reach Control Room"), 8000), lastToast);
 
   console.log(failures ? failures + " UI check(s) FAILED" : "All UI checks passed");
   process.exit(failures ? 1 : 0);

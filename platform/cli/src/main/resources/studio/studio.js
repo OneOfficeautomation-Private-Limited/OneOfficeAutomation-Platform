@@ -123,6 +123,7 @@ async function init() {
     renderLibrary();
     await loadTree();
     showEditor(false);
+    crRefresh();
   } catch (e) { toast("Cannot reach Studio server: " + e.message, true); }
 }
 
@@ -1464,6 +1465,94 @@ async function save() {
   } catch (e) { toast(e.message, true); }
 }
 
+// ---------- Control Room (public repository, check-in and check-out) ----------
+async function crRefresh() {
+  try { state.cr = await api("GET", "cr/status"); } catch (_) { state.cr = { connected: false }; }
+  renderCr();
+}
+
+function renderCr() {
+  const cr = state.cr || { connected: false };
+  $("cr-state").textContent = cr.connected ? "(" + cr.user.username + ")" : "(not connected)";
+  const body = $("cr-body");
+  if (!cr.connected) {
+    const url = h("input", { type: "text", value: cr.url || "http://localhost:8720", "aria-label": "Control Room address" });
+    const user = h("input", { type: "text", autocomplete: "username", "aria-label": "User name" });
+    const pass = h("input", { type: "password", autocomplete: "current-password", "aria-label": "Password" });
+    const go = h("button", { type: "button", class: "primary", onclick: async () => {
+      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value }); pass.value = ""; toast("Connected to Control Room"); renderCr(); crLoadRepo(); }
+      catch (e) { toast(e.message, true); }
+    } }, "Connect");
+    pass.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
+    body.replaceChildren(h("div", { class: "cr-form" }, h("label", {}, "Address", url), h("label", {}, "User name", user), h("label", {}, "Password", pass), go,
+      h("div", { class: "hint", text: "Your workspace above is private. Connect to share bots through the public repository with check-in and check-out." })));
+    return;
+  }
+  const q = h("input", { type: "search", placeholder: "Search the repository", "aria-label": "Search the repository" });
+  q.addEventListener("input", () => { clearTimeout(q.t); q.t = setTimeout(() => crLoadRepo(q.value), 250); });
+  body.replaceChildren(h("div", { class: "hint", text: cr.url }), q, h("div", { id: "cr-list" }),
+    h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => crLoadRepo(q.value) }, "Refresh"),
+      h("button", { type: "button", onclick: async () => { await api("POST", "cr/disconnect"); state.cr = { connected: false }; renderCr(); } }, "Disconnect")));
+  crLoadRepo();
+}
+
+async function crLoadRepo(q) {
+  const list = $("cr-list");
+  if (!list) return;
+  try {
+    const r = await api("GET", "cr/repo?q=" + encodeURIComponent(q || ""));
+    const me = state.cr.user.username;
+    const localOf = (path) => Object.keys(r.mapping || {}).find((k) => r.mapping[k] === path);
+    list.replaceChildren(...(r.bots.length ? r.bots.map((b) => {
+      const mine = b.locked_by === me, local = localOf(b.path);
+      return h("div", { class: "cr-bot" },
+        h("div", { class: "top" }, h("span", { class: "icon bot" }), h("strong", { text: b.path.replace(/\.flow\.json$/, ""), title: b.path }), h("span", { class: "muted", text: "v" + b.latest_version })),
+        b.locked_by ? h("span", { class: "lock", text: mine ? "Checked out by you" : "Checked out by " + b.locked_by }) : null,
+        h("div", { class: "acts" },
+          !b.locked_by || mine ? h("button", { type: "button", onclick: () => crCheckout(b.path) }, mine ? "Open my copy" : "Check out") : null,
+          mine ? h("button", { type: "button", onclick: async () => { if (!confirm("Undo check-out of " + b.path + "? Your private copy stays in the workspace.")) return;
+            try { await api("POST", "cr/undo-checkout", { path: b.path }); toast("Check-out undone"); crLoadRepo(q); } catch (e) { toast(e.message, true); } } }, "Undo check-out") : null,
+          h("button", { type: "button", onclick: () => crVersions(b) }, "Versions")),
+        local ? h("div", { class: "hint", text: "Private copy: " + local }) : null);
+    }) : [h("div", { class: "empty", text: "The repository is empty. Open a bot and press Check in." })]));
+  } catch (e) { list.replaceChildren(h("div", { class: "empty", text: e.message })); }
+}
+
+async function crCheckout(path) {
+  if (state.dirty && !confirm("You have unsaved changes in the open bot. Continue?")) return;
+  try {
+    const r = await api("POST", "cr/checkout", { path });
+    await loadTree();
+    state.dirty = false;
+    await openBot(r.local);
+    toast("Checked out v" + r.version + " into your private workspace: " + r.local);
+    crLoadRepo();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function crCheckin() {
+  if (!state.flow || !state.file) { toast("Open the bot you want to check in.", true); return; }
+  if (!state.cr || !state.cr.connected) { toast("Connect to Control Room first (bottom of the Explorer).", true); return; }
+  if (state.dirty) await save();
+  const comment = prompt("What changed in this version? (shown in the version history)", "");
+  if (comment === null) return;
+  try {
+    const r = await api("POST", "cr/checkin", { local: state.file, comment });
+    toast("Checked in " + r.path + " as version " + r.version);
+    crLoadRepo();
+  } catch (e) {
+    toast(e.message, true);
+    if (e.problems || (e.message || "").includes("validation problem")) { switchConsole("problems"); validate(false); }
+  }
+}
+
+async function crVersions(b) {
+  try {
+    const r = await api("GET", "cr/versions?path=" + encodeURIComponent(b.path));
+    alert("Versions of " + b.path + "\n\n" + r.versions.map((v) => "v" + v.version + (v.version === b.production_version ? " (production)" : "") + "  " + v.author + "  " + String(v.created).slice(0, 16).replace("T", " ") + (v.comment ? "  " + v.comment : "")).join("\n"));
+  } catch (e) { toast(e.message, true); }
+}
+
 // ---------- capture (pick an element in the browser) ----------
 function defaultUrl() {
   const open = state.flow && allSteps(state.flow.steps).find((x) => x.action === "ooa.browser/open" && x.args && typeof x.args.url === "string" && !x.args.url.startsWith("$"));
@@ -1561,6 +1650,7 @@ function wire() {
   $("btn-share-copy").addEventListener("click", copyToShared);
   $("btn-share-paste").addEventListener("click", pasteFromShared);
   $("btn-capture").addEventListener("click", captureStep);
+  $("btn-checkin").addEventListener("click", crCheckin);
   $("tree-search").addEventListener("input", onTreeSearch);
   document.addEventListener("focusin", (e) => { if (e.target.closest && e.target.closest("#props") && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) state.lastInput = e.target; });
   document.addEventListener("click", (e) => { if (!e.target.closest("#ctx-menu")) closeContextMenu(); });

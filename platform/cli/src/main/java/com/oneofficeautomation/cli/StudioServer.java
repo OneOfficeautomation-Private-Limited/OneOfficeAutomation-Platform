@@ -33,6 +33,7 @@ public final class StudioServer {
     private final FlowSchemaValidator schema = Ooa.schemaValidator();
     private final int port;
     private TriggerService triggers;
+    private ControlRoomLink cr;
     private final Map<String, LiveRun> live = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** A run started from Studio in the background, so the UI can follow it live and pause or stop it. */
@@ -62,6 +63,7 @@ public final class StudioServer {
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/", this::handle);
         server.start();
+        cr = new ControlRoomLink(ws);
         triggers = new TriggerService(ws, (botPath, inputs) -> runFile(botPath, inputs));
         triggers.start();
         System.out.println("ONEOFFICEAUTOMATION Studio (preview) is running.");
@@ -83,7 +85,13 @@ public final class StudioServer {
             if (path.startsWith("/api/")) api(ex, method, path.substring(5));
             else asset(ex, path);
         } catch (OoaException e) {
-            sendJson(ex, 400, Map.of("error", e.toMap()));
+            int status = switch (e.code()) {
+                case "CR.LOCKED", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.CONFLICT" -> 409;
+                case "CR.FORBIDDEN", "TRIGGER.FORBIDDEN" -> 403;
+                case "CR.NOT_FOUND", "STUDIO.NOT_FOUND" -> 404;
+                default -> 400;
+            };
+            sendJson(ex, status, Map.of("error", e.toMap()));
         } catch (RuntimeException e) {
             sendJson(ex, 500, Map.of("error", new OoaException("STUDIO.INTERNAL", String.valueOf(e)).toMap()));
         } finally {
@@ -151,6 +159,18 @@ public final class StudioServer {
             Map<String, Object> inputs = req.get("inputs") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
             RunResult r = runner.run((Map<String, Object>) req.get("flow"), inputs, new Runner.RunOptions().maxRunSeconds(300));
             sendJson(ex, 200, Map.of("result", r.toMap(), "events", sink.events().stream().map(RunEvent::toMap).toList()));
+        } else if (route.startsWith("cr/")) {
+            String r = route.substring(3);
+            Map<String, String> q = query(ex);
+            if (method.equals("GET") && r.equals("status")) sendJson(ex, 200, cr.status());
+            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"))); }
+            else if (method.equals("POST") && r.equals("disconnect")) { cr.disconnect(); sendJson(ex, 200, cr.status()); }
+            else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
+            else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
+            else if (method.equals("POST") && r.equals("checkout")) sendJson(ex, 200, cr.checkout((String) ((Map<String, Object>) body(ex)).get("path"), json));
+            else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), json)); }
+            else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
+            else send(ex, 404, "text/plain", "Unknown API route");
         } else if (method.equals("POST") && route.equals("runs")) {
             Map<String, Object> req = (Map<String, Object>) body(ex);
             Map<String, Object> flow = (Map<String, Object>) req.get("flow");

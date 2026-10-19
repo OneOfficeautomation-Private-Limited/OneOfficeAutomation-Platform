@@ -70,12 +70,17 @@
           <button type="button" id="btn-rename">Rename</button>
           <button type="button" id="btn-delete" class="danger" title="Move to the workspace trash">Delete</button>
           <button type="button" id="btn-refresh" aria-label="Refresh" title="Refresh">&#8635;</button>
+          <button type="button" id="btn-checkin" title="Check the open bot in to the Control Room repository as a new version">Check in</button>
         </div>
         <label class="sr-only" for="tree-search">Search bots</label>
         <input id="tree-search" type="search" placeholder="Search bots by name, description or command">
         <div id="search-results" class="tree" hidden></div>
         <div id="tree" class="tree" role="tree"></div>
         <div id="workspace-path" class="ws-path"></div>
+        <details id="cr-panel" class="cr-panel" open>
+          <summary>Control Room <span id="cr-state" class="muted"></span></summary>
+          <div id="cr-body"></div>
+        </details>
       </div>
       <div id="side-commands" class="side-body" hidden>
         <div class="side-head"><span>Commands <span id="cmd-count" class="muted"></span></span>

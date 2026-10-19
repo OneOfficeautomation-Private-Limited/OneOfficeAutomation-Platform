@@ -45,6 +45,12 @@ class ArchitectureTest {
                     m + " depends only on the SDK, the Runner and built-in packages");
         assertEquals(List.of(), violations("cli", Pattern.compile("^import com\\.oneofficeautomation\\.packages\\.(office|email|pdf|browser|transfer|windows)")),
                 "Studio loads optional modules only by name, so a missing module never breaks it");
+        assertEquals(List.of(), violations("control-room", Pattern.compile("^import com\\.oneofficeautomation\\.(cli|agent)\\.")),
+                "Control Room depends on neither Studio nor the Bot Agent");
+        assertEquals(List.of(), violations("agent", Pattern.compile("^import com\\.oneofficeautomation\\.(cli|controlroom)\\.")),
+                "the Bot Agent talks to Control Room only over HTTP, never through its code");
+        assertEquals(List.of(), violations("runner", Pattern.compile("^import com\\.oneofficeautomation\\.(controlroom|agent)\\.")),
+                "the Runner is the same everywhere: Studio, agents and Control Room validation");
     }
 
     static String pkgOf(String module) {
@@ -55,7 +61,7 @@ class ArchitectureTest {
     @Test void noShellExecutionAnywhere() throws IOException {
         Pattern shell = Pattern.compile("Runtime\\.getRuntime\\(\\)\\.exec|\"cmd(\\.exe)?\",\\s*\"/c\"|\"/bin/sh\"|\"sh\",\\s*\"-c\"|\"bash\",\\s*\"-c\"");
         List<String> all = new ArrayList<>();
-        for (String m : List.of("sdk", "runner", "packages", "cli", "adapters-jackson")) all.addAll(violations(m, shell));
+        for (String m : List.of("sdk", "runner", "packages", "cli", "adapters-jackson", "control-room", "agent")) all.addAll(violations(m, shell));
         for (String m : OPTIONAL) all.addAll(violations(m, shell));
         assertEquals(List.of(), all, "programs are started with argument lists, never through a shell");
     }
@@ -64,6 +70,12 @@ class ArchitectureTest {
         List<String> v = new ArrayList<>(violations("packages", Pattern.compile("DocumentBuilderFactory\\.newInstance|SAXParserFactory\\.newInstance|XMLInputFactory\\.newInstance")));
         v.removeIf(x -> x.contains("XmlSupport.java"));
         assertEquals(List.of(), v, "all XML goes through XmlSupport, which blocks XXE");
+    }
+
+    @Test void controlRoomUsesOnlyParameterisedSql() throws IOException {
+        // every statement is a constant string with ? placeholders; values are never concatenated into SQL
+        Pattern concat = Pattern.compile("db\\.(query|one|update)\\(\"[^\"]*\"\\s*\\+\\s*(?!\"|where|Math\\.|$)");
+        assertEquals(List.of(), violations("control-room", concat), "SQL is built only from constants and placeholders");
     }
 
     @Test void packagesNeverPrintToTheConsole() throws IOException {
