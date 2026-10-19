@@ -27,7 +27,7 @@ class AiAndWorkTest {
             });
             Path w = tmp();
             var ctx = PackagesTestSupport.ctx(w, Map.of());
-            Map<String, Object> r = new GenAiPackage().prompt(ctx, "Write to jane.doe@example.com about her refund", "Be brief", "openai", "gpt-test", KEY, f.url() + "/v1", 0, 100, true);
+            Map<String, Object> r = new GenAiPackage().prompt(ctx, "Write to jane.doe@example.com about her refund", "Be brief", "openai", null, "gpt-test", KEY, f.url() + "/v1", 0, 100, true);
             Call call = f.last("POST", "/v1/chat/completions");
             assertFalse(call.text().contains("jane.doe@example.com"), "the model never sees the email address");
             assertEquals("Bearer sk-test", call.auth());
@@ -43,9 +43,9 @@ class AiAndWorkTest {
                     ? "{\"choices\":[{\"message\":{\"content\":\"```json\\n{\\\"label\\\": \\\"Invoice\\\", \\\"reason\\\": \\\"mentions amount due\\\"}\\n```\"}}]}"
                     : "{\"choices\":[{\"message\":{\"content\":\"{\\\"label\\\": \\\"spam\\\"}\"}}]}"));
             var ctx = PackagesTestSupport.ctx(tmp(), Map.of());
-            Map<String, Object> r = new GenAiPackage().classify(ctx, "Amount due 120", List.of("invoice", "complaint"), "openai", "m", KEY, f.url() + "/v1", true);
+            Map<String, Object> r = new GenAiPackage().classify(ctx, "Amount due 120", List.of("invoice", "complaint"), "openai", null, "m", KEY, f.url() + "/v1", true);
             assertEquals("invoice", r.get("label"), "case-insensitive match to an allowed label");
-            var e = assertThrows(ActionException.class, () -> new GenAiPackage().classify(ctx, "x", List.of("a", "b"), "openai", "m", KEY, f.url() + "/v1", true));
+            var e = assertThrows(ActionException.class, () -> new GenAiPackage().classify(ctx, "x", List.of("a", "b"), "openai", null, "m", KEY, f.url() + "/v1", true));
             assertEquals("AI.LABEL_NOT_ALLOWED", e.code());
         }
     }
@@ -63,14 +63,14 @@ class AiAndWorkTest {
             Files.createDirectories(w.resolve("ai-skills"));
             Files.writeString(w.resolve("ai-skills/triage.json"), "{\"description\":\"Triage a ticket\",\"system\":\"Rate priority. Reply as JSON.\",\"prompt\":\"Ticket: ${text}\",\"provider\":\"anthropic\",\"model\":\"claude-test\",\"output\":\"json\"}");
             var ctx = PackagesTestSupport.ctx(w, Map.of());
-            Map<String, Object> s = new GenAiPackage().summarize(ctx, "long text", 2, "anthropic", "claude-test", KEY, f.url(), true);
+            Map<String, Object> s = new GenAiPackage().summarize(ctx, "long text", 2, "anthropic", null, "claude-test", KEY, f.url(), true);
             assertEquals("Summary OK", s.get("summary"));
-            Map<String, Object> r = new AiSkillsPackage().run(ctx, "triage", Map.of("text", "Server down"), KEY, null, f.url());
+            Map<String, Object> r = new AiSkillsPackage().run(ctx, "triage", Map.of("text", "Server down"), null, KEY, null, f.url());
             assertEquals("high", ((Map<?, ?>) r.get("json")).get("priority"));
             assertTrue(f.last("POST", "/v1/messages").text().contains("Ticket: Server down"));
             Map<String, Object> list = new AiSkillsPackage().list(ctx);
             assertEquals(1, ((List<?>) ((Map<?, ?>) list.get("skills")).get("rows")).size());
-            var bad = assertThrows(ActionException.class, () -> new AiSkillsPackage().run(ctx, "triage", Map.of("text", new SecureString("x", "y")), KEY, null, f.url()));
+            var bad = assertThrows(ActionException.class, () -> new AiSkillsPackage().run(ctx, "triage", Map.of("text", new SecureString("x", "y")), null, KEY, null, f.url()));
             assertEquals("AI.SECRET_IN_PROMPT", bad.code());
         }
     }
@@ -95,7 +95,7 @@ class AiAndWorkTest {
             });
             var ctx = PackagesTestSupport.ctx(tmp(), Map.of("repository", repo, "bot_invoker", inv));
             Map<String, Object> r = new AiAgentPackage().run(ctx, "What is the total of ORD-1?", "Be accurate.", List.of("lookup_order"), null,
-                    "openai", "gpt-test", KEY, f.url() + "/v1", 6, 60000, true);
+                    "openai", null, "gpt-test", KEY, f.url() + "/v1", 6, 60000, true);
             assertEquals("completed", r.get("status"));
             assertEquals("Order ORD-1 totals 129.99.", r.get("answer"));
             assertEquals(List.of("lookup_order{order_id=ORD-1}"), invoked, "only the allowed bot ran, with the model's arguments");
@@ -110,7 +110,7 @@ class AiAndWorkTest {
             invoked.clear();
             System.setProperty("java.awt.headless", "true");
             var ctx = PackagesTestSupport.ctx(tmp(), Map.of("repository", repo, "bot_invoker", inv));
-            Map<String, Object> r = new AiAgentPackage().run(ctx, "Refund X", "x", List.of("lookup_order"), List.of("lookup_order"), "openai", "m", KEY, f.url() + "/v1", 4, 60000, true);
+            Map<String, Object> r = new AiAgentPackage().run(ctx, "Refund X", "x", List.of("lookup_order"), List.of("lookup_order"), "openai", null, "m", KEY, f.url() + "/v1", 4, 60000, true);
             assertTrue(invoked.isEmpty());
             assertTrue(String.valueOf(r.get("trace")).contains("denied"));
         }

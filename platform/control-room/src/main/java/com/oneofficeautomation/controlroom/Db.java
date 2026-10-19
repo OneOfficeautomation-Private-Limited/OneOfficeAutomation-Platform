@@ -153,6 +153,38 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE global_values (name VARCHAR(80) PRIMARY KEY, json_value VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
     };
 
+    /** Version 2 (Part 4): settings, custom roles, API keys, runner pools, work queues, model connections, holiday calendars, toolkit switches. */
+    private static final String[] SCHEMA_V2 = {
+        "CREATE TABLE settings (name VARCHAR(80) PRIMARY KEY, json_value VARCHAR(10000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE roles (name VARCHAR(40) PRIMARY KEY, description VARCHAR(500), permissions VARCHAR(4000) NOT NULL, created_by VARCHAR(80), created TIMESTAMP NOT NULL)",
+        "CREATE TABLE api_keys (id VARCHAR(40) PRIMARY KEY, user_id VARCHAR(40) NOT NULL, name VARCHAR(120) NOT NULL, key_hash VARCHAR(64) NOT NULL UNIQUE, " +
+            "created TIMESTAMP NOT NULL, expires TIMESTAMP, last_used TIMESTAMP)",
+        "CREATE TABLE device_pools (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, description VARCHAR(500), devices VARCHAR(4000) NOT NULL, created_by VARCHAR(80), created TIMESTAMP NOT NULL)",
+        "CREATE TABLE queues (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, description VARCHAR(1000), bot_path VARCHAR(400), pool_id VARCHAR(40), " +
+            "sla_minutes INT, max_attempts INT NOT NULL, processing BOOLEAN NOT NULL, run_as VARCHAR(80), created_by VARCHAR(80), created TIMESTAMP NOT NULL)",
+        "CREATE TABLE queue_items (id VARCHAR(40) PRIMARY KEY, queue_id VARCHAR(40) NOT NULL, reference VARCHAR(200), data VARCHAR(100000) NOT NULL, status VARCHAR(20) NOT NULL, " +
+            "priority INT NOT NULL, attempts INT NOT NULL, run_id VARCHAR(40), device_id VARCHAR(40), error VARCHAR(10000), result VARCHAR(100000), " +
+            "created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL, finished TIMESTAMP)",
+        "CREATE INDEX queue_items_next ON queue_items (queue_id, status, priority, created)",
+        "CREATE TABLE model_connections (name VARCHAR(60) PRIMARY KEY, provider VARCHAR(40) NOT NULL, model VARCHAR(200), base_url VARCHAR(500), key_ref VARCHAR(300), " +
+            "description VARCHAR(500), updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE holiday_calendars (name VARCHAR(80) PRIMARY KEY, dates VARCHAR(20000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE toolkit_settings (id VARCHAR(120) PRIMARY KEY, enabled BOOLEAN NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "ALTER TABLE runs ADD COLUMN callback_url VARCHAR(1000)",
+        "ALTER TABLE runs ADD COLUMN priority INT",
+        "ALTER TABLE runs ADD COLUMN queue_item_id VARCHAR(40)",
+        "ALTER TABLE schedules ADD COLUMN holiday_calendar VARCHAR(80)",
+        "ALTER TABLE schedules ADD COLUMN pool_id VARCHAR(40)",
+        "ALTER TABLE schedules ALTER COLUMN device_id DROP NOT NULL",
+        "ALTER TABLE triggers ADD COLUMN config VARCHAR(10000)",
+        "ALTER TABLE triggers ADD COLUMN last_fired TIMESTAMP",
+        "ALTER TABLE triggers ADD COLUMN fire_count INT",
+        "ALTER TABLE triggers ADD COLUMN last_error VARCHAR(2000)",
+        "ALTER TABLE triggers ADD COLUMN last_hash VARCHAR(64)",
+        "ALTER TABLE bots ADD COLUMN minutes_saved INT",
+        "ALTER TABLE users ADD COLUMN email VARCHAR(200)",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -162,6 +194,10 @@ public final class Db implements AutoCloseable {
             if (current < 1) {
                 for (String ddl : SCHEMA_V1) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (1)");
+            }
+            if (current < 2) {
+                for (String ddl : SCHEMA_V2) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (2)");
             }
             return null;
         });

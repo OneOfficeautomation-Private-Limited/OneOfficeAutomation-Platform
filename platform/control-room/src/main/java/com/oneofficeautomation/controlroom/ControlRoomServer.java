@@ -46,6 +46,7 @@ public final class ControlRoomServer {
         server.start();
         clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
         clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -68,9 +69,11 @@ public final class ControlRoomServer {
                 default -> 400;
             };
             sendJson(ex, status, Map.of("error", e.toMap()));
-        } catch (RuntimeException e) {
-            sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see the Command Center console log")));
+        } catch (RuntimeException | Error e) {
+            // Any failure still gets an answer, so a client never sees a dropped connection.
             e.printStackTrace();
+            try { sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see the Command Center console log"))); }
+            catch (RuntimeException | IOException ignored) { /* the response had already started */ }
         } finally { ex.close(); }
     }
 
@@ -107,7 +110,7 @@ public final class ControlRoomServer {
 
     private ControlRoom.User user(HttpExchange ex, boolean allowMustChange) {
         String t = token(ex);
-        ControlRoom.User u = cr.session(t);
+        ControlRoom.User u = t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
         if (u == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
         boolean viaCookie = ex.getRequestHeaders().getFirst("Authorization") == null;
         if (viaCookie && !ex.getRequestMethod().equals("GET") && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
@@ -170,7 +173,7 @@ public final class ControlRoomServer {
         }
 
         // ---------- signed-in users ----------
-        if (route.equals("auth/me") && m.equals("GET")) { sendJson(ex, 200, ControlRoom.publicUser(user(ex, true))); return; }
+        if (route.equals("auth/me") && m.equals("GET")) { sendJson(ex, 200, cr.me(user(ex, true))); return; }
         if (route.equals("auth/logout") && m.equals("POST")) {
             ControlRoom.User u = user(ex, true);
             cr.logout(token(ex), u, ip);
@@ -189,6 +192,60 @@ public final class ControlRoomServer {
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u));
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "settings" -> {
+                if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
+                else if (m.equals("PUT")) sendJson(ex, 200, cr.platform.updateSettings(u, map(body(ex)), ip));
+                else notFound(ex);
+            }
+            case "roles" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("roles", cr.platform.roles(u), "permissions", Rbac.all()));
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); cr.platform.saveRole(u, seg[1], (String) b.get("description"), b.get("permissions"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteRole(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "apikeys" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("keys", cr.platform.apiKeys(u)));
+                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.createApiKey(u, (String) b.get("name"), b.get("days") instanceof Number n ? n.intValue() : 90, ip)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteApiKey(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "pools" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("pools", cr.platform.pools(u)));
+                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), ip)); }
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), ip)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "queues" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("queues", cr.platform.queues(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.platform.saveQueue(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.platform.saveQueue(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteQueue(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("start") || seg[2].equals("stop"))) { cr.platform.setProcessing(u, seg[1], seg[2].equals("start"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("items"))
+                    sendJson(ex, 200, cr.platform.items(u, seg[1], q.get("status"), q.get("q"), ControlRoom.intOr(q.get("limit"), 100), ControlRoom.intOr(q.get("offset"), 0)));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("items")) sendJson(ex, 200, cr.platform.addItems(u, seg[1], (List<Object>) map(body(ex)).get("items"), ip));
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items")) { cr.platform.updateItems(u, seg[1], (List<Object>) map(body(ex)).get("ids"), seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "connections" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.platform.modelConnections(u)));
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = new LinkedHashMap<>(map(body(ex))); b.put("name", seg[1]); cr.platform.saveModelConnection(u, b, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteModelConnection(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "calendars" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("calendars", cr.platform.calendars(u)));
+                else if (m.equals("PUT") && seg.length == 2) { cr.platform.saveCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), map(body(ex)).get("dates"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteCalendar(u, URLDecoder.decode(seg[1], StandardCharsets.UTF_8), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "toolkits" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("toolkits", cr.platform.toolkits(u)));
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("used-by")) sendJson(ex, 200, Map.of("agents", cr.platform.toolkitUsers(u, seg[1])));
+                else if (m.equals("PATCH") && seg.length == 2) { cr.platform.setToolkitEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
             case "users" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("users", cr.users(u)));
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
@@ -201,6 +258,7 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("bots", cr.repoList(u, q.get("q"))));
                 else if (m.equals("GET") && route.equals("repo/bot")) sendJson(ex, 200, cr.getBot(u, p, q.getOrDefault("version", "latest")));
                 else if (m.equals("GET") && route.equals("repo/versions")) sendJson(ex, 200, Map.of("versions", cr.versions(u, p)));
+                else if (m.equals("POST") && route.equals("repo/roi")) { Map<String, Object> b = map(body(ex)); cr.platform.setMinutesSaved(u, (String) b.get("path"), b.get("minutes_saved"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("repo/checkout")) sendJson(ex, 200, cr.checkout(u, (String) map(body(ex)).get("path"), ip));
                 else if (m.equals("POST") && route.equals("repo/undo-checkout")) { cr.undoCheckout(u, (String) map(body(ex)).get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("repo/checkin")) {
@@ -227,7 +285,9 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.runsPage(u, q));
                 else if (m.equals("POST") && seg.length == 1) {
                     Map<String, Object> b = map(body(ex));
-                    sendJson(ex, 200, cr.startRun(u.username(), u.role(), (String) b.get("bot_path"), (String) b.get("device_id"), (Map<String, Object>) b.getOrDefault("inputs", Map.of()), "manual", ip));
+                    sendJson(ex, 200, cr.startRun(u.username(), u.role(), (String) b.get("bot_path"), (String) b.get("device_id"), (String) b.get("pool_id"),
+                            (Map<String, Object>) b.getOrDefault("inputs", Map.of()), b.get("source") instanceof String src && src.equals("api") ? "api" : "manual", ip,
+                            b.get("priority") instanceof Number pr ? pr.intValue() : 0, (String) b.get("callback_url")));
                 } else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.run(u, seg[1], Long.parseLong(q.getOrDefault("after", "0"))));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("rerun")) sendJson(ex, 200, cr.rerun(u, seg[1], ip));
                 else if (m.equals("POST") && seg.length == 3) { cr.control(u, seg[1], seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
@@ -237,6 +297,7 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("schedules", cr.schedules(u)));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.createSchedule(u, map(body(ex)), ip));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) sendJson(ex, 200, cr.runScheduleNow(u, seg[1], ip));
+                else if (m.equals("PUT") && seg.length == 2) { cr.updateSchedule(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PATCH") && seg.length == 2) { cr.setScheduleEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteSchedule(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);

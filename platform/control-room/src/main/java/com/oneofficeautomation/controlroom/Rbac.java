@@ -9,11 +9,19 @@ public final class Rbac {
     public static final List<String> ROLES = List.of("admin", "bot_creator", "bot_runner", "viewer");
 
     private static final Map<String, Set<String>> PERMS = Map.of(
-            "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view"),
-            "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view"),
+            "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view"),
+            "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view",
+                    "queues.view", "queues.work"),
             "bot_creator", Set.of("repo.view", "repo.checkin", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
-                    "triggers.view", "triggers.manage", "globals.view", "lockers.own"),
+                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage"),
             "admin", Set.of("*"));
+
+    /** Permissions only administrators have unless a custom role grants them. */
+    public static final List<String> ADMIN_ONLY = List.of("repo.production", "users.manage", "devices.manage", "lockers.manage", "globals.manage", "audit.view",
+            "pools.manage", "settings.manage", "connections.manage", "toolkits.manage");
+
+    /** Every permission, for building custom roles. */
+    public static List<String> all() { return permissions("admin"); }
 
     public static boolean allowed(String role, String permission) {
         Set<String> p = PERMS.getOrDefault(role, Set.of());
@@ -24,7 +32,7 @@ public final class Rbac {
         Set<String> all = new TreeSet<>();
         PERMS.values().forEach(all::addAll);
         all.remove("*");
-        all.addAll(List.of("repo.production", "users.manage", "devices.manage", "lockers.manage", "globals.manage", "audit.view"));
+        all.addAll(ADMIN_ONLY);
         return all.stream().filter(p -> allowed(role, p)).toList();
     }
 }
