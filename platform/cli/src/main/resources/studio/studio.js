@@ -223,6 +223,8 @@ function showView(mode) {
   document.body.dataset.view = mode;
   document.body.classList.toggle("script-item", mode === "item" && !!state.item && state.item.type === "script");
   $("btn-validate").hidden = mode !== "bot";
+  $("btn-debug").hidden = mode !== "bot";
+  $("btn-assistant").hidden = mode !== "bot";
   $("btn-save").hidden = mode === "home";
   $("btn-run").hidden = !(mode === "bot" || (mode === "item" && state.item && state.item.type === "script"));
   if (mode === "home") renderHome();
@@ -730,6 +732,7 @@ function showContextMenu(e, p, step) {
     h("hr"),
     item(n > 1 ? "Duplicate" : "Duplicate", "Ctrl+D", () => { copySelection(true); pasteSteps(state.clipboard); }),
     item(selectedSteps().some((x) => !x.disabled) ? "Disable" : "Enable", "", toggleDisabled),
+    item(breakpointSet().has(step.id) ? "Clear breakpoint" : "Set breakpoint", "F9", () => toggleBreakpoint(step.id)),
     item("Delete" + (n > 1 ? " " + n + " steps" : ""), "Del", () => deleteSelection()));
   menu.style.left = Math.min(e.clientX, window.innerWidth - 240) + "px";
   menu.style.top = Math.min(e.clientY, window.innerHeight - 320) + "px";
@@ -741,6 +744,7 @@ function closeContextMenu() { const m = $("ctx-menu"); if (m) m.remove(); }
 
 function renderSteps() {
   if (!state.flow) return;
+  if (state.canvasMode === "flow") { renderFlowView(); return; }
   const container = $("steps");
   const problemsBy = new Map();
   for (const p of state.problems) if (p.stepId) problemsBy.set(p.stepId, (problemsBy.get(p.stepId) || 0) + 1);
@@ -755,7 +759,7 @@ function renderSteps() {
       const num = prefix + (i + 1);
       const isSel = state.multi.has(s.id) || (state.multi.size === 0 && sameList(p, state.selected));
       const live = state.liveSteps;
-      const liveClass = live.running === s.id ? " running" : live.failed === s.id ? " failed-run" : live.done.has(s.id) ? " done" : "";
+      const liveClass = live.paused === s.id ? " paused" : live.running === s.id ? " running" : live.failed === s.id ? " failed-run" : live.done.has(s.id) ? " done" : "";
       const isContainer = !!SECTIONS[s.action];
       const folded = isContainer && collapsed.has(s.id);
       const hiddenCount = folded ? allSteps([s]).length - 1 : 0;
@@ -776,7 +780,8 @@ function renderSteps() {
         ondragend: () => { row.classList.remove("dragging-source"); document.body.classList.remove("dnd"); state.dragStep = null; },
       },
         h("span", { class: "grip", title: "Drag to move", text: "\u22EE\u22EE" }),
-        h("span", { class: "num", text: num }),
+        h("span", { class: "num" + (breakpointSet().has(s.id) ? " bp" : ""), text: num, title: "Click to set or clear a breakpoint (F9)",
+          onclick: (e) => { e.stopPropagation(); toggleBreakpoint(s.id); } }),
         isContainer ? h("button", { type: "button", class: "fold", "aria-expanded": String(!folded), "aria-label": folded ? "Expand block" : "Collapse block",
           onclick: (e) => { e.stopPropagation(); toggleFold(s.id); } }, folded ? "\u25B8" : "\u25BE") : null,
         tile(st.icon, st.color, "ico"),
@@ -1669,23 +1674,32 @@ async function runBot() {
 }
 
 /** Runs a Flow in Studio and follows it live in the Run dock (bots, and script test runs). */
-async function runFlow(flow, inputs) {
+async function runFlow(flow, inputs, opts = {}) {
   if (state.running) return;
   state.running = true; state.runStarted = Date.now();
   state.live = { id: null, state: "starting", events: [], seq: 0, total: allSteps(flow.steps).length, finished: 0, current: null };
-  state.liveSteps = { running: null, done: new Set(), failed: null };
-  $("btn-run").disabled = true;
+  state.liveSteps = { running: null, done: new Set(), failed: null, paused: null };
+  $("btn-run").disabled = true; $("btn-debug").disabled = true;
   $("run-progress").hidden = false;
   if (document.body.classList.contains("no-dock")) setPref("dock", true);
   if (!document.body.classList.contains("dock-mini")) switchConsole("run");
   renderLive();
   try {
-    const start = await api("POST", "runs", { flow, inputs });
+    const start = await api("POST", "runs", Object.assign({ flow, inputs }, opts.debug ? { debug: true, breakpoints: [...breakpointSet()], stopAtStart: !!opts.stopAtStart } : {}));
     state.live.id = start.run_id;
     while (true) {
       const r = await api("GET", "runs/" + state.live.id + "?after=" + state.live.seq);
       for (const e of r.events) applyLiveEvent(e);
       state.live.state = r.state; state.live.elapsed = r.elapsed_ms;
+      const wasStopped = !!state.live.debug;
+      state.live.debug = r.debug || null;
+      state.liveSteps.paused = r.debug ? r.debug.stepId : null;
+      if (r.debug && !wasStopped) {
+        const row = document.querySelector('[data-step-id="' + CSS.escape(r.debug.stepId) + '"]');
+        if (row) row.scrollIntoView({ block: "center" });
+        if (document.body.classList.contains("no-dock")) setPref("dock", true);
+        switchConsole("run");
+      }
       renderLive(); renderSteps(); updateMini();
       if (r.result) {
         state.lastRun = { result: r.result, events: state.live.events };
@@ -1694,13 +1708,16 @@ async function runFlow(flow, inputs) {
         toast("Run " + r.result.status + " in " + r.result.durationMs + " ms", r.result.status !== "success");
         break;
       }
-      await new Promise((res) => setTimeout(res, 400));
+      await new Promise((res) => setTimeout(res, state.live.debug ? 250 : 400));
     }
   } catch (e) {
     toast(e.message, true);
     if (e.problems) { state.problems = e.problems; renderProblems(); switchConsole("problems"); }
+    // The run never started (for example validation problems): show why instead of a frozen "Running" panel.
+    if (!state.lastRun) { state.live = null; const box = $("run-result"); if (box) box.replaceChildren(h("div", { class: "error-box" }, h("span", { class: "code", text: e.code || "RUN.NOT_STARTED" }), " ", e.message)); }
   } finally {
-    state.running = false; $("btn-run").disabled = false; $("run-progress").hidden = true;
+    state.running = false; $("btn-run").disabled = false; $("btn-debug").disabled = false; $("run-progress").hidden = true;
+    state.liveSteps.paused = null; if (state.live) state.live.debug = null;
     state.live && (state.live.state = state.lastRun ? state.lastRun.result.status : "failed");
     renderLive(); updateMini();
   }
@@ -1730,6 +1747,7 @@ function renderLive() {
   const pct = L.total ? Math.min(100, Math.round(100 * L.finished / L.total)) : 0;
   const bar = h("div", { class: "live-bar" }, h("div", {}));
   bar.firstChild.style.width = pct + "%";
+  if (L.debug) { renderDebugPanel(box, L); return; }
   const paused = L.state === "paused";
   const recent = L.events.filter((e) => e.type !== "step.started").slice(-8).map((e) => h("div", { class: "event" + (e.type === "step.failed" ? " failed" : "") },
     e.stepId ? "[" + e.stepId + "] " : "", e.type === "step.finished" ? "done " + (e.data || {}).action : e.type === "log" ? "log " + (e.data || {}).message : e.type === "variable.set" ? (e.data || {}).name + " = " + (e.data || {}).value : e.type));
@@ -1857,6 +1875,9 @@ function applyPrefs() {
   $("tg-right").setAttribute("aria-pressed", String(p.right));
   $("tg-dock").setAttribute("aria-pressed", String(p.dock));
   $("sel-theme").value = p.theme; $("sel-density").value = p.density; $("sel-dock").value = p.dockPos;
+  state.canvasMode = p.canvasMode === "flow" ? "flow" : "list";
+  for (const b of document.querySelectorAll("[data-canvas-mode]")) b.setAttribute("aria-pressed", String(b.dataset.canvasMode === state.canvasMode));
+  if (state.flow) renderSteps();
   const dock = $("dock");
   const target = p.dockPos === "right" ? $("workbench") : $("center");
   if (dock.parentElement !== target) target.appendChild(dock);
@@ -2691,6 +2712,272 @@ function openAny(path) {
   else { state.treeSel = path; expandTo(path); openItem(path); }
 }
 
+// ---------- debugger ----------
+function breakpointSet() { return new Set(((state.flow && state.flow.ui) || {}).breakpoints || []); }
+function toggleBreakpoint(id) {
+  const b = breakpointSet();
+  if (b.has(id)) b.delete(id); else b.add(id);
+  state.flow.ui = Object.assign({}, state.flow.ui || {}, { breakpoints: [...b] });
+  if (!state.flow.ui.breakpoints.length) delete state.flow.ui.breakpoints;
+  if (!Object.keys(state.flow.ui).length) delete state.flow.ui;
+  setDirty(true); renderSteps(); renderJson();
+  if (state.live && state.live.id && state.running) api("POST", "runs/" + state.live.id + "/breakpoints", { ids: [...b] }).catch(() => {});
+  toast(b.has(id) ? "Breakpoint set on " + id : "Breakpoint cleared");
+}
+async function debugBot() {
+  if (!state.flow) { toast("Open an agent first.", true); return; }
+  const bps = breakpointSet();
+  toast(bps.size ? "Debugging: the run stops at " + bps.size + " breakpoint(s)." : "Debugging: the run stops before the first step.");
+  return runFlow(state.flow, collectInputs(), { debug: true, stopAtStart: bps.size === 0 });
+}
+async function debugCommand(command) {
+  if (!state.live || !state.live.id) return;
+  try { await api("POST", "runs/" + state.live.id + "/debug", { command }); state.live.debug = null; renderLive(); }
+  catch (e) { toast(e.message, true); }
+}
+function renderDebugPanel(box, L) {
+  const d = L.debug;
+  const spec = state.specs.get(d.action);
+  const varsRows = Object.entries(d.variables || {}).map(([name, value]) => {
+    const v = (state.flow.variables || []).find((x) => x.name === name) || { type: "Any" };
+    const inp = h("input", { type: "text", value: typeof value === "string" ? value : JSON.stringify(value), "aria-label": "Value of " + name, disabled: v.type === "Credential" });
+    const set = h("button", { type: "button", class: "small", disabled: v.type === "Credential", onclick: async () => {
+      try { await api("POST", "runs/" + L.id + "/variable", { name, value: v.type === "String" ? inp.value : parseLoose(inp.value) }); toast("Changed $" + name); }
+      catch (e) { toast(e.message, true); } } }, "Set");
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") set.click(); });
+    return h("tr", {}, h("td", {}, typeBadge(v.type), " ", h("span", { class: "mono", text: "$" + name })), h("td", {}, h("div", { class: "var-field" }, inp, set)));
+  });
+  box.replaceChildren(
+    h("div", { class: "dbg-head" }, h("span", { class: "status debugging", text: d.reason === "breakpoint" ? "At breakpoint" : "Paused" }),
+      h("span", {}, "Before ", h("strong", { text: spec ? spec.action.name : d.action }), " ", h("a", { class: "link", text: "[" + d.stepId + "]", onclick: () => selectById(d.stepId) })),
+      d.depth ? h("span", { class: "muted", text: "in child agent " + d.automation }) : null),
+    h("div", { class: "row-actions dbg-bar" },
+      h("button", { type: "button", class: "primary", title: "Continue (F5)", onclick: () => debugCommand("continue") }, "Continue"),
+      h("button", { type: "button", title: "Step over (F10)", onclick: () => debugCommand("stepOver") }, "Step over"),
+      h("button", { type: "button", title: "Step into (F11)", onclick: () => debugCommand("stepInto") }, "Step into"),
+      h("button", { type: "button", title: "Step out (Shift+F11)", onclick: () => debugCommand("stepOut") }, "Step out"),
+      h("button", { type: "button", class: "danger", onclick: () => liveControl("stop") }, "Stop")),
+    h("div", { class: "dbg-grid" },
+      h("div", {}, h("div", { class: "pane-title", text: "Call stack" }),
+        h("ol", { class: "dbg-stack" }, (d.stack || []).slice().reverse().map((f, i) => h("li", { class: i === 0 ? "top" : "" }, h("span", { class: "mono", text: f.automation }), f.stepId ? " at [" + f.stepId + "]" : "")))),
+      h("div", {}, h("div", { class: "pane-title", text: "Variables (edit and press Set)" }),
+        varsRows.length ? h("table", { class: "grid dbg-vars" }, h("tbody", {}, varsRows)) : h("div", { class: "empty", text: "No variables." }))));
+}
+
+// ---------- quick add (Ctrl+K or /) ----------
+function openQuickAdd() {
+  if (!state.flow) { toast("Open an agent first.", true); return; }
+  closeQuickAdd();
+  const q = h("input", { type: "search", placeholder: "Type to find an action, then Enter", "aria-label": "Find an action" });
+  const list = h("div", { class: "qa-list", role: "listbox" });
+  let results = [], sel = 0;
+  const all = [];
+  for (const p of state.packages) for (const a of p.actions) all.push({ addr: p.id + "/" + a.id, a, p, text: (a.name + " " + p.name + " " + (a.category || "") + " " + a.description).toLowerCase() });
+  const render = () => {
+    const words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      const rec = recentCommands().filter((x) => state.specs.has(x));
+      results = [...rec.map((x) => all.find((y) => y.addr === x)).filter(Boolean), ...all.filter((x) => x.p.id === "core" && !rec.includes(x.addr))].slice(0, 12);
+    } else {
+      results = all.map((x) => {
+        let score = 0;
+        for (const w of words) { const i = x.text.indexOf(w); if (i < 0) return null; score += x.a.name.toLowerCase().startsWith(w) ? 0 : x.a.name.toLowerCase().includes(w) ? 1 : 3 + i / 100; }
+        return { x, score };
+      }).filter(Boolean).sort((m, n) => m.score - n.score).slice(0, 14).map((r) => r.x);
+    }
+    sel = Math.min(sel, Math.max(0, results.length - 1));
+    list.replaceChildren(...(results.length ? results.map((r, i) => {
+      const st = styleFor(r.addr);
+      return h("button", { type: "button", class: "qa-item" + (i === sel ? " sel" : ""), role: "option", "aria-selected": String(i === sel), onclick: () => pick(r.addr) },
+        tile(st.icon, st.color, "sm"), h("span", { class: "qa-name", text: r.a.name }), h("span", { class: "qa-pkg", text: r.p.name }));
+    }) : [h("div", { class: "empty", text: "No action matches." })]));
+  };
+  const pick = (addr) => { closeQuickAdd(); addStep(addr); };
+  q.addEventListener("input", () => { sel = 0; render(); });
+  q.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, results.length - 1); render(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); render(); }
+    else if (e.key === "Enter" && results[sel]) { e.preventDefault(); pick(results[sel].addr); }
+    else if (e.key === "Escape") { closeQuickAdd(); }
+  });
+  const box = h("div", { class: "qa-backdrop", id: "quick-add", onclick: (e) => { if (e.target.id === "quick-add") closeQuickAdd(); } },
+    h("div", { class: "qa-panel", role: "dialog", "aria-label": "Quick add" }, h("div", { class: "qa-head" }, svg("plus"), h("strong", { text: "Quick add" }),
+      h("span", { class: "muted", text: state.target ? "into the highlighted section" : state.selected ? "after the selected step" : "at the end" })), q, list));
+  document.body.appendChild(box);
+  render();
+  q.focus();
+}
+function closeQuickAdd() { const b = $("quick-add"); if (b) b.remove(); }
+
+// ---------- flow view ----------
+function renderFlowView() {
+  const container = $("steps");
+  const problemsBy = new Map();
+  for (const p of state.problems) if (p.stepId) problemsBy.set(p.stepId, (problemsBy.get(p.stepId) || 0) + 1);
+  const node = (s, p) => {
+    const spec = state.specs.get(s.action), st = styleFor(s.action);
+    const live = state.liveSteps;
+    const isSel = state.multi.has(s.id) || (state.multi.size === 0 && sameList(p, state.selected));
+    const cls = "fnode" + (isSel ? " selected" : "") + (s.disabled ? " disabled" : "") + (live.paused === s.id ? " paused" : live.running === s.id ? " running" : live.failed === s.id ? " failed-run" : live.done.has(s.id) ? " done" : "")
+      + (breakpointSet().has(s.id) ? " bp" : "") + (s.action === "core/if" ? " decision" : "");
+    const el = h("div", { class: cls, tabindex: "0", "data-step-id": s.id, title: summary(s),
+      onclick: (e) => { e.stopPropagation(); clickStep(e, p, s); }, oncontextmenu: (e) => { e.stopPropagation(); showContextMenu(e, p, s); } },
+      tile(st.icon, st.color, "ico"), h("div", { class: "fn-text" }, h("div", { class: "fn-title", text: spec ? spec.action.name : s.action }),
+        h("div", { class: "fn-sum", text: s.description || summary(s) })),
+      problemsBy.get(s.id) ? h("span", { class: "flag", text: "!" + problemsBy.get(s.id) }) : null);
+    el.style.setProperty("--c", st.color);
+    return el;
+  };
+  const seq = (steps, path) => {
+    const col = h("div", { class: "fseq" });
+    if (!steps.length) { col.append(h("div", { class: "fempty", text: "(empty)" })); return col; }
+    steps.forEach((s, i) => {
+      const p = path.concat(i);
+      col.append(h("div", { class: "fline" }), node(s, p));
+      let branches = [];
+      if (s.action === "core/if") branches = [["Then", ["children"]], ...(s.elseIf || []).map((_, k) => ["Else if #" + (k + 1), ["elseIf", k, "children"]]), ["Else", ["else"]]];
+      else if (s.action === "core/try") branches = [["Try", ["children"]], ["Catch", ["catch", 0, "children"]], ["Finally", ["finally"]]];
+      else if (s.action === "core/parallel") branches = [["At the same time", ["children"]]];
+      else if (SECTIONS[s.action]) branches = [[s.action === "core/loop" ? "Repeat" : "Steps", ["children"]]];
+      branches = branches.filter(([, k]) => getAt(s, k) !== undefined);
+      if (!branches.length || collapsedSet().has(s.id)) return;
+      const row = h("div", { class: "fbranches" + (s.action === "core/loop" ? " loop" : "") });
+      row.style.setProperty("--c", styleFor(s.action).color);
+      for (const [label, k] of branches) {
+        const kids = getAt(s, k);
+        const sub = seq(kids || [], p.concat(k));
+        row.append(h("div", { class: "fbranch" }, h("div", { class: "flabel-pill", text: label }), sub));
+      }
+      col.append(row);
+    });
+    return col;
+  };
+  if (!state.flow.steps.length) { container.replaceChildren(h("div", { class: "canvas-empty", text: "This agent has no steps yet. Switch to List to drag actions in, or press Ctrl+K to quick add." })); return; }
+  container.replaceChildren(h("div", { class: "flow-view" }, h("div", { class: "fterm start", text: "Start" }), seq(state.flow.steps, ["steps"]), h("div", { class: "fline" }), h("div", { class: "fterm end", text: "End" })));
+  const total = allSteps(state.flow.steps).length;
+  $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
+  $("insert-hint").textContent = "Flow view: select steps here; drag and drop in List view.";
+}
+
+// ---------- assistant: build from a description, explain this agent ----------
+function explainAgent(flow) {
+  const lines = [];
+  const name = (s) => { const sp = state.specs.get(s.action); return sp ? sp.action.name : s.action; };
+  const walk = (steps, depth) => (steps || []).forEach((s, i) => {
+    if (s.disabled) return;
+    const pad = "  ".repeat(depth) + (depth ? "- " : (i + 1) + ". ");
+    const a = s.args || {};
+    let text;
+    if (s.action === "core/if") text = "If " + showValue(a.condition) + ":";
+    else if (s.action === "core/loop") text = "Repeat " + (a.iterator === "times" ? showValue(a.count) + " times" : a.iterator === "while" ? "while " + showValue(a.condition) : "for each item of " + showValue(a.over) + (a.as ? " (as $" + a.as + ")" : "")) + ":";
+    else if (s.action === "core/try") text = "Try the following, and handle errors:";
+    else if (s.action === "core/set") text = "Set $" + a.variable + " to " + showValue(a.value);
+    else if (s.action === "core/comment") text = "Note: " + showValue(a.text);
+    else text = name(s) + (s.description ? " (" + s.description + ")" : "") + (Object.keys(a).length ? " with " + Object.entries(a).slice(0, 3).map(([k, v]) => k + " " + preview(v)).join(", ") : "")
+      + (s.out ? ", storing " + Object.values(s.out).map((v) => "$" + v).join(" and ") : "");
+    lines.push(pad + text);
+    walk(s.children, depth + 1);
+    if (s.action === "core/if" && (s.else || []).length) { lines.push("  ".repeat(depth + 1) + "Otherwise:"); walk(s.else, depth + 2); }
+    for (const c of s.catch || []) if ((c.children || []).length) { lines.push("  ".repeat(depth + 1) + "If an error happens" + (c.as ? " (kept in $" + c.as + ")" : "") + ":"); walk(c.children, depth + 2); }
+    if ((s.finally || []).length) { lines.push("  ".repeat(depth + 1) + "Always, at the end:"); walk(s.finally, depth + 2); }
+  });
+  const ins = (flow.variables || []).filter((v) => v.direction === "input"), outs = (flow.variables || []).filter((v) => v.direction === "output");
+  const head = [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
+    ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
+    outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:"];
+  walk(flow.steps, 0);
+  return head.concat(lines.length ? lines : ["(no steps yet)"]).join("\n");
+}
+
+async function openAssistant(tab) {
+  if (!state.flow) { toast("Open an agent first.", true); return; }
+  let conns = { connections: [] };
+  try { conns = await api("GET", "connections"); } catch (_) { /* none yet */ }
+  const mode = { tab: tab || "build" };
+  const body = h("div", { class: "assistant" });
+  const prompt = h("textarea", { rows: 4, placeholder: "Describe what the agent should do, e.g.: Read invoices.csv, and for every row with amount above 1000 send an email to approvals@company.com with the invoice number." });
+  const connSel = h("select", { "aria-label": "Model connection" }, (conns.connections || []).map((c) => h("option", { value: c.name, text: c.name + " (" + c.provider + ", " + (c.model || "?") + ")" })));
+  if (conns.default) connSel.value = conns.default;
+  const result = h("div", { class: "assistant-result" });
+  let proposal = null;
+  const insert = () => {
+    if (!proposal) return;
+    const added = [];
+    for (const v of proposal.variables || []) if (v && v.name && !state.flow.variables.some((x) => x.name === v.name)) { state.flow.variables.push(v); added.push(v.name); }
+    const steps = freshIds(JSON.parse(JSON.stringify(proposal.steps || [])));
+    const at = insertionPoint();
+    at.list.splice(at.index, 0, ...steps);
+    state.multi = new Set(steps.map((x) => x.id));
+    changed(); renderVariables(); renderProps(); closeDialog();
+    toast("Inserted " + steps.length + " step(s)" + (added.length ? " and " + added.length + " variable(s)" : "") + ". Review them before running.");
+  };
+  const render = () => {
+    const tabs = h("div", { class: "seg", role: "tablist" }, [["build", "Build from a description"], ["explain", "Explain this agent"]].map(([k, l]) =>
+      h("button", { type: "button", role: "tab", "aria-selected": String(mode.tab === k), onclick: () => { mode.tab = k; render(); } }, l)));
+    if (mode.tab === "explain") {
+      const text = explainAgent(state.flow);
+      body.replaceChildren(tabs, h("pre", { class: "explain", text }),
+        h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => { try { navigator.clipboard.writeText(text); toast("Copied"); } catch (_) { toast("Select the text to copy it."); } } }, "Copy")));
+      return;
+    }
+    body.replaceChildren(tabs, field("What should the agent do?", prompt),
+      (conns.connections || []).length ? field("One Model Connection", connSel)
+        : h("div", { class: "note" }, "The assistant needs a language model. ", h("a", { class: "link", text: "Set up a One Model Connection", onclick: () => { closeDialog(); openConnections(); } }), " first."),
+      h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", disabled: !(conns.connections || []).length, onclick: async (e) => {
+        if (!prompt.value.trim()) { toast("Describe what the agent should do.", true); return; }
+        e.target.disabled = true;
+        result.replaceChildren(h("p", { class: "muted", text: "Thinking\u2026 this can take up to a minute." }));
+        try {
+          proposal = await api("POST", "assistant/build", { prompt: prompt.value, connection: connSel.value, flow: state.flow });
+          result.replaceChildren(
+            proposal.notes ? h("p", { text: proposal.notes }) : null,
+            h("ol", { class: "assistant-steps" }, allSteps(proposal.steps || []).map((s) => { const sp = state.specs.get(s.action); const st = styleFor(s.action);
+              return h("li", {}, tile(st.icon, st.color, "sm"), " ", h("strong", { text: sp ? sp.action.name : s.action }), h("span", { class: "muted", text: "  " + summary(s) })); })),
+            (proposal.problems || []).length ? h("div", { class: "note warn", text: proposal.problems.length + " problem(s) to fix after inserting: " + proposal.problems.slice(0, 3).map((p) => p.message).join("; ") }) : null,
+            h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: insert }, "Insert into the agent")));
+        } catch (err) { result.replaceChildren(h("p", { class: "error-box", text: err.message })); }
+        finally { e.target.disabled = false; }
+      } }, "Generate steps")), result);
+  };
+  render();
+  openDialog("Agent assistant", body, [], { wide: true, closeLabel: "Close" });
+}
+
+// ---------- One Model Connections ----------
+async function openConnections() {
+  let data;
+  try { data = await api("GET", "connections"); } catch (e) { toast(e.message, true); return; }
+  const rows = (data.connections || []).map((c) => Object.assign({}, c));
+  let def = data.default || "";
+  const box = h("div", { class: "conn-list" });
+  const render = () => {
+    box.replaceChildren(...(rows.length ? rows.map((c, i) => {
+      const prov = h("select", { "aria-label": "Provider", onchange: (e) => { c.provider = e.target.value; } }, AI_PROVIDERS.map(([v, t]) => h("option", { value: v, text: t })));
+      prov.value = c.provider || "openai";
+      c.provider = prov.value;
+      const keyKind = h("select", { "aria-label": "API key from", onchange: (e) => { if (e.target.value === "env") { delete c.api_key; c.api_key_env = c.api_key_env || "OPENAI_API_KEY"; } else if (e.target.value === "vault") { delete c.api_key_env; c.api_key = { $credential: "" }; } else { delete c.api_key; delete c.api_key_env; } render(); } },
+        h("option", { value: "env", text: "Environment variable" }), h("option", { value: "vault", text: "One Agent Vault credential" }), h("option", { value: "none", text: "No key (local model)" }));
+      keyKind.value = c.api_key ? "vault" : c.api_key_env ? "env" : "none";
+      const keyVal = keyKind.value === "none" ? null : h("input", { type: "text", "aria-label": "Key reference", value: c.api_key ? c.api_key.$credential : c.api_key_env,
+        placeholder: keyKind.value === "vault" ? "vault folder/credential/attribute" : "OPENAI_API_KEY",
+        onchange: (e) => { if (c.api_key) c.api_key = { $credential: e.target.value.trim() }; else c.api_key_env = e.target.value.trim(); } });
+      return h("div", { class: "conn-row card-box" },
+        h("div", { class: "conn-top" }, h("input", { type: "text", "aria-label": "Connection name", value: c.name || "", placeholder: "name, e.g. gpt", onchange: (e) => { const old = c.name; c.name = e.target.value.trim(); if (def === old) def = c.name; } }),
+          h("label", { class: "check" }, h("input", { type: "radio", name: "conn-default", checked: def === c.name, onchange: () => { def = c.name; } }), "Default"),
+          mini("\u2715", "Remove connection", () => { rows.splice(i, 1); render(); }, "danger")),
+        h("div", { class: "grid2" }, field("Provider", prov), field("Model", h("input", { type: "text", value: c.model || "", placeholder: "gpt-4o-mini", onchange: (e) => { c.model = e.target.value.trim(); } }))),
+        h("div", { class: "grid2" }, field("API key from", h("div", { class: "var-field" }, keyKind, keyVal)),
+          field("Endpoint (optional)", h("input", { type: "text", value: c.base_url || "", placeholder: "For Azure or a local server", onchange: (e) => { c.base_url = e.target.value.trim(); } }))));
+    }) : [h("p", { class: "muted", text: "No connections yet. Add one to use AI actions, Prompt Skills and the assistant without repeating model settings." })]),
+      h("button", { type: "button", onclick: () => { rows.push({ name: rows.length ? "model" + (rows.length + 1) : "default_model", provider: "openai", model: "gpt-4o-mini", api_key_env: "OPENAI_API_KEY" }); render(); } }, "+ Connection"));
+  };
+  render();
+  openDialog("One Model Connections", [h("p", { class: "help", text: "Named model settings for this workspace (model-connections.json). Keys are never stored here: point to an environment variable or a One Agent Vault credential. In an action, set connection to the name; leave it empty to use the action's own settings." }), box],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      try { await api("PUT", "connections", { default: def, connections: rows }); closeDialog(); toast("Saved model connections"); }
+      catch (e) { toast(e.message, true); } } }, "Save")], { wide: true });
+}
+
 // ---------- capture (pick an element in the browser) ----------
 function defaultUrl() {
   const open = state.flow && allSteps(state.flow.steps).find((x) => x.action === "ooa.browser/open" && x.args && typeof x.args.url === "string" && !x.args.url.startsWith("$"));
@@ -2809,6 +3096,11 @@ function wire() {
   $("btn-save").addEventListener("click", save);
   $("btn-validate").addEventListener("click", () => { setPref("dock", true); switchConsole("problems"); validate(true); });
   $("btn-run").addEventListener("click", runBot);
+  $("btn-debug").addEventListener("click", debugBot);
+  $("btn-assistant").addEventListener("click", () => openAssistant());
+  $("btn-quick-add").addEventListener("click", openQuickAdd);
+  $("btn-connections").addEventListener("click", () => { $("view-pop").hidden = true; openConnections(); });
+  for (const b of document.querySelectorAll("[data-canvas-mode]")) b.addEventListener("click", () => setPref("canvasMode", b.dataset.canvasMode));
   $("btn-record").addEventListener("click", recordSteps);
   $("btn-expand-all").addEventListener("click", () => foldAll(false));
   $("btn-collapse-all").addEventListener("click", () => foldAll(true));
@@ -2846,8 +3138,14 @@ function wire() {
     if (e.key === "Escape" && $("var-pop")) { closeVarPicker(); return; }
     if (e.key === "Escape" && !$("dialog").hidden) { closeDialog(); return; }
     if (e.key === "Escape") { closeContextMenu(); if (state.multi.size) { state.multi = new Set(); state.selected = null; renderSteps(); renderProps(); updateEditButtons(); } return; }
+    if (state.live && state.live.debug && ["F5", "F10", "F11"].includes(e.key)) {
+      e.preventDefault(); debugCommand(e.key === "F5" ? "continue" : e.key === "F10" ? "stepOver" : e.shiftKey ? "stepOut" : "stepInto"); return;
+    }
+    if (mod && k === "k" && state.flow) { e.preventDefault(); openQuickAdd(); return; }
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
     if (typing || !state.flow) return;
+    if (e.key === "F9" && state.selected) { e.preventDefault(); const st = getAt(state.flow, state.selected); if (st) toggleBreakpoint(st.id); return; }
+    if (e.key === "/" && !mod) { e.preventDefault(); openQuickAdd(); return; }
     if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
     else if ((mod && k === "y") || (mod && k === "z" && e.shiftKey)) { e.preventDefault(); redo(); }
     else if (mod && k === "c") { e.preventDefault(); copySelection(); }

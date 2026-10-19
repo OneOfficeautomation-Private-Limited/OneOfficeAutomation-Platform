@@ -44,10 +44,13 @@
           <label>Density
             <select id="sel-density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
           </label>
+          <button type="button" id="btn-connections" title="Named language-model settings used by AI actions, Prompt Skills and the assistant">One Model Connections&#8230;</button>
         </div>
       </div>
       <button id="btn-save" type="button" title="Save (Ctrl+S)">Save</button>
       <button id="btn-validate" type="button">Validate</button>
+      <button id="btn-assistant" type="button" title="Build steps from a description, or explain this agent"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Assistant</button>
+      <button id="btn-debug" type="button" title="Run with the debugger: stops at breakpoints (F9 on a step) or before the first step"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h8v10a4 4 0 0 1-8 0zM9 8a3 3 0 0 1 6 0M4 12h4M16 12h4M4 18h4M16 18h4M5 6l3 2M19 6l-3 2"/></svg>Debug</button>
       <button id="btn-run" type="button" class="primary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>Run</button>
     </div>
   </header>
@@ -127,6 +130,11 @@
           </div>
           <button type="button" id="btn-record" class="record-btn" title="Record actions in a web browser"><span class="rec-dot"></span>Record</button>
           <button type="button" id="btn-capture" title="Capture one element in a web page and add an action for it">Capture</button>
+          <div class="seg canvas-mode" role="group" aria-label="Canvas view">
+            <button type="button" data-canvas-mode="list" aria-pressed="true" title="Edit steps as a list">List</button>
+            <button type="button" data-canvas-mode="flow" aria-pressed="false" title="See the agent as a flow diagram">Flow</button>
+          </div>
+          <button type="button" id="btn-quick-add" title="Find an action by typing (Ctrl+K or /)">+ Quick add</button>
           <button type="button" id="btn-expand-all">Expand all</button>
           <button type="button" id="btn-collapse-all">Collapse all</button>
           <span class="muted" id="canvas-stats"></span>

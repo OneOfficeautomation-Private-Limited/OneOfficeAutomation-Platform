@@ -69,11 +69,33 @@ public final class Runner {
         String runId = opts.runId != null ? opts.runId : "run_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         Run r = new Run(flow, runId, opts.cancel != null ? opts.cancel : new AtomicBoolean(), opts.maxRunSeconds, 0);
         r.pause = opts.pause != null ? opts.pause : new AtomicBoolean();
+        r.debugger = opts.debugger;
         return r.execute(inputs == null ? Map.of() : inputs, true);
     }
 
+    /** Debug hook, called before every step (also in child agents). It may block to stop at breakpoints or step, and may read or change variables. */
+    public interface Debugger { void beforeStep(Frame frame); }
+
+    /** What a debugger sees while a run is stopped before a step. */
+    public interface Frame {
+        String stepId();
+        String action();
+        /** Agent nesting: 0 for the agent being run, 1 for its child agents, and so on. */
+        int depth();
+        /** Step nesting across agents, for step over and step out: deeper steps have a higher level. */
+        int level();
+        String automation();
+        /** Outermost first: {automation, stepId} for each agent that is running. */
+        List<Map<String, Object>> stack();
+        /** Declared variables of the current agent; credentials are masked. */
+        Map<String, Object> variables();
+        /** Change a variable while stopped (the value is converted to the variable's type). */
+        void setVariable(String name, Object value);
+    }
+
     public static final class RunOptions {
-        String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause;
+        String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger;
+        public RunOptions debugger(Debugger d) { debugger = d; return this; }
         public RunOptions pause(AtomicBoolean p) { pause = p; return this; }
         public RunOptions runId(String id) { runId = id; return this; }
         public RunOptions cancel(AtomicBoolean c) { cancel = c; return this; }
@@ -126,6 +148,10 @@ public final class Runner {
         final AtomicInteger stepsExecuted = new AtomicInteger();
         final ThreadLocal<ExecutorService> worker = new ThreadLocal<>();
         AtomicBoolean pause = new AtomicBoolean();
+        Debugger debugger;
+        Run parent;
+        String parentStep;
+        volatile int nesting;
         final List<ExecutorService> workers = new CopyOnWriteArrayList<>();
 
         @SuppressWarnings("unchecked")
@@ -316,11 +342,50 @@ public final class Runner {
         @SuppressWarnings("unchecked")
         void execSteps(List<Object> steps, boolean topLevel) {
             boolean continueDefault = topLevel && "continue".equals(((Map<String, Object>) flow.getOrDefault("errorHandling", Map.of())).get("default"));
-            for (Object o : steps == null ? List.of() : steps) {
-                Map<String, Object> s = (Map<String, Object>) o;
-                if (Boolean.TRUE.equals(s.get("disabled"))) continue;
-                execStep(s, continueDefault);
-            }
+            if (!topLevel) nesting++;
+            try {
+                for (Object o : steps == null ? List.of() : steps) {
+                    Map<String, Object> s = (Map<String, Object>) o;
+                    if (Boolean.TRUE.equals(s.get("disabled"))) continue;
+                    execStep(s, continueDefault);
+                }
+            } finally { if (!topLevel) nesting--; }
+        }
+
+        /** The debugger's view of this run, stopped before `step`. */
+        Frame frame(Map<String, Object> step) {
+            Run run = this;
+            return new Frame() {
+                public String stepId() { return String.valueOf(step.get("id")); }
+                public String action() { return String.valueOf(step.get("action")); }
+                public int depth() { return depth; }
+                public int level() { int l = nesting; for (Run p = parent; p != null; p = p.parent) l += p.nesting + 1; return l; }
+                public String automation() { return String.valueOf(flow.getOrDefault("id", "?")); }
+                public List<Map<String, Object>> stack() {
+                    LinkedList<Map<String, Object>> out = new LinkedList<>();
+                    out.addFirst(Map.of("automation", automation(), "stepId", stepId()));
+                    String at = parentStep;
+                    for (Run p = parent; p != null; at = p.parentStep, p = p.parent)
+                        out.addFirst(Map.of("automation", String.valueOf(p.flow.getOrDefault("id", "?")), "stepId", at == null ? "" : at));
+                    return out;
+                }
+                public Map<String, Object> variables() {
+                    Map<String, Object> out = new LinkedHashMap<>();
+                    synchronized (run.scope) {
+                        for (String name : run.scope.types.keySet()) {
+                            Object v = run.scope.values.get(name);
+                            out.put(name, v instanceof SecureString || (v instanceof String str && run.secrets.contains(str)) ? SecureString.MASK : Values.toJsonable(v));
+                        }
+                    }
+                    return out;
+                }
+                public void setVariable(String name, Object value) {
+                    if (run.scope.types.containsKey(name) && "Credential".equals(run.scope.types.get(name)))
+                        throw new OoaException("DEBUG.READ_ONLY", "Credentials cannot be changed while debugging");
+                    Object stored = run.scope.set(name, value);
+                    emit("variable.set", stepId(), data("name", name, "value", Values.safeRepr(stored), "edited", true));
+                }
+            };
         }
 
         @SuppressWarnings("unchecked")
@@ -330,6 +395,7 @@ public final class Runner {
 
         void execStep(Map<String, Object> step, boolean forceContinue) {
             check();
+            if (debugger != null) { debugger.beforeStep(frame(step)); check(); }
             String sid = String.valueOf(step.get("id")), act = String.valueOf(step.get("action"));
             emit("step.started", sid, data("action", act));
             long t0 = System.nanoTime();
@@ -561,6 +627,9 @@ public final class Runner {
             Map<String, Object> childFlow = repo.get(automation, args.getOrDefault("version", "production"));
             Run child = new Run(childFlow, runId + "." + step.get("id"), cancel, null, depth + 1);
             child.pause = pause;
+            child.debugger = debugger;
+            child.parent = this;
+            child.parentStep = String.valueOf(step.get("id"));
             Map<String, Object> childInputs = args.get("inputs") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
             RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
             stepsExecuted.addAndGet(res.stepsExecuted());

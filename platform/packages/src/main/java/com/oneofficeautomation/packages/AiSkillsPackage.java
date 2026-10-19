@@ -12,7 +12,7 @@ import java.util.stream.Stream;
  * ai-skills/summarise_complaint.json = {"description": "...", "system": "...", "prompt": "Summarise: ${text}",
  * "provider": "openai", "model": "gpt-4o-mini", "output": "text" | "json", "temperature": 0}. Keys never go in skill files.
  */
-@OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt blueprints (Prompt Skills) with your values.")
+@OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt templates (Prompt Skills) with your values.")
 public final class AiSkillsPackage {
 
     @SuppressWarnings("unchecked")
@@ -30,23 +30,25 @@ public final class AiSkillsPackage {
     }
 
     @Action(id = "run", name = "Run Prompt Skill", category = "Prompt Skills", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "Fill a saved prompt blueprint with your values and run it; returns text, or a Dictionary for JSON skills.")
+            description = "Fill a saved prompt template with your values and run it; returns text, or a Dictionary for JSON skills.")
     @Output(name = "text", type = OoaType.STRING, description = "The answer as text.")
     @Output(name = "json", description = "The answer parsed as JSON, for skills with output json.")
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "skill", type = OoaType.STRING, example = "summarise_complaint", description = "Skill name (file name in ai-skills without .json).") String name,
-            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the blueprint's ${...} placeholders.") Map<String, Object> values,
+            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the skill's ${...} placeholders.") Map<String, Object> values,
+            @Input(name = "connection", type = OoaType.STRING, required = false, description = "One Model Connection to use instead of the skill's own provider and model.") String connection,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "model", type = OoaType.STRING, required = false, description = "Override the skill's model.") String model,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base) {
         Map<String, Object> s = load(ctx, name);
         String prompt = LlmClient.interpolate((String) s.get("prompt"), values);
         String system = s.get("system") instanceof String x ? LlmClient.interpolate(x, values) : null;
-        String mdl = model != null && !model.isBlank() ? model : (String) s.get("model");
-        if (mdl == null) throw new ActionException("AI.NO_MODEL", "Skill '" + name + "' names no model", "Add \"model\" to the skill or set the model input.");
+        String conn = connection != null && !connection.isBlank() ? connection : (String) s.get("connection");
+        String mdl = model != null && !model.isBlank() ? model : conn != null ? null : (String) s.get("model");
+        if (mdl == null && conn == null) throw new ActionException("AI.NO_MODEL", "Skill '" + name + "' names no model", "Add \"model\" or \"connection\" to the skill, or set the model input.");
         double temp = s.get("temperature") instanceof java.math.BigDecimal d ? d.doubleValue() : 0;
         boolean json = "json".equals(s.get("output"));
-        LlmClient.Config c = GenAiPackage.cfg(String.valueOf(s.getOrDefault("provider", "openai")), mdl, key,
+        LlmClient.Config c = ModelConnections.config(ctx, conn, String.valueOf(s.getOrDefault("provider", "openai")), mdl, key,
                 base != null ? base : (String) s.get("base_url"), temp, 2000, !Boolean.FALSE.equals(s.get("mask_pii")));
         List<Map<String, Object>> m = new ArrayList<>();
         if (system != null) m.add(Map.of("role", "system", "content", system));

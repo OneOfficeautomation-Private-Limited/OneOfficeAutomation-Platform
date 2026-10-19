@@ -78,7 +78,8 @@ public final class AiAgentPackage {
             @Input(name = "tools", type = OoaType.LIST, description = "Bot ids the agent may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
             @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
             @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = GenAiPackage.D_PROVIDER) String provider,
-            @Input(name = "model", type = OoaType.STRING, description = GenAiPackage.D_MODEL) String model,
+            @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
+            @Input(name = "model", type = OoaType.STRING, required = false, description = GenAiPackage.D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
             @Input(name = "max_steps", type = OoaType.NUMBER, required = false, defaultValue = "8", description = "Maximum model turns.") int maxSteps,
@@ -94,7 +95,7 @@ public final class AiAgentPackage {
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));
-        LlmClient.Config cfg = GenAiPackage.cfg(provider, model, key, base, 0, 2048, mask);
+        LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2048, mask);
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", instructions + "\nRules: act only through the tools; use only facts from the goal and tool results; "
                 + "if a tool is denied, do not retry it; when finished, reply with the final answer and no tool calls."));

@@ -429,6 +429,40 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("renaming a variable updates $name, ${name} and outputs everywhere", await until(() => w.eval("state.flow.steps[1].args.message").includes("Read ${rows_read} rows") && w.eval("state.flow.steps[0].out.row_count") === "rows_read"), w.eval("JSON.stringify(state.flow.steps.slice(0, 2))"));
   click(d.getElementById("btn-save")); await until(() => !w.eval("state.dirty"));
 
+  // ================= Part 4: debugger, quick add, flow view, assistant =================
+  click(d.querySelector('#steps .step[data-step-id="s2"] .num'));
+  check("clicking a step number sets a breakpoint", await until(() => d.querySelector('#steps .step[data-step-id="s2"] .num.bp') && JSON.stringify(w.eval("state.flow.ui.breakpoints")) === '["s2"]'));
+  w.eval("openQuickAdd()");
+  check("quick add opens with a search box", await until(() => d.querySelector("#quick-add input")));
+  const qa = d.querySelector("#quick-add input");
+  qa.value = "change case"; qa.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await until(() => d.querySelector("#quick-add .qa-item .qa-name") && d.querySelector("#quick-add .qa-item .qa-name").textContent === "Change case");
+  const beforeQa = w.eval("allSteps(state.flow.steps).length");
+  qa.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  check("Enter in quick add inserts the best match", await until(() => w.eval("allSteps(state.flow.steps).length") === beforeQa + 1 && !d.getElementById("quick-add") && w.eval("allSteps(state.flow.steps).some((x) => x.action === 'ooa.string/change_case')")));
+  w.eval("deleteSelection(true)");
+  click(d.querySelector('[data-canvas-mode="flow"]'));
+  check("the flow view draws the agent as a diagram", await until(() => d.querySelector("#steps .flow-view .fterm.start") && d.querySelectorAll("#steps .fnode").length === w.eval("allSteps(state.flow.steps).length") && d.querySelector("#steps .fbranches")));
+  click(d.querySelector('#steps .fnode[data-step-id="s1"]'));
+  check("selecting in the flow view opens the action settings", await until(() => d.getElementById("props").textContent.includes("Read to table") || d.getElementById("props").textContent.includes("CSV")));
+  click(d.querySelector('[data-canvas-mode="list"]'));
+  await until(() => d.querySelector("#steps .step"));
+  w.eval("openAssistant('explain')");
+  check("the assistant explains the agent in plain words", await until(() => !d.getElementById("dialog").hidden && d.querySelector("#dialog pre.explain") && d.querySelector("#dialog pre.explain").textContent.includes("Repeat for each item of $rows")));
+  w.eval("openAssistant('build')");
+  check("building with AI asks for a One Model Connection first", await until(() => d.getElementById("dialog").textContent.includes("Set up a One Model Connection")));
+  w.eval("closeDialog()");
+  fs.mkdirSync(path.join(WS, "data"), { recursive: true });
+  fs.writeFileSync(path.join(WS, "data", "debug.csv"), ["name,amount", "A,1", "B,2", ""].join("\n"));
+  await until(() => d.querySelector('[data-input="csv_file"]'));
+  d.querySelector('[data-input="csv_file"]').value = "data/debug.csv";
+  click(d.getElementById("btn-debug"));
+  check("Debug stops at the breakpoint and shows the debugger", await until(() => w.eval("state.live && state.live.debug && state.live.debug.stepId") === "s2" && d.getElementById("run-result").textContent.includes("Call stack") && d.querySelector('#steps .step.paused[data-step-id="s2"]'), 8000),
+    lastToast + " | " + (d.getElementById("run-result") && d.getElementById("run-result").textContent.slice(0, 200)) + " | " + JSON.stringify(w.eval("state.live && { id: state.live.id, st: state.live.state, dbg: state.live.debug }")));
+  click([...d.querySelectorAll("#run-result button")].find((b) => b.textContent === "Stop"));
+  check("Stop ends a debug run", await until(() => w.eval("state.lastRun && state.lastRun.result.status") === "stopped" || !w.eval("state.running"), 8000));
+  w.eval("state.dirty = false");
+
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
   if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));

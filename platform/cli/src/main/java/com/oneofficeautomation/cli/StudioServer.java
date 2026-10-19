@@ -42,6 +42,7 @@ public final class StudioServer {
         final java.util.concurrent.atomic.AtomicBoolean cancel = new java.util.concurrent.atomic.AtomicBoolean();
         final java.util.concurrent.atomic.AtomicBoolean pause = new java.util.concurrent.atomic.AtomicBoolean();
         volatile RunResult result; volatile long finishedAt; final long startedAt = System.currentTimeMillis();
+        volatile StudioDebugger debugger;
         LiveRun(String id) { this.id = id; }
     }
     private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -194,6 +195,13 @@ public final class StudioServer {
                 String text = b instanceof Map<?, ?> m && m.get("text") instanceof String t ? t : null;
                 sendJson(ex, 200, Map.of("saved", ws.writeItem(rel, text, json::parse)));
             } else send(ex, 405, "text/plain", "Method not allowed");
+        } else if (route.equals("connections") && method.equals("GET")) {
+            Path f = ws.root.resolve("model-connections.json");
+            sendJson(ex, 200, Files.isRegularFile(f) ? json.parse(Files.readString(f)) : Map.of("default", "", "connections", List.of()));
+        } else if (route.equals("connections") && method.equals("PUT")) {
+            sendJson(ex, 200, saveConnections(body(ex)));
+        } else if (method.equals("POST") && route.equals("assistant/build")) {
+            sendJson(ex, 200, assistantBuild((Map<String, Object>) body(ex)));
         } else if (method.equals("GET") && route.equals("deps")) {
             sendJson(ex, 200, dependencies(query(ex).getOrDefault("path", "")));
         } else if (method.equals("POST") && route.equals("validate")) {
@@ -236,9 +244,16 @@ public final class StudioServer {
             if (live.values().stream().filter(r -> r.result == null).count() >= 4) throw new OoaException("STUDIO.TOO_MANY_RUNS", "Four runs are already in progress", "Wait for a run to finish or stop one.");
             String id = "run_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
             LiveRun lr = new LiveRun(id);
+            Runner.RunOptions opts = new Runner.RunOptions().runId(id).cancel(lr.cancel).pause(lr.pause).maxRunSeconds(3600);
+            if (Boolean.TRUE.equals(req.get("debug"))) {
+                List<String> bps = new ArrayList<>();
+                if (req.get("breakpoints") instanceof List<?> l) for (Object o : l) bps.add(String.valueOf(o));
+                lr.debugger = new StudioDebugger(bps, Boolean.TRUE.equals(req.get("stopAtStart")), lr.cancel);
+                opts.debugger(lr.debugger).maxRunSeconds(86400);
+            }
             live.put(id, lr);
             Thread t = new Thread(() -> {
-                try { lr.result = runner(lr.sink).run(flow, inputs, new Runner.RunOptions().runId(id).cancel(lr.cancel).pause(lr.pause).maxRunSeconds(3600)); }
+                try { lr.result = runner(lr.sink).run(flow, inputs, opts); }
                 catch (RuntimeException e) { lr.result = new RunResult(id, null, "failed", Map.of(), Map.of("code", "STUDIO.RUN_CRASHED", "message", String.valueOf(e.getMessage())), System.currentTimeMillis() - lr.startedAt, null, 0); }
                 finally { lr.finishedAt = System.currentTimeMillis(); }
             }, "ooa-studio-run-" + id);
@@ -253,7 +268,9 @@ public final class StudioServer {
             for (RunEvent e : lr.sink.events()) if (e.seq() > after) evs.add(e.toMap());
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("run_id", lr.id);
-            out.put("state", lr.result != null ? lr.result.status() : lr.pause.get() ? "paused" : "running");
+            Map<String, Object> dbg = lr.result == null && lr.debugger != null ? lr.debugger.state() : null;
+            out.put("state", lr.result != null ? lr.result.status() : dbg != null ? "debugging" : lr.pause.get() ? "paused" : "running");
+            if (dbg != null) out.put("debug", dbg);
             out.put("elapsed_ms", (lr.finishedAt > 0 ? lr.finishedAt : System.currentTimeMillis()) - lr.startedAt);
             out.put("events", evs);
             if (lr.result != null) out.put("result", lr.result.toMap());
@@ -262,7 +279,22 @@ public final class StudioServer {
             String[] parts = route.split("/");
             LiveRun lr = live.get(parts[1]);
             if (lr == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown or expired run");
-            switch (parts[2]) { case "pause" -> lr.pause.set(true); case "resume" -> lr.pause.set(false); default -> { lr.cancel.set(true); lr.pause.set(false); } }
+            switch (parts[2]) {
+                case "pause" -> lr.pause.set(true);
+                case "resume" -> lr.pause.set(false);
+                default -> { lr.cancel.set(true); lr.pause.set(false); if (lr.debugger != null) lr.debugger.release(); }
+            }
+            sendJson(ex, 200, Map.of("ok", true));
+        } else if (method.equals("POST") && route.matches("runs/run_[a-f0-9]{16}/(debug|breakpoints|variable)")) {
+            String[] parts = route.split("/");
+            LiveRun lr = live.get(parts[1]);
+            if (lr == null || lr.debugger == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown run, or the run is not being debugged");
+            Map<String, Object> b = (Map<String, Object>) body(ex);
+            switch (parts[2]) {
+                case "debug" -> lr.debugger.command(String.valueOf(b.get("command")));
+                case "breakpoints" -> lr.debugger.breakpoints(b.get("ids") instanceof List<?> l ? l.stream().map(String::valueOf).toList() : List.of());
+                default -> lr.debugger.setVariable(String.valueOf(b.get("name")), b.get("value"));
+            }
             sendJson(ex, 200, Map.of("ok", true));
         } else if (method.equals("POST") && route.equals("capture")) {
             Map<String, Object> req = (Map<String, Object>) body(ex);
@@ -331,6 +363,106 @@ public final class StudioServer {
     }
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
+
+    private static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible");
+
+    /** Saves model-connections.json. API keys are only references (vault credential or environment variable), never values. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> saveConnections(Object body) throws IOException {
+        if (!(body instanceof Map<?, ?> m) || !(m.get("connections") instanceof List<?> list))
+            throw new OoaException("AI.BAD_CONNECTIONS", "Send {default, connections: [...]}");
+        Set<String> names = new HashSet<>();
+        List<Object> clean = new ArrayList<>();
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> c)) throw new OoaException("AI.BAD_CONNECTIONS", "Each connection is an object");
+            String name = String.valueOf(c.get("name") == null ? "" : c.get("name")).trim();
+            if (!name.matches("^[A-Za-z0-9_.-]{1,60}$") || !names.add(name))
+                throw new OoaException("AI.BAD_CONNECTIONS", "Connection names are unique and use letters, digits, . _ - (got '" + name + "')");
+            if (!PROVIDERS.contains(String.valueOf(c.get("provider")))) throw new OoaException("AI.BAD_PROVIDER", "Unknown provider for '" + name + "'", "Use " + PROVIDERS + ".");
+            if (c.get("api_key") instanceof String) throw new OoaException("AI.KEY_IN_FILE", "API keys are never stored in connections",
+                    "Use api_key_env (an environment variable name) or a vault credential reference.");
+            Map<String, Object> keep = new LinkedHashMap<>();
+            for (String k : List.of("name", "provider", "model", "base_url", "api_key_env", "api_key", "description"))
+                if (c.get(k) != null && !"".equals(c.get(k))) keep.put(k, k.equals("name") ? name : c.get(k));
+            if (keep.get("api_key") != null && !(keep.get("api_key") instanceof Map<?, ?> km && km.get("$credential") instanceof String))
+                throw new OoaException("AI.BAD_CONNECTIONS", "api_key must be {\"$credential\": \"vault folder/credential/attribute\"}");
+            clean.add(keep);
+        }
+        String def = m.get("default") instanceof String d && names.contains(d) ? d : names.isEmpty() ? "" : names.iterator().next();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("default", def);
+        out.put("connections", clean);
+        Path f = ws.root.resolve("model-connections.json");
+        Path tmp = f.resolveSibling(".model-connections.json.saving");
+        Files.writeString(tmp, json.write(out, true), StandardCharsets.UTF_8);
+        Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING);
+        return out;
+    }
+
+    /**
+     * The AI assistant: turns a description into agent steps using a One Model Connection. The model gets the action
+     * catalog (ids, names, required inputs) and the agent's variables, answers with JSON, and the result is validated
+     * before Agent Studio shows it for review.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> assistantBuild(Map<String, Object> req) {
+        String prompt = String.valueOf(req.getOrDefault("prompt", "")).trim();
+        if (prompt.isEmpty()) throw new OoaException("ASSISTANT.EMPTY", "Describe what the agent should do");
+        String connection = String.valueOf(req.getOrDefault("connection", "default"));
+        StringBuilder catalog = new StringBuilder();
+        for (Map<String, Object> m : registry.allManifests())
+            for (Object ao : (List<Object>) m.getOrDefault("actions", List.of())) {
+                Map<String, Object> a = (Map<String, Object>) ao;
+                Map<String, Object> in = (Map<String, Object>) a.getOrDefault("inputs", Map.of());
+                Map<String, Object> props = (Map<String, Object>) in.getOrDefault("properties", Map.of());
+                List<Object> requiredIn = (List<Object>) in.getOrDefault("required", List.of());
+                catalog.append(m.get("id")).append('/').append(a.get("id")).append(" | ").append(a.get("name"))
+                        .append(" | inputs: ").append(String.join(", ", props.keySet().stream().map(k -> requiredIn.contains(k) ? k + "*" : k).toList()))
+                        .append(" | outputs: ").append(String.join(", ", ((Map<String, Object>) a.getOrDefault("outputs", Map.of())).keySet())).append('\n');
+            }
+        Map<String, Object> flow = req.get("flow") instanceof Map<?, ?> f ? (Map<String, Object>) f : Map.of();
+        String system = "You design steps for ONEOFFICEAUTOMATION agents. Answer with one JSON object only: "
+                + "{\"variables\": [{\"name\", \"type\", \"direction\"?: \"input\"|\"output\", \"default\"?}], \"steps\": [step...], \"notes\": \"short explanation\"}. "
+                + "A step is {\"id\": \"a1\", \"action\": \"package/action\", \"args\": {input: value}, \"out\": {output: variableName}}. "
+                + "Containers: core/if has \"args\": {\"condition\": {\"op\": \"eq|ne|gt|ge|lt|le|contains|empty|notEmpty\", \"left\", \"right\"}}, \"children\" and \"else\"; "
+                + "core/loop has \"args\": {\"iterator\": \"list|times|table_rows|dictionary|while\", \"over\" or \"count\", \"as\"} and \"children\"; "
+                + "core/try has \"children\", \"catch\": [{\"codes\": [], \"as\": \"error\", \"children\": []}], \"finally\": []. "
+                + "Reference variables as $name, or inside text as ${name}. Declare every variable you use. Types: String, Number, Boolean, DateTime, List, "
+                + "Dictionary, Table, Record, File, Credential, Any. Secrets are Credential inputs. Use only actions from this catalog "
+                + "(* = required input):\n" + catalog;
+        String user = "Existing variables: " + json.write(flow.getOrDefault("variables", List.of()), false) + "\nRequest: " + prompt;
+        Map<String, Object> run = new LinkedHashMap<>();
+        run.put("kind", "TaskBot"); run.put("id", "studio_assistant"); run.put("name", "Agent Studio assistant");
+        // The texts go in as inputs, so their $name and ${...} examples are never read as variable references.
+        run.put("variables", List.of(Map.of("name", "answer", "type", "String", "direction", "output"),
+                Map.of("name", "request", "type", "String", "direction", "input"), Map.of("name", "instructions", "type", "String", "direction", "input")));
+        run.put("steps", List.of(Map.of("id", "ask", "action", "ooa.genai/prompt", "out", Map.of("text", "answer"),
+                "args", Map.of("prompt", "$request", "system", "$instructions", "connection", connection, "temperature", java.math.BigDecimal.ZERO, "max_tokens", java.math.BigDecimal.valueOf(4000), "mask_pii", false))));
+        RunResult r = runner(new EventSink.ListSink()).run(run, Map.of("request", user, "instructions", system), new Runner.RunOptions().maxRunSeconds(300));
+        if (!r.ok()) throw new OoaException(String.valueOf(r.error().getOrDefault("code", "ASSISTANT.FAILED")), "The assistant could not answer: " + r.error().get("message"),
+                (String) r.error().get("suggestedFix"));
+        String text = String.valueOf(r.outputs().get("answer"));
+        int a = text.indexOf('{'), b = text.lastIndexOf('}');
+        if (a < 0 || b <= a) throw new OoaException("ASSISTANT.NOT_JSON", "The model did not answer with steps", "Rephrase the request and try again.");
+        Map<String, Object> answer;
+        try { answer = (Map<String, Object>) json.parse(text.substring(a, b + 1)); }
+        catch (RuntimeException e) { throw new OoaException("ASSISTANT.NOT_JSON", "The model's answer was not valid JSON", "Try again; smaller requests work better."); }
+        List<Object> vars = new ArrayList<>((List<Object>) flow.getOrDefault("variables", List.of()));
+        Set<String> have = new HashSet<>();
+        for (Object v : vars) have.add(String.valueOf(((Map<String, Object>) v).get("name")));
+        for (Object v : (List<Object>) answer.getOrDefault("variables", List.of()))
+            if (v instanceof Map<?, ?> vm && have.add(String.valueOf(vm.get("name")))) vars.add(v);
+        Map<String, Object> check = new LinkedHashMap<>(flow);
+        check.putIfAbsent("kind", "TaskBot"); check.putIfAbsent("id", "check"); check.putIfAbsent("name", "check");
+        check.put("variables", vars);
+        check.put("steps", answer.getOrDefault("steps", List.of()));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("variables", answer.getOrDefault("variables", List.of()));
+        out.put("steps", answer.getOrDefault("steps", List.of()));
+        out.put("notes", answer.getOrDefault("notes", ""));
+        out.put("problems", validator().validate(check));
+        return out;
+    }
 
     /** What a bot uses (child bots, agent tools, scripts, AI Skills, files) and which bots use it. */
     @SuppressWarnings("unchecked")
