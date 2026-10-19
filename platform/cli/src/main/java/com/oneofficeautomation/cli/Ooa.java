@@ -95,7 +95,7 @@ public final class Ooa {
     record ControlRoomSetup(com.oneofficeautomation.controlroom.ControlRoom cr, com.oneofficeautomation.controlroom.Db db, Path data, String firstPassword, String dbLabel) {}
 
     static ControlRoomSetup openControlRoom(Map<String, String> o) throws Exception {
-        Path data = Path.of(o.getOrDefault("data", Path.of(System.getProperty("user.home"), "OOA Control Room").toString()));
+        Path data = Path.of(o.getOrDefault("data", Path.of(System.getProperty("user.home"), "OOA Command Center").toString()));
         Files.createDirectories(data);
         com.oneofficeautomation.controlroom.Db db;
         if (o.containsKey("db-url")) {
@@ -121,12 +121,12 @@ public final class Ooa {
         var server = new com.oneofficeautomation.controlroom.ControlRoomServer(s.cr(), host, port);
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { server.stop(); s.db().close(); }));
-        System.out.println("ONEOFFICEAUTOMATION Control Room is running.");
+        System.out.println("ONEOFFICEAUTOMATION One Command Center is running.");
         System.out.println("  Open:     http://" + (host.equals("0.0.0.0") ? "localhost" : host) + ":" + port);
         System.out.println("  Database: " + s.dbLabel());
         System.out.println("  Vault key: " + s.cr().vault.keySource);
         if (!host.equals("127.0.0.1") && !host.equals("localhost"))
-            System.out.println("  WARNING: listening on " + host + " without TLS; put Control Room behind an HTTPS reverse proxy before other machines use it.");
+            System.out.println("  WARNING: listening on " + host + " without TLS; put Command Center behind an HTTPS reverse proxy before other machines use it.");
         printFirstStart(s);
         System.out.println("  Press Ctrl+C to stop.");
         Thread.currentThread().join();
@@ -153,14 +153,14 @@ public final class Ooa {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { if (agent != null) agent.stop(); server.stop(); s.db().close(); }));
         String open = "http://localhost:" + port;
         System.out.println("ONEOFFICEAUTOMATION is running.");
-        System.out.println("  Open:          " + open);
-        System.out.println("  Control Room:  " + open + "/");
-        System.out.println("  Studio:        " + open + "/studio/   (this computer only)");
-        System.out.println("  Bot Agent:     " + (agent == null ? "not started (--no-agent)" : "this computer, connected"));
-        System.out.println("  Workspace:     " + studio.workspaceRoot());
-        System.out.println("  Database:      " + s.dbLabel());
+        System.out.println("  Open:             " + open);
+        System.out.println("  Command Center:   " + open + "/");
+        System.out.println("  Agent Studio:     " + open + "/studio/   (this computer only)");
+        System.out.println("  One Runner:       " + (agent == null ? "not started (--no-agent)" : "this computer, connected"));
+        System.out.println("  My Workspace:     " + studio.workspaceRoot());
+        System.out.println("  Database:         " + s.dbLabel());
         if (!host.equals("127.0.0.1") && !host.equals("localhost"))
-            System.out.println("  WARNING: Control Room listens on " + host + " without TLS; put it behind an HTTPS reverse proxy before other machines use it.");
+            System.out.println("  WARNING: Command Center listens on " + host + " without TLS; put it behind an HTTPS reverse proxy before other machines use it.");
         printFirstStart(s);
         System.out.println("  Press Ctrl+C (or close this window) to stop everything.");
         if (!o.containsKey("no-browser")) openBrowser(open);
@@ -201,7 +201,7 @@ public final class Ooa {
             case "register" -> {
                 if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME]"); return 1; }
                 Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config);
-                System.out.println("Registered device '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
+                System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
                 System.out.println("Start the agent with:  ooa agent start");
                 return 0;
             }

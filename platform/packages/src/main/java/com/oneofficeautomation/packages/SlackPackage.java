@@ -14,9 +14,9 @@ public final class SlackPackage {
         if (!Boolean.TRUE.equals(r.get("ok"))) {
             String err = String.valueOf(r.get("error"));
             String fix = switch (err) {
-                case "channel_not_found" -> "Check the channel id and invite the bot to the channel.";
-                case "not_in_channel" -> "Invite the bot to the channel (/invite @your-bot).";
-                case "invalid_auth", "token_revoked" -> "The bot token is wrong or revoked; update it in the vault.";
+                case "channel_not_found" -> "Check the channel id and invite the agent to the channel.";
+                case "not_in_channel" -> "Invite the agent to the channel (/invite @your-bot).";
+                case "invalid_auth", "token_revoked" -> "The agent token is wrong or revoked; update it in the vault.";
                 default -> null;
             };
             throw new ActionException(P + "." + err.toUpperCase(Locale.ROOT), "Slack refused " + method + ": " + err, fix, "ratelimited".equals(err));
@@ -37,7 +37,7 @@ public final class SlackPackage {
         return Out.of("ts", call(ctx, base, "chat.postMessage", token, body).get("ts"));
     }
 
-    @Action(id = "update_message", name = "Update message", category = "Messages", capabilities = "network", description = "Edit a message the bot posted, e.g. to show progress.")
+    @Action(id = "update_message", name = "Update message", category = "Messages", capabilities = "network", description = "Edit a message the agent posted, e.g. to show progress.")
     public Map<String, Object> update(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
             @Input(name = "channel", type = OoaType.STRING, description = "Channel id.") String channel,

@@ -67,7 +67,7 @@ final class TriggerService {
             String id = String.valueOf(t.get("id"));
             if (!id.matches("^[A-Za-z0-9_-]{1,40}$") || !ids.add(id)) throw new OoaException("TRIGGER.BAD_ID", "Trigger ids must be unique: letters, digits, - and _");
             String bot = String.valueOf(t.get("bot"));
-            if (!bot.endsWith(Workspace.BOT_SUFFIX) || !Files.isRegularFile(ws.resolve(bot))) throw new OoaException("TRIGGER.BAD_BOT", "Trigger '" + id + "': bot not found: " + bot, "Choose a bot from the workspace.");
+            if (!bot.endsWith(Workspace.BOT_SUFFIX) || !Files.isRegularFile(ws.resolve(bot))) throw new OoaException("TRIGGER.BAD_BOT", "Trigger '" + id + "': agent not found: " + bot, "Choose an agent from the workspace.");
             String type = String.valueOf(t.get("type"));
             switch (type) {
                 case "file" -> {

@@ -10,8 +10,8 @@ final class DesktopSupport {
 
     static void requireDesktop() {
         if (GraphicsEnvironment.isHeadless())
-            throw new ActionException("DESKTOP.NO_SESSION", "This command needs a signed-in desktop session",
-                    "Run the bot attended, or unattended on a device with auto-login enabled.");
+            throw new ActionException("DESKTOP.NO_SESSION", "This action needs a signed-in desktop session",
+                    "Run the agent attended, or unattended on a runner with auto-login enabled.");
     }
 
     static Robot robot() {

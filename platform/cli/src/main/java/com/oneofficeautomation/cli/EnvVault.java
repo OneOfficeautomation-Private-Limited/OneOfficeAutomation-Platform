@@ -15,7 +15,7 @@ final class EnvVault implements CredentialVault {
         String key = "OOA_SECRET_" + ref.replace('/', '_').replace('-', '_').toUpperCase(Locale.ROOT);
         String v = System.getenv(key);
         if (v == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found",
-                "For local testing set the environment variable " + key + " before starting Studio.");
+                "For local testing set the environment variable " + key + " before starting Agent Studio.");
         return new SecureString(v, ref);
     }
 }

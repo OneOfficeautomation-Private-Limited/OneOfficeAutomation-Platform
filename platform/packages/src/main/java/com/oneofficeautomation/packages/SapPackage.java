@@ -33,7 +33,7 @@ public final class SapPackage {
             "");
 
     private static Map<String, Object> run(ActionContext ctx, String body, List<String> args, String stdin) {
-        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "SAP GUI automation needs Windows with SAP GUI installed", "Run this bot on a Windows device with SAP GUI.");
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "SAP GUI automation needs Windows with SAP GUI installed", "Run this agent on a Windows runner with SAP GUI.");
         Path script = null;
         try {
             script = Files.createTempFile("ooa-sap-", ".vbs");
@@ -63,9 +63,9 @@ public final class SapPackage {
 
     @Action(id = "log_on", name = "Open system and log on", category = "Session", timeoutSeconds = 180, capabilities = "desktop",
             description = "Open a system from SAP Logon by its description and log on with client, user, password and language.")
-    @Output(name = "connection", type = OoaType.NUMBER, description = "Connection number for later commands.")
+    @Output(name = "connection", type = OoaType.NUMBER, description = "Connection number for later actions.")
     public Map<String, Object> logOn(ActionContext ctx,
-            @Input(name = "system", type = OoaType.STRING, example = "PRD - Production", description = "System description exactly as in SAP Logon.") String system,
+            @Input(name = "system", type = OoaType.STRING, example = "PRD - Live production", description = "System description exactly as in SAP Logon.") String system,
             @Input(name = "client", type = OoaType.STRING, example = "100", description = "Client.") String client,
             @Input(name = "user", type = OoaType.STRING, description = "User.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,

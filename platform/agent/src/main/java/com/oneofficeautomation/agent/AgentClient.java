@@ -23,10 +23,10 @@ final class AgentClient {
         if (deviceId != null) b.header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", secret);
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach Control Room at " + baseUrl + ": " + e.getMessage(), "Check the URL and network; the agent keeps retrying.", true, null); }
+        catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach Command Center at " + baseUrl + ": " + e.getMessage(), "Check the URL and network; the agent keeps retrying.", true, null); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
         Object parsed;
-        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "Control Room returned HTTP " + r.statusCode()); }
+        try { parsed = JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("AGENT.BAD_RESPONSE", "Command Center returned HTTP " + r.statusCode()); }
         Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map ? (Map<String, Object>) m.get("error") : Map.of();

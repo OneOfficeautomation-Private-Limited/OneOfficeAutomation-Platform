@@ -81,7 +81,7 @@ public final class CryptoPackage {
         if (encrypt) { rnd.nextBytes(salt); rnd.nextBytes(iv); }
         else {
             if (data.length < 4 + 16 + 12 + 16 || !Arrays.equals(Arrays.copyOf(data, 4), MAGIC))
-                throw new ActionException("CRYPTO.NOT_ENCRYPTED", "The data was not encrypted by this package", "Use data produced by Encrypt text or Encrypt file.");
+                throw new ActionException("CRYPTO.NOT_ENCRYPTED", "The data was not encrypted by this toolkit", "Use data produced by Encrypt text or Encrypt file.");
             System.arraycopy(data, 4, salt, 0, 16); System.arraycopy(data, 20, iv, 0, 12); off = 32;
         }
         SecretKeySpec key = new SecretKeySpec(SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")

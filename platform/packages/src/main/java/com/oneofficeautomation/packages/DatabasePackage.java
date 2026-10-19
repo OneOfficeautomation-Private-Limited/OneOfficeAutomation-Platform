@@ -42,7 +42,7 @@ public final class DatabasePackage {
             ctx.info("Connected session '" + session + "' to " + url.replaceAll("(?i)password=[^;&]+", "password=****"));
         } catch (SQLException e) {
             if ("08001".equals(e.getSQLState()) || e.getMessage().contains("No suitable driver"))
-                throw new ActionException("DB.NO_DRIVER", "No JDBC driver found for " + url.split(":")[1], "Ask an administrator to install the database driver on the device.");
+                throw new ActionException("DB.NO_DRIVER", "No JDBC driver found for " + url.split(":")[1], "Ask an administrator to install the database driver on the runner.");
             throw new ActionException("DB.CONNECT_FAILED", "Cannot connect: " + e.getMessage(), "Check the URL, network access and credentials.", true);
         }
         return Map.of();

@@ -62,14 +62,14 @@ public final class StudioServer {
         HttpServer server;
         try { server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0); }
         catch (java.net.BindException e) {
-            throw new OoaException("STUDIO.PORT_IN_USE", "Port " + port + " is already in use; another Studio may still be running",
-                    "Stop the other Studio (Ctrl+C in its window), or start this one with --port " + (port + 1) + ".");
+            throw new OoaException("STUDIO.PORT_IN_USE", "Port " + port + " is already in use; another Agent Studio may still be running",
+                    "Stop the other Agent Studio (Ctrl+C in its window), or start this one with --port " + (port + 1) + ".");
         }
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.createContext("/", this::handle);
         server.start();
         startServices();
-        System.out.println("ONEOFFICEAUTOMATION Studio (preview) is running.");
+        System.out.println("ONEOFFICEAUTOMATION One Agent Studio (preview) is running.");
         System.out.println("  Open:      http://localhost:" + port);
         System.out.println("  Workspace: " + workspace);
         System.out.println("  Press Ctrl+C to stop.");
@@ -96,7 +96,7 @@ public final class StudioServer {
 
     private void handle(HttpExchange ex) throws IOException {
         try {
-            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "Studio is only available on this computer"); return; }
+            if (!ex.getRemoteAddress().getAddress().isLoopbackAddress()) { send(ex, 403, "text/plain", "Agent Studio is only available on this computer"); return; }
             String host = Optional.ofNullable(ex.getRequestHeaders().getFirst("Host")).orElse("");
             if (!host.startsWith("localhost:") && !host.startsWith("127.0.0.1:")) { send(ex, 403, "text/plain", "Forbidden host"); return; }
             String origin = ex.getRequestHeaders().getFirst("Origin");
@@ -146,7 +146,7 @@ public final class StudioServer {
     private void api(HttpExchange ex, String method, String route) throws IOException {
         if (method.equals("GET") && route.equals("info")) {
             Map<String, Object> info = new LinkedHashMap<>();
-            info.put("product", "ONEOFFICEAUTOMATION Studio");
+            info.put("product", "ONEOFFICEAUTOMATION One Agent Studio");
             info.put("edition", "preview");
             info.put("workspace", workspace.toString());
             info.put("controlRoom", sameServerControlRoom == null ? null : "/");
@@ -157,10 +157,10 @@ public final class StudioServer {
             sendJson(ex, 200, Map.of("workspace", workspace.toString(), "tree", ws.tree()));
         } else if (route.equals("bot")) {
             String rel = query(ex).getOrDefault("path", "");
-            if (!rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not a bot file: " + rel, "Bots end with .flow.json.");
+            if (!rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not an agent file: " + rel, "Agents end with .flow.json.");
             Path p = ws.resolve(rel);
             if (method.equals("GET")) {
-                if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Bot not found: " + rel);
+                if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + rel);
                 sendJson(ex, 200, Map.of("path", rel, "flow", json.parse(Files.readString(p))));
             } else if (method.equals("PUT")) {
                 if (!Files.isDirectory(p.getParent())) throw new OoaException("STUDIO.NOT_FOUND", "Folder not found for " + rel);
@@ -269,7 +269,7 @@ public final class StudioServer {
             if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "Studio capture");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "Agent Studio capture");
             flow.put("variables", List.of(Map.of("name", "selector", "type", "String", "direction", "output"), Map.of("name", "element", "type", "Dictionary", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
@@ -292,7 +292,7 @@ public final class StudioServer {
             } else sendJson(ex, 200, Files.exists(clip) ? json.parse(Files.readString(clip)) : Map.of("steps", List.of()));
         } else if (method.equals("GET") && route.equals("builtins")) {
             Runner probe = runner(new EventSink.ListSink());
-            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "Studio", "variables",
+            Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "Agent Studio", "variables",
                     List.of(Map.of("name", "s", "type", "Any", "direction", "output"), Map.of("name", "g", "type", "Any", "direction", "output")),
                     "steps", List.of(Map.of("id", "a", "action", "core/set", "args", Map.of("variable", "s", "value", "$sys")),
                             Map.of("id", "b", "action", "core/set", "args", Map.of("variable", "g", "value", "$global"))));
@@ -304,7 +304,7 @@ public final class StudioServer {
             if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
-            flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "Studio recorder");
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "Agent Studio recorder");
             flow.put("variables", List.of(Map.of("name", "steps", "type", "List", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
@@ -336,7 +336,7 @@ public final class StudioServer {
     @SuppressWarnings("unchecked")
     Map<String, Object> dependencies(String rel) throws IOException {
         Path self = ws.resolve(rel);
-        if (!Files.isRegularFile(self) || !rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not a bot file: " + rel);
+        if (!Files.isRegularFile(self) || !rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not an agent file: " + rel);
         Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(self));
         Map<String, String> botsById = new LinkedHashMap<>();
         Map<String, List<Map<String, Object>>> stepsByBot = new LinkedHashMap<>();
@@ -414,7 +414,7 @@ public final class StudioServer {
                 try {
                     Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
                     if (String.valueOf(f.getOrDefault("description", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("description");
-                    if (String.valueOf(f.getOrDefault("id", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("bot id");
+                    if (String.valueOf(f.getOrDefault("id", "")).toLowerCase(Locale.ROOT).contains(needle)) why.add("agent id");
                     for (Map<String, Object> step : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
                         String a = String.valueOf(step.get("action"));
                         String name = names.getOrDefault(a, "");
@@ -433,7 +433,7 @@ public final class StudioServer {
     /** One configured Runner: repository, vault and bot invoker services (agents can call bots; nesting is limited). */
     Runner runner(EventSink sink) {
         BotInvoker invoker = (automationId, inputs) -> {
-            if (DEPTH.get() >= 5) throw new OoaException("AGENT.TOO_DEEP", "Bots calling agents calling bots are nested too deeply", "Simplify the agent's tools.");
+            if (DEPTH.get() >= 5) throw new OoaException("AGENT.TOO_DEEP", "Agents calling agents calling agents are nested too deeply", "Simplify the agent's tools.");
             DEPTH.set(DEPTH.get() + 1);
             try { return runner(new EventSink.ListSink()).run(new FolderRepository().get(automationId, "production"), inputs, new Runner.RunOptions().maxRunSeconds(600)); }
             finally { DEPTH.set(DEPTH.get() - 1); }
@@ -454,7 +454,7 @@ public final class StudioServer {
             Map<String, Object> in = new LinkedHashMap<>();
             inputs.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
             return runner(new EventSink.ListSink()).run(flow, in, new Runner.RunOptions().maxRunSeconds(3600));
-        } catch (IOException e) { throw new OoaException("STUDIO.NOT_FOUND", "Cannot read bot " + botPath + ": " + e.getMessage()); }
+        } catch (IOException e) { throw new OoaException("STUDIO.NOT_FOUND", "Cannot read agent " + botPath + ": " + e.getMessage()); }
     }
 
     /** Child bots (core/run_bot) resolve to any bot in the workspace with that automation id. */
@@ -469,7 +469,7 @@ public final class StudioServer {
                 }
             } catch (IOException e) { throw new OoaException("REPO.IO", e.getMessage()); }
             throw new OoaException("REPO.NOT_FOUND", "Automation '" + automationId + "' not found in the workspace",
-                    "Save the child bot anywhere in the workspace; its bot id must match.");
+                    "Save the child agent anywhere in the workspace; its agent id must match.");
         }
     }
 

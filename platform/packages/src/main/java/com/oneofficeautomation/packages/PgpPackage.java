@@ -31,7 +31,7 @@ public final class PgpPackage {
         ProcessRunner.Result r;
         try { r = ProcessRunner.run(ctx, cmd, ctx.workDir(), stdin, 300); }
         catch (ActionException e) {
-            if ("PROCESS.NOT_FOUND".equals(e.code())) throw new ActionException("PGP.NOT_INSTALLED", "GnuPG is not installed on this device", "Install Gpg4win (Windows) or GnuPG, or set OOA_GPG.");
+            if ("PROCESS.NOT_FOUND".equals(e.code())) throw new ActionException("PGP.NOT_INSTALLED", "GnuPG is not installed on this runner", "Install Gpg4win (Windows) or GnuPG, or set OOA_GPG.");
             throw e;
         }
         return r;
@@ -49,7 +49,7 @@ public final class PgpPackage {
         return f.toString();
     }
 
-    private static final String D_HOME = "Separate GnuPG key folder for this bot; the device user's keyring when empty.";
+    private static final String D_HOME = "Separate GnuPG key folder for this agent; the runner user's keyring when empty.";
 
     @Action(id = "import_key", name = "Import key", category = "Keys", capabilities = "filesystem", description = "Import a public or private key file (.asc or .gpg).")
     @Output(name = "fingerprints", type = OoaType.LIST, description = "Fingerprints of imported keys.")

@@ -53,8 +53,8 @@ public final class ScriptPackage {
                     last = e;
                 }
             }
-            throw new ActionException("SCRIPT.INTERPRETER_NOT_FOUND", "None of " + interpreters + " is installed on this device",
-                    "Install the interpreter on the device or add it to the PATH.", false, last == null ? null : Map.of("detail", last.getMessage()));
+            throw new ActionException("SCRIPT.INTERPRETER_NOT_FOUND", "None of " + interpreters + " is installed on this runner",
+                    "Install the interpreter on the runner or add it to the PATH.", false, last == null ? null : Map.of("detail", last.getMessage()));
         } finally {
             if (temp != null) try { Files.deleteIfExists(temp); } catch (IOException ignored) { }
         }
@@ -123,7 +123,7 @@ public final class ScriptPackage {
             @Input(name = "input", type = OoaType.STRING, required = false, description = D_INPUT) String input,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail) {
-        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "VBScript runs only on Windows", "Run this bot on a Windows device.");
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "VBScript runs only on Windows", "Run this agent on a Windows runner.");
         return run(ctx, List.of("cscript"), List.of("//NoLogo"), ".vbs", script, file, args, input, timeout, fail);
     }
 }

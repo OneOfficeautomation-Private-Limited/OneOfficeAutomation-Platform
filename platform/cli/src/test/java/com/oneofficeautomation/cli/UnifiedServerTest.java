@@ -57,7 +57,7 @@ class UnifiedServerTest {
             assertEquals(200, call(base, "GET", "/studio/studio.js", null, null, null).status());
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));
             assertEquals("/studio/", call(base, "GET", "/api/health", null, null, null).json().get("studio"), "Control Room links to Studio for browsers on this computer");
-            assertTrue(call(base, "GET", "/", null, null, null).body().contains("Control Room"));
+            assertTrue(call(base, "GET", "/", null, null, null).body().contains("One Command Center"));
             assertEquals(404, call(base, "GET", "/studio-other", null, null, null).status());
 
             // ---- Studio reuses the browser's Control Room sign-in ----

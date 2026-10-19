@@ -40,7 +40,7 @@ public final class ControlRoom {
 
     static String id(String prefix) { return prefix + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16); }
     static Instant now() { return Instant.now().truncatedTo(ChronoUnit.MILLIS); }
-    static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask a Control Room administrator for the right role."); }
+    static OoaException denied(String what) { return new OoaException("CR.FORBIDDEN", "You do not have permission to " + what, "Ask a Command Center administrator for the right role."); }
     static OoaException notFound(String what) { return new OoaException("CR.NOT_FOUND", what + " not found"); }
 
     public void require(User u, String permission, String what) { if (!Rbac.allowed(u.role(), permission)) throw denied(what); }
@@ -178,35 +178,35 @@ public final class ControlRoom {
     // ===================== repository =====================
 
     public List<Map<String, Object>> repoList(User by, String q) {
-        require(by, "repo.view", "view the repository");
+        require(by, "repo.view", "view the agent repository");
         String like = "%" + (q == null ? "" : q.toLowerCase(Locale.ROOT)) + "%";
         return db.query("SELECT path, bot_id, name, description, latest_version, production_version, locked_by, locked_at, updated, updated_by FROM bots " +
                 "WHERE LOWER(path) LIKE ? OR LOWER(COALESCE(description, '')) LIKE ? OR LOWER(bot_id) LIKE ? ORDER BY path", like, like, like);
     }
 
     public List<Map<String, Object>> versions(User by, String path) {
-        require(by, "repo.view", "view the repository");
+        require(by, "repo.view", "view the agent repository");
         return db.query("SELECT version, sha256, comment, author, created FROM bot_versions WHERE path = ? ORDER BY version DESC", path);
     }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> content(String path, Object version) {
         Map<String, Object> b = db.one("SELECT latest_version, production_version FROM bots WHERE path = ?", path);
-        if (b == null) throw notFound("Bot " + path);
+        if (b == null) throw notFound("Agent " + path);
         Object v = version == null || "latest".equals(version) ? b.get("latest_version") : "production".equals(version) ? b.get("production_version") : version;
-        if (v == null) throw new OoaException("CR.NO_PRODUCTION", "Bot " + path + " has no production version", "Set a production version in Automation.");
+        if (v == null) throw new OoaException("CR.NO_PRODUCTION", "Agent " + path + " has no live production version", "Set a live production version in the agent repository.");
         Map<String, Object> row = db.one("SELECT content, version FROM bot_versions WHERE path = ? AND version = ?", path, Integer.parseInt(String.valueOf(v)));
         if (row == null) throw notFound("Version " + v + " of " + path);
         return Map.of("version", row.get("version"), "flow", JsonLite.parse((String) row.get("content")));
     }
 
-    public Map<String, Object> getBot(User by, String path, Object version) { require(by, "repo.view", "view the repository"); return content(path, version); }
+    public Map<String, Object> getBot(User by, String path, Object version) { require(by, "repo.view", "view the agent repository"); return content(path, version); }
 
     public Map<String, Object> checkout(User by, String path, String ip) {
-        require(by, "repo.checkin", "check out bots");
+        require(by, "repo.checkin", "check out agents");
         return db.tx(() -> {
             Map<String, Object> b = db.one("SELECT locked_by, locked_at FROM bots WHERE path = ?", path);
-            if (b == null) throw notFound("Bot " + path);
+            if (b == null) throw notFound("Agent " + path);
             if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by")))
                 throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by") + " since " + b.get("locked_at"), "Ask them to check it in, or an administrator to undo the check-out.");
             db.update("UPDATE bots SET locked_by = ?, locked_at = ? WHERE path = ?", by.username(), now(), path);
@@ -216,9 +216,9 @@ public final class ControlRoom {
     }
 
     public void undoCheckout(User by, String path, String ip) {
-        require(by, "repo.checkin", "check out bots");
+        require(by, "repo.checkin", "check out agents");
         Map<String, Object> b = db.one("SELECT locked_by FROM bots WHERE path = ?", path);
-        if (b == null) throw notFound("Bot " + path);
+        if (b == null) throw notFound("Agent " + path);
         if (b.get("locked_by") == null) return;
         if (!by.username().equals(b.get("locked_by")) && !Rbac.allowed(by.role(), "repo.production"))
             throw new OoaException("CR.LOCKED", "Only " + b.get("locked_by") + " or an administrator can undo this check-out");
@@ -229,16 +229,16 @@ public final class ControlRoom {
     /** Validates and stores a new version. Existing bots must be checked out by the same user. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> checkin(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, String ip) {
-        require(by, "repo.checkin", "check in bots");
+        require(by, "repo.checkin", "check in agents");
         if (path == null || !PATH.matcher(path).matches() || path.contains(".."))
-            throw new OoaException("CR.BAD_PATH", "Invalid repository path '" + path + "'", "Use folders and a name ending in .flow.json, e.g. Finance/Invoice approval.flow.json");
+            throw new OoaException("CR.BAD_PATH", "Invalid agent repository path '" + path + "'", "Use folders and a name ending in .flow.json, e.g. Finance/Invoice approval.flow.json");
         List<Map<String, Object>> problems = validator.validate(flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
-                "Fix the problems in Studio (Validate) before checking in.", false, Map.of("problems", problems));
+                "Fix the problems in Agent Studio (Validate) before checking in.", false, Map.of("problems", problems));
         String botId = String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
-            if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Bot id '" + botId + "' is already used by " + other.get("path"), "Change the bot id in Bot settings.");
+            if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Change the agent id in Agent settings.");
             Map<String, Object> b = db.one("SELECT latest_version, locked_by, production_version FROM bots WHERE path = ?", path);
             String json = JsonLite.write(flow);
             int version;
@@ -248,8 +248,8 @@ public final class ControlRoom {
                         path, botId, String.valueOf(flow.getOrDefault("name", botId)), String.valueOf(flow.getOrDefault("description", "")), 1, makeProduction ? 1 : null, now(), now(), by.username());
             } else {
                 if (!by.username().equals(b.get("locked_by")))
-                    throw new OoaException("CR.NOT_CHECKED_OUT", b.get("locked_by") == null ? "Check the bot out before checking in a new version" : "Checked out by " + b.get("locked_by"),
-                            "Use Check out first, so two people never overwrite each other's work.");
+                    throw new OoaException("CR.NOT_CHECKED_OUT", b.get("locked_by") == null ? "Check the agent out before checking in a new version" : "Checked out by " + b.get("locked_by"),
+                            "Use Agent check-out first, so two people never overwrite each other's work.");
                 version = ((Number) b.get("latest_version")).intValue() + 1;
                 db.update("UPDATE bots SET bot_id = ?, name = ?, description = ?, latest_version = ?, production_version = ?, locked_by = NULL, locked_at = NULL, updated = ?, updated_by = ? WHERE path = ?",
                         botId, String.valueOf(flow.getOrDefault("name", botId)), String.valueOf(flow.getOrDefault("description", "")), version,
@@ -263,7 +263,7 @@ public final class ControlRoom {
     }
 
     public void setProduction(User by, String path, int version, String ip) {
-        require(by, "repo.production", "set production versions");
+        require(by, "repo.production", "set live production versions");
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
         db.update("UPDATE bots SET production_version = ?, updated = ?, updated_by = ? WHERE path = ?", version, now(), by.username(), path);
         audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version), "ok", ip);
@@ -272,7 +272,7 @@ public final class ControlRoom {
     // ===================== devices and agents =====================
 
     public Map<String, Object> createRegistrationKey(User by, int hours, String ip) {
-        require(by, "devices.manage", "register devices");
+        require(by, "devices.manage", "register runners");
         String key = "ooareg_" + Security.token(24);
         db.update("INSERT INTO registration_keys (key_hash, created_by, created, expires) VALUES (?,?,?,?)", Security.sha256(key), by.username(), now(), now().plus(Duration.ofHours(Math.max(1, Math.min(168, hours)))));
         audit.record(by.username(), "device.registration_key", "device", null, Map.of("hours", hours), "ok", ip);
@@ -312,7 +312,7 @@ public final class ControlRoom {
     }
 
     public List<Map<String, Object>> devices(User by) {
-        require(by, "devices.view", "view devices");
+        require(by, "devices.view", "view runners");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
@@ -325,16 +325,16 @@ public final class ControlRoom {
     }
 
     public void renameDevice(User by, String deviceId, String name, String ip) {
-        require(by, "devices.manage", "manage devices");
+        require(by, "devices.manage", "manage runners");
         String n = name == null ? "" : name.trim();
-        if (n.isEmpty() || n.length() > 120) throw new OoaException("CR.BAD_INPUT", "Device names have 1 to 120 characters");
-        if (db.update("UPDATE devices SET name = ? WHERE id = ?", n, deviceId) == 0) throw notFound("Device");
+        if (n.isEmpty() || n.length() > 120) throw new OoaException("CR.BAD_INPUT", "Runner names have 1 to 120 characters");
+        if (db.update("UPDATE devices SET name = ? WHERE id = ?", n, deviceId) == 0) throw notFound("Runner");
         audit.record(by.username(), "device.rename", "device", deviceId, Map.of("name", n), "ok", ip);
     }
 
     public void setDeviceEnabled(User by, String deviceId, boolean enabled, String ip) {
-        require(by, "devices.manage", "manage devices");
-        if (db.update("UPDATE devices SET enabled = ? WHERE id = ?", enabled, deviceId) == 0) throw notFound("Device");
+        require(by, "devices.manage", "manage runners");
+        if (db.update("UPDATE devices SET enabled = ? WHERE id = ?", enabled, deviceId) == 0) throw notFound("Runner");
         audit.record(by.username(), enabled ? "device.enable" : "device.disable", "device", deviceId, null, "ok", ip);
     }
 
@@ -360,8 +360,8 @@ public final class ControlRoom {
         Map<String, Object> c = content(path, "production");
         Map<String, Object> flow = (Map<String, Object>) c.get("flow");
         Map<String, Object> dev = db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
-        if (dev == null) throw notFound("Device " + deviceId);
-        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That device is disabled");
+        if (dev == null) throw notFound("Runner " + deviceId);
+        if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled");
         Map<String, Object> clean = new LinkedHashMap<>();
         Map<String, Map<String, Object>> declared = new HashMap<>();
         for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) {
@@ -370,7 +370,7 @@ public final class ControlRoom {
         }
         for (var e : (inputs == null ? Map.<String, Object>of() : inputs).entrySet()) {
             Map<String, Object> var = declared.get(e.getKey());
-            if (var == null) throw new OoaException("CR.BAD_INPUT", "The bot has no input named '" + e.getKey() + "'", "Inputs: " + declared.keySet());
+            if (var == null) throw new OoaException("CR.BAD_INPUT", "The agent has no input named '" + e.getKey() + "'", "Inputs: " + declared.keySet());
             if ("Credential".equals(var.get("type")) && !(e.getValue() instanceof Map<?, ?> m && m.get("$credential") instanceof String))
                 throw new OoaException("CR.BAD_INPUT", "Input '" + e.getKey() + "' is a Credential: give a vault reference {\"$credential\": \"locker/credential/attribute\"}, never the secret itself");
             clean.put(e.getKey(), e.getValue());
@@ -594,7 +594,7 @@ public final class ControlRoom {
         Instant cutoff = now().minus(Duration.ofMinutes(2));
         for (Map<String, Object> r : db.query("SELECT r.id FROM runs r JOIN devices d ON d.id = r.device_id WHERE r.status = 'running' AND (d.last_seen IS NULL OR d.last_seen < ?)", cutoff)) {
             db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", now(),
-                    JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The device stopped reporting while the bot was running", "suggestedFix", "Check the device is on and the Bot Agent is running.")), r.get("id"));
+                    JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The runner stopped reporting while the agent was running", "suggestedFix", "Check the runner is on and the One Runner is running.")), r.get("id"));
             audit.record("system", "run.lost", "run", (String) r.get("id"), null, "failed", null);
         }
     }
@@ -629,7 +629,7 @@ public final class ControlRoom {
         String tz = String.valueOf(s.getOrDefault("time_zone", "UTC"));
         try { ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
         content(String.valueOf(s.get("bot_path")), "production");
-        if (db.one("SELECT id FROM devices WHERE id = ?", s.get("device_id")) == null) throw notFound("Device");
+        if (db.one("SELECT id FROM devices WHERE id = ?", s.get("device_id")) == null) throw notFound("Runner");
         String sid = id("sch");
         Map<String, Object> row = new HashMap<>(s);
         row.put("time_zone", tz);
@@ -690,8 +690,8 @@ public final class ControlRoom {
         String kind = String.valueOf(t.get("kind"));
         if (!Set.of("file", "webhook").contains(kind)) throw new OoaException("CR.BAD_TRIGGER", "kind must be file or webhook");
         content(String.valueOf(t.get("bot_path")), "production");
-        if (db.one("SELECT id FROM devices WHERE id = ?", t.get("device_id")) == null) throw notFound("Device");
-        if (kind.equals("file") && (t.get("folder") == null || String.valueOf(t.get("folder")).isBlank())) throw new OoaException("CR.BAD_TRIGGER", "A file trigger needs a folder on the device");
+        if (db.one("SELECT id FROM devices WHERE id = ?", t.get("device_id")) == null) throw notFound("Runner");
+        if (kind.equals("file") && (t.get("folder") == null || String.valueOf(t.get("folder")).isBlank())) throw new OoaException("CR.BAD_TRIGGER", "A file trigger needs a folder on the runner");
         String tid = id("trg");
         String secret = kind.equals("webhook") ? Security.token(24) : null;
         db.update("INSERT INTO triggers (id, name, bot_path, device_id, kind, folder, pattern, secret_hash, enabled, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -762,7 +762,7 @@ public final class ControlRoom {
 
     public void createLocker(User by, String name, String description, Object consumers, String ip) {
         if (!Rbac.allowed(by.role(), "lockers.manage") && !Rbac.allowed(by.role(), "lockers.own")) throw denied("create lockers");
-        if (name == null || !NAME.matcher(name).matches()) throw new OoaException("CR.BAD_INPUT", "Locker names use letters, digits, . _ -");
+        if (name == null || !NAME.matcher(name).matches()) throw new OoaException("CR.BAD_INPUT", "Vault folder names use letters, digits, . _ -");
         List<String> cons = csv(consumers);
         for (String c : cons) if (!c.startsWith("role:") && !c.startsWith("user:")) throw new OoaException("CR.BAD_INPUT", "Consumers look like role:bot_runner or user:jane");
         db.update("INSERT INTO lockers (name, description, owners, consumers, created_by) VALUES (?,?,?,?,?)", name, description, by.username(), String.join(",", cons), by.username());
@@ -771,10 +771,10 @@ public final class ControlRoom {
 
     public void updateLocker(User by, String name, Object consumers, Object owners, String ip) {
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", name);
-        if (l == null) throw notFound("Locker");
-        if (!ownsLocker(by, l)) throw denied("change this locker");
+        if (l == null) throw notFound("Vault folder");
+        if (!ownsLocker(by, l)) throw denied("change this vault folder");
         if (consumers != null) db.update("UPDATE lockers SET consumers = ? WHERE name = ?", String.join(",", csv(consumers)), name);
-        if (owners != null) { List<String> o = csv(owners); if (o.isEmpty()) throw new OoaException("CR.BAD_INPUT", "A locker needs at least one owner"); db.update("UPDATE lockers SET owners = ? WHERE name = ?", String.join(",", o), name); }
+        if (owners != null) { List<String> o = csv(owners); if (o.isEmpty()) throw new OoaException("CR.BAD_INPUT", "A vault folder needs at least one owner"); db.update("UPDATE lockers SET owners = ? WHERE name = ?", String.join(",", o), name); }
         audit.record(by.username(), "locker.update", "locker", name, Map.of("consumers", String.valueOf(consumers), "owners", String.valueOf(owners)), "ok", ip);
     }
 
@@ -800,8 +800,8 @@ public final class ControlRoom {
 
     public void setCredential(User by, String locker, String name, String attribute, String value, String ip) {
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", locker);
-        if (l == null) throw notFound("Locker");
-        if (!ownsLocker(by, l)) throw denied("change credentials in this locker");
+        if (l == null) throw notFound("Vault folder");
+        if (!ownsLocker(by, l)) throw denied("change credentials in this vault folder");
         if (!NAME.matcher(name == null ? "" : name).matches() || !NAME.matcher(attribute == null ? "" : attribute).matches()) throw new OoaException("CR.BAD_INPUT", "Credential and attribute names use letters, digits, . _ -");
         if (value == null || value.isEmpty()) throw new OoaException("CR.BAD_INPUT", "The value is empty");
         String ref = locker + "/" + name + "/" + attribute;
@@ -816,8 +816,8 @@ public final class ControlRoom {
 
     public void deleteCredential(User by, String locker, String name, String attribute, String ip) {
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", locker);
-        if (l == null) throw notFound("Locker");
-        if (!ownsLocker(by, l)) throw denied("change credentials in this locker");
+        if (l == null) throw notFound("Vault folder");
+        if (!ownsLocker(by, l)) throw denied("change credentials in this vault folder");
         db.update("DELETE FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", locker, name, attribute);
         audit.record(by.username(), "credential.delete", "credential", locker + "/" + name + "/" + attribute, null, "ok", ip);
     }
@@ -827,12 +827,12 @@ public final class ControlRoom {
         Map<String, Object> r = runOnDevice(d, runId);
         String[] p = ref == null ? new String[0] : ref.split("/");
         String actor = "agent:" + d.get("name") + " for " + r.get("requested_by");
-        if (!"running".equals(r.get("status")) || p.length != 3) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null); throw new OoaException("VAULT.DENIED", "Credentials are only available to running bots"); }
+        if (!"running".equals(r.get("status")) || p.length != 3) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null); throw new OoaException("VAULT.DENIED", "Credentials are only available to running agents"); }
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         Map<String, Object> u = db.one("SELECT role FROM users WHERE username = ?", r.get("requested_by"));
         if (l == null || u == null || !consumes((String) r.get("requested_by"), (String) u.get("role"), l)) {
             audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null);
-            throw new OoaException("VAULT.DENIED", "'" + r.get("requested_by") + "' may not use locker '" + p[0] + "'", "Ask the locker owner to add the user or role as a consumer.");
+            throw new OoaException("VAULT.DENIED", "'" + r.get("requested_by") + "' may not use vault folder '" + p[0] + "'", "Ask the vault folder owner to add the user or role as a consumer.");
         }
         Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
         if (c == null) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found"); }
@@ -841,15 +841,15 @@ public final class ControlRoom {
     }
 
     public List<Map<String, Object>> globals(User by) {
-        require(by, "globals.view", "view global values");
+        require(by, "globals.view", "view shared values");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> g : db.query("SELECT * FROM global_values ORDER BY name")) { Map<String, Object> m = new LinkedHashMap<>(g); m.remove("json_value"); m.put("value", JsonLite.parse((String) g.get("json_value"))); out.add(m); }
         return out;
     }
 
     public void setGlobal(User by, String name, Object value, String ip) {
-        require(by, "globals.manage", "manage global values");
-        if (name == null || !name.matches("^[A-Za-z_][A-Za-z0-9_]{0,79}$")) throw new OoaException("CR.BAD_INPUT", "Global value names use letters, digits and _ (not starting with a digit)");
+        require(by, "globals.manage", "manage shared values");
+        if (name == null || !name.matches("^[A-Za-z_][A-Za-z0-9_]{0,79}$")) throw new OoaException("CR.BAD_INPUT", "Shared value names use letters, digits and _ (not starting with a digit)");
         String json = JsonLite.write(value);
         db.tx(() -> {
             if (db.update("UPDATE global_values SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), name) == 0)
@@ -860,13 +860,13 @@ public final class ControlRoom {
     }
 
     public void deleteGlobal(User by, String name, String ip) {
-        require(by, "globals.manage", "manage global values");
+        require(by, "globals.manage", "manage shared values");
         db.update("DELETE FROM global_values WHERE name = ?", name);
         audit.record(by.username(), "global.delete", "global", name, null, "ok", ip);
     }
 
     public List<Map<String, Object>> auditLog(User by, String q, int limit) {
-        require(by, "audit.view", "view the audit log");
+        require(by, "audit.view", "view the audit trail");
         String like = "%" + (q == null ? "" : q.toLowerCase(Locale.ROOT)) + "%";
         return db.query("SELECT seq, ts, actor, action, object_type, object_id, details, result, ip FROM audit WHERE LOWER(actor) LIKE ? OR LOWER(action) LIKE ? OR LOWER(COALESCE(object_id, '')) LIKE ? " +
                 "ORDER BY seq DESC LIMIT " + Math.max(1, Math.min(1000, limit)), like, like, like);

@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.nio.file.*;
 import java.util.*;
 
-@OoaPackage(id = "ooa.application", name = "Application", version = "1.0.0", description = "Open files, start, run and stop programs on the device.")
+@OoaPackage(id = "ooa.application", name = "Application", version = "1.0.0", description = "Open files, start, run and stop programs on the runner.")
 public final class ApplicationPackage {
 
     private static List<String> command(String program, List<Object> args) {
@@ -26,7 +26,7 @@ public final class ApplicationPackage {
         Path p = ctx.resolvePath(path);
         if (!Files.exists(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
         if (GraphicsEnvironment.isHeadless() || !Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN))
-            throw new ActionException("DESKTOP.NO_SESSION", "No desktop session to open files in", "Run this bot on a device with a signed-in desktop (attended, or unattended with auto-login).");
+            throw new ActionException("DESKTOP.NO_SESSION", "No desktop session to open files in", "Run this agent on a runner with a signed-in desktop (attended, or unattended with auto-login).");
         try { Desktop.getDesktop().open(p.toFile()); } catch (IOException e) { throw new ActionException("APPLICATION.OPEN_FAILED", e.getMessage(), "Check a default application is set for this file type."); }
         return Map.of();
     }

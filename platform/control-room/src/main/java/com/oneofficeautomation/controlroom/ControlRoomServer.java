@@ -38,7 +38,7 @@ public final class ControlRoomServer {
     public void start() throws IOException {
         try { server = HttpServer.create(new InetSocketAddress(host, port), 0); }
         catch (java.net.BindException e) {
-            throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Control Room may still be running", "Stop it, or start with --port " + (port + 1) + ".");
+            throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Command Center may still be running", "Stop it, or start with --port " + (port + 1) + ".");
         }
         server.setExecutor(Executors.newFixedThreadPool(16, r -> { Thread t = new Thread(r, "ooa-cr-http"); t.setDaemon(true); return t; }));
         server.createContext("/", this::handle);
@@ -69,7 +69,7 @@ public final class ControlRoomServer {
             };
             sendJson(ex, status, Map.of("error", e.toMap()));
         } catch (RuntimeException e) {
-            sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see the Control Room console log")));
+            sendJson(ex, 500, Map.of("error", Map.of("code", "CR.INTERNAL", "message", "Internal error; see the Command Center console log")));
             e.printStackTrace();
         } finally { ex.close(); }
     }
@@ -118,7 +118,7 @@ public final class ControlRoomServer {
 
     private Map<String, Object> device(HttpExchange ex) {
         Map<String, Object> d = cr.device(ex.getRequestHeaders().getFirst("X-OOA-Device"), ex.getRequestHeaders().getFirst("X-OOA-Device-Secret"));
-        if (d == null) throw new OoaException("CR.UNAUTHENTICATED", "Unknown or disabled device", "Re-register the Bot Agent with a new registration key.");
+        if (d == null) throw new OoaException("CR.UNAUTHENTICATED", "Unknown or disabled runner", "Re-register the One Runner with a new registration key.");
         return d;
     }
 
@@ -264,7 +264,7 @@ public final class ControlRoomServer {
             }
             case "audit" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("records", cr.auditLog(u, q.get("q"), Integer.parseInt(q.getOrDefault("limit", "200")))));
-                else if (m.equals("GET") && route.equals("audit/verify")) { cr.require(u, "audit.view", "view the audit log"); sendJson(ex, 200, cr.audit.verify()); }
+                else if (m.equals("GET") && route.equals("audit/verify")) { cr.require(u, "audit.view", "view the audit trail"); sendJson(ex, 200, cr.audit.verify()); }
                 else notFound(ex);
             }
             default -> notFound(ex);

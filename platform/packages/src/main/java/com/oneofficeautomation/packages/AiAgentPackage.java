@@ -13,7 +13,7 @@ import java.util.*;
  * arguments checked against each bot's input variables, sensitive bots need a person's approval, step and token
  * limits, Credential inputs never exposed to the model, and every model call in the AI governance log.
  */
-@OoaPackage(id = "ooa.ai_agent", name = "AI Agents", version = "1.0.0", description = "Run an AI agent that works toward a goal using your bots as tools, with approvals and limits.")
+@OoaPackage(id = "ooa.ai_agent", name = "AI Agents", version = "1.0.0", description = "Run an AI agent that works toward a goal using your agents as tools, with approvals and limits.")
 public final class AiAgentPackage {
 
     record Tool(String name, String botId, Map<String, Object> flow, Map<String, Object> schema, boolean sensitive) {}
@@ -23,15 +23,15 @@ public final class AiAgentPackage {
         Map<String, Object> flow = repo.get(botId, "production");
         Object desc = flow.get("description");
         if (!(desc instanceof String d) || d.isBlank())
-            throw new ActionException("AGENT.TOOL_UNDOCUMENTED", "Bot '" + botId + "' has no description", "Add a description in Bot settings; the agent reads it to decide when to use the bot.");
+            throw new ActionException("AGENT.TOOL_UNDOCUMENTED", "Agent '" + botId + "' has no description", "Add a description in Agent settings; the AI agent reads it to decide when to call this agent.");
         Map<String, Object> props = new LinkedHashMap<>();
         List<Object> required = new ArrayList<>();
         for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
             Map<String, Object> v = (Map<String, Object>) o;
             if (!"input".equals(v.get("direction"))) continue;
             if ("Credential".equals(v.get("type"))) {
-                if (Boolean.TRUE.equals(v.get("required"))) throw new ActionException("AGENT.TOOL_NEEDS_SECRET", "Bot '" + botId + "' needs a Credential input, which a model must never supply",
-                        "Read the credential inside the bot instead of taking it as an input.");
+                if (Boolean.TRUE.equals(v.get("required"))) throw new ActionException("AGENT.TOOL_NEEDS_SECRET", "Agent '" + botId + "' needs a Credential input, which a model must never supply",
+                        "Read the credential inside the agent instead of taking it as an input.");
                 continue;
             }
             Map<String, Object> s = new LinkedHashMap<>(SchemaTypes.forType(OoaType.fromFlowName(String.valueOf(v.get("type")))));
@@ -59,7 +59,7 @@ public final class AiAgentPackage {
         final boolean[] ok = {false};
         try {
             javax.swing.SwingUtilities.invokeAndWait(() -> ok[0] = JOptionPane.showConfirmDialog(null,
-                    "The AI agent wants to run the sensitive bot '" + t.botId() + "' with:\n" + JsonLite.write(args) + "\n\nAllow it?",
+                    "The AI agent wants to run the sensitive agent '" + t.botId() + "' with:\n" + JsonLite.write(args) + "\n\nAllow it?",
                     "ONEOFFICEAUTOMATION: approval needed", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION);
         } catch (Exception e) { return false; }
         return ok[0];
@@ -67,7 +67,7 @@ public final class AiAgentPackage {
 
     @SuppressWarnings("unchecked")
     @Action(id = "run", name = "Run AI agent", category = "AI Agents", timeoutSeconds = 1800, capabilities = {"network", "ai"},
-            description = "Give an agent a goal and a set of bots it may use; it plans, calls the bots and returns its final answer and a trace.")
+            description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.")
     @Output(name = "answer", type = OoaType.STRING, description = "The agent's final answer.")
     @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached or stopped.")
     @Output(name = "trace", type = OoaType.LIST, description = "Each model turn and tool call, for review and audit.")
@@ -76,7 +76,7 @@ public final class AiAgentPackage {
             @Input(name = "goal", type = OoaType.STRING, description = "What the agent should achieve, e.g. the customer email to handle.") String goal,
             @Input(name = "instructions", type = OoaType.STRING, required = false, defaultValue = "\"You are a careful business assistant. Use the tools to act; never invent results.\"", description = "Role, policy and rules for the agent.") String instructions,
             @Input(name = "tools", type = OoaType.LIST, description = "Bot ids the agent may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
-            @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Bot ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
+            @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
             @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = GenAiPackage.D_PROVIDER) String provider,
             @Input(name = "model", type = OoaType.STRING, description = GenAiPackage.D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
@@ -90,7 +90,7 @@ public final class AiAgentPackage {
         if (sensitiveIds != null) for (Object o : sensitiveIds) sensitive.add(Values.text(o));
         Map<String, Tool> tools = new LinkedHashMap<>();
         for (Object o : toolIds) { Tool t = tool(repo, Values.text(o), sensitive.contains(Values.text(o))); tools.put(t.name(), t); }
-        if (tools.isEmpty()) throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one bot to use");
+        if (tools.isEmpty()) throw new ActionException("AGENT.NO_TOOLS", "Give the agent at least one agent to use");
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));
@@ -127,7 +127,7 @@ public final class AiAgentPackage {
                 } else if (t.sensitive() && !approve(ctx, t, tc.args())) {
                     content = JsonLite.write(Map.of("status", "denied", "error", "A person did not approve this action. Do not retry; explain the outcome."));
                     trace.add(Map.of("type", "approval", "tool", t.botId(), "status", "denied"));
-                    ctx.warn("Sensitive bot " + t.botId() + " was not approved");
+                    ctx.warn("Sensitive agent " + t.botId() + " was not approved");
                 } else {
                     if (t.sensitive()) trace.add(Map.of("type", "approval", "tool", t.botId(), "status", "approved"));
                     RunResult res = invoker.invoke(t.botId(), tc.args());

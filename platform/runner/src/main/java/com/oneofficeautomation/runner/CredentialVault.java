@@ -30,8 +30,8 @@ public interface CredentialVault {
             if (parts.length != 3) throw new OoaException("VAULT.BAD_REF", "Bad credential reference '" + ref + "'", "Use locker/credential/attribute.");
             Set<String> allowed = consumers.get(parts[0]);
             if (allowed != null && !allowed.contains(principal))
-                throw new OoaException("VAULT.DENIED", "'" + principal + "' is not a consumer of locker '" + parts[0] + "'",
-                        "Ask the locker owner to add you or your role as a consumer.");
+                throw new OoaException("VAULT.DENIED", "'" + principal + "' is not a consumer of vault folder '" + parts[0] + "'",
+                        "Ask the vault folder owner to add you or your role as a consumer.");
             String v = values.get(ref);
             if (v == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found");
             return new SecureString(v, ref);

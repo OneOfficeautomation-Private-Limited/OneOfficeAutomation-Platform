@@ -24,7 +24,7 @@ public final class ExcelDesktopPackage {
 
     private static ProcessRunner.Result excel(ActionContext ctx, String body, List<String> args, int timeout) {
         if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Desktop Excel automation needs Windows with Excel installed",
-                "Use Excel (no Office needed) for reading and writing cells on any device.");
+                "Use Excel (no Office needed) for reading and writing cells on any runner.");
         Path script = null;
         try {
             script = Files.createTempFile("ooa-excel-", ".ps1");
@@ -35,7 +35,7 @@ public final class ExcelDesktopPackage {
             if (r.exitCode() != 0) {
                 String err = r.stderr().isBlank() ? r.stdout() : r.stderr();
                 if (err.contains("80040154") || err.contains("Retrieving the COM class factory"))
-                    throw new ActionException("EXCEL_DESKTOP.NOT_INSTALLED", "Microsoft Excel is not installed on this device", "Install Excel, or use Excel (no Office needed).");
+                    throw new ActionException("EXCEL_DESKTOP.NOT_INSTALLED", "Microsoft Excel is not installed on this runner", "Install Excel, or use Excel (no Office needed).");
                 throw new ActionException("EXCEL_DESKTOP.FAILED", "Excel reported an error: " + ApplicationPackage.tail(err), "Check the workbook, macro name and that macros are allowed.");
             }
             return r;

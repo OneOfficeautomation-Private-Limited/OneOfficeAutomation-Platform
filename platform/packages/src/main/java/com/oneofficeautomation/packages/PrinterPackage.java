@@ -15,7 +15,7 @@ import java.util.*;
 @OoaPackage(id = "ooa.printer", name = "Printer", version = "1.0.0", description = "List printers and print files.")
 public final class PrinterPackage {
 
-    @Action(id = "list_printers", name = "Get printers", category = "Printer", idempotent = true, description = "List the printers installed on the device.")
+    @Action(id = "list_printers", name = "Get printers", category = "Printer", idempotent = true, description = "List the printers installed on the runner.")
     @Output(name = "printers", type = OoaType.LIST, description = "Printer names.")
     @Output(name = "default_printer", type = OoaType.STRING, description = "Default printer name, or empty.")
     public Map<String, Object> list(ActionContext ctx) {
@@ -35,7 +35,7 @@ public final class PrinterPackage {
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
         if (printer == null || printer.isBlank()) {
             if (GraphicsEnvironment.isHeadless() || !Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.PRINT))
-                throw new ActionException("PRINTER.NO_DEFAULT_APP", "Cannot print with the default application on this device", "Give a printer name, or run on a desktop session.");
+                throw new ActionException("PRINTER.NO_DEFAULT_APP", "Cannot print with the default application on this runner", "Give a printer name, or run on a desktop session.");
             try { for (int i = 0; i < copies; i++) Desktop.getDesktop().print(p.toFile()); }
             catch (IOException e) { throw new ActionException("PRINTER.FAILED", e.getMessage(), "Check a default application is set for this file type."); }
             return Map.of();

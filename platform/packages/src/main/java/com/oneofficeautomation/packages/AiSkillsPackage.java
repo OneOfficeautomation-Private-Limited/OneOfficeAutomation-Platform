@@ -12,14 +12,14 @@ import java.util.stream.Stream;
  * ai-skills/summarise_complaint.json = {"description": "...", "system": "...", "prompt": "Summarise: ${text}",
  * "provider": "openai", "model": "gpt-4o-mini", "output": "text" | "json", "temperature": 0}. Keys never go in skill files.
  */
-@OoaPackage(id = "ooa.ai_skills", name = "AI Skills", version = "1.0.0", description = "Run saved, reusable prompt templates (AI Skills) with your values.")
+@OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt blueprints (Prompt Skills) with your values.")
 public final class AiSkillsPackage {
 
     @SuppressWarnings("unchecked")
     static Map<String, Object> load(ActionContext ctx, String name) {
         if (!name.matches("^[A-Za-z0-9_-]{1,80}$")) throw new ActionException("AI.BAD_SKILL", "Invalid skill name '" + name + "'", "Use letters, digits, - and _.");
         Path p = LlmClient.skillsDir(ctx).resolve(name + ".json");
-        if (!Files.isRegularFile(p)) throw new ActionException("AI.SKILL_NOT_FOUND", "AI Skill '" + name + "' not found", "Create ai-skills/" + name + ".json in the workspace.");
+        if (!Files.isRegularFile(p)) throw new ActionException("AI.SKILL_NOT_FOUND", "Prompt Skill '" + name + "' not found", "Create ai-skills/" + name + ".json in the workspace.");
         try {
             Object v = JsonLite.parse(Files.readString(p));
             if (!(v instanceof Map) || !(((Map<?, ?>) v).get("prompt") instanceof String))
@@ -29,13 +29,13 @@ public final class AiSkillsPackage {
         } catch (IllegalArgumentException e) { throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' is not valid JSON: " + e.getMessage(), null); }
     }
 
-    @Action(id = "run", name = "Run AI Skill", category = "AI Skills", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "Fill a saved prompt template with your values and run it; returns text, or a Dictionary for JSON skills.")
+    @Action(id = "run", name = "Run Prompt Skill", category = "Prompt Skills", timeoutSeconds = 300, capabilities = {"network", "ai"},
+            description = "Fill a saved prompt blueprint with your values and run it; returns text, or a Dictionary for JSON skills.")
     @Output(name = "text", type = OoaType.STRING, description = "The answer as text.")
     @Output(name = "json", description = "The answer parsed as JSON, for skills with output json.")
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "skill", type = OoaType.STRING, example = "summarise_complaint", description = "Skill name (file name in ai-skills without .json).") String name,
-            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the template's ${...} placeholders.") Map<String, Object> values,
+            @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the blueprint's ${...} placeholders.") Map<String, Object> values,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "model", type = OoaType.STRING, required = false, description = "Override the skill's model.") String model,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base) {
@@ -55,7 +55,7 @@ public final class AiSkillsPackage {
         return Out.of("text", text == null ? "" : text, "json", json ? LlmClient.parseJson(text) : null);
     }
 
-    @Action(id = "list", name = "List AI Skills", category = "AI Skills", idempotent = true, description = "List the AI Skills saved in the workspace with their descriptions.")
+    @Action(id = "list", name = "List Prompt Skills", category = "Prompt Skills", idempotent = true, description = "List the Prompt Skills saved in the workspace with their descriptions.")
     @Output(name = "skills", type = OoaType.TABLE, description = "Columns: name, description, model, output.")
     public Map<String, Object> list(ActionContext ctx) {
         List<Object> rows = new ArrayList<>();

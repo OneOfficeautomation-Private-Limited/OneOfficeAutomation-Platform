@@ -12,7 +12,7 @@ public final class ServicesPackage {
     private static final Pattern STATE = Pattern.compile("STATE\\s*:\\s*\\d+\\s+(\\w+)");
 
     private static void windows() {
-        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Windows services exist only on Windows", "Run this bot on a Windows device.");
+        if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "Windows services exist only on Windows", "Run this agent on a Windows runner.");
     }
 
     private static void checkName(String name) {
@@ -31,7 +31,7 @@ public final class ServicesPackage {
         windows(); checkName(name);
         ProcessRunner.Result r = ProcessRunner.run(ctx, List.of("sc.exe", verb, name), null, null, 30);
         String out = r.stdout();
-        if (out.contains(" 5:") || out.contains("FAILED 5")) throw new ActionException("SERVICES.ACCESS_DENIED", "Access denied to " + verb + " '" + name + "'", "Run the bot agent with administrator rights.");
+        if (out.contains(" 5:") || out.contains("FAILED 5")) throw new ActionException("SERVICES.ACCESS_DENIED", "Access denied to " + verb + " '" + name + "'", "Run the agent with administrator rights.");
         if (r.exitCode() != 0 && !out.contains("1056") && !out.contains("1062"))
             throw new ActionException("SERVICES.FAILED", "sc " + verb + " " + name + " failed: " + ApplicationPackage.tail(out), null);
         long end = System.currentTimeMillis() + timeoutSeconds * 1000L;

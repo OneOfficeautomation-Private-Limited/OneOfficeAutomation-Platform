@@ -149,10 +149,10 @@ final class Workspace {
                 String lang = type.substring(7);
                 file = base + switch (lang) { case "python" -> ".py"; case "powershell" -> ".ps1"; case "vbscript" -> ".vbs"; default -> ".js"; };
                 content = switch (lang) {
-                    case "python" -> "# Python script run by the Run Python command.\n# The step's 'input' arrives on standard input; print JSON to return values in the 'json' output.\nimport sys, json\n\ndata = sys.stdin.read()\nprint(json.dumps({\"received\": data}))\n";
+                    case "python" -> "# Python script run by the Run Python action.\n# The step's 'input' arrives on standard input; print JSON to return values in the 'json' output.\nimport sys, json\n\ndata = sys.stdin.read()\nprint(json.dumps({\"received\": data}))\n";
                     case "powershell" -> "# PowerShell script run by the Run PowerShell command.\n# The step's 'input' arrives on standard input; write JSON to return values in the 'json' output.\n$data = [Console]::In.ReadToEnd()\n@{ received = $data } | ConvertTo-Json\n";
                     case "vbscript" -> "' VBScript run by the Run VBScript command (Windows only).\nWScript.Echo \"Hello from VBScript\"\n";
-                    default -> "// JavaScript run by the Run JavaScript command (Node.js).\n// The step's 'input' arrives on standard input; print JSON to return values in the 'json' output.\nlet data = \"\";\nprocess.stdin.on(\"data\", (c) => (data += c));\nprocess.stdin.on(\"end\", () => console.log(JSON.stringify({ received: data })));\n";
+                    default -> "// JavaScript run by the Run JavaScript action (Node.js).\n// The step's 'input' arrives on standard input; print JSON to return values in the 'json' output.\nlet data = \"\";\nprocess.stdin.on(\"data\", (c) => (data += c));\nprocess.stdin.on(\"end\", () => console.log(JSON.stringify({ received: data })));\n";
                 };
             }
             default -> throw new OoaException("WORKSPACE.BAD_TYPE", "Unknown item type '" + type + "'", "Use form, process, document, skill or script-python/powershell/vbscript/javascript.");
@@ -173,7 +173,7 @@ final class Workspace {
     String readItem(String path) throws IOException {
         Path p = resolve(path);
         if (!Files.isRegularFile(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "Studio cannot open this kind of file: " + path, "Open it with another program.");
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "Agent Studio cannot open this kind of file: " + path, "Open it with another program.");
         if (Files.size(p) > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The file is larger than 2 MB: " + path);
         return Files.readString(p, java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -181,7 +181,7 @@ final class Workspace {
     /** Saves a text item atomically; JSON items must stay valid JSON objects. */
     String writeItem(String path, String text, java.util.function.Function<String, Object> parseJson) throws IOException {
         Path p = resolve(path);
-        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "Studio cannot save this kind of file: " + path);
+        if (!editable(p.getFileName().toString())) throw new OoaException("WORKSPACE.NOT_EDITABLE", "Agent Studio cannot save this kind of file: " + path);
         if (p.getParent() == null || !Files.isDirectory(p.getParent())) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found for " + path);
         if (text == null) throw new OoaException("WORKSPACE.BAD_CONTENT", "Nothing to save");
         if (text.length() > MAX_ITEM) throw new OoaException("WORKSPACE.TOO_LARGE", "The content is larger than 2 MB");
@@ -215,7 +215,7 @@ final class Workspace {
         Path dir = resolve(parent);
         if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
         Path p = dir.resolve(base + BOT_SUFFIX);
-        if (Files.exists(p)) throw new OoaException("WORKSPACE.EXISTS", "A bot named '" + base + "' already exists here", "Choose another name.");
+        if (Files.exists(p)) throw new OoaException("WORKSPACE.EXISTS", "An agent named '" + base + "' already exists here", "Choose another name.");
         String id = base.trim().replaceAll("[^A-Za-z0-9_.-]+", "_");
         Map<String, Object> flow = new LinkedHashMap<>();
         flow.put("$schema", "https://schemas.oneofficeautomation.com/flow/v1.json");
@@ -282,7 +282,7 @@ final class Workspace {
         if (examples == null || !Files.isDirectory(examples)) return;
         Path bots = examples.resolve("bots"), data = examples.resolve("data");
         Path target = Files.createDirectories(root.resolve("Examples").resolve("Refunds"));
-        Files.createDirectories(root.resolve("My Bots"));
+        Files.createDirectories(root.resolve("My Agents"));
         if (Files.isDirectory(bots)) try (Stream<Path> s = Files.list(bots)) {
             for (Path b : s.filter(x -> x.toString().endsWith(BOT_SUFFIX)).toList()) Files.copy(b, target.resolve(b.getFileName()));
         }

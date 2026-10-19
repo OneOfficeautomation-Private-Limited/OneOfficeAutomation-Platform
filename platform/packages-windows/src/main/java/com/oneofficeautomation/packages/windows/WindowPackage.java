@@ -18,7 +18,7 @@ public final class WindowPackage {
 
     private static void windows() {
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win"))
-            throw new ActionException("SYSTEM.WINDOWS_ONLY", "Window commands work on Windows only", "Run this bot on a Windows device.");
+            throw new ActionException("SYSTEM.WINDOWS_ONLY", "Window actions work on Windows only", "Run this agent on a Windows runner.");
     }
 
     record Win(WinDef.HWND hwnd, String title) {}

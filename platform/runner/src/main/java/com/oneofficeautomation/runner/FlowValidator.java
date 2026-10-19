@@ -65,13 +65,13 @@ public final class FlowValidator {
         Map<String, Object> requires = (Map<String, Object>) requiresMap.getOrDefault("packages", Map.of());
         List<Object> caps = (List<Object>) requiresMap.getOrDefault("capabilities", List.of());
         if ("ApiTask".equals(kind) && caps.contains("desktop"))
-            p.add(null, "requires/capabilities", "ApiTask flows cannot require the desktop capability", "Use kind TaskBot for bots that drive a desktop.");
+            p.add(null, "requires/capabilities", "ApiTask flows cannot require the desktop capability", "Use kind TaskBot for agents that drive a desktop.");
 
         Set<String> seen = new HashSet<>();
         for (Map<String, Object> step : Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
             String sid = String.valueOf(step.get("id"));
             String act = String.valueOf(step.get("action"));
-            if (!seen.add(sid)) p.add(sid, null, "Duplicate step id '" + sid + "'", "Step ids must be unique; Studio regenerates them on paste.");
+            if (!seen.add(sid)) p.add(sid, null, "Duplicate step id '" + sid + "'", "Step ids must be unique; Agent Studio regenerates them on paste.");
             if (!ACTION.matcher(act).matches()) { p.add(sid, "action", "Invalid action address '" + act + "'", "Use package/action, e.g. ooa.excel/get_cell."); continue; }
             String pid = act.substring(0, act.indexOf('/')), aid = act.substring(act.indexOf('/') + 1);
             Map<String, Object> args = step.get("args") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
@@ -112,7 +112,7 @@ public final class FlowValidator {
             try { pkg = registry.resolve(pid, (String) requires.get(pid)); }
             catch (OoaException e) { p.add(sid, "action", e.getMessage(), e.suggestedFix()); continue; }
             ActionSpec spec = pkg.spec("action", aid);
-            if (spec == null) { p.add(sid, "action", "Package " + pid + "@" + pkg.version() + " has no action '" + aid + "'", "Pick the action from the command library."); continue; }
+            if (spec == null) { p.add(sid, "action", "Toolkit " + pid + "@" + pkg.version() + " has no action '" + aid + "'", "Pick the action from the command library."); continue; }
             if ("ApiTask".equals(kind) && spec.capabilities().contains("desktop"))
                 p.add(sid, "action", "'" + act + "' needs a desktop and cannot run in an ApiTask", null);
             for (String k : args.keySet())

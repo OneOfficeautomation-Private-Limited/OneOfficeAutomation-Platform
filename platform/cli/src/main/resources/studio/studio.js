@@ -211,7 +211,7 @@ async function init() {
     showEditor(false);
     crRefresh();
     api("GET", "info").then((i) => { state.info = i; $("btn-open-cr").hidden = !i.controlRoom; }).catch(() => {});
-  } catch (e) { toast("Cannot reach Studio server: " + e.message, true); }
+  } catch (e) { toast("Cannot reach Agent Studio server: " + e.message, true); }
 }
 
 /** Centre view: "home" (Automation list), "bot" (canvas) or "item" (form, process, document, AI Skill, script or text editor). */
@@ -248,7 +248,7 @@ function renderCrumbs() {
 }
 
 async function openBot(path) {
-  if (state.dirty && path !== state.file && !confirm("Discard unsaved changes to the open bot?")) return;
+  if (state.dirty && path !== state.file && !confirm("Discard unsaved changes to the open agent?")) return;
   const data = await api("GET", "bot?path=" + encodeURIComponent(path));
   setFlow(data.flow, path);
   switchSide("commands");
@@ -339,7 +339,7 @@ function onNodeClick(node) {
   if (node.type === "folder") { if (state.expanded.has(node.path) && node.path !== "") state.expanded.delete(node.path); else state.expanded.add(node.path); renderTree(); }
   else if (node.type === "bot") { renderTree(); openBot(node.path).catch((e) => toast(e.message, true)); }
   else if (node.type !== "file" || EDITABLE_FILE.test(node.name)) { renderTree(); openItem(node.path); }
-  else { renderTree(); toast(node.name + " (" + fmtSize(node.size) + "). Bots can read this file using its path: " + node.path); }
+  else { renderTree(); toast(node.name + " (" + fmtSize(node.size) + "). Agents can read this file using its path: " + node.path); }
 }
 
 function expandTo(path) { let p = parentOf(path); while (true) { state.expanded.add(p); if (!p) break; p = parentOf(p); } }
@@ -354,11 +354,11 @@ async function fileOp(op, body, okMsg) {
 }
 
 async function newBotHere(kind) {
-  const name = prompt(kind === "ApiTask" ? "Name of the new API task:" : "Name of the new bot:", kind === "ApiTask" ? "New API task" : "New bot");
+  const name = prompt(kind === "ApiTask" ? "Name of the new headless API agent:" : "Name of the new agent:", kind === "ApiTask" ? "New headless API agent" : "New agent");
   if (!name) return;
-  if (state.dirty && !confirm("Discard unsaved changes to the open bot?")) return;
+  if (state.dirty && !confirm("Discard unsaved changes to the open agent?")) return;
   const folder = currentFolder();
-  const path = await fileOp("bot", { parent: folder, name, kind: kind === "ApiTask" ? "ApiTask" : "TaskBot" }, kind === "ApiTask" ? "API task created" : "Bot created");
+  const path = await fileOp("bot", { parent: folder, name, kind: kind === "ApiTask" ? "ApiTask" : "TaskBot" }, kind === "ApiTask" ? "Headless API agent created" : "Agent created");
   if (path) { setDirty(false); expandTo(path); state.treeSel = path; await openBot(path); }
 }
 
@@ -519,7 +519,7 @@ function insertionPoint() {
 }
 
 function addStep(action, at) {
-  if (!state.flow) { toast("Open or create a bot first (Explorer tab).", true); return; }
+  if (!state.flow) { toast("Open or create an agent first (Explorer tab).", true); return; }
   const spec = state.specs.get(action);
   const step = { id: newStepId(), action };
   const args = {};
@@ -674,7 +674,7 @@ function freshIds(steps) {
 }
 
 function pasteSteps(clip, label) {
-  if (!state.flow) { toast("Open a bot first.", true); return; }
+  if (!state.flow) { toast("Open an agent first.", true); return; }
   if (!clip || !clip.steps || !clip.steps.length) { toast("The clipboard is empty.", true); return; }
   const steps = freshIds(JSON.parse(JSON.stringify(clip.steps)));
   let added = 0;
@@ -693,7 +693,7 @@ async function copyToShared() {
   if (!steps.length) { toast("Select steps first.", true); return; }
   try {
     await api("PUT", "clipboard", { steps, variables: referencedVariables(steps) });
-    toast("Copied " + steps.length + " step(s) to the shared clipboard; paste them into any bot.");
+    toast("Copied " + steps.length + " step(s) to the shared clipboard; paste them into any agent.");
   } catch (e) { toast(e.message, true); }
 }
 
@@ -800,7 +800,7 @@ function renderSteps() {
           const kids = getAt(s, k);
           const sec = h("div", {
             class: "section" + (sameList(sp, state.target) ? " target" : ""), tabindex: "0",
-            title: "Click to add new commands here, or drop a command on it",
+            title: "Click to add new actions here, or drop an action on it",
             onclick: (e) => { e.stopPropagation(); state.target = sp; state.selected = p; renderSteps(); renderProps(); },
           }, label);
           sec.addEventListener("dragover", (e) => { e.preventDefault(); sec.classList.add("target"); });
@@ -809,7 +809,7 @@ function renderSteps() {
           blk.append(sec);
           const body = h("div", { class: "block-list" });
           if (kids.length) body.append(...list(kids, sp, num + "."));
-          else body.append(makeSlot(sp, 0), h("div", { class: "empty", text: "Empty: drop a command here" }));
+          else body.append(makeSlot(sp, 0), h("div", { class: "empty", text: "Empty: drop an action here" }));
           blk.append(body);
         }
         out.push(blk);
@@ -819,15 +819,15 @@ function renderSteps() {
     return out;
   }
   if (!state.flow.steps.length) {
-    const zone = h("div", { class: "canvas-empty", text: "This bot has no steps yet. Drag a command here from Commands, click a command, or press Record." });
+    const zone = h("div", { class: "canvas-empty", text: "This agent has no steps yet. Drag an action here from Actions, click an action, or press Record." });
     zone.addEventListener("dragover", (e) => { e.preventDefault(); });
     zone.addEventListener("drop", (e) => { e.preventDefault(); dropAt(e, ["steps"], 0); });
     container.replaceChildren(zone);
   } else container.replaceChildren(...list(state.flow.steps, ["steps"], ""));
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
-  $("insert-hint").textContent = state.target ? "Clicked commands go into the highlighted section."
-    : state.selected ? "Clicked commands go after the selected step." : "Clicked commands go at the end.";
+  $("insert-hint").textContent = state.target ? "Clicked actions go into the highlighted section."
+    : state.selected ? "Clicked actions go after the selected step." : "Clicked actions go at the end.";
 }
 
 function select(path) {
@@ -905,7 +905,7 @@ function inputControl(step, name, prop, required) {
     for (const p of state.packages) for (const it of p.iterators || []) iters.push([p.id + "/" + it.id, it.name + " (" + p.name + ")"]);
     control = h("select", { onchange: (e) => set(e.target.value) },
       h("optgroup", { label: "Built in" }, [["times", "N times"], ["while", "While a condition is true"], ["list", "Each item in a list"], ["dictionary", "Each key in a dictionary"], ["table_rows", "Each row in a table"]].map(([v, t]) => h("option", { value: v, text: t }))),
-      iters.length ? h("optgroup", { label: "From packages" }, iters.map(([v, t]) => h("option", { value: v, text: t }))) : null);
+      iters.length ? h("optgroup", { label: "From toolkits" }, iters.map(([v, t]) => h("option", { value: v, text: t }))) : null);
     control.value = current || "list";
   } else if (prop.enum) {
     control = h("select", { onchange: (e) => set(e.target.value === "" ? undefined : e.target.value) },
@@ -1016,7 +1016,7 @@ function conditionEditor(value, onChange) {
       fields.push(withPicker(h("input", { type: "text", value: r.left, placeholder: "$variable", "aria-label": "Value", onchange: (e) => { r.left = e.target.value; commit(); } }), "Boolean"));
     } else {
       const c = catalog.find((x) => x.addr === r.addr);
-      if (!c) fields.push(h("div", { class: "help", text: "Unknown condition " + r.addr + " (is its package installed?)" }));
+      if (!c) fields.push(h("div", { class: "help", text: "Unknown condition " + r.addr + " (is its toolkit installed?)" }));
       else for (const [name, prop] of Object.entries(c.spec.inputs.properties)) {
         const req = (c.spec.inputs.required || []).includes(name);
         fields.push(h("label", { class: "cond-arg" }, h("span", {}, name, req ? h("span", { class: "req", text: " *" }) : null),
@@ -1054,7 +1054,7 @@ function conditionEditor(value, onChange) {
 function renderProps() {
   const box = $("props");
   if (!state.flow || !state.selected) {
-    box.replaceChildren(h("p", { class: "desc", text: state.flow ? "Select a step on the canvas to edit its settings." : "Open a bot to start." }));
+    box.replaceChildren(h("p", { class: "desc", text: state.flow ? "Select a step on the canvas to edit its settings." : "Open an agent to start." }));
     return;
   }
   const step = getAt(state.flow, state.selected);
@@ -1065,7 +1065,7 @@ function renderProps() {
   parts.push(h("div", { class: "props-title" }, tile(st.icon, st.color, "lg"),
     h("div", {}, h("h2", { class: "props-head", text: spec ? spec.action.name : step.action }),
       h("div", { class: "desc", text: (spec ? spec.pkg.name + " \u00B7 " : "") + step.action }))));
-  parts.push(h("p", { class: "desc", text: spec ? spec.action.description : "Unknown command" }));
+  parts.push(h("p", { class: "desc", text: spec ? spec.action.description : "Unknown action" }));
 
   const general = [
     h("div", { class: "field" }, h("label", { text: "Step id" }),
@@ -1132,7 +1132,7 @@ function renderProps() {
     h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!step.disabled,
       onchange: (e) => { if (e.target.checked) step.disabled = true; else delete step.disabled; changed(); } }), "Disabled (skip this step)"),
     h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!step.continueOnError,
-      onchange: (e) => { if (e.target.checked) step.continueOnError = true; else delete step.continueOnError; changed(); } }), "Continue the bot if this step fails"),
+      onchange: (e) => { if (e.target.checked) step.continueOnError = true; else delete step.continueOnError; changed(); } }), "Continue the agent if this step fails"),
   ];
   if (spec && !step.action.startsWith("core/")) {
     handling.push(h("div", { class: "field" }, h("label", { text: "Retries on temporary errors" }),
@@ -1376,29 +1376,29 @@ function field(label, control, help) { return h("div", { class: "field" }, h("la
 
 /** Create or edit a bot variable: name, type, use (input/output/inside), default value editor for the type, description. */
 function editVariable(existing, preset = {}) {
-  if (!state.flow) { toast("Open a bot first.", true); return; }
+  if (!state.flow) { toast("Open an agent first.", true); return; }
   const isNew = !existing;
   const v = isNew ? { name: uniqueVarName(preset.name || "new_variable"), type: preset.type || "String" } : JSON.parse(JSON.stringify(existing));
   if (isNew && preset.direction && preset.direction !== "local") v.direction = preset.direction;
   const name = h("input", { type: "text", value: v.name, spellcheck: "false", "aria-label": "Variable name" });
   const typeGrid = h("div", { class: "type-grid", role: "radiogroup", "aria-label": "Type" });
   const dirSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Use" });
-  const reqBox = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!v.required, onchange: (e) => { v.required = e.target.checked; } }), "Required: the bot cannot start without a value");
+  const reqBox = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!v.required, onchange: (e) => { v.required = e.target.checked; } }), "Required: the agent cannot start without a value");
   const defBox = h("div"), enumBox = h("div");
-  const desc = h("textarea", { rows: 2, value: v.description || "", placeholder: "What this variable holds. People running the bot and AI agents read this." });
+  const desc = h("textarea", { rows: 2, value: v.description || "", placeholder: "What this variable holds. People running the agent and AI agents read this." });
   let defEditor = null;
   const keepDefault = () => { if (defEditor) { const d = defEditor.getValue(); if (d === undefined) delete v.default; else v.default = d; } };
   const renderType = () => typeGrid.replaceChildren(...TYPES.map((t) => h("button", { type: "button", class: "type-opt", role: "radio", "aria-checked": String(v.type === t), title: (TYPE_STYLE[t] || {}).hint,
     onclick: () => { if (v.type !== t) { v.type = t; delete v.default; delete v.enum; renderType(); renderDefault(); } } }, typeBadge(t), h("span", { text: t }))));
   const renderDir = () => {
-    dirSeg.replaceChildren(...[["local", "Inside the bot"], ["input", "Input"], ["output", "Output"]].map(([d, l]) => h("button", { type: "button", role: "radio", "aria-checked": String((v.direction || "local") === d),
+    dirSeg.replaceChildren(...[["local", "Inside the agent"], ["input", "Input"], ["output", "Output"]].map(([d, l]) => h("button", { type: "button", role: "radio", "aria-checked": String((v.direction || "local") === d),
       onclick: () => { keepDefault(); if (d === "local") delete v.direction; else v.direction = d; renderDir(); renderDefault(); } }, l)));
     reqBox.hidden = v.direction !== "input";
   };
   const renderDefault = () => {
     if (v.type === "Credential") {
       defEditor = null; delete v.default;
-      defBox.replaceChildren(h("div", { class: "help", text: "Credentials never have a default. Whoever runs the bot gives a vault reference (locker/credential/attribute)." }));
+      defBox.replaceChildren(h("div", { class: "help", text: "Credentials never have a default. Whoever runs the agent gives a vault reference (vault folder/credential/attribute)." }));
       enumBox.replaceChildren();
       return;
     }
@@ -1437,7 +1437,7 @@ function editVariable(existing, preset = {}) {
     if (preset.onSave) preset.onSave(n);
   } }, isNew ? "Create variable" : "Save changes");
   openDialog(isNew ? "New variable" : "Edit variable $" + existing.name, [
-    field("Name", name, "Use it in any field as $" + v.name + ". Renaming updates every use in this bot."),
+    field("Name", name, "Use it in any field as $" + v.name + ". Renaming updates every use in this agent."),
     field("Type", typeGrid), h("div", { class: "field" }, h("label", { text: "Use" }), dirSeg, reqBox),
     h("div", { class: "field" }, h("label", { text: "Default value" }), defBox), enumBox, field("Description", desc)], [save], { wide: true });
 }
@@ -1489,10 +1489,10 @@ function openVarPicker(target, wantType, typedDollar) {
     const sys = Object.entries((state.builtins || {}).sys || {}).filter(([k]) => m("sys." + k));
     const glob = Object.entries((state.builtins || {}).global || {}).filter(([k]) => m("global." + k));
     const parts = [];
-    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want ? "Variables that fit (" + want + ")" : "Bot variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? v.direction : "")));
+    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want ? "Variables that fit (" + want + ")" : "Agent variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? v.direction : "")));
     if (other.length) parts.push(h("div", { class: "var-pop-head", text: "Other variables" }), ...other.map((v) => item("$" + v.name, v.type, v.type)));
     if (sys.length) parts.push(h("div", { class: "var-pop-head", text: "System" }), ...sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val))));
-    if (glob.length) parts.push(h("div", { class: "var-pop-head", text: "Global values" }), ...glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val))));
+    if (glob.length) parts.push(h("div", { class: "var-pop-head", text: "Shared values" }), ...glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val))));
     if (!parts.length) parts.push(h("div", { class: "empty", text: "No variables match." }));
     list.replaceChildren(...parts);
   };
@@ -1522,7 +1522,7 @@ function renderVariables() {
   const head = h("div", { class: "side-head" }, h("span", { text: "Variables" }),
     h("span", { class: "head-acts" }, h("button", { type: "button", class: "link-btn", onclick: loadBuiltins }, "Refresh"),
       state.flow ? h("button", { type: "button", class: "small primary", id: "btn-new-var", onclick: () => editVariable(null) }, "+ New") : null));
-  if (!state.flow) { box.replaceChildren(head, h("p", { class: "desc", text: "Open a bot to see its variables." })); return; }
+  if (!state.flow) { box.replaceChildren(head, h("p", { class: "desc", text: "Open an agent to see its variables." })); return; }
   const search = h("input", { type: "search", placeholder: "Search variables", value: state.varQuery || "", "aria-label": "Search variables" });
   const listBox = h("div", { class: "side-scroll var-scroll" });
   search.addEventListener("input", () => { state.varQuery = search.value; renderList(); });
@@ -1534,14 +1534,14 @@ function renderVariables() {
       onclick: () => editVariable(v), onkeydown: (e) => { if (e.key === "Enter") editVariable(v); } },
       typeBadge(v.type),
       h("div", { class: "var-main" }, h("div", { class: "var-name", text: "$" + v.name }), h("div", { class: "var-meta", text: meta })),
-      h("span", { class: "uses" + (uses ? "" : " none"), title: uses + " use(s) in this bot", text: uses ? uses + (uses === 1 ? " use" : " uses") : "unused" }),
+      h("span", { class: "uses" + (uses ? "" : " none"), title: uses + " use(s) in this agent", text: uses ? uses + (uses === 1 ? " use" : " uses") : "unused" }),
       h("span", { class: "var-acts" },
         h("button", { type: "button", class: "icon-mini", title: "Insert $" + v.name + " into the field you last edited", "aria-label": "Insert $" + v.name, onclick: (e) => { e.stopPropagation(); insertReference("$" + v.name); } }, "\u2192"),
         h("button", { type: "button", class: "icon-mini", title: "Duplicate", "aria-label": "Duplicate $" + v.name, onclick: (e) => {
           e.stopPropagation(); const c = JSON.parse(JSON.stringify(v)); c.name = uniqueVarName(v.name + "_copy"); state.flow.variables.push(c); changed(); renderVariables(); } }, "\u29C9"),
         h("button", { type: "button", class: "icon-mini danger", title: "Delete", "aria-label": "Delete $" + v.name, onclick: (e) => {
           e.stopPropagation();
-          if (uses && !confirm("$" + v.name + " is used " + uses + " time(s) in this bot. Delete it anyway?")) return;
+          if (uses && !confirm("$" + v.name + " is used " + uses + " time(s) in this agent. Delete it anyway?")) return;
           state.flow.variables.splice(state.flow.variables.indexOf(v), 1); changed(); renderVariables(); renderProps(); renderRunPanel(); } }, "\u2715")));
     r.style.setProperty("--c", (TYPE_STYLE[v.type] || TYPE_STYLE.Any).color);
     return r;
@@ -1560,12 +1560,12 @@ function renderVariables() {
   function renderList() {
     const f = (state.varQuery || "").toLowerCase();
     const vars = state.flow.variables.filter((v) => !f || v.name.toLowerCase().includes(f) || (v.description || "").toLowerCase().includes(f) || v.type.toLowerCase().includes(f));
-    const parts = [h("div", { class: "var-section-title", text: "Bot variables" })];
+    const parts = [h("div", { class: "var-section-title", text: "Agent variables" })];
     if (!state.flow.variables.length) {
       parts.push(h("div", { class: "var-empty" }, h("strong", { text: "No variables yet" }),
-        h("p", { text: "Variables hold values while the bot runs. Inputs are given when it starts; outputs are returned at the end." }),
+        h("p", { text: "Variables hold values while the agent runs. Inputs are given when it starts; outputs are returned at the end." }),
         h("button", { type: "button", class: "primary", onclick: () => editVariable(null) }, "+ Create a variable")));
-    } else for (const [dir, label, hint] of [["input", "Inputs", "Given when the bot starts"], ["output", "Outputs", "Returned when the bot ends"], ["local", "Inside the bot", "Working values"]]) {
+    } else for (const [dir, label, hint] of [["input", "Inputs", "Given when the agent starts"], ["output", "Outputs", "Returned when the agent ends"], ["local", "Inside the agent", "Working values"]]) {
       const group = vars.filter((v) => (v.direction || "local") === dir);
       parts.push(h("div", { class: "var-group" },
         h("div", { class: "var-group-head" }, h("span", { class: "gname", text: label }), h("span", { class: "n", text: group.length }), h("span", { class: "muted gh", text: hint }),
@@ -1573,7 +1573,7 @@ function renderVariables() {
         group.length ? h("div", { class: "var-list" }, group.map(row)) : h("div", { class: "empty", text: f ? "No matches." : "None." })));
     }
     parts.push(builtin("System variables", "$sys.", state.builtins.sys, "Read-only values from the platform at run time, such as today's date or the machine name."),
-      builtin("Global values", "$global.", state.builtins.global, "Shared by all bots. Managed in Control Room > Global values (or global-values.json in the workspace)."));
+      builtin("Shared values", "$global.", state.builtins.global, "Shared by all agents. Managed in Command Center > Shared values (or global-values.json in the workspace)."));
     listBox.replaceChildren(...parts);
   }
   renderList();
@@ -1582,15 +1582,15 @@ function renderVariables() {
 function renderSettings() {
   const f = state.flow;
   const field = (label, control, help) => h("div", { class: "field" }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null);
-  const kind = h("select", { onchange: (e) => { f.kind = e.target.value; changed(); } }, [["TaskBot", "Task Bot"], ["ApiTask", "API Task"]].map(([k, t]) => h("option", { value: k, text: t })));
+  const kind = h("select", { onchange: (e) => { f.kind = e.target.value; changed(); } }, [["TaskBot", "Agent"], ["ApiTask", "Headless API agent"]].map(([k, t]) => h("option", { value: k, text: t })));
   kind.value = f.kind;
   $("tab-settings").replaceChildren(
-    field("Bot id", h("input", { type: "text", value: f.id, onchange: (e) => { f.id = e.target.value.trim(); changed(); } }), "Used by child bots and agents to call this bot."),
+    field("Agent id", h("input", { type: "text", value: f.id, onchange: (e) => { f.id = e.target.value.trim(); changed(); } }), "Used by parent agents and AI agents to call this agent."),
     field("Name", h("input", { type: "text", value: f.name, onchange: (e) => { f.name = e.target.value; changed(); } })),
     field("Kind", kind, "TaskBot can drive a desktop; ApiTask runs headless in a container."),
     field("Description", h("textarea", { rows: 3, value: f.description || "", onchange: (e) => { f.description = e.target.value; changed(); } }),
-      "Describe what the bot does. AI agents read this to decide when to use the bot."),
-    field("File", h("input", { type: "text", value: state.file, disabled: true }), "Rename or move the bot in the Explorer."));
+      "Describe what the agent does. AI agents read this to decide when to use the agent."),
+    field("File", h("input", { type: "text", value: state.file, disabled: true }), "Rename or move the agent in the Explorer."));
 }
 
 function renderJson() { if (state.flow) $("json-text").value = JSON.stringify(state.flow, null, 2); }
@@ -1626,7 +1626,7 @@ function renderRunPanel() {
     if (state.item && state.item.type === "script") {
       $("ctab-run").replaceChildren(h("div", { class: "run-grid" },
         h("div", {}, h("div", { class: "pane-title", text: "Script" }), h("div", { class: "mono", text: state.item.path }),
-          h("p", { class: "help", text: "Runs the saved script with the Scripts package, exactly as a bot would. Its output, error output and exit code appear on the right." }),
+          h("p", { class: "help", text: "Runs the saved script with the Scripts toolkit, exactly as an agent would. Its output, error output and exit code appear on the right." }),
           h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: runScript }, "Run script"))),
         h("div", { id: "run-result" })));
       renderRunResult();
@@ -1643,8 +1643,8 @@ function renderRunPanel() {
       ed, v.description ? h("div", { class: "help", text: v.description }) : null);
   });
   const left = h("div", {}, h("div", { class: "pane-title", text: "Inputs" }),
-    ...(form.length ? form : [h("div", { class: "empty", text: "This bot has no input variables." })]),
-    h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: runBot }, "Run bot")));
+    ...(form.length ? form : [h("div", { class: "empty", text: "This agent has no input variables." })]),
+    h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: runBot }, "Run agent")));
   const right = h("div", { id: "run-result" });
   $("ctab-run").replaceChildren(h("div", { class: "run-grid" }, left, right));
   renderRunResult();
@@ -1664,7 +1664,7 @@ function collectInputs() {
 
 async function runBot() {
   if (state.item && state.item.type === "script") return runScript();
-  if (!state.flow) { toast("Open a bot first.", true); return; }
+  if (!state.flow) { toast("Open an agent first.", true); return; }
   return runFlow(state.flow, collectInputs());
 }
 
@@ -1771,14 +1771,14 @@ function renderVars() {
   const rows = [...last.entries()].map(([k, v]) => h("tr", {}, h("td", { text: k }), h("td", {}, h("code", { text: String(v) }))));
   $("ctab-vars").replaceChildren(
     rows.length ? h("table", { class: "grid" }, h("thead", {}, h("tr", {}, h("th", { text: "Variable" }), h("th", { text: "Last value" }))), h("tbody", {}, rows))
-      : h("div", { class: "empty", text: "Run the bot to see variable values. Credentials always show as ****." }),
+      : h("div", { class: "empty", text: "Run the agent to see variable values. Credentials always show as ****." }),
     Object.keys(outputs).length ? h("div", {}, h("div", { class: "side-head", text: "Outputs" }), h("pre", { text: JSON.stringify(outputs, null, 2) })) : null);
 }
 
 function renderRunResult() {
   const box = $("run-result");
   if (!box) return;
-  if (!state.lastRun) { box.replaceChildren(h("div", { class: "empty", text: "Run the bot to see its result here. Step-by-step details appear in the Run log tab." })); return; }
+  if (!state.lastRun) { box.replaceChildren(h("div", { class: "empty", text: "Run the agent to see its result here. Step-by-step details appear in the Run log tab." })); return; }
   const r = state.lastRun.result;
   const parts = [h("div", {}, h("span", { class: "status " + r.status, text: r.status }), "  ", h("span", { class: "muted", text: r.durationMs + " ms, " + r.stepsExecuted + " steps" }))];
   if (r.error) {
@@ -1884,7 +1884,7 @@ function makeDockDraggable() {
 
 // ---------- recorder ----------
 async function recordSteps() {
-  if (!state.flow) { toast("Open or create a bot first.", true); return; }
+  if (!state.flow) { toast("Open or create an agent first.", true); return; }
   const url = prompt("Start recording at which web address?", "https://");
   if (!url || url === "https://") return;
   const btn = $("btn-record");
@@ -1962,9 +1962,9 @@ function renderTriggers() {
   box.replaceChildren(
     h("div", { class: "side-head" }, h("span", { text: "Triggers" }), h("button", { type: "button", class: "link-btn", onclick: loadTriggers }, "Refresh")),
     h("div", { class: "side-scroll" },
-      items.length ? h("div", { class: "row-actions" }, items) : h("p", { class: "desc", text: "No triggers yet. Triggers start bots automatically while Studio is running." }),
+      items.length ? h("div", { class: "row-actions" }, items) : h("p", { class: "desc", text: "No triggers yet. Triggers start agents automatically while Agent Studio is running." }),
       h("div", { class: "side-head", text: "New trigger" }),
-      h("div", { class: "form-box" }, h("label", {}, "Name", f.name), h("label", {}, "Bot", f.bot), h("label", {}, "When", f.type)),
+      h("div", { class: "form-box" }, h("label", {}, "Name", f.name), h("label", {}, "Agent", f.bot), h("label", {}, "When", f.type)),
       fileBox, schedBox, h("div", { class: "row-actions" }, add),
       h("div", { class: "side-head", text: "Recent activity" }),
       logRows.length ? h("div", {}, logRows) : h("p", { class: "desc", text: "Nothing has fired yet." })));
@@ -1995,29 +1995,29 @@ function renderCr() {
   const body = $("cr-body");
   if (!cr.connected && cr.sameServer) {
     body.replaceChildren(h("div", { class: "cr-form" },
-      h("div", { class: "hint", text: "Studio and Control Room run together here. Sign in to Control Room in this browser and Studio uses that sign-in for check-in and check-out." }),
-      h("a", { class: "button-link", href: "../", target: "ooa-control-room" }, "Open Control Room to sign in"),
+      h("div", { class: "hint", text: "Agent Studio and Command Center run together here. Sign in to Command Center in this browser and Agent Studio uses that sign-in for check-in and check-out." }),
+      h("a", { class: "button-link", href: "../", target: "ooa-control-room" }, "Open Command Center to sign in"),
       h("button", { type: "button", onclick: crRefresh }, "I have signed in")));
     return;
   }
   if (!cr.connected) {
-    const url = h("input", { type: "text", value: cr.url || "http://localhost:8720", "aria-label": "Control Room address" });
+    const url = h("input", { type: "text", value: cr.url || "http://localhost:8720", "aria-label": "Command Center address" });
     const user = h("input", { type: "text", autocomplete: "username", "aria-label": "User name" });
     const pass = h("input", { type: "password", autocomplete: "current-password", "aria-label": "Password" });
     const go = h("button", { type: "button", class: "primary", onclick: async () => {
-      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value }); pass.value = ""; toast("Connected to Control Room"); renderCr(); crLoadRepo(); }
+      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value }); pass.value = ""; toast("Connected to Command Center"); renderCr(); crLoadRepo(); }
       catch (e) { toast(e.message, true); }
     } }, "Connect");
     pass.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
     body.replaceChildren(h("div", { class: "cr-form" }, h("label", {}, "Address", url), h("label", {}, "User name", user), h("label", {}, "Password", pass), go,
-      h("div", { class: "hint", text: "Your workspace above is private. Connect to share bots through the public repository with check-in and check-out." })));
+      h("div", { class: "hint", text: "Your workspace above is private. Connect to share agents through the public agent repository with check-in and check-out." })));
     return;
   }
-  const q = h("input", { type: "search", placeholder: "Search the repository", "aria-label": "Search the repository" });
+  const q = h("input", { type: "search", placeholder: "Search the agent repository", "aria-label": "Search the agent repository" });
   q.addEventListener("input", () => { clearTimeout(q.t); q.t = setTimeout(() => crLoadRepo(q.value), 250); });
   body.replaceChildren(h("div", { class: "hint", text: cr.url }), q, h("div", { id: "cr-list" }),
     h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => crLoadRepo(q.value) }, "Refresh"),
-      cr.sameServer ? h("span", { class: "hint", text: "Signed in through Control Room" })
+      cr.sameServer ? h("span", { class: "hint", text: "Signed in through Command Center" })
         : h("button", { type: "button", onclick: async () => { await api("POST", "cr/disconnect"); state.cr = { connected: false }; renderCr(); } }, "Disconnect")));
   crLoadRepo();
 }
@@ -2035,30 +2035,30 @@ async function crLoadRepo(q) {
         h("div", { class: "top" }, h("span", { class: "icon bot" }), h("strong", { text: b.path.replace(/\.flow\.json$/, ""), title: b.path }), h("span", { class: "muted", text: "v" + b.latest_version })),
         b.locked_by ? h("span", { class: "lock", text: mine ? "Checked out by you" : "Checked out by " + b.locked_by }) : null,
         h("div", { class: "acts" },
-          !b.locked_by || mine ? h("button", { type: "button", onclick: () => crCheckout(b.path) }, mine ? "Open my copy" : "Check out") : null,
+          !b.locked_by || mine ? h("button", { type: "button", onclick: () => crCheckout(b.path) }, mine ? "Open my copy" : "Agent check-out") : null,
           mine ? h("button", { type: "button", onclick: async () => { if (!confirm("Undo check-out of " + b.path + "? Your private copy stays in the workspace.")) return;
-            try { await api("POST", "cr/undo-checkout", { path: b.path }); toast("Check-out undone"); crLoadRepo(q); } catch (e) { toast(e.message, true); } } }, "Undo check-out") : null,
+            try { await api("POST", "cr/undo-checkout", { path: b.path }); toast("Agent check-out undone"); crLoadRepo(q); } catch (e) { toast(e.message, true); } } }, "Undo check-out") : null,
           h("button", { type: "button", onclick: () => crVersions(b) }, "Versions")),
         local ? h("div", { class: "hint", text: "Private copy: " + local }) : null);
-    }) : [h("div", { class: "empty", text: "The repository is empty. Open a bot and press Check in." })]));
+    }) : [h("div", { class: "empty", text: "The agent repository is empty. Open an agent and press Agent check-in." })]));
   } catch (e) { list.replaceChildren(h("div", { class: "empty", text: e.message })); }
 }
 
 async function crCheckout(path) {
-  if (state.dirty && !confirm("You have unsaved changes in the open bot. Continue?")) return;
+  if (state.dirty && !confirm("You have unsaved changes in the open agent. Continue?")) return;
   try {
     const r = await api("POST", "cr/checkout", { path });
     await loadTree();
     state.dirty = false;
     await openBot(r.local);
-    toast("Checked out v" + r.version + " into your private workspace: " + r.local);
+    toast("Checked out v" + r.version + " into My Workspace: " + r.local);
     crLoadRepo();
   } catch (e) { toast(e.message, true); }
 }
 
 async function crCheckin() {
-  if (!state.flow || !state.file) { toast("Open the bot you want to check in.", true); return; }
-  if (!state.cr || !state.cr.connected) { toast("Connect to Control Room first (bottom of the Explorer).", true); return; }
+  if (!state.flow || !state.file) { toast("Open the agent you want to check in.", true); return; }
+  if (!state.cr || !state.cr.connected) { toast("Connect to Command Center first (bottom of the Explorer).", true); return; }
   if (state.dirty) await save();
   const comment = prompt("What changed in this version? (shown in the version history)", "");
   if (comment === null) return;
@@ -2081,10 +2081,10 @@ async function crVersions(b) {
 
 // ---------- automation items: types, home, create menu, editors ----------
 const ITEM_TYPES = {
-  folder: { label: "Folder", icon: "folder", color: "#e0a526" }, bot: { label: "Task Bot", icon: "bot", color: "#6d28d9" },
-  api: { label: "API Task", icon: "api", color: "#0d9488" }, form: { label: "Form", icon: "form", color: "#0891b2" },
-  process: { label: "Process", icon: "process", color: "#7c3aed" }, document: { label: "Document automation", icon: "doc", color: "#db2777" },
-  skill: { label: "AI Skill", icon: "spark", color: "#c026d3" }, script: { label: "Script", icon: "code", color: "#0f766e" },
+  folder: { label: "Folder", icon: "folder", color: "#e0a526" }, bot: { label: "Agent", icon: "bot", color: "#6d28d9" },
+  api: { label: "Headless API agent", icon: "api", color: "#0d9488" }, form: { label: "Form", icon: "form", color: "#0891b2" },
+  process: { label: "Workflow", icon: "process", color: "#7c3aed" }, document: { label: "Document intelligence", icon: "doc", color: "#db2777" },
+  skill: { label: "Prompt Skill", icon: "spark", color: "#c026d3" }, script: { label: "Script", icon: "code", color: "#0f766e" },
   file: { label: "File", icon: "file", color: "#64748b" },
 };
 const EDITABLE_FILE = /\.(json|txt|csv|xml|md|sql|html|ini|ya?ml|py|ps1|vbs|js)$/i;
@@ -2114,17 +2114,17 @@ function ago(iso) {
 }
 
 const CREATE_ITEMS = [
-  { id: "btn-new-bot", kind: "bot", label: "Task Bot", desc: "Automate apps, files, the desktop and the web", run: () => newBotHere("TaskBot") },
-  { id: "btn-new-template", kind: "template", label: "Bot from a template", desc: "Start from a ready-made pattern", icon: "template", color: "#2563eb", run: () => openTemplates() },
-  { id: "btn-new-api", kind: "api", label: "API Task", desc: "Headless automation, no desktop needed", run: () => newBotHere("ApiTask") },
+  { id: "btn-new-bot", kind: "bot", label: "Agent", desc: "Automate apps, files, the desktop and the web", run: () => newBotHere("TaskBot") },
+  { id: "btn-new-template", kind: "template", label: "Agent from a blueprint", desc: "Start from a ready-made pattern", icon: "template", color: "#2563eb", run: () => openTemplates() },
+  { id: "btn-new-api", kind: "api", label: "Headless API agent", desc: "Headless automation, no desktop needed", run: () => newBotHere("ApiTask") },
   { id: "btn-new-form", kind: "form", label: "Form", desc: "Collect information from people", run: () => newItemHere("form") },
-  { id: "btn-new-process", kind: "process", label: "Process", desc: "Chain bots, forms and approvals", run: () => newItemHere("process") },
-  { id: "btn-new-doc", kind: "document", label: "Document automation", desc: "Extract fields from documents with AI", run: () => newItemHere("document") },
-  { id: "btn-new-skill", kind: "skill", label: "AI Skill", desc: "A reusable, reviewed AI prompt", run: () => newItemHere("skill") },
-  { id: "btn-new-py", kind: "script", label: "Python script", desc: "Run with the Run Python command", run: () => newItemHere("script-python") },
-  { id: "btn-new-ps1", kind: "script", label: "PowerShell script", desc: "Run with the Run PowerShell command", run: () => newItemHere("script-powershell") },
-  { id: "btn-new-vbs", kind: "script", label: "VBScript", desc: "Run with the Run VBScript command", run: () => newItemHere("script-vbscript") },
-  { id: "btn-new-js", kind: "script", label: "JavaScript", desc: "Run with the Run JavaScript command (Node.js)", run: () => newItemHere("script-javascript") },
+  { id: "btn-new-process", kind: "process", label: "Workflow", desc: "Chain agents, forms and approvals", run: () => newItemHere("process") },
+  { id: "btn-new-doc", kind: "document", label: "Document intelligence", desc: "Extract fields from documents with AI", run: () => newItemHere("document") },
+  { id: "btn-new-skill", kind: "skill", label: "Prompt Skill", desc: "A reusable, reviewed AI prompt", run: () => newItemHere("skill") },
+  { id: "btn-new-py", kind: "script", label: "Python script", desc: "Run with the Run Python action", run: () => newItemHere("script-python") },
+  { id: "btn-new-ps1", kind: "script", label: "PowerShell script", desc: "Run with the Run PowerShell action", run: () => newItemHere("script-powershell") },
+  { id: "btn-new-vbs", kind: "script", label: "VBScript", desc: "Run with the Run VBScript action", run: () => newItemHere("script-vbscript") },
+  { id: "btn-new-js", kind: "script", label: "JavaScript", desc: "Run with the Run JavaScript action (Node.js)", run: () => newItemHere("script-javascript") },
 ];
 function createEntry(c, cls) {
   const t = ITEM_TYPES[c.kind] || { icon: c.icon, color: c.color };
@@ -2140,21 +2140,21 @@ function buildCreateMenu() {
 function toggleCreateMenu() { const p = $("create-pop"); p.hidden = !p.hidden; $("btn-create").setAttribute("aria-expanded", String(!p.hidden)); }
 function closeCreateMenu() { const p = $("create-pop"); if (p && !p.hidden) { p.hidden = true; $("btn-create").setAttribute("aria-expanded", "false"); } }
 
-const NEW_LABELS = { form: "Form", process: "Process", document: "Document automation", skill: "AI Skill", "script-python": "Python script",
+const NEW_LABELS = { form: "Form", process: "Workflow", document: "Document intelligence", skill: "Prompt Skill", "script-python": "Python script",
   "script-powershell": "PowerShell script", "script-vbscript": "VBScript", "script-javascript": "JavaScript file" };
-const NEW_NAMES = { form: "New form", process: "New process", document: "New document type", skill: "new_skill", "script-python": "new_script",
+const NEW_NAMES = { form: "New form", process: "New workflow", document: "New document type", skill: "new_skill", "script-python": "new_script",
   "script-powershell": "new_script", "script-vbscript": "new_script", "script-javascript": "new_script" };
 async function newItemHere(type) {
   const label = NEW_LABELS[type] || "item";
   const name = prompt("Name of the new " + label.toLowerCase() + ":", NEW_NAMES[type] || "New item");
   if (!name) return;
   if (state.dirty && !confirm("Discard unsaved changes?")) return;
-  const path = await fileOp("item", { parent: currentFolder(), name, type }, (type === "skill" ? "AI Skill created in the ai-skills folder" : label + " created"));
+  const path = await fileOp("item", { parent: currentFolder(), name, type }, (type === "skill" ? "Prompt Skill created in the ai-skills folder" : label + " created"));
   if (path) { setDirty(false); expandTo(path); state.treeSel = path; renderTree(); await openItem(path); }
 }
 
 // ---- home: every item in the workspace ----
-const HOME_FILTERS = [["all", "All"], ["bot", "Task Bots"], ["api", "API Tasks"], ["form", "Forms"], ["process", "Processes"], ["document", "Documents"], ["skill", "AI Skills"], ["script", "Scripts"], ["file", "Files"]];
+const HOME_FILTERS = [["all", "All"], ["bot", "Agents"], ["api", "Headless API agents"], ["form", "Forms"], ["process", "Workflows"], ["document", "Documents"], ["skill", "Prompt Skills"], ["script", "Scripts"], ["file", "Files"]];
 function renderHome() {
   const box = $("welcome");
   const items = allItems();
@@ -2193,7 +2193,7 @@ function renderHome() {
   }
   box.replaceChildren(h("div", { class: "home" },
     h("div", { class: "home-head" }, h("div", {}, h("h1", { text: "Automation" }),
-      h("p", { class: "muted", text: "Everything in your private workspace: bots, forms, processes, document automations, AI Skills and scripts. Check bots in to Control Room to share and run them on other devices." }))),
+      h("p", { class: "muted", text: "Everything in My Workspace: agents, forms, workflows, document intelligence items, Prompt Skills and scripts. Check agents in to Command Center to share and run them on other runners." }))),
     h("div", { class: "pane-title", text: "Create" }),
     h("div", { class: "create-grid" }, CREATE_ITEMS.filter((c) => !["btn-new-ps1", "btn-new-vbs", "btn-new-js"].includes(c.id)).map((c) => createEntry(c, "create-card"))),
     h("div", { class: "home-tools" }, chips, h("span", { class: "spacer" }), search, sort),
@@ -2280,22 +2280,22 @@ function codeEditor(it, runnable) {
   const cmd = SCRIPT_CMD[scriptLang(it.path)];
   const bar = runnable && cmd ? h("div", { class: "item-bar" },
     h("button", { type: "button", class: "primary", onclick: runScript }, svg("play"), "Run script"),
-    h("button", { type: "button", onclick: () => copyStep({ action: cmd.action, args: { file: it.path } }, cmd.name) }, "Copy as a bot step"),
-    h("span", { class: "hint", text: "Bots run this file with the " + cmd.name + " command. Ctrl+S saves." })) : null;
+    h("button", { type: "button", onclick: () => copyStep({ action: cmd.action, args: { file: it.path } }, cmd.name) }, "Copy as an agent step"),
+    h("span", { class: "hint", text: "Agents run this file with the " + cmd.name + " action. Ctrl+S saves." })) : null;
   return h("div", { class: "code-pane" }, bar, h("div", { class: "code-wrap" }, gutter, ta));
 }
 
 function copyStep(step, label) {
   state.clipboard = { steps: [Object.assign({ id: "s1" }, step)], variables: [] };
   updateEditButtons();
-  toast("Copied a '" + label + "' step. Open a bot and press Ctrl+V (or Paste) to add it.");
+  toast("Copied a '" + label + "' step. Open an agent and press Ctrl+V (or Paste) to add it.");
 }
 
 async function runScript() {
   const it = state.item;
   if (!it || it.type !== "script") return;
   const cmd = SCRIPT_CMD[scriptLang(it.path)];
-  if (!cmd || !state.specs.has(cmd.action)) { toast("The Scripts package cannot run this file type.", true); return; }
+  if (!cmd || !state.specs.has(cmd.action)) { toast("The Scripts toolkit cannot run this file type.", true); return; }
   if (state.dirty) await saveItem();
   const flow = { $schema: SCHEMA, kind: "TaskBot", id: "script_test", name: "Script test",
     variables: [{ name: "output", type: "String", direction: "output" }, { name: "error_output", type: "String", direction: "output" },
@@ -2334,7 +2334,7 @@ function formDesigner(it) {
       field("Label", h("input", { type: "text", value: f.label || "", onchange: (e) => set("label", e.target.value) })),
       field("Type", typeSel)];
     if (isInput) {
-      parts.push(field("Field id", idIn, "Bots and processes read the answer as form." + (f.id || "id") + "."),
+      parts.push(field("Field id", idIn, "Agents and workflows read the answer as form." + (f.id || "id") + "."),
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!f.required, onchange: (e) => set("required", e.target.checked) }), "Required"));
       if (["text", "multiline", "number", "email"].includes(f.type)) parts.push(field("Placeholder", h("input", { type: "text", value: f.placeholder || "", onchange: (e) => set("placeholder", e.target.value) })));
       if (["dropdown", "radio"].includes(f.type)) parts.push(field("Options (one per line)", h("textarea", { rows: 4, value: (f.options || []).join("\n"), onchange: (e) => set("options", e.target.value.split("\n").map((x) => x.trim()).filter(Boolean)) })));
@@ -2397,7 +2397,7 @@ function formPreview(d) {
       default: return h("input", Object.assign({ type: "text", value: f.default || "" }, common));
     }
   };
-  return h("div", { class: "form-canvas" }, h("form", { class: "form-card preview", onsubmit: (e) => { e.preventDefault(); toast("Preview only: forms are filled in through processes."); } },
+  return h("div", { class: "form-canvas" }, h("form", { class: "form-card preview", onsubmit: (e) => { e.preventDefault(); toast("Preview only: forms are filled in through workflows."); } },
     h("h3", { text: d.name || "Form" }), d.description ? h("p", { class: "desc", text: d.description }) : null,
     (d.fields || []).map((f) => f.type === "heading" ? h("h4", { text: f.label }) : f.type === "paragraph" ? h("p", { text: f.text || "" })
       : h("div", { class: "field" }, f.type === "checkbox" ? null : h("label", {}, f.label || f.id, f.required ? h("span", { class: "req", text: " *" }) : null), ctl(f), f.help ? h("div", { class: "help", text: f.help }) : null)),
@@ -2406,7 +2406,7 @@ function formPreview(d) {
 
 // ---- process designer ----
 const STAGE_TYPES = {
-  bot: { label: "Bot task", icon: "bot", color: "#6d28d9", desc: "Run a bot" }, form: { label: "Human task", icon: "form", color: "#0891b2", desc: "Someone fills in a form" },
+  bot: { label: "Agent task", icon: "bot", color: "#6d28d9", desc: "Run an agent" }, form: { label: "Human task", icon: "form", color: "#0891b2", desc: "Someone fills in a form" },
   approval: { label: "Approval", icon: "shield", color: "#d97706", desc: "Someone approves or rejects" }, decision: { label: "Decision", icon: "branch", color: "#7c3aed", desc: "Choose the next stage" },
   notify: { label: "Notification", icon: "mail", color: "#0284c7", desc: "Send a message" },
 };
@@ -2418,13 +2418,13 @@ function processDesigner(it) {
   const items = allItems();
   const bots = items.filter((x) => x.type === "bot"), forms = items.filter((x) => x.type === "form");
   const pathSelect = (list, value, onSet, none) => { const s = h("select", { onchange: (e) => onSet(e.target.value) }, h("option", { value: "", text: none }), list.map((x) => h("option", { value: x.path, text: x.path }))); s.value = value || ""; return s; };
-  const targetSelect = (value, onSet) => { const s = h("select", { onchange: (e) => onSet(e.target.value) }, h("option", { value: "", text: "Next stage" }), h("option", { value: "end", text: "End the process" }), d.stages.map((x) => h("option", { value: x.id, text: x.name || x.id }))); s.value = value || ""; return s; };
+  const targetSelect = (value, onSet) => { const s = h("select", { onchange: (e) => onSet(e.target.value) }, h("option", { value: "", text: "Next stage" }), h("option", { value: "end", text: "End the workflow" }), d.stages.map((x) => h("option", { value: x.id, text: x.name || x.id }))); s.value = value || ""; return s; };
   function stageProps(st) {
     const set = (k, v) => { setOrDelete(st, k, v); touch(); };
     const t = STAGE_TYPES[st.type] || STAGE_TYPES.bot;
     const parts = [h("div", { class: "pane-title", text: t.label }), field("Name", h("input", { type: "text", value: st.name || "", onchange: (e) => set("name", e.target.value) }))];
     if (st.type === "bot") {
-      parts.push(field("Bot", pathSelect(bots, st.bot, (v) => set("bot", v), "(choose a bot)")),
+      parts.push(field("Agent", pathSelect(bots, st.bot, (v) => set("bot", v), "(choose an agent)")),
         field("Inputs (JSON)", h("textarea", { rows: 3, value: st.inputs ? JSON.stringify(st.inputs, null, 2) : "", placeholder: '{"order_id": "$form.order_id"}',
           onchange: (e) => { const v = parseLoose(e.target.value); if (v !== undefined && (typeof v !== "object" || Array.isArray(v))) { toast("Inputs must be a JSON object.", true); return; } set("inputs", v); } })));
     } else if (st.type === "form") {
@@ -2432,7 +2432,7 @@ function processDesigner(it) {
         field("Assign to", h("input", { type: "text", value: st.assignee || "", placeholder: "role:bot_runner or user:jane", onchange: (e) => set("assignee", e.target.value) })),
         field("Due within (hours)", h("input", { type: "number", min: "1", value: st.due_hours ?? "", onchange: (e) => set("due_hours", e.target.value === "" ? undefined : Number(e.target.value)) })));
     } else if (st.type === "approval") {
-      const rej = h("select", { onchange: (e) => set("on_reject", e.target.value) }, h("option", { value: "end", text: "End the process" }), h("option", { value: "continue", text: "Continue anyway" }), d.stages.filter((x) => x !== st).map((x) => h("option", { value: x.id, text: "Go to " + (x.name || x.id) })));
+      const rej = h("select", { onchange: (e) => set("on_reject", e.target.value) }, h("option", { value: "end", text: "End the workflow" }), h("option", { value: "continue", text: "Continue anyway" }), d.stages.filter((x) => x !== st).map((x) => h("option", { value: x.id, text: "Go to " + (x.name || x.id) })));
       rej.value = st.on_reject || "end";
       parts.push(field("Approver", h("input", { type: "text", value: st.assignee || "", placeholder: "role:admin or user:fin.lead", onchange: (e) => set("assignee", e.target.value) })),
         field("Due within (hours)", h("input", { type: "number", min: "1", value: st.due_hours ?? "", onchange: (e) => set("due_hours", e.target.value === "" ? undefined : Number(e.target.value)) })),
@@ -2445,12 +2445,12 @@ function processDesigner(it) {
         field("Message", h("textarea", { rows: 4, value: st.message || "", onchange: (e) => set("message", e.target.value) })));
     }
     parts.push(field("Notes", h("textarea", { rows: 2, value: st.description || "", onchange: (e) => set("description", e.target.value) })),
-      h("div", { class: "row-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => { it.sel = null; render(); } }, "\u2190 Process settings")));
+      h("div", { class: "row-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => { it.sel = null; render(); } }, "\u2190 Workflow settings")));
     return parts;
   }
   function processProps() {
     const set = (k, v) => { setOrDelete(d, k, v); touch(); };
-    return [h("div", { class: "pane-title", text: "Process settings" }),
+    return [h("div", { class: "pane-title", text: "Workflow settings" }),
       field("Name", h("input", { type: "text", value: d.name || "", onchange: (e) => set("name", e.target.value) })),
       field("Description", h("textarea", { rows: 3, value: d.description || "", onchange: (e) => set("description", e.target.value) })),
       h("p", { class: "help", text: "Select a stage to edit it. Stages run from top to bottom; decisions and approvals can jump to another stage." })];
@@ -2465,7 +2465,7 @@ function processDesigner(it) {
     const flow = [h("div", { class: "pnode start", text: "Start" })];
     d.stages.forEach((st, i) => {
       const m = STAGE_TYPES[st.type] || STAGE_TYPES.bot;
-      const detail = st.type === "bot" ? (st.bot || "No bot chosen") : st.type === "form" ? (st.form || "No form chosen") + (st.assignee ? " \u00B7 " + st.assignee : "")
+      const detail = st.type === "bot" ? (st.bot || "No agent chosen") : st.type === "form" ? (st.form || "No form chosen") + (st.assignee ? " \u00B7 " + st.assignee : "")
         : st.type === "approval" ? (st.assignee || "No approver") : st.type === "decision" ? (st.condition || "No condition") + "  \u2192 yes: " + nameOf(st.if_true) + ", no: " + nameOf(st.if_false)
           : (st.to || "No recipient");
       flow.push(h("div", { class: "parrow", "aria-hidden": "true" }));
@@ -2479,8 +2479,8 @@ function processDesigner(it) {
     });
     flow.push(h("div", { class: "parrow", "aria-hidden": "true" }), h("div", { class: "pnode end", text: "End" }));
     const canvas = h("div", { class: "form-canvas" },
-      h("div", { class: "note", text: "Design preview: processes are saved and versioned with your bots. Running them needs the Assist portal (task inbox), which is not built yet." }),
-      h("div", { class: "pflow" }, flow), d.stages.length ? null : h("div", { class: "canvas-empty", text: "Add stages from the left: bot tasks, human tasks, approvals, decisions and notifications." }));
+      h("div", { class: "note", text: "Design preview: workflows are saved and versioned with your agents. Running them needs the Assist portal (task inbox), which is not built yet." }),
+      h("div", { class: "pflow" }, flow), d.stages.length ? null : h("div", { class: "canvas-empty", text: "Add stages from the left: agent tasks, human tasks, approvals, decisions and notifications." }));
     const props = h("div", { class: "designer-props" }, ...(it.sel != null && d.stages[it.sel] ? stageProps(d.stages[it.sel]) : processProps()));
     wrap.replaceChildren(palette, canvas, props);
   }
@@ -2525,8 +2525,8 @@ function documentDesigner(it) {
         d.fields.length ? null : h("div", { class: "empty", text: "No fields yet." }),
         h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => { d.fields.push({ name: uniqueKey(d.fields, "field", "name"), description: "", type: "String" }); touchItem(); render(); } }, "+ Field"))),
       h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Use it" }),
-        h("p", { class: "help", text: "Create a Task Bot that reads a document (PDF or text), sends the text to the AI provider with these field descriptions, and returns the fields as a Dictionary. Personal data is sent to the provider, so check your AI policy. Scanned images need OCR first." }),
-        h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: () => generateExtractionBot(it) }, "Create extraction bot"))));
+        h("p", { class: "help", text: "Create an agent that reads a document (PDF or text), sends the text to the AI provider with these field descriptions, and returns the fields as a Dictionary. Personal data is sent to the provider, so check your AI policy. Scanned images need OCR first." }),
+        h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: () => generateExtractionBot(it) }, "Create extraction agent"))));
   }
   render();
   return wrap;
@@ -2578,9 +2578,9 @@ function skillDesigner(it) {
   const names = renderHolders();
   return h("div", { class: "doc-designer" },
     h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Prompt" }),
-      field("Description", h("input", { type: "text", value: d.description || "", placeholder: "What the skill does; shown in the AI Skills list", onchange: (e) => set("description", e.target.value) })),
+      field("Description", h("input", { type: "text", value: d.description || "", placeholder: "What the skill does; shown in the Prompt Skills list", onchange: (e) => set("description", e.target.value) })),
       field("Instructions (system)", h("textarea", { rows: 3, value: d.system || "", onchange: (e) => { set("system", e.target.value); renderHolders(); } })),
-      field("Prompt template", prompt, "Values from the bot replace ${name} placeholders."), holders),
+      field("Prompt template", prompt, "Values from the agent replace ${name} placeholders."), holders),
     h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Model" }),
       h("div", { class: "grid2" }, field("Provider", providerSelect(d.provider, (v) => set("provider", v))),
         field("Model", h("input", { type: "text", value: d.model || "", placeholder: "gpt-4o-mini", onchange: (e) => set("model", e.target.value) }))),
@@ -2589,8 +2589,8 @@ function skillDesigner(it) {
       h("div", { class: "field" }, h("label", { text: "Answer format" }), out),
       h("label", { class: "check" }, h("input", { type: "checkbox", checked: d.mask_pii !== false, onchange: (e) => { d.mask_pii = e.target.checked; touchItem(); } }), "Mask personal data (emails, phone numbers, card numbers) before sending")),
     h("div", { class: "card-box" }, h("div", { class: "pane-title", text: "Use it" }),
-      h("p", { class: "help", text: "Bots run this skill with the Run AI Skill command: skill = " + name + ". API keys never go in skill files; give the step an api_key credential." }),
-      h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => copyStep({ action: "ooa.ai_skills/run", args: { skill: name, values: Object.fromEntries(names.map((n) => [n, ""])) } }, "Run AI Skill") }, "Copy as a bot step"))));
+      h("p", { class: "help", text: "Agents run this skill with the Run Prompt Skill action: skill = " + name + ". API keys never go in skill files; give the step an api_key credential." }),
+      h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => copyStep({ action: "ooa.ai_skills/run", args: { skill: name, values: Object.fromEntries(names.map((n) => [n, ""])) } }, "Run Prompt Skill") }, "Copy as an agent step"))));
 }
 
 // ---- templates ----
@@ -2634,19 +2634,19 @@ const TEMPLATES = [
     variables: [{ name: "url", type: "String", direction: "input", default: "https://example.com", description: "The page to open." }, { name: "heading", type: "String", direction: "output" }],
     steps: [{ id: "s1", action: "ooa.browser/open", args: { url: "$url" } }, { id: "s2", action: "ooa.browser/get_text", args: { selector: "h1" }, out: { text: "heading" } },
       { id: "s3", action: "ooa.browser/close", args: {} }] },
-  { id: "error_handling", name: "Bot with error handling", icon: "shield", color: "#dc2626", description: "A Try / Catch / Finally skeleton that logs failures.",
+  { id: "error_handling", name: "Agent with error handling", icon: "shield", color: "#dc2626", description: "A Try / Catch / Finally skeleton that logs failures.",
     variables: [{ name: "error", type: "Dictionary" }],
-    steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "core/comment", args: { text: "Put the main steps of the bot here." } }],
+    steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "core/comment", args: { text: "Put the main steps of the agent here." } }],
       catch: [{ codes: [], as: "error", children: [{ id: "s3", action: "core/log", args: { message: "Failed: ${error.code} ${error.message}", level: "error" } }] }],
       finally: [{ id: "s4", action: "core/log", args: { message: "Finished" } }] }] },
 ];
 function availableTemplates() { return TEMPLATES.filter((t) => allSteps(t.steps).every((st) => state.specs.has(st.action))); }
 function openTemplates() {
-  openDialog("Create a bot from a template", h("div", { class: "tpl-grid" }, availableTemplates().map((t) => h("button", { type: "button", class: "tpl", onclick: () => { closeDialog(); createFromTemplate(t); } },
+  openDialog("Create an agent from a blueprint", h("div", { class: "tpl-grid" }, availableTemplates().map((t) => h("button", { type: "button", class: "tpl", onclick: () => { closeDialog(); createFromTemplate(t); } },
     tile(t.icon, t.color, "lg"), h("strong", { text: t.name }), h("span", { class: "desc", text: t.description })))), [], { wide: true, closeLabel: "Close" });
 }
 async function createFromTemplate(t) {
-  const name = prompt("Name of the new bot:", t.name);
+  const name = prompt("Name of the new agent:", t.name);
   if (!name) return;
   if (state.dirty && !confirm("Discard unsaved changes?")) return;
   const path = await fileOp("bot", { parent: currentFolder(), name }, null);
@@ -2657,7 +2657,7 @@ async function createFromTemplate(t) {
     await api("PUT", "bot?path=" + encodeURIComponent(path), created);
     setDirty(false); expandTo(path); state.treeSel = path;
     await loadTree(); await openBot(path);
-    toast("Created " + name + " from the template");
+    toast("Created " + name + " from the blueprint");
   } catch (e) { toast(e.message, true); }
 }
 
@@ -2676,14 +2676,14 @@ async function renderDeps() {
         h("span", { class: "spacer" }), x.step ? h("a", { class: "link", text: "step " + x.step, onclick: (e) => { if (x.path && title !== "Used by") { e.stopPropagation(); selectById(x.step); } } }) : null))
         : h("div", { class: "empty", text: empty }));
     box.replaceChildren(
-      state.dirty ? h("div", { class: "note", text: "Save the bot to include your latest changes." }) : null,
-      h("p", { class: "help", text: "What this bot needs to run, and which bots use it. Check in child bots too before running this bot from Control Room." }),
+      state.dirty ? h("div", { class: "note", text: "Save the agent to include your latest changes." }) : null,
+      h("p", { class: "help", text: "What this agent needs to run, and which agents use it. Agent check-in child agents too before running this agent from Command Center." }),
       h("div", { class: "dep-grid" },
-        group("Child bots and agent tools", "bot", "#6d28d9", r.bots, "This bot does not call other bots."),
+        group("Child agents and agent tools", "bot", "#6d28d9", r.bots, "This agent does not call other agents."),
         group("Scripts", "code", "#0f766e", r.scripts, "No script files."),
-        group("AI Skills", "spark", "#c026d3", r.skills, "No AI Skills."),
+        group("Prompt Skills", "spark", "#c026d3", r.skills, "No Prompt Skills."),
         group("Files", "file", "#64748b", r.files, "No workspace files referenced."),
-        group("Used by", "jump", "#2563eb", r.usedBy, "No other bot in the workspace calls this bot.")));
+        group("Used by", "jump", "#2563eb", r.usedBy, "No other agent in the workspace calls this agent.")));
   } catch (e) { box.replaceChildren(h("p", { class: "error-box", text: e.message })); }
 }
 function openAny(path) {
@@ -2706,7 +2706,7 @@ async function pickSelector(done) {
 }
 
 function captureStep() {
-  if (!state.flow) { toast("Open or create a bot first.", true); return; }
+  if (!state.flow) { toast("Open or create an agent first.", true); return; }
   pickSelector((selector, el) => {
     const tag = (el && el.tag) || "";
     const action = /^(input|textarea)$/.test(tag) && !/^(checkbox|radio|submit|button)$/.test((el && el.type) || "") ? "set_text"
@@ -2734,7 +2734,7 @@ function onTreeSearch() {
       box.replaceChildren(...(r.results.length ? r.results.map((x) => h("div", { class: "search-hit", tabindex: "0", role: "button",
         onclick: () => openBot(x.path), onkeydown: (e) => { if (e.key === "Enter") openBot(x.path); } },
         itemTile({ type: "bot", name: x.path }), h("div", {}, h("div", { text: x.path.replace(/\.flow\.json$/, "") }), h("div", { class: "help", text: "Matches " + x.matches.join(", ") }))))
-        : [h("div", { class: "empty", text: "No bots match \u201C" + q + "\u201D." })]));
+        : [h("div", { class: "empty", text: "No agents match \u201C" + q + "\u201D." })]));
     } catch (e) { toast(e.message, true); }
   }, 250);
 }
@@ -2828,7 +2828,7 @@ function wire() {
   $("btn-json-apply").addEventListener("click", () => {
     try {
       const f = JSON.parse($("json-text").value);
-      if (typeof f !== "object" || !f || Array.isArray(f)) throw new Error("The bot must be a JSON object.");
+      if (typeof f !== "object" || !f || Array.isArray(f)) throw new Error("The agent must be a JSON object.");
       setFlow(f, state.file); setDirty(true);
       toast("JSON applied");
     } catch (e) { toast("Invalid JSON: " + e.message, true); }

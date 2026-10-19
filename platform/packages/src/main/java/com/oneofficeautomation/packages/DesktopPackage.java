@@ -190,7 +190,7 @@ public final class DesktopPackage {
     }
 
     @Action(id = "message_box", name = "Message box", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600,
-            description = "Show a message to the user (attended bots); closes automatically after the timeout.")
+            description = "Show a message to the user (attended agents); closes automatically after the timeout.")
     public Map<String, Object> messageBox(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Message text.") String message,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = "Window title.") String title,

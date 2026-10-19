@@ -30,7 +30,7 @@ final class FileTriggers {
             for (Object o : triggers) {
                 Map<String, Object> t = (Map<String, Object>) o;
                 Path dir = Path.of(String.valueOf(t.get("folder")));
-                if (!Files.isDirectory(dir)) { log.accept("File trigger " + t.get("id") + ": folder not found on this device: " + dir); continue; }
+                if (!Files.isDirectory(dir)) { log.accept("File trigger " + t.get("id") + ": folder not found on this runner: " + dir); continue; }
                 keys.computeIfAbsent(dir.register(watcher, StandardWatchEventKinds.ENTRY_CREATE), k -> new ArrayList<>()).add(t);
                 log.accept("Watching " + dir + " for " + t.get("pattern") + " (trigger " + t.get("id") + ")");
             }
@@ -48,7 +48,7 @@ final class FileTriggers {
                         Path full = dir.resolve(name);
                         waitStable(full);
                         try { client.post("trigger-fired", Map.of("trigger_id", t.get("id"), "file", full.toString())); log.accept("Trigger " + t.get("id") + " fired for " + full); }
-                        catch (OoaException e) { log.accept("Trigger " + t.get("id") + " could not start its bot: " + e.getMessage()); }
+                        catch (OoaException e) { log.accept("Trigger " + t.get("id") + " could not start its agent: " + e.getMessage()); }
                     }
                 }
                 k.reset();

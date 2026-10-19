@@ -22,13 +22,13 @@ public final class CorePackage {
             @Input(name = "condition", description = "Condition object, expression string or $reference.") Object condition) { return interp(); }
 
     @Action(id = "loop", name = "Loop", category = "Logic",
-            description = "Repeat the children using an iterator: times, while, list, dictionary, table_rows or a package iterator (package/iterator).")
+            description = "Repeat the children using an iterator: times, while, list, dictionary, table_rows or a toolkit iterator (package/iterator).")
     public Map<String, Object> loop(ActionContext c,
             @Input(name = "iterator", type = OoaType.STRING, description = "Iterator kind or package/iterator address.", example = "list") String iterator,
             @Input(name = "over", required = false, description = "Collection for list, dictionary and table_rows iterators.") Object over,
             @Input(name = "count", type = OoaType.NUMBER, required = false, description = "Repetitions for the times iterator.") Object count,
             @Input(name = "condition", required = false, description = "Condition for the while iterator, checked before each pass.") Object cond,
-            @Input(name = "iterator_args", type = OoaType.DICTIONARY, required = false, description = "Arguments for a package iterator.") Object args,
+            @Input(name = "iterator_args", type = OoaType.DICTIONARY, required = false, description = "Arguments for a toolkit iterator.") Object args,
             @Input(name = "as", type = OoaType.STRING, required = false, description = "Declared variable that receives the current item.") String as,
             @Input(name = "index", type = OoaType.STRING, required = false, description = "Declared Number variable that receives the zero-based index.") String index,
             @Input(name = "max_iterations", type = OoaType.NUMBER, required = false, defaultValue = "100000",
@@ -39,7 +39,7 @@ public final class CorePackage {
 
     @Action(id = "step", name = "Step", category = "Logic", description = "Named group of steps for readability; no runtime effect.")
     public Map<String, Object> step(ActionContext c,
-            @Input(name = "title", type = OoaType.STRING, required = false, description = "Group title shown in Studio.") String title) { return interp(); }
+            @Input(name = "title", type = OoaType.STRING, required = false, description = "Group title shown in Agent Studio.") String title) { return interp(); }
 
     @Action(id = "parallel", name = "Parallel", category = "Logic", description = "Run each child step as a concurrent branch and wait for all branches.")
     public Map<String, Object> parallel(ActionContext c,
@@ -82,7 +82,7 @@ public final class CorePackage {
     @Action(id = "continue", name = "Continue loop", category = "Logic", description = "Skip to the next pass of the innermost loop.")
     public Map<String, Object> continueAction(ActionContext c) { return interp(); }
 
-    @Action(id = "run_bot", name = "Run Task Bot", category = "Task Bot", description = "Run a published child automation with mapped inputs and receive its outputs.")
+    @Action(id = "run_bot", name = "Run Agent", category = "Agent", description = "Run a published child automation with mapped inputs and receive its outputs.")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The child's output variables.")
     @Output(name = "status", type = OoaType.STRING, description = "Child run status.")
     public Map<String, Object> runBot(ActionContext c,

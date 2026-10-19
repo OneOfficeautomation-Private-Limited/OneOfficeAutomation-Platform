@@ -49,17 +49,17 @@ final class ControlRoomLink {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> call(String method, String path, Object body, boolean auth) {
-        if (auth && token == null) throw new OoaException("STUDIO.CR_NOT_CONNECTED", "Not connected to Control Room", "Connect from the Explorer's Control Room section.");
+        if (auth && token == null) throw new OoaException("STUDIO.CR_NOT_CONNECTED", "Not connected to Command Center", "Connect from the Explorer's Command Center section.");
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url + "/api/" + path)).timeout(Duration.ofSeconds(60))
                 .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(JsonLite.write(body)))
                 .header("Content-Type", "application/json");
         if (auth) b.header("Authorization", "Bearer " + token);
         HttpResponse<String> r;
         try { r = http.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
-        catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach Control Room at " + url + ": " + e.getMessage(), "Check the address and that Control Room is running."); }
+        catch (IOException e) { throw new OoaException("STUDIO.CR_UNREACHABLE", "Cannot reach Command Center at " + url + ": " + e.getMessage(), "Check the address and that Command Center is running."); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("STUDIO.INTERRUPTED", "Interrupted"); }
         Object parsed;
-        try { parsed = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("STUDIO.CR_BAD_RESPONSE", "Unexpected answer from " + url + " (HTTP " + r.statusCode() + ")", "Check the Control Room address."); }
+        try { parsed = r.body().isBlank() ? Map.of() : JsonLite.parse(r.body()); } catch (IllegalArgumentException e) { throw new OoaException("STUDIO.CR_BAD_RESPONSE", "Unexpected answer from " + url + " (HTTP " + r.statusCode() + ")", "Check the Command Center address."); }
         Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
         if (r.statusCode() >= 400) {
             Map<String, Object> e = m.get("error") instanceof Map ? (Map<String, Object>) m.get("error") : Map.of();
@@ -72,12 +72,12 @@ final class ControlRoomLink {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> connect(String crUrl, String username, String password) throws IOException {
-        if (crUrl == null || !crUrl.matches("^https?://[A-Za-z0-9.\\-:\\[\\]]+(/.*)?$")) throw new OoaException("STUDIO.BAD_URL", "Enter the Control Room address, e.g. http://localhost:8720");
+        if (crUrl == null || !crUrl.matches("^https?://[A-Za-z0-9.\\-:\\[\\]]+(/.*)?$")) throw new OoaException("STUDIO.BAD_URL", "Enter the Command Center address, e.g. http://localhost:8720");
         url = crUrl.replaceAll("/+$", "");
         Map<String, Object> r = call("POST", "auth/login", Map.of("username", username == null ? "" : username, "password", password == null ? "" : password), false);
         Map<String, Object> u = (Map<String, Object>) r.get("user");
         if (Boolean.TRUE.equals(u.get("must_change")))
-            throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Control Room password must be changed first", "Sign in to Control Room in the browser (" + url + "), choose a new password, then connect again.");
+            throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Command Center password must be changed first", "Sign in to Command Center in the browser (" + url + "), choose a new password, then connect again.");
         token = (String) r.get("token");
         user = u;
         adopted = false;
@@ -94,7 +94,7 @@ final class ControlRoomLink {
         token = sessionToken;
         try {
             Map<String, Object> u = call("GET", "auth/me", null, true);
-            if (Boolean.TRUE.equals(u.get("must_change"))) throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Control Room password must be changed first");
+            if (Boolean.TRUE.equals(u.get("must_change"))) throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Command Center password must be changed first");
             user = u;
             adopted = true;
             return status();
@@ -146,7 +146,7 @@ final class ControlRoomLink {
     @SuppressWarnings("unchecked")
     Map<String, Object> checkin(String local, String repoPathOverride, String comment, JsonCodec json) throws IOException {
         Path p = ws.resolve(local);
-        if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Bot not found: " + local);
+        if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + local);
         Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
         Map<String, Object> m = mapping();
         String repoPath = repoPathOverride != null && !repoPathOverride.isBlank() ? repoPathOverride

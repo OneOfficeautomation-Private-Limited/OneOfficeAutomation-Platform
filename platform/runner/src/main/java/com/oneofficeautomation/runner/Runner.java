@@ -97,7 +97,7 @@ public final class Runner {
             java.util.function.Supplier<Object> b = builtins.get(name);
             if (b != null) return b.get();
             if (!types.containsKey(name)) throw new OoaException("VAR.UNDECLARED", "Variable '$" + name + "' is not declared",
-                    "Declare '" + name + "' in the bot's variables.");
+                    "Declare '" + name + "' in the agent's variables.");
             return values.get(name);
         }
 
@@ -552,10 +552,10 @@ public final class Runner {
 
         @SuppressWarnings("unchecked")
         void runChild(Map<String, Object> step, Map<String, Object> a) {
-            if (depth + 1 > MAX_CHILD_DEPTH) throw new OoaException("CHILD.DEPTH", "Child bot nesting is too deep",
-                    "Keep child bot chains under " + MAX_CHILD_DEPTH + " levels; check for recursion.");
+            if (depth + 1 > MAX_CHILD_DEPTH) throw new OoaException("CHILD.DEPTH", "Child agent nesting is too deep",
+                    "Keep child agent chains under " + MAX_CHILD_DEPTH + " levels; check for recursion.");
             AutomationRepository repo = (AutomationRepository) services.get("repository");
-            if (repo == null) throw new OoaException("SERVICE.UNAVAILABLE", "No repository available for child bots");
+            if (repo == null) throw new OoaException("SERVICE.UNAVAILABLE", "No agent repository available for child agents");
             Map<String, Object> args = (Map<String, Object>) resolve(a);
             String automation = Values.text(args.get("automation"));
             Map<String, Object> childFlow = repo.get(automation, args.getOrDefault("version", "production"));
@@ -568,7 +568,7 @@ public final class Runner {
             if (!res.ok()) {
                 Map<String, Object> err = res.error() == null ? Map.of() : res.error();
                 throw new OoaException(String.valueOf(err.getOrDefault("code", "CHILD.FAILED")),
-                        "Child bot '" + automation + "' failed: " + err.get("message"), (String) err.get("suggestedFix"), false,
+                        "Child agent '" + automation + "' failed: " + err.get("message"), (String) err.get("suggestedFix"), false,
                         Map.of("childRunId", res.runId(), "childStepId", String.valueOf(err.get("stepId"))));
             }
             Map<String, Object> result = new LinkedHashMap<>();
@@ -621,7 +621,7 @@ public final class Runner {
                 Throwable t = e.getCause();
                 if (t instanceof OoaException oe) throw oe;
                 throw new ActionException("ACTION.UNEXPECTED", pkg.id() + "/" + spec.id() + " raised " + t.getClass().getSimpleName() + ": " + t.getMessage(),
-                        "Report this to the package publisher with the run id.");
+                        "Report this to the toolkit publisher with the run id.");
             } catch (IllegalAccessException e) {
                 throw new ActionException("ACTION.UNEXPECTED", "Cannot call " + pkg.id() + "/" + spec.id() + ": " + e.getMessage());
             }
@@ -679,7 +679,7 @@ public final class Runner {
                     err = e;
                 } catch (RuntimeException e) {
                     err = new ActionException("ACTION.UNEXPECTED", pid + "/" + aid + " raised " + e.getClass().getSimpleName() + ": " + e.getMessage(),
-                            "Report this to the package publisher with the run id.");
+                            "Report this to the toolkit publisher with the run id.");
                 }
                 List<Object> codes = policy.get("codes") instanceof List<?> l ? (List<Object>) l : null;
                 boolean retry = attempt < maxRetry && (codes != null ? codes.contains(err.code()) : err.retryable());

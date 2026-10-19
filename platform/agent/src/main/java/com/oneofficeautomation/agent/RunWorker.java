@@ -56,7 +56,7 @@ public final class RunWorker {
         AutomationRepository repo = (id, version) -> {
             if (id.equals(main.get("id"))) return main;
             Object f = bots.get(id);
-            if (f == null) throw new OoaException("REPO.NOT_FOUND", "Bot '" + id + "' is not published in Control Room (no production version)", "Check it in and set a production version.");
+            if (f == null) throw new OoaException("REPO.NOT_FOUND", "Agent '" + id + "' is not published in Command Center (no live production version)", "Check it in and set a live production version.");
             return (Map<String, Object>) f;
         };
         CredentialVault vault = (ref, principal) -> {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ONEOFFICEAUTOMATION Studio</title>
+  <title>ONEOFFICEAUTOMATION One Agent Studio</title>
   <link rel="icon" href="logo-mark.png">
   <link rel="stylesheet" href="studio.css">
 </head>
@@ -12,20 +12,20 @@
     <div class="brand">
       <img class="logo" src="logo-mark.png" alt="">
       <span class="brand-name">ONEOFFICEAUTOMATION</span>
-      <span class="brand-product">Studio</span>
+      <span class="brand-product">One Agent Studio</span>
     </div>
     <button type="button" class="icon-btn" id="btn-home" aria-label="Automation home" title="Automation home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg></button>
     <nav class="crumbs" id="crumbs" aria-label="Open item"></nav>
     <div class="actions">
       <span id="dirty" class="dirty" hidden>Unsaved</span>
-      <a id="btn-open-cr" class="button-link" href="../" target="ooa-control-room" hidden title="Open Control Room (repository, devices, runs) in another tab">Control Room</a>
+      <a id="btn-open-cr" class="button-link" href="../" target="ooa-control-room" hidden title="Open Command Center (agent repository, runners, runs) in another tab">One Command Center</a>
       <div class="panel-toggles" aria-label="Panels">
         <button type="button" class="icon-btn" id="tg-left" aria-label="Show or hide the left panel" title="Left panel">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
         <button type="button" class="icon-btn" id="tg-dock" aria-label="Show or hide the run dock" title="Run dock">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></svg></button>
-        <button type="button" class="icon-btn" id="tg-right" aria-label="Show or hide command settings" title="Command settings">
+        <button type="button" class="icon-btn" id="tg-right" aria-label="Show or hide action settings" title="Action settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
       </div>
       <div class="view-menu">
@@ -34,11 +34,11 @@
         <div class="popover" id="view-pop" hidden>
           <label>Theme
             <select id="sel-theme">
-              <option value="brand">Brand blue and purple</option>
+              <option value="brand">One Light (blue)</option>
+              <option value="midnight">One Dark</option>
               <option value="teal">Ocean teal</option>
               <option value="graphite">Graphite</option>
               <option value="sunrise">Sunrise orange</option>
-              <option value="midnight">Midnight (dark)</option>
             </select>
           </label>
           <label>Density
@@ -53,10 +53,10 @@
   </header>
 
   <div class="workbench" id="workbench">
-    <nav class="rail" aria-label="Studio sections">
+    <nav class="rail" aria-label="Agent Studio sections">
       <button type="button" class="rail-btn active" data-side="explorer" aria-label="Explorer" title="Explorer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z"/></svg></button>
-      <button type="button" class="rail-btn" data-side="commands" aria-label="Commands" title="Commands">
+      <button type="button" class="rail-btn" data-side="commands" aria-label="Actions" title="Actions">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
       <button type="button" class="rail-btn" data-side="variables" aria-label="Variables" title="Variables">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4c-2 0-2 2-2 4s-1 3-2 4c1 1 2 2 2 4s0 4 2 4M16 4c2 0 2 2 2 4s1 3 2 4c-1 1-2 2-2 4s0 4-2 4"/></svg></button>
@@ -69,30 +69,30 @@
         <div class="side-head"><span>Explorer</span></div>
         <div class="toolbar">
           <div class="create-menu">
-            <button type="button" id="btn-create" class="primary small" aria-haspopup="menu" aria-expanded="false" title="Create a bot, form, process, document automation, AI Skill or script">+ Create</button>
+            <button type="button" id="btn-create" class="primary small" aria-haspopup="menu" aria-expanded="false" title="Create an agent, form, workflow, document intelligence, Prompt Skill or script">+ Create</button>
             <div class="menu" id="create-pop" role="menu" hidden></div>
           </div>
           <button type="button" id="btn-new-folder" title="New folder inside the selected folder">+ Folder</button>
           <button type="button" id="btn-rename">Rename</button>
           <button type="button" id="btn-delete" class="danger" title="Move to the workspace trash">Delete</button>
           <button type="button" id="btn-refresh" aria-label="Refresh" title="Refresh">&#8635;</button>
-          <button type="button" id="btn-checkin" title="Check the open bot in to the Control Room repository as a new version">Check in</button>
+          <button type="button" id="btn-checkin" title="Check the open agent in to the Command Center agent repository as a new version">Agent check-in</button>
         </div>
-        <label class="sr-only" for="tree-search">Search bots</label>
-        <input id="tree-search" type="search" placeholder="Search bots by name, description or command">
+        <label class="sr-only" for="tree-search">Search agents</label>
+        <input id="tree-search" type="search" placeholder="Search agents by name, description or action">
         <div id="search-results" class="tree" hidden></div>
         <div id="tree" class="tree" role="tree"></div>
         <div id="workspace-path" class="ws-path"></div>
         <details id="cr-panel" class="cr-panel" open>
-          <summary>Control Room <span id="cr-state" class="muted"></span></summary>
+          <summary>Command Center <span id="cr-state" class="muted"></span></summary>
           <div id="cr-body"></div>
         </details>
       </div>
       <div id="side-commands" class="side-body" hidden>
-        <div class="side-head"><span>Commands <span id="cmd-count" class="muted"></span></span>
+        <div class="side-head"><span>Actions <span id="cmd-count" class="muted"></span></span>
           <button type="button" class="link-btn" id="btn-fold-groups">Collapse all</button></div>
-        <label class="sr-only" for="cmd-search">Search commands</label>
-        <input id="cmd-search" type="search" placeholder="Search commands">
+        <label class="sr-only" for="cmd-search">Search actions</label>
+        <input id="cmd-search" type="search" placeholder="Search actions">
         <div class="hint">Click to add, or drag onto the canvas.</div>
         <div id="library" class="library-list"></div>
       </div>
@@ -106,7 +106,7 @@
       <div id="editor-body" class="editor-body" hidden>
         <nav class="tabs" role="tablist">
           <button type="button" class="tab active" data-tab="steps">Canvas</button>
-          <button type="button" class="tab" data-tab="settings">Bot settings</button>
+          <button type="button" class="tab" data-tab="settings">Agent settings</button>
           <button type="button" class="tab" data-tab="deps">Dependencies</button>
           <button type="button" class="tab" data-tab="json">JSON</button>
         </nav>
@@ -122,7 +122,7 @@
             <button type="button" id="btn-del" class="danger" title="Delete (Del)">Delete</button>
           </div>
           <div class="btn-group">
-            <button type="button" id="btn-share-copy" title="Copy the selected steps to the shared clipboard, to paste into another bot">Copy to shared</button>
+            <button type="button" id="btn-share-copy" title="Copy the selected steps to the shared clipboard, to paste into another agent">Copy to shared</button>
             <button type="button" id="btn-share-paste" title="Paste steps from the shared clipboard">Paste shared</button>
           </div>
           <button type="button" id="btn-record" class="record-btn" title="Record actions in a web browser"><span class="rec-dot"></span>Record</button>
@@ -137,7 +137,7 @@
         <div id="tab-settings" class="tab-body" hidden></div>
         <div id="tab-deps" class="tab-body" hidden></div>
         <div id="tab-json" class="tab-body" hidden>
-          <textarea id="json-text" spellcheck="false" aria-label="Bot JSON"></textarea>
+          <textarea id="json-text" spellcheck="false" aria-label="Agent JSON"></textarea>
           <div class="row-actions">
             <button id="btn-json-apply" type="button">Apply JSON</button>
             <button id="btn-json-format" type="button">Format</button>
@@ -167,8 +167,8 @@
       </section>
     </section>
 
-    <aside class="props" id="props-panel" aria-label="Command settings">
-      <div class="side-head"><span>Command settings</span>
+    <aside class="props" id="props-panel" aria-label="Action settings">
+      <div class="side-head"><span>Action settings</span>
         <button type="button" class="link-btn" id="btn-props-collapse">Collapse</button></div>
       <div id="props" class="props-body"></div>
     </aside>

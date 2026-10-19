@@ -40,7 +40,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("logo shown in header", d.querySelector(".topbar img.logo").getAttribute("src") === "logo-mark.png");
   const logoRes = await fetch(BASE + "/logo-mark.png");
   check("logo served as PNG", logoRes.status === 200 && logoRes.headers.get("content-type") === "image/png");
-  check("explorer shows seeded workspace", await until(() => node("Examples") && node("My Bots") && node("data")));
+  check("explorer shows seeded workspace", await until(() => node("Examples") && node("My Agents") && node("data")));
   check("welcome screen until a bot is opened", !d.getElementById("welcome").hidden);
   click(node("Examples")); click(await (async () => { await until(() => node("Examples/Refunds")); return node("Examples/Refunds"); })());
   check("sub-folders expand", await until(() => node("Examples/Refunds/lookup_order.flow.json")));
@@ -56,13 +56,13 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
 
   // ---- folders, sub-folders, new bot ----
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
-  click(node("My Bots"));
+  click(node("My Agents"));
   answers.push("Invoices"); click(d.getElementById("btn-new-folder"));
-  check("folder created", await until(() => node("My Bots/Invoices")) && fsx("My Bots/Invoices"));
+  check("folder created", await until(() => node("My Agents/Invoices")) && fsx("My Agents/Invoices"));
   answers.push("2026"); click(d.getElementById("btn-new-folder"));
-  check("sub-folder created inside the selected folder", await until(() => node("My Bots/Invoices/2026")) && fsx("My Bots/Invoices/2026"));
+  check("sub-folder created inside the selected folder", await until(() => node("My Agents/Invoices/2026")) && fsx("My Agents/Invoices/2026"));
   answers.push("Monthly report"); click(d.getElementById("btn-new-bot"));
-  check("bot created in the sub-folder and opened", await until(() => w.eval("state.file") === "My Bots/Invoices/2026/Monthly report.flow.json") && fsx("My Bots/Invoices/2026/Monthly report.flow.json"));
+  check("bot created in the sub-folder and opened", await until(() => w.eval("state.file") === "My Agents/Invoices/2026/Monthly report.flow.json") && fsx("My Agents/Invoices/2026/Monthly report.flow.json"));
   check("new bot shows the empty-canvas drop zone", await until(() => d.querySelector(".canvas-empty")));
 
   // ---- drag and drop on the canvas ----
@@ -95,29 +95,29 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("clicking still adds commands too", (click(cmd("ooa.number/round")), await until(() => flow().steps.some((s) => s.action === "ooa.number/round"))));
 
   click(d.getElementById("btn-save"));
-  check("saved to the sub-folder file", await until(() => { try { return JSON.parse(fs.readFileSync(path.join(WS, "My Bots/Invoices/2026/Monthly report.flow.json"), "utf8")).steps.length === 4; } catch (_) { return false; } }));
+  check("saved to the sub-folder file", await until(() => { try { return JSON.parse(fs.readFileSync(path.join(WS, "My Agents/Invoices/2026/Monthly report.flow.json"), "utf8")).steps.length === 4; } catch (_) { return false; } }));
 
   // ---- rename, move, delete ----
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
-  await until(() => node("My Bots/Invoices/2026/Monthly report.flow.json"));
-  click(node("My Bots/Invoices/2026"));
+  await until(() => node("My Agents/Invoices/2026/Monthly report.flow.json"));
+  click(node("My Agents/Invoices/2026"));
   answers.push("Q4"); click(d.getElementById("btn-rename"));
-  check("rename a folder; the open bot follows it", await until(() => fsx("My Bots/Invoices/Q4/Monthly report.flow.json") && w.eval("state.file") === "My Bots/Invoices/Q4/Monthly report.flow.json"));
-  w.eval("state.treeSel = 'My Bots/Invoices/Q4/Monthly report.flow.json'");
+  check("rename a folder; the open bot follows it", await until(() => fsx("My Agents/Invoices/Q4/Monthly report.flow.json") && w.eval("state.file") === "My Agents/Invoices/Q4/Monthly report.flow.json"));
+  w.eval("state.treeSel = 'My Agents/Invoices/Q4/Monthly report.flow.json'");
   answers.push("Monthly summary"); click(d.getElementById("btn-rename"));
-  check("rename a bot (extension kept)", await until(() => fsx("My Bots/Invoices/Q4/Monthly summary.flow.json") && w.eval("state.file").endsWith("Monthly summary.flow.json")));
-  await until(() => node("My Bots/Invoices/Q4/Monthly summary.flow.json"));
-  drag(node("My Bots/Invoices/Q4/Monthly summary.flow.json"), node("My Bots"));
-  check("drag a bot onto a folder to move it", await until(() => fsx("My Bots/Monthly summary.flow.json") && w.eval("state.file") === "My Bots/Monthly summary.flow.json"));
-  drag(node("My Bots"), node("My Bots/Invoices"));
+  check("rename a bot (extension kept)", await until(() => fsx("My Agents/Invoices/Q4/Monthly summary.flow.json") && w.eval("state.file").endsWith("Monthly summary.flow.json")));
+  await until(() => node("My Agents/Invoices/Q4/Monthly summary.flow.json"));
+  drag(node("My Agents/Invoices/Q4/Monthly summary.flow.json"), node("My Agents"));
+  check("drag a bot onto a folder to move it", await until(() => fsx("My Agents/Monthly summary.flow.json") && w.eval("state.file") === "My Agents/Monthly summary.flow.json"));
+  drag(node("My Agents"), node("My Agents/Invoices"));
   await sleep(200);
-  check("a folder cannot be moved into its own sub-folder", fsx("My Bots/Invoices") && !fsx("My Bots/Invoices/My Bots"));
-  click(node("My Bots/Invoices"));
+  check("a folder cannot be moved into its own sub-folder", fsx("My Agents/Invoices") && !fsx("My Agents/Invoices/My Agents"));
+  click(node("My Agents/Invoices"));
   click(d.getElementById("btn-delete"));
-  check("delete moves the folder to the workspace trash", await until(() => !fsx("My Bots/Invoices") && !node("My Bots/Invoices")) &&
+  check("delete moves the folder to the workspace trash", await until(() => !fsx("My Agents/Invoices") && !node("My Agents/Invoices")) &&
         fs.readdirSync(path.join(WS, ".trash")).some((f) => f.endsWith("_Invoices")));
   check("trash is hidden from the explorer", !d.querySelector('.node[data-path^=".trash"]'));
-  answers.push("../escape"); click(node("My Bots")); click(d.getElementById("btn-new-folder"));
+  answers.push("../escape"); click(node("My Agents")); click(d.getElementById("btn-new-folder"));
   await sleep(250);
   check("names that try to leave the workspace are refused", !fsx("escape") && lastToast.includes("WORKSPACE.BAD_NAME"), lastToast);
 
@@ -194,19 +194,19 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
 
   // ================= Triggers (server side, end to end) =================
   fs.mkdirSync(path.join(WS, "inbox"), { recursive: true });
-  fs.writeFileSync(path.join(WS, "My Bots", "on_file.flow.json"), JSON.stringify({ kind: "TaskBot", id: "on_file", name: "on file", description: "",
+  fs.writeFileSync(path.join(WS, "My Agents", "on_file.flow.json"), JSON.stringify({ kind: "TaskBot", id: "on_file", name: "on file", description: "",
     variables: [{ name: "trigger_file", type: "String", direction: "input" }],
     steps: [{ id: "w", action: "ooa.file/write_text", args: { path: "trigger-out.txt", text: "got ${trigger_file}", append: true } }] }));
   const put = async (list) => (await fetch(BASE + "/api/triggers", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(list) })).json();
   const bad = await put([{ id: "t1", name: "x", bot: "../../evil.flow.json", type: "file", folder: "inbox" }]);
   check("triggers reject bots outside the workspace", bad.error && /WORKSPACE|TRIGGER/.test(bad.error.code), JSON.stringify(bad));
-  const weak = await put([{ id: "h1", bot: "My Bots/on_file.flow.json", type: "webhook", secret: "short" }]);
+  const weak = await put([{ id: "h1", bot: "My Agents/on_file.flow.json", type: "webhook", secret: "short" }]);
   check("webhooks need a strong secret", weak.error && weak.error.code === "TRIGGER.WEAK_SECRET");
   const secret = "s3cret-webhook-0123456789";
   const ok = await put([
-    { id: "files", name: "New files", bot: "My Bots/on_file.flow.json", type: "file", folder: "inbox", pattern: "*.pdf" },
-    { id: "sched", name: "Every minute", bot: "My Bots/on_file.flow.json", type: "schedule", every_minutes: 1 },
-    { id: "hook", name: "Hook", bot: "My Bots/on_file.flow.json", type: "webhook", secret }]);
+    { id: "files", name: "New files", bot: "My Agents/on_file.flow.json", type: "file", folder: "inbox", pattern: "*.pdf" },
+    { id: "sched", name: "Every minute", bot: "My Agents/on_file.flow.json", type: "schedule", every_minutes: 1 },
+    { id: "hook", name: "Hook", bot: "My Agents/on_file.flow.json", type: "webhook", secret }]);
   check("triggers saved", ok.triggers && ok.triggers.length === 3, JSON.stringify(ok).slice(0, 200));
   await sleep(500);
   fs.writeFileSync(path.join(WS, "inbox", "INV-77.pdf"), "%PDF");
@@ -228,17 +228,17 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   const mk = (id, n, extraSteps) => ({ kind: "TaskBot", id, name: id, description: "Editing test bot " + id,
     variables: [{ name: "note", type: "String" }],
     steps: [...Array.from({ length: n }, (_, i) => ({ id: "s" + (i + 1), action: "core/log", args: { message: "step " + (i + 1) + " $note" } })), ...(extraSteps || [])] });
-  fs.writeFileSync(path.join(WS, "My Bots", "edit_test.flow.json"), JSON.stringify(mk("edit_test", 4, [{ id: "c1", action: "core/if", args: { condition: { op: "eq", left: 1, right: 1 } }, children: [], else: [] }])));
-  fs.writeFileSync(path.join(WS, "My Bots", "other_bot.flow.json"), JSON.stringify({ kind: "TaskBot", id: "other_bot", name: "other", description: "", variables: [], steps: [] }));
-  fs.writeFileSync(path.join(WS, "My Bots", "slow_bot.flow.json"), JSON.stringify({ kind: "TaskBot", id: "slow_bot", name: "slow", description: "", variables: [],
+  fs.writeFileSync(path.join(WS, "My Agents", "edit_test.flow.json"), JSON.stringify(mk("edit_test", 4, [{ id: "c1", action: "core/if", args: { condition: { op: "eq", left: 1, right: 1 } }, children: [], else: [] }])));
+  fs.writeFileSync(path.join(WS, "My Agents", "other_bot.flow.json"), JSON.stringify({ kind: "TaskBot", id: "other_bot", name: "other", description: "", variables: [], steps: [] }));
+  fs.writeFileSync(path.join(WS, "My Agents", "slow_bot.flow.json"), JSON.stringify({ kind: "TaskBot", id: "slow_bot", name: "slow", description: "", variables: [],
     steps: [1, 2, 3, 4].map((i) => ({ id: "d" + i, action: "core/delay", args: { seconds: 0.8 } })) }));
   click(d.getElementById("btn-refresh"));
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
   if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
-  await until(() => node("My Bots/edit_test.flow.json") || (node("My Bots") && click(node("My Bots")), false));
+  await until(() => node("My Agents/edit_test.flow.json") || (node("My Agents") && click(node("My Agents")), false));
   if (w.eval("state.dirty")) w.eval("state.dirty = false");
-  click(node("My Bots/edit_test.flow.json"));
-  check("open the editing test bot", await until(() => w.eval("state.file") === "My Bots/edit_test.flow.json"));
+  click(node("My Agents/edit_test.flow.json"));
+  check("open the editing test bot", await until(() => w.eval("state.file") === "My Agents/edit_test.flow.json"));
   const stepById = (id) => d.querySelector('.step[data-step-id="' + id + '"]');
   const mclick = (el, opts) => el.dispatchEvent(new w.MouseEvent("click", Object.assign({ bubbles: true }, opts)));
   const key = (k, opts) => d.dispatchEvent(new w.KeyboardEvent("keydown", Object.assign({ key: k, bubbles: true }, opts)));
@@ -278,13 +278,13 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   await until(() => lastToast.includes("shared clipboard"));
   click(d.getElementById("btn-save"));
   await until(() => !w.eval("state.dirty"));
-  click(node("My Bots/other_bot.flow.json"));
-  await until(() => w.eval("state.file") === "My Bots/other_bot.flow.json");
+  click(node("My Agents/other_bot.flow.json"));
+  await until(() => w.eval("state.file") === "My Agents/other_bot.flow.json");
   click(d.getElementById("btn-share-paste"));
   check("shared clipboard pastes into another bot, with the variables it uses", await until(() => w.eval("state.flow.steps.length") === 2 && w.eval("state.flow.variables.some(v => v.name === 'note')")));
   w.eval("state.dirty = false");
-  click(node("My Bots/edit_test.flow.json"));
-  await until(() => w.eval("state.file") === "My Bots/edit_test.flow.json");
+  click(node("My Agents/edit_test.flow.json"));
+  await until(() => w.eval("state.file") === "My Agents/edit_test.flow.json");
   mclick(stepById("c1"));
   check("If shows the condition builder", await until(() => d.querySelector("#props .cond .cond-row")));
   const kind = d.querySelector("#props .cond .cond-top select");
@@ -307,12 +307,12 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   click(d.querySelector('.rail-btn[data-side="variables"]'));
   check("Variables panel shows system, global and bot variables", await until(() => {
     const t = d.getElementById("side-variables").textContent;
-    return t.includes("System variables") && t.includes("$sys.date") && t.includes("$global.threshold") && t.includes("Bot variables");
+    return t.includes("System variables") && t.includes("$sys.date") && t.includes("$global.threshold") && t.includes("Agent variables");
   }));
   click(d.getElementById("btn-save")); await until(() => !w.eval("state.dirty"));
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
-  click(node("My Bots/slow_bot.flow.json"));
-  await until(() => w.eval("state.file") === "My Bots/slow_bot.flow.json");
+  click(node("My Agents/slow_bot.flow.json"));
+  await until(() => w.eval("state.file") === "My Agents/slow_bot.flow.json");
   click(d.getElementById("btn-run"));
   check("live run highlights the running step", await until(() => d.querySelector(".step.running"), 4000));
   check("run window shows progress and the current step", d.getElementById("run-result").textContent.includes("of 4 steps") && d.getElementById("run-result").textContent.includes("Now:"));
@@ -350,20 +350,20 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("the explorer has a Create menu for every item type", ["btn-new-bot", "btn-new-template", "btn-new-api", "btn-new-form", "btn-new-process", "btn-new-doc", "btn-new-skill", "btn-new-py", "btn-new-ps1", "btn-new-vbs", "btn-new-js"].every((id) => d.getElementById(id)));
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
   if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
-  click(node("My Bots"));
+  click(node("My Agents"));
 
   answers.push("Leave request"); click(d.getElementById("btn-new-form"));
-  check("a new form opens in the form designer", await until(() => w.eval("state.item && state.item.type") === "form" && fsx("My Bots/Leave request.form.json") && d.querySelectorAll("#item-editor .fcard").length === 2));
+  check("a new form opens in the form designer", await until(() => w.eval("state.item && state.item.type") === "form" && fsx("My Agents/Leave request.form.json") && d.querySelectorAll("#item-editor .fcard").length === 2));
   click([...d.querySelectorAll("#item-editor .pal-item")].find((b) => b.textContent === "Drop-down"));
   check("adding a field selects it and shows its settings", await until(() => w.eval("state.item.data.fields.length") === 3 && d.querySelector("#item-editor .designer-props textarea")));
   click(d.querySelector('#item-editor [data-itab="preview"]'));
   check("the form preview renders real controls", await until(() => d.querySelector("#item-editor .form-card.preview select")));
   click(d.getElementById("btn-save"));
-  check("the form is saved as JSON", await until(() => { try { return JSON.parse(fs.readFileSync(path.join(WS, "My Bots/Leave request.form.json"), "utf8")).fields.length === 3; } catch (_) { return false; } }));
+  check("the form is saved as JSON", await until(() => { try { return JSON.parse(fs.readFileSync(path.join(WS, "My Agents/Leave request.form.json"), "utf8")).fields.length === 3; } catch (_) { return false; } }));
 
   answers.push("Approvals"); click(d.getElementById("btn-new-process"));
   check("a new process opens in the process designer", await until(() => w.eval("state.item && state.item.type") === "process"));
-  for (const label of ["Human task", "Approval", "Bot task"]) click([...d.querySelectorAll("#item-editor .pal-item")].find((b) => b.textContent === label));
+  for (const label of ["Human task", "Approval", "Agent task"]) click([...d.querySelectorAll("#item-editor .pal-item")].find((b) => b.textContent === label));
   check("stages are added to the flow", await until(() => d.querySelectorAll("#item-editor .pcard").length === 3 && w.eval("state.item.data.stages.length") === 3));
   click(d.getElementById("btn-save"));
   await until(() => !w.eval("state.dirty"));
@@ -371,14 +371,14 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   answers.push("Invoices"); click(d.getElementById("btn-new-doc"));
   check("a document automation opens with its field table", await until(() => w.eval("state.item && state.item.type") === "document" && d.querySelectorAll("#item-editor .doc-fields tbody tr").length === 2));
   w.eval("generateExtractionBot(state.item)");
-  check("document automation generates a valid extraction bot", await until(() => w.eval("state.file") === "My Bots/Invoices extraction.flow.json" && w.eval("state.flow.steps.some(s => s.action === 'ooa.genai/extract')")));
+  check("document automation generates a valid extraction bot", await until(() => w.eval("state.file") === "My Agents/Invoices extraction.flow.json" && w.eval("state.flow.steps.some(s => s.action === 'ooa.genai/extract')")));
   click(d.getElementById("btn-validate"));
   check("the generated extraction bot validates", await until(() => w.eval("state.problems.length") === 0, 4000), JSON.stringify(w.eval("state.problems")));
 
   answers.push("triage"); click(d.getElementById("btn-new-skill"));
   check("AI Skills are created in the ai-skills folder", await until(() => w.eval("state.file") === "ai-skills/triage.json" && fsx("ai-skills/triage.json") && d.getElementById("item-editor").textContent.includes("Prompt template")));
 
-  click(node("My Bots"));
+  click(node("My Agents"));
   answers.push("hello"); click(d.getElementById("btn-new-py"));
   check("a Python script opens in the code editor", await until(() => w.eval("state.item && state.item.type") === "script" && d.querySelector("#item-editor textarea.code").value.includes("import sys")));
   click(d.getElementById("btn-run"));
@@ -393,7 +393,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("every available bot template validates (" + JSON.parse(tpls).length + " templates)", JSON.parse(tpls).length >= 4 && badTpl.length === 0, badTpl.join("; "));
   answers.push("CSV loop");
   w.eval("createFromTemplate(TEMPLATES.find((t) => t.id === 'csv_rows'))");
-  check("a bot is created from a template", await until(() => w.eval("state.file") === "My Bots/CSV loop.flow.json" && w.eval("state.flow.steps.length") === 3));
+  check("a bot is created from a template", await until(() => w.eval("state.file") === "My Agents/CSV loop.flow.json" && w.eval("state.flow.steps.length") === 3));
   check("container steps are drawn as coloured blocks", await until(() => d.querySelector("#steps .block > .section") && d.querySelector("#steps .step .tile.ico svg") && d.querySelector("#steps .step").style.getPropertyValue("--c")));
   click([...d.querySelectorAll(".tab")].find((b) => b.dataset.tab === "deps"));
   check("the Dependencies tab lists what the bot uses and who uses it", await until(() => d.querySelectorAll("#tab-deps .dep-group").length === 5));
@@ -415,7 +415,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   d.querySelector('#dialog input[aria-label="Variable name"]').value = "amounts";
   click([...d.querySelectorAll("#dialog-actions button")].find((b) => b.textContent === "Create variable"));
   check("the List variable is created with its typed default", await until(() => JSON.stringify(w.eval("state.flow.variables.find((v) => v.name === 'amounts')")) === JSON.stringify({ name: "amounts", type: "List", default: [10, 25.5] })), JSON.stringify(w.eval("state.flow.variables.find((v) => v.name === 'amounts')")));
-  check("the variables pane groups variables and shows the new one", await until(() => d.querySelector('#side-variables .var-row[data-var="amounts"]') && d.getElementById("side-variables").textContent.includes("Inside the bot")));
+  check("the variables pane groups variables and shows the new one", await until(() => d.querySelector('#side-variables .var-row[data-var="amounts"]') && d.getElementById("side-variables").textContent.includes("Inside the agent")));
   w.eval("selectById('s2')");
   await until(() => d.querySelector("#props .var-btn"));
   click(d.querySelector("#props .var-btn"));
@@ -437,7 +437,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   const crInputs = d.querySelectorAll("#cr-body input");
   crInputs[0].value = "http://127.0.0.1:1"; crInputs[1].value = "nobody"; crInputs[2].value = "x";
   click([...d.querySelectorAll("#cr-body button")].find((b) => b.textContent === "Connect"));
-  check("connecting to an unreachable Control Room explains the problem", await until(() => lastToast.includes("Cannot reach Control Room"), 8000), lastToast);
+  check("connecting to an unreachable Control Room explains the problem", await until(() => lastToast.includes("Cannot reach Command Center"), 8000), lastToast);
 
   console.log(failures ? failures + " UI check(s) FAILED" : "All UI checks passed");
   process.exit(failures ? 1 : 0);

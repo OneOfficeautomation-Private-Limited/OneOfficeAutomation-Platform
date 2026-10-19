@@ -86,6 +86,9 @@ function dur(ms) {
   return Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min";
 }
 function runStatus(r) { return r.status === "running" && r.pause_requested ? "paused" : r.status === "running" && r.cancel_requested ? "stopping" : r.status; }
+/** Display names of the built-in roles (ids stay admin, bot_creator, bot_runner, viewer). */
+const ROLE_LABELS = { admin: "Administrator", bot_creator: "Agent builder", bot_runner: "Agent operator", viewer: "Viewer" };
+const roleLabel = (r) => ROLE_LABELS[r] || String(r || "").replace("_", " ");
 const pill = (s) => h("span", { class: "pill " + s, text: s });
 function sourceLabel(src) {
   const s = String(src || "");
@@ -107,7 +110,7 @@ function showLogin() { stopTimer(); closeDrawer(); $("app").hidden = true; $("pa
 function showPassword() { $("app").hidden = true; $("login-view").hidden = true; $("password-view").hidden = false; $("pw-current").focus(); }
 function showApp() {
   $("login-view").hidden = true; $("password-view").hidden = true; $("app").hidden = false;
-  $("who").textContent = S.user.display_name + " (" + S.user.role.replace("_", " ") + ")";
+  $("who").textContent = S.user.display_name + " (" + roleLabel(S.user.role) + ")";
   $("avatar").textContent = (S.user.display_name || S.user.username || "?").trim().charAt(0).toUpperCase();
   api("GET", "health").then((r) => { $("btn-studio").hidden = !r.studio; }).catch(() => {});
   api("GET", "catalog").then((r) => { S.names = r.actions || {}; }).catch(() => {});
@@ -115,10 +118,10 @@ function showApp() {
 }
 
 const PAGES = [
-  ["home", "Home", null, "home", "#2563eb"], ["automation", "Automation", "repo.view", "bot", "#6d28d9"], ["activity", "Activity", "runs.view", "pulse", "#ea580c"],
-  ["devices", "Devices", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
-  ["credentials", "Credentials", null, "lock", "#dc2626"], ["globals", "Global values", "globals.view", "globe", "#0284c7"], ["users", "Users", "users.manage", "users", "#7c3aed"],
-  ["audit", "Audit log", "audit.view", "shield", "#475569"]];
+  ["home", "Home", null, "home", "#2563eb"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
+  ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
+  ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["users", "Users", "users.manage", "users", "#7c3aed"],
+  ["audit", "One Audit Trail", "audit.view", "shield", "#475569"]];
 
 function renderNav() {
   $("nav").replaceChildren(...PAGES.filter(([, , p]) => !p || can(p)).map(([id, label, , icon, color]) => {
@@ -245,15 +248,15 @@ const VIEWS = {
       return t;
     };
     let fillDevices = null;
-    const parts = [...header("Home", "Welcome, " + S.user.display_name + ". Here is what your bots have been doing."),
+    const parts = [...header("Home", "Welcome, " + S.user.display_name + ". Here is what your agents have been doing."),
       h("div", { class: "tiles" },
         tile(d.running, "Running now", "pulse", "#ea580c", can("runs.view") ? () => go("activity") : null),
         tile(d.queued, "Waiting to start", "queue", "#d97706", can("runs.view") ? () => go("activity") : null),
         tile(d.success_24h, "Succeeded (24 h)", "check", "#16a34a"), tile(d.failed_24h, "Failed (24 h)", "x", "#dc2626"),
         tile(d.success_rate_24h === null || d.success_rate_24h === undefined ? "\u2014" : d.success_rate_24h + "%", "Success rate (24 h)", "percent", "#059669"),
         tile(d.avg_duration_ms_24h ? dur(d.avg_duration_ms_24h) : "\u2014", "Average run time", "timer", "#0891b2"),
-        tile(d.devices_online + " / " + d.devices_total, "Devices online", "desktop", "#0284c7", can("devices.view") ? () => go("devices") : null),
-        tile(d.bots, "Bots in the repository", "bot", "#6d28d9", can("repo.view") ? () => go("automation") : null),
+        tile(d.devices_online + " / " + d.devices_total, "Runners online", "desktop", "#0284c7", can("devices.view") ? () => go("devices") : null),
+        tile(d.bots, "Agents in the agent repository", "bot", "#6d28d9", can("repo.view") ? () => go("automation") : null),
         tile(d.schedules, "Active schedules", "clock", "#7c3aed", can("schedules.view") ? () => go("schedules") : null))];
     if (d.days) {
       const max = Math.max(1, ...d.days.map((x) => x.success + x.failed + x.stopped + x.active));
@@ -282,12 +285,12 @@ const VIEWS = {
         h("div", { class: "card" }, h("h2", { text: "Runs in the last 7 days" }), chart, legend),
         h("div", { class: "card" }, h("h2", { text: "Recent failures" }), fails.length ? fails : h("p", { class: "muted", text: "No failed runs. \u2728" }))),
         h("div", { class: "grid-2" },
-          h("div", { class: "card" }, h("h2", { text: "Most used bots (7 days)" }), top.length ? top : h("p", { class: "muted", text: "No runs yet." })),
-          can("devices.view") ? h("div", { class: "card", id: "home-devices" }, h("h2", { text: "Devices" }), h("p", { class: "muted", text: "Loading..." })) : null));
+          h("div", { class: "card" }, h("h2", { text: "Most used agents (7 days)" }), top.length ? top : h("p", { class: "muted", text: "No runs yet." })),
+          can("devices.view") ? h("div", { class: "card", id: "home-devices" }, h("h2", { text: "Runners" }), h("p", { class: "muted", text: "Loading..." })) : null));
       if (can("devices.view")) fillDevices = () => api("GET", "devices").then((r) => {
         const box = $("home-devices");
-        if (box) box.replaceChildren(h("h2", { text: "Devices" }), ...(r.devices.length ? r.devices.map((dv) => h("button", { type: "button", class: "list-row", onclick: () => openDevice(dv) },
-          h("span", { class: "dot " + dv.status }), h("div", { class: "lr-main" }, h("strong", { text: dv.name }), h("div", { class: "muted small", text: dv.status + (dv.running ? ", running a bot" : "") + " \u00B7 last seen " + ago(dv.last_seen) })))) : [h("p", { class: "muted", text: "No devices yet." })]));
+        if (box) box.replaceChildren(h("h2", { text: "Runners" }), ...(r.devices.length ? r.devices.map((dv) => h("button", { type: "button", class: "list-row", onclick: () => openDevice(dv) },
+          h("span", { class: "dot " + dv.status }), h("div", { class: "lr-main" }, h("strong", { text: dv.name }), h("div", { class: "muted small", text: dv.status + (dv.running ? ", running an agent" : "") + " \u00B7 last seen " + ago(dv.last_seen) })))) : [h("p", { class: "muted", text: "No runners yet." })]));
       }).catch(() => {});
     }
     if (can("runs.view")) {
@@ -301,19 +304,19 @@ const VIEWS = {
   async automation(main) {
     await loadRefs();
     const r = await api("GET", "repo");
-    main.replaceChildren(...header("Automation", "The public repository: bots checked in from Studio, with every version. Run the production version on any device."),
-      dataTable({ rows: r.bots, search: "Search bots by name, id or description", exportName: "bots", onRow: openBot, empty: "No bots yet. In Studio, open a bot and press Check in.",
+    main.replaceChildren(...header("Agent repository", "The public agent repository: agents checked in from One Agent Studio, with every version. Run the live production version on any runner."),
+      dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.",
         columns: [
-          { label: "Bot", value: (b) => botName(b.path), render: (b) => h("div", { class: "name-cell" }, ic("bot", "#6d28d9", "sm"), h("div", {}, h("strong", { text: botName(b.path) }), h("div", { class: "muted small", text: b.description || "" }))) },
+          { label: "Agent", value: (b) => botName(b.path), render: (b) => h("div", { class: "name-cell" }, ic("bot", "#6d28d9", "sm"), h("div", {}, h("strong", { text: botName(b.path) }), h("div", { class: "muted small", text: b.description || "" }))) },
           { label: "Latest", value: (b) => b.latest_version, render: (b) => "v" + b.latest_version },
-          { label: "Production", value: (b) => b.production_version || 0, render: (b) => b.production_version ? h("span", { class: "pill success", text: "v" + b.production_version }) : "\u2014" },
+          { label: "Live production", value: (b) => b.production_version || 0, render: (b) => b.production_version ? h("span", { class: "pill success", text: "v" + b.production_version }) : "\u2014" },
           { label: "Status", value: (b) => b.locked_by ? "Checked out by " + b.locked_by : "Checked in", render: (b) => b.locked_by ? h("span", { class: "pill locked", text: "Checked out by " + b.locked_by }) : h("span", { class: "pill", text: "Checked in" }) },
           { label: "Updated", value: (b) => b.updated, render: (b) => h("span", { title: local(b.updated) }, ago(b.updated) + " by " + (b.updated_by || "")) },
           { label: "", sort: false, render: (b) => h("div", { class: "row-actions tight" },
             h("button", { type: "button", onclick: () => versionsDialog(b) }, "Versions"),
             can("runs.start") && b.production_version ? h("button", { type: "button", class: "primary", onclick: () => runDialog(b) }, "Run") : null,
             b.locked_by && (b.locked_by === S.user.username || can("repo.production")) ? h("button", { type: "button", onclick: async () => {
-              try { await api("POST", "repo/undo-checkout", { path: b.path }); toast("Check-out undone"); go("automation"); } catch (err) { toast(err.message, true); } } }, "Undo check-out") : null) }]}));
+              try { await api("POST", "repo/undo-checkout", { path: b.path }); toast("Agent check-out undone"); go("automation"); } catch (err) { toast(err.message, true); } } }, "Undo check-out") : null) }]}));
   },
 
   async activity(main) {
@@ -322,7 +325,7 @@ const VIEWS = {
     const tabs = h("div", { class: "tabs", role: "tablist" });
     const filters = h("div", { class: "filters" });
     const list = h("div");
-    const renderTabs = (counts) => tabs.replaceChildren(...[["active", "In progress"], ["history", "History"]].map(([t, l]) =>
+    const renderTabs = (counts) => tabs.replaceChildren(...[["active", "Live"], ["history", "History"]].map(([t, l]) =>
       h("button", { type: "button", role: "tab", class: "tab" + (st.tab === t ? " active" : ""), "aria-selected": String(st.tab === t), onclick: () => { st.tab = t; st.offset = 0; renderTabs(counts); renderFilters(); refresh(); } },
         l, counts && counts[t] !== undefined ? h("span", { class: "count", text: String(counts[t]) }) : null)));
     const counts = {};
@@ -336,13 +339,13 @@ const VIEWS = {
     function renderFilters() {
       if (st.tab !== "history") { filters.replaceChildren(); return; }
       const sel = (key, label, opts) => { const s = h("select", { "aria-label": label, onchange: () => { st.f[key] = s.value; st.offset = 0; refresh(); } }, h("option", { value: "", text: label }), opts.map(([v, t]) => h("option", { value: v, text: t }))); s.value = st.f[key] || ""; return s; };
-      const q = h("input", { type: "search", placeholder: "Search bot, run id, user or error", value: st.f.q || "", "aria-label": "Search runs" });
+      const q = h("input", { type: "search", placeholder: "Search agent, run id, user or error", value: st.f.q || "", "aria-label": "Search runs" });
       q.addEventListener("input", () => { clearTimeout(q.t); q.t = setTimeout(() => { st.f.q = q.value.trim(); st.offset = 0; refresh(); }, 300); });
       const date = (key, label) => { const i = h("input", { type: "date", value: st.f[key] || "", "aria-label": label, title: label, onchange: () => { st.f[key] = i.value; st.offset = 0; refresh(); } }); return h("label", { class: "inline" }, label, i); };
       filters.replaceChildren(q,
         sel("status", "Any status", [["success", "Succeeded"], ["failed", "Failed"], ["stopped", "Stopped"]]),
-        sel("bot", "Any bot", S.bots.map((b) => [b.path, botName(b.path)])),
-        sel("device", "Any device", S.devices.map((d) => [d.id, d.name])),
+        sel("bot", "Any agent", S.bots.map((b) => [b.path, botName(b.path)])),
+        sel("device", "Any runner", S.devices.map((d) => [d.id, d.name])),
         sel("source", "Any source", [["manual", "Manual"], ["schedule", "Schedule"], ["trigger", "Trigger"], ["rerun", "Rerun"]]),
         h("input", { type: "text", placeholder: "Started by (user name)", value: st.f.user || "", "aria-label": "Started by", onchange: (e) => { st.f.user = e.target.value.trim(); st.offset = 0; refresh(); } }),
         date("from", "From"), date("to", "To"),
@@ -351,7 +354,7 @@ const VIEWS = {
         h("button", { type: "button", onclick: async () => {
           try {
             const r = await api("GET", query(500, 0));
-            download("runs.csv", csv([["Run id", "Status", "Bot", "Version", "Device", "Started by", "Source", "Queued", "Started", "Finished", "Duration ms", "Steps", "Error code", "Error"],
+            download("runs.csv", csv([["Run id", "Status", "Agent", "Version", "Runner", "Started by", "Source", "Queued", "Started", "Finished", "Duration ms", "Steps", "Error code", "Error"],
               ...r.runs.map((x) => { const e = parseMaybe(x.error) || {}; return [x.id, x.status, botName(x.bot_path), x.version, x.device_name || x.device_id, x.requested_by, x.source, x.created, x.started, x.finished, x.duration_ms, x.steps, e.code || "", e.message || (typeof e === "string" ? e : "")]; })]), "text/csv");
           } catch (e) { toast(e.message, true); } } }, ic("download", "#475569", "sm"), "Export CSV"));
     }
@@ -376,13 +379,13 @@ const VIEWS = {
         progressBar(pct, status === "queued" ? "waiting" : ""),
         h("div", { class: "lc-now" }, status === "queued" ? "Waiting for " + (run.device_name || run.device_id) + " to pick it up"
           : h("span", {}, "Step " + Math.min(p.finished + 1, p.total || p.finished + 1) + (p.total ? " of " + p.total : "") + ": ", h("strong", { text: p.action ? actionName(p.action) : "starting" }), p.step_id ? h("span", { class: "muted", text: "  [" + p.step_id + "]" }) : null)),
-        h("div", { class: "lc-meta muted" }, [["Device", run.device_name || run.device_id], ["Started by", run.requested_by + " (" + sourceLabel(run.source) + ")"],
+        h("div", { class: "lc-meta muted" }, [["Runner", run.device_name || run.device_id], ["Started by", run.requested_by + " (" + sourceLabel(run.source) + ")"],
           ["Queued", ago(run.created)], ["Running for", elapsed !== null ? dur(elapsed) : "\u2014"]].map(([k, v]) => h("span", {}, k + ": ", h("b", { text: v })))));
       return card;
     }
     function historyTable(runs) {
       return h("div", { class: "table-wrap" }, h("table", {},
-        h("thead", {}, h("tr", {}, ["Status", "Bot", "Device", "Started by", "Source", "Started", "Duration", "Steps", "Error", ""].map((t) => h("th", { text: t })))),
+        h("thead", {}, h("tr", {}, ["Status", "Agent", "Runner", "Started by", "Source", "Started", "Duration", "Steps", "Error", ""].map((t) => h("th", { text: t })))),
         h("tbody", {}, runs.length ? runs.map((x) => {
           const e = parseMaybe(x.error);
           const tr = h("tr", { class: "clickable", tabindex: "0" },
@@ -397,7 +400,7 @@ const VIEWS = {
         }) : [h("tr", {}, h("td", { colspan: "10", class: "muted empty-cell", text: "No runs match these filters." }))])));
     }
     renderTabs(); renderFilters();
-    main.replaceChildren(...header("Activity", "Runs on all devices: what is running now, and the history of every run. Select a run for its live step log, inputs, outputs and errors."), tabs, filters, list);
+    main.replaceChildren(...header("Agent Runs", "Runs on all runners: what is running now, and the history of every run. Select a run for its live step log, inputs, outputs and errors."), tabs, filters, list);
     await refresh();
     if (main.isConnected) S.timer = setInterval(() => { if (st.tab === "active" || !st.offset) refresh().catch(() => {}); }, 2500);
   },
@@ -408,20 +411,20 @@ const VIEWS = {
     const actions = can("devices.manage") ? [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
         const k = await api("POST", "devices/registration-key", { hours: 24 });
-        modal("Register a device", [
-          h("p", { text: "On the Windows machine that will run bots, open PowerShell in the platform folder and run:" }),
-          secretBox("Command", '.\\gradlew.bat :cli:run --args="agent register --url ' + location.origin + " --key " + k.key + '"', "The key works once and expires in 24 hours. It is shown only now."),
+        modal("Register a runner", [
+          h("p", { text: "On the Windows machine that will run agents, open PowerShell in the platform folder and run:" }),
+          secretBox("Command to run", '.\\gradlew.bat :cli:run --args="agent register --url ' + location.origin + " --key " + k.key + '"', "The key works once and expires in 24 hours. It is shown only now."),
           h("p", { class: "muted", text: "Then start the agent with:  .\\gradlew.bat :cli:run --args=\"agent start\"" }),
-          h("p", { class: "muted", text: "On this computer you do not need this: ooa server (or start-ooa.bat) registers and starts a Bot Agent for this computer automatically." })], []);
+          h("p", { class: "muted", text: "On this computer you do not need this: ooa server (or start-ooa.bat) registers and starts a One Runner for this computer automatically." })], []);
       } catch (e) { toast(e.message, true); }
-    } }, "Register a device")] : [];
+    } }, "Register a runner")] : [];
     const online = r.devices.filter((d) => d.status === "online").length;
-    main.replaceChildren(...header("Devices", "Machines running the Bot Agent. A device is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
-      dataTable({ rows: r.devices, search: "Search devices", exportName: "devices", onRow: openDevice, empty: "No devices yet. Register one, or start ooa server on this computer.",
+    main.replaceChildren(...header("Runners", "Machines running the One Runner. A runner is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
+      dataTable({ rows: r.devices, search: "Search runners", exportName: "devices", onRow: openDevice, empty: "No runners yet. Register one, or start ooa server on this computer.",
         columns: [
-          { label: "Device", value: (d) => d.name, render: (d) => h("div", { class: "name-cell" }, h("span", { class: "dot " + d.status }), h("div", {}, h("strong", { text: d.name }), h("div", { class: "muted small", text: (d.hostname || "") + " " + (d.os || "") }))) },
+          { label: "Runner", value: (d) => d.name, render: (d) => h("div", { class: "name-cell" }, h("span", { class: "dot " + d.status }), h("div", {}, h("strong", { text: d.name }), h("div", { class: "muted small", text: (d.hostname || "") + " " + (d.os || "") }))) },
           { label: "Status", value: (d) => d.status, render: (d) => pill(d.status) },
-          { label: "Running", value: (d) => d.running, render: (d) => d.running ? h("span", { class: "pill running", text: d.running + " bot" }) : "\u2014" },
+          { label: "Running", value: (d) => d.running, render: (d) => d.running ? h("span", { class: "pill running", text: d.running + " agent" }) : "\u2014" },
           { label: "Agent", value: (d) => d.agent_version || "" },
           { label: "Last seen", value: (d) => d.last_seen || "", render: (d) => h("span", { title: local(d.last_seen) }, ago(d.last_seen)) },
           { label: "Registered", value: (d) => d.registered, render: (d) => ago(d.registered) + " by " + (d.registered_by || "") },
@@ -433,13 +436,13 @@ const VIEWS = {
     await loadRefs();
     const r = await api("GET", "schedules");
     const when = (s) => s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time : s.days + " at " + s.at_time;
-    main.replaceChildren(...header("Schedules", "Run bots automatically. Scheduled runs use the vault permissions of the person who created the schedule.",
+    main.replaceChildren(...header("Schedules", "Run agents automatically. Scheduled runs use the vault permissions of the person who created the schedule.",
       can("schedules.manage") ? h("button", { type: "button", class: "primary", onclick: scheduleDialog }, "New schedule") : null),
       dataTable({ rows: r.schedules, search: "Search schedules", exportName: "schedules", empty: "No schedules yet.",
         onRow: can("runs.view") ? (s) => { S.activity = { tab: "history", offset: 0, size: 25, f: { source: "schedule", bot: s.bot_path } }; go("activity"); } : null,
         columns: [
           { label: "Schedule", value: (s) => s.name, render: (s) => h("div", { class: "name-cell" }, ic("clock", "#059669", "sm"), h("strong", { text: s.name })) },
-          { label: "Bot", value: (s) => botName(s.bot_path) }, { label: "Device", value: (s) => deviceName(s.device_id) },
+          { label: "Agent", value: (s) => botName(s.bot_path) }, { label: "Runner", value: (s) => deviceName(s.device_id) },
           { label: "When", value: (s) => when(s) + " (" + s.time_zone + ")" },
           { label: "Next run", value: (s) => s.enabled ? s.next_run || "" : "", render: (s) => s.enabled ? h("span", { title: local(s.next_run) }, ago(s.next_run)) : "\u2014" },
           { label: "Last run", value: (s) => s.last_run || "", render: (s) => s.last_run ? h("span", { title: local(s.last_run) }, ago(s.last_run)) : "never" },
@@ -453,13 +456,13 @@ const VIEWS = {
   async triggers(main) {
     await loadRefs();
     const r = await api("GET", "triggers");
-    main.replaceChildren(...header("Triggers", "Start bots on events: a file arriving in a folder on a device, or a call to a webhook. Studio also has its own local triggers for development.",
+    main.replaceChildren(...header("Triggers", "Start agents on events: a file arriving in a folder on a runner, or a call to a webhook. Agent Studio also has its own local triggers for development.",
       can("triggers.manage") ? h("button", { type: "button", class: "primary", onclick: triggerDialog }, "New trigger") : null),
       dataTable({ rows: r.triggers, search: "Search triggers", exportName: "triggers", empty: "No triggers yet.",
         columns: [
           { label: "Trigger", value: (t) => t.name, render: (t) => h("div", { class: "name-cell" }, ic("bolt", "#d97706", "sm"), h("strong", { text: t.name })) },
           { label: "Kind", value: (t) => t.kind === "file" ? "File arrives" : "Webhook" },
-          { label: "Bot", value: (t) => botName(t.bot_path) }, { label: "Device", value: (t) => deviceName(t.device_id) },
+          { label: "Agent", value: (t) => botName(t.bot_path) }, { label: "Runner", value: (t) => deviceName(t.device_id) },
           { label: "Details", value: (t) => t.kind === "file" ? t.folder + " / " + t.pattern : "POST " + location.origin + "/api/hooks/" + t.id, render: (t) => h("span", { class: "mono small", text: t.kind === "file" ? t.folder + " / " + t.pattern : "POST " + location.origin + "/api/hooks/" + t.id }) },
           { label: "Enabled", value: (t) => t.enabled ? "Yes" : "No", render: (t) => t.enabled ? pill("enabled") : pill("disabled") },
           { label: "", sort: false, render: (t) => can("triggers.manage") ? h("div", { class: "row-actions tight" },
@@ -469,7 +472,7 @@ const VIEWS = {
 
   async credentials(main) {
     const r = await api("GET", "lockers");
-    const q = h("input", { type: "search", placeholder: "Search lockers and credentials", "aria-label": "Search lockers" });
+    const q = h("input", { type: "search", placeholder: "Search vault folders and credentials", "aria-label": "Search vault folders" });
     const box = h("div", { class: "locker-grid" });
     const render = () => {
       const f = q.value.trim().toLowerCase();
@@ -480,18 +483,18 @@ const VIEWS = {
         l.can_manage ? h("div", { class: "row-actions" },
           h("button", { type: "button", onclick: () => credentialDialog(l.name) }, "Add or update credential"),
           h("button", { type: "button", onclick: () => consumersDialog(l) }, "Consumers")) : null));
-      box.replaceChildren(...(lockers.length ? lockers : [h("p", { class: "muted", text: r.lockers.length ? "No matches." : "No lockers you own or consume yet." })]));
+      box.replaceChildren(...(lockers.length ? lockers : [h("p", { class: "muted", text: r.lockers.length ? "No matches." : "No vault folders you own or consume yet." })]));
     };
     q.addEventListener("input", render);
-    main.replaceChildren(...header("Credentials", "Encrypted lockers. Values are never shown again after saving; bots get them only while running, and every use is audited.",
-      can("lockers.manage") || can("lockers.own") ? h("button", { type: "button", class: "primary", onclick: lockerDialog }, "New locker") : null), h("div", { class: "toolbar" }, q), box);
+    main.replaceChildren(...header("One Agent Vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
+      can("lockers.manage") || can("lockers.own") ? h("button", { type: "button", class: "primary", onclick: lockerDialog }, "New vault folder") : null), h("div", { class: "toolbar" }, q), box);
     render();
   },
 
   async globals(main) {
     const r = await api("GET", "globals");
-    main.replaceChildren(...header("Global values", "Shared values every bot can read as $global.name.", can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => globalDialog() }, "New global value") : null),
-      dataTable({ rows: r.globals, search: "Search global values", exportName: "global-values", empty: "No global values yet.",
+    main.replaceChildren(...header("Shared values", "Shared values every agent can read as $global.name.", can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => globalDialog() }, "New shared value") : null),
+      dataTable({ rows: r.globals, search: "Search shared values", exportName: "global-values", empty: "No shared values yet.",
         columns: [
           { label: "Name", value: (g) => "$global." + g.name, render: (g) => h("code", { text: "$global." + g.name }) },
           { label: "Value", value: (g) => JSON.stringify(g.value), render: (g) => h("code", { class: "val", text: JSON.stringify(g.value) }) },
@@ -504,7 +507,7 @@ const VIEWS = {
     const r = await api("GET", "users");
     S.users = r.users;
     const roleSel = (u) => { const s = h("select", { "aria-label": "Role of " + u.username, onchange: async (e) => { try { await api("PATCH", "users/" + u.id, { role: e.target.value }); toast("Role changed"); } catch (err) { toast(err.message, true); go("users"); } } },
-      ["admin", "bot_creator", "bot_runner", "viewer"].map((x) => h("option", { value: x, text: x.replace("_", " ") }))); s.value = u.role; return s; };
+      ["admin", "bot_creator", "bot_runner", "viewer"].map((x) => h("option", { value: x, text: roleLabel(x) }))); s.value = u.role; return s; };
     const status = (u) => u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled";
     main.replaceChildren(...header("Users", "People who can sign in, and their roles.", h("button", { type: "button", class: "primary", onclick: userDialog }, "New user")),
       dataTable({ rows: r.users, search: "Search users", exportName: "users", onRow: can("audit.view") ? openUser : null,
@@ -520,7 +523,7 @@ const VIEWS = {
   },
 
   async audit(main) {
-    const q = h("input", { type: "search", placeholder: "Filter by user, action or object", "aria-label": "Filter audit log" });
+    const q = h("input", { type: "search", placeholder: "Filter by user, action or object", "aria-label": "Filter audit trail" });
     const result = h("select", { "aria-label": "Result" }, h("option", { value: "", text: "Any result" }), h("option", { value: "ok", text: "Succeeded" }), h("option", { value: "failed", text: "Failed or refused" }));
     const box = h("div"), status = h("span", { class: "muted" });
     const render = async () => {
@@ -539,18 +542,18 @@ const VIEWS = {
       status.textContent = v.valid ? "Chain intact: " + v.records + " records verified." : "TAMPERING DETECTED at record " + v.broken_at + ".";
       status.className = v.valid ? "ok-text" : "error";
     } }, "Verify integrity");
-    main.replaceChildren(...header("Audit log", "Every sign-in, change, run and credential use. Records are hash-chained, so editing history is detectable."), h("div", { class: "toolbar" }, q, result, verify, status), box);
+    main.replaceChildren(...header("One Audit Trail", "Every sign-in, change, run and credential use. Records are hash-chained, so editing history is detectable."), h("div", { class: "toolbar" }, q, result, verify, status), box);
     await render();
   },
 };
 
 function runTable(runs, onRow) {
-  return table(["Status", "Bot", "Device", "Started by", "Source", "Created", "Duration"], runs.map((r) => ({ data: r, cells: [pill(runStatus(r)),
+  return table(["Status", "Agent", "Runner", "Started by", "Source", "Created", "Duration"], runs.map((r) => ({ data: r, cells: [pill(runStatus(r)),
     botName(r.bot_path) + " v" + r.version, r.device_name || r.device_id, r.requested_by, sourceLabel(r.source), h("span", { title: local(r.created) }, ago(r.created)), dur(r.duration_ms)] })), onRow);
 }
 
 async function control(id, action, after) {
-  try { await api("POST", "runs/" + id + "/" + action); toast(action === "stop" ? "Stop requested" : action === "pause" ? "Pause requested: the bot pauses after the current step" : "Resume requested"); if (after) after(); }
+  try { await api("POST", "runs/" + id + "/" + action); toast(action === "stop" ? "Stop requested" : action === "pause" ? "Pause requested: the agent pauses after the current step" : "Resume requested"); if (after) after(); }
   catch (e) { toast(e.message, true); }
 }
 async function rerun(id) {
@@ -616,7 +619,7 @@ async function openRun(id) {
         h("div", { class: "tl-main" }, h("strong", { text: actionName(s.action) }), h("span", { class: "muted small", text: "  [" + s.id + "]" + (s.retries ? "  retried " + s.retries + "x" : "") }),
           s.error ? h("div", { class: "error small", text: s.error }) : null),
         h("span", { class: "muted small", text: s.status === "running" ? "running" : dur(s.ms) }))))
-        : h("p", { class: "muted", text: active ? "Waiting for the device to start the bot..." : "No steps were recorded." });
+        : h("p", { class: "muted", text: active ? "Waiting for the runner to start the agent..." : "No steps were recorded." });
     } else if (st.tab === "log") {
       const lines = st.events.map((e) => line(e, x.t0)).filter((l) => st.filter === "all" || (st.filter === "errors" ? l.failed || l.kind === "step.retry" : st.filter === "logs" ? l.kind === "log" : l.kind === "variable.set"));
       const fsel = h("div", { class: "seg" }, [["all", "All"], ["errors", "Errors"], ["logs", "Log messages"], ["vars", "Variables"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String(st.filter === k), onclick: () => { st.filter = k; render(); } }, l)));
@@ -634,7 +637,7 @@ async function openRun(id) {
         h("div", { class: "muted small", text: x.finished + (x.total ? " of " + x.total : "") + " steps" + (active && x.current ? "  \u00B7  now: " + actionName(x.current.action) + " [" + x.current.id + "]" : "") })) : null,
       err ? h("div", { class: "error-box" }, h("div", {}, h("span", { class: "code", text: err.code || "Error" }), " ", err.message || (typeof err === "string" ? err : "")),
         err.stepId ? h("div", { class: "small", text: "At step " + err.stepId }) : null, err.suggestedFix ? h("div", { class: "small", text: "Fix: " + err.suggestedFix }) : null) : null,
-      kv([["Run", h("code", { text: r.id })], ["Bot", botName(r.bot_path) + " v" + r.version], ["Device", r.device_name || r.device_id], ["Started by", r.requested_by + " (" + sourceLabel(r.source) + ")"],
+      kv([["Run", h("code", { text: r.id })], ["Agent", botName(r.bot_path) + " v" + r.version], ["Runner", r.device_name || r.device_id], ["Started by", r.requested_by + " (" + sourceLabel(r.source) + ")"],
         ["Queued", local(r.created)], ["Started", local(r.started)], ["Finished", local(r.finished)], ["Steps run", r.steps]]),
       tabs, pane);
     $("drawer-actions").replaceChildren(...[
@@ -663,7 +666,7 @@ async function openBot(b) {
     const outputs = flow ? (flow.variables || []).filter((v) => v.direction === "output") : [];
     body.replaceChildren(
       b.description ? h("p", { text: b.description }) : null,
-      kv([["Bot id", flow ? h("code", { text: flow.id }) : null], ["Kind", flow ? flow.kind : null], ["Production", b.production_version ? "v" + b.production_version : "none"], ["Latest", "v" + b.latest_version],
+      kv([["Agent id", flow ? h("code", { text: flow.id }) : null], ["Kind", flow ? flow.kind : null], ["Live production", b.production_version ? "v" + b.production_version : "none"], ["Latest", "v" + b.latest_version],
         ["Status", b.locked_by ? "Checked out by " + b.locked_by : "Checked in"], ["Updated", local(b.updated) + " by " + (b.updated_by || "")], ["Steps", flow ? String((flow.steps || []).length) + " top-level" : null]]),
       h("h3", { text: "Inputs" }), inputs.length ? table(["Name", "Type", "Required", "Description"], inputs.map((v) => ({ data: v, cells: [h("code", { text: v.name }), v.type, v.required ? "Yes" : "", v.description || ""] }))) : h("p", { class: "muted", text: "No inputs." }),
       outputs.length ? [h("h3", { text: "Outputs" }), table(["Name", "Type", "Description"], outputs.map((v) => ({ data: v, cells: [h("code", { text: v.name }), v.type, v.description || ""] })))] : null,
@@ -680,13 +683,13 @@ async function openDevice(d) {
     try { await api("PATCH", "devices/" + d.id, { name: n }); toast("Renamed"); if (S.page === "devices") go("devices"); else closeDrawer(); } catch (e) { toast(e.message, true); }
   } }, "Rename") : null;
   openDrawer([h("span", { class: "dot " + d.status }), h("span", { text: d.name })], body, [
-    can("runs.start") ? h("button", { type: "button", class: "primary", onclick: async () => { await loadRefs(); runDialog(null, d.id); } }, "Run a bot here") : null, rename,
+    can("runs.start") ? h("button", { type: "button", class: "primary", onclick: async () => { await loadRefs(); runDialog(null, d.id); } }, "Run an agent here") : null, rename,
     can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : null]);
   try {
     const [active, hist] = can("runs.view") ? await Promise.all([api("GET", "runs?filter=active&device=" + encodeURIComponent(d.id)), api("GET", "runs?filter=history&limit=15&device=" + encodeURIComponent(d.id))]) : [{ runs: [] }, { runs: [] }];
     body.replaceChildren(
       kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", d.agent_version], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
-        ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Device id", h("code", { text: d.id })]]),
+        ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
       h("h3", { text: "Now" }), active.runs.length ? runTable(active.runs, (r) => openRun(r.id)) : h("p", { class: "muted", text: "Idle." }),
       h("h3", { text: "History" }), runTable(hist.runs, (r) => openRun(r.id)));
   } catch (e) { body.replaceChildren(h("p", { class: "error", text: e.message })); }
@@ -697,7 +700,7 @@ async function openUser(u) {
   openDrawer([h("span", { class: "avatar sm", text: (u.display_name || u.username).charAt(0).toUpperCase() }), h("span", { text: u.display_name || u.username })], body, []);
   try {
     const a = await api("GET", "audit?limit=30&q=" + encodeURIComponent(u.username));
-    body.replaceChildren(kv([["User name", u.username], ["Role", u.role.replace("_", " ")], ["Status", u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled"], ["Last sign-in", local(u.last_login) || "never"]]),
+    body.replaceChildren(kv([["User name", u.username], ["Role", roleLabel(u.role)], ["Status", u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled"], ["Last sign-in", local(u.last_login) || "never"]]),
       h("h3", { text: "Recent activity" }), table(["Time", "Action", "Object", "Result"], a.records.filter((x) => x.actor === u.username).map((x) => ({ data: x, cells: [local(x.ts), x.action, (x.object_type || "") + " " + (x.object_id || ""), x.result] }))));
   } catch (e) { body.replaceChildren(h("p", { class: "error", text: e.message })); }
 }
@@ -712,7 +715,7 @@ async function versionsDialog(b) {
       h("input", { type: "checkbox", "aria-label": "Select v" + v.version, onchange: (e) => { if (e.target.checked) picks.add(v.version); else picks.delete(v.version); compare.disabled = picks.size !== 2; } }),
       "v" + v.version + (v.version === b.production_version ? " (production)" : ""), v.author, local(v.created), v.comment || "",
       can("repo.production") && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
-        try { await api("POST", "repo/production", { path: b.path, version: v.version }); toast("Production is now v" + v.version); closeModal(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Set as production") : ""] })))],
+        try { await api("POST", "repo/production", { path: b.path, version: v.version }); toast("Live production is now v" + v.version); closeModal(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Set as production") : ""] })))],
   [compare]);
 }
 
@@ -761,7 +764,7 @@ async function runDialog(b, deviceId) {
         return { v, el };
       });
       inputsBox.replaceChildren(...(fields.length ? fields.map(({ v, el }) => h("label", {}, h("span", {}, v.name, v.required ? h("span", { class: "req", text: " *" }) : null, h("span", { class: "type", text: v.type })), el,
-        v.description ? h("span", { class: "muted small", text: v.description }) : null)) : [h("p", { class: "muted", text: "This bot has no inputs." })]));
+        v.description ? h("span", { class: "muted small", text: v.description }) : null)) : [h("p", { class: "muted", text: "This agent has no inputs." })]));
     } catch (e) { inputsBox.replaceChildren(h("p", { class: "muted", text: "Inputs could not be loaded; give them as JSON below." })); }
   }
   const collect = () => {
@@ -780,7 +783,7 @@ async function runDialog(b, deviceId) {
   };
   const path = () => (b ? b.path : bot.value);
   if (bot) bot.addEventListener("change", () => loadInputs(bot.value));
-  modal("Run " + (b ? botName(b.path) : "a bot"), [bot ? h("label", {}, "Bot (production version)", bot) : null, h("label", {}, "Device", dev), inputsBox,
+  modal("Run " + (b ? botName(b.path) : "an agent"), [bot ? h("label", {}, "Agent (live production version)", bot) : null, h("label", {}, "Runner", dev), inputsBox,
     h("details", {}, h("summary", { text: "More inputs as JSON (optional)" }), raw),
     h("p", { class: "muted", text: "Credential inputs are vault references, never the secret itself." })].filter(Boolean),
   [h("button", { type: "button", class: "primary", onclick: async () => {
@@ -798,7 +801,7 @@ function scheduleDialog() {
   const everyBox = h("label", {}, "Minutes", every), atBox = h("label", {}, "Time", at), daysBox = h("div", { class: "toolbar" }, days);
   const sync = () => { everyBox.hidden = kind.value !== "every"; atBox.hidden = kind.value === "every"; daysBox.hidden = kind.value !== "weekly"; };
   kind.addEventListener("change", sync); sync();
-  modal("New schedule", [h("label", {}, "Name", name), h("label", {}, "Bot (production version)", bot), h("label", {}, "Device", dev), h("label", {}, "Repeat", kind), everyBox, atBox, daysBox,
+  modal("New schedule", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("label", {}, "Runner", dev), h("label", {}, "Repeat", kind), everyBox, atBox, daysBox,
     h("label", {}, "Time zone", tz), h("label", {}, "Inputs (JSON, optional)", inputs)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
@@ -811,12 +814,12 @@ function scheduleDialog() {
 
 function triggerDialog() {
   const name = h("input", { placeholder: "New invoices" }), bot = botSelect(), dev = deviceSelect();
-  const kind = h("select", {}, h("option", { value: "file", text: "File arrives in a folder (on the device)" }), h("option", { value: "webhook", text: "Webhook (HTTP call)" }));
+  const kind = h("select", {}, h("option", { value: "file", text: "File arrives in a folder (on the runner)" }), h("option", { value: "webhook", text: "Webhook (HTTP call)" }));
   const folder = h("input", { placeholder: "C:\\Invoices\\Inbox" }), pattern = h("input", { value: "*.pdf" });
-  const fileBox = h("div", { class: "grid2" }, h("label", {}, "Folder on the device", folder), h("label", {}, "File pattern", pattern));
+  const fileBox = h("div", { class: "grid2" }, h("label", {}, "Folder on the runner", folder), h("label", {}, "File pattern", pattern));
   kind.addEventListener("change", () => { fileBox.hidden = kind.value !== "file"; });
-  modal("New trigger", [h("label", {}, "Name", name), h("label", {}, "Bot (production version)", bot), h("label", {}, "Device", dev), h("label", {}, "Event", kind), fileBox,
-    h("p", { class: "muted", text: "The bot receives the file path in an input named trigger_file, or the webhook body in an input named payload, when it declares them." })],
+  modal("New trigger", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("label", {}, "Runner", dev), h("label", {}, "Event", kind), fileBox,
+    h("p", { class: "muted", text: "The agent receives the file path in an input named trigger_file, or the webhook body in an input named payload, when it declares them." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
         const r = await api("POST", "triggers", { name: name.value || "Trigger", bot_path: bot.value, device_id: dev.value, kind: kind.value, folder: folder.value, pattern: pattern.value });
@@ -828,8 +831,8 @@ function triggerDialog() {
 
 function lockerDialog() {
   const name = h("input", { placeholder: "finance" }), desc = h("input", {}), cons = h("input", { placeholder: "role:bot_runner, user:jane" });
-  modal("New locker", [h("label", {}, "Name", name), h("label", {}, "Description", desc), h("label", {}, "Consumers (who may use it in bots)", cons),
-    h("p", { class: "muted", text: "You become the owner. Owners manage credentials; consumers' bots may use them." })],
+  modal("New vault folder", [h("label", {}, "Name", name), h("label", {}, "Description", desc), h("label", {}, "Consumers (who may use it in agents)", cons),
+    h("p", { class: "muted", text: "You become the owner. Owners manage credentials; consumers' agents may use them." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try { await api("POST", "lockers", { name: name.value, description: desc.value, consumers: cons.value }); closeModal(); go("credentials"); } catch (e) { toast(e.message, true); } } }, "Create")]);
 }
@@ -837,7 +840,7 @@ function lockerDialog() {
 function credentialDialog(locker) {
   const name = h("input", { placeholder: "vendor_api" }), attr = h("input", { value: "password" }), val = h("input", { type: "password", autocomplete: "new-password" });
   modal("Credential in " + locker, [h("label", {}, "Credential", name), h("label", {}, "Attribute", attr), h("label", {}, "Value", val),
-    h("p", { class: "muted", text: "Bots refer to it as " + locker + "/credential/attribute." })],
+    h("p", { class: "muted", text: "Agents refer to it as " + locker + "/credential/attribute." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try { await api("PUT", "lockers/" + locker + "/" + name.value + "/" + attr.value, { value: val.value }); val.value = ""; closeModal(); toast("Saved and encrypted"); go("credentials"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
@@ -852,14 +855,14 @@ function consumersDialog(l) {
 function globalDialog(g) {
   const name = h("input", { value: g ? g.name : "", placeholder: "reports_folder" }), val = h("textarea", { value: g ? JSON.stringify(g.value) : "", placeholder: '"D:/Reports"  or  1000  or  {"a": 1}' });
   if (g) name.disabled = true;
-  modal(g ? "Edit " + g.name : "New global value", [h("label", {}, "Name", name), h("label", {}, "Value (JSON)", val)],
+  modal(g ? "Edit " + g.name : "New shared value", [h("label", {}, "Name", name), h("label", {}, "Value (JSON)", val)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try { await api("PUT", "globals/" + name.value, { value: parseJson(val.value, "") }); closeModal(); go("globals"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
 function userDialog() {
   const user = h("input", { placeholder: "jane.doe" }), disp = h("input", { placeholder: "Jane Doe" });
-  const role = h("select", {}, ["bot_creator", "bot_runner", "viewer", "admin"].map((x) => h("option", { value: x, text: x.replace("_", " ") })));
+  const role = h("select", {}, ["bot_creator", "bot_runner", "viewer", "admin"].map((x) => h("option", { value: x, text: roleLabel(x) })));
   modal("New user", [h("label", {}, "User name", user), h("label", {}, "Display name", disp), h("label", {}, "Role", role)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try { const r = await api("POST", "users", { username: user.value, display_name: disp.value, role: role.value });
@@ -868,7 +871,17 @@ function userDialog() {
 }
 
 // ---------- startup ----------
+// Light or dark theme, remembered per browser (falls back to the operating system's preference).
+const THEME_KEY = "ooa.cc.theme";
+function applyTheme(t) { document.body.dataset.theme = t; try { localStorage.setItem(THEME_KEY, t); } catch (_) { /* storage unavailable */ } }
+function initialTheme() {
+  try { const t = localStorage.getItem(THEME_KEY); if (t === "light" || t === "dark") return t; } catch (_) { /* storage unavailable */ }
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 async function boot() {
+  applyTheme(initialTheme());
+  $("btn-theme").addEventListener("click", () => applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark"));
   $("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("login-error").hidden = true;

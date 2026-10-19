@@ -45,7 +45,7 @@ public final class BrowserPackage {
             @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium", "firefox"},
                     description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright.") String which,
-            @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Run without a visible window (for unattended bots).") boolean headless,
+            @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Run without a visible window (for unattended agents).") boolean headless,
             @Input(name = "download_folder", type = OoaType.FILE, required = false, description = "Where downloads are saved.") String downloads,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         boolean installed = which.equals("edge") || which.equals("chrome");
@@ -337,7 +337,7 @@ public final class BrowserPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "record", name = "Record web actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "browser",
             description = "Open a browser, record your clicks, typing and selections as steps, and return them when you press Stop recording or close the browser. Passwords are never recorded.")
-    @Output(name = "steps", type = OoaType.LIST, description = "Recorded steps, ready to insert into a bot.")
+    @Output(name = "steps", type = OoaType.LIST, description = "Recorded steps, ready to insert into an agent.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of steps.")
     public Map<String, Object> record(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Page to start on.") String url,
@@ -403,7 +403,7 @@ public final class BrowserPackage {
             description = "Do one action on a captured element: click, type, read text, attributes or properties, select, check, hover, and more.")
     @Output(name = "result", description = "Value returned by get, is and count actions.")
     public Map<String, Object> elementAction(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL + " Use Pick in Studio to capture it.") String sel,
+            @Input(name = "selector", type = OoaType.STRING, description = D_SEL + " Use Pick in Agent Studio to capture it.") String sel,
             @Input(name = "action", type = OoaType.STRING, enumValues = {"click", "double_click", "right_click", "hover", "focus", "set_text", "append_text", "clear",
                     "press_key", "get_text", "get_value", "get_attribute", "get_property", "select_by_text", "select_by_value", "select_by_index", "get_selected",
                     "get_options", "check", "uncheck", "is_checked", "is_visible", "is_enabled", "count", "scroll_into_view"}, description = "What to do with the element.") String action,
@@ -509,7 +509,7 @@ public final class BrowserPackage {
 
     @SuppressWarnings("unchecked")
     @Action(id = "pick_element", name = "Pick element (design time)", category = "Capture", timeoutSeconds = 900, capabilities = "browser",
-            description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by Studio's Pick button.")
+            description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by Agent Studio's Pick button.")
     @Output(name = "selector", type = OoaType.STRING, description = "Selector for the clicked element.")
     @Output(name = "element", type = OoaType.DICTIONARY, description = "tag, text, type, name and id of the element.")
     public Map<String, Object> pickElement(ActionContext ctx,

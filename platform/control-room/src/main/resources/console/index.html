@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ONEOFFICEAUTOMATION Control Room</title>
+  <title>ONEOFFICEAUTOMATION One Command Center</title>
   <link rel="icon" href="/logo-mark.png">
   <link rel="stylesheet" href="/cr.css">
 </head>
@@ -11,7 +11,7 @@
   <div id="login-view" class="login" hidden>
     <form id="login-form" class="card login-card">
       <img src="/logo-full.png" alt="ONEOFFICEAUTOMATION" class="login-logo">
-      <h1>Control Room</h1>
+      <h1>One Command Center</h1>
       <label>User name <input id="login-user" autocomplete="username" required></label>
       <label>Password <input id="login-pass" type="password" autocomplete="current-password" required></label>
       <button type="submit" class="primary">Sign in</button>
@@ -35,16 +35,17 @@
     <header class="topbar">
       <img src="/logo-mark.png" alt="" class="logo">
       <span class="brand-name">ONEOFFICEAUTOMATION</span>
-      <span class="brand-product">Control Room</span>
+      <span class="brand-product">One Command Center</span>
       <span class="spacer"></span>
-      <a id="btn-studio" class="button-link" href="/studio/" target="ooa-studio" hidden title="Build and test bots in Studio (this computer)">Open Studio</a>
+      <a id="btn-studio" class="button-link" href="/studio/" target="ooa-studio" hidden title="Build and test agents in Agent Studio (this computer)">Open One Agent Studio</a>
+      <button type="button" id="btn-theme" aria-label="Switch between light and dark" title="Light or dark">&#9680;</button>
       <span id="avatar" class="avatar" aria-hidden="true"></span>
       <span id="who" class="muted"></span>
       <button type="button" id="btn-change-pw">Change password</button>
       <button type="button" id="btn-logout">Sign out</button>
     </header>
     <div class="layout">
-      <nav id="nav" class="nav" aria-label="Control Room sections"></nav>
+      <nav id="nav" class="nav" aria-label="Command Center sections"></nav>
       <main id="main" class="main" tabindex="-1"></main>
     </div>
   </div>

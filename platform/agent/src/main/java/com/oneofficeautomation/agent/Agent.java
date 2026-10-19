@@ -54,7 +54,7 @@ public final class Agent {
     @SuppressWarnings("unchecked")
     public Agent(Path configFile, Path workspace) throws IOException {
         this.configFile = configFile;
-        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This device is not registered (no " + configFile + ")", "Run: ooa agent register --url <Control Room URL> --key <registration key>");
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")", "Run: ooa agent register --url <Command Center URL> --key <registration key>");
         this.config = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
@@ -66,7 +66,7 @@ public final class Agent {
 
     // ---------------- main loop ----------------
     public void run() {
-        log("ONEOFFICEAUTOMATION Bot Agent " + VERSION + " for device '" + config.get("name") + "' connected to " + config.get("url"));
+        log("ONEOFFICEAUTOMATION One Runner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
         log("Workspace: " + workspace);
         ScheduledExecutorService hb = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-agent-heartbeat"); t.setDaemon(true); return t; });
         hb.scheduleWithFixedDelay(this::heartbeat, 0, heartbeatMs, TimeUnit.MILLISECONDS);
@@ -76,7 +76,7 @@ public final class Agent {
                     Map<String, Object> r = client.post("jobs/next", Map.of());
                     if (r.get("job") instanceof Map<?, ?> job) { @SuppressWarnings("unchecked") Map<String, Object> j = (Map<String, Object>) job; execute(j); continue; }
                 }
-            } catch (OoaException e) { log("Control Room: " + e.getMessage()); }
+            } catch (OoaException e) { log("Command Center: " + e.getMessage()); }
             try { Thread.sleep(pollMs); } catch (InterruptedException e) { break; }
         }
         hb.shutdownNow();
@@ -152,7 +152,7 @@ public final class Agent {
             String tail = "";
             try { List<String> lines = Files.readAllLines(logFile); tail = String.join("\n", lines.subList(Math.max(0, lines.size() - 5), lines.size())); } catch (IOException ignored) { }
             result = w.cancelled ? Map.of("status", "stopped", "error", Map.of("code", "RUN.CANCELLED", "message", "Stopped from Control Room"))
-                    : Map.of("status", "failed", "error", Map.of("code", "AGENT.WORKER_CRASHED", "message", "The bot's worker process ended unexpectedly (exit " + w.proc.exitValue() + ")",
+                    : Map.of("status", "failed", "error", Map.of("code", "AGENT.WORKER_CRASHED", "message", "The agent's worker process ended unexpectedly (exit " + w.proc.exitValue() + ")",
                             "suggestedFix", "See the agent log " + logFile + (tail.isBlank() ? "" : ": " + tail)));
         }
         try { client.post("runs/" + runId + "/finish", Map.of("result", result)); }

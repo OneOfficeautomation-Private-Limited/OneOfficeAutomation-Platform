@@ -37,7 +37,7 @@ public final class OcrPackage {
         ProcessRunner.Result r;
         try { r = ProcessRunner.run(ctx, cmd, null, null, 300); }
         catch (ActionException e) {
-            if ("PROCESS.NOT_FOUND".equals(e.code())) throw new ActionException("OCR.NOT_INSTALLED", "Tesseract OCR is not installed on this device",
+            if ("PROCESS.NOT_FOUND".equals(e.code())) throw new ActionException("OCR.NOT_INSTALLED", "Tesseract OCR is not installed on this runner",
                     "Install Tesseract (on Windows the UB Mannheim installer) or set OOA_TESSERACT to tesseract.exe.");
             throw e;
         }

@@ -62,7 +62,7 @@ public final class WordPackage {
     }
 
     @Action(id = "replace_text", name = "Replace text", category = "Text",
-            description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template.")
+            description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a blueprint.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
     public Map<String, Object> replaceText(ActionContext ctx,
             @Input(name = "find", type = OoaType.STRING, example = "{{customer}}", description = "Text to find.") String find,

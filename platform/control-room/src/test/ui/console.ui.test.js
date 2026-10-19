@@ -48,11 +48,11 @@ async function page() {
   submit(d.getElementById("password-form"));
   check("after the change the console opens", await until(() => !d.getElementById("app").hidden && d.getElementById("main").textContent.includes("Welcome")));
   const navItems = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
-  check("an administrator sees all ten sections", navItems.length === 10 && navItems.includes("Users") && navItems.includes("Audit log"), navItems.join(","));
+  check("an administrator sees all ten sections", navItems.length === 10 && navItems.includes("Users") && navItems.includes("One Audit Trail"), navItems.join(","));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
-  nav("Activity");
-  check("Activity has In progress and History tabs with an empty state", await until(() => d.getElementById("main").textContent.includes("In progress") && d.getElementById("main").textContent.includes("Nothing is running")));
+  nav("Agent Runs");
+  check("Activity has In progress and History tabs with an empty state", await until(() => d.getElementById("main").textContent.includes("Live") && d.getElementById("main").textContent.includes("Nothing is running")));
   click([...d.querySelectorAll("#main .tabs .tab")].find((b) => b.textContent.startsWith("History")));
   check("History has filters and CSV export", await until(() => d.querySelector('#main select[aria-label="Any status"]') && d.querySelector('#main input[type=date]') && btn("Export CSV")));
   nav("Home");
@@ -70,15 +70,15 @@ async function page() {
   click(btn("Close"));
   check("the new user is listed", await until(() => d.getElementById("main").textContent.includes("carol.dev")));
 
-  nav("Devices");
-  await until(() => btn("Register a device"));
-  click(btn("Register a device"));
+  nav("Runners");
+  await until(() => btn("Register a runner"));
+  click(btn("Register a runner"));
   check("device registration shows the agent command with a one-time key", await until(() => !d.getElementById("modal").hidden && d.getElementById("modal-body").textContent.includes("agent register --url " + BASE + " --key ooareg_")));
   click(btn("Close"));
 
-  nav("Credentials");
-  await until(() => btn("New locker"));
-  click(btn("New locker"));
+  nav("One Agent Vault");
+  await until(() => btn("New vault folder"));
+  click(btn("New vault folder"));
   await until(() => !d.getElementById("modal").hidden);
   let li = d.querySelectorAll("#modal-body input");
   li[0].value = "finance"; li[1].value = '<img src=x onerror="window.__pwned=1">'; li[2].value = "role:bot_creator";
@@ -92,15 +92,15 @@ async function page() {
   click(btn("Save", d.getElementById("modal-actions")));
   check("credentials are saved and listed by name only", await until(() => d.getElementById("main").textContent.includes("erp") && !d.body.innerHTML.includes("S3cret-ERP-pass")));
 
-  nav("Global values");
-  await until(() => btn("New global value"));
-  click(btn("New global value"));
+  nav("Shared values");
+  await until(() => btn("New shared value"));
+  click(btn("New shared value"));
   await until(() => !d.getElementById("modal").hidden);
   d.querySelector("#modal-body input").value = "reports_folder"; d.querySelector("#modal-body textarea").value = '"D:/Reports"';
   click(btn("Save", d.getElementById("modal-actions")));
   check("global values can be added", await until(() => d.getElementById("main").textContent.includes("$global.reports_folder")));
 
-  nav("Audit log");
+  nav("One Audit Trail");
   await until(() => btn("Verify integrity"));
   check("the audit log lists recent actions", await until(() => d.getElementById("main").textContent.includes("credential.set") && d.getElementById("main").textContent.includes("user.create")));
   click(btn("Verify integrity"));
@@ -118,8 +118,8 @@ async function page() {
   submit(d.getElementById("password-form"));
   await until(() => !d.getElementById("app").hidden);
   const carolNav = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
-  check("a bot creator does not see Users or Audit log", !carolNav.includes("Users") && !carolNav.includes("Audit log") && carolNav.includes("Automation"), carolNav.join(","));
-  nav("Credentials");
+  check("a bot creator does not see Users or Audit log", !carolNav.includes("Users") && !carolNav.includes("One Audit Trail") && carolNav.includes("Agent repository"), carolNav.join(","));
+  nav("One Agent Vault");
   check("a consumer sees the locker but cannot manage it", await until(() => d.getElementById("main").textContent.includes("finance")) && !btn("Add or update credential"));
 
   const csrf = await fetch(BASE + "/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });

@@ -7,11 +7,11 @@ import java.net.InetAddress;
 import java.util.*;
 
 /** System information and power actions. Power actions require confirm = true so they can never run by accident. */
-@OoaPackage(id = "ooa.system", name = "System", version = "1.0.0", description = "Read environment variables and device information; lock, sign out, restart or shut down the device.")
+@OoaPackage(id = "ooa.system", name = "System", version = "1.0.0", description = "Read environment variables and runner information; lock, sign out, restart or shut down the runner.")
 public final class SystemPackage {
 
     @Action(id = "get_environment_variable", name = "Get environment variable", category = "System", idempotent = true,
-            description = "Read an environment variable of the device; variables that look like secrets are refused.")
+            description = "Read an environment variable of the runner; variables that look like secrets are refused.")
     @Output(name = "value", type = OoaType.STRING, description = "Value, or the default when not set.")
     public Map<String, Object> getEnv(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Variable name, e.g. COMPUTERNAME.") String name,
@@ -24,7 +24,7 @@ public final class SystemPackage {
     }
 
     @Action(id = "get_system_info", name = "Get system info", category = "System", idempotent = true,
-            description = "Return the device name, operating system, user, processors and Java version.")
+            description = "Return the runner name, operating system, user, processors and Java version.")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "hostname, os, os_version, user, processors, java_version.")
     public Map<String, Object> info(ActionContext ctx) {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -41,13 +41,13 @@ public final class SystemPackage {
 
     private static Map<String, Object> power(ActionContext ctx, boolean confirm, String what, List<String> windowsCmd, List<String> unixCmd) {
         if (!confirm) throw new ActionException("SYSTEM.CONFIRM_REQUIRED", what + " was not performed because confirm is false",
-                "Set confirm to true to allow this bot to " + what.toLowerCase(Locale.ROOT) + " the device.");
+                "Set confirm to true to allow this agent to " + what.toLowerCase(Locale.ROOT) + " the runner.");
         List<String> cmd = ProcessRunner.WINDOWS ? windowsCmd : unixCmd;
         if (cmd == null) throw new ActionException("SYSTEM.WINDOWS_ONLY", what + " is supported on Windows only");
-        ctx.warn(what + " requested by the bot");
+        ctx.warn(what + " requested by the agent");
         ProcessRunner.Result r = ProcessRunner.run(ctx, cmd, null, null, 60);
         if (r.exitCode() != 0) throw new ActionException("SYSTEM.POWER_FAILED", what + " failed: " + ApplicationPackage.tail(r.stderr() + r.stdout()),
-                "The bot agent may need administrator rights.");
+                "The agent may need administrator rights.");
         return Map.of();
     }
 
@@ -61,7 +61,7 @@ public final class SystemPackage {
         return power(ctx, confirm, "Sign out", List.of("shutdown.exe", "/l"), null);
     }
 
-    @Action(id = "restart", name = "Restart computer", category = "Power", description = "Restart the device after a delay.")
+    @Action(id = "restart", name = "Restart computer", category = "Power", description = "Restart the runner after a delay.")
     public Map<String, Object> restart(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to restart.") boolean confirm,
             @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before restarting.") int delay) {
@@ -69,7 +69,7 @@ public final class SystemPackage {
         return power(ctx, confirm, "Restart", List.of("shutdown.exe", "/r", "/t", String.valueOf(d)), List.of("shutdown", "-r", "+" + Math.max(1, d / 60)));
     }
 
-    @Action(id = "shut_down", name = "Shut down computer", category = "Power", description = "Shut the device down after a delay.")
+    @Action(id = "shut_down", name = "Shut down computer", category = "Power", description = "Shut the runner down after a delay.")
     public Map<String, Object> shutDown(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to shut down.") boolean confirm,
             @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before shutting down.") int delay) {

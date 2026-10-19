@@ -29,7 +29,7 @@ public final class SoundPackage {
             long end = System.currentTimeMillis() + ms + 200;
             while (System.currentTimeMillis() < end) { ctx.checkCancelled(); Thread.sleep(50); }
         } catch (UnsupportedAudioFileException e) { throw new ActionException("SOUND.UNSUPPORTED", "Unsupported sound format", "Use a WAV file.");
-        } catch (LineUnavailableException | IllegalArgumentException e) { throw new ActionException("SOUND.NO_DEVICE", "No audio device available: " + e.getMessage(), "Run on a device with sound output.");
+        } catch (LineUnavailableException | IllegalArgumentException e) { throw new ActionException("SOUND.NO_DEVICE", "No audio runner available: " + e.getMessage(), "Run on a runner with sound output.");
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
         } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         return Map.of();
