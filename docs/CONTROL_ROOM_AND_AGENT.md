@@ -50,6 +50,11 @@ Without it a key file is created next to the database.
 - **API keys** (top bar > API keys): other systems call the API as you with `Authorization: Bearer ooak_...`. A key is
   shown once, can expire, and can be revoked at any time. Only a hash is stored.
 - **Announcement** (Administration > Settings): a banner shown to everyone, for example before maintenance.
+- **Forgotten password**: stop ONEOFFICEAUTOMATION (Ctrl+C in its window), then in the `platform` folder run
+  `.\gradlew.bat :cli:run --args="reset-admin"` (or `--args="reset-admin --user jane.doe"`). It prints a one-time
+  password, re-enables and unlocks the account, and records the reset in the One Audit Trail. Start the server again
+  and sign in; you are asked to choose a new password. Earlier versions kept their data in `OOA Control Room`; it is
+  still used when it holds a database.
 
 ## 3. Register a runner and start the One Runner
 

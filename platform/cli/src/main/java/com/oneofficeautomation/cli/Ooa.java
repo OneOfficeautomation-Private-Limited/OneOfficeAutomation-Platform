@@ -57,6 +57,7 @@ public final class Ooa {
                 case "studio" -> studio(Arrays.copyOfRange(args, 1, args.length));
                 case "control-room" -> controlRoom(Arrays.copyOfRange(args, 1, args.length));
                 case "agent" -> agent(Arrays.copyOfRange(args, 1, args.length));
+                case "reset-admin" -> resetAdmin(Arrays.copyOfRange(args, 1, args.length));
                 default -> { usage(); yield 1; }
             };
         } catch (OoaException e) {
@@ -70,7 +71,8 @@ public final class Ooa {
         System.err.println("usage: ooa manifest [--summary] | validate FLOW... | run FLOW [-i key=value]... | conformance [DIR]"
                 + " | server [--port N] [--workspace DIR] [--data DIR] [--no-agent] [--no-browser]"
                 + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
-                + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]");
+                + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]"
+                + " | reset-admin [--user NAME] [--data DIR] (stop the server first)");
     }
 
     static int studio(String[] a) throws Exception {
@@ -95,7 +97,10 @@ public final class Ooa {
     record ControlRoomSetup(com.oneofficeautomation.controlroom.ControlRoom cr, com.oneofficeautomation.controlroom.Db db, Path data, String firstPassword, String dbLabel) {}
 
     static ControlRoomSetup openControlRoom(Map<String, String> o) throws Exception {
-        Path data = Path.of(o.getOrDefault("data", Path.of(System.getProperty("user.home"), "OOA Command Center").toString()));
+        // Keep using the folder of earlier versions ("OOA Control Room") when it holds a database, so an upgrade never starts empty.
+        Path legacy = Path.of(System.getProperty("user.home"), "OOA Control Room");
+        Path defaultData = Files.exists(legacy.resolve("controlroom.mv.db")) ? legacy : Path.of(System.getProperty("user.home"), "OOA Command Center");
+        Path data = Path.of(o.getOrDefault("data", defaultData.toString()));
         Files.createDirectories(data);
         com.oneofficeautomation.controlroom.Db db;
         if (o.containsKey("db-url")) {
@@ -111,6 +116,37 @@ public final class Ooa {
         System.out.println();
         System.out.println("  First start: sign in as  admin  with the one-time password  " + s.firstPassword());
         System.out.println("  You will be asked to choose a new password. This password is shown only once.");
+    }
+
+    /** Forgotten password: prints a new one-time password for the user (default admin). The server must be stopped first. */
+    static int resetAdmin(String[] a) throws Exception {
+        Map<String, String> o = options(a);
+        String user = o.getOrDefault("user", "admin");
+        ControlRoomSetup s;
+        try { s = openControlRoom(o); }
+        catch (Exception e) {
+            System.err.println("Cannot open the Command Center database. Stop ONEOFFICEAUTOMATION first (Ctrl+C in its window), then run this again.");
+            System.err.println("  (" + e.getMessage() + ")");
+            return 2;
+        }
+        try {
+            if (s.firstPassword() != null) {
+                printFirstStart(s);
+                return 0;
+            }
+            String temp;
+            try { temp = s.cr().recoverUser(user); }
+            catch (OoaException e) {
+                System.err.println(e.getMessage() + ". Users in " + s.dbLabel() + ":");
+                for (Map<String, Object> u : s.cr().userNames()) System.err.println("  " + u.get("username") + "  (" + u.get("role") + (Boolean.TRUE.equals(u.get("enabled")) ? "" : ", disabled") + ")");
+                return 1;
+            }
+            System.out.println("Password reset for '" + user + "' in " + s.dbLabel() + ".");
+            System.out.println();
+            System.out.println("  Sign in as  " + user + "  with the one-time password  " + temp);
+            System.out.println("  You will be asked to choose a new password. This password is shown only once.");
+            return 0;
+        } finally { s.db().close(); }
     }
 
     static int controlRoom(String[] a) throws Exception {

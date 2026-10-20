@@ -169,6 +169,25 @@ public final class ControlRoom {
         return vault.decrypt((String) c.get("ciphertext"), ref);
     }
 
+    /**
+     * Local recovery for a forgotten password, run from the console of the Command Center machine (`ooa reset-admin`):
+     * gives the user a new one-time password, re-enables and unlocks the account, ends its sessions and records it in
+     * the One Audit Trail. Only someone who can open the data folder can run it.
+     */
+    public String recoverUser(String username) {
+        Map<String, Object> r = db.one("SELECT id, role FROM users WHERE username = ?", username);
+        if (r == null) throw new OoaException("CR.NOT_FOUND", "There is no user called " + username);
+        String temp = Security.token(12);
+        db.update("UPDATE users SET password_hash = ?, must_change = TRUE, enabled = TRUE, failed = 0, locked_until = NULL WHERE id = ?",
+                Security.hashPassword(temp.toCharArray()), r.get("id"));
+        db.update("DELETE FROM sessions WHERE user_id = ?", r.get("id"));
+        audit.record("system (local console)", "user.recover", "user", username, Map.of("role", r.get("role")), "ok", null);
+        return temp;
+    }
+
+    /** User names with their roles, for the recovery command. */
+    public List<Map<String, Object>> userNames() { return db.query("SELECT username, role, enabled FROM users ORDER BY username"); }
+
     public static Map<String, Object> publicUser(User u) {
         return Map.of("id", u.id(), "username", u.username(), "role", u.role(), "display_name", u.displayName() == null ? u.username() : u.displayName(),
                 "must_change", u.mustChange(), "permissions", Rbac.permissions(u.role()));
