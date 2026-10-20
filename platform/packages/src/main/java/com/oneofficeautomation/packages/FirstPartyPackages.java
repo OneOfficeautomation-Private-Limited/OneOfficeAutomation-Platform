@@ -25,6 +25,7 @@ public final class FirstPartyPackages {
     public static final List<String> OPTIONAL = List.of(
             "com.oneofficeautomation.packages.office.ExcelPackage",
             "com.oneofficeautomation.packages.office.WordPackage",
+            "com.oneofficeautomation.packages.office.PowerPointPackage",
             "com.oneofficeautomation.packages.email.EmailPackage",
             "com.oneofficeautomation.packages.pdf.PdfPackage",
             "com.oneofficeautomation.packages.browser.BrowserPackage",

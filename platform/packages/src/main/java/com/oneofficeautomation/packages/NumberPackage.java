@@ -47,4 +47,43 @@ public final class NumberPackage {
         f.setRoundingMode(RoundingMode.HALF_UP);
         return Out.of("text", f.format(value));
     }
+
+    @Action(id = "increment", name = "Increment", category = "Number", idempotent = true, description = "Add a step (1 by default) to a number.")
+    @Output(name = "result", type = OoaType.NUMBER, description = "Number plus the step.")
+    public Map<String, Object> increment(ActionContext ctx,
+            @Input(name = "value", type = OoaType.NUMBER, description = "Starting number.") BigDecimal value,
+            @Input(name = "step", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Amount to add.") BigDecimal step) {
+        return Out.of("result", value.add(step == null ? BigDecimal.ONE : step));
+    }
+
+    @Action(id = "decrement", name = "Decrement", category = "Number", idempotent = true, description = "Subtract a step (1 by default) from a number.")
+    @Output(name = "result", type = OoaType.NUMBER, description = "Number minus the step.")
+    public Map<String, Object> decrement(ActionContext ctx,
+            @Input(name = "value", type = OoaType.NUMBER, description = "Starting number.") BigDecimal value,
+            @Input(name = "step", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Amount to subtract.") BigDecimal step) {
+        return Out.of("result", value.subtract(step == null ? BigDecimal.ONE : step));
+    }
+
+    @Action(id = "to_text", name = "Number to text", category = "Number", idempotent = true,
+            description = "Write a number as plain text, with fixed decimals or a pattern such as 0000 or #,##0.00.")
+    @Output(name = "text", type = OoaType.STRING, description = "The number as text.")
+    public Map<String, Object> toText(ActionContext ctx,
+            @Input(name = "value", type = OoaType.NUMBER, description = "Number to write.") BigDecimal value,
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, description = "Fixed decimal places (rounded half up).") Integer decimals,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, description = "Pattern with 0 for required digits and # for optional ones, e.g. 00000 or #,##0.00.") String pattern) {
+        if (pattern != null && !pattern.isBlank()) {
+            try {
+                DecimalFormat f = new DecimalFormat(pattern, DecimalFormatSymbols.getInstance(Locale.ROOT));
+                f.setRoundingMode(RoundingMode.HALF_UP);
+                return Out.of("text", f.format(value));
+            } catch (IllegalArgumentException e) {
+                throw new ActionException("NUMBER.BAD_PATTERN", "Invalid number pattern '" + pattern + "': " + e.getMessage(), "Use 0, #, comma and dot, e.g. #,##0.00.");
+            }
+        }
+        if (decimals != null) {
+            if (decimals < 0) throw new ActionException("NUMBER.BAD_DECIMALS", "Decimals cannot be negative (" + decimals + ")", "Use 0 or more.");
+            return Out.of("text", value.setScale(decimals, RoundingMode.HALF_UP).toPlainString());
+        }
+        return Out.of("text", com.oneofficeautomation.runner.Values.text(value));
+    }
 }

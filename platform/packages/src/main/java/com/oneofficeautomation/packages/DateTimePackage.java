@@ -124,4 +124,110 @@ public final class DateTimePackage {
         DayOfWeek d = z.getDayOfWeek();
         return d != DayOfWeek.SATURDAY && d != DayOfWeek.SUNDAY && z.getHour() >= start && z.getHour() < end;
     }
+
+    // ---- Comparison ----
+
+    @Condition(id = "is_after", name = "Date is after", description = "True when the first date is later than the second.")
+    public boolean isAfter(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
+        return need(value, "value").isAfter(need(other, "other"));
+    }
+
+    @Condition(id = "is_before", name = "Date is before", description = "True when the first date is earlier than the second.")
+    public boolean isBefore(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
+        return need(value, "value").isBefore(need(other, "other"));
+    }
+
+    @Condition(id = "is_equal", name = "Dates are equal", description = "True when both dates are the same moment.")
+    public boolean isEqual(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
+        return need(value, "value").isEqual(need(other, "other"));
+    }
+
+    private static LocalDateTime need(LocalDateTime v, String name) {
+        if (v == null) throw new ActionException("DATETIME.MISSING", "Input '" + name + "' has no date", "Give a date such as 2026-10-18 or 2026-10-18T14:30:00.");
+        return v;
+    }
+
+    @Action(id = "is_after", name = "Is after", category = "Date and time", idempotent = true, description = "Check whether the first date is later than the second.")
+    @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the first date is later.")
+    public Map<String, Object> isAfterAction(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
+        return Out.of("result", isAfter(ctx, value, other));
+    }
+
+    @Action(id = "is_before", name = "Is before", category = "Date and time", idempotent = true, description = "Check whether the first date is earlier than the second.")
+    @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the first date is earlier.")
+    public Map<String, Object> isBeforeAction(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
+        return Out.of("result", isBefore(ctx, value, other));
+    }
+
+    @Action(id = "is_equal", name = "Is equal", category = "Date and time", idempotent = true, description = "Check whether two dates are the same moment.")
+    @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the dates are equal.")
+    public Map<String, Object> isEqualAction(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
+        return Out.of("result", isEqual(ctx, value, other));
+    }
+
+    @Action(id = "is_leap_year", name = "Is leap year", category = "Date and time", idempotent = true,
+            description = "Check whether the year of a date, or a year number, is a leap year.")
+    @Output(name = "result", type = OoaType.BOOLEAN, description = "True for a leap year.")
+    public Map<String, Object> isLeapYear(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, required = false, description = "Date whose year to check.") LocalDateTime value,
+            @Input(name = "year", type = OoaType.NUMBER, required = false, description = "Year number; used when no date is given.") Integer year) {
+        if (value == null && year == null) throw new ActionException("DATETIME.MISSING", "Give a date or a year", "Fill in 'value' or 'year'.");
+        return Out.of("result", Year.isLeap(value != null ? value.getYear() : year));
+    }
+
+    @Action(id = "subtract", name = "Subtract from date", category = "Date and time", idempotent = true, description = "Subtract an amount of time from a date.")
+    @Output(name = "result", type = OoaType.DATETIME, description = "New date and time.")
+    public Map<String, Object> subtract(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
+            @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to subtract.") long amount,
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"seconds", "minutes", "hours", "days", "weeks", "months", "years"},
+                    description = "Unit of the amount.") String unit) {
+        if (unit != null && !java.util.Arrays.asList(UNITS).contains(unit))
+            throw new ActionException("DATETIME.BAD_UNIT", "Unknown unit '" + unit + "'", "Use one of " + String.join(", ", UNITS) + ".");
+        return add(ctx, value, Math.negateExact(amount), unit == null ? "days" : unit);
+    }
+
+    private static LocalDateTime startOf(LocalDateTime v, String unit) {
+        LocalDate d = v.toLocalDate();
+        return switch (unit) {
+            case "day" -> d.atStartOfDay();
+            case "week" -> d.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+            case "month" -> d.withDayOfMonth(1).atStartOfDay();
+            case "year" -> d.withDayOfYear(1).atStartOfDay();
+            default -> throw new ActionException("DATETIME.BAD_UNIT", "Unknown period '" + unit + "'", "Use day, week, month or year.");
+        };
+    }
+
+    @Action(id = "start_of", name = "Start of period", category = "Date and time", idempotent = true,
+            description = "Return midnight at the start of the day, week (Monday), month or year containing a date.")
+    @Output(name = "result", type = OoaType.DATETIME, description = "Start of the period.")
+    public Map<String, Object> startOf(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date.") LocalDateTime value,
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"day\"", enumValues = {"day", "week", "month", "year"}, description = "Period.") String unit) {
+        return Out.of("result", startOf(need(value, "value"), unit == null ? "day" : unit));
+    }
+
+    @Action(id = "end_of", name = "End of period", category = "Date and time", idempotent = true,
+            description = "Return the last second (23:59:59) of the day, week (Sunday), month or year containing a date.")
+    @Output(name = "result", type = OoaType.DATETIME, description = "End of the period.")
+    public Map<String, Object> endOf(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date.") LocalDateTime value,
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"day\"", enumValues = {"day", "week", "month", "year"}, description = "Period.") String unit) {
+        String u = unit == null ? "day" : unit;
+        LocalDateTime s = startOf(need(value, "value"), u);
+        LocalDateTime next = switch (u) { case "week" -> s.plusWeeks(1); case "month" -> s.plusMonths(1); case "year" -> s.plusYears(1); default -> s.plusDays(1); };
+        return Out.of("result", next.minusSeconds(1));
+    }
 }

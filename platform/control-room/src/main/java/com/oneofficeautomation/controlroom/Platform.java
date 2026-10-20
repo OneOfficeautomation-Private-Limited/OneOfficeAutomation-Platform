@@ -33,6 +33,15 @@ public final class Platform {
         DEFAULTS.put("max_upload_mb", 5);
         DEFAULTS.put("queue_poll_seconds", 15);
         DEFAULTS.put("default_minutes_saved", 0);
+        DEFAULTS.put("public_url", "");
+        DEFAULTS.put("sso_issuer", "");
+        DEFAULTS.put("sso_client_id", "");
+        DEFAULTS.put("sso_client_secret_ref", "");
+        DEFAULTS.put("sso_default_role", "");
+        DEFAULTS.put("sso_label", "");
+        DEFAULTS.put("mcp_agents", "");
+        DEFAULTS.put("mcp_runner", "");
+        DEFAULTS.put("mcp_timeout_seconds", 120);
     }
 
     public Map<String, Object> settings() {
@@ -188,6 +197,17 @@ public final class Platform {
     }
 
     /** The online, enabled runner of a pool with the fewest active runs; null if none is online. */
+    /** The least busy online runner, or null. */
+    public String onlineRunner() {
+        String best = null; long bestLoad = Long.MAX_VALUE;
+        for (Map<String, Object> d : db.query("SELECT id, last_seen FROM devices WHERE enabled = TRUE")) {
+            if (d.get("last_seen") == null || Instant.parse(String.valueOf(d.get("last_seen"))).isBefore(now().minus(ONLINE))) continue;
+            long load = cr.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status IN ('queued', 'running')", d.get("id"));
+            if (load < bestLoad) { best = (String) d.get("id"); bestLoad = load; }
+        }
+        return best;
+    }
+
     public String pickDevice(String poolId) {
         Map<String, Object> p = db.one("SELECT devices FROM device_pools WHERE id = ?", poolId);
         if (p == null) throw notFound("Runner pool");
@@ -212,6 +232,45 @@ public final class Platform {
         if (m != null && (m < 0 || m > 100000)) throw new OoaException("CR.BAD_INPUT", "Minutes saved must be between 0 and 100000");
         if (db.update("UPDATE bots SET minutes_saved = ? WHERE path = ?", m, path) == 0) throw notFound("Agent");
         cr.audit.record(by.username(), "bot.minutes_saved", "bot", path, minutes, "ok", ip);
+    }
+
+    // ===================== AI governance =====================
+
+    /** Stores the AI calls a run reported (model, tokens, masking, tool calls and a hash of the prompt; never the prompt itself). */
+    void recordAiCalls(Map<String, Object> run, List<?> calls) {
+        for (Object o : calls) {
+            if (!(o instanceof Map<?, ?> c)) continue;
+            Instant ts;
+            try { ts = Instant.parse(String.valueOf(c.get("ts"))); } catch (RuntimeException e) { ts = now(); }
+            Object masked = c.get("masked"), tools = c.get("tool_calls");
+            db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256) " +
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
+                    cut(c.get("purpose"), 80), cut(c.get("provider"), 40), cut(c.get("model"), 200), num(c.get("input_tokens")), num(c.get("output_tokens")),
+                    c.get("latency_ms") instanceof Number n ? n.longValue() : null,
+                    masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64));
+        }
+    }
+
+    private static String cut(Object v, int max) { if (v == null) return null; String s = String.valueOf(v); return s.length() > max ? s.substring(0, max) : s; }
+    private static Integer num(Object v) { return v instanceof Number n ? n.intValue() : null; }
+
+    /** Totals by model, agent and day, masking and tool use, and the latest calls, for the last N days. */
+    public Map<String, Object> aiGovernance(User by, int days) {
+        cr.require(by, "audit.view", "view AI governance");
+        Instant since = now().minus(Duration.ofDays(Math.max(1, Math.min(365, days))));
+        Map<String, Object> m = new LinkedHashMap<>();
+        Map<String, Object> t = db.one("SELECT COUNT(*) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, AVG(latency_ms) AS avg_latency_ms, " +
+                "SUM(CASE WHEN masked IS NOT NULL AND masked <> '[]' AND masked <> '' THEN 1 ELSE 0 END) AS masked_calls, " +
+                "SUM(CASE WHEN tool_calls IS NOT NULL AND tool_calls <> '[]' THEN 1 ELSE 0 END) AS tool_calls FROM ai_calls WHERE ts >= ?", since);
+        m.put("totals", t);
+        m.put("by_model", db.query("SELECT provider, model, COUNT(*) AS calls, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, AVG(latency_ms) AS avg_latency_ms " +
+                "FROM ai_calls WHERE ts >= ? GROUP BY provider, model ORDER BY calls DESC", since));
+        m.put("by_agent", db.query("SELECT bot_path, COUNT(*) AS calls, SUM(input_tokens) + SUM(output_tokens) AS tokens FROM ai_calls WHERE ts >= ? GROUP BY bot_path ORDER BY calls DESC LIMIT 20", since));
+        m.put("by_user", db.query("SELECT requested_by, COUNT(*) AS calls FROM ai_calls WHERE ts >= ? GROUP BY requested_by ORDER BY calls DESC LIMIT 20", since));
+        m.put("recent", db.query("SELECT id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256 " +
+                "FROM ai_calls WHERE ts >= ? ORDER BY ts DESC LIMIT 200", since));
+        m.put("days", days);
+        return m;
     }
 
     public List<Map<String, Object>> queues(User by) {

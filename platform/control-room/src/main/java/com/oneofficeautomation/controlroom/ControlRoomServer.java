@@ -24,13 +24,33 @@ public final class ControlRoomServer {
     static final int MAX_BODY = 5 * 1024 * 1024;
     public static final String COOKIE = "ooa_cr";
     private final ControlRoom cr;
+    private final McpServer mcp;
+    private final Sso sso;
     private final String host;
     private final int port;
     private HttpServer server;
     private ScheduledExecutorService clock;
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
-    public ControlRoomServer(ControlRoom cr, String host, int port) { this.cr = cr; this.host = host; this.port = port; }
+    public ControlRoomServer(ControlRoom cr, String host, int port) { this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr); }
+
+    /** The address people use to reach the Command Center (Settings: public_url), for single sign-on redirects. */
+    private String origin(HttpExchange ex) {
+        String pub = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
+        if (!pub.isEmpty()) return pub;
+        String host = ex.getRequestHeaders().getFirst("Host");
+        return "http://" + (host == null ? "localhost" : host);
+    }
+
+    private void html(HttpExchange ex, int status, String body) throws IOException {
+        byte[] b = ("<!doctype html><html><head><meta charset=\"utf-8\"><title>Signing in</title>" + body).getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+        ex.getResponseHeaders().set("Cache-Control", "no-store");
+        ex.sendResponseHeaders(status, b.length);
+        try (var os = ex.getResponseBody()) { os.write(b); }
+    }
+
+    private static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
 
     /** Serves another application under a path prefix on the same port (used by `ooa server` for Studio at /studio). Call before start(). */
     public ControlRoomServer mount(String prefix, HttpHandler handler) { mounts.put(prefix, handler); return this; }
@@ -47,6 +67,7 @@ public final class ControlRoomServer {
         clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
         clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -140,6 +161,26 @@ public final class ControlRoomServer {
             sendJson(ex, 200, r);
             return;
         }
+        if (m.equals("GET") && route.equals("auth/sso")) { sendJson(ex, 200, sso.info()); return; }
+        if (m.equals("GET") && route.equals("auth/sso/start")) {
+            ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback"));
+            ex.getResponseHeaders().set("Cache-Control", "no-store");
+            ex.sendResponseHeaders(302, -1);
+            return;
+        }
+        if (m.equals("GET") && route.equals("auth/sso/callback")) {
+            try {
+                if (q.get("error") != null) throw new OoaException("SSO.DENIED", "The identity provider did not sign you in: " + q.get("error") + (q.get("error_description") != null ? " (" + q.get("error_description") + ")" : ""));
+                Map<String, Object> r = sso.callback(q.get("code"), q.get("state"), origin(ex) + "/api/auth/sso/callback", ip);
+                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800");
+                // A same-site page moves on to the console, so the browser sends the new SameSite=Strict cookie.
+                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+            } catch (OoaException e) {
+                html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
+                        + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");
+            }
+            return;
+        }
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("hooks")) {
             String secret = ex.getRequestHeaders().getFirst("X-OOA-Secret");
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
@@ -192,6 +233,27 @@ public final class ControlRoomServer {
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u));
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "mcp" -> {
+                if (!m.equals("POST")) { ex.getResponseHeaders().set("Allow", "POST"); ex.sendResponseHeaders(405, -1); return; }
+                Map<String, Object> res = mcp.handle(u, body(ex), ip);
+                if (res == null) ex.sendResponseHeaders(202, -1); else sendJson(ex, 200, res);
+            }
+            case "workflows" -> {
+                if (m.equals("GET") && route.equals("workflows/runs")) sendJson(ex, 200, Map.of("runs", cr.workflows.runs(u, q.get("status"))));
+                else if (m.equals("POST") && route.equals("workflows/start")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.workflows.start(u, (String) b.get("path"), b.get("data") instanceof Map<?, ?> dm ? (Map<String, Object>) dm : Map.of(), ip)); }
+                else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("cancel")) sendJson(ex, 200, cr.workflows.cancel(u, seg[2], ip));
+                else notFound(ex);
+            }
+            case "tasks" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("tasks", cr.workflows.tasks(u, q.get("status"), "true".equals(q.get("all")))));
+                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("claim") || seg[2].equals("release"))) { cr.workflows.claim(u, seg[1], seg[2].equals("release"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("complete")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.workflows.complete(u, seg[1], (String) b.get("outcome"), b.get("answers") instanceof Map<?, ?> a ? (Map<String, Object>) a : Map.of(), (String) b.get("comment"), ip));
+                }
+                else notFound(ex);
+            }
+            case "governance" -> sendJson(ex, 200, cr.platform.aiGovernance(u, ControlRoom.intOr(q.get("days"), 30)));
             case "settings" -> {
                 if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
                 else if (m.equals("PUT")) sendJson(ex, 200, cr.platform.updateSettings(u, map(body(ex)), ip));
@@ -315,6 +377,13 @@ public final class ControlRoomServer {
                 else if (m.equals("PATCH") && seg.length == 2) { Map<String, Object> b = map(body(ex)); cr.updateLocker(u, seg[1], b.get("consumers"), b.get("owners"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 4) { cr.setCredential(u, seg[1], seg[2], seg[3], (String) map(body(ex)).get("value"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("DELETE") && seg.length == 4) { cr.deleteCredential(u, seg[1], seg[2], seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("external")) {
+                    Map<String, Object> b = new LinkedHashMap<>(map(body(ex)));
+                    Object secret = b.remove("secret");
+                    cr.linkExternalVault(u, seg[1], b, secret instanceof String sv ? sv : null, ip); sendJson(ex, 200, Map.of("ok", true));
+                }
+                else if (m.equals("DELETE") && seg.length == 3 && seg[2].equals("external")) { cr.linkExternalVault(u, seg[1], null, null, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.testExternalVault(u, seg[1], (String) b.get("credential"), (String) b.get("attribute"), ip)); }
                 else notFound(ex);
             }
             case "globals" -> {

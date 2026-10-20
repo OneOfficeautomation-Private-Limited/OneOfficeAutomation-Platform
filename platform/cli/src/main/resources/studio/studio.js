@@ -2240,6 +2240,16 @@ async function openItem(path) {
 
 function touchItem() { const it = state.item; if (it && it.data) it.text = JSON.stringify(it.data, null, 2) + "\n"; setDirty(true); }
 
+/** Checks a workflow or form in to the Command Center, where workflows run and forms become human tasks. */
+async function publishItem(it) {
+  if (!state.cr || !state.cr.connected) { toast("Connect to Command Center first (bottom of the Explorer).", true); return; }
+  await saveItem();
+  const comment = prompt("What changed in this version?", "");
+  if (comment === null) return;
+  try { const r = await api("POST", "cr/checkin", { local: it.path, comment }); toast("Published " + r.path + " as version " + r.version); if (typeof crLoadRepo === "function") crLoadRepo(); }
+  catch (e) { toast(e.message, true); }
+}
+
 async function saveItem() {
   const it = state.item;
   if (!it) return;
@@ -2261,6 +2271,7 @@ function renderItemEditor() {
   const head = h("div", { class: "item-head" }, tile(meta.icon, meta.color, "lg"),
     h("div", { class: "item-title" }, h("h2", { text: displayName({ name: it.path, type: it.type }) }), h("div", { class: "desc", text: meta.label + " \u00B7 " + it.path })),
     h("span", { class: "spacer" }),
+    ["form", "process"].includes(it.type) ? h("button", { type: "button", class: "btn", title: "Check in to the Command Center as the live production version", onclick: () => publishItem(it) }, "Publish to Command Center") : null,
     tabs.length ? h("div", { class: "seg item-tabs", role: "tablist" }, tabs.map(([k, l]) => h("button", { type: "button", role: "tab", "aria-selected": String(it.tab === k), "data-itab": k,
       onclick: () => {
         if (k !== "code" && it.tab === "code") { try { const d = JSON.parse(it.text); if (!d || typeof d !== "object" || Array.isArray(d)) throw new Error("not an object"); it.data = d; } catch (e) { toast("Fix the JSON first: " + e.message, true); return; } }
@@ -2500,7 +2511,7 @@ function processDesigner(it) {
     });
     flow.push(h("div", { class: "parrow", "aria-hidden": "true" }), h("div", { class: "pnode end", text: "End" }));
     const canvas = h("div", { class: "form-canvas" },
-      h("div", { class: "note", text: "Design preview: workflows are saved and versioned with your agents. Running them needs the Assist portal (task inbox), which is not built yet." }),
+      h("div", { class: "note", text: "Publish the workflow and the forms and agents it uses to the Command Center, then start it from One Workflow. People get their steps in the Task inbox." }),
       h("div", { class: "pflow" }, flow), d.stages.length ? null : h("div", { class: "canvas-empty", text: "Add stages from the left: agent tasks, human tasks, approvals, decisions and notifications." }));
     const props = h("div", { class: "designer-props" }, ...(it.sel != null && d.stages[it.sel] ? stageProps(d.stages[it.sel]) : processProps()));
     wrap.replaceChildren(palette, canvas, props);

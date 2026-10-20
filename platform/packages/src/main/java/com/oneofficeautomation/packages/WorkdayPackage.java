@@ -56,4 +56,170 @@ public final class WorkdayPackage {
         if (!path.startsWith("/ccx/") || path.contains("..")) throw new ActionException(P + ".BAD_PATH", "The path must start with /ccx/", "Example: /ccx/service/customreport2/acme/owner/Report?format=json");
         return Out.of("json", HttpJson.req(P, "GET", host.replaceAll("/+$", "") + path).bearer(token).timeout(240).send(ctx).json());
     }
+
+    // ---- Reports (RaaS) and integrations ----
+
+    private static HttpJson.Req auth(HttpJson.Req r, String user, Object password, Object token) {
+        return token instanceof SecureString ? r.bearer(token) : r.basic(user == null ? "" : user, password);
+    }
+
+    @Action(id = "get_report", name = "Get report (RaaS)", category = "Reports", idempotent = true, timeoutSeconds = 600, capabilities = "network",
+            description = "Run a custom report exposed as a web service and return its rows as a table.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Report rows; columns are the report's field aliases.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
+    public Map<String, Object> getReport(ActionContext ctx,
+            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "report_path", type = OoaType.STRING, example = "/ccx/service/customreport2/acme/isu_reports/Active_Workers", description = "Report path starting with /ccx/service/customreport2/.") String path,
+            @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Report prompts, e.g. {\"Effective_as_of_Date\": \"2026-10-01\"}.") Map<String, Object> params,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"json\"", enumValues = {"json", "csv"}, description = "Format to request from Workday.") String format,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user (basic sign-in), e.g. isu_reports@acme.") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
+        String p = path == null ? "" : path.trim();
+        if (!p.startsWith("/ccx/service/customreport2/") || p.contains("..") || p.contains("?"))
+            throw new ActionException(P + ".BAD_PATH", "The report path must start with /ccx/service/customreport2/ and have no query", "Example: /ccx/service/customreport2/acme/isu_reports/Active_Workers; put prompts in parameters.");
+        Map<String, Object> q = new LinkedHashMap<>();
+        if (params != null) q.putAll(params);
+        q.put("format", "csv".equals(format) ? "csv" : "json");
+        HttpJson.Response r = auth(HttpJson.req(P, "GET", host.replaceAll("/+$", "") + p + "?" + HttpJson.query(q)), user, password, token).timeout(600).send(ctx);
+        if ("csv".equals(format)) {
+            List<List<String>> lines = CsvPackage.parse(r.text(), ',');
+            if (lines.isEmpty()) return Map.of("table", Values.table(List.of(), new ArrayList<>()), "count", BigDecimal.ZERO);
+            List<Object> rows = new ArrayList<>();
+            for (List<String> l : lines.subList(1, lines.size())) if (!(l.size() == 1 && l.get(0).isEmpty())) rows.add(new ArrayList<Object>(l));
+            return Map.of("table", Values.table(lines.get(0), rows), "count", BigDecimal.valueOf(rows.size()));
+        }
+        List<Map<String, Object>> recs = new ArrayList<>();
+        for (Object o : (List<?>) r.map().getOrDefault("Report_Entry", List.of())) if (o instanceof Map<?, ?> m) recs.add(flat("", m));
+        return Map.of("table", Values.coerce(recs, "Table", "report"), "count", BigDecimal.valueOf(recs.size()));
+    }
+
+    /** Nested groups become Group.Field columns; repeated values are joined with "; ". */
+    static Map<String, Object> flat(String prefix, Map<?, ?> m) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (var e : m.entrySet()) {
+            String k = prefix + e.getKey();
+            if (e.getValue() instanceof Map<?, ?> sub) out.putAll(flat(k + ".", sub));
+            else if (e.getValue() instanceof List<?> l) {
+                StringJoiner j = new StringJoiner("; ");
+                for (Object v : l) j.add(v instanceof Map<?, ?> vm ? String.valueOf(vm.values().iterator().hasNext() ? vm.values().iterator().next() : "") : Values.text(v));
+                out.put(k, j.toString());
+            } else out.put(k, e.getValue());
+        }
+        return out;
+    }
+
+    private static final Pattern REF_ID = Pattern.compile("^[A-Za-z0-9_.:-]{1,128}$");
+    private static final Pattern WS_VERSION = Pattern.compile("^v\\d{2}\\.\\d$");
+
+    static String xml(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
+
+    /** SOAP envelope for the Integrations web service; a WS-Security user name token is added for basic sign-in. */
+    static String envelope(String body, String user, Object password) {
+        String header = "";
+        if (user != null && !user.isBlank() && password instanceof SecureString pw)
+            header = "<soapenv:Header><wsse:Security soapenv:mustUnderstand=\"1\" xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\">"
+                    + "<wsse:UsernameToken><wsse:Username>" + xml(user) + "</wsse:Username><wsse:Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText\">"
+                    + xml(pw.reveal()) + "</wsse:Password></wsse:UsernameToken></wsse:Security></soapenv:Header>";
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?><soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:bsvc=\"urn:com.workday/bsvc\">"
+                + header + "<soapenv:Body>" + body + "</soapenv:Body></soapenv:Envelope>";
+    }
+
+    private static org.w3c.dom.Document soap(ActionContext ctx, String host, String tenant, String version, String body, String user, Object password, Object token) {
+        if (!TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'");
+        if (!WS_VERSION.matcher(version).matches()) throw new ActionException(P + ".BAD_VERSION", "Invalid web service version '" + version + "'", "Example: v42.0.");
+        if (!(token instanceof SecureString) && !(password instanceof SecureString))
+            throw new ActionException(P + ".NO_TOKEN", "Sign-in details are required", "Give access_token, or user and password.");
+        HttpJson.Req req = HttpJson.req(P, "POST", host.replaceAll("/+$", "") + "/ccx/service/" + tenant + "/Integrations/" + version)
+                .bytes(envelope(body, user, password).getBytes(java.nio.charset.StandardCharsets.UTF_8), "text/xml; charset=utf-8").header("Accept", "text/xml").timeout(120);
+        if (token instanceof SecureString) req.bearer(token);
+        HttpJson.Response r;
+        try { r = req.send(ctx); }
+        catch (ActionException e) {
+            String fault = e.getMessage() == null ? null : between(e.getMessage(), "faultstring>", "</");
+            if (fault != null) throw new ActionException(P + ".SOAP_FAULT", "Workday refused the request: " + fault, "Check the integration id, the user's security group and the web service version.");
+            throw e;
+        }
+        try {
+            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            f.setNamespaceAware(true);
+            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            return f.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(r.bytes()));
+        } catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a reply that is not valid XML", null); }
+    }
+
+    private static String between(String s, String a, String b) {
+        int i = s.indexOf(a); if (i < 0) return null;
+        int j = s.indexOf(b, i + a.length()); return j < 0 ? null : s.substring(i + a.length(), j);
+    }
+
+    /** Text of the first ID element of the given type inside the first element named parent (anywhere when parent is null). */
+    static String refId(org.w3c.dom.Document d, String parent, String type) {
+        org.w3c.dom.NodeList scope = parent == null ? null : d.getElementsByTagNameNS("*", parent);
+        org.w3c.dom.Element root = scope == null ? d.getDocumentElement() : scope.getLength() == 0 ? null : (org.w3c.dom.Element) scope.item(0);
+        if (root == null) return null;
+        org.w3c.dom.NodeList ids = root.getElementsByTagNameNS("*", "ID");
+        for (int i = 0; i < ids.getLength(); i++) {
+            org.w3c.dom.Element e = (org.w3c.dom.Element) ids.item(i);
+            if (type.equals(e.getAttributeNS("urn:com.workday/bsvc", "type")) || type.equals(e.getAttribute("wd:type")) || type.equals(e.getAttribute("bsvc:type"))) return e.getTextContent().trim();
+        }
+        return null;
+    }
+
+    static String text(org.w3c.dom.Document d, String name) {
+        org.w3c.dom.NodeList l = d.getElementsByTagNameNS("*", name);
+        return l.getLength() == 0 ? null : l.item(0).getTextContent().trim();
+    }
+
+    @Action(id = "launch_integration", name = "Launch integration", category = "Integrations", timeoutSeconds = 180, capabilities = "network",
+            description = "Start an integration system (such as an EIB) through the Integrations web service and return the event id to track it.")
+    @Output(name = "event_id", type = OoaType.STRING, description = "Integration event WID; pass it to Get integration event.")
+    public Map<String, Object> launchIntegration(ActionContext ctx,
+            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "integration_system_id", type = OoaType.STRING, example = "INT_Worker_Load", description = "Integration System ID of the integration to start.") String integrationId,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant, e.g. isu_int@acme (basic sign-in).") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
+        if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'");
+        String body = "<bsvc:Launch_Integration_Request bsvc:version=\"" + version + "\"><bsvc:Integration_System_Reference>"
+                + "<bsvc:ID bsvc:type=\"Integration_System_ID\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference></bsvc:Launch_Integration_Request>";
+        org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
+        String event = refId(d, "Integration_Event_Reference", "WID");
+        if (event == null) event = refId(d, null, "WID");
+        if (event == null) throw new ActionException(P + ".BAD_RESPONSE", "Workday did not return an integration event id", "Check the integration can be launched by this user.");
+        return Out.of("event_id", event);
+    }
+
+    @Action(id = "get_integration_event", name = "Get integration event", category = "Integrations", idempotent = true, timeoutSeconds = 120, capabilities = "network",
+            description = "Read the status and timing of an integration run.")
+    @Output(name = "status", type = OoaType.STRING, description = "Run status, e.g. Processing, Completed, Completed with Warnings or Failed.")
+    @Output(name = "percent_complete", type = OoaType.NUMBER, description = "Progress percentage when Workday reports it.")
+    @Output(name = "started", type = OoaType.STRING, description = "Start time.")
+    @Output(name = "completed", type = OoaType.STRING, description = "Completion time; empty while running.")
+    @Output(name = "done", type = OoaType.BOOLEAN, description = "True once the run has finished, whether it succeeded or not.")
+    public Map<String, Object> getIntegrationEvent(ActionContext ctx,
+            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "event_id", type = OoaType.STRING, description = "Integration event WID from Launch integration.") String eventId,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant (basic sign-in).") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
+        if (eventId == null || !eventId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "An event id is a 32-character WID.");
+        String body = "<bsvc:Get_Integration_Events_Request bsvc:version=\"" + version + "\"><bsvc:Request_References>"
+                + "<bsvc:Integration_Event_Reference><bsvc:ID bsvc:type=\"WID\">" + eventId + "</bsvc:ID></bsvc:Integration_Event_Reference>"
+                + "</bsvc:Request_References></bsvc:Get_Integration_Events_Request>";
+        org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
+        String status = refId(d, "Background_Process_Instance_Status_Reference", "Background_Process_Instance_Status_ID");
+        if (status == null) status = text(d, "Integration_Event_Status");
+        if (status == null) throw new ActionException(P + ".NOT_FOUND", "Integration event " + eventId + " was not found", "Check the event id and the user's access to it.");
+        String pct = text(d, "Percent_Complete");
+        String completed = text(d, "Completed_DateTime");
+        String s = status.replace('_', ' ').toLowerCase(Locale.ROOT);
+        boolean done = completed != null && !completed.isEmpty() || s.startsWith("completed") || s.startsWith("failed") || s.startsWith("cancel") || s.startsWith("error");
+        return Out.of("status", status, "percent_complete", pct == null || pct.isEmpty() ? null : new BigDecimal(pct),
+                "started", text(d, "Initiated_DateTime"), "completed", completed, "done", done);
+    }
 }

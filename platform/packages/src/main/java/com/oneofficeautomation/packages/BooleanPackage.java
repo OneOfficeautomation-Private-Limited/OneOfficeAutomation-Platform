@@ -29,4 +29,22 @@ public final class BooleanPackage {
             @Input(name = "false_text", type = OoaType.STRING, required = false, defaultValue = "\"false\"", description = "Text when false.") String f) {
         return Map.of("text", v ? t : f);
     }
+
+    @Action(id = "compare", name = "Compare", category = "Boolean", idempotent = true, description = "Check whether two true/false values are equal or not equal.")
+    @Output(name = "result", type = OoaType.BOOLEAN, description = "Result of the comparison.")
+    public Map<String, Object> compare(ActionContext ctx,
+            @Input(name = "value", type = OoaType.BOOLEAN, description = "First value.") boolean a,
+            @Input(name = "other", type = OoaType.BOOLEAN, description = "Second value.") boolean b,
+            @Input(name = "operator", type = OoaType.STRING, required = false, defaultValue = "\"equal\"", enumValues = {"equal", "not_equal"},
+                    description = "equal or not_equal.") String op) {
+        if (op != null && !op.equals("equal") && !op.equals("not_equal"))
+            throw new ActionException("BOOLEAN.BAD_OPERATOR", "Unknown operator '" + op + "'", "Use equal or not_equal.");
+        return Map.of("result", "not_equal".equals(op) ? a != b : a == b);
+    }
+
+    @Action(id = "to_number", name = "Boolean to number", category = "Boolean", idempotent = true, description = "Turn true into 1 and false into 0.")
+    @Output(name = "result", type = OoaType.NUMBER, description = "1 or 0.")
+    public Map<String, Object> toNumber(ActionContext ctx, @Input(name = "value", type = OoaType.BOOLEAN, description = "Value.") boolean v) {
+        return Map.of("result", v ? java.math.BigDecimal.ONE : java.math.BigDecimal.ZERO);
+    }
 }

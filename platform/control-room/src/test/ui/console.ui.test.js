@@ -48,7 +48,8 @@ async function page() {
   submit(d.getElementById("password-form"));
   check("after the change the console opens", await until(() => !d.getElementById("app").hidden && d.getElementById("main").textContent.includes("Welcome")));
   const navItems = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
-  check("an administrator sees all ten sections", navItems.length === 10 && navItems.includes("Users") && navItems.includes("One Audit Trail"), navItems.join(","));
+  check("an administrator sees all twelve sections", navItems.length === 12 && navItems.includes("Users") && navItems.includes("Work queues") && navItems.includes("Administration"), navItems.join(","));
+  check("home shows hours saved", d.getElementById("main").textContent.includes("Hours saved (30 days)"));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
   nav("Agent Runs");
@@ -100,6 +101,89 @@ async function page() {
   click(btn("Save", d.getElementById("modal-actions")));
   check("global values can be added", await until(() => d.getElementById("main").textContent.includes("$global.reports_folder")));
 
+  // ---- Part 4: work queues, runner pools, calendars, administration, API keys ----
+  nav("Work queues");
+  await until(() => btn("New work queue"));
+  check("work queues start empty with guidance", d.getElementById("main").textContent.includes("No work queues yet"));
+  click(btn("New work queue"));
+  await until(() => !d.getElementById("modal").hidden);
+  d.querySelector("#modal-body input").value = "Vendor invoices";
+  click(btn("Save", d.getElementById("modal-actions")));
+  check("a work queue can be created", await until(() => d.getElementById("main").textContent.includes("Vendor invoices")));
+  click([...d.querySelectorAll("#main tr.clickable")].find((tr) => tr.textContent.includes("Vendor invoices")));
+  await until(() => !d.getElementById("drawer").hidden && btn("Add items"));
+  click(btn("Add items"));
+  await until(() => !d.getElementById("modal").hidden);
+  d.querySelector("#modal-body textarea").value = "reference,vendor,amount\nINV-1,Acme,10\nINV-2,\"Globex, Inc\",20\n";
+  click(btn("Add items", d.getElementById("modal-actions")));
+  check("work items are added from CSV and listed", await until(() => d.getElementById("drawer-body").textContent.includes("INV-2") && d.getElementById("drawer-body").textContent.includes("new: 2")));
+  check("CSV quoting keeps commas inside values", await until(() => d.getElementById("drawer-body").textContent.includes("Globex, Inc")));
+  click(btn("Start processing"));
+  check("processing needs an agent and a pool first", await until(() => !d.getElementById("toast").hidden && d.getElementById("toast").textContent.includes("runner pool")));
+  click(d.getElementById("drawer-close"));
+
+  nav("Runners");
+  await until(() => btn("Runner pools"));
+  click(btn("Runner pools"));
+  check("runners have a Runner pools tab", await until(() => btn("New runner pool") && d.getElementById("main").textContent.includes("No runner pools yet")));
+  click(btn("New runner pool"));
+  await until(() => !d.getElementById("modal").hidden);
+  d.querySelector("#modal-body input").value = "Finance runners";
+  click(btn("Save", d.getElementById("modal-actions")));
+  check("a runner pool can be created", await until(() => d.getElementById("main").textContent.includes("Finance runners")));
+  click(btn("Runners", d.querySelector("#main .tabs")));
+  await until(() => btn("Register a runner"));
+
+  nav("Schedules");
+  await until(() => btn("Holiday calendars"));
+  click(btn("Holiday calendars"));
+  await until(() => !d.getElementById("modal").hidden && btn("Save calendar"));
+  d.querySelector("#modal-body input").value = "India 2026";
+  d.querySelector("#modal-body textarea").value = "2026-12-25\n2026-01-26";
+  click(btn("Save calendar"));
+  check("holiday calendars can be saved", await until(() => d.getElementById("modal-body").textContent.includes("India 2026") && d.getElementById("modal-body").textContent.includes("2 dates")));
+  click(btn("Close"));
+
+  nav("Administration");
+  check("Administration has settings, roles, connections and toolkits", await until(() => btn("Save settings") && btn("Roles") && btn("One Model Connections") && btn("Toolkits")));
+  d.querySelector("#main textarea").value = "Maintenance on Saturday";
+  click(btn("Save settings"));
+  check("an announcement is shown to everyone", await until(() => !d.getElementById("announcement").hidden && d.getElementById("announcement").textContent.includes("Maintenance on Saturday")));
+  click(btn("Roles"));
+  await until(() => btn("New role"));
+  check("built-in roles are listed with their permissions", d.getElementById("main").textContent.includes("Agent builder") && d.getElementById("main").textContent.includes("repo.checkin"));
+  click(btn("New role"));
+  await until(() => !d.getElementById("modal").hidden);
+  d.querySelector("#modal-body input").value = "queue_clerk";
+  for (const c of d.querySelectorAll("#modal-body input[type=checkbox]")) if (c.value === "queues.view" || c.value === "queues.work") c.checked = true;
+  click(btn("Save role"));
+  check("a custom role can be created", await until(() => d.getElementById("main").textContent.includes("queue_clerk") && d.getElementById("main").textContent.includes("queues.work")));
+  click(btn("One Model Connections"));
+  await until(() => btn("New connection"));
+  click(btn("New connection"));
+  await until(() => !d.getElementById("modal").hidden);
+  const ci = d.querySelectorAll("#modal-body input");
+  ci[0].value = "company-gpt"; ci[1].value = "gpt-test"; ci[3].value = "plain-secret-not-a-reference";
+  click(btn("Save connection"));
+  check("a connection key must be a vault reference", await until(() => !d.getElementById("toast").hidden && d.getElementById("toast").textContent.includes("vault")));
+  ci[3].value = "ai/openai/key";
+  click(btn("Save connection"));
+  check("a model connection can be saved with a vault reference", await until(() => d.getElementById("main").textContent.includes("company-gpt") && d.getElementById("main").textContent.includes("ai/openai/key")));
+  click(btn("Toolkits"));
+  check("toolkits are listed with usage and status", await until(() => d.getElementById("main").textContent.includes("ooa.string") && btn("Switch off")));
+
+  click(d.getElementById("btn-apikeys"));
+  await until(() => !d.getElementById("modal").hidden && btn("Create key"));
+  d.querySelector("#modal-body input").value = "ERP sync";
+  click(btn("Create key"));
+  check("an API key is shown once after creation", await until(() => d.getElementById("modal-title").textContent === "API key created" && d.querySelector(".secret-box .mono").textContent.startsWith("ooak_")));
+  const apiKey = d.querySelector(".secret-box .mono").textContent;
+  const viaKey = await fetch(BASE + "/api/queues", { headers: { Authorization: "Bearer " + apiKey } });
+  check("other systems can call the API with the key", viaKey.status === 200);
+  click(btn("Back to keys"));
+  check("the key is listed by name only", await until(() => d.getElementById("modal-body").textContent.includes("ERP sync") && !d.getElementById("modal-body").textContent.includes(apiKey)));
+  click(btn("Close"));
+
   nav("One Audit Trail");
   await until(() => btn("Verify integrity"));
   check("the audit log lists recent actions", await until(() => d.getElementById("main").textContent.includes("credential.set") && d.getElementById("main").textContent.includes("user.create")));
@@ -119,6 +203,8 @@ async function page() {
   await until(() => !d.getElementById("app").hidden);
   const carolNav = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
   check("a bot creator does not see Users or Audit log", !carolNav.includes("Users") && !carolNav.includes("One Audit Trail") && carolNav.includes("Agent repository"), carolNav.join(","));
+  check("an agent builder sees work queues but not Administration", carolNav.includes("Work queues") && !carolNav.includes("Administration"), carolNav.join(","));
+  check("other users see the announcement", await until(() => !d.getElementById("announcement").hidden && d.getElementById("announcement").textContent.includes("Maintenance")));
   nav("One Agent Vault");
   check("a consumer sees the locker but cannot manage it", await until(() => d.getElementById("main").textContent.includes("finance")) && !btn("Add or update credential"));
 

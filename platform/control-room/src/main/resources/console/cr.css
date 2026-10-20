@@ -259,3 +259,29 @@ body[data-theme="dark"] .toast { background: #e8eef8; color: #0b1220; }
 body[data-theme="dark"] .modal, body[data-theme="dark"] .drawer { background: rgba(0, 0, 0, .55); }
 body[data-theme="dark"] .brand-name { color: #fff; }
 #btn-theme { width: 34px; height: 32px; justify-content: center; padding: 0; }
+
+/* ---- Part 4: queues, pools, administration ---- */
+.announcement { display: flex; align-items: center; gap: 10px; padding: 8px 20px; background: color-mix(in srgb, #d97706 14%, var(--panel, #fff)); border-bottom: 1px solid color-mix(in srgb, #d97706 40%, transparent); font-weight: 500; }
+.announcement[hidden] { display: none; }
+.announcement .ann-text { flex: 1; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: color-mix(in srgb, var(--accent, #2563eb) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 25%, transparent); }
+.q-done { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.q-done .bar { width: 70px; }
+.q-summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.form-card { display: grid; gap: 12px; max-width: 880px; }
+.card.inset { margin: 12px 0; padding: 12px; box-shadow: none; }
+.check-list { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+.perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; max-height: 50vh; overflow: auto; }
+.perm-group { border: 1px solid var(--border, #d0d7e2); border-radius: 8px; padding: 6px 10px; margin: 0; }
+.perm-group legend { font-weight: 600; text-transform: capitalize; padding: 0 4px; }
+button.link { background: none; border: none; padding: 0; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; box-shadow: none; }
+.roi label { display: grid; gap: 4px; }
+.sso-or { text-align: center; color: var(--muted, #64748b); margin: 10px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.sso-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; }
+.timeline { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--border, #d0d7e2); }
+.timeline li { padding: 6px 0 10px 14px; position: relative; }
+.timeline li::before { content: ""; position: absolute; left: -6px; top: 11px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent, #2563eb); }
+pre.json { background: color-mix(in srgb, var(--accent, #2563eb) 6%, transparent); padding: 10px; border-radius: 8px; overflow: auto; max-height: 260px; font-size: 12px; }
+.radio-group { display: flex; flex-wrap: wrap; gap: 10px; }
+.form-card h3 { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; }

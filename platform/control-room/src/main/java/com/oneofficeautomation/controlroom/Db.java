@@ -185,6 +185,22 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE users ADD COLUMN email VARCHAR(200)",
     };
 
+    /** Version 3: external vault links, AI usage records, the human task inbox, workflow runs and single sign-on. */
+    private static final String[] SCHEMA_V3 = {
+        "ALTER TABLE lockers ADD COLUMN external VARCHAR(4000)",
+        "ALTER TABLE lockers ADD COLUMN external_secret VARCHAR(8000)",
+        "CREATE TABLE ai_calls (id VARCHAR(40) PRIMARY KEY, run_id VARCHAR(40), bot_path VARCHAR(400), requested_by VARCHAR(80), ts TIMESTAMP NOT NULL, purpose VARCHAR(80), " +
+            "provider VARCHAR(40), model VARCHAR(200), input_tokens INT, output_tokens INT, latency_ms BIGINT, masked VARCHAR(1000), tool_calls VARCHAR(2000), prompt_sha256 VARCHAR(64))",
+        "CREATE INDEX ai_calls_ts ON ai_calls (ts)",
+        "CREATE TABLE workflow_runs (id VARCHAR(40) PRIMARY KEY, path VARCHAR(400) NOT NULL, version INT NOT NULL, status VARCHAR(20) NOT NULL, stage VARCHAR(80), " +
+            "data VARCHAR(100000) NOT NULL, history VARCHAR(100000) NOT NULL, started_by VARCHAR(80), created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL, finished TIMESTAMP, error VARCHAR(4000))",
+        "CREATE TABLE human_tasks (id VARCHAR(40) PRIMARY KEY, workflow_run_id VARCHAR(40), stage VARCHAR(80), kind VARCHAR(20) NOT NULL, title VARCHAR(300) NOT NULL, " +
+            "description VARCHAR(4000), form VARCHAR(100000), data VARCHAR(100000), assignee VARCHAR(300) NOT NULL, status VARCHAR(20) NOT NULL, claimed_by VARCHAR(80), " +
+            "outcome VARCHAR(40), result VARCHAR(100000), created TIMESTAMP NOT NULL, due TIMESTAMP, completed TIMESTAMP, completed_by VARCHAR(80))",
+        "CREATE INDEX human_tasks_status ON human_tasks (status, created)",
+        "ALTER TABLE users ADD COLUMN sso_subject VARCHAR(300)",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -198,6 +214,10 @@ public final class Db implements AutoCloseable {
             if (current < 2) {
                 for (String ddl : SCHEMA_V2) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (2)");
+            }
+            if (current < 3) {
+                for (String ddl : SCHEMA_V3) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (3)");
             }
             return null;
         });

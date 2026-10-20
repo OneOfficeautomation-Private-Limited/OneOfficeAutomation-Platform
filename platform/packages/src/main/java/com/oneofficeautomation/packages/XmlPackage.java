@@ -170,4 +170,52 @@ public final class XmlPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
         return Out.of("valid", errors.isEmpty(), "errors", errors);
     }
+
+    @Action(id = "xpath_function", name = "Evaluate XPath", category = "XML", idempotent = true,
+            description = "Evaluate an XPath expression such as count(//line) or sum(//amount) and return text, a number or true/false.")
+    @Output(name = "result", description = "Result of the expression as String, Number or Boolean.")
+    public Map<String, Object> xpathFunction(ActionContext ctx,
+            @Input(name = "expression", type = OoaType.STRING, example = "sum(//line/amount)", description = "XPath expression.") String expression,
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
+            @Input(name = "result_type", type = OoaType.STRING, required = false, defaultValue = "\"string\"", enumValues = {"string", "number", "boolean"},
+                    description = "Type of the result.") String resultType) {
+        Document doc = XmlSupport.parse(source(ctx, xml, path), false);
+        String rt = resultType == null ? "string" : resultType;
+        javax.xml.namespace.QName q = switch (rt) {
+            case "number" -> XPathConstants.NUMBER;
+            case "boolean" -> XPathConstants.BOOLEAN;
+            case "string" -> XPathConstants.STRING;
+            default -> throw new ActionException("XML.BAD_RESULT_TYPE", "Unknown result type '" + rt + "'", "Use string, number or boolean.");
+        };
+        Object r;
+        try { r = XPathFactory.newInstance().newXPath().evaluate(expression, doc, q); }
+        catch (XPathExpressionException e) {
+            throw new ActionException("XML.BAD_XPATH", "Invalid XPath '" + expression + "': " + (e.getMessage() != null ? e.getMessage() : e.getCause()), "Example: count(//line) or string(/invoice/@id)");
+        }
+        if (r instanceof Double d) {
+            if (d.isNaN() || d.isInfinite()) throw new ActionException("XML.NOT_A_NUMBER", "The expression '" + expression + "' did not produce a number", "Check the nodes contain numbers, or use result_type string.");
+            BigDecimal n = new BigDecimal(Double.toString(d)).stripTrailingZeros();
+            return Out.of("result", n.scale() < 0 ? n.setScale(0) : n);
+        }
+        return Out.of("result", r);
+    }
+
+    @Action(id = "save_file", name = "Save XML file", category = "XML", capabilities = "filesystem",
+            description = "Check that XML text is well-formed and write it to a file, optionally indented.")
+    @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
+    public Map<String, Object> saveFile(ActionContext ctx,
+            @Input(name = "xml", type = OoaType.STRING, description = "XML text to save.") String xml,
+            @Input(name = "path", type = OoaType.FILE, description = "Target file.") String path,
+            @Input(name = "indent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Re-format with indentation instead of keeping the text as given.") boolean indent) {
+        if (xml == null || xml.isBlank()) throw new ActionException("XML.NO_SOURCE", "The XML text is empty", "Fill in 'xml'.");
+        Document doc = XmlSupport.parse(xml, false);
+        String text = indent ? XmlSupport.write(doc, true) : xml;
+        Path out = ctx.resolvePath(needFile(path));
+        try {
+            if (out.getParent() != null) Files.createDirectories(out.getParent());
+            Files.writeString(out, text);
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + out + ": " + e.getMessage(), null, true); }
+        return Out.of("path", out.toString());
+    }
 }

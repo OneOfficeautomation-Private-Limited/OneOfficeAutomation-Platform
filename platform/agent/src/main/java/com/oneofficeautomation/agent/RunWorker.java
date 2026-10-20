@@ -82,6 +82,10 @@ public final class RunWorker {
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
                 .principal(principal).build();
         RunResult result;
+        // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.
+        Path aiLog = workspace.resolve("ai-governance.jsonl");
+        long aiStart = 0;
+        try { aiStart = java.nio.file.Files.exists(aiLog) ? java.nio.file.Files.size(aiLog) : 0; } catch (IOException ignored) { }
         try {
             result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),
                     new Runner.RunOptions().runId(String.valueOf(job.get("run_id"))).cancel(cancel).pause(pause).maxRunSeconds(24 * 3600.0));
@@ -89,7 +93,26 @@ public final class RunWorker {
             result = new RunResult(String.valueOf(job.get("run_id")), String.valueOf(main.get("id")), "failed", Map.of(),
                     Map.of("code", "AGENT.RUN_CRASHED", "message", String.valueOf(e)), 0, null, 0);
         }
-        send(Map.of("type", "result", "result", result.toMap()));
+        Map<String, Object> resultMap = new LinkedHashMap<>(result.toMap());
+        List<Object> aiCalls = aiCalls(aiLog, aiStart);
+        if (!aiCalls.isEmpty()) resultMap.put("ai_calls", aiCalls);
+        send(Map.of("type", "result", "result", resultMap));
         System.exit(0);
+    }
+
+    /** The AI call records this run appended to the governance log (at most 500), for the Command Center's AI governance view. */
+    static List<Object> aiCalls(Path log, long from) {
+        List<Object> out = new ArrayList<>();
+        try (RandomAccessFile f = new RandomAccessFile(log.toFile(), "r")) {
+            if (f.length() <= from) return out;
+            f.seek(from);
+            byte[] b = new byte[(int) Math.min(f.length() - from, 4_000_000)];
+            f.readFully(b);
+            for (String line : new String(b, StandardCharsets.UTF_8).split("\n")) {
+                if (line.isBlank() || out.size() >= 500) continue;
+                try { out.add(JsonLite.parse(line)); } catch (RuntimeException ignored) { }
+            }
+        } catch (IOException ignored) { /* no AI calls */ }
+        return out;
     }
 }

@@ -57,9 +57,9 @@ final class HttpJson {
             catch (HttpTimeoutException e) { throw new ActionException(prefix + ".TIMEOUT", "No response within " + timeout + " s from " + host(url), "Try again later or raise the timeout.", true); }
             catch (IOException e) { throw new ActionException(prefix + ".UNREACHABLE", "Cannot reach " + host(url) + ": " + e.getMessage(), "Check the URL, proxy and network access.", true); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
-            String text = binary ? "" : new String(r.body(), StandardCharsets.UTF_8);
+            String text = binary && r.statusCode() < 400 ? "" : new String(r.body(), StandardCharsets.UTF_8);
             Object parsed = null;
-            if (!binary && !text.isBlank()) try { parsed = JsonLite.parse(text); } catch (IllegalArgumentException ignored) { }
+            if (!text.isBlank()) try { parsed = JsonLite.parse(text); } catch (IllegalArgumentException ignored) { }
             Response resp = new Response(r.statusCode(), text, parsed, r.body(), r.headers().map());
             if (r.statusCode() >= 400) throw error(prefix, resp);
             return resp;

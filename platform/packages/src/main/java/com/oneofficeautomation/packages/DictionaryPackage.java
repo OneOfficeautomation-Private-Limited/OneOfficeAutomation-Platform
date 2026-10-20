@@ -58,4 +58,22 @@ public final class DictionaryPackage {
             @Input(name = "key", type = OoaType.STRING, description = "Key.") String key) {
         return dict.containsKey(key);
     }
+
+    @Action(id = "size", name = "Get size", category = "Dictionary", idempotent = true, description = "Number of keys.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of keys.")
+    public Map<String, Object> size(ActionContext ctx, @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict) {
+        return Out.of("count", java.math.BigDecimal.valueOf(dict.size()));
+    }
+
+    @Action(id = "merge", name = "Merge", category = "Dictionary", idempotent = true,
+            description = "Combine two dictionaries; for keys in both, keep the second value unless overwrite is off.")
+    @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Merged dictionary.")
+    public Map<String, Object> merge(ActionContext ctx,
+            @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "First dictionary.") Map<String, Object> dict,
+            @Input(name = "other", type = OoaType.DICTIONARY, description = "Dictionary to merge in.") Map<String, Object> other,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Let values from the second dictionary replace existing ones.") boolean overwrite) {
+        Map<String, Object> out = new LinkedHashMap<>(dict);
+        if (other != null) other.forEach((k, v) -> { if (overwrite || !out.containsKey(k)) out.put(k, v); });
+        return Out.of("dictionary", out);
+    }
 }

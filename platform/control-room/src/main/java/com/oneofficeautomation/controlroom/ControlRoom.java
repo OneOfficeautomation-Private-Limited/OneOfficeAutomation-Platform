@@ -23,11 +23,13 @@ public final class ControlRoom {
     public final Audit audit;
     public final Vault vault;
     public final Platform platform;
+    final ExternalVaults externalVaults = new ExternalVaults();
+    public final Workflows workflows;
     private final FlowValidator validator;
     private final PackageRegistry registry;
     static final Duration SESSION = Duration.ofHours(8);
     static final Duration ONLINE = Duration.ofSeconds(60);
-    static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.flow\\.json$");
+    static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.(flow|process|form)\\.json$");
     static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
 
     public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema) {
@@ -38,6 +40,7 @@ public final class ControlRoom {
         this.registry = registry;
         db.migrate();
         this.platform = new Platform(this, registry);
+        this.workflows = new Workflows(this);
         loadRoles();
     }
 
@@ -99,13 +102,69 @@ public final class ControlRoom {
             audit.record(username, "auth.login", "user", username, failed % 5 == 0 ? "account locked for 15 minutes" : null, "failed", ip);
             throw bad;
         }
+        audit.record(username, "auth.login", "user", username, null, "ok", ip);
+        return newSession(r, ip);
+    }
+
+    private Map<String, Object> newSession(Map<String, Object> r, String ip) {
         String token = Security.token(32);
         db.update("UPDATE users SET failed = 0, locked_until = NULL, last_login = ? WHERE id = ?", now(), r.get("id"));
         db.update("DELETE FROM sessions WHERE expires < ?", now());
         db.update("INSERT INTO sessions (token_hash, user_id, created, expires, ip) VALUES (?,?,?,?,?)", Security.sha256(token), r.get("id"), now(), now().plus(SESSION), ip);
-        audit.record(username, "auth.login", "user", username, null, "ok", ip);
-        User u = user(r);
-        return Map.of("token", token, "user", me(u));
+        return Map.of("token", token, "user", me(user(r)));
+    }
+
+    /**
+     * Signs in a person the identity provider vouched for. Accounts are linked by the provider's subject; on the first
+     * sign-in an existing account with the same (verified) e-mail or user name is linked, or a new one is created with the
+     * default role. Without a default role only existing accounts may sign in.
+     */
+    Map<String, Object> ssoLogin(Map<String, Object> claims, String defaultRole, String ip) {
+        String subject = claims.get("iss") + "|" + claims.get("sub");
+        String email = claims.get("email") instanceof String e && !Boolean.FALSE.equals(claims.get("email_verified")) ? e.trim().toLowerCase(Locale.ROOT) : null;
+        String preferred = claims.get("preferred_username") instanceof String pu ? pu.trim().toLowerCase(Locale.ROOT) : null;
+        Map<String, Object> r = db.one("SELECT * FROM users WHERE sso_subject = ?", subject);
+        if (r == null) {
+            for (String candidate : new String[]{email, preferred}) {
+                if (candidate == null || r != null) continue;
+                r = db.one("SELECT * FROM users WHERE LOWER(username) = ? AND sso_subject IS NULL", candidate);
+            }
+            if (r == null) {
+                if (defaultRole.isEmpty() || !roleExists(defaultRole)) {
+                    audit.record(String.valueOf(email != null ? email : preferred), "auth.sso", "user", null, "no account", "failed", ip);
+                    throw new OoaException("SSO.NO_ACCOUNT", "There is no Command Center account for " + (email != null ? email : preferred), "Ask an administrator to create your account.");
+                }
+                String username = (email != null ? email : preferred != null ? preferred : String.valueOf(claims.get("sub"))).replaceAll("[^A-Za-z0-9_.@-]", "_");
+                if (username.length() < 3) username = "sso_" + username;
+                if (username.length() > 80) username = username.substring(0, 80);
+                String display = claims.get("name") instanceof String n && !n.isBlank() ? n : username;
+                db.update("INSERT INTO users (id, username, display_name, password_hash, role, enabled, must_change, failed, created) VALUES (?,?,?,?,?,?,?,?,?)",
+                        id("usr"), username, display, Security.hashPassword(Security.token(24).toCharArray()), defaultRole, true, false, 0, now());
+                audit.record(username, "user.create", "user", username, Map.of("role", defaultRole, "via", "sso"), "ok", ip);
+                r = db.one("SELECT * FROM users WHERE username = ?", username);
+            }
+            db.update("UPDATE users SET sso_subject = ? WHERE id = ?", subject, r.get("id"));
+            r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));
+        }
+        if (!Boolean.TRUE.equals(r.get("enabled"))) { audit.record((String) r.get("username"), "auth.sso", "user", (String) r.get("username"), "disabled", "failed", ip); throw new OoaException("CR.USER_DISABLED", "This account is disabled", "Contact your administrator."); }
+        // A person signing in through the identity provider never needs the local first-time password change.
+        db.update("UPDATE users SET must_change = FALSE WHERE id = ?", r.get("id"));
+        r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));
+        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), Map.of("via", "sso"), "ok", ip);
+        return newSession(r, ip);
+    }
+
+    /** A credential the Command Center itself needs (for example the SSO client secret), from a vault folder or its external vault. */
+    String systemCredential(String ref) {
+        String[] p = ref.split("/");
+        if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "Use a vault reference: vault folder/credential/attribute");
+        Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
+        if (l == null) throw new OoaException("VAULT.NOT_FOUND", "Vault folder " + p[0] + " not found");
+        if (l.get("external") != null) return readExternal(l, p[1], p[2]);
+        Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
+        if (c == null) throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found");
+        audit.record("system", "credential.read", "credential", ref, Map.of("for", "command center"), "ok", null);
+        return vault.decrypt((String) c.get("ciphertext"), ref);
     }
 
     public static Map<String, Object> publicUser(User u) {
@@ -265,11 +324,13 @@ public final class ControlRoom {
         require(by, "repo.checkin", "check in agents");
         if (path == null || !PATH.matcher(path).matches() || path.contains(".."))
             throw new OoaException("CR.BAD_PATH", "Invalid agent repository path '" + path + "'", "Use folders and a name ending in .flow.json, e.g. Finance/Invoice approval.flow.json");
-        platform.checkToolkits(flow);
-        List<Map<String, Object>> problems = validator.validate(flow);
+        // Workflows and forms are checked in like agents (versions, check-out, live production version) but validated differently.
+        boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
+        if (!workflow && !form) platform.checkToolkits(flow);
+        List<Map<String, Object>> problems = workflow ? Workflows.validate(flow) : form ? Workflows.validateForm(flow) : validator.validate(flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
                 "Fix the problems in Agent Studio (Validate) before checking in.", false, Map.of("problems", problems));
-        String botId = String.valueOf(flow.get("id"));
+        String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
             if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Change the agent id in Agent settings.");
@@ -397,6 +458,7 @@ public final class ControlRoom {
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl) {
         if (!allowed(role, "runs.start")) throw denied("start runs");
+        if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from One Workflow; forms run inside workflows.");
         if ((deviceId == null || deviceId.isBlank()) && poolId != null && !poolId.isBlank()) {
             deviceId = platform.pickDevice(poolId);
             if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
@@ -509,6 +571,8 @@ public final class ControlRoom {
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
+        if (result.get("ai_calls") instanceof List<?> calls) platform.recordAiCalls(r, calls);
+        try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
 
@@ -889,6 +953,8 @@ public final class ControlRoom {
             boolean owner = ownsLocker(by, l);
             if (!owner && !consumes(by.username(), by.role(), l)) continue;
             Map<String, Object> m = new LinkedHashMap<>(l);
+            m.remove("external_secret");
+            m.put("external", l.get("external") == null ? null : JsonLite.parse((String) l.get("external")));
             m.put("can_manage", owner);
             List<Object> creds = new ArrayList<>();
             for (Map<String, Object> c : db.query("SELECT name, attribute, updated, updated_by FROM credentials WHERE locker = ? ORDER BY name, attribute", l.get("name"))) creds.add(c);
@@ -939,10 +1005,60 @@ public final class ControlRoom {
             audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null);
             throw new OoaException("VAULT.DENIED", "'" + r.get("requested_by") + "' may not use vault folder '" + p[0] + "'", "Ask the vault folder owner to add the user or role as a consumer.");
         }
+        if (l.get("external") != null) {
+            // Linked to an external vault: same permission check and audit, value read live from the external vault.
+            try {
+                String v = readExternal(l, p[1], p[2]);
+                audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "external", true), "ok", null);
+                return v;
+            } catch (OoaException e) {
+                audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "external", true, "error", e.code()), "failed", null);
+                throw e;
+            }
+        }
         Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
         if (c == null) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found"); }
         audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "ok", null);
         return vault.decrypt((String) c.get("ciphertext"), ref);
+    }
+
+    @SuppressWarnings("unchecked")
+    String readExternal(Map<String, Object> locker, String name, String attribute) {
+        Map<String, Object> cfg = (Map<String, Object>) JsonLite.parse((String) locker.get("external"));
+        String secret = locker.get("external_secret") == null ? null : vault.decrypt((String) locker.get("external_secret"), "external:" + locker.get("name"));
+        return externalVaults.read(cfg, secret, name, attribute);
+    }
+
+    /** Links a vault folder to an external vault (or unlinks it with cfg == null). The sign-in secret is kept encrypted here. */
+    public void linkExternalVault(User by, String locker, Map<String, Object> cfg, String secret, String ip) {
+        Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", locker);
+        if (l == null) throw notFound("Vault folder");
+        if (!ownsLocker(by, l)) throw denied("change this vault folder");
+        if (cfg == null) {
+            db.update("UPDATE lockers SET external = NULL, external_secret = NULL WHERE name = ?", locker);
+            audit.record(by.username(), "locker.unlink_external", "locker", locker, null, "ok", ip);
+            return;
+        }
+        Map<String, Object> clean = ExternalVaults.validate(cfg);
+        String ct = secret == null || secret.isEmpty() ? (String) l.get("external_secret") : vault.encrypt(secret, "external:" + locker);
+        db.update("UPDATE lockers SET external = ?, external_secret = ? WHERE name = ?", JsonLite.write(clean), ct, locker);
+        audit.record(by.username(), "locker.link_external", "locker", locker, Map.of("provider", clean.get("provider")), "ok", ip);
+    }
+
+    /** Checks that a credential can be read from the linked external vault, without returning the value. */
+    public Map<String, Object> testExternalVault(User by, String locker, String name, String attribute, String ip) {
+        Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", locker);
+        if (l == null) throw notFound("Vault folder");
+        if (!ownsLocker(by, l)) throw denied("test this vault folder");
+        if (l.get("external") == null) throw new OoaException("CR.BAD_INPUT", "This vault folder is not linked to an external vault");
+        try {
+            String v = readExternal(l, name, attribute == null || attribute.isBlank() ? "value" : attribute);
+            audit.record(by.username(), "locker.test_external", "locker", locker, Map.of("credential", name), "ok", ip);
+            return Map.of("ok", true, "length", v.length());
+        } catch (OoaException e) {
+            audit.record(by.username(), "locker.test_external", "locker", locker, Map.of("credential", name, "error", e.code()), "failed", ip);
+            return Map.of("ok", false, "code", e.code(), "message", e.getMessage());
+        }
     }
 
     public List<Map<String, Object>> globals(User by) {
@@ -1019,6 +1135,7 @@ public final class ControlRoom {
         m.put("hours_saved_30d", saved == null || saved.get("n") == null ? 0 : Math.round(((Number) saved.get("n")).doubleValue() / 6.0) / 10.0);
         if (allowed(by.role(), "queues.view"))
             m.put("queue_items_waiting", count("SELECT COUNT(*) AS n FROM queue_items WHERE status IN ('new', 'retry')"));
+        m.put("open_tasks", workflows.openTaskCount(by));
         m.put("user", me(by));
         return m;
     }

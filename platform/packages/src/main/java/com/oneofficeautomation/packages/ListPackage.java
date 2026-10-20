@@ -102,4 +102,31 @@ public final class ListPackage {
     public boolean isEmpty(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, description = "List.") List<Object> list) {
         return list.isEmpty();
     }
+
+    @Action(id = "clear", name = "Clear", category = "List", idempotent = true, description = "Return an empty list; map it back to the variable to empty it.")
+    @Output(name = "list", type = OoaType.LIST, description = "Empty list.")
+    public Map<String, Object> clear(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, required = false, description = "List to clear.") List<Object> list) {
+        return Out.of("list", new ArrayList<>());
+    }
+
+    @Action(id = "set_item", name = "Set item", category = "List", idempotent = true, description = "Replace the item at a position.")
+    @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
+    public Map<String, Object> setItem(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
+            @Input(name = "position", type = OoaType.NUMBER, description = "Zero-based position.") int pos,
+            @Input(name = "item", required = false, description = "New item.") Object item) {
+        List<Object> out = new ArrayList<>(list);
+        out.set(index(out, pos, false), item);
+        return Out.of("list", out);
+    }
+
+    @Action(id = "append_list", name = "Append list", category = "List", idempotent = true, description = "Join two lists into one, the second after the first.")
+    @Output(name = "list", type = OoaType.LIST, description = "Combined list.")
+    public Map<String, Object> appendList(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "First list.") List<Object> list,
+            @Input(name = "other", type = OoaType.LIST, description = "List to add at the end.") List<Object> other) {
+        List<Object> out = new ArrayList<>(list);
+        if (other != null) out.addAll(other);
+        return Out.of("list", out);
+    }
 }

@@ -3,7 +3,9 @@ package com.oneofficeautomation.packages;
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -101,5 +103,104 @@ public final class SalesforcePackage {
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
         HttpJson.req(P, "DELETE", base(instance, version) + "/sobjects/" + object(obj) + "/" + id(rid)).bearer(token).send(ctx);
         return Map.of();
+    }
+
+    // ---- Upsert and files ----
+
+    private static List<Map<String, Object>> soql(ActionContext ctx, String instance, Object token, String version, String soql) {
+        String root = instance.replaceAll("/+$", "");
+        String url = base(instance, version) + "/query?q=" + HttpJson.enc(soql);
+        List<Map<String, Object>> records = new ArrayList<>();
+        while (url != null) {
+            Map<String, Object> r = HttpJson.req(P, "GET", url).bearer(token).timeout(120).send(ctx).map();
+            for (Object o : (List<?>) r.getOrDefault("records", List.of())) records.add(flatten("", (Map<?, ?>) o));
+            Object next = r.get("nextRecordsUrl");
+            url = Boolean.TRUE.equals(r.get("done")) || next == null ? null : root + next;
+        }
+        return records;
+    }
+
+    @Action(id = "upsert_by_external_id", name = "Upsert by external id", category = "Records", idempotent = true, capabilities = "network",
+            description = "Update the record whose external id field matches, or create it when none matches.")
+    @Output(name = "id", type = OoaType.STRING, description = "Record id (empty when Salesforce does not return it for an update).")
+    @Output(name = "created", type = OoaType.BOOLEAN, description = "True when a new record was created.")
+    public Map<String, Object> upsert(ActionContext ctx,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "object", type = OoaType.STRING, example = "Account", description = "Object API name.") String obj,
+            @Input(name = "external_id_field", type = OoaType.STRING, example = "ERP_Number__c", description = "API name of the external id field.") String field,
+            @Input(name = "external_id_value", type = OoaType.STRING, description = "External id value to match.") String value,
+            @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value (do not repeat the external id field).") Map<String, Object> fields,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
+        if (value == null || value.isBlank()) throw new ActionException(P + ".NO_EXTERNAL_ID", "The external id value is empty", "Map external_id_value to the key from the source system.");
+        HttpJson.Response r = HttpJson.req(P, "PATCH", base(instance, version) + "/sobjects/" + object(obj) + "/" + object(field) + "/" + HttpJson.enc(value))
+                .bearer(token).json(fields == null ? Map.of() : fields).send(ctx);
+        Map<String, Object> m = r.map();
+        boolean created = r.status() == 201 || Boolean.TRUE.equals(m.get("created"));
+        return Out.of("id", m.get("id"), "created", created);
+    }
+
+    @Action(id = "get_attachments", name = "Get attachments", category = "Files", idempotent = true, timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "List the files and classic attachments on a record, and optionally download them to a folder.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, size, content_type, kind (file or attachment), path.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of files.")
+    @Output(name = "files", type = OoaType.LIST, description = "Paths of downloaded files (empty when not downloading).")
+    public Map<String, Object> attachments(ActionContext ctx,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "record_id", type = OoaType.STRING, description = "Id of the record the files belong to.") String rid,
+            @Input(name = "download_folder", type = OoaType.FILE, required = false, description = "Folder to save the files in; list only when empty.") String folder,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
+        id(rid);
+        List<Object[]> found = new ArrayList<>();  // id, name, size, type, kind, download path
+        for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT ContentDocumentId, ContentDocument.Title, ContentDocument.FileExtension, ContentDocument.ContentSize, "
+                + "ContentDocument.LatestPublishedVersionId FROM ContentDocumentLink WHERE LinkedEntityId = '" + rid + "'")) {
+            Object ext = r.get("ContentDocument.FileExtension");
+            String name = r.get("ContentDocument.Title") + (ext == null || String.valueOf(ext).isEmpty() ? "" : "." + ext);
+            found.add(new Object[]{r.get("ContentDocumentId"), name, r.get("ContentDocument.ContentSize"), ext, "file",
+                    "/sobjects/ContentVersion/" + r.get("ContentDocument.LatestPublishedVersionId") + "/VersionData"});
+        }
+        for (Map<String, Object> r : soql(ctx, instance, token, version, "SELECT Id, Name, BodyLength, ContentType FROM Attachment WHERE ParentId = '" + rid + "'"))
+            found.add(new Object[]{r.get("Id"), r.get("Name"), r.get("BodyLength"), r.get("ContentType"), "attachment", "/sobjects/Attachment/" + r.get("Id") + "/Body"});
+        List<Object> rows = new ArrayList<>(), files = new ArrayList<>();
+        Path dir = folder == null || folder.isBlank() ? null : ctx.resolvePath(folder);
+        Set<String> used = new HashSet<>();
+        for (Object[] f : found) {
+            String saved = null;
+            if (dir != null) {
+                byte[] data = HttpJson.req(P, "GET", base(instance, version) + f[5]).bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
+                String n = HttpJson.safeName(String.valueOf(f[1]));
+                for (int i = 2; !used.add(n.toLowerCase(Locale.ROOT)); i++) n = i + "_" + HttpJson.safeName(String.valueOf(f[1]));
+                try { Files.createDirectories(dir); Files.write(dir.resolve(n), data); }
+                catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot save " + n + ": " + e.getMessage(), "Check the folder exists and is writable.", true); }
+                saved = dir.resolve(n).toString();
+                files.add(saved);
+            }
+            rows.add(new ArrayList<>(Arrays.asList(f[0], f[1], f[2], f[3], f[4], saved)));
+        }
+        return Out.of("table", Values.table(List.of("id", "name", "size", "content_type", "kind", "path"), rows), "count", BigDecimal.valueOf(rows.size()), "files", files);
+    }
+
+    @Action(id = "upload_attachment", name = "Upload attachment", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Upload a local file and link it to a record as a Salesforce File.")
+    @Output(name = "content_version_id", type = OoaType.STRING, description = "Id of the new file version.")
+    public Map<String, Object> upload(ActionContext ctx,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "record_id", type = OoaType.STRING, description = "Id of the record to attach the file to.") String rid,
+            @Input(name = "path", type = OoaType.FILE, description = "File to upload.") String path,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = "Title shown in Salesforce; the file name when empty.") String title,
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
+        Path p = ctx.resolvePath(path);
+        byte[] data;
+        try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        String fname = p.getFileName().toString();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("Title", title == null || title.isBlank() ? fname.replaceFirst("\\.[^.]*$", "") : title);
+        body.put("PathOnClient", fname);
+        body.put("VersionData", Base64.getEncoder().encodeToString(data));
+        body.put("FirstPublishLocationId", id(rid));
+        Map<String, Object> r = HttpJson.req(P, "POST", base(instance, version) + "/sobjects/ContentVersion").bearer(token).json(body).timeout(600).send(ctx).map();
+        return Out.of("content_version_id", r.get("id"));
     }
 }
