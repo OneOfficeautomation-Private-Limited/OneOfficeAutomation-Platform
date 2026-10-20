@@ -1,0 +1,77 @@
+# Run ONEOFFICEAUTOMATION on this computer (without Claude)
+
+## What you need (already set up on this PC)
+
+- Java 21 (installed: Eclipse Adoptium JDK 21, `JAVA_HOME` is set)
+- The project folder `C:\OOA\oneofficeautomation`
+- Chrome (or Edge)
+
+## Start the service
+
+**Option A, double-click:** open File Explorer, go to `C:\OOA\oneofficeautomation\platform\scripts` and double-click
+**`start-ooa.bat`**. A black window opens.
+
+**Option B, PowerShell:** press Start, type `PowerShell`, open it, and run:
+
+    cd C:\OOA\oneofficeautomation\platform
+    .\scripts\start-ooa.bat
+
+Wait about 30 to 60 seconds (longer the first time) until the window shows:
+
+    ONEOFFICEAUTOMATION is running.
+      Open:             http://localhost:8720
+      Database:         embedded H2 in C:\Users\virup\OOA Control Room
+
+**Keep this window open.** Closing it, or pressing Ctrl+C in it, stops the service. To copy text from it, select the
+text with the mouse and right-click (do not press Ctrl+C there).
+
+## Sign in with Chrome
+
+1. Open Chrome and go to **http://localhost:8720**
+2. User name: **admin**
+3. Password: your password. The first time after a reset, use the one-time password shown in the black window
+   (the line `Sign in as  admin  with the one-time password  ...`).
+4. After a one-time password you are asked to choose your own: at least 12 characters with letters and digits.
+   Write it down somewhere safe.
+
+What opens:
+
+| Address | What it is |
+| --- | --- |
+| http://localhost:8720 | One Command Center (agents, runs, runners, schedules, queues, vault, administration) |
+| http://localhost:8720/studio/ | One Agent Studio, where you build agents (same sign-in; works on this computer only) |
+
+## Stop the service
+
+Click the black window and press **Ctrl+C** (answer **Y** if asked "Terminate batch job"), or just close the window.
+
+## Forgot the password
+
+1. Stop the service (see above).
+2. In PowerShell:
+
+       cd C:\OOA\oneofficeautomation\platform
+       .\gradlew.bat :cli:run --args="reset-admin"
+
+3. It prints `Sign in as admin with the one-time password ...`. Copy that password.
+4. Start the service again and sign in with it; choose a new password.
+
+For another user: `.\gradlew.bat :cli:run --args="reset-admin --user jane.doe"`
+
+## If something goes wrong
+
+| Problem | What to do |
+| --- | --- |
+| Chrome says "This site can't be reached" | The service is not running: start it again and wait for "ONEOFFICEAUTOMATION is running". |
+| The window closes at once or shows "port 8720 is in use" | Another copy is still running. Close the other black window, or run on another port: `.\scripts\start-ooa.bat --port 8730` and open http://localhost:8730 |
+| "Wrong user name or password" | Check for spaces when pasting. Five wrong tries lock the account for 15 minutes; use reset-admin (above) to unlock it at once. |
+| "JAVA_HOME is not set" | Install Java 21 (Eclipse Adoptium) and restart PowerShell. |
+| You want the latest code from GitHub first | `cd C:\OOA\oneofficeautomation` then `git pull` before starting. |
+
+## Where your data lives
+
+| Folder | Contents |
+| --- | --- |
+| `C:\Users\virup\OOA Control Room` | Command Center database and vault key (back this up) |
+| `C:\Users\virup\OOA Workspace` | Your private Studio workspace (My Workspace) |
+| `C:\Users\virup\OOA Agent Workspace` | The local One Runner's working files and logs |

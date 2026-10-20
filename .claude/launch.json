@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ooa-server",
+      "runtimeExecutable": "C:\\OOA\\oneofficeautomation\\platform\\scripts\\start-ooa.bat",
+      "runtimeArgs": [],
+      "port": 8720
+    }
+  ]
+}
