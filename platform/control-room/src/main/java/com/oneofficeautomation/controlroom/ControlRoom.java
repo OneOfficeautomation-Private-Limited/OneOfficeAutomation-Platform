@@ -25,6 +25,8 @@ public final class ControlRoom {
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults();
     public final Workflows workflows;
+    /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
+    public final TriggerPollers triggerPollers = new TriggerPollers(this);
     private final FlowValidator validator;
     private final PackageRegistry registry;
     static final Duration SESSION = Duration.ofHours(8);
@@ -442,9 +444,17 @@ public final class ControlRoom {
             if (Boolean.TRUE.equals(r.get("cancel_requested"))) cancel.add(r.get("id"));
             else if (Boolean.TRUE.equals(r.get("pause_requested"))) pause.add(r.get("id")); else resume.add(r.get("id"));
         }
-        List<Object> triggers = new ArrayList<>();
-        for (Map<String, Object> t : db.query("SELECT id, folder, pattern FROM triggers WHERE device_id = ? AND kind = 'file' AND enabled = TRUE", did)) triggers.add(t);
-        return Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers);
+        List<Object> triggers = new ArrayList<>(), local = new ArrayList<>();
+        for (Map<String, Object> t : db.query("SELECT id, kind, folder, pattern, config FROM triggers WHERE device_id = ? AND enabled = TRUE", did)) {
+            TriggerKinds.Kind k = TriggerKinds.KINDS.get(String.valueOf(t.get("kind")));
+            if (k == null || k.where() != TriggerKinds.Where.RUNNER) continue;
+            if ("file".equals(t.get("kind"))) triggers.add(Map.of("id", t.get("id"), "folder", t.get("folder"), "pattern", t.get("pattern")));   // older runners
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", t.get("id")); m.put("kind", t.get("kind")); m.put("folder", t.get("folder")); m.put("pattern", t.get("pattern"));
+            m.put("config", TriggerKinds.publicConfig(TriggerPollers.config(t)));
+            local.add(m);
+        }
+        return Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers, "local_triggers", local);
     }
 
     // ===================== runs =====================
@@ -857,29 +867,48 @@ public final class ControlRoom {
     public Map<String, Object> createTrigger(User by, Map<String, Object> t, String ip) {
         require(by, "triggers.manage", "manage triggers");
         String kind = String.valueOf(t.get("kind"));
-        if (!Set.of("file", "webhook").contains(kind)) throw new OoaException("CR.BAD_TRIGGER", "kind must be file or webhook");
+        TriggerKinds.kind(kind);
+        Map<String, Object> config = TriggerKinds.validate(kind, t);
         content(String.valueOf(t.get("bot_path")), "production");
         if (db.one("SELECT id FROM devices WHERE id = ?", t.get("device_id")) == null) throw notFound("Runner");
-        if (kind.equals("file") && (t.get("folder") == null || String.valueOf(t.get("folder")).isBlank())) throw new OoaException("CR.BAD_TRIGGER", "A file trigger needs a folder on the runner");
+        String name = String.valueOf(t.getOrDefault("name", "Trigger"));
+        if (name.isBlank() || name.length() > 200) throw new OoaException("CR.BAD_INPUT", "Trigger names have 1 to 200 characters");
+        boolean folderKind = TriggerKinds.FOLDER_KINDS.contains(kind);
+        String pattern = t.get("pattern") == null || String.valueOf(t.get("pattern")).isBlank() ? "*" : String.valueOf(t.get("pattern"));
         String tid = id("trg");
         String secret = kind.equals("webhook") ? Security.token(24) : null;
         db.update("INSERT INTO triggers (id, name, bot_path, device_id, kind, folder, pattern, secret_hash, enabled, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                tid, String.valueOf(t.getOrDefault("name", "Trigger")), t.get("bot_path"), t.get("device_id"), kind, t.get("folder"), String.valueOf(t.getOrDefault("pattern", "*")),
+                tid, name, t.get("bot_path"), t.get("device_id"), kind, folderKind ? String.valueOf(t.get("folder")).trim() : null, folderKind ? pattern : null,
                 secret == null ? null : Security.sha256(secret), true, by.username());
+        db.update("UPDATE triggers SET config = ?, fire_count = 0 WHERE id = ?", JsonLite.write(config), tid);
         audit.record(by.username(), "trigger.create", "trigger", tid, Map.of("kind", kind, "bot", t.get("bot_path")), "ok", ip);
         Map<String, Object> out = new LinkedHashMap<>(Map.of("id", tid));
         if (secret != null) { out.put("secret", secret); out.put("url", "/api/hooks/" + tid); }
         return out;
     }
 
+    /** Triggers with their settings (vault references only, never secrets) and monitoring: last fired, fire count, last error. */
     public List<Map<String, Object>> triggers(User by) {
         require(by, "triggers.view", "view triggers");
-        return db.query("SELECT id, name, bot_path, device_id, kind, folder, pattern, enabled, created_by FROM triggers ORDER BY name");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> t : db.query("SELECT id, name, bot_path, device_id, kind, folder, pattern, enabled, created_by, config, last_fired, fire_count, last_error FROM triggers ORDER BY name")) {
+            Map<String, Object> m = new LinkedHashMap<>(t);
+            m.put("config", TriggerKinds.publicConfig(TriggerPollers.config(t)));
+            m.put("fire_count", t.get("fire_count") == null ? 0 : t.get("fire_count"));
+            TriggerKinds.Kind k = TriggerKinds.KINDS.get(String.valueOf(t.get("kind")));
+            m.put("evaluated_on", k == null ? "unknown" : k.where().name().toLowerCase(Locale.ROOT));
+            m.put("windows_only", k != null && k.windowsOnly());
+            m.put("status", !Boolean.TRUE.equals(t.get("enabled")) ? "paused" : t.get("last_error") != null ? "error" : "active");
+            out.add(m);
+        }
+        return out;
     }
 
+    /** Pause (false) or resume (true) a trigger; resuming clears the last error and polls again soon. */
     public void setTriggerEnabled(User by, String tid, boolean en, String ip) {
         require(by, "triggers.manage", "manage triggers");
         if (db.update("UPDATE triggers SET enabled = ? WHERE id = ?", en, tid) == 0) throw notFound("Trigger");
+        if (en) { db.update("UPDATE triggers SET last_error = NULL WHERE id = ?", tid); triggerPollers.reset(tid); }
         audit.record(by.username(), en ? "trigger.enable" : "trigger.disable", "trigger", tid, null, "ok", ip);
     }
 
@@ -889,15 +918,24 @@ public final class ControlRoom {
         audit.record(by.username(), "trigger.delete", "trigger", tid, null, "ok", ip);
     }
 
+    /** Starts the trigger's agent with the event values it declares as inputs, and records the firing (or why it failed). */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> fireTrigger(Map<String, Object> t, Map<String, Object> event, String source, String ip) {
-        Map<String, Object> flow = (Map<String, Object>) content((String) t.get("bot_path"), "production").get("flow");
-        Set<String> declared = new HashSet<>();
-        for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) if ("input".equals(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
-        Map<String, Object> in = new LinkedHashMap<>();
-        event.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
-        Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));
-        return startRun((String) t.get("created_by"), creator == null ? "viewer" : (String) creator.get("role"), (String) t.get("bot_path"), (String) t.get("device_id"), in, source, ip);
+    Map<String, Object> fireTrigger(Map<String, Object> t, Map<String, Object> event, String source, String ip) {
+        try {
+            Map<String, Object> flow = (Map<String, Object>) content((String) t.get("bot_path"), "production").get("flow");
+            Set<String> declared = new HashSet<>();
+            for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) if ("input".equals(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
+            Map<String, Object> in = new LinkedHashMap<>();
+            event.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
+            Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));
+            Map<String, Object> r = startRun((String) t.get("created_by"), creator == null ? "viewer" : (String) creator.get("role"), (String) t.get("bot_path"), (String) t.get("device_id"), in, source, ip);
+            db.update("UPDATE triggers SET last_fired = ?, fire_count = COALESCE(fire_count, 0) + 1, last_error = NULL WHERE id = ?", now(), t.get("id"));
+            return r;
+        } catch (OoaException e) {
+            String msg = e.getMessage() == null ? e.code() : e.getMessage();
+            db.update("UPDATE triggers SET last_error = ? WHERE id = ?", msg.length() > 1900 ? msg.substring(0, 1900) : msg, t.get("id"));
+            throw e;
+        }
     }
 
     public Map<String, Object> webhook(String tid, String secret, Object payload, String ip) {
@@ -911,9 +949,38 @@ public final class ControlRoom {
     }
 
     public Map<String, Object> fileFired(Map<String, Object> d, String tid, String file) {
-        Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND device_id = ? AND kind = 'file' AND enabled = TRUE", tid, d.get("id"));
+        return localFired(d, tid, Map.of("path", String.valueOf(file)));
+    }
+
+    /**
+     * A runner reports a local event (file or folder, window, process, service, hotkey) for one of its triggers. The
+     * agent receives trigger_event (all details) and, by kind, trigger_file, trigger_window, trigger_process,
+     * trigger_service or trigger_hotkey.
+     */
+    public Map<String, Object> localFired(Map<String, Object> d, String tid, Map<String, Object> event) {
+        Map<String, Object> t = db.one("SELECT * FROM triggers WHERE id = ? AND device_id = ? AND enabled = TRUE", tid, d.get("id"));
         if (t == null) throw notFound("Trigger");
-        return fireTrigger(t, Map.of("trigger_file", file), "file:" + tid, null);
+        String kind = String.valueOf(t.get("kind"));
+        TriggerKinds.Kind k = TriggerKinds.KINDS.get(kind);
+        if (k == null || k.where() != TriggerKinds.Where.RUNNER) throw new OoaException("CR.BAD_TRIGGER", "Trigger " + tid + " is not a runner trigger");
+        Map<String, Object> ev = new LinkedHashMap<>(event == null ? Map.of() : event);
+        ev.put("kind", kind);
+        ev.put("trigger_id", tid);
+        ev.put("trigger_name", t.get("name"));
+        ev.putIfAbsent("time", now().toString());
+        String input = kind.startsWith("window") ? "trigger_window" : kind.startsWith("process") ? "trigger_process" : kind.startsWith("service") ? "trigger_service"
+                : kind.equals("hotkey") ? "trigger_hotkey" : "trigger_file";
+        Object main = ev.get(switch (input) { case "trigger_window" -> "title"; case "trigger_process" -> "process"; case "trigger_service" -> "service"; case "trigger_hotkey" -> "hotkey"; default -> "path"; });
+        Map<String, Object> in = new LinkedHashMap<>();
+        in.put("trigger_event", ev);
+        if (main != null) in.put(input, String.valueOf(main));
+        return fireTrigger(t, in, kind.equals("file") ? "file:" + tid : "trigger:" + tid, null);
+    }
+
+    /** A runner reports that it cannot watch a trigger (folder missing, hotkey taken, not supported), or that it can again (null). */
+    public void localTriggerStatus(Map<String, Object> d, String tid, String error) {
+        String e = error == null || error.isBlank() ? null : error.length() > 1900 ? error.substring(0, 1900) : error;
+        db.update("UPDATE triggers SET last_error = ? WHERE id = ? AND device_id = ?", e, tid, d.get("id"));
     }
 
     // ===================== lockers, credentials, global values =====================

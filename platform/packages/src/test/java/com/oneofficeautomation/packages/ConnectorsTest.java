@@ -20,11 +20,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Cloud connectors against a local server that imitates each service's REST API. */
 class ConnectorsTest {
-    record Call(String method, String path, String query, String auth, String contentType, byte[] body) {
+    record Call(String method, String path, String query, String auth, String contentType, byte[] body, Map<String, List<String>> headers) {
         String text() { return new String(body, StandardCharsets.UTF_8); }
+        String header(String name) {
+            for (var e : headers.entrySet()) if (e.getKey().equalsIgnoreCase(name) && !e.getValue().isEmpty()) return e.getValue().get(0);
+            return null;
+        }
+        @SuppressWarnings("unchecked") Map<String, Object> json() { return (Map<String, Object>) JsonLite.parse(text()); }
     }
 
-    /** Fake service: routes "METHOD /path" to a handler returning {status, body}. */
+    /** Fake service: routes "METHOD /path" to a handler returning {status, body} or {status, body, response headers}. */
     static final class Fake implements AutoCloseable {
         final HttpServer server;
         final List<Call> calls = Collections.synchronizedList(new ArrayList<>());
@@ -38,13 +43,15 @@ class ConnectorsTest {
         Fake on(String key, Function<Call, Object[]> h) { routes.put(key, h); return this; }
         void handle(HttpExchange ex) throws java.io.IOException {
             Call c = new Call(ex.getRequestMethod(), ex.getRequestURI().getRawPath(), ex.getRequestURI().getRawQuery(),
-                    ex.getRequestHeaders().getFirst("Authorization"), ex.getRequestHeaders().getFirst("Content-Type"), ex.getRequestBody().readAllBytes());
+                    ex.getRequestHeaders().getFirst("Authorization"), ex.getRequestHeaders().getFirst("Content-Type"), ex.getRequestBody().readAllBytes(),
+                    new LinkedHashMap<>(ex.getRequestHeaders()));
             calls.add(c);
             Object[] r = new Object[]{404, "{\"error\":{\"message\":\"no route " + c.method() + " " + c.path() + "\"}}"};
             for (var e : routes.entrySet()) {
                 String[] k = e.getKey().split(" ", 2);
                 if (k[0].equals(c.method()) && c.path().matches(k[1])) { r = e.getValue().apply(c); break; }
             }
+            if (r.length > 2 && r[2] instanceof Map<?, ?> hs) hs.forEach((k, v) -> ex.getResponseHeaders().add(String.valueOf(k), String.valueOf(v)));
             byte[] b = r[1] instanceof byte[] bytes ? bytes : String.valueOf(r[1]).getBytes(StandardCharsets.UTF_8);
             ex.sendResponseHeaders((Integer) r[0], b.length == 0 ? -1 : b.length);
             if (b.length > 0) try (OutputStream os = ex.getResponseBody()) { os.write(b); }

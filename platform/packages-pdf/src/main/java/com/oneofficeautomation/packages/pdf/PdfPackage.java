@@ -205,4 +205,82 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
         return Map.of("files", out);
     }
+
+    @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
+            description = "Save the pictures embedded in a PDF (photos, logos, scanned pages) as PNG files in a folder.")
+    @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
+    public Map<String, Object> extractImages(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "target_folder", type = OoaType.FILE, description = "Folder for the images.") String folder,
+            @Input(name = "min_size", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Skip images narrower or lower than this many pixels (e.g. 32 to skip icons).") int minSize,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        List<Object> out = new ArrayList<>();
+        try (PDDocument d = load(ctx, path, password)) {
+            Path dir = ctx.resolvePath(folder);
+            Files.createDirectories(dir);
+            String base = Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
+            Set<org.apache.pdfbox.cos.COSBase> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            int page = 0;
+            for (PDPage p : d.getPages()) {
+                page++;
+                ctx.checkCancelled();
+                int[] n = {0};
+                final int pageNo = page;
+                collectImages(p.getResources(), seen, 0, img -> {
+                    java.awt.image.BufferedImage bi = img.getImage();
+                    if (bi == null || bi.getWidth() < minSize || bi.getHeight() < minSize) return;
+                    File f = dir.resolve(base + "_page" + pageNo + "_img" + (++n[0]) + ".png").toFile();
+                    if (!ImageIO.write(bi, "png", f)) throw new IOException("No PNG writer available");
+                    out.add(f.getPath());
+                });
+            }
+        } catch (IOException e) { throw new ActionException("PDF.IMAGES_FAILED", "Cannot extract images: " + e.getMessage(), "Check the PDF opens in a viewer.");
+        }
+        return Map.of("files", out, "count", BigDecimal.valueOf(out.size()));
+    }
+
+    interface ImageSink { void accept(org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject img) throws IOException; }
+
+    /** Visits image XObjects in a page's resources, including those nested in form XObjects; each image is visited once per document. */
+    private static void collectImages(org.apache.pdfbox.pdmodel.PDResources res, Set<org.apache.pdfbox.cos.COSBase> seen, int depth, ImageSink sink) throws IOException {
+        if (res == null || depth > 10) return;
+        for (org.apache.pdfbox.cos.COSName name : res.getXObjectNames()) {
+            org.apache.pdfbox.pdmodel.graphics.PDXObject x = res.getXObject(name);
+            if (x == null || !seen.add(x.getCOSObject())) continue;
+            if (x instanceof org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject img) sink.accept(img);
+            else if (x instanceof org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject form) collectImages(form.getResources(), seen, depth + 1, sink);
+        }
+    }
+
+    @Action(id = "get_properties", name = "Get document properties", category = "Document", idempotent = true, capabilities = "filesystem",
+            description = "Return the title, author, subject, keywords, creator, producer, dates, page count, PDF version and encryption of a PDF.")
+    @Output(name = "properties", type = OoaType.DICTIONARY,
+            description = "title, author, subject, keywords, creator, producer, created, modified, page_count, pdf_version, encrypted.")
+    public Map<String, Object> getProperties(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        try (PDDocument d = load(ctx, path, password)) {
+            org.apache.pdfbox.pdmodel.PDDocumentInformation info = d.getDocumentInformation();
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("title", nz(info.getTitle()));
+            m.put("author", nz(info.getAuthor()));
+            m.put("subject", nz(info.getSubject()));
+            m.put("keywords", nz(info.getKeywords()));
+            m.put("creator", nz(info.getCreator()));
+            m.put("producer", nz(info.getProducer()));
+            m.put("created", date(info.getCreationDate()));
+            m.put("modified", date(info.getModificationDate()));
+            m.put("page_count", BigDecimal.valueOf(d.getNumberOfPages()));
+            m.put("pdf_version", String.valueOf(d.getVersion()));
+            m.put("encrypted", d.isEncrypted());
+            return Map.of("properties", m);
+        } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
+    }
+
+    private static String nz(String s) { return s == null ? "" : s; }
+
+    private static java.time.LocalDateTime date(Calendar c) {
+        return c == null ? null : java.time.LocalDateTime.ofInstant(c.toInstant(), java.time.ZoneOffset.UTC);
+    }
 }

@@ -71,6 +71,47 @@ public final class ServicesPackage {
         return Map.of();
     }
 
+    /** Command used to pause (sc pause) or resume (sc continue) a service. */
+    static List<String> pauseCommand(String name, boolean pause) {
+        checkName(name);
+        return List.of("sc.exe", pause ? "pause" : "continue", name);
+    }
+
+    private static void pauseOrResume(ActionContext ctx, String name, boolean pause, int timeoutSeconds) {
+        String state = status(ctx, name);  // also checks Windows, the name and that the service exists
+        String wanted = pause ? "PAUSED" : "RUNNING";
+        if (state.equals(wanted)) return;
+        if (state.equals("STOPPED"))
+            throw new ActionException("SERVICES.NOT_RUNNING", "'" + name + "' is stopped, so it cannot be " + (pause ? "paused" : "resumed"), "Use Start service instead.");
+        ProcessRunner.Result r = ProcessRunner.run(ctx, pauseCommand(name, pause), null, null, 30);
+        String out = r.stdout();
+        if (out.contains(" 5:") || out.contains("FAILED 5")) throw new ActionException("SERVICES.ACCESS_DENIED", "Access denied to " + (pause ? "pause" : "resume") + " '" + name + "'", "Run the agent with administrator rights.");
+        if (out.contains("1052")) throw new ActionException("SERVICES.CANNOT_PAUSE", "'" + name + "' does not support pause and resume", "Use Stop service and Start service instead.");
+        if (r.exitCode() != 0) throw new ActionException("SERVICES.FAILED", "sc " + (pause ? "pause" : "continue") + " " + name + " failed: " + ApplicationPackage.tail(out), null);
+        long end = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        while (!status(ctx, name).equals(wanted)) {
+            if (System.currentTimeMillis() > end) throw new ActionException("SERVICES.TIMEOUT", "'" + name + "' did not reach " + wanted + " within " + timeoutSeconds + " s", null, true);
+            try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            ctx.checkCancelled();
+        }
+    }
+
+    @Action(id = "pause", name = "Pause service", category = "Services", timeoutSeconds = 180,
+            description = "Pause a running service that supports pausing and wait until it is paused.")
+    public Map<String, Object> pause(ActionContext ctx,
+            @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait.") int t) {
+        pauseOrResume(ctx, name, true, t); return Map.of();
+    }
+
+    @Action(id = "resume", name = "Resume service", category = "Services", timeoutSeconds = 180,
+            description = "Continue a paused service and wait until it is running again.")
+    public Map<String, Object> resume(ActionContext ctx,
+            @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait.") int t) {
+        pauseOrResume(ctx, name, false, t); return Map.of();
+    }
+
     @Condition(id = "is_running", name = "Service is running", description = "True when the service state is RUNNING.")
     public boolean isRunning(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name) {
         return status(ctx, name).equals("RUNNING");

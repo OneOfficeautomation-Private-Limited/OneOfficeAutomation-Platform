@@ -117,7 +117,8 @@ public final class StudioServer {
             int status = switch (e.code()) {
                 case "CR.LOCKED", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.CONFLICT" -> 409;
                 case "CR.FORBIDDEN", "TRIGGER.FORBIDDEN" -> 403;
-                case "CR.NOT_FOUND", "STUDIO.NOT_FOUND" -> 404;
+                case "CR.NOT_FOUND", "STUDIO.NOT_FOUND", "CONNECTOR.NOT_FOUND" -> 404;
+                case "CONNECTOR.EXISTS" -> 409;
                 default -> 400;
             };
             sendJson(ex, status, Map.of("error", e.toMap()));
@@ -200,6 +201,8 @@ public final class StudioServer {
             sendJson(ex, 200, Files.isRegularFile(f) ? json.parse(Files.readString(f)) : Map.of("default", "", "connections", List.of()));
         } else if (route.equals("connections") && method.equals("PUT")) {
             sendJson(ex, 200, saveConnections(body(ex)));
+        } else if (route.equals("connectors") || route.startsWith("connectors/")) {
+            connectors(ex, method, route.substring("connectors".length()));
         } else if (method.equals("POST") && route.equals("assistant/build")) {
             sendJson(ex, 200, assistantBuild((Map<String, Object>) body(ex)));
         } else if (method.equals("GET") && route.equals("deps")) {
@@ -364,7 +367,33 @@ public final class StudioServer {
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
 
-    private static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible");
+    /**
+     * Custom connectors in {workspace}/connectors: GET connectors (list), POST connectors/import {text, name?, server?, overwrite?},
+     * GET connectors/{name} (definition) and DELETE connectors/{name}. Specs are OpenAPI 3.x, Swagger 2.0 or Postman v2.1.
+     */
+    @SuppressWarnings("unchecked")
+    private void connectors(HttpExchange ex, String method, String rest) throws IOException {
+        String name = rest.startsWith("/") ? java.net.URLDecoder.decode(rest.substring(1), StandardCharsets.UTF_8) : "";
+        if (name.isEmpty() && method.equals("GET")) {
+            sendJson(ex, 200, Map.of("connectors", com.oneofficeautomation.packages.ConnectorStore.list(workspace)));
+        } else if (name.equals("import") && method.equals("POST")) {
+            Object b = body(ex);
+            if (!(b instanceof Map<?, ?> m) || !(m.get("text") instanceof String text))
+                throw new OoaException("CONNECTOR.EMPTY_SPEC", "Send {text: <file content>, name?, server?}");
+            Map<String, Object> def = com.oneofficeautomation.packages.ConnectorImporter.importSpec(text,
+                    m.get("name") instanceof String n ? n : null, m.get("server") instanceof String sv ? sv : null);
+            String path = com.oneofficeautomation.packages.ConnectorStore.save(workspace, def, !Boolean.FALSE.equals(m.get("overwrite")));
+            sendJson(ex, 200, Map.of("path", path, "connector", def));
+        } else if (!name.isEmpty() && method.equals("GET")) {
+            sendJson(ex, 200, Map.of("connector", com.oneofficeautomation.packages.ConnectorStore.load(workspace, name)));
+        } else if (!name.isEmpty() && method.equals("DELETE")) {
+            if (!com.oneofficeautomation.packages.ConnectorStore.delete(workspace, name))
+                throw new OoaException("CONNECTOR.NOT_FOUND", "There is no connector named '" + name + "'");
+            sendJson(ex, 200, Map.of("deleted", name));
+        } else send(ex, 405, "text/plain", "Method not allowed");
+    }
+
+    private static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker");
 
     /** Saves model-connections.json. API keys are only references (vault credential or environment variable), never values. */
     @SuppressWarnings("unchecked")

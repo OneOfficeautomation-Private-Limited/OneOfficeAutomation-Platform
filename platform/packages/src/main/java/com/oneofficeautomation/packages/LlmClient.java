@@ -13,15 +13,27 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Provider-neutral LLM client for the AI packages: OpenAI, Azure OpenAI, Anthropic and any OpenAI-compatible
- * endpoint (LiteLLM, vLLM, Ollama). Every call masks personal data first (unless disabled), restores it in the
+ * Provider-neutral LLM client for the AI packages: OpenAI, Azure OpenAI, Anthropic, any OpenAI-compatible
+ * endpoint (LiteLLM, vLLM, Ollama), Hugging Face (Inference Providers router or a self-hosted TGI server) and
+ * models hosted on Amazon SageMaker endpoints (signed with AWS Signature V4). Every call masks personal data first (unless disabled), restores it in the
  * answer, and writes a governance record (who, which run, model, tokens, masking; never the prompt text) to
  * ai-governance.jsonl in the workspace.
  */
 final class LlmClient {
     static final String P = "AI";
 
-    record Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii) {}
+    /**
+     * One call's settings. For aws_bedrock_sagemaker, model is the SageMaker endpoint name, apiKey the AWS secret access key,
+     * accessKeyId the AWS access key id and region the AWS region.
+     */
+    record Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii,
+                  Object accessKeyId, String region) {
+        Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii) {
+            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, null, null);
+        }
+    }
+
+    static final String HUGGINGFACE_URL = "https://router.huggingface.co/v1";
     record ToolCall(String id, String name, Map<String, Object> args) {}
     record Reply(String text, List<ToolCall> toolCalls, int inTokens, int outTokens, Map<String, Integer> masked) {}
 
@@ -108,7 +120,11 @@ final class LlmClient {
         }
         String provider = cfg.provider() == null ? "openai" : cfg.provider();
         long t0 = System.currentTimeMillis();
-        Reply r = provider.equals("anthropic") ? anthropic(ctx, cfg, msgs, tools, jsonMode) : openai(ctx, cfg, provider, msgs, tools, jsonMode);
+        Reply r = switch (provider) {
+            case "anthropic" -> anthropic(ctx, cfg, msgs, tools, jsonMode);
+            case "aws_bedrock_sagemaker" -> sagemaker(ctx, cfg, msgs, tools, jsonMode);
+            default -> openai(ctx, cfg, provider, msgs, tools, jsonMode);
+        };
         List<ToolCall> calls = new ArrayList<>();
         for (ToolCall tc : r.toolCalls()) calls.add(new ToolCall(tc.id(), tc.name(), (Map<String, Object>) unmaskDeep(tc.args(), mapping)));
         Reply out = new Reply(unmask(r.text(), mapping), calls, r.inTokens(), r.outTokens(), counts);
@@ -138,8 +154,9 @@ final class LlmClient {
 
     private static int num(Object v) { return v instanceof BigDecimal d ? d.intValue() : 0; }
 
+    /** Chat-completions request body (OpenAI format, also used by Hugging Face TGI and SageMaker's messages API). */
     @SuppressWarnings("unchecked")
-    private static Reply openai(ActionContext ctx, Config cfg, String provider, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
+    static Map<String, Object> openAiBody(Config cfg, String model, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
         List<Object> out = new ArrayList<>();
         for (Map<String, Object> m : msgs) {
             Map<String, Object> o = new LinkedHashMap<>();
@@ -158,7 +175,7 @@ final class LlmClient {
             out.add(o);
         }
         Map<String, Object> body = new LinkedHashMap<>();
-        if (!provider.equals("azure_openai")) body.put("model", cfg.model());
+        if (model != null) body.put("model", model);
         body.put("messages", out);
         body.put("temperature", BigDecimal.valueOf(cfg.temperature()));
         body.put("max_tokens", cfg.maxTokens());
@@ -167,6 +184,11 @@ final class LlmClient {
             for (Map<String, Object> t : tools) l.add(Map.of("type", "function", "function", Map.of("name", t.get("name"), "description", t.get("description"), "parameters", t.get("input_schema"))));
             body.put("tools", l);
         } else if (json) body.put("response_format", Map.of("type", "json_object"));
+        return body;
+    }
+
+    private static Reply openai(ActionContext ctx, Config cfg, String provider, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
+        Map<String, Object> body = openAiBody(cfg, provider.equals("azure_openai") ? null : cfg.model(), msgs, tools, json);
         String url;
         HttpJson.Req req;
         if (provider.equals("azure_openai")) {
@@ -175,12 +197,19 @@ final class LlmClient {
             if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
             req = HttpJson.req(P, "POST", url).header("api-key", k.reveal());
         } else {
-            String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
+            String dflt = provider.equals("huggingface") ? HUGGINGFACE_URL : "https://api.openai.com/v1";
+            String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? dflt : cfg.baseUrl().replaceAll("/+$", "");
             req = HttpJson.req(P, "POST", base + "/chat/completions");
             if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
             else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Map api_key to a Credential variable.");
+            else if (provider.equals("huggingface") && (cfg.baseUrl() == null || cfg.baseUrl().isBlank()))
+                throw new ActionException(P + ".NO_KEY", "A Hugging Face access token from the vault is required", "Map api_key to a Credential holding your hf_... token.");
         }
-        Map<String, Object> r = req.json(body).timeout(180).send(ctx).map();
+        return openAiReply(req.json(body).timeout(180).send(ctx).map());
+    }
+
+    @SuppressWarnings("unchecked")
+    static Reply openAiReply(Map<String, Object> r) {
         Map<String, Object> msg = (Map<String, Object>) ((Map<String, Object>) ((List<?>) r.getOrDefault("choices", List.of(Map.of()))).get(0)).getOrDefault("message", Map.of());
         List<ToolCall> calls = new ArrayList<>();
         if (msg.get("tool_calls") instanceof List<?> tcs) for (Object t : tcs) {
@@ -191,6 +220,59 @@ final class LlmClient {
         }
         Map<String, Object> u = r.get("usage") instanceof Map ? (Map<String, Object>) r.get("usage") : Map.of();
         return new Reply((String) msg.get("content"), calls, num(u.get("prompt_tokens")), num(u.get("completion_tokens")), Map.of());
+    }
+
+    /**
+     * A model on an Amazon SageMaker real-time endpoint (for example a Hugging Face TGI or LMI container), called through
+     * InvokeEndpoint with the messages API body and signed with AWS Signature V4. Answers in chat-completions form, or the
+     * older [{"generated_text": ...}] form, are both understood.
+     */
+    @SuppressWarnings("unchecked")
+    private static Reply sagemaker(ActionContext ctx, Config cfg, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
+        String[] keys = awsKeys(cfg);
+        String region = awsRegion(cfg);
+        if (!region.matches("^[a-z0-9-]{4,30}$")) throw new ActionException(P + ".BAD_REGION", "'" + region + "' is not an AWS region name", "For example eu-west-1.");
+        String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://runtime.sagemaker." + region + ".amazonaws.com" : cfg.baseUrl().replaceAll("/+$", "");
+        String url = base + "/endpoints/" + HttpJson.enc(cfg.model()) + "/invocations";
+        byte[] payload = JsonLite.write(Values.toJsonable(openAiBody(cfg, null, msgs, tools, json))).getBytes(StandardCharsets.UTF_8);
+        java.net.URI uri;
+        try { uri = java.net.URI.create(url); }
+        catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_URL", "Invalid SageMaker URL: " + url, "Check the region, endpoint name and base_url."); }
+        Map<String, String> signed = new LinkedHashMap<>();
+        signed.put("content-type", "application/json");
+        signed.put("accept", "application/json");
+        HttpJson.Req req = HttpJson.req(P, "POST", url).bytes(payload, "application/json").header("Accept", "application/json");
+        AwsSigV4.sign("POST", uri, signed, payload, keys[0], keys[1], region, "sagemaker", Instant.now()).forEach(req::header);
+        Object j = req.timeout(180).send(ctx).json();
+        if (j instanceof Map<?, ?> m && m.get("choices") instanceof List) return openAiReply((Map<String, Object>) m);
+        Object first = j instanceof List<?> l && !l.isEmpty() ? l.get(0) : j;
+        if (first instanceof Map<?, ?> m && m.get("generated_text") != null) return new Reply(String.valueOf(m.get("generated_text")), List.of(), 0, 0, Map.of());
+        throw new ActionException(P + ".BAD_RESPONSE", "The SageMaker endpoint answered in a format this client does not understand",
+                "Use a container with the messages API (TGI 1.4+ or LMI), or one that returns generated_text.");
+    }
+
+    /** [access key id, secret key]. The secret may also hold "ACCESS_KEY_ID:SECRET" when no separate access key id is given. */
+    static String[] awsKeys(Config cfg) {
+        if (!(cfg.apiKey() instanceof SecureString secret))
+            throw new ActionException(P + ".NO_KEY", "The AWS secret access key from the vault is required", "Map api_key to a Credential holding the secret access key.");
+        String s = secret.reveal();
+        if (cfg.accessKeyId() instanceof SecureString id) return new String[]{id.reveal().strip(), s.strip()};
+        int i = s.indexOf(':');
+        if (i > 0) return new String[]{s.substring(0, i).strip(), s.substring(i + 1).strip()};
+        throw new ActionException(P + ".NO_ACCESS_KEY", "The AWS access key id from the vault is required",
+                "Map aws_access_key_id to a Credential, or store the key as ACCESS_KEY_ID:SECRET in one Credential.");
+    }
+
+    /** Region from the action, else from a runtime.sagemaker.REGION.amazonaws.com base_url, else the AWS_REGION variable. */
+    static String awsRegion(Config cfg) {
+        if (cfg.region() != null && !cfg.region().isBlank()) return cfg.region().strip();
+        if (cfg.baseUrl() != null) {
+            Matcher m = Pattern.compile("runtime\\.sagemaker\\.([a-z0-9-]+)\\.amazonaws\\.com").matcher(cfg.baseUrl());
+            if (m.find()) return m.group(1);
+        }
+        String env = System.getenv("AWS_REGION");
+        if (env != null && !env.isBlank()) return env.strip();
+        throw new ActionException(P + ".NO_REGION", "The AWS region is required", "Set aws_region, for example eu-west-1.");
     }
 
     @SuppressWarnings("unchecked")

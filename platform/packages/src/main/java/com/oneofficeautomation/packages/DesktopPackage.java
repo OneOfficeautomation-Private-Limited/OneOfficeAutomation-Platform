@@ -63,6 +63,7 @@ public final class DesktopPackage {
             @Input(name = "y", type = OoaType.NUMBER, description = "Vertical position in pixels from the top.") int y,
             @Input(name = "button", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right", "middle"}, description = "Mouse button.") String b,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl) {
+        UiGuard.before(ctx);
         Robot r = DesktopSupport.robot();
         r.mouseMove(x, y);
         for (int i = 0; i < (dbl ? 2 : 1); i++) { r.mousePress(button(b)); r.mouseRelease(button(b)); r.delay(40); }
@@ -79,6 +80,7 @@ public final class DesktopPackage {
 
     @Action(id = "mouse_scroll", name = "Mouse scroll", category = "Mouse", capabilities = "desktop", description = "Scroll the mouse wheel; positive scrolls down.")
     public Map<String, Object> scroll(ActionContext ctx, @Input(name = "amount", type = OoaType.NUMBER, description = "Wheel notches; negative scrolls up.") int amount) {
+        UiGuard.before(ctx);
         DesktopSupport.robot().mouseWheel(amount);
         return Map.of();
     }
@@ -90,6 +92,7 @@ public final class DesktopPackage {
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"paste\"", enumValues = {"paste", "keystrokes"},
                     description = "paste uses the clipboard (restored afterwards); keystrokes types letters and digits one by one.") String method,
             @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "20", description = "Delay between keystrokes.") int delay) {
+        UiGuard.before(ctx);
         Robot r = DesktopSupport.robot();
         if ("keystrokes".equals(method)) {
             for (char c : text.toCharArray()) {
@@ -121,6 +124,7 @@ public final class DesktopPackage {
             @Input(name = "keys", type = OoaType.STRING, example = "CTRL+S", description = "Key or combination joined with +.") String keys,
             @Input(name = "times", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many times to press.") int times) {
         List<Integer> codes = parseKeys(keys);  // validated before touching the desktop
+        UiGuard.before(ctx);
         Robot r = DesktopSupport.robot();
         for (int t = 0; t < Math.max(1, times); t++) {
             for (int c : codes) r.keyPress(c);

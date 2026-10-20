@@ -3,6 +3,9 @@ package com.oneofficeautomation.packages.browser;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitForSelectorState;
+import com.oneofficeautomation.packages.UiGuard;
+import com.oneofficeautomation.packages.ui.InterruptRules;
+import com.oneofficeautomation.packages.ui.SelfHealing;
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
 
@@ -38,6 +41,55 @@ public final class BrowserPackage {
 
     private static final String D_SEL = "Element selector: CSS (#id, .class), text=\"Sign in\", role=button[name=\"Save\"] or xpath=//input[@name='q'].";
     private static final String D_TIMEOUT = "How long to wait for the element, in milliseconds.";
+    private static final String D_ALT = "Self-healing fallbacks recorded with the element (Pick records them): automation_id, name, id, aria_label, tag, class, index, text, "
+            + "relative {anchor, direction}. Tried in that order when the selector finds nothing; the one that works is logged.";
+
+    /** Lets the run's interrupt rules look for and act on elements in this browser session. */
+    private static void registerHooks(ActionContext ctx, String session, BrowserSession bs) {
+        UiGuard.register(ctx, session, new UiGuard.ElementHooks() {
+            public boolean present(String selector) { Locator l = bs.page.locator(selector); return l.count() > 0 && l.first().isVisible(); }
+            public void click(String selector) { bs.page.locator(selector).first().click(new Locator.ClickOptions().setTimeout(5000)); }
+            public void press(String keys) { bs.page.keyboard().press(playwrightKeys(keys)); }
+        });
+    }
+
+    /** "CTRL+ENTER" or "ESC" in the desktop key style becomes Playwright's "Control+Enter" or "Escape". */
+    static String playwrightKeys(String keys) {
+        StringJoiner j = new StringJoiner("+");
+        for (String part : keys.split("\\+")) {
+            String p = part.trim();
+            j.add(switch (p.toUpperCase(Locale.ROOT)) {
+                case "CTRL", "CONTROL" -> "Control"; case "ALT" -> "Alt"; case "SHIFT" -> "Shift"; case "WIN", "META", "CMD" -> "Meta";
+                case "ENTER", "RETURN" -> "Enter"; case "ESC", "ESCAPE" -> "Escape"; case "TAB" -> "Tab"; case "SPACE" -> "Space";
+                case "BACKSPACE" -> "Backspace"; case "DELETE" -> "Delete"; case "HOME" -> "Home"; case "END" -> "End";
+                case "PAGE_UP" -> "PageUp"; case "PAGE_DOWN" -> "PageDown"; case "UP" -> "ArrowUp"; case "DOWN" -> "ArrowDown"; case "LEFT" -> "ArrowLeft"; case "RIGHT" -> "ArrowRight";
+                default -> p.length() == 1 ? p.toLowerCase(Locale.ROOT) : p;
+            });
+        }
+        return j.toString();
+    }
+
+    /**
+     * The element to act on. Checks the run's interrupt rules first. Without alternatives or rules this is the plain
+     * Playwright locator (which waits by itself); otherwise the selector and its recorded alternatives are polled in order
+     * until one matches, running the interrupt rules again on the first miss, and a healed match is logged.
+     */
+    static Locator element(ActionContext ctx, String session, String sel, Map<String, Object> alternatives, double timeoutMs) {
+        Page page = s(ctx, session).page;
+        UiGuard.before(ctx);
+        InterruptRules rules = InterruptRules.existing(ctx);
+        boolean noAlt = alternatives == null || alternatives.isEmpty();
+        if (noAlt && (rules == null || rules.isEmpty())) return page.locator(sel).first();
+        List<SelfHealing.Candidate> chain = SelfHealing.chain(new SelfHealing.Candidate("selector", sel), alternatives, SelfHealing::webSelector);
+        try {
+            return SelfHealing.locate(chain, c -> { Locator l = s(ctx, session).page.locator(c.query()); return l.count() > 0 ? Optional.of(l.first()) : Optional.empty(); },
+                    (long) timeoutMs, SelfHealing.SYSTEM, 250, () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled).element();
+        } catch (ActionException e) {
+            if (noAlt && "UI.ELEMENT_NOT_FOUND".equals(e.code()))
+                throw new ActionException("BROWSER.TIMEOUT", "No element matches " + sel + " within " + (long) timeoutMs + " ms", "Check the selector matches an element on the page, or raise timeout_ms.", true);
+            throw e;
+        }
+    }
 
     @Action(id = "open", name = "Open browser", category = "Browser", timeoutSeconds = 180, capabilities = "browser",
             description = "Start a browser, optionally open a URL, as a named session.")
@@ -63,7 +115,9 @@ public final class BrowserPackage {
             BrowserContext c = b.newContext(new com.microsoft.playwright.Browser.NewContextOptions().setAcceptDownloads(true));
             Page p = c.newPage();
             if (url != null && !url.isBlank()) p.navigate(url);
-            ctx.sessions().put(session, new BrowserSession(pw, b, c, p));
+            BrowserSession bs = new BrowserSession(pw, b, c, p);
+            ctx.sessions().put(session, bs);
+            registerHooks(ctx, session, bs);
         } catch (PlaywrightException e) {
             if (pw != null) pw.close();
             throw pw(e, "Opening the browser");
@@ -84,9 +138,10 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         try {
-            Locator l = s(ctx, session).page.locator(sel).first();
+            Locator l = element(ctx, session, sel, alternatives, timeout);
             if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout)); else l.click(new Locator.ClickOptions().setTimeout(timeout));
         } catch (PlaywrightException e) { throw pw(e, "Clicking " + sel); }
         return Map.of();
@@ -99,10 +154,11 @@ public final class BrowserPackage {
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "press_enter", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Press Enter afterwards.") boolean enter,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         String value = text instanceof SecureString ss ? ss.reveal() : Values.text(text);
         try {
-            Locator l = s(ctx, session).page.locator(sel).first();
+            Locator l = element(ctx, session, sel, alternatives, timeout);
             l.fill(value, new Locator.FillOptions().setTimeout(timeout));
             if (enter) l.press("Enter");
         } catch (PlaywrightException e) { throw pw(e, "Typing into " + sel); }
@@ -114,9 +170,10 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
             @Input(name = "option", type = OoaType.STRING, description = "Option value or visible text.") String option,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         try {
-            Locator l = s(ctx, session).page.locator(sel).first();
+            Locator l = element(ctx, session, sel, alternatives, timeout);
             List<String> chosen = l.selectOption(option, new Locator.SelectOptionOptions().setTimeout(timeout));
             if (chosen.isEmpty()) l.selectOption(new com.microsoft.playwright.options.SelectOption().setLabel(option), new Locator.SelectOptionOptions().setTimeout(timeout));
         } catch (PlaywrightException e) { throw pw(e, "Selecting '" + option + "' in " + sel); }
@@ -128,8 +185,9 @@ public final class BrowserPackage {
     public Map<String, Object> getText(ActionContext ctx,
             @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        try { return Map.of("text", s(ctx, session).page.locator(sel).first().innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+        try { return Map.of("text", element(ctx, session, sel, alternatives, timeout).innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
         catch (PlaywrightException e) { throw pw(e, "Reading " + sel); }
     }
 
@@ -141,7 +199,7 @@ public final class BrowserPackage {
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         try {
-            Locator l = s(ctx, session).page.locator(sel).first();
+            Locator l = element(ctx, session, sel, null, timeout);
             String v = attr.equals("value") ? l.inputValue(new Locator.InputValueOptions().setTimeout(timeout)) : l.getAttribute(attr, new Locator.GetAttributeOptions().setTimeout(timeout));
             return Map.of("value", v == null ? "" : v);
         } catch (PlaywrightException e) { throw pw(e, "Reading " + attr + " of " + sel); }
@@ -154,6 +212,7 @@ public final class BrowserPackage {
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         try {
+            UiGuard.before(ctx);
             s(ctx, session).page.locator(sel).first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.valueOf(state.toUpperCase(Locale.ROOT))));
         } catch (PlaywrightException e) { throw pw(e, "Waiting for " + sel); }
         return Map.of();
@@ -197,6 +256,126 @@ public final class BrowserPackage {
     }
 
     private static Map<String, Object> Out(Object v) { Map<String, Object> m = new LinkedHashMap<>(); m.put("result", v); return m; }
+
+    @Action(id = "get_page_source", name = "Get page source", category = "Page", timeoutSeconds = 120, capabilities = "browser",
+            description = "Return the current HTML of the page (after scripts have run), and optionally save it to a file.")
+    @Output(name = "source", type = OoaType.STRING, description = "HTML of the page.")
+    @Output(name = "path", type = OoaType.FILE, description = "Saved file, or empty.")
+    public Map<String, Object> getPageSource(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "Also save the HTML to this file.") String path,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        String html;
+        try { html = s(ctx, session).page.content(); } catch (PlaywrightException e) { throw pw(e, "Reading the page source"); }
+        String saved = "";
+        if (path != null && !path.isBlank()) {
+            Path p = ctx.resolvePath(path);
+            try {
+                if (p.getParent() != null) Files.createDirectories(p.getParent());
+                Files.writeString(p, html, java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot save " + p + ": " + e.getMessage(), "Check the folder is writable.", true); }
+            saved = p.toString();
+        }
+        return Map.of("source", html, "path", saved);
+    }
+
+    /** Resolves a dotted name from window, calls it with the arguments and returns its (awaited) result. */
+    static final String CALL_FUNCTION_JS = """
+            async ([name, args]) => {
+              let owner = window, fn = window;
+              for (const part of name.split('.')) { owner = fn; fn = fn == null ? undefined : fn[part]; }
+              if (typeof fn !== 'function') throw new Error('No JavaScript function named ' + name + ' on this page');
+              return await fn.apply(owner, args);
+            }""";
+
+    @Action(id = "call_javascript_function", name = "Call JavaScript function", category = "Page", timeoutSeconds = 120, capabilities = "browser",
+            description = "Call a function defined by the page (e.g. app.calculateTotal) with arguments and return its result.")
+    @Output(name = "result", description = "Value returned by the function (awaited when it returns a promise).")
+    public Map<String, Object> callJsFunction(ActionContext ctx,
+            @Input(name = "function", type = OoaType.STRING, example = "app.calculateTotal", description = "Function name, reachable from window; dots for nested objects.") String function,
+            @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, in order (text, numbers, true/false, lists and dictionaries).") List<Object> args,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (function == null || !function.matches("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$"))
+            throw new ActionException("BROWSER.BAD_FUNCTION", "Invalid JavaScript function name '" + function + "'", "Give a name such as calculateTotal or app.utils.calculateTotal.");
+        List<Object> plain = new ArrayList<>();
+        if (args != null) for (Object a : args) plain.add(jsValue(Values.toJsonable(a)));
+        try { return Out(Values.toJsonable(s(ctx, session).page.evaluate(CALL_FUNCTION_JS, List.of(function, plain)))); }
+        catch (PlaywrightException e) { throw pw(e, "Calling " + function); }
+    }
+
+    /** Playwright serialises Integer and Double (not Long or BigDecimal): whole numbers in int range become Integer, others Double. */
+    static Object jsValue(Object v) {
+        if (v instanceof BigDecimal d) {
+            try { return d.stripTrailingZeros().scale() <= 0 ? (Object) d.intValueExact() : (Object) d.doubleValue(); }
+            catch (ArithmeticException e) { return d.doubleValue(); }
+        }
+        if (v instanceof Map<?, ?> m) { Map<String, Object> o = new LinkedHashMap<>(); m.forEach((k, x) -> o.put(String.valueOf(k), jsValue(x))); return o; }
+        if (v instanceof List<?> l) { List<Object> o = new ArrayList<>(); for (Object x : l) o.add(jsValue(x)); return o; }
+        return v;
+    }
+
+    private static final java.net.http.HttpClient LINKS = java.net.http.HttpClient.newBuilder()
+            .connectTimeout(java.time.Duration.ofSeconds(10)).followRedirects(java.net.http.HttpClient.Redirect.NORMAL).build();
+
+    /** Checks each URL with HEAD (falling back to GET when HEAD is refused). Rows: url, status, ok, error. */
+    static List<Object> checkLinks(ActionContext ctx, List<String> urls, int timeoutMs, boolean onlyBroken) {
+        List<Object> rows = new ArrayList<>();
+        java.time.Duration t = java.time.Duration.ofMillis(Math.max(500, timeoutMs));
+        for (String u : urls) {
+            if (ctx != null) ctx.checkCancelled();
+            int status = 0;
+            String error = "";
+            try {
+                java.net.URI uri = java.net.URI.create(u);
+                status = LINKS.send(java.net.http.HttpRequest.newBuilder(uri).timeout(t).method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody()).build(),
+                        java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
+                if (status == 405 || status == 501 || status == 403)
+                    status = LINKS.send(java.net.http.HttpRequest.newBuilder(uri).timeout(t).GET().header("Range", "bytes=0-0").build(),
+                            java.net.http.HttpResponse.BodyHandlers.discarding()).statusCode();
+            } catch (java.net.http.HttpTimeoutException e) { error = "timeout";
+            } catch (java.io.IOException | IllegalArgumentException e) { error = String.valueOf(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            boolean ok = status >= 200 && status < 400;
+            if (!onlyBroken || !ok) rows.add(new ArrayList<>(Arrays.asList(u, BigDecimal.valueOf(status), ok, error)));
+        }
+        return rows;
+    }
+
+    @Action(id = "find_broken_links", name = "Find broken links", category = "Page", timeoutSeconds = 3600, capabilities = {"browser", "network"},
+            description = "Collect the links on the current page and check each one, reporting those that fail or return an HTTP error.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: url, status (0 when unreachable), ok, error.")
+    @Output(name = "broken_count", type = OoaType.NUMBER, description = "Number of links that failed.")
+    @Output(name = "checked_count", type = OoaType.NUMBER, description = "Number of distinct links checked.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> findBrokenLinks(ActionContext ctx,
+            @Input(name = "only_broken", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "List only failing links instead of every link.") boolean onlyBroken,
+            @Input(name = "same_site_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Check only links to the page's own host.") boolean sameSite,
+            @Input(name = "max_links", type = OoaType.NUMBER, required = false, defaultValue = "200", description = "Safety limit on links checked.") int maxLinks,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", description = "Time allowed for each link, in milliseconds.") int timeoutMs,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        Page page = s(ctx, session).page;
+        List<Object> hrefs;
+        try { hrefs = (List<Object>) page.evaluate("() => Array.from(document.querySelectorAll('a[href], area[href]')).map(a => a.href)"); }
+        catch (PlaywrightException e) { throw pw(e, "Reading the links"); }
+        String host = "";
+        try { host = String.valueOf(java.net.URI.create(page.url()).getHost()); } catch (IllegalArgumentException ignored) { }
+        LinkedHashSet<String> urls = new LinkedHashSet<>();
+        for (Object h : hrefs) {
+            String u = String.valueOf(h).replaceFirst("#.*$", "");
+            if (!u.matches("(?i)^https?://.+")) continue;
+            if (sameSite) { try { if (!host.equalsIgnoreCase(java.net.URI.create(u).getHost())) continue; } catch (IllegalArgumentException e) { continue; } }
+            urls.add(u);
+            if (urls.size() >= Math.max(1, maxLinks)) break;
+        }
+        List<Object> all = checkLinks(ctx, new ArrayList<>(urls), timeoutMs, false);
+        List<Object> rows = new ArrayList<>();
+        int broken = 0;
+        for (Object o : all) {
+            boolean ok = (Boolean) ((List<Object>) o).get(2);
+            if (!ok) broken++;
+            if (!onlyBroken || !ok) rows.add(o);
+        }
+        return Map.of("table", Values.table(List.of("url", "status", "ok", "error"), rows), "broken_count", BigDecimal.valueOf(broken), "checked_count", BigDecimal.valueOf(all.size()));
+    }
 
     @Action(id = "download", name = "Download file", category = "Page", timeoutSeconds = 600, capabilities = {"browser", "filesystem"},
             description = "Click a link or button that starts a download and save the file into a folder.")
@@ -278,6 +457,7 @@ public final class BrowserPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         Object o = ctx.sessions().remove(session);
+        UiGuard.unregister(ctx, session);
         if (o instanceof BrowserSession b) try { b.close(); } catch (RuntimeException ignored) { }
         return Map.of();
     }
@@ -409,10 +589,13 @@ public final class BrowserPackage {
                     "get_options", "check", "uncheck", "is_checked", "is_visible", "is_enabled", "count", "scroll_into_view"}, description = "What to do with the element.") String action,
             @Input(name = "value", required = false, description = "Text, key, attribute or property name, option or index, depending on the action. Credentials allowed for set_text.") Object value,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         Page page = s(ctx, session).page;
         Locator all = page.locator(sel);
-        Locator l = all.first();
+        Locator l;
+        if (action.equals("count") || action.equals("is_visible")) { UiGuard.before(ctx); l = all.first(); }   // asking whether it is there must not wait or heal
+        else { try { l = element(ctx, session, sel, alternatives, timeout); } catch (PlaywrightException e) { throw pw(e, action + " on " + sel); } }
         String v = value instanceof SecureString ss ? ss.reveal() : value == null ? null : Values.text(value);
         java.util.function.Supplier<String> need = () -> { if (v == null || v.isEmpty()) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a value"); return v; };
         Object result = null;
@@ -486,6 +669,21 @@ public final class BrowserPackage {
             }
             return parts.join(' > ');
           };
+          // Self-healing fallbacks, tried in order when the selector stops matching (see SelfHealing.ORDER).
+          const alt = (el) => {
+            const a = { tag: el.tagName.toLowerCase() };
+            const tid = el.getAttribute('data-testid'); if (tid) a.automation_id = tid;
+            const nm = el.getAttribute('name'); if (nm) a.name = nm;
+            if (el.id) a.id = el.id;
+            const al = el.getAttribute('aria-label'); if (al) a.aria_label = al;
+            const classes = (el.getAttribute('class') || '').split(' ').filter(c => /^[A-Za-z_-][A-Za-z0-9_-]*$/.test(c));
+            if (classes.length) a['class'] = classes.join(' ');
+            a.index = Array.from(document.querySelectorAll(a.tag + classes.map(c => '.' + c).join(''))).indexOf(el);
+            const tx = (el.innerText || '').trim(); if (tx && tx.length < 80 && tx.indexOf(String.fromCharCode(10)) < 0) a.text = tx;
+            const lab = el.labels && el.labels.length ? (el.labels[0].innerText || '').trim() : '';
+            if (lab) a.relative = { anchor: lab.slice(0, 60), direction: 'near' };
+            return a;
+          };
           const box = document.createElement('div');
           box.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #a371ed;background:rgba(163,113,237,.12);border-radius:3px;display:none';
           const tip = document.createElement('div');
@@ -502,7 +700,7 @@ public final class BrowserPackage {
             e.preventDefault(); e.stopPropagation();
             const t = e.target;
             window.__ooaPicked({ selector: sel(t), tag: t.tagName.toLowerCase(), text: (t.innerText || t.value || '').trim().slice(0, 80),
-              type: t.getAttribute('type') || '', name: t.getAttribute('name') || '', id: t.id || '' });
+              type: t.getAttribute('type') || '', name: t.getAttribute('name') || '', id: t.id || '', alternatives: alt(t) });
           }, true);
         })();
         """;
@@ -512,6 +710,7 @@ public final class BrowserPackage {
             description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by Agent Studio's Pick button.")
     @Output(name = "selector", type = OoaType.STRING, description = "Selector for the clicked element.")
     @Output(name = "element", type = OoaType.DICTIONARY, description = "tag, text, type, name and id of the element.")
+    @Output(name = "alternatives", type = OoaType.DICTIONARY, description = "Self-healing fallbacks for the element; pass them as alternatives to element actions.")
     public Map<String, Object> pickElement(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium"}, description = "Browser.") String which,
@@ -538,6 +737,7 @@ public final class BrowserPackage {
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Picking an element"); }
         if (picked[0] == null) throw new ActionException("BROWSER.NOTHING_PICKED", "No element was picked", "Click an element in the browser window before closing it.");
-        return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", picked[0]);
+        Object alternatives = picked[0].get("alternatives") instanceof Map<?, ?> m ? m : Map.of();
+        return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", picked[0], "alternatives", alternatives);
     }
 }

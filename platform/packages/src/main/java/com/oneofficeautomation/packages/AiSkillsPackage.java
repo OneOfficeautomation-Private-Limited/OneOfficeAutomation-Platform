@@ -10,7 +10,8 @@ import java.util.stream.Stream;
 /**
  * AI Skills: reusable, reviewed prompt templates stored as JSON in the workspace's ai-skills folder, e.g.
  * ai-skills/summarise_complaint.json = {"description": "...", "system": "...", "prompt": "Summarise: ${text}",
- * "provider": "openai", "model": "gpt-4o-mini", "output": "text" | "json", "temperature": 0}. Keys never go in skill files.
+ * "provider": "openai", "model": "gpt-4o-mini", "output": "text" | "json", "temperature": 0}. Providers: openai, azure_openai, anthropic,
+ * openai_compatible, huggingface, aws_bedrock_sagemaker (add "region"). Keys never go in skill files.
  */
 @OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt templates (Prompt Skills) with your values.")
 public final class AiSkillsPackage {
@@ -39,7 +40,9 @@ public final class AiSkillsPackage {
             @Input(name = "connection", type = OoaType.STRING, required = false, description = "One Model Connection to use instead of the skill's own provider and model.") String connection,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "model", type = OoaType.STRING, required = false, description = "Override the skill's model.") String model,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = GenAiPackage.D_AWS_REGION + " Overrides the skill's \"region\".") String awsRegion) {
         Map<String, Object> s = load(ctx, name);
         String prompt = LlmClient.interpolate((String) s.get("prompt"), values);
         String system = s.get("system") instanceof String x ? LlmClient.interpolate(x, values) : null;
@@ -49,7 +52,8 @@ public final class AiSkillsPackage {
         double temp = s.get("temperature") instanceof java.math.BigDecimal d ? d.doubleValue() : 0;
         boolean json = "json".equals(s.get("output"));
         LlmClient.Config c = ModelConnections.config(ctx, conn, String.valueOf(s.getOrDefault("provider", "openai")), mdl, key,
-                base != null ? base : (String) s.get("base_url"), temp, 2000, !Boolean.FALSE.equals(s.get("mask_pii")));
+                base != null ? base : (String) s.get("base_url"), temp, 2000, !Boolean.FALSE.equals(s.get("mask_pii")),
+                awsKeyId, awsRegion != null && !awsRegion.isBlank() ? awsRegion : (String) s.get("region"));
         List<Map<String, Object>> m = new ArrayList<>();
         if (system != null) m.add(Map.of("role", "system", "content", system));
         m.add(Map.of("role", "user", "content", prompt));

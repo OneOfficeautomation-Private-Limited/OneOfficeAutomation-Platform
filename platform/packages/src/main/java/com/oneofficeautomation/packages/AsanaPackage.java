@@ -1,0 +1,518 @@
+package com.oneofficeautomation.packages;
+
+import com.oneofficeautomation.runner.Values;
+import com.oneofficeautomation.sdk.*;
+
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.regex.Pattern;
+
+/** Asana REST API (1.0) with a personal access token or OAuth token. Every answer is wrapped in {"data": ...}. */
+@OoaPackage(id = "ooa.asana", name = "Asana", version = "1.0.0",
+        description = "Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users.")
+public final class AsanaPackage {
+    static final String P = "ASANA";
+    private static final Pattern GID = Pattern.compile("^\\d{1,30}$");
+    private static final Pattern USER = Pattern.compile("^(\\d{1,30}|me|[^@\\s/]+@[^@\\s/]+)$");
+    private static final String D_BASE = "API address. Keep the default unless your company routes Asana through a proxy.";
+    private static final String DEF_BASE = "\"https://app.asana.com/api/1.0\"";
+    private static final String D_TOKEN = "Personal access token or OAuth token from the vault.";
+    private static final String D_TASK = "Task id: the long number at the end of the task's link, e.g. 1208000000000001.";
+    private static final String D_PROJECT = "Project id: the long number in the project's link, e.g. 1207000000000001.";
+    private static final String D_WS = "Workspace id, from List workspaces.";
+    private static final String D_USER = "User id, an email address, or me for the token's own user.";
+    private static final String D_MAX = "Most items to return; pages are read until this many are found.";
+    private static final String TASK_LIST_FIELDS = "name,completed,assignee.name,due_on,modified_at,permalink_url";
+    private static final String[] TASK_COLS = {"gid", "name", "completed", "assignee=assignee.name", "due_on", "modified_at", "url=permalink_url"};
+    private static final String TASK_FIELDS = "name,notes,completed,completed_at,assignee.name,assignee.email,due_on,due_at,start_on,projects.name,tags.name,"
+            + "parent.name,memberships.section.name,memberships.project.name,created_at,modified_at,permalink_url,custom_fields.name,"
+            + "custom_fields.display_value,followers.name,num_subtasks";
+
+    static String api(String base) { return base.replaceAll("/+$", ""); }
+    static String gid(String what, String v) {
+        if (v == null || !GID.matcher(v.strip()).matches())
+            throw new ActionException(P + ".BAD_ID", "Invalid " + what + " id '" + v + "'", "Use the numeric id from the item's link, e.g. 1208000000000001.");
+        return v.strip();
+    }
+    static String user(String v) {
+        if (v == null || !USER.matcher(v.strip()).matches())
+            throw new ActionException(P + ".BAD_USER", "Invalid user '" + v + "'", "Use a numeric user id, an email address, or me.");
+        return v.strip();
+    }
+
+    static HttpJson.Response send(HttpJson.Req r, ActionContext ctx) {
+        try { return r.send(ctx); }
+        catch (ActionException e) {
+            Object st = e.details() == null ? null : e.details().get("status");
+            if (st instanceof BigDecimal s && s.intValue() == 402)
+                throw new ActionException(P + ".PREMIUM_REQUIRED", e.getMessage(), "This feature needs a paid Asana plan for the workspace.", false, e.details());
+            throw e;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> data(ActionContext ctx, String method, String base, String path, Object token, Map<String, Object> body) {
+        HttpJson.Req r = HttpJson.req(P, method, api(base) + path).bearer(token);
+        if (body != null) r.json(Map.of("data", body));
+        Object d = send(r, ctx).map().get("data");
+        return d instanceof Map<?, ?> m ? (Map<String, Object>) m : new LinkedHashMap<>();
+    }
+
+    /** Reads pages linked by next_page.offset. */
+    static List<Map<String, Object>> pages(ActionContext ctx, String base, String path, Object token, int max) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        String offset = null;
+        while (out.size() < max) {
+            String url = api(base) + path + (path.contains("?") ? "&" : "?") + "limit=" + Math.max(1, Math.min(100, max - out.size()))
+                    + (offset == null ? "" : "&offset=" + HttpJson.enc(offset));
+            Map<String, Object> r = send(HttpJson.req(P, "GET", url).bearer(token).timeout(120), ctx).map();
+            List<Map<String, Object>> items = HttpJson.maps(r.get("data"));
+            for (Map<String, Object> m : items) { out.add(m); if (out.size() >= max) break; }
+            Object next = HttpJson.path(r, "next_page.offset");
+            if (next == null || items.isEmpty()) break;
+            offset = Values.text(next);
+        }
+        return out;
+    }
+
+    static Map<String, Object> result(List<Map<String, Object>> recs, String... cols) {
+        return Out.of("table", HttpJson.table(recs, cols), "count", BigDecimal.valueOf(recs.size()));
+    }
+
+    static List<Object> names(Object list, String path) {
+        List<Object> out = new ArrayList<>();
+        for (Map<String, Object> m : HttpJson.maps(list)) { Object v = HttpJson.path(m, path); if (v != null && !out.contains(v)) out.add(v); }
+        return out;
+    }
+
+    static List<String> ids(String what, Object v) {
+        List<String> out = new ArrayList<>();
+        for (String s : HttpJson.addressList(v)) out.add(what.equals("user") ? user(s) : gid(what, s));
+        return out;
+    }
+
+    static Map<String, Object> task(Map<String, Object> t) {
+        Map<String, Object> custom = new LinkedHashMap<>();
+        for (Map<String, Object> cf : HttpJson.maps(t.get("custom_fields"))) custom.put(String.valueOf(cf.get("name")), cf.get("display_value"));
+        return Out.of("gid", t.get("gid"), "name", t.get("name"), "notes", t.get("notes"), "completed", t.get("completed"),
+                "completed_at", t.get("completed_at"), "assignee", HttpJson.path(t, "assignee.name"), "assignee_email", HttpJson.path(t, "assignee.email"),
+                "due_on", t.get("due_on"), "due_at", t.get("due_at"), "start_on", t.get("start_on"), "projects", names(t.get("projects"), "name"),
+                "sections", names(t.get("memberships"), "section.name"), "tags", names(t.get("tags"), "name"), "followers", names(t.get("followers"), "name"),
+                "parent", HttpJson.path(t, "parent.name"), "subtasks", t.get("num_subtasks"), "custom_fields", custom,
+                "created_at", t.get("created_at"), "modified_at", t.get("modified_at"), "url", t.get("permalink_url"));
+    }
+
+    // ---------------------------------------------------------------- workspaces, projects, sections
+
+    @Action(id = "list_workspaces", name = "List workspaces", category = "Workspaces", idempotent = true, capabilities = "network",
+            description = "List the workspaces and organizations the token can see.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, is_organization.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of workspaces.")
+    public Map<String, Object> listWorkspaces(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+        return result(pages(ctx, base, "/workspaces?opt_fields=name,is_organization", token, 1000), "gid", "name", "is_organization");
+    }
+
+    @Action(id = "list_projects", name = "List projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "List the projects in a workspace, optionally only those of one team.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, archived, owner, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of projects returned.")
+    public Map<String, Object> listProjects(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
+            @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Only projects of this team id.") String team,
+            @Input(name = "include_archived", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also list archived projects.") boolean archived,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
+        Map<String, Object> q = new LinkedHashMap<>();
+        q.put("workspace", gid("workspace", ws));
+        if (team != null && !team.isBlank()) q.put("team", gid("team", team));
+        if (!archived) q.put("archived", "false");
+        q.put("opt_fields", "name,archived,owner.name,permalink_url");
+        return result(pages(ctx, base, "/projects?" + HttpJson.query(q), token, max), "gid", "name", "archived", "owner=owner.name", "url=permalink_url");
+    }
+
+    @Action(id = "get_project", name = "Get project", category = "Projects", idempotent = true, capabilities = "network", description = "Read a project's details.")
+    @Output(name = "project", type = OoaType.DICTIONARY, description = "gid, name, notes, archived, owner, team, workspace, due_on, created_at, modified_at, url.")
+    public Map<String, Object> getProject(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project) {
+        Map<String, Object> p = data(ctx, "GET", base, "/projects/" + gid("project", project)
+                + "?opt_fields=name,notes,archived,owner.name,team.name,workspace.name,due_on,created_at,modified_at,permalink_url", token, null);
+        return Out.of("project", Out.of("gid", p.get("gid"), "name", p.get("name"), "notes", p.get("notes"), "archived", p.get("archived"),
+                "owner", HttpJson.path(p, "owner.name"), "team", HttpJson.path(p, "team.name"), "workspace", HttpJson.path(p, "workspace.name"),
+                "due_on", p.get("due_on"), "created_at", p.get("created_at"), "modified_at", p.get("modified_at"), "url", p.get("permalink_url")));
+    }
+
+    @Action(id = "create_project", name = "Create project", category = "Projects", capabilities = "network",
+            description = "Create a project in a workspace. Organization workspaces also need a team.")
+    @Output(name = "project_id", type = OoaType.STRING, description = "Id of the new project.")
+    @Output(name = "url", type = OoaType.STRING, description = "Web address of the project.")
+    public Map<String, Object> createProject(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
+            @Input(name = "name", type = OoaType.STRING, example = "Q1 2027 month-end close", description = "Project name.") String projName,
+            @Input(name = "team_id", type = OoaType.STRING, required = false, description = "Team id; required in organization workspaces.") String team,
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "Project description.") String notes) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("name", projName);
+        b.put("workspace", gid("workspace", ws));
+        if (team != null && !team.isBlank()) b.put("team", gid("team", team));
+        if (notes != null) b.put("notes", notes);
+        Map<String, Object> p = data(ctx, "POST", base, "/projects?opt_fields=permalink_url", token, b);
+        return Out.of("project_id", p.get("gid"), "url", p.get("permalink_url"));
+    }
+
+    @Action(id = "list_sections", name = "List sections", category = "Projects", idempotent = true, capabilities = "network",
+            description = "List the sections (board columns) of a project.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of sections.")
+    public Map<String, Object> listSections(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project) {
+        return result(pages(ctx, base, "/projects/" + gid("project", project) + "/sections?opt_fields=name", token, 1000), "gid", "name");
+    }
+
+    @Action(id = "create_section", name = "Create section", category = "Projects", capabilities = "network", description = "Add a section (board column) to a project.")
+    @Output(name = "section_id", type = OoaType.STRING, description = "Id of the new section.")
+    public Map<String, Object> createSection(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "name", type = OoaType.STRING, example = "Waiting for approval", description = "Section name.") String secName) {
+        return Out.of("section_id", data(ctx, "POST", base, "/projects/" + gid("project", project) + "/sections", token, Map.of("name", secName)).get("gid"));
+    }
+
+    // ---------------------------------------------------------------- tasks
+
+    @Action(id = "create_task", name = "Create task", category = "Tasks", capabilities = "network",
+            description = "Create a task in a project (optionally in one of its sections) or in a workspace.")
+    @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task.")
+    @Output(name = "url", type = OoaType.STRING, description = "Web address of the task.")
+    public Map<String, Object> createTask(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "name", type = OoaType.STRING, example = "Approve invoice INV-2041", description = "Task name.") String taskName,
+            @Input(name = "project_id", type = OoaType.STRING, required = false, description = "Project to add the task to. Give this or workspace_id.") String project,
+            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Section of the project to place the task in.") String section,
+            @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = "Workspace, when the task belongs to no project.") String ws,
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "Task description.") String notes,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, example = "ana@contoso.com", description = D_USER) String assignee,
+            @Input(name = "due_on", type = OoaType.STRING, required = false, example = "2026-11-15", description = "Due date as YYYY-MM-DD.") String due,
+            @Input(name = "tag_ids", type = OoaType.LIST, required = false, description = "Tag ids to add.") Object tags,
+            @Input(name = "follower_ids", type = OoaType.LIST, required = false, description = "Users to follow the task: ids, emails or me.") Object followers,
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to value, e.g. {\"1201234567890\": \"High\"}. For drop-downs use the option id.") Map<String, Object> custom) {
+        boolean hasProject = project != null && !project.isBlank();
+        if (!hasProject && (ws == null || ws.isBlank()))
+            throw new ActionException(P + ".MISSING_LOCATION", "No project or workspace given", "Fill in project_id, or workspace_id for a task outside projects.");
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("name", taskName);
+        if (hasProject && section != null && !section.isBlank())
+            b.put("memberships", List.of(Map.of("project", gid("project", project), "section", gid("section", section))));
+        else if (hasProject) b.put("projects", List.of(gid("project", project)));
+        if (ws != null && !ws.isBlank()) b.put("workspace", gid("workspace", ws));
+        if (notes != null) b.put("notes", notes);
+        if (assignee != null && !assignee.isBlank()) b.put("assignee", user(assignee));
+        if (due != null && !due.isBlank()) b.put("due_on", due);
+        if (tags != null) b.put("tags", ids("tag", tags));
+        if (followers != null) b.put("followers", ids("user", followers));
+        if (custom != null && !custom.isEmpty()) b.put("custom_fields", custom);
+        Map<String, Object> t = data(ctx, "POST", base, "/tasks?opt_fields=permalink_url", token, b);
+        return Out.of("task_id", t.get("gid"), "url", t.get("permalink_url"));
+    }
+
+    @Action(id = "get_task", name = "Get task", category = "Tasks", idempotent = true, capabilities = "network", description = "Read a task with its assignee, dates, projects, tags and custom fields.")
+    @Output(name = "task", type = OoaType.DICTIONARY, description = "gid, name, notes, completed, completed_at, assignee, assignee_email, due_on, due_at, start_on, projects, sections, tags, followers, parent, subtasks, custom_fields (name to value), created_at, modified_at, url.")
+    @Output(name = "completed", type = OoaType.BOOLEAN, description = "True when the task is done.")
+    public Map<String, Object> getTask(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task) {
+        Map<String, Object> t = task(data(ctx, "GET", base, "/tasks/" + gid("task", task) + "?opt_fields=" + TASK_FIELDS, token, null));
+        return Out.of("task", t, "completed", Boolean.TRUE.equals(t.get("completed")));
+    }
+
+    @Action(id = "update_task", name = "Update task", category = "Tasks", capabilities = "network",
+            description = "Change a task's name, notes, assignee, due date, completion or custom fields. Only the inputs you fill in are changed.")
+    public Map<String, Object> updateTask(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String taskName,
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "New description (replaces the old one).") String notes,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, description = "New assignee: user id, email or me; none to unassign.") String assignee,
+            @Input(name = "due_on", type = OoaType.STRING, required = false, description = "New due date as YYYY-MM-DD.") String due,
+            @Input(name = "completed", type = OoaType.BOOLEAN, required = false, description = "true marks the task done, false reopens it.") Boolean completed,
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to new value.") Map<String, Object> custom) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        if (taskName != null) b.put("name", taskName);
+        if (notes != null) b.put("notes", notes);
+        if (assignee != null) b.put("assignee", assignee.equalsIgnoreCase("none") ? null : user(assignee));
+        if (due != null) b.put("due_on", due.isBlank() ? null : due);
+        if (completed != null) b.put("completed", completed);
+        if (custom != null && !custom.isEmpty()) b.put("custom_fields", custom);
+        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in at least one field to change.");
+        data(ctx, "PUT", base, "/tasks/" + gid("task", task), token, b);
+        return Map.of();
+    }
+
+    @Action(id = "delete_task", name = "Delete task", category = "Tasks", capabilities = "network",
+            description = "Delete a task. It goes to the trash of the user who owns the token and can be restored from there for a limited time.")
+    public Map<String, Object> deleteTask(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task) {
+        data(ctx, "DELETE", base, "/tasks/" + gid("task", task), token, null);
+        return Map.of();
+    }
+
+    @Action(id = "list_tasks", name = "List tasks", category = "Tasks", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "List the tasks of a project, of a section, or assigned to a user in a workspace.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks returned.")
+    public Map<String, Object> listTasks(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "project_id", type = OoaType.STRING, required = false, description = "List the tasks of this project.") String project,
+            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Or list the tasks of this section.") String section,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, description = "Or list tasks assigned to this user (id, email or me); also needs workspace_id.") String assignee,
+            @Input(name = "workspace_id", type = OoaType.STRING, required = false, description = "Workspace, used together with assignee.") String ws,
+            @Input(name = "only_open", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out completed tasks.") boolean open,
+            @Input(name = "modified_since", type = OoaType.STRING, required = false, example = "2026-10-01T00:00:00Z", description = "Only tasks changed at or after this time (ISO 8601).") String modified,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
+        String path;
+        Map<String, Object> q = new LinkedHashMap<>();
+        if (section != null && !section.isBlank()) path = "/sections/" + gid("section", section) + "/tasks";
+        else if (project != null && !project.isBlank()) path = "/projects/" + gid("project", project) + "/tasks";
+        else if (assignee != null && !assignee.isBlank() && ws != null && !ws.isBlank()) {
+            path = "/tasks";
+            q.put("assignee", user(assignee));
+            q.put("workspace", gid("workspace", ws));
+        } else throw new ActionException(P + ".MISSING_FILTER", "No project, section or assignee given", "Fill in project_id, section_id, or assignee together with workspace_id.");
+        if (open) q.put("completed_since", "now");
+        if (modified != null && !modified.isBlank()) q.put("modified_since", modified);
+        q.put("opt_fields", TASK_LIST_FIELDS);
+        return result(pages(ctx, base, path + "?" + HttpJson.query(q), token, max), TASK_COLS);
+    }
+
+    @Action(id = "search_tasks", name = "Search tasks", category = "Tasks", idempotent = true, capabilities = "network",
+            description = "Search a workspace for tasks by text, assignee, project or completion (needs a paid Asana plan). Returns up to 100 tasks, most recently changed first.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks found.")
+    public Map<String, Object> searchTasks(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
+            @Input(name = "text", type = OoaType.STRING, required = false, example = "invoice", description = "Words to look for in task names and descriptions.") String text,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, description = "Only tasks assigned to this user (id or me).") String assignee,
+            @Input(name = "project_id", type = OoaType.STRING, required = false, description = "Only tasks in this project.") String project,
+            @Input(name = "completed", type = OoaType.BOOLEAN, required = false, description = "true for done tasks only, false for open tasks only; empty for both.") Boolean completed,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Most tasks to return (up to 100).") int max) {
+        Map<String, Object> q = new LinkedHashMap<>();
+        if (text != null && !text.isBlank()) q.put("text", text);
+        if (assignee != null && !assignee.isBlank()) q.put("assignee.any", user(assignee));
+        if (project != null && !project.isBlank()) q.put("projects.any", gid("project", project));
+        if (completed != null) q.put("completed", completed);
+        q.put("sort_by", "modified_at");
+        q.put("limit", Math.max(1, Math.min(100, max)));
+        q.put("opt_fields", TASK_LIST_FIELDS);
+        Map<String, Object> r = send(HttpJson.req(P, "GET", api(base) + "/workspaces/" + gid("workspace", ws) + "/tasks/search?" + HttpJson.query(q)).bearer(token), ctx).map();
+        return result(HttpJson.maps(r.get("data")), TASK_COLS);
+    }
+
+    @Action(id = "add_followers", name = "Add followers", category = "Tasks", capabilities = "network", description = "Add people as followers so they are notified about the task.")
+    public Map<String, Object> addFollowers(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "followers", type = OoaType.LIST, description = "Users to add: ids, emails or me, e.g. [\"ana@contoso.com\"].") Object followers) {
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/addFollowers", token, Map.of("followers", ids("user", followers)));
+        return Map.of();
+    }
+
+    @Action(id = "remove_followers", name = "Remove followers", category = "Tasks", capabilities = "network", description = "Stop people from following a task.")
+    public Map<String, Object> removeFollowers(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "followers", type = OoaType.LIST, description = "Users to remove: ids, emails or me.") Object followers) {
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/removeFollowers", token, Map.of("followers", ids("user", followers)));
+        return Map.of();
+    }
+
+    @Action(id = "add_task_to_section", name = "Move task to section", category = "Tasks", capabilities = "network",
+            description = "Place a task in a section of a project it belongs to, e.g. to move it to another board column.")
+    public Map<String, Object> addToSection(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "section_id", type = OoaType.STRING, description = "Target section id, from List sections.") String section,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task) {
+        data(ctx, "POST", base, "/sections/" + gid("section", section) + "/addTask", token, Map.of("task", gid("task", task)));
+        return Map.of();
+    }
+
+    @Action(id = "add_task_to_project", name = "Add task to project", category = "Tasks", capabilities = "network",
+            description = "Also show a task in another project, optionally in a given section.")
+    public Map<String, Object> addToProject(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "section_id", type = OoaType.STRING, required = false, description = "Section of that project to place the task in.") String section) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("project", gid("project", project));
+        if (section != null && !section.isBlank()) b.put("section", gid("section", section));
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/addProject", token, b);
+        return Map.of();
+    }
+
+    @Action(id = "create_subtask", name = "Create subtask", category = "Subtasks", capabilities = "network", description = "Add a subtask under a task.")
+    @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new subtask.")
+    @Output(name = "url", type = OoaType.STRING, description = "Web address of the subtask.")
+    public Map<String, Object> createSubtask(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "parent_task_id", type = OoaType.STRING, description = "Id of the parent task.") String parent,
+            @Input(name = "name", type = OoaType.STRING, description = "Subtask name.") String taskName,
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "Subtask description.") String notes,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, description = D_USER) String assignee,
+            @Input(name = "due_on", type = OoaType.STRING, required = false, description = "Due date as YYYY-MM-DD.") String due) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("name", taskName);
+        if (notes != null) b.put("notes", notes);
+        if (assignee != null && !assignee.isBlank()) b.put("assignee", user(assignee));
+        if (due != null && !due.isBlank()) b.put("due_on", due);
+        Map<String, Object> t = data(ctx, "POST", base, "/tasks/" + gid("task", parent) + "/subtasks?opt_fields=permalink_url", token, b);
+        return Out.of("task_id", t.get("gid"), "url", t.get("permalink_url"));
+    }
+
+    @Action(id = "list_subtasks", name = "List subtasks", category = "Subtasks", idempotent = true, capabilities = "network", description = "List the subtasks of a task.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of subtasks.")
+    public Map<String, Object> listSubtasks(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = "Id of the parent task.") String task) {
+        return result(pages(ctx, base, "/tasks/" + gid("task", task) + "/subtasks?opt_fields=" + TASK_LIST_FIELDS, token, 1000), TASK_COLS);
+    }
+
+    // ---------------------------------------------------------------- comments and attachments
+
+    @Action(id = "add_comment", name = "Add comment", category = "Comments", capabilities = "network", description = "Post a comment on a task.")
+    @Output(name = "comment_id", type = OoaType.STRING, description = "Id of the new comment.")
+    public Map<String, Object> addComment(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "text", type = OoaType.STRING, example = "Invoice approved by the finance agent.", description = "Comment text.") String text) {
+        return Out.of("comment_id", data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/stories", token, Map.of("text", text)).get("gid"));
+    }
+
+    @Action(id = "list_comments", name = "List comments", category = "Comments", idempotent = true, capabilities = "network",
+            description = "Read the comments on a task, oldest first. System messages such as assignment changes are left out.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, text, author, created_at.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of comments.")
+    public Map<String, Object> listComments(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task) {
+        List<Map<String, Object>> all = pages(ctx, base, "/tasks/" + gid("task", task) + "/stories?opt_fields=type,resource_subtype,text,created_by.name,created_at", token, 5000);
+        List<Map<String, Object>> comments = new ArrayList<>();
+        for (Map<String, Object> s : all) if ("comment".equals(s.get("type")) || "comment_added".equals(s.get("resource_subtype"))) comments.add(s);
+        return result(comments, "gid", "text", "author=created_by.name", "created_at");
+    }
+
+    @Action(id = "upload_attachment", name = "Upload attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Attach a local file to a task.")
+    @Output(name = "attachment_id", type = OoaType.STRING, description = "Id of the attachment.")
+    @Output(name = "url", type = OoaType.STRING, description = "Address to view the attachment.")
+    public Map<String, Object> upload(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "path", type = OoaType.FILE, example = "out/INV-2041.pdf", description = "Local file to attach (Asana accepts up to 100 MB).") String path) {
+        byte[] bytes = HttpJson.readFile(ctx, path);
+        String fname = HttpJson.safeName(Path.of(path).getFileName().toString()).replace("\"", "");
+        Object[] mp = HttpJson.multipart("form-data", List.of(
+                new Object[]{"Content-Disposition: form-data; name=\"parent\"", gid("task", task).getBytes(StandardCharsets.UTF_8)},
+                new Object[]{"Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\nContent-Type: application/octet-stream", bytes}));
+        Map<String, Object> r = send(HttpJson.req(P, "POST", api(base) + "/attachments?opt_fields=name,view_url,permanent_url").bearer(token)
+                .bytes((byte[]) mp[0], (String) mp[1]).timeout(600), ctx).map();
+        Object d = r.get("data");
+        return Out.of("attachment_id", HttpJson.path(d, "gid"), "url", HttpJson.path(d, "view_url") != null ? HttpJson.path(d, "view_url") : HttpJson.path(d, "permanent_url"));
+    }
+
+    // ---------------------------------------------------------------- tags
+
+    @Action(id = "list_tags", name = "List tags", category = "Tags", idempotent = true, capabilities = "network", description = "List the tags of a workspace.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, color.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of tags.")
+    public Map<String, Object> listTags(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws) {
+        return result(pages(ctx, base, "/workspaces/" + gid("workspace", ws) + "/tags?opt_fields=name,color", token, 5000), "gid", "name", "color");
+    }
+
+    @Action(id = "create_tag", name = "Create tag", category = "Tags", capabilities = "network", description = "Create a tag in a workspace.")
+    @Output(name = "tag_id", type = OoaType.STRING, description = "Id of the new tag.")
+    public Map<String, Object> createTag(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
+            @Input(name = "name", type = OoaType.STRING, example = "needs-review", description = "Tag name.") String tagName) {
+        return Out.of("tag_id", data(ctx, "POST", base, "/tags", token, Map.of("name", tagName, "workspace", gid("workspace", ws))).get("gid"));
+    }
+
+    @Action(id = "add_tag_to_task", name = "Add tag to task", category = "Tags", capabilities = "network", description = "Put a tag on a task.")
+    public Map<String, Object> addTag(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "tag_id", type = OoaType.STRING, description = "Tag id, from List tags.") String tag) {
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/addTag", token, Map.of("tag", gid("tag", tag)));
+        return Map.of();
+    }
+
+    @Action(id = "remove_tag_from_task", name = "Remove tag from task", category = "Tags", capabilities = "network", description = "Take a tag off a task.")
+    public Map<String, Object> removeTag(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "tag_id", type = OoaType.STRING, description = "Tag id.") String tag) {
+        data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/removeTag", token, Map.of("tag", gid("tag", tag)));
+        return Map.of();
+    }
+
+    // ---------------------------------------------------------------- users
+
+    @Action(id = "list_users", name = "List users", category = "Users", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the people in a workspace.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, email.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of users returned.")
+    public Map<String, Object> listUsers(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = D_WS) String ws,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "2000", description = D_MAX) int max) {
+        return result(pages(ctx, base, "/users?workspace=" + gid("workspace", ws) + "&opt_fields=name,email", token, max), "gid", "name", "email");
+    }
+
+    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network",
+            description = "Read a person's name, email and workspaces; use me to check which account the token belongs to.")
+    @Output(name = "user", type = OoaType.DICTIONARY, description = "gid, name, email, workspaces (names).")
+    @Output(name = "user_id", type = OoaType.STRING, description = "Numeric user id.")
+    public Map<String, Object> getUser(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_USER) String u) {
+        Map<String, Object> d = data(ctx, "GET", base, "/users/" + HttpJson.enc(user(u)) + "?opt_fields=name,email,workspaces.name", token, null);
+        return Out.of("user", Out.of("gid", d.get("gid"), "name", d.get("name"), "email", d.get("email"), "workspaces", names(d.get("workspaces"), "name")),
+                "user_id", d.get("gid"));
+    }
+}

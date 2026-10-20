@@ -369,7 +369,11 @@ public final class Platform {
         if (status != null && !status.isBlank()) { where += " AND status = ?"; p.add(status); }
         if (q != null && !q.isBlank()) { where += " AND (LOWER(COALESCE(reference, '')) LIKE ? OR LOWER(data) LIKE ?)"; String like = "%" + q.toLowerCase(Locale.ROOT) + "%"; p.add(like); p.add(like); }
         long total = cr.count("SELECT COUNT(*) AS n FROM queue_items" + where, p.toArray());
-        List<Map<String, Object>> rows = db.query("SELECT * FROM queue_items" + where + " ORDER BY created DESC LIMIT " + Math.max(1, Math.min(500, limit)) + " OFFSET " + Math.max(0, offset), p.toArray());
+        List<Object> page = new ArrayList<>(p);
+        page.add(Math.max(1, Math.min(500, limit)));
+        page.add(Math.max(0, offset));
+        List<Map<String, Object>> rows = db.query("SELECT * FROM queue_items" +
+                where + " ORDER BY created DESC LIMIT ? OFFSET ?", page.toArray());
         return Map.of("items", rows, "total", total);
     }
 
@@ -450,7 +454,7 @@ public final class Platform {
 
     // ===================== model connections =====================
 
-    static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible");
+    static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker");
 
     public List<Map<String, Object>> modelConnections(User by) {
         return db.query("SELECT name, provider, model, base_url, key_ref, description, updated, updated_by FROM model_connections ORDER BY name");

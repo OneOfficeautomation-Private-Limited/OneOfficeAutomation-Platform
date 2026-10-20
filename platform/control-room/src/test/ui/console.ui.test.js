@@ -35,6 +35,7 @@ async function page() {
   let P = await page();
   let { d, until, click, submit, btn, nav } = P;
   check("sign-in screen appears first", await until(() => !d.getElementById("login-view").hidden));
+  check("no single sign-on button until it is set up", await until(() => d.getElementById("sso-box") && d.getElementById("sso-box").children.length === 0));
   d.getElementById("login-user").value = "admin"; d.getElementById("login-pass").value = "wrong-password";
   submit(d.getElementById("login-form"));
   check("a wrong password is refused with a message", await until(() => !d.getElementById("login-error").hidden && d.getElementById("login-error").textContent.includes("Wrong")));
@@ -48,7 +49,7 @@ async function page() {
   submit(d.getElementById("password-form"));
   check("after the change the console opens", await until(() => !d.getElementById("app").hidden && d.getElementById("main").textContent.includes("Welcome")));
   const navItems = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
-  check("an administrator sees all twelve sections", navItems.length === 12 && navItems.includes("Users") && navItems.includes("Work queues") && navItems.includes("Administration"), navItems.join(","));
+  check("an administrator sees all fifteen sections", navItems.length === 15 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance") && navItems.includes("Administration"), navItems.join(","));
   check("home shows hours saved", d.getElementById("main").textContent.includes("Hours saved (30 days)"));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
@@ -172,6 +173,22 @@ async function page() {
   click(btn("Toolkits"));
   check("toolkits are listed with usage and status", await until(() => d.getElementById("main").textContent.includes("ooa.string") && btn("Switch off")));
 
+  check("settings include single sign-on and AI assistant (MCP) access", btn("Settings") && (click(btn("Settings")), await until(() => d.getElementById("main").textContent.includes("Single sign-on (OpenID Connect)") && d.getElementById("main").textContent.includes("/api/mcp"))));
+
+  nav("Task inbox");
+  check("the task inbox opens with an empty state", await until(() => d.getElementById("main").textContent.includes("Nothing waiting for you")));
+  nav("One Workflow");
+  check("One Workflow explains how to publish workflows", await until(() => d.getElementById("main").textContent.includes("No workflows are checked in yet") && d.getElementById("main").textContent.includes("No workflow runs yet")));
+  nav("AI governance");
+  check("AI governance shows totals by model and agent", await until(() => d.getElementById("main").textContent.includes("AI calls") && d.getElementById("main").textContent.includes("By model") && btn("Export CSV")));
+  nav("One Agent Vault");
+  await until(() => btn("Link an external vault"));
+  click(btn("Link an external vault"));
+  check("a vault folder can be linked to an external vault", await until(() => !d.getElementById("modal").hidden && d.getElementById("modal-body").textContent.includes("HashiCorp Vault") && d.getElementById("modal-body").textContent.includes("Token")));
+  d.querySelector("#modal-body select").value = "aws_secrets_manager"; d.querySelector("#modal-body select").dispatchEvent(new P.w.Event("change"));
+  check("each provider asks for its own settings", await until(() => d.getElementById("modal-body").textContent.includes("Secret access key") && d.getElementById("modal-body").textContent.includes("Region")));
+  click(btn("Close"));
+
   click(d.getElementById("btn-apikeys"));
   await until(() => !d.getElementById("modal").hidden && btn("Create key"));
   d.querySelector("#modal-body input").value = "ERP sync";
@@ -183,6 +200,24 @@ async function page() {
   click(btn("Back to keys"));
   check("the key is listed by name only", await until(() => d.getElementById("modal-body").textContent.includes("ERP sync") && !d.getElementById("modal-body").textContent.includes(apiKey)));
   click(btn("Close"));
+
+  nav("Triggers");
+  check("the Triggers page has a monitoring column", await until(() => btn("New trigger") && d.getElementById("main").textContent.includes("Start agents on events")) &&
+    (d.querySelectorAll("#main th").length === 0 || [...d.querySelectorAll("#main th")].some((th) => th.textContent.includes("Monitoring"))));
+  click(btn("New trigger"));
+  await until(() => !d.getElementById("modal").hidden);
+  const kindSel = d.querySelector('#modal-body select[aria-label="Event"]');
+  const kinds = kindSel ? [...kindSel.options].map((o) => o.value) : [];
+  check("the New trigger dialog offers every trigger kind", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed",
+    "process_started", "process_stopped", "service_started", "service_stopped", "hotkey", "email", "outlook", "servicenow", "http_poll", "webhook"].every((k) => kinds.includes(k)), kinds.join(","));
+  const shown = () => [...d.querySelectorAll("#modal-body .trigger-fields")].filter((b) => !b.hidden).map((b) => [...b.querySelectorAll("[data-key]")].map((i) => i.dataset.key).join(","));
+  kindSel.value = "email"; kindSel.dispatchEvent(new P.w.Event("change"));
+  check("an email trigger asks for server, user and a vault reference, not a password", shown().length === 1 && shown()[0].includes("host") && shown()[0].includes("password_ref") && !shown()[0].split(",").includes("password"), shown().join("|"));
+  kindSel.value = "http_poll"; kindSel.dispatchEvent(new P.w.Event("change"));
+  check("the universal poller asks for URL, items path and id field", shown().length === 1 && ["url", "items_path", "id_field", "interval_seconds"].every((k) => shown()[0].includes(k)), shown().join("|"));
+  kindSel.value = "hotkey"; kindSel.dispatchEvent(new P.w.Event("change"));
+  check("help text follows the chosen kind", d.getElementById("modal-body").textContent.includes("Windows runners with a signed-in desktop"));
+  P.w.closeModal ? P.w.closeModal() : click(btn("Cancel") || btn("Close"));
 
   nav("One Audit Trail");
   await until(() => btn("Verify integrity"));
@@ -204,6 +239,7 @@ async function page() {
   const carolNav = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
   check("a bot creator does not see Users or Audit log", !carolNav.includes("Users") && !carolNav.includes("One Audit Trail") && carolNav.includes("Agent repository"), carolNav.join(","));
   check("an agent builder sees work queues but not Administration", carolNav.includes("Work queues") && !carolNav.includes("Administration"), carolNav.join(","));
+  check("everyone has a task inbox; AI governance is for auditors", carolNav.includes("Task inbox") && carolNav.includes("One Workflow") && !carolNav.includes("AI governance"), carolNav.join(","));
   check("other users see the announcement", await until(() => !d.getElementById("announcement").hidden && d.getElementById("announcement").textContent.includes("Maintenance")));
   nav("One Agent Vault");
   check("a consumer sees the locker but cannot manage it", await until(() => d.getElementById("main").textContent.includes("finance")) && !btn("Add or update credential"));

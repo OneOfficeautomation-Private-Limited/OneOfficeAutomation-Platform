@@ -10,16 +10,25 @@ import java.util.*;
 @OoaPackage(id = "ooa.genai", name = "Generative AI", version = "1.0.0",
         description = "Prompt large language models (OpenAI, Azure OpenAI, Anthropic, self-hosted) to summarise, classify, extract, translate and analyse text.")
 public final class GenAiPackage {
-    static final String D_PROVIDER = "openai, azure_openai, anthropic, or openai_compatible (LiteLLM, vLLM, Ollama).";
-    static final String D_MODEL = "Model name, or the deployment name for Azure OpenAI.";
-    static final String D_KEY = "API key from the vault (not needed for some self-hosted endpoints).";
-    static final String D_BASE = "Endpoint; required for Azure OpenAI and self-hosted models.";
+    static final String D_PROVIDER = "openai, azure_openai, anthropic, openai_compatible (LiteLLM, vLLM, Ollama), huggingface (Hugging Face router or your own TGI server) "
+            + "or aws_bedrock_sagemaker (a model on an Amazon SageMaker endpoint).";
+    static final String D_MODEL = "Model name; the deployment name for Azure OpenAI; the endpoint name for aws_bedrock_sagemaker.";
+    static final String D_KEY = "API key or access token from the vault (not needed for some self-hosted endpoints). For aws_bedrock_sagemaker: the AWS secret access key.";
+    static final String D_BASE = "Endpoint; required for Azure OpenAI and self-hosted models (for a TGI server, e.g. http://tgi-host:8080/v1).";
     static final String D_MASK = "Replace emails, phone and card numbers, IBANs and similar before sending; restored in the answer.";
 
+    static final String D_AWS_KEY_ID = "aws_bedrock_sagemaker only: AWS access key id from the vault (api_key then holds the secret access key).";
+    static final String D_AWS_REGION = "aws_bedrock_sagemaker only: AWS region of the endpoint, e.g. eu-west-1.";
+    static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker");
+
     static LlmClient.Config cfg(String provider, String model, Object key, String base, double temp, int max, boolean mask) {
-        if (!Set.of("openai", "azure_openai", "anthropic", "openai_compatible").contains(provider))
+        return cfg(provider, model, key, base, temp, max, mask, null, null);
+    }
+
+    static LlmClient.Config cfg(String provider, String model, Object key, String base, double temp, int max, boolean mask, Object accessKeyId, String region) {
+        if (!PROVIDERS.contains(provider))
             throw new ActionException("AI.BAD_PROVIDER", "Unknown provider '" + provider + "'", D_PROVIDER);
-        return new LlmClient.Config(provider, model, key, base, temp, max, mask);
+        return new LlmClient.Config(provider, model, key, base, temp, max, mask, accessKeyId, region);
     }
 
     private static String ask(ActionContext ctx, LlmClient.Config c, String system, String user, boolean json, String purpose) {
@@ -36,15 +45,17 @@ public final class GenAiPackage {
     public Map<String, Object> prompt(ActionContext ctx,
             @Input(name = "prompt", type = OoaType.STRING, description = "Your request; ${...} interpolation allowed.") String prompt,
             @Input(name = "system", type = OoaType.STRING, required = false, defaultValue = "\"You are a precise business assistant.\"", description = "Instructions for the model's role and tone.") String system,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
             @Input(name = "temperature", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "0 = consistent, higher = more creative.") double temp,
             @Input(name = "max_tokens", type = OoaType.NUMBER, required = false, defaultValue = "1024", description = "Maximum answer length in tokens.") int max,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask) {
-        return Map.of("text", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask), system, prompt, false, "prompt"));
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+        return Map.of("text", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion), system, prompt, false, "prompt"));
     }
 
     @Action(id = "summarize", name = "Summarise", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Summarise text in a few sentences, keeping figures exact.")
@@ -52,13 +63,15 @@ public final class GenAiPackage {
     public Map<String, Object> summarize(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to summarise.") String text,
             @Input(name = "sentences", type = OoaType.NUMBER, required = false, defaultValue = "3", description = "Target length in sentences.") int n,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask) {
-        return Map.of("summary", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1024, mask), "Summarise the user's text in at most " + n + " sentences. Keep names, dates and figures exact.", text, false, "summarize"));
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+        return Map.of("summary", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1024, mask, awsKeyId, awsRegion), "Summarise the user's text in at most " + n + " sentences. Keep names, dates and figures exact.", text, false, "summarize"));
     }
 
     @Action(id = "classify", name = "Classify", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Put text into exactly one of your categories, with a short reason.")
@@ -67,15 +80,17 @@ public final class GenAiPackage {
     public Map<String, Object> classify(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to classify, e.g. an email body.") String text,
             @Input(name = "labels", type = OoaType.LIST, description = "Allowed categories, e.g. [\"invoice\",\"complaint\",\"other\"].") List<Object> labels,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask) {
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
         List<String> ls = labels.stream().map(Values::text).toList();
         if (ls.isEmpty()) throw new ActionException("AI.NO_LABELS", "Give at least one label");
-        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 300, mask),
+        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 300, mask, awsKeyId, awsRegion),
                 "Classify the text into exactly one of these labels: " + JsonLite.write(ls) + ". Reply with JSON {\"label\": \"...\", \"reason\": \"...\"}.", text, true, "classify"));
         Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
         String label = String.valueOf(m.get("label"));
@@ -90,13 +105,15 @@ public final class GenAiPackage {
     public Map<String, Object> extract(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to description, e.g. {\"invoice_number\": \"the invoice id\", \"total\": \"amount due as a number\"}.") Map<String, Object> fields,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_MASK + " Off by default because extraction often needs those details.") boolean mask) {
-        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1500, mask),
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_MASK + " Off by default because extraction often needs those details.") boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1500, mask, awsKeyId, awsRegion),
                 "Extract these fields from the user's text: " + JsonLite.write(fields) + ". Reply with one JSON object with exactly these keys; use null when a value is not stated. Do not guess.", text, true, "extract"));
         Map<String, Object> out = new LinkedHashMap<>();
         Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
@@ -109,13 +126,15 @@ public final class GenAiPackage {
     public Map<String, Object> translate(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to translate.") String text,
             @Input(name = "target_language", type = OoaType.STRING, example = "German", description = "Language to translate into.") String lang,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask) {
-        return Map.of("text", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2000, mask), "Translate the user's text into " + lang + ". Return only the translation.", text, false, "translate"));
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+        return Map.of("text", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2000, mask, awsKeyId, awsRegion), "Translate the user's text into " + lang + ". Return only the translation.", text, false, "translate"));
     }
 
     @Action(id = "sentiment", name = "Sentiment", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Rate text as positive, neutral or negative, with a score from -1 to 1.")
@@ -123,13 +142,15 @@ public final class GenAiPackage {
     @Output(name = "score", type = OoaType.NUMBER, description = "From -1 (very negative) to 1 (very positive).")
     public Map<String, Object> sentiment(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text, e.g. a customer message.") String text,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask) {
-        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 200, mask),
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
+        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 200, mask, awsKeyId, awsRegion),
                 "Rate the sentiment of the user's text. Reply with JSON {\"sentiment\": \"positive|neutral|negative\", \"score\": number between -1 and 1}.", text, true, "sentiment"));
         Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
         String s = String.valueOf(m.get("sentiment")).toLowerCase(Locale.ROOT);

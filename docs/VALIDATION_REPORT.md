@@ -146,3 +146,44 @@ repository with check-in/check-out) gets its own report.
 - Document automation generates an extraction bot for PDF and text files; scanned images need an OCR step first.
 - The PGP test needs the Windows `gpg`; run the Java tests from PowerShell or cmd, not Git Bash.
 - Activity refreshes by polling every 2 to 2.5 seconds; a push channel can replace it when Control Room moves to the production stack.
+
+# Validation report: Part 4 (enterprise look, One-branded agentic naming, feature parity and beyond)
+
+## What was added
+
+| Item | Result |
+| --- | --- |
+| Enterprise look | Light and dark themes in One Agent Studio and One Command Center, remembered per browser. |
+| One-branded agentic naming | Agents, Headless API agents, One Agent Studio, One Command Center, One Runner, Agent repository (Public / My Workspace), Agent check-in/check-out, Live production version, Agent Runs (Live/History), One Agent Vault, Shared values, One Workflow, One Document Intelligence, One Prompt Skill, One Audit Trail; roles Administrator, Agent builder, Agent operator, Viewer. |
+| Studio editor | Debugger (breakpoints also in child agents, step into/over/out, call stack, variable edits), Quick add, flow view, AI assistant that builds and explains agents, One Model Connections, custom connectors from OpenAPI/Swagger/Postman, Publish to Command Center for workflows and forms. |
+| Toolkits | From 328 to 875 actions in 72 toolkits. New: PowerPoint, GitHub, Azure DevOps, Asana, Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka, custom connectors, fuzzy match, currency, trigger loop, Windows Credential Manager, interrupts; large additions to Excel, Word, Microsoft 365, Google Workspace, email, data, system, database, REST, FTP, PDF, browser, window, SAP GUI, Active Directory, terminal, Jira, Slack, Salesforce, Workday and ServiceNow; Hugging Face and SageMaker AI providers. |
+| One Command Center | Work queues (SLA, priority, retries, CSV/JSON import), runner pools, run priority and result callbacks, holiday calendars and schedule ownership, custom roles, API keys, settings and announcement, toolkit manager with "used by", hours saved, external vaults (HashiCorp, Azure Key Vault, AWS Secrets Manager, CyberArk), AI governance, MCP server for AI assistants, single sign-on (OpenID Connect), One Workflow runtime with a Task inbox. |
+| Triggers and resilience | Runner triggers (file/folder changes, window, process, service, hotkey) and server triggers (IMAP, Outlook, ServiceNow, universal poller) with pause/resume and monitoring; interrupt rules and self-healing locators for UI agents. |
+
+## Automated results
+
+| Suite | Result |
+| --- | --- |
+| All Java tests (PowerShell, `JAVA_TOOL_OPTIONS=-Djava.awt.headless=true`) | 314 tests, 0 failed, 1 skipped (a Linux/macOS-only Credential Manager case) |
+| New end-to-end tests | `EnterpriseFeaturesTest` (external vault read at run time, AI governance, MCP initialize/list/call, OpenID Connect sign-in with PKCE and forged-token refusal, workflow with form, decision, approval, agent and notification), `PlatformTest` (API keys, custom roles, settings, pools, callbacks, queues with retries, calendars, toolkits), `DebuggerTest`, trigger API/poller/runner tests, UI resilience tests, a gap test class per toolkit |
+| Studio browser tests | 131 passed, 0 failed |
+| Command Center console in a browser engine | 58 passed, 0 failed (queues, pools, calendars, administration, roles, model connections, toolkits, API keys, task inbox, One Workflow, AI governance, external vault dialog, trigger kinds, announcement for other users) |
+
+## Issues found and fixed during Part 4 validation
+
+1. The naming conversion had turned `Rbac.allowed` into a call to itself; saving a custom role crashed the request. Fixed, and the server now answers every failure (including errors) with a 500 instead of dropping the connection.
+2. A schedule on a runner pool could not be saved (runner column was required). Schema V2 relaxes it; Run now uses the pool.
+3. Queue item paging concatenated numbers into SQL, which the architecture rule rejects: now placeholders.
+4. Workday SOAP replies were parsed without the hardened XML parser: now through `XmlSupport`.
+5. The AI agent's approval dialog could wait forever on an unattended desktop: it now closes after `ooa.approval.timeoutSeconds` (default 300) and counts as "no".
+6. The toolkit list hid most toolkits behind paging after the toolkit count grew: 100 per page.
+7. Merge conflicts between parallel toolkit branches (shared HTTP helper, fake test server, test helpers, toolkit registry, window toolkit) were resolved by combining both sides.
+
+## Known limitations (tracked)
+
+- Cloud toolkits (Microsoft 365, Google, GitHub, Azure DevOps, Asana, Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka, ServiceNow, Workday) and the IMAP/Outlook/ServiceNow triggers are tested against local simulators, not live tenants. SAP GUI and x3270 actions are checked by the scripts they generate.
+- SSO and external vaults are tested against simulated providers; check them once against your identity provider and vault.
+- Workflows run agent tasks on any online runner (or a pool per stage); e-mail recipients in notification stages need an agent task with the Email toolkit.
+- Desktop interrupt clicks use screen coordinates (no UI Automation element model yet); window and hotkey triggers need a signed-in desktop session.
+- SAP BAPI needs the customer's SAP JCo library and is not included.
+- The PGP tests need a native Windows gpg (Gpg4win); run the Java tests from PowerShell or cmd.

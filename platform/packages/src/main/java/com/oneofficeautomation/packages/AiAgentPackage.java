@@ -54,14 +54,30 @@ public final class AiAgentPackage {
         return null;
     }
 
+    /**
+     * Asks the person at the desktop to allow a sensitive agent. Nobody answering counts as "no": the question closes
+     * after ooa.approval.timeoutSeconds (default 300), so an unattended runner never waits forever. Headless: denied.
+     */
     static boolean approve(ActionContext ctx, Tool t, Map<String, Object> args) {
         if (GraphicsEnvironment.isHeadless()) return false;
+        int timeout = Integer.getInteger("ooa.approval.timeoutSeconds", 300);
+        if (timeout <= 0) return false;
         final boolean[] ok = {false};
         try {
-            javax.swing.SwingUtilities.invokeAndWait(() -> ok[0] = JOptionPane.showConfirmDialog(null,
-                    "The AI agent wants to run the sensitive agent '" + t.botId() + "' with:\n" + JsonLite.write(args) + "\n\nAllow it?",
-                    "ONEOFFICEAUTOMATION: approval needed", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION);
+            javax.swing.SwingUtilities.invokeAndWait(() -> {
+                JOptionPane pane = new JOptionPane("The AI agent wants to run the sensitive agent '" + t.botId() + "' with:\n" + JsonLite.write(args)
+                        + "\n\nAllow it? (No answer within " + timeout + " seconds means no.)", JOptionPane.WARNING_MESSAGE, JOptionPane.YES_NO_OPTION);
+                javax.swing.JDialog dialog = pane.createDialog("ONEOFFICEAUTOMATION: approval needed");
+                dialog.setAlwaysOnTop(true);
+                javax.swing.Timer timer = new javax.swing.Timer(timeout * 1000, e -> dialog.dispose());
+                timer.setRepeats(false);
+                timer.start();
+                dialog.setVisible(true);
+                timer.stop();
+                ok[0] = Integer.valueOf(JOptionPane.YES_OPTION).equals(pane.getValue());
+            });
         } catch (Exception e) { return false; }
+        if (!ok[0]) ctx.warn("No approval for " + t.botId() + " (refused or no answer in time)");
         return ok[0];
     }
 
@@ -77,14 +93,16 @@ public final class AiAgentPackage {
             @Input(name = "instructions", type = OoaType.STRING, required = false, defaultValue = "\"You are a careful business assistant. Use the tools to act; never invent results.\"", description = "Role, policy and rules for the agent.") String instructions,
             @Input(name = "tools", type = OoaType.LIST, description = "Bot ids the agent may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
             @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible"}, description = GenAiPackage.D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = GenAiPackage.D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = GenAiPackage.D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
             @Input(name = "max_steps", type = OoaType.NUMBER, required = false, defaultValue = "8", description = "Maximum model turns.") int maxSteps,
             @Input(name = "max_tokens_total", type = OoaType.NUMBER, required = false, defaultValue = "60000", description = "Stop when this many tokens have been used.") int maxTotal,
-            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = GenAiPackage.D_MASK) boolean mask) {
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = GenAiPackage.D_MASK) boolean mask,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = GenAiPackage.D_AWS_REGION) String awsRegion) {
         AutomationRepository repo = ctx.service("repository", AutomationRepository.class);
         BotInvoker invoker = ctx.service("bot_invoker", BotInvoker.class);
         Set<String> sensitive = new HashSet<>();
@@ -95,7 +113,7 @@ public final class AiAgentPackage {
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));
-        LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2048, mask);
+        LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2048, mask, awsKeyId, awsRegion);
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", instructions + "\nRules: act only through the tools; use only facts from the goal and tool results; "
                 + "if a tool is denied, do not retry it; when finished, reply with the final answer and no tool calls."));

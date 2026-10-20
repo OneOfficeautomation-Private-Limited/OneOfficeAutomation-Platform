@@ -1,9 +1,13 @@
 package com.oneofficeautomation.packages.windows;
 
+import com.oneofficeautomation.packages.UiGuard;
+import com.oneofficeautomation.packages.ui.SelfHealing;
+import com.oneofficeautomation.packages.ui.TitlePattern;
 import com.oneofficeautomation.sdk.*;
 import com.sun.jna.Native;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
+import com.sun.jna.ptr.IntByReference;
 
 import javax.imageio.ImageIO;
 import java.awt.Rectangle;
@@ -11,7 +15,11 @@ import java.awt.Robot;
 import java.nio.file.*;
 import java.util.*;
 
-/** Find, activate, resize, minimise, maximise, close and capture desktop windows (Windows). */
+/**
+ * Find, activate, resize, minimise, maximise, close and capture desktop windows (Windows). Window actions check the
+ * run's interrupt rules first, and can heal a lookup that fails by title with alternatives recorded for the window
+ * (title pattern, window class, process name, class plus index).
+ */
 @OoaPackage(id = "ooa.window", name = "Window", version = "1.0.0", description = "Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows.")
 public final class WindowPackage {
     private static final int SW_MAXIMIZE = 3, SW_MINIMIZE = 6, SW_RESTORE = 9, WM_CLOSE = 0x0010;
@@ -21,7 +29,14 @@ public final class WindowPackage {
             throw new ActionException("SYSTEM.WINDOWS_ONLY", "Window actions work on Windows only", "Run this agent on a Windows runner.");
     }
 
-    record Win(WinDef.HWND hwnd, String title) {}
+    record Win(WinDef.HWND hwnd, String title) {
+        String className() { char[] b = new char[256]; User32.INSTANCE.GetClassName(hwnd, b, b.length); return Native.toString(b); }
+        String processName() {
+            IntByReference pid = new IntByReference();
+            User32.INSTANCE.GetWindowThreadProcessId(hwnd, pid);
+            return ProcessHandle.of(pid.getValue()).flatMap(p -> p.info().command()).map(c -> Path.of(c).getFileName().toString()).orElse("");
+        }
+    }
 
     static List<Win> all() {
         windows();
@@ -44,7 +59,51 @@ public final class WindowPackage {
         throw new ActionException("WINDOW.NOT_FOUND", "No visible window title contains '" + titleContains + "'", "Use List windows to see the exact titles.", true);
     }
 
+    // ---------- self-healing window lookup ----------
+    static final List<String> WINDOW_ORDER = List.of("title_pattern", "class_name", "process_name", "class_index");
+
+    static String windowQuery(String strategy, Map<String, Object> a) {
+        return switch (strategy) {
+            case "title_pattern", "class_name", "process_name" -> a.get(strategy) == null ? null : String.valueOf(a.get(strategy));
+            case "class_index" -> a.get("class_name") != null && a.get("index") instanceof Number n ? a.get("class_name") + "#" + n.intValue() : null;
+            default -> null;
+        };
+    }
+
+    static Optional<Win> resolve(SelfHealing.Candidate c, List<Win> all) {
+        String q = c.query();
+        return switch (c.strategy()) {
+            case "title" -> all.stream().filter(w -> w.title().toLowerCase(Locale.ROOT).contains(q.toLowerCase(Locale.ROOT))).findFirst();
+            case "title_pattern" -> all.stream().filter(w -> TitlePattern.matches(q, w.title())).findFirst();
+            case "class_name" -> all.stream().filter(w -> w.className().equalsIgnoreCase(q)).findFirst();
+            case "process_name" -> all.stream().filter(w -> { String p = w.processName(); return p.equalsIgnoreCase(q) || p.equalsIgnoreCase(q + ".exe"); }).findFirst();
+            case "class_index" -> {
+                int hash = q.lastIndexOf('#');
+                String cls = q.substring(0, hash);
+                int index = Integer.parseInt(q.substring(hash + 1));
+                List<Win> same = all.stream().filter(w -> w.className().equalsIgnoreCase(cls)).toList();
+                yield index >= 0 && index < same.size() ? Optional.of(same.get(index)) : Optional.empty();
+            }
+            default -> Optional.empty();
+        };
+    }
+
+    /** Checks interrupt rules, then finds the window by title, falling back to the alternatives; waits up to the timeout. */
+    static Win locate(ActionContext ctx, String title, Map<String, Object> alternatives, double timeoutSeconds) {
+        windows();
+        UiGuard.before(ctx);
+        List<SelfHealing.Candidate> chain = SelfHealing.chain(new SelfHealing.Candidate("title", title), alternatives, WINDOW_ORDER, WindowPackage::windowQuery);
+        try {
+            return SelfHealing.locate(chain, c -> resolve(c, all()), (long) (timeoutSeconds * 1000), SelfHealing.SYSTEM, 300, () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled).element();
+        } catch (ActionException e) {
+            if (!"UI.ELEMENT_NOT_FOUND".equals(e.code())) throw e;
+            throw new ActionException("WINDOW.NOT_FOUND", timeoutSeconds > 0 ? "Window '" + title + "' did not appear within " + timeoutSeconds + " s" : "No visible window title contains '" + title + "'",
+                    "Use List windows to see the exact titles, or record alternatives for the window.", true);
+        }
+    }
+
     private static final String D_TITLE = "Text contained in the window title (case-insensitive).";
+    private static final String D_ALT = "Fallbacks when no title matches: title_pattern (wildcards or re:), class_name, process_name, and index (with class_name). The one that works is logged.";
 
     @Action(id = "list", name = "List windows", category = "Window", idempotent = true, capabilities = "desktop", description = "List the titles of all visible windows.")
     @Output(name = "titles", type = OoaType.LIST, description = "Window titles.")
@@ -56,23 +115,24 @@ public final class WindowPackage {
 
     @Action(id = "activate", name = "Activate window", category = "Window", capabilities = "desktop", description = "Bring a window to the front (restoring it if minimised).")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the activated window.")
-    public Map<String, Object> activate(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) {
-        Win w = find(title);
+    public Map<String, Object> activate(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+        Win w = locate(ctx, title, alternatives, 0);
         User32.INSTANCE.ShowWindow(w.hwnd(), SW_RESTORE);
         User32.INSTANCE.SetForegroundWindow(w.hwnd());
         return Map.of("title", w.title());
     }
 
-    private Map<String, Object> show(String title, int cmd) { Win w = find(title); User32.INSTANCE.ShowWindow(w.hwnd(), cmd); return Map.of(); }
+    private Map<String, Object> show(ActionContext ctx, String title, int cmd) { Win w = locate(ctx, title, null, 0); User32.INSTANCE.ShowWindow(w.hwnd(), cmd); return Map.of(); }
 
     @Action(id = "maximize", name = "Maximise window", category = "Window", capabilities = "desktop", description = "Maximise a window.")
-    public Map<String, Object> maximize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) { return show(title, SW_MAXIMIZE); }
+    public Map<String, Object> maximize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) { return show(ctx, title, SW_MAXIMIZE); }
 
     @Action(id = "minimize", name = "Minimise window", category = "Window", capabilities = "desktop", description = "Minimise a window.")
-    public Map<String, Object> minimize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) { return show(title, SW_MINIMIZE); }
+    public Map<String, Object> minimize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) { return show(ctx, title, SW_MINIMIZE); }
 
     @Action(id = "restore", name = "Restore window", category = "Window", capabilities = "desktop", description = "Restore a minimised or maximised window to its normal size.")
-    public Map<String, Object> restore(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) { return show(title, SW_RESTORE); }
+    public Map<String, Object> restore(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) { return show(ctx, title, SW_RESTORE); }
 
     @Action(id = "move_resize", name = "Move and resize window", category = "Window", capabilities = "desktop", description = "Set a window's position and size in pixels.")
     public Map<String, Object> moveResize(ActionContext ctx,
@@ -81,17 +141,75 @@ public final class WindowPackage {
             @Input(name = "y", type = OoaType.NUMBER, description = "Top.") int y,
             @Input(name = "width", type = OoaType.NUMBER, description = "Width.") int w,
             @Input(name = "height", type = OoaType.NUMBER, description = "Height.") int h) {
-        Win win = find(title);
+        Win win = locate(ctx, title, null, 0);
         User32.INSTANCE.ShowWindow(win.hwnd(), SW_RESTORE);
         User32.INSTANCE.MoveWindow(win.hwnd(), x, y, w, h, true);
         return Map.of();
     }
 
     @Action(id = "close", name = "Close window", category = "Window", capabilities = "desktop", description = "Ask a window to close (like clicking its X; the program may ask to save).")
-    public Map<String, Object> close(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title) {
-        Win w = find(title);
+    public Map<String, Object> close(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+        Win w = locate(ctx, title, alternatives, 0);
         User32.INSTANCE.PostMessage(w.hwnd(), WM_CLOSE, new WinDef.WPARAM(0), new WinDef.LPARAM(0));
         return Map.of();
+    }
+
+    /** Window titles matching the pattern: contained text (case-insensitive) or a regular expression. */
+    static java.util.function.Predicate<String> matcher(String pattern, boolean regex) {
+        if (pattern == null || pattern.strip().length() < 2)
+            throw new ActionException("WINDOW.PATTERN_TOO_BROAD", "Give at least two characters of the window title", "A blank or one-letter pattern would match almost every window.");
+        if (regex) {
+            java.util.regex.Pattern p;
+            try { p = java.util.regex.Pattern.compile(pattern, java.util.regex.Pattern.CASE_INSENSITIVE); }
+            catch (java.util.regex.PatternSyntaxException e) { throw new ActionException("WINDOW.BAD_PATTERN", "Invalid regular expression: " + e.getDescription(), "Check the pattern, e.g. ^Invoice .* - Excel$."); }
+            if (p.matcher("").find()) throw new ActionException("WINDOW.PATTERN_TOO_BROAD", "The pattern matches an empty title, so it would match every window", "Make the pattern more specific.");
+            return t -> p.matcher(t).find();
+        }
+        String q = pattern.toLowerCase(Locale.ROOT);
+        return t -> t.toLowerCase(Locale.ROOT).contains(q);
+    }
+
+    @Action(id = "close_all", name = "Close all matching windows", category = "Window", capabilities = "desktop",
+            description = "Ask every visible window whose title matches to close (like clicking each X); programs may still ask to save.")
+    @Output(name = "closed", type = OoaType.LIST, description = "Titles of the windows asked to close.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows asked to close.")
+    public Map<String, Object> closeAll(ActionContext ctx,
+            @Input(name = "title", type = OoaType.STRING, example = " - Notepad", description = "Text in the window titles (case-insensitive), or a regular expression when use_regex is true.") String title,
+            @Input(name = "use_regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat title as a regular expression.") boolean regex) {
+        java.util.function.Predicate<String> m = matcher(title, regex);
+        List<Object> closed = new ArrayList<>();
+        for (Win w : all()) {
+            if (!m.test(w.title())) continue;
+            User32.INSTANCE.PostMessage(w.hwnd(), WM_CLOSE, new WinDef.WPARAM(0), new WinDef.LPARAM(0));
+            closed.add(w.title());
+        }
+        if (!closed.isEmpty()) ctx.info("Asked " + closed.size() + " window(s) to close");
+        return Map.of("closed", closed, "count", java.math.BigDecimal.valueOf(closed.size()));
+    }
+
+    interface User32Text extends com.sun.jna.Library {
+        User32Text INSTANCE = loadText();
+        boolean SetWindowTextW(WinDef.HWND hWnd, com.sun.jna.WString text);
+    }
+
+    private static User32Text loadText() {
+        try { return Native.load("user32", User32Text.class); } catch (UnsatisfiedLinkError | NoClassDefFoundError e) { return null; }
+    }
+
+    @Action(id = "set_title", name = "Set window title", category = "Window", capabilities = "desktop",
+            description = "Change the title bar text of a window, e.g. to tell several copies of the same program apart.")
+    @Output(name = "previous_title", type = OoaType.STRING, description = "Title before the change.")
+    public Map<String, Object> setTitle(ActionContext ctx,
+            @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
+            @Input(name = "new_title", type = OoaType.STRING, description = "New title text.") String newTitle) {
+        if (newTitle == null || newTitle.length() > 512 || newTitle.chars().anyMatch(c -> c < 0x20))
+            throw new ActionException("WINDOW.BAD_TITLE", "The new title must be at most 512 characters without line breaks", "Shorten the title.");
+        Win w = find(title);
+        if (User32Text.INSTANCE == null || !User32Text.INSTANCE.SetWindowTextW(w.hwnd(), new com.sun.jna.WString(newTitle)))
+            throw new ActionException("WINDOW.SET_TITLE_FAILED", "Cannot change the title of '" + w.title() + "'",
+                    "The window may belong to a program running with higher rights than the agent.");
+        return Map.of("previous_title", w.title());
     }
 
     @Action(id = "get_active", name = "Get active window title", category = "Window", idempotent = true, capabilities = "desktop", description = "Return the title of the window in front.")
@@ -107,16 +225,9 @@ public final class WindowPackage {
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> waitFor(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait.") double timeout) {
-        long end = System.nanoTime() + (long) (timeout * 1e9);
-        while (true) {
-            try { return Map.of("title", find(title).title()); }
-            catch (ActionException e) {
-                if (System.nanoTime() > end) throw new ActionException("WINDOW.NOT_FOUND", "Window '" + title + "' did not appear within " + timeout + " s", "Check the application started.", true);
-            }
-            ctx.checkCancelled();
-            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
-        }
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait.") double timeout,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+        return Map.of("title", locate(ctx, title, alternatives, timeout).title());
     }
 
     @Condition(id = "exists", name = "Window exists", description = "True when a visible window title contains the text.")
@@ -130,7 +241,7 @@ public final class WindowPackage {
     public Map<String, Object> capture(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "path", type = OoaType.FILE, description = "PNG file to create.") String path) {
-        Win w = find(title);
+        Win w = locate(ctx, title, null, 0);
         WinDef.RECT r = new WinDef.RECT();
         User32.INSTANCE.GetWindowRect(w.hwnd(), r);
         Path p = ctx.resolvePath(path);

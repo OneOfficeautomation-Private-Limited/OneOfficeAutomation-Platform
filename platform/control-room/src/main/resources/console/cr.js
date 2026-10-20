@@ -642,7 +642,7 @@ const VIEWS = {
     } else {
       const r = await api("GET", "toolkits");
       main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Switch a toolkit off to stop agents that use it from being checked in or run. The core toolkit is always on." }),
-        dataTable({ rows: r.toolkits, search: "Search toolkits", exportName: "toolkits", pageSize: 50,
+        dataTable({ rows: r.toolkits, search: "Search toolkits", exportName: "toolkits", pageSize: 100,
           columns: [
             { label: "Toolkit", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: t.id + " " + (t.version || "") }), h("div", { class: "muted small", text: t.description || "" })) },
             { label: "Actions", value: (t) => t.actions + t.conditions, render: (t) => t.actions + (t.conditions ? " + " + t.conditions + " conditions" : "") },
@@ -686,18 +686,25 @@ const VIEWS = {
   async triggers(main) {
     await loadRefs();
     const r = await api("GET", "triggers");
-    main.replaceChildren(...header("Triggers", "Start agents on events: a file arriving in a folder on a runner, or a call to a webhook. Agent Studio also has its own local triggers for development.",
+    const act = async (fn) => { try { await fn(); } catch (e) { toast(e.message, true); } go("triggers"); };
+    main.replaceChildren(...header("Triggers", "Start agents on events: files and folders, windows, processes, services and hotkeys on a runner; new email, ServiceNow records and polled web data on the Command Center; or a webhook call. Agent Studio also has its own local triggers for development.",
       can("triggers.manage") ? h("button", { type: "button", class: "primary", onclick: triggerDialog }, "New trigger") : null),
       dataTable({ rows: r.triggers, search: "Search triggers", exportName: "triggers", empty: "No triggers yet.",
         columns: [
           { label: "Trigger", value: (t) => t.name, render: (t) => h("div", { class: "name-cell" }, ic("bolt", "#d97706", "sm"), h("strong", { text: t.name })) },
-          { label: "Kind", value: (t) => t.kind === "file" ? "File arrives" : "Webhook" },
+          { label: "Kind", value: (t) => triggerKindLabel(t.kind), render: (t) => h("div", {}, h("div", { text: triggerKindLabel(t.kind) }),
+            h("div", { class: "muted small", text: t.evaluated_on === "server" ? "Checked by the Command Center" : t.evaluated_on === "runner" ? "Watched on the runner" + (t.windows_only ? " (Windows)" : "") : "" })) },
           { label: "Agent", value: (t) => botName(t.bot_path) }, { label: "Runner", value: (t) => deviceName(t.device_id) },
-          { label: "Details", value: (t) => t.kind === "file" ? t.folder + " / " + t.pattern : "POST " + location.origin + "/api/hooks/" + t.id, render: (t) => h("span", { class: "mono small", text: t.kind === "file" ? t.folder + " / " + t.pattern : "POST " + location.origin + "/api/hooks/" + t.id }) },
-          { label: "Enabled", value: (t) => t.enabled ? "Yes" : "No", render: (t) => t.enabled ? pill("enabled") : pill("disabled") },
+          { label: "Details", value: (t) => triggerDetails(t), render: (t) => h("span", { class: "mono small", text: triggerDetails(t) }) },
+          { label: "Monitoring", value: (t) => (t.fire_count || 0) + " " + (t.last_fired || "") + " " + (t.last_error || ""), render: (t) => h("div", { class: "small" },
+            h("div", {}, h("strong", { text: String(t.fire_count || 0) }), " fired", t.last_fired ? h("span", { class: "muted", title: local(t.last_fired) }, ", last " + ago(t.last_fired)) : h("span", { class: "muted" }, ", never")),
+            t.last_error ? h("div", { class: "error trigger-error", title: t.last_error, text: t.last_error.length > 90 ? t.last_error.slice(0, 90) + "…" : t.last_error }) : null) },
+          { label: "Status", value: (t) => t.status || (t.enabled ? "active" : "paused"), render: (t) => t.status === "error" ? h("span", { class: "pill failed", text: "error" }) : pill(t.enabled ? "active" : "paused") },
           { label: "", sort: false, render: (t) => can("triggers.manage") ? h("div", { class: "row-actions tight" },
-            h("button", { type: "button", onclick: async () => { await api("PATCH", "triggers/" + t.id, { enabled: !t.enabled }); go("triggers"); } }, t.enabled ? "Disable" : "Enable"),
-            h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete trigger " + t.name + "?")) { await api("DELETE", "triggers/" + t.id); go("triggers"); } } }, "Delete")) : "" }]}));
+            t.evaluated_on === "server" && t.enabled ? h("button", { type: "button", title: "Check now instead of waiting for the interval", onclick: () => act(async () => { const x = await api("POST", "triggers/" + t.id + "/poll"); toast(x.error ? x.error : "Checked: " + x.fired + " new"); }) }, "Check now") : null,
+            h("button", { type: "button", onclick: () => act(() => api("POST", "triggers/" + t.id + (t.enabled ? "/pause" : "/resume"))) }, t.enabled ? "Pause" : "Resume"),
+            h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete trigger " + t.name + "?")) act(() => api("DELETE", "triggers/" + t.id)); } }, "Delete")) : "" }]}));
+    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "triggers" && $("modal").hidden && $("drawer").hidden) go("triggers"); }, 30000);
   },
 
   async credentials(main) {
@@ -1064,19 +1071,94 @@ function scheduleDialog() {
 
 function triggerDialog() {
   const name = h("input", { placeholder: "New invoices" }), bot = botSelect(), dev = deviceSelect();
-  const kind = h("select", {}, h("option", { value: "file", text: "File arrives in a folder (on the runner)" }), h("option", { value: "webhook", text: "Webhook (HTTP call)" }));
-  const folder = h("input", { placeholder: "C:\\Invoices\\Inbox" }), pattern = h("input", { value: "*.pdf" });
-  const fileBox = h("div", { class: "grid2" }, h("label", {}, "Folder on the runner", folder), h("label", {}, "File pattern", pattern));
-  kind.addEventListener("change", () => { fileBox.hidden = kind.value !== "file"; });
-  modal("New trigger", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("label", {}, "Runner", dev), h("label", {}, "Event", kind), fileBox,
-    h("p", { class: "muted", text: "The agent receives the file path in an input named trigger_file, or the webhook body in an input named payload, when it declares them." })],
+  const kind = h("select", { "aria-label": "Event" }, TRIGGER_GROUPS.map(([group, kinds]) => h("optgroup", { label: group },
+    kinds.map((k) => h("option", { value: k, text: TRIGGER_KINDS[k].label })))));
+  // One field box per kind; inputs carry data-key, the name sent to the API.
+  const boxes = {};
+  for (const k of Object.keys(TRIGGER_KINDS)) boxes[k] = h("div", { class: "grid2 trigger-fields", "data-kind": k }, TRIGGER_KINDS[k].fields.map(triggerField));
+  const help = h("p", { class: "muted" });
+  const sync = () => { for (const k of Object.keys(boxes)) boxes[k].hidden = k !== kind.value; help.textContent = TRIGGER_KINDS[kind.value].help; };
+  kind.addEventListener("change", sync); sync();
+  modal("New trigger", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("label", {}, "Runner", dev), h("label", {}, "Event", kind),
+    ...Object.values(boxes), help,
+    h("p", { class: "muted", text: "Passwords and tokens are never typed here: give vault references such as mail/imap/password. The trigger's owner must be a consumer of that vault folder." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
-        const r = await api("POST", "triggers", { name: name.value || "Trigger", bot_path: bot.value, device_id: dev.value, kind: kind.value, folder: folder.value, pattern: pattern.value });
+        const body = Object.assign({ name: name.value || "Trigger", bot_path: bot.value, device_id: dev.value, kind: kind.value }, triggerValues(boxes[kind.value]));
+        const r = await api("POST", "triggers", body);
         if (r.secret) modal("Webhook created", [secretBox("URL", location.origin + r.url), secretBox("Secret (send it in the X-OOA-Secret header)", r.secret, "Shown only once.")], []);
         else { closeModal(); toast("Trigger created"); }
         go("triggers");
       } catch (e) { toast(e.message, true); } } }, "Create")]);
+}
+
+// ---------- trigger kinds (helpers for triggerDialog and the Triggers view) ----------
+const TRIGGER_FOLDER = [["folder", "Folder on the runner", "C:\\Invoices\\Inbox"], ["pattern", "File or folder name pattern", "*", "*"], ["recursive", "Include sub-folders", "", "", "check"]];
+const TRIGGER_INTERVAL = ["interval_seconds", "Check every (seconds, 15 or more)", "60", "60", "number"];
+const TRIGGER_MAIL_FILTERS = [["from_contains", "From contains (optional)", "billing@"], ["subject_contains", "Subject contains (optional)", "Invoice"]];
+const TRIGGER_KINDS = {
+  file: { label: "File arrives in a folder", fields: TRIGGER_FOLDER, help: "Watched on the runner. The agent gets the path in trigger_file and all details in trigger_event." },
+  file_changed: { label: "File changed", fields: TRIGGER_FOLDER, help: "Fires when a matching file's size or time changes, once it stops changing. Input: trigger_file." },
+  file_deleted: { label: "File deleted", fields: TRIGGER_FOLDER, help: "Fires when a matching file disappears. Input: trigger_file." },
+  folder_created: { label: "Folder created", fields: TRIGGER_FOLDER, help: "Fires when a matching sub-folder appears. Input: trigger_file (the folder path)." },
+  folder_deleted: { label: "Folder deleted", fields: TRIGGER_FOLDER, help: "Fires when a matching sub-folder disappears. Input: trigger_file." },
+  window_opened: { label: "Window opened", fields: [["title", "Window title pattern", "*Invoice*"]], help: "Windows runners. Text the title contains, a pattern with * and ?, or re: and a regular expression. Input: trigger_window." },
+  window_closed: { label: "Window closed", fields: [["title", "Window title pattern", "*Invoice*"]], help: "Windows runners. Fires when a matching window goes away. Input: trigger_window." },
+  process_started: { label: "Process started", fields: [["process", "Process name", "excel.exe"]], help: "Fires when a new process with this name starts on the runner. Input: trigger_process." },
+  process_stopped: { label: "Process stopped", fields: [["process", "Process name", "excel.exe"]], help: "Fires when a process with this name ends. Input: trigger_process." },
+  service_started: { label: "Service started", fields: [["service", "Windows service name", "Spooler"]], help: "Windows runners. Use the service name (sc query), not the display name. Input: trigger_service." },
+  service_stopped: { label: "Service stopped", fields: [["service", "Windows service name", "Spooler"]], help: "Windows runners. Input: trigger_service." },
+  hotkey: { label: "Hotkey pressed", fields: [["hotkey", "Key combination", "CTRL+ALT+F9"]], help: "Windows runners with a signed-in desktop. The combination must not be used by another program. Input: trigger_hotkey." },
+  email: { label: "New email (IMAP mailbox)", fields: [["host", "IMAP server", "imap.example.com"], ["port", "Port", "993", "993", "number"], ["ssl", "Use SSL/TLS", "", "", "check", true],
+    ["username", "User name", "invoices@example.com"], ["password_ref", "Password (vault reference)", "mail/imap/password"], ["mail_folder", "Mailbox folder", "INBOX", "INBOX"], ...TRIGGER_MAIL_FILTERS, TRIGGER_INTERVAL],
+    help: "Checked by the Command Center. Each new message starts the agent once, with from, to, subject, date and a text preview in trigger_email." },
+  outlook: { label: "New email (Microsoft 365 Outlook)", fields: [["token_ref", "Graph access token (vault reference)", "m365/graph/token"], ["mailbox", "Mailbox (blank for the token's own)", "invoices@contoso.com"],
+    ["tenant_id", "Or app sign-in: tenant id", ""], ["client_id", "Application (client) id", ""], ["client_secret_ref", "Client secret (vault reference)", "m365/app/secret"],
+    ["mail_folder", "Mail folder", "inbox", "inbox"], ...TRIGGER_MAIL_FILTERS, TRIGGER_INTERVAL],
+    help: "Checked by the Command Center through Microsoft Graph. Give a token reference, or tenant id, client id, client secret reference and mailbox. Input: trigger_email." },
+  servicenow: { label: "ServiceNow record new or updated", fields: [["instance_url", "Instance URL", "https://yourcompany.service-now.com"], ["table", "Table", "incident", "incident"],
+    ["query", "Encoded query (optional)", "active=true^priority=1"], ["username", "User name", "integration.user"], ["password_ref", "Password (vault reference)", "snow/api/password"],
+    ["token_ref", "Or OAuth token (vault reference)", ""], TRIGGER_INTERVAL],
+    help: "Checked by the Command Center through the Table API. Each new or changed record starts the agent once, with its fields and change (new or updated) in trigger_record." },
+  http_poll: { label: "Universal poller (call a web address)", fields: [["url", "URL to call (GET)", "https://api.example.com/orders?status=new"], ["items_path", "Items JSON path", "$.items[*]", "$"],
+    ["id_field", "Id field of each item", "id", "id"], ["auth_ref", "Bearer token (vault reference, optional)", ""], TRIGGER_INTERVAL],
+    help: "Checked by the Command Center. Each item with an id not seen before starts the agent once, with the item in trigger_item. Items present at the first check are only remembered." },
+  webhook: { label: "Webhook (HTTP call)", fields: [], help: "The agent receives the request body in an input named payload. You get the URL and secret after creating it." },
+};
+const TRIGGER_GROUPS = [["On the runner", ["file", "file_changed", "file_deleted", "folder_created", "folder_deleted", "window_opened", "window_closed", "process_started", "process_stopped", "service_started", "service_stopped", "hotkey"]],
+  ["On the Command Center", ["email", "outlook", "servicenow", "http_poll", "webhook"]]];
+
+function triggerKindLabel(k) { return TRIGGER_KINDS[k] ? TRIGGER_KINDS[k].label : k; }
+
+function triggerField([key, label, placeholder, value, type, checked]) {
+  if (type === "check") return h("label", { class: "check" }, h("input", { type: "checkbox", "data-key": key, checked: !!checked }), label);
+  return h("label", {}, label, h("input", { "data-key": key, placeholder: placeholder || "", value: value || "", type: type === "number" ? "number" : "text" }));
+}
+
+function triggerValues(box) {
+  const out = {};
+  for (const el of box.querySelectorAll("[data-key]")) {
+    const k = el.dataset.key;
+    if (el.type === "checkbox") out[k] = el.checked;
+    else if (el.value.trim() === "") continue;
+    else out[k] = el.type === "number" ? Number(el.value) : el.value.trim();
+  }
+  return out;
+}
+
+function triggerDetails(t) {
+  const c = t.config || {};
+  if (t.kind === "webhook") return "POST " + location.origin + "/api/hooks/" + t.id;
+  if (t.folder) return t.folder + " / " + (t.pattern || "*") + (c.recursive ? " (with sub-folders)" : "");
+  if (c.title) return "Title: " + c.title;
+  if (c.process) return c.process;
+  if (c.service) return c.service;
+  if (c.hotkey) return c.hotkey;
+  if (t.kind === "email") return c.username + " @ " + c.host + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
+  if (t.kind === "outlook") return (c.mailbox || "token's mailbox") + " / " + c.mail_folder + " every " + c.interval_seconds + " s";
+  if (t.kind === "servicenow") return c.instance_url + " " + c.table + (c.query ? " where " + c.query : "") + " every " + c.interval_seconds + " s";
+  if (t.kind === "http_poll") return "GET " + c.url + " " + c.items_path + " by " + c.id_field + " every " + c.interval_seconds + " s";
+  return "";
 }
 
 function lockerDialog() {

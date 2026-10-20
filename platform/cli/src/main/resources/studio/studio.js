@@ -73,11 +73,12 @@ const PKG_CAT = {
   "ooa.file": "files", "ooa.folder": "files", "ooa.log": "files", "ooa.excel": "office", "ooa.excel_desktop": "office", "ooa.word": "office", "ooa.pdf": "office",
   "ooa.browser": "web", "ooa.desktop": "desktop", "ooa.window": "desktop", "ooa.image": "desktop", "ooa.ocr": "desktop", "ooa.application": "desktop",
   "ooa.terminal": "desktop", "ooa.sap": "desktop", "ooa.dll": "desktop", "ooa.sound": "desktop", "ooa.printer": "desktop",
-  "ooa.rest": "integration", "ooa.soap": "integration", "ooa.database": "integration", "ooa.network": "integration", "ooa.file_transfer": "integration",
+  "ooa.rest": "integration", "ooa.connector": "integration", "ooa.soap": "integration", "ooa.database": "integration", "ooa.network": "integration", "ooa.file_transfer": "integration",
   "ooa.email": "email", "ooa.slack": "email", "ooa.microsoft365": "cloud", "ooa.google": "cloud", "ooa.salesforce": "cloud", "ooa.servicenow": "cloud",
-  "ooa.jira": "cloud", "ooa.workday": "cloud", "ooa.genai": "ai", "ooa.ai_skills": "ai", "ooa.ai_agent": "ai", "ooa.script": "scripts",
+  "ooa.jira": "cloud", "ooa.workday": "cloud", "ooa.okta": "cloud", "ooa.box": "cloud", "ooa.docusign": "cloud",
+  "ooa.snowflake": "integration", "ooa.databricks": "integration", "ooa.kafka": "integration", "ooa.genai": "ai", "ooa.ai_skills": "ai", "ooa.ai_agent": "ai", "ooa.script": "scripts",
   "ooa.workload": "workload", "ooa.insights": "workload", "ooa.system": "system", "ooa.services": "system", "ooa.crypto": "system", "ooa.pgp": "system",
-  "ooa.active_directory": "system",
+  "ooa.active_directory": "system", "ooa.fuzzy": "data", "ooa.currency": "data", "ooa.triggerloop": "logic", "ooa.credential_manager": "system",
 };
 const PKG_ICON = {
   "ooa.string": "text", "ooa.number": "hash", "ooa.boolean": "toggle", "ooa.datetime": "calendar", "ooa.list": "list", "ooa.dictionary": "braces",
@@ -2522,7 +2523,7 @@ function processDesigner(it) {
 
 // ---- document automation ----
 const DOC_TYPES = ["pdf", "txt", "csv", "xml", "json", "md", "html"];
-const AI_PROVIDERS = [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["openai_compatible", "OpenAI-compatible (local or other)"]];
+const AI_PROVIDERS = [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["openai_compatible", "OpenAI-compatible (local or other)"], ["huggingface", "Hugging Face"], ["aws_bedrock_sagemaker", "Amazon SageMaker endpoint"]];
 function providerSelect(value, onSet) { const s = h("select", { onchange: (e) => onSet(e.target.value) }, AI_PROVIDERS.map(([v, t]) => h("option", { value: v, text: t }))); s.value = value || "openai"; return s; }
 function documentDesigner(it) {
   const d = it.data;
@@ -2989,6 +2990,79 @@ async function openConnections() {
       catch (e) { toast(e.message, true); } } }, "Save")], { wide: true });
 }
 
+// ---------- Custom connectors ----------
+/** Connectors dialog: import an OpenAPI, Swagger or Postman file, browse operations, insert a call_operation step. */
+async function openConnectors() {
+  const box = h("div", { class: "conn-list" });
+  const fileIn = h("input", { type: "file", accept: ".json,.yaml,.yml", "aria-label": "API description file" });
+  const nameIn = h("input", { type: "text", placeholder: "from the API title" });
+  const serverIn = h("input", { type: "text", placeholder: "first server in the file" });
+  const doImport = async () => {
+    const f = fileIn.files && fileIn.files[0];
+    if (!f) { toast("Choose a file to import.", true); return; }
+    try {
+      const r = await api("POST", "connectors/import", { text: await f.text(), name: nameIn.value.trim() || undefined, server: serverIn.value.trim() || undefined });
+      toast("Imported " + r.connector.name + " (" + r.connector.operations.length + " operations)");
+      showOps(r.connector);
+    } catch (e) { toast(e.message, true); }
+  };
+  const importCard = h("div", { class: "conn-row card-box" },
+    h("div", { class: "help", text: "Import an OpenAPI 3.x or Swagger 2.0 file (JSON or YAML) or a Postman v2.1 collection. Each request becomes an operation an agent can call." }),
+    field("API description", fileIn),
+    h("div", { class: "grid2" }, field("Connector name (optional)", nameIn), field("Server (optional)", serverIn)),
+    h("button", { type: "button", class: "primary", onclick: doImport }, "Import"));
+  const showList = async () => {
+    let data;
+    try { data = await api("GET", "connectors"); } catch (e) { toast(e.message, true); return; }
+    const rows = (data.connectors || []).map((c) => h("div", { class: "conn-row card-box" },
+      h("div", { class: "conn-top" }, h("strong", { text: c.name }), h("span", { class: "muted", text: (c.title || "") + " · " + (c.operations || 0) + " operations" }),
+        h("button", { type: "button", onclick: async () => { try { showOps((await api("GET", "connectors/" + encodeURIComponent(c.name))).connector); } catch (e) { toast(e.message, true); } } }, "Operations"),
+        mini("✕", "Delete connector", async () => {
+          if (!confirm("Delete connector " + c.name + "? Steps that use it will stop working.")) return;
+          try { await api("DELETE", "connectors/" + encodeURIComponent(c.name)); toast("Deleted " + c.name); showList(); } catch (e) { toast(e.message, true); }
+        }, "danger")),
+      c.error ? h("div", { class: "pill-warn", text: c.error }) : h("div", { class: "muted", text: c.server || "No server set" })));
+    box.replaceChildren(importCard, ...(rows.length ? rows : [h("p", { class: "muted", text: "No connectors yet." })]));
+  };
+  const showOps = (def) => {
+    const search = h("input", { type: "search", placeholder: "Filter operations", "aria-label": "Filter operations" });
+    const list = h("div");
+    const render = () => {
+      const q = search.value.trim().toLowerCase();
+      list.replaceChildren(...(def.operations || []).filter((o) => !q || (o.id + " " + o.name + " " + o.path + " " + (o.tags || []).join(" ")).toLowerCase().includes(q)).map((o) =>
+        h("div", { class: "search-hit" }, h("span", { class: "badge", text: o.method }),
+          h("div", {}, h("div", {}, h("strong", { text: o.name }), " ", h("span", { class: "muted", text: o.path })),
+            h("div", { class: "help", text: o.id + ((o.parameters || []).length ? " · " + o.parameters.map((p) => p.name + (p.required ? "*" : "")).join(", ") : "") })),
+          h("button", { type: "button", onclick: () => insertConnectorStep(def, o) }, "Insert step"))));
+    };
+    search.addEventListener("input", render);
+    render();
+    box.replaceChildren(h("div", { class: "conn-top" }, h("button", { type: "button", onclick: showList }, "← All connectors"),
+      h("strong", { text: def.title || def.name }), h("span", { class: "muted", text: def.server || "" })), search, list);
+  };
+  openDialog("Connectors", [h("p", { class: "help", text: "Custom connectors live in the workspace folder connectors/. Agents call them with Call operation (ooa.connector/call_operation); secrets come from a Credential variable." }), box], [], { wide: true, closeLabel: "Close" });
+  showList();
+}
+
+/** Adds an ooa.connector/call_operation step for one operation, with its parameters filled in from defaults. */
+function insertConnectorStep(def, op) {
+  const action = "ooa.connector/call_operation";
+  if (!state.flow) { toast("Open or create an agent first (Explorer tab).", true); return; }
+  if (!state.specs.has(action)) { toast("The Custom Connectors package is not installed.", true); return; }
+  addStep(action);
+  const step = state.selected && getAt(state.flow, state.selected);
+  if (!step || step.action !== action) return;
+  const params = {};
+  for (const p of op.parameters || []) if (p.required || (p.default !== undefined && p.default !== null)) params[p.name] = p.default !== undefined && p.default !== null ? p.default : "";
+  step.args = { connector: def.name, operation: op.id };
+  if (Object.keys(params).length) step.args.parameters = params;
+  if (op.body) step.args.body = op.body.example !== undefined ? op.body.example : {};
+  if (op.result && op.result.binary) step.args.output_file = op.id + ".bin";
+  closeDialog();
+  changed();
+  renderProps();
+}
+
 // ---------- capture (pick an element in the browser) ----------
 function defaultUrl() {
   const open = state.flow && allSteps(state.flow.steps).find((x) => x.action === "ooa.browser/open" && x.args && typeof x.args.url === "string" && !x.args.url.startsWith("$"));
@@ -3111,6 +3185,7 @@ function wire() {
   $("btn-assistant").addEventListener("click", () => openAssistant());
   $("btn-quick-add").addEventListener("click", openQuickAdd);
   $("btn-connections").addEventListener("click", () => { $("view-pop").hidden = true; openConnections(); });
+  $("btn-connectors").addEventListener("click", () => { $("view-pop").hidden = true; openConnectors(); });
   for (const b of document.querySelectorAll("[data-canvas-mode]")) b.addEventListener("click", () => setPref("canvasMode", b.dataset.canvasMode));
   $("btn-record").addEventListener("click", recordSteps);
   $("btn-expand-all").addEventListener("click", () => foldAll(false));

@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 final class ProcessRunner {
     private ProcessRunner() {}
     static final int MAX_OUTPUT = 1_000_000;
+    /** Session key holding environment variables set with System > Set environment variable (process scope) for this run. */
+    static final String RUN_ENV_SESSION = "ooa.system.env";
     static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
 
     record Result(int exitCode, String stdout, String stderr, boolean truncated) {
@@ -31,6 +33,8 @@ final class ProcessRunner {
     static Result run(ActionContext ctx, List<String> command, Path workDir, String stdin, double timeoutSeconds, Map<String, String> env, Charset cs) {
         ProcessBuilder pb = new ProcessBuilder(command);
         if (workDir != null) pb.directory(workDir.toFile());
+        Object runEnv = ctx.sessions() == null ? null : ctx.sessions().get(RUN_ENV_SESSION);
+        if (runEnv instanceof Map<?, ?> m) m.forEach((k, v) -> { if (v == null || String.valueOf(v).isEmpty()) pb.environment().remove(String.valueOf(k)); else pb.environment().put(String.valueOf(k), String.valueOf(v)); });
         if (env != null) pb.environment().putAll(env);
         Process p;
         try { p = pb.start(); }

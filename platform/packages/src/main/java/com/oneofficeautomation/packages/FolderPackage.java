@@ -64,6 +64,66 @@ public final class FolderPackage {
         return Map.of();
     }
 
+    @Action(id = "rename_folder", name = "Rename folder", category = "Folders", capabilities = "filesystem",
+            description = "Give a folder a new name in the same parent folder.")
+    @Output(name = "path", type = OoaType.FILE, description = "New full path of the folder.")
+    public Map<String, Object> renameFolder(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "Folder to rename.") String path,
+            @Input(name = "new_name", type = OoaType.STRING, example = "Archive 2026", description = "New name only, without any path.") String newName) {
+        Path p = ctx.resolvePath(path).toAbsolutePath().normalize();
+        if (!Files.isDirectory(p)) throw new ActionException("FOLDER.NOT_FOUND", "Folder not found: " + p, "Check the folder path.");
+        if (newName == null || newName.isBlank() || newName.contains("/") || newName.contains("\\") || newName.equals(".") || newName.equals("..")
+                || newName.matches(".*[\\x00-\\x1f<>:\"|?*].*"))
+            throw new ActionException("FOLDER.BAD_NAME", "Invalid folder name '" + newName + "'", "Give only the new name, without slashes or the characters < > : \" | ? *.");
+        if (p.getParent() == null || p.equals(ctx.workDir().toAbsolutePath().normalize()))
+            throw new ActionException("FOLDER.PROTECTED", "Refusing to rename " + p, "Point to a specific sub-folder.");
+        Path target = p.resolveSibling(newName.strip());
+        if (Files.exists(target) && !target.getFileName().toString().equalsIgnoreCase(p.getFileName().toString()))
+            throw new ActionException("FOLDER.EXISTS", "A file or folder named '" + newName + "' already exists in " + p.getParent(), "Choose another name.");
+        try { Files.move(p, target); }
+        catch (IOException e) { throw new ActionException("FOLDER.IO_ERROR", "Cannot rename " + p + ": " + e.getMessage(), "Close any program using the folder and try again.", true); }
+        return Map.of("path", target.toString());
+    }
+
+    @Action(id = "open_folder", name = "Open folder", category = "Folders", capabilities = {"desktop", "filesystem"},
+            description = "Show a folder in the file manager (File Explorer on Windows).")
+    public Map<String, Object> openFolder(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder to show.") String path) {
+        Path p = ctx.resolvePath(path).toAbsolutePath().normalize();
+        if (!Files.isDirectory(p)) throw new ActionException("FOLDER.NOT_FOUND", "Folder not found: " + p, "Check the folder path.");
+        DesktopSupport.requireDesktop();
+        List<String> cmd = openCommand(p);
+        try { new ProcessBuilder(cmd).start(); }  // file managers keep running or return odd exit codes, so do not wait
+        catch (IOException e) { throw new ActionException("FOLDER.OPEN_FAILED", "Cannot open " + p + ": " + e.getMessage(), "Check a file manager is installed on the runner."); }
+        return Map.of();
+    }
+
+    static List<String> openCommand(Path folder) {
+        if (ProcessRunner.WINDOWS) return List.of("explorer.exe", folder.toString());
+        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac")) return List.of("open", folder.toString());
+        return List.of("xdg-open", folder.toString());
+    }
+
+    @Action(id = "create_shortcut", name = "Create folder shortcut", category = "Folders", capabilities = "filesystem",
+            description = "Create a shortcut that opens a folder: a .lnk file on Windows, a .desktop file or symbolic link elsewhere.")
+    @Output(name = "path", type = OoaType.FILE, description = "Created shortcut.")
+    public Map<String, Object> createShortcut(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "Folder the shortcut opens.") String path,
+            @Input(name = "shortcut", type = OoaType.FILE, description = "Shortcut to create; .lnk is added on Windows when missing.") String shortcut,
+            @Input(name = "comment", type = OoaType.STRING, required = false, description = "Tooltip text shown for the shortcut.") String comment,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace an existing shortcut.") boolean overwrite) {
+        return Map.of("path", FilePackage.shortcut(ctx, "FOLDER", path, shortcut, null, null, comment, overwrite, true).toString());
+    }
+
+    @Action(id = "create_symbolic_link", name = "Create folder symbolic link", category = "Folders", capabilities = "filesystem",
+            description = "Create a symbolic link that points to a folder; on Windows this needs Developer Mode or administrator rights.")
+    @Output(name = "path", type = OoaType.FILE, description = "Created link.")
+    public Map<String, Object> createSymbolicLink(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "Folder the link points to.") String path,
+            @Input(name = "link", type = OoaType.FILE, description = "Link to create.") String link,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace an existing link (never a real folder).") boolean overwrite) {
+        return Map.of("path", FilePackage.symbolicLink(ctx, "FOLDER", path, link, overwrite, true).toString());
+    }
+
     @Condition(id = "exists", name = "Folder exists", description = "True when the folder exists.")
     public boolean exists(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path) {
         return Files.isDirectory(ctx.resolvePath(path));

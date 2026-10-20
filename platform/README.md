@@ -15,7 +15,7 @@ Jackson/networknt adapters and the CLI. It passes the same conformance suite as 
 | `packages-pdf` *(optional)* | `ooa.pdf` | Apache PDFBox |
 | `packages-browser` *(optional)* | `ooa.browser`: web automation and the web recorder | Playwright |
 | `packages-transfer` *(optional)* | `ooa.file_transfer`: FTP, FTPS, SFTP | Commons Net, JSch |
-| `packages-windows` *(optional)* | `ooa.window` window control, `ooa.dll` native calls | JNA |
+| `packages-windows` *(optional)* | `ooa.window` window control, `ooa.dll` native calls, `ooa.credential_manager` Windows Credential Manager | JNA |
 | `adapters-jackson` | `JacksonJsonCodec`, `NetworkntFlowSchemaValidator` | Jackson, networknt |
 | `control-room` | Control Room: users and roles, public repository with check-in/check-out and versions, devices, runs, schedules, triggers, credential lockers, global values, audit log, web console | H2 (embedded) or PostgreSQL |
 | `agent` | Bot Agent: device registration, heartbeats, jobs, one worker process per run, file triggers | none |
@@ -117,12 +117,23 @@ public final class CrmPackage {
 Every action and input needs a description: Studio renders command panels from them and the AI assistant and
 agents read them.
 
+## What is in the platform now
+
+- **One Agent Studio**: agents, headless API agents, forms, workflows, document intelligence, Prompt Skills and scripts;
+  debugger with breakpoints, Quick add, flow view, AI assistant, One Model Connections and custom connectors.
+- **Toolkits**: core logic and data, files, Office (Excel, Word, PowerPoint), Microsoft 365, Google Workspace, email,
+  PDF, browser, Windows, databases, REST/SOAP and custom connectors (OpenAPI, Swagger, Postman), and enterprise apps
+  (Salesforce, ServiceNow, Jira, Slack, Workday, SAP GUI, Active Directory, terminal, GitHub, Azure DevOps, Asana,
+  Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka), plus generative AI, AI agents and Prompt Skills.
+  See `../docs/COMMAND_CATALOG.md`.
+- **One Command Center**: agent repository, Agent Runs, runners and runner pools, schedules with holiday calendars,
+  triggers, work queues, One Workflow with a Task inbox, One Agent Vault with external vaults, shared values, users,
+  custom roles, API keys, single sign-on, AI governance, an MCP server for AI assistants, and the One Audit Trail.
+
 ## Next slices
 
-Remaining packages (Excel via Apache POI, Email, REST, Database, PDF, Browser via Playwright), AI Gateway and
-agent runtime in Java, the AI developer assistant, Control Center (Spring Boot + PostgreSQL), Studio (React),
-Bot Agent for Windows. PF4J classloader isolation and the compile-time manifest annotation processor replace
-the runtime introspection used here.
+Production hardening: PF4J classloader isolation and a compile-time manifest processor instead of runtime
+introspection, a push channel instead of polling for live views, signed custom toolkit uploads, Git sync for the agent
+repository, SAP BAPI (needs the customer's SAP JCo), and macOS and Linux runners.
 
-
-Control Room and Bot Agent setup: see `../docs/CONTROL_ROOM_AND_AGENT.md`.
+One Command Center and One Runner setup: see `../docs/CONTROL_ROOM_AND_AGENT.md`.

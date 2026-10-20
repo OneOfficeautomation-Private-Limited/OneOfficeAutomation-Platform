@@ -39,6 +39,11 @@ final class HttpJson {
             if (!(password instanceof SecureString s)) throw new ActionException(prefix + ".NO_PASSWORD", "A password or API token from the vault is required");
             headers.put("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + s.reveal()).getBytes(StandardCharsets.UTF_8))); return this;
         }
+        /** Authorization header with a custom scheme, e.g. "SSWS" for Okta API tokens. */
+        Req scheme(String scheme, Object token) {
+            if (!(token instanceof SecureString s)) throw new ActionException(prefix + ".NO_TOKEN", "An access token from the vault is required", "Map the token input to a Credential variable.");
+            headers.put("Authorization", scheme + " " + s.reveal()); return this;
+        }
         Req header(String k, String v) { headers.put(k, v); return this; }
         Req json(Object value) { body = HttpRequest.BodyPublishers.ofString(JsonLite.write(Values.toJsonable(value))); headers.put("Content-Type", "application/json"); return this; }
         Req bytes(byte[] data, String contentType) { body = HttpRequest.BodyPublishers.ofByteArray(data); headers.put("Content-Type", contentType); return this; }
@@ -77,10 +82,16 @@ final class HttpJson {
         if (j instanceof Map<?, ?> m) {
             Object e = m.get("error");
             if (e instanceof Map<?, ?> em) msg = String.valueOf(em.get("message") != null ? em.get("message") : em.get("detail"));
-            else if (e instanceof String s) msg = s + (m.get("error_description") != null ? ": " + m.get("error_description") : "");
+            else if (e instanceof String s) msg = s + (m.get("error_description") != null ? ": " + m.get("error_description")
+                    : m.get("description") != null ? ": " + m.get("description") : "");
             if (msg == null && m.get("errorMessages") instanceof List<?> l && !l.isEmpty()) msg = String.valueOf(l.get(0));
             if (msg == null && m.get("errors") instanceof Map<?, ?> em && !em.isEmpty()) msg = String.valueOf(em);
-            if (msg == null && m.get("message") != null) msg = String.valueOf(m.get("message"));
+            String listed = m.get("errors") instanceof List<?> el && !el.isEmpty() && el.get(0) instanceof Map<?, ?> f0 && f0.get("message") != null
+                    ? String.valueOf(f0.get("message")) : null;  // Asana and GitHub style: errors: [{message}]
+            if (msg == null && m.get("errorSummary") != null) msg = String.valueOf(m.get("errorSummary"));  // Okta
+            Object svcCode = m.get("errorCode") != null ? m.get("errorCode") : m.get("error_code");
+            if (msg == null && m.get("message") != null) msg = (svcCode instanceof String sc ? sc + ": " : "") + m.get("message") + (listed != null ? ": " + listed : "");
+            if (msg == null && listed != null) msg = listed;
         } else if (j instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> first && first.get("message") != null) msg = String.valueOf(first.get("message"));
         if (msg == null) msg = r.text().length() > 300 ? r.text().substring(0, 300) : r.text();
         int s = r.status();
@@ -88,6 +99,37 @@ final class HttpJson {
         String fix = s == 401 ? "The access token is missing, wrong or expired; refresh it in the vault."
                 : s == 403 ? "The account or app lacks permission for this operation." : s == 404 ? "Check the id, name or path." : s == 429 ? "Too many requests; retry later." : null;
         return new ActionException(prefix + code, "HTTP " + s + ": " + msg, fix, s == 429 || s >= 500, Map.of("status", java.math.BigDecimal.valueOf(s)));
+    }
+
+    /** URL of the rel="next" entry in the Link response headers (RFC 8288), or null on the last page. */
+    static String nextLink(Response r) {
+        for (var e : r.headers().entrySet()) {
+            if (!e.getKey().equalsIgnoreCase("Link")) continue;
+            for (String v : e.getValue()) for (String part : v.split(",(?=\\s*<)")) {
+                java.util.regex.Matcher mt = java.util.regex.Pattern.compile("<([^>]+)>\\s*;.*rel=\"?next\"?").matcher(part.trim());
+                if (mt.find()) return mt.group(1);
+            }
+        }
+        return null;
+    }
+
+    /** Waits between status checks; stops early if the run is cancelled. */
+    static void pause(ActionContext ctx, long millis) {
+        ctx.checkCancelled();
+        try { Thread.sleep(millis); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        ctx.checkCancelled();
+    }
+
+    /** Reads a local file for upload, with a typed error when it is missing. */
+    static byte[] readFile(java.nio.file.Path p) {
+        try { return java.nio.file.Files.readAllBytes(p); }
+        catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+    }
+
+    /** Writes downloaded bytes, creating parent folders. */
+    static void writeFile(java.nio.file.Path p, byte[] data) {
+        try { if (p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent()); java.nio.file.Files.write(p, data); }
+        catch (IOException e) { throw new ActionException("FILE.WRITE_FAILED", "Cannot write " + p + ": " + e.getMessage(), "Check the folder exists and is writable."); }
     }
 
     static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20"); }
@@ -118,6 +160,56 @@ final class HttpJson {
             out.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) { throw new IllegalStateException(e); }
         return new Object[]{out.toByteArray(), "multipart/" + subtype + "; boundary=" + boundary};
+    }
+
+    /** Reads a dotted path such as "assignee.login" from nested maps; null when any part is missing. */
+    static Object path(Object value, String dotted) {
+        Object cur = value;
+        for (String part : dotted.split("\\.")) {
+            if (!(cur instanceof Map<?, ?> m)) return null;
+            cur = m.get(part);
+        }
+        return cur;
+    }
+
+    /** Table from records. Each column is "name" or "name=dotted.path", e.g. "assignee=assignee.login". */
+    static Map<String, Object> table(List<? extends Map<?, ?>> records, String... columns) {
+        List<String> names = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
+        for (String c : columns) {
+            int i = c.indexOf('=');
+            names.add(i < 0 ? c : c.substring(0, i));
+            paths.add(i < 0 ? c : c.substring(i + 1));
+        }
+        List<Object> rows = new ArrayList<>();
+        for (Map<?, ?> r : records) {
+            List<Object> row = new ArrayList<>();
+            for (String p : paths) row.add(path(r, p));
+            rows.add(row);
+        }
+        return Values.table(names, rows);
+    }
+
+    /** Same host and scheme as the base URL, so paging links can never send a token elsewhere. */
+    static boolean sameOrigin(String base, String next) {
+        try {
+            URI a = URI.create(base), b = URI.create(next);
+            return a.getScheme() != null && a.getScheme().equalsIgnoreCase(b.getScheme()) && a.getHost() != null
+                    && a.getHost().equalsIgnoreCase(b.getHost()) && a.getPort() == b.getPort();
+        } catch (IllegalArgumentException e) { return false; }
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Object>> maps(Object v) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (v instanceof List<?> l) for (Object o : l) if (o instanceof Map<?, ?> m) out.add((Map<String, Object>) m);
+        return out;
+    }
+
+    static byte[] readFile(ActionContext ctx, String path) {
+        java.nio.file.Path p = ctx.resolvePath(path);
+        try { return java.nio.file.Files.readAllBytes(p); }
+        catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
     }
 
     static List<String> addressList(Object v) {

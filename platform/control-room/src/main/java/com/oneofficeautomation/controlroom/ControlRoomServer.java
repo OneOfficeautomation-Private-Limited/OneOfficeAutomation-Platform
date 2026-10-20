@@ -68,6 +68,7 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
+        clock.scheduleWithFixedDelay(() -> { try { cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
@@ -208,7 +209,11 @@ public final class ControlRoomServer {
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("events")) { cr.appendEvents(d, seg[2], (List<Object>) map(body(ex)).getOrDefault("events", List.of())); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("finish")) { cr.finish(d, seg[2], map(map(body(ex)).getOrDefault("result", Map.of()))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/credential")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, Map.of("value", cr.credentialForRun(d, (String) b.get("run_id"), (String) b.get("ref")))); }
-            else if (m.equals("POST") && route.equals("agent/trigger-fired")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file"))); }
+            else if (m.equals("POST") && route.equals("agent/trigger-fired")) {
+                Map<String, Object> b = map(body(ex));
+                sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
+            }
+            else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;
         }
@@ -368,6 +373,8 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("triggers", cr.triggers(u)));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.createTrigger(u, map(body(ex)), ip));
                 else if (m.equals("PATCH") && seg.length == 2) { cr.setTriggerEnabled(u, seg[1], Boolean.TRUE.equals(map(body(ex)).get("enabled")), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("pause") || seg[2].equals("resume"))) { cr.setTriggerEnabled(u, seg[1], seg[2].equals("resume"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("poll")) { cr.require(u, "triggers.manage", "manage triggers"); sendJson(ex, 200, cr.triggerPollers.pollNow(seg[1])); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteTrigger(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }

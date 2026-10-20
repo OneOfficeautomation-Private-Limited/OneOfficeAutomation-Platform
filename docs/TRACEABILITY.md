@@ -46,3 +46,28 @@ Status: **Built** = implemented and tested here; **Partial** = core behaviour bu
 | NFR-007 | Secrets never shown | Built | SecureString, log redaction | Tested in `test_runner.py`, conformance 012 |
 | NFR-008 | Signed supply chain | Partial | Package signing | Images/agents/SBOM Planned |
 | NFR-011 | Immutable, hash-chained audit | Built | `AuditLog` | Retention/SIEM Planned |
+
+## Java platform status after Part 4 (20 Oct 2026)
+
+The rows above trace the Python reference implementation. The Java platform under `platform/` now covers these
+requirements; where a row above says Planned or Partial, this table is the current status.
+
+| ID | Requirement | Status | Where (Java) | Notes |
+| --- | --- | --- | --- | --- |
+| FR-STU-008 | Debugger | Built | `Runner.Debugger`, `cli/StudioDebugger` | Breakpoints (also in child agents), step into/over/out, call stack, variable edits |
+| FR-STU-001..019 | Studio UI | Built | `cli/src/main/resources/studio` | List and flow views, Quick add, AI assistant, designers for forms, workflows, documents, Prompt Skills |
+| FR-PKG-006 | Usage index | Built | `Platform.toolkits`, `toolkitUsers`, `setToolkitEnabled` | "Used by", switch off blocks check-in and runs |
+| FR-GAI-003 | Prompt templates | Built | `AiSkillsPackage` (One Prompt Skill) | Skills can name a One Model Connection |
+| FR-EXE-001..014 | Runner service | Built | `agent` module (One Runner) | Process per run, remote stop and pause, runner pools, priority |
+| FR-CC-AUT004/005 | Check-in, versions, live production version | Built | `ControlRoom.checkin` | Agents, workflows and forms; H2 or PostgreSQL |
+| FR-CC-RES003/004 | Credentials and vault folders | Built | `ControlRoom`, `ExternalVaults` | HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, CyberArk CCP |
+| FR-CC-ADM004 | Roles with scopes | Built | `Rbac`, `Platform` custom roles | Fine-grained permissions per custom role |
+| FR-AI-001 | Model connections | Built | `ModelConnections`, Command Center connections | Keys only as vault or environment references |
+| FR-AI-004 | AI governance log | Built | `LlmClient.govern`, `Platform.aiGovernance` | Stored centrally per run; no prompts, only a SHA-256 fingerprint |
+| FR-AI-007 | Human approval for tools | Built | `AiAgentPackage.approve` | Desktop approval with timeout; One Workflow approvals in the Task inbox |
+| FR-AI-009 | MCP server | Built | `McpServer` (`POST /api/mcp`) | HTTP transport with API keys, administrator-chosen agents, run as the caller |
+| FR-AST-* | Assist (task inbox) | Built | `Workflows`, console Task inbox | Forms, approvals, notices, claim and release, due times |
+| FR-API-* | Public API | Built | `ControlRoomServer`, API keys | Runs with pools, priority and callbacks; work queues; workflows |
+| SSO | Single sign-on | Built | `Sso` | OpenID Connect with PKCE, signature and nonce checks |
+| FR-INS-* | Insights | Partial | Home dashboard, hours saved, AI governance | Business KPI dashboards from tagged values remain |
+| FR-VOX-* | Voice | Planned | — | |

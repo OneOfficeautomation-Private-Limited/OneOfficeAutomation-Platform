@@ -15,7 +15,7 @@ import java.util.concurrent.*;
 /**
  * The Bot Agent: registers this device with Control Room, sends heartbeats, takes jobs one at a time and runs each bot
  * in its own worker process (crash isolation), relays live events, credential requests and stop/pause/resume, and
- * watches folders for Control Room file triggers.
+ * watches this machine for Command Center triggers (files and folders, windows, processes, services, hotkeys).
  */
 public final class Agent {
     public static final String VERSION = "0.2.0";
@@ -25,8 +25,8 @@ public final class Agent {
     private volatile Worker active;
     private volatile boolean stopping;
     private final ExecutorService io = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-agent-io"); t.setDaemon(true); return t; });
-    private final FileTriggers fileTriggers;
-    long heartbeatMs = 10_000, pollMs = 2_000;
+    private final LocalTriggers localTriggers;
+    long heartbeatMs = 10_000, pollMs = 2_000, triggerPollMs = 2_000;
 
     /** Heartbeat and job-poll intervals in milliseconds (defaults 10 s and 2 s). */
     public Agent intervals(long heartbeat, long poll) { heartbeatMs = heartbeat; pollMs = poll; return this; }
@@ -59,7 +59,10 @@ public final class Agent {
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
         this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"));
-        this.fileTriggers = new FileTriggers(client, this::log);
+        this.localTriggers = new LocalTriggers(new LocalTriggers.Reporter() {
+            public void fired(String id, Map<String, Object> event) { client.post("trigger-fired", Map.of("trigger_id", id, "event", event)); }
+            public void status(String id, String error) { Map<String, Object> b = new HashMap<>(); b.put("trigger_id", id); b.put("error", error); client.post("trigger-status", b); }
+        }, new LocalTriggers.SystemProbe(), LocalTriggers.systemHotkeys(), this::log);
     }
 
     void log(String msg) { System.err.println(LocalDateTime.now().withNano(0) + "  " + msg); }
@@ -70,6 +73,7 @@ public final class Agent {
         log("Workspace: " + workspace);
         ScheduledExecutorService hb = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-agent-heartbeat"); t.setDaemon(true); return t; });
         hb.scheduleWithFixedDelay(this::heartbeat, 0, heartbeatMs, TimeUnit.MILLISECONDS);
+        localTriggers.start(triggerPollMs);
         while (!stopping) {
             try {
                 if (active == null) {
@@ -80,7 +84,7 @@ public final class Agent {
             try { Thread.sleep(pollMs); } catch (InterruptedException e) { break; }
         }
         hb.shutdownNow();
-        fileTriggers.stop();
+        localTriggers.stop();
     }
 
     public void stop() { stopping = true; Worker w = active; if (w != null) w.send(Map.of("type", "cancel")); }
@@ -96,7 +100,7 @@ public final class Agent {
                 else if (((List<Object>) r.getOrDefault("pause", List.of())).contains(w.runId)) w.send(Map.of("type", "pause"));
                 else if (((List<Object>) r.getOrDefault("resume", List.of())).contains(w.runId)) w.send(Map.of("type", "resume"));
             }
-            fileTriggers.update((List<Object>) r.getOrDefault("file_triggers", List.of()));
+            localTriggers.update(r.get("local_triggers") instanceof List<?> l ? (List<Object>) l : (List<Object>) r.getOrDefault("file_triggers", List.of()));
         } catch (OoaException e) { log("Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("Heartbeat error: " + e); }
     }

@@ -23,6 +23,61 @@ public final class SystemPackage {
         return Out.of("value", v != null ? v : def);
     }
 
+    static boolean secretName(String name) {
+        return name.toUpperCase(Locale.ROOT).matches(".*(PASSWORD|PASSWD|SECRET|TOKEN|API_KEY|APIKEY|PRIVATE|CREDENTIAL).*");
+    }
+
+    @Action(id = "get_environment_variables", name = "Get all environment variables", category = "System", idempotent = true,
+            description = "Return every environment variable of the runner as a dictionary; variables that look like secrets are left out.")
+    @Output(name = "variables", type = OoaType.DICTIONARY, description = "Variable name to value, sorted by name.")
+    @Output(name = "hidden_count", type = OoaType.NUMBER, description = "How many secret-looking variables were left out.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getEnvAll(ActionContext ctx) {
+        Map<String, Object> out = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        int hidden = 0;
+        Map<String, String> all = new HashMap<>(System.getenv());
+        if (ctx.sessions() != null && ctx.sessions().get(ProcessRunner.RUN_ENV_SESSION) instanceof Map<?, ?> m)
+            ((Map<String, String>) m).forEach((k, v) -> { if (v == null || v.isEmpty()) all.remove(k); else all.put(k, v); });
+        for (var e : all.entrySet()) {
+            if (secretName(e.getKey())) { hidden++; continue; }
+            out.put(e.getKey(), ctx.redact(e.getValue()));
+        }
+        return Out.of("variables", new LinkedHashMap<>(out), "hidden_count", BigDecimal.valueOf(hidden));
+    }
+
+    /** PowerShell that stores a user-level variable; name and value arrive through environment variables. */
+    static final String SET_USER_ENV_SCRIPT = "[Environment]::SetEnvironmentVariable($env:OOA_ENV_NAME, $env:OOA_ENV_VALUE, 'User')";
+
+    @Action(id = "set_environment_variable", name = "Set environment variable", category = "System",
+            description = "Set an environment variable for programs this run starts (process scope) or permanently for the runner's user (user scope, Windows).")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> setEnv(ActionContext ctx,
+            @Input(name = "name", type = OoaType.STRING, example = "REPORT_FOLDER", description = "Variable name: letters, digits and underscores.") String name,
+            @Input(name = "value", type = OoaType.STRING, required = false, description = "Value; empty removes the variable.") String value,
+            @Input(name = "scope", type = OoaType.STRING, required = false, defaultValue = "\"process\"", enumValues = {"process", "user"},
+                    description = "process: programs and scripts started later in this run; user: saved for the runner's Windows user.") String scope) {
+        if (name == null || !name.matches("^[A-Za-z_][A-Za-z0-9_.]{0,254}$"))
+            throw new ActionException("SYSTEM.BAD_VARIABLE_NAME", "Invalid environment variable name '" + name + "'", "Use letters, digits and underscores, e.g. REPORT_FOLDER.");
+        if (secretName(name))
+            throw new ActionException("SYSTEM.SECRET_VARIABLE", "Setting '" + name + "' is blocked because it looks like a secret",
+                    "Pass secrets to actions as Credential variables instead of environment variables.");
+        String v = value == null ? "" : value;
+        if ("user".equals(scope)) {
+            if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "User-scope variables are supported on Windows only", "Use scope process, or set the variable in the runner's shell profile.");
+            Map<String, String> env = new LinkedHashMap<>();
+            env.put("OOA_ENV_NAME", name);
+            env.put("OOA_ENV_VALUE", v);
+            ProcessRunner.Result r = ProcessRunner.run(ctx, ScriptPackage.powershellCommand(v.isEmpty()
+                    ? "[Environment]::SetEnvironmentVariable($env:OOA_ENV_NAME, $null, 'User')" : SET_USER_ENV_SCRIPT), null, null, 60, env, java.nio.charset.StandardCharsets.UTF_8);
+            if (r.exitCode() != 0) throw new ActionException("SYSTEM.SET_VARIABLE_FAILED", "Cannot set " + name + ": " + ApplicationPackage.tail(r.stderr() + r.stdout()), null);
+        } else if (!"process".equals(scope)) {
+            throw new ActionException("SYSTEM.BAD_SCOPE", "Unknown scope '" + scope + "'", "Use process or user.");
+        }
+        Map<String, String> runEnv = (Map<String, String>) ctx.sessions().computeIfAbsent(ProcessRunner.RUN_ENV_SESSION, k -> new java.util.concurrent.ConcurrentHashMap<String, String>());
+        runEnv.put(name, v);  // empty means removed for programs started later
+        return Map.of();
+    }
+
     @Action(id = "get_system_info", name = "Get system info", category = "System", idempotent = true,
             description = "Return the runner name, operating system, user, processors and Java version.")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "hostname, os, os_version, user, processors, java_version.")

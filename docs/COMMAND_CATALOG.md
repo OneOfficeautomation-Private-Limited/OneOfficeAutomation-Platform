@@ -64,21 +64,28 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | JavaScript | ooa.script/run_javascript | Built | Node.js |
 | Integration & system | VBScript | ooa.script/run_vbscript | Built | Windows |
 | Integration & system | DLL | ooa.dll | Built (library module, test on laptop) | JNA; trusted libraries only |
+| Integration & system | Windows Credential Manager | ooa.credential_manager | Built (library module, tested on Windows) | Generic credentials via advapi32 (JNA); secrets returned as Credential |
+| Core logic & data | Fuzzy match | ooa.fuzzy | Built | Levenshtein, Jaro-Winkler, token sort, token set; best match, fuzzy table join |
+| Core logic & data | Currency conversion | ooa.currency | Built | ECB daily rates, any JSON rates URL, or a fixed rates Dictionary; cached per run |
+| Integration & system | Trigger loop | ooa.triggerloop iterators in core/loop | Built | New file, timer tick and process start events; max events, max time, Exit loop or stop |
 | Integration & system | PowerShell | ooa.script/run_powershell | Built |  |
 | Integration & system | System | ooa.system | Built | Power actions need confirm = true |
 | Integration & system | Services | ooa.services | Built | Windows; start and stop need administrator rights |
-| Integration & system | Ping / SNMP | ooa.network | Partial | SNMP planned |
+| Integration & system | Ping / SNMP | ooa.network | Built | SNMP v2c get, get next, walk, set and traps |
 | Integration & system | Hash / Cryptography | ooa.crypto | Built | Hashes, HMAC, AES-256-GCM, RSA encrypt/sign |
 | Integration & system | PGP | ooa.pgp | Built | Needs GnuPG installed; tested with real GnuPG |
 | Integration & system | Credential / Vault | Credential type + Control Room lockers | Built | AES-256-GCM, owners and consumers, just-in-time delivery, audited |
 | Integration & system | Triggers (event) | Studio triggers + Control Room triggers on agents | Partial | File, schedule and webhook built in both; email, window, hotkey and service triggers planned |
 | Integration & system | Salesforce / ServiceNow / Workday / Jira | ooa.salesforce, ooa.servicenow, ooa.workday, ooa.jira | Built | Workday: workers + generic REST/RaaS |
+| Integration & system | GitHub / Azure DevOps / Asana / Zendesk | ooa.github, ooa.azure_devops, ooa.asana, ooa.zendesk | Built | REST toolkits; base URL input for GitHub Enterprise, Azure DevOps Server and Zendesk subdomains |
+| Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |
+| Integration & system | Snowflake / Databricks / Kafka | ooa.snowflake, ooa.databricks, ooa.kafka | Built | REST only, no drivers: Snowflake SQL API v2, Databricks SQL/Jobs/Clusters/Files, Kafka REST Proxy |
 | AI, workload & process | Document Automation / IQ Bot | - | Excluded for now (your request) |  |
-| AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, self-hosted; PII masking; governance log |
+| AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, Hugging Face, Amazon SageMaker endpoints (SigV4), self-hosted; PII masking; governance log |
 | AI, workload & process | AI Skills / AI Agent | ooa.ai_skills, ooa.ai_agent | Built | Agents call bots as tools; sensitive bots need approval; step and token limits |
 | AI, workload & process | Analyze | ooa.insights | Built | Tagged business values; dashboards in the Insights phase |
 | AI, workload & process | Workload | ooa.workload | Built | Local queues with retries and deferral; central queues and SLAs with Control Room |
-| AI, workload & process | Process / Co-Pilot | Studio Form and Process designers | Partial | Forms and processes are designed and versioned in Studio; running them needs the Assist portal (task inbox) |
+| AI, workload & process | Process / Co-Pilot | One Workflow (Studio designer, Command Center runtime, Task inbox) | Built | Agent tasks, human tasks with forms, approvals, decisions and notifications; timeline, cancel, due times |
 | AI, workload & process | Bot Store packages | - | Planned | Needs the Hub marketplace; not a command |
 | AI, workload & process | Run context | ooa.run_context | Built |  |
 

@@ -141,10 +141,7 @@ public final class WorkdayPackage {
             throw e;
         }
         try {
-            javax.xml.parsers.DocumentBuilderFactory f = javax.xml.parsers.DocumentBuilderFactory.newInstance();
-            f.setNamespaceAware(true);
-            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            return f.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(r.bytes()));
+            return XmlSupport.parse(new String(r.bytes(), java.nio.charset.StandardCharsets.UTF_8), true);
         } catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a reply that is not valid XML", null); }
     }
 

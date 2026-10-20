@@ -15,11 +15,14 @@ public final class FirstPartyPackages {
             ListPackage.class, DictionaryPackage.class, DataTablePackage.class, JsonPackage.class, CsvPackage.class, FilePackage.class,
             FolderPackage.class, RestPackage.class, DatabasePackage.class, CryptoPackage.class, SystemPackage.class,
             XmlPackage.class, LogPackage.class, BooleanPackage.class, ApplicationPackage.class, ScriptPackage.class, NetworkPackage.class,
-            SoapPackage.class, ActiveDirectoryPackage.class, PrinterPackage.class, ServicesPackage.class, DesktopPackage.class, ImagePackage.class,
+            SoapPackage.class, ActiveDirectoryPackage.class, PrinterPackage.class, ServicesPackage.class, DesktopPackage.class, InterruptsPackage.class, ImagePackage.class,
             Microsoft365Package.class, GooglePackage.class, SalesforcePackage.class, ServiceNowPackage.class, JiraPackage.class, SlackPackage.class,
             WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, ExcelDesktopPackage.class,
             OcrPackage.class, PgpPackage.class, GenAiPackage.class, AiSkillsPackage.class, AiAgentPackage.class,
-            WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class);
+            WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, ConnectorPackage.class,
+            FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class,
+            GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
+            OktaPackage.class, BoxPackage.class, DocuSignPackage.class, SnowflakePackage.class, DatabricksPackage.class, KafkaPackage.class);
 
     /** Optional packages in other modules, installed when their module is on the classpath. */
     public static final List<String> OPTIONAL = List.of(
@@ -31,7 +34,8 @@ public final class FirstPartyPackages {
             "com.oneofficeautomation.packages.browser.BrowserPackage",
             "com.oneofficeautomation.packages.transfer.FileTransferPackage",
             "com.oneofficeautomation.packages.windows.WindowPackage",
-            "com.oneofficeautomation.packages.windows.DllPackage");
+            "com.oneofficeautomation.packages.windows.DllPackage",
+            "com.oneofficeautomation.packages.windows.CredentialManagerPackage");
 
     /** Development registry: signs with an ephemeral first-party key. Release builds ship pre-signed JARs. */
     public static PackageRegistry registry(Set<String> allowedPublishers) {

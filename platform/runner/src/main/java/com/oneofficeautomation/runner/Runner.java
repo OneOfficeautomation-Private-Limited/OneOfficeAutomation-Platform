@@ -166,6 +166,7 @@ public final class Runner {
             this.requires = (Map<String, Object>) req.getOrDefault("packages", Map.of());
             scope.builtins.put("sys", this::systemValues);
             scope.builtins.put("global", this::globalValues);
+            if (services.get("repository") instanceof AutomationRepository) sessions.put(ChildAgents.SESSION, (ChildAgents) this::childAgent);
         }
 
         /** $sys.*: evaluated at the moment of use, so date and time are always current. */
@@ -644,6 +645,27 @@ public final class Runner {
             result.put("outputs", res.outputs());
             result.put("status", res.status());
             storeOutputs(step, result);
+        }
+
+        /** A child agent started by a package action (for example an interrupt handler) rather than by a run_bot step. */
+        Map<String, Object> childAgent(String automation, Map<String, Object> inputs) {
+            if (depth + 1 > MAX_CHILD_DEPTH) throw new OoaException("CHILD.DEPTH", "Child agent nesting is too deep",
+                    "Keep child agent chains under " + MAX_CHILD_DEPTH + " levels; check for recursion.");
+            AutomationRepository repo = (AutomationRepository) services.get("repository");
+            Run child = new Run(repo.get(automation, "production"), runId + ".handler-" + UUID.randomUUID().toString().substring(0, 8), cancel, null, depth + 1);
+            child.pause = pause;
+            child.debugger = debugger;
+            child.parent = this;
+            child.parentStep = "interrupt";
+            RunResult res = child.executeAsChild(inputs == null ? Map.of() : inputs, deadlineNanos, secrets);
+            stepsExecuted.addAndGet(res.stepsExecuted());
+            if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped");
+            if (!res.ok()) {
+                Map<String, Object> err = res.error() == null ? Map.of() : res.error();
+                throw new OoaException(String.valueOf(err.getOrDefault("code", "CHILD.FAILED")), "Child agent '" + automation + "' failed: " + err.get("message"),
+                        (String) err.get("suggestedFix"));
+            }
+            return res.outputs();
         }
 
         RunResult executeAsChild(Map<String, Object> inputs, long parentDeadline, List<String> parentSecrets) {

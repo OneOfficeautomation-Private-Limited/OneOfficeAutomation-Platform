@@ -136,4 +136,84 @@ public final class PgpPackage {
         return Out.of("valid", ok, "signer", ok ? signer : "", "fingerprint", ok ? fpr : "");
     }
 
+    /** gpg algorithm names for {primary (sign, certify), encryption subkey}. */
+    static String[] algorithms(String algorithm) {
+        return switch (algorithm == null ? "ed25519" : algorithm) {
+            case "ed25519" -> new String[]{"ed25519", "cv25519"};
+            case "rsa3072" -> new String[]{"rsa3072", "rsa3072"};
+            case "rsa4096" -> new String[]{"rsa4096", "rsa4096"};
+            default -> throw new ActionException("PGP.BAD_ALGORITHM", "Unknown algorithm '" + algorithm + "'", "Use ed25519, rsa3072 or rsa4096.");
+        };
+    }
+
+    /** User id "Name (comment) <email>", rejecting text that gpg could read as options or that would break the user id. */
+    static String userId(String name, String email, String comment) {
+        if (name == null || name.isBlank() || name.strip().startsWith("-") || name.matches(".*[<>()\\x00-\\x1f].*") || name.length() > 200)
+            throw new ActionException("PGP.BAD_NAME", "Invalid key owner name '" + name + "'", "Give a plain name, e.g. Finance Agent.");
+        if (email == null || !email.strip().matches("^[^\\s<>()@]+@[^\\s<>()@]+\\.[^\\s<>()@]+$"))
+            throw new ActionException("PGP.BAD_EMAIL", "Invalid email address '" + email + "'", "Give an address such as finance-agent@example.com.");
+        String c = comment == null || comment.isBlank() ? "" : comment.strip();
+        if (c.matches(".*[<>()\\x00-\\x1f].*")) throw new ActionException("PGP.BAD_COMMENT", "The comment may not contain < > ( ) or control characters");
+        return name.strip() + (c.isEmpty() ? "" : " (" + c + ")") + " <" + email.strip() + ">";
+    }
+
+    static String expiry(String expires) {
+        String e = expires == null || expires.isBlank() ? "2y" : expires.strip();
+        if (!e.matches("^(0|never|\\d{1,4}[dwmy]?|\\d{4}-\\d{2}-\\d{2})$"))
+            throw new ActionException("PGP.BAD_EXPIRY", "Invalid expiry '" + expires + "'", "Use e.g. 1y, 6m, 90d, a date like 2028-12-31, or never.");
+        return e.equals("0") ? "never" : e;
+    }
+
+    @Action(id = "create_keys", name = "Create key pair", category = "Keys", timeoutSeconds = 600, capabilities = "filesystem",
+            description = "Generate a new OpenPGP key pair (signing key plus encryption subkey) and optionally export it to armored key files.")
+    @Output(name = "fingerprint", type = OoaType.STRING, description = "Fingerprint of the new key.")
+    @Output(name = "user_id", type = OoaType.STRING, description = "User id stored in the key, e.g. Finance Agent <agent@example.com>.")
+    @Output(name = "public_key_file", type = OoaType.FILE, description = "Exported public key, or empty.")
+    @Output(name = "private_key_file", type = OoaType.FILE, description = "Exported private key, or empty.")
+    public Map<String, Object> createKeys(ActionContext ctx,
+            @Input(name = "name", type = OoaType.STRING, example = "Finance Agent", description = "Key owner name.") String name,
+            @Input(name = "email", type = OoaType.STRING, example = "finance-agent@example.com", description = "Key owner email address.") String email,
+            @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false, description = "Passphrase that protects the private key; strongly recommended.") Object pass,
+            @Input(name = "comment", type = OoaType.STRING, required = false, description = "Optional comment stored in the user id.") String comment,
+            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"ed25519\"", enumValues = {"ed25519", "rsa3072", "rsa4096"},
+                    description = "Key type: ed25519 (modern, small) or RSA for older systems.") String algorithm,
+            @Input(name = "expires", type = OoaType.STRING, required = false, defaultValue = "\"2y\"", description = "Lifetime, e.g. 1y, 6m, 90d, a date like 2028-12-31, or never.") String expires,
+            @Input(name = "public_key_file", type = OoaType.FILE, required = false, description = "Where to save the armored public key (.asc) to share with partners.") String publicFile,
+            @Input(name = "private_key_file", type = OoaType.FILE, required = false, description = "Where to save the armored private key (.asc) as a backup; keep it secret.") String privateFile,
+            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+        String uid = userId(name, email, comment);
+        String[] algo = algorithms(algorithm);
+        String exp = expiry(expires);
+        String stdin = (pass instanceof SecureString s ? s.reveal() : "") + "\n";
+        if (!(pass instanceof SecureString)) ctx.warn("Creating a PGP key without a passphrase; anyone who gets the key file can use it.");
+        List<String> loop = List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0");
+        List<String> gen = new ArrayList<>(loop);
+        gen.addAll(List.of("--quick-gen-key", uid, algo[0], "sign,cert", exp));
+        ProcessRunner.Result r = gpg(ctx, home, gen, stdin);
+        String fpr = null;
+        for (String line : r.stdout().split("\n")) if (line.startsWith("[GNUPG:] KEY_CREATED ")) { String[] p = line.trim().split(" "); fpr = p[p.length - 1]; }
+        if (r.exitCode() != 0 || fpr == null)
+            throw new ActionException("PGP.KEYGEN_FAILED", "Key generation failed: " + ApplicationPackage.tail(r.stderr()), "Check GnuPG 2.1 or later is installed and the key folder is writable.");
+        List<String> sub = new ArrayList<>(loop);
+        sub.addAll(List.of("--quick-add-key", fpr, algo[1], "encr", exp));
+        r = gpg(ctx, home, sub, stdin);
+        if (r.exitCode() != 0)
+            throw new ActionException("PGP.KEYGEN_FAILED", "Adding the encryption subkey failed: " + ApplicationPackage.tail(r.stderr()), "Check the passphrase and GnuPG version.");
+        String pub = "", priv = "";
+        if (publicFile != null && !publicFile.isBlank()) {
+            pub = out(ctx, publicFile);
+            r = gpg(ctx, home, List.of("--armor", "-o", pub, "--export", fpr), null);
+            if (r.exitCode() != 0) throw new ActionException("PGP.EXPORT_FAILED", "Exporting the public key failed: " + ApplicationPackage.tail(r.stderr()), null);
+        }
+        if (privateFile != null && !privateFile.isBlank()) {
+            priv = out(ctx, privateFile);
+            List<String> ex = new ArrayList<>(loop);
+            ex.addAll(List.of("--armor", "-o", priv, "--export-secret-keys", fpr));
+            r = gpg(ctx, home, ex, stdin);
+            if (r.exitCode() != 0) throw new ActionException("PGP.EXPORT_FAILED", "Exporting the private key failed: " + ApplicationPackage.tail(r.stderr()), "Check the passphrase.");
+        }
+        ctx.info("Created PGP key " + fpr + " for " + uid);
+        return Out.of("fingerprint", fpr, "user_id", uid, "public_key_file", pub, "private_key_file", priv);
+    }
+
 }
