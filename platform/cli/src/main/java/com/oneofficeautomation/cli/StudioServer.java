@@ -305,12 +305,30 @@ public final class StudioServer {
                 throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
             flow.put("kind", "TaskBot"); flow.put("id", "studio_capture"); flow.put("name", "Agent Studio capture");
-            flow.put("variables", List.of(Map.of("name", "selector", "type", "String", "direction", "output"), Map.of("name", "element", "type", "Dictionary", "direction", "output")));
+            flow.put("variables", List.of(Map.of("name", "selector", "type", "String", "direction", "output"), Map.of("name", "element", "type", "Dictionary", "direction", "output"),
+                    Map.of("name", "object", "type", "Dictionary", "direction", "output"), Map.of("name", "alternatives", "type", "Dictionary", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
             args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
-            flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.browser/pick_element", "args", args, "out", Map.of("selector", "selector", "element", "element"))));
+            flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.browser/pick_element", "args", args,
+                    "out", Map.of("selector", "selector", "element", "element", "object", "object", "alternatives", "alternatives"))));
             RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
+            if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
+            else sendJson(ex, 200, r.outputs());
+        } else if (method.equals("POST") && route.equals("capture/test")) {
+            // Design time: open the page, outline every element the captured object matches, and report how many match.
+            Map<String, Object> req = (Map<String, Object>) body(ex);
+            if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
+                throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
+            Map<String, Object> flow = new LinkedHashMap<>();
+            flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_test"); flow.put("name", "Agent Studio capture test");
+            flow.put("variables", List.of(Map.of("name", "count", "type", "Number", "direction", "output"), Map.of("name", "first", "type", "Dictionary", "direction", "output")));
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
+            args.put("object", Map.of("literal", req.get("object")));
+            args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
+            flow.put("steps", List.of(Map.of("id", "test", "action", "ooa.browser/test_object", "args", args, "out", Map.of("count", "count", "first", "first"))));
+            RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(300));
             if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
             else sendJson(ex, 200, r.outputs());
         } else if (method.equals("GET") && route.equals("search")) {

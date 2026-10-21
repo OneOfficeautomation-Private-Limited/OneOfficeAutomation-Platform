@@ -1,0 +1,174 @@
+package com.oneofficeautomation.packages.browser;
+
+import com.oneofficeautomation.sdk.ActionContext;
+import com.oneofficeautomation.sdk.ActionException;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.Test;
+
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/** Captured web objects: property rules, match types, index, iframes, CSS/XPath search, self-healing and the richer element options. */
+class CaptureObjectTest {
+    static final List<String> LOG = new CopyOnWriteArrayList<>();
+    static ActionContext ctx(Path w) {
+        return new ActionContext("run", "s", "default", w, new HashMap<>(), new HashMap<>(), new AtomicBoolean(), List::of, (l, m) -> LOG.add(l + ": " + m));
+    }
+
+    static final String PAGE = """
+            <html><head><title>Orders - Demo</title></head><body>
+              <label for="user">User name</label><input id="user" name="user" type="text">
+              <input placeholder="Search orders" type="search" data-testid="search-box">
+              <button id="save-123456" class="btn primary">Save item</button>
+              <ul><li><button class="btn del">Delete</button></li><li><button class="btn del">Delete</button></li><li><button class="btn del">Delete</button></li></ul>
+              <select id="status"><option>Open</option><option>Closed</option></select>
+              <table id="orders"><tr><th>Id</th><th>Amount</th></tr><tr><td>1</td><td>10</td></tr><tr><td>2</td><td>20</td></tr></table>
+              <div id="spinner">Loading</div>
+              <input type="file" id="upload">
+              <div style="position:relative"><button id="covered" onclick="document.body.dataset.clicked = 'yes'">Covered</button>
+                <div style="position:absolute;inset:0;background:white"></div></div>
+              <iframe id="inner" srcdoc="<input id='code' name='code'><button>Inner</button>"></iframe>
+              <script>
+                setTimeout(() => document.getElementById('spinner').remove(), 600);
+                document.querySelectorAll('.del').forEach((b, i) => b.onclick = () => { document.body.dataset.deleted = String(i); });
+              </script>
+            </body></html>""";
+
+    static Map<String, Object> prop(String name, Object value, String match, boolean use) {
+        return new LinkedHashMap<>(Map.of("name", name, "value", value, "match", match, "use", use));
+    }
+
+    static Map<String, Object> obj(Object... props) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("technology", "web"); o.put("search_by", "properties"); o.put("index", 0);
+        List<Object> p = new ArrayList<>(Arrays.asList(props));
+        o.put("properties", p);
+        return o;
+    }
+
+    Map<String, Object> act(BrowserPackage b, ActionContext c, Map<String, Object> object, String action, Object value) {
+        return b.elementAction(c, object, null, action, value, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null);
+    }
+
+    @Test void capturedObjectDefaultsPickStableProperties() {
+        Map<String, Object> picked = new HashMap<>();
+        picked.put("props", Map.of("tag", "input", "id", "ctl00_5551234", "name", "email", "type", "text", "class", "form-control"));
+        picked.put("css", "input[name=\"email\"]"); picked.put("xpath", "/html/body/input"); picked.put("relative_xpath", "//input[@name='email']");
+        picked.put("page", Map.of("url", "https://x.test/a", "title", "A"));
+        Map<String, Object> o = BrowserPackage.capturedObject(picked);
+        List<Map<String, Object>> props = (List<Map<String, Object>>) o.get("properties");
+        Map<String, Boolean> used = new LinkedHashMap<>();
+        for (Map<String, Object> p : props) used.put((String) p.get("name"), (Boolean) p.get("use"));
+        assertEquals(true, used.get("tag"));
+        assertEquals(false, used.get("id"), "generated-looking ids are not used");
+        assertEquals(true, used.get("name"));
+        assertEquals(true, used.get("type"));
+        assertEquals(false, used.get("class"));
+        assertEquals(false, used.get("css"));
+        assertTrue(used.containsKey("relative_xpath") && used.containsKey("xpath"));
+        assertEquals("starts_with", ((Map<String, Object>) o.get("page")).get("url_match"));
+        assertEquals("equals", WebObjects.rules(o).get(0).get("match"));
+        assertEquals("input[name=\"email\"]", WebObjects.baseCss(WebObjects.rules(o)).replace("[type=\"text\"]", ""));
+        assertTrue(WebObjects.matches("Invoice 42 - Demo", "Invoice * - Demo", "wildcard"));
+        assertFalse(WebObjects.matches("Invoice 42", "Invoice ?", "wildcard"));
+        assertEquals("BROWSER.BAD_MATCH", assertThrows(ActionException.class, () -> WebObjects.rules(obj(prop("id", "x", "sounds_like", true)))).code());
+        assertEquals("BROWSER.BAD_OBJECT", assertThrows(ActionException.class, () -> WebObjects.object(Map.of("technology", "desktop"))).code());
+        assertEquals(List.of(com.microsoft.playwright.options.KeyboardModifier.CONTROL, com.microsoft.playwright.options.KeyboardModifier.SHIFT), BrowserPackage.modifiers("ctrl+Shift"));
+        assertEquals("BROWSER.BAD_MODIFIER", assertThrows(ActionException.class, () -> BrowserPackage.modifiers("hyper")).code());
+    }
+
+    /** End to end with the installed Edge (headless); skipped when no browser can be started here. */
+    @SuppressWarnings("unchecked")
+    @Test void elementActionsOnCapturedObjects() throws Exception {
+        HttpServer s = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        s.createContext("/", ex -> { byte[] b = PAGE.getBytes(StandardCharsets.UTF_8); ex.getResponseHeaders().add("Content-Type", "text/html"); ex.sendResponseHeaders(200, b.length); try (OutputStream os = ex.getResponseBody()) { os.write(b); } });
+        s.start();
+        Path w = Files.createTempDirectory("ooa-capture");
+        ActionContext c = ctx(w);
+        BrowserPackage b = new BrowserPackage();
+        try {
+            try { b.open(c, "http://127.0.0.1:" + s.getAddress().getPort() + "/", "edge", true, null, "browser"); }
+            catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
+
+            // equals on several properties; keystroke typing with append
+            Map<String, Object> user = obj(prop("tag", "input", "equals", true), prop("name", "user", "equals", true), prop("label", "User name", "equals", true));
+            b.elementAction(c, user, null, "set_text", "Ann", 3000, "mouse", null, null, null, "keystrokes", 5, true, false, 0, false, "browser", null);
+            b.elementAction(c, user, null, "set_text", "-B", 3000, "mouse", null, null, null, "fill", 0, false, false, 0, false, "browser", null);
+            assertEquals("Ann-B", act(b, c, user, "get_value", null).get("result"), "clear_first false appends");
+
+            // contains / starts_with / data-* / ignore case
+            Map<String, Object> search = obj(prop("placeholder", "search ORDERS", "contains", true), prop("data-testid", "search-", "starts_with", true));
+            search.put("ignore_case", true);
+            act(b, c, search, "set_text", "INV-7");
+            assertEquals("INV-7", act(b, c, search, "get_value", null).get("result"));
+
+            // wildcard and regex on text; generated id matched by regex
+            assertEquals("Save item", act(b, c, obj(prop("tag", "button", "equals", true), prop("text", "Save*", "wildcard", true)), "get_text", null).get("result"));
+            assertEquals(true, act(b, c, obj(prop("id", "^save-\\d+$", "regex", true)), "is_present", null).get("result"));
+
+            // index among several matches; count; not_equals
+            Map<String, Object> del = obj(prop("tag", "button", "equals", true), prop("text", "Delete", "equals", true));
+            assertEquals(new BigDecimal(3), act(b, c, del, "count", null).get("result"));
+            del.put("index", 2);
+            act(b, c, del, "click", null);
+            assertEquals("2", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-deleted").get("result"));
+            assertEquals(new BigDecimal(1), act(b, c, obj(prop("tag", "button", "equals", true), prop("class", "btn del", "not_equals", true), prop("class", "btn", "starts_with", true)), "count", null).get("result"));
+            del.put("index", 7);
+            assertEquals("BROWSER.OBJECT_NOT_FOUND", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null)).code());
+
+            // search by CSS and XPath; self-healing to CSS when the properties no longer match
+            Map<String, Object> status = obj(prop("id", "status-old", "equals", true), prop("css", "#status", "equals", false), prop("xpath", "/html/body/select", "equals", false));
+            act(b, c, status, "select_by_text", "Closed");
+            assertTrue(LOG.stream().anyMatch(l -> l.contains("found by its css")), "the healed search is logged: " + LOG);
+            status.put("search_by", "xpath");
+            assertEquals("Closed", act(b, c, status, "get_selected", null).get("result"));
+
+            // iframes
+            Map<String, Object> code = obj(prop("name", "code", "equals", true));
+            code.put("frames", List.of("iframe#inner"));
+            act(b, c, code, "set_text", "X1");
+            assertEquals("X1", act(b, c, code, "get_value", null).get("result"));
+
+            // properties, coordinates, table, children
+            Map<String, Object> all = (Map<String, Object>) act(b, c, user, "get_all_properties", null).get("result");
+            assertEquals("user", all.get("id"));
+            assertEquals("Ann-B", all.get("value"));
+            Map<String, Object> xy = (Map<String, Object>) act(b, c, user, "get_coordinates", null).get("result");
+            assertTrue(((BigDecimal) xy.get("width")).intValue() > 0);
+            Map<String, Object> table = (Map<String, Object>) act(b, c, obj(prop("id", "orders", "equals", true)), "get_table", null).get("result");
+            assertEquals(List.of("Id", "Amount"), table.get("columns"));
+            assertEquals(2, ((List<Object>) table.get("rows")).size());
+            assertEquals(List.of("Delete", "Delete", "Delete"), act(b, c, obj(prop("tag", "ul", "equals", true)), "get_children_text", null).get("result"));
+
+            // waiting for something to disappear
+            assertEquals(true, b.elementAction(c, obj(prop("id", "spinner", "equals", true)), null, "wait_to_disappear", null, 5000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null).get("result"));
+
+            // a covered button: a mouse click is refused, a JavaScript click works
+            Map<String, Object> covered = obj(prop("id", "covered", "equals", true));
+            assertThrows(ActionException.class, () -> b.elementAction(c, covered, null, "click", null, 800, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null));
+            b.elementAction(c, covered, null, "click", null, 3000, "javascript", null, null, null, "fill", 0, true, false, 0, false, "browser", null);
+            assertEquals("yes", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-clicked").get("result"));
+
+            // upload and element screenshot
+            Files.writeString(w.resolve("a.txt"), "hello");
+            assertEquals(new BigDecimal(1), act(b, c, obj(prop("id", "upload", "equals", true)), "upload_file", "a.txt").get("result"));
+            act(b, c, user, "screenshot", "shots/user.png");
+            assertTrue(Files.size(w.resolve("shots/user.png")) > 100);
+
+            // the selector still works for older steps, and one of the two is required
+            assertEquals("Save item", b.elementAction(c, null, "#save-123456", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null).get("result"));
+            assertEquals("BROWSER.NO_ELEMENT", assertThrows(ActionException.class, () -> act(b, c, null, "click", null)).code());
+        } finally {
+            try { b.close(c, "browser"); } catch (RuntimeException ignored) { }
+            s.stop(0);
+        }
+    }
+}

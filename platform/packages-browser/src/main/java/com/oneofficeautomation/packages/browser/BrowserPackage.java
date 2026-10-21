@@ -39,6 +39,9 @@ public final class BrowserPackage {
         return new ActionException("BROWSER.ERROR", what + " failed: " + m, null);
     }
 
+    /** For helpers in this module (captured objects). */
+    static ActionException pwPublic(PlaywrightException e, String what) { return pw(e, what); }
+
     private static final String D_SEL = "Element selector: CSS (#id, .class), text=\"Sign in\", role=button[name=\"Save\"] or xpath=//input[@name='q'].";
     private static final String D_TIMEOUT = "How long to wait for the element, in milliseconds.";
     private static final String D_ALT = "Self-healing fallbacks recorded with the element (Pick records them): automation_id, name, id, aria_label, tag, class, index, text, "
@@ -579,59 +582,188 @@ public final class BrowserPackage {
     }
     // ---------- Capture: element actions and design-time picker ----------
     @SuppressWarnings("unchecked")
-    @Action(id = "element_action", name = "Capture: element action", category = "Capture", timeoutSeconds = 120, capabilities = "browser",
-            description = "Do one action on a captured element: click, type, read text, attributes or properties, select, check, hover, and more.")
-    @Output(name = "result", description = "Value returned by get, is and count actions.")
+    @Action(id = "element_action", name = "Capture: element action", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
+            description = "Do one action on a captured element: click, type, read text, attributes or all properties, select, check, hover, drag, upload, wait and more. "
+                    + "The element is the captured object (properties you choose, each with its own match rule) or a selector.")
+    @Output(name = "result", description = "Value returned by get, is, count, wait and coordinate actions.")
     public Map<String, Object> elementAction(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL + " Use Pick in Agent Studio to capture it.") String sel,
-            @Input(name = "action", type = OoaType.STRING, enumValues = {"click", "double_click", "right_click", "hover", "focus", "set_text", "append_text", "clear",
-                    "press_key", "get_text", "get_value", "get_attribute", "get_property", "select_by_text", "select_by_value", "select_by_index", "get_selected",
-                    "get_options", "check", "uncheck", "is_checked", "is_visible", "is_enabled", "count", "scroll_into_view"}, description = "What to do with the element.") String action,
-            @Input(name = "value", required = false, description = "Text, key, attribute or property name, option or index, depending on the action. Credentials allowed for set_text.") Object value,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "The captured object from Capture in Agent Studio: the properties to match "
+                    + "(each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard, regex), search_by (properties, css or xpath), "
+                    + "index when several elements match, and iframes. Used instead of the selector when given.") Object objectArg,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL + " Used when no captured object is given.") String sel,
+            @Input(name = "action", type = OoaType.STRING, enumValues = {"click", "double_click", "right_click", "middle_click", "hover", "focus", "set_text", "append_text", "clear",
+                    "press_key", "get_text", "get_value", "get_attribute", "get_property", "get_all_properties", "get_html", "get_inner_html", "get_coordinates",
+                    "get_children_text", "get_table", "select_by_text", "select_by_value", "select_by_index", "get_selected", "get_options", "check", "uncheck",
+                    "is_checked", "is_visible", "is_enabled", "is_present", "count", "scroll_into_view", "highlight", "wait_to_appear", "wait_to_disappear",
+                    "drag_to", "upload_file", "screenshot"}, description = "What to do with the element.") String action,
+            @Input(name = "value", required = false, description = "Depends on the action: the text to type, the key (e.g. Enter, Ctrl+A), the attribute or property name, "
+                    + "the option text, value or index, the target selector for drag_to, the file path(s) for upload_file, or the image path for screenshot. Credentials allowed for set_text.") Object value,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "click_method", type = OoaType.STRING, required = false, defaultValue = "\"mouse\"", enumValues = {"mouse", "javascript"},
+                    description = "mouse: a real click at the element (scrolls it into view and waits until it can be clicked); javascript: fire the click event directly, for elements that are covered or off screen.") String clickMethod,
+            @Input(name = "modifiers", type = OoaType.STRING, required = false, description = "Keys held during the click, e.g. CTRL, SHIFT or CTRL+SHIFT.") String modifiers,
+            @Input(name = "offset_x", type = OoaType.NUMBER, required = false, description = "Click this many pixels from the element's left edge instead of its centre.") Double offsetX,
+            @Input(name = "offset_y", type = OoaType.NUMBER, required = false, description = "Click this many pixels from the element's top edge instead of its centre.") Double offsetY,
+            @Input(name = "typing", type = OoaType.STRING, required = false, defaultValue = "\"fill\"", enumValues = {"fill", "keystrokes"},
+                    description = "fill: set the whole text at once (fast); keystrokes: type key by key like a person, for fields that react to each key.") String typing,
+            @Input(name = "key_delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Pause between keys when typing is keystrokes.") double keyDelay,
+            @Input(name = "clear_first", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Clear the field before set_text.") boolean clearFirst,
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Act even if the element looks hidden, covered or disabled.") boolean force,
+            @Input(name = "wait_after_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Pause after the action, e.g. to let the page react.") double waitAfter,
+            @Input(name = "use_captured_page", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Switch to the open tab whose address (and title, when its match rule is set) matches the page recorded with the captured object.") boolean useCapturedPage,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
-        Page page = s(ctx, session).page;
-        Locator all = page.locator(sel);
-        Locator l;
-        if (action.equals("count") || action.equals("is_visible")) { UiGuard.before(ctx); l = all.first(); }   // asking whether it is there must not wait or heal
-        else { try { l = element(ctx, session, sel, alternatives, timeout); } catch (PlaywrightException e) { throw pw(e, action + " on " + sel); } }
-        String v = value instanceof SecureString ss ? ss.reveal() : value == null ? null : Values.text(value);
-        java.util.function.Supplier<String> need = () -> { if (v == null || v.isEmpty()) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a value"); return v; };
+        BrowserSession bs = s(ctx, session);
+        Map<String, Object> object = objectArg == null ? null : WebObjects.object(objectArg);
+        if (object == null && (sel == null || sel.isBlank()))
+            throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in Agent Studio, or type a selector.");
+        String what = object != null ? "the captured object " + WebObjects.describe(object) : sel;
+        boolean ask = action.equals("count") || action.equals("is_visible") || action.equals("is_present");
+        Locator l = null;
         Object result = null;
+        if (ask) {
+            UiGuard.before(ctx);
+            Page page = object != null ? WebObjects.page(bs, object, useCapturedPage) : bs.page;
+            int n;
+            try {
+                if (object != null) {
+                    Locator[] found = WebObjects.findAll(page, object);
+                    n = found.length;
+                    int idx = object.get("index") instanceof Number x ? x.intValue() : 0;
+                    l = found.length > idx ? found[idx] : null;
+                } else { Locator all = page.locator(sel); n = all.count(); l = n > 0 ? all.first() : null; }
+                result = switch (action) {
+                    case "count" -> BigDecimal.valueOf(n);
+                    case "is_present" -> l != null;
+                    default -> l != null && l.isVisible();
+                };
+            } catch (PlaywrightException e) { throw pw(e, action + " on " + what); }
+            return single(result);
+        }
+        if (action.equals("wait_to_disappear")) {
+            long end = System.currentTimeMillis() + (long) timeout;
+            while (true) {
+                ctx.checkCancelled();
+                boolean present;
+                try {
+                    if (object != null) { Locator[] f = WebObjects.findAll(WebObjects.page(bs, object, useCapturedPage), object); present = Arrays.stream(f).anyMatch(Locator::isVisible); }
+                    else { Locator f = bs.page.locator(sel); present = f.count() > 0 && f.first().isVisible(); }
+                } catch (PlaywrightException e) { present = false; }
+                if (!present) return single(true);
+                if (System.currentTimeMillis() >= end) throw new ActionException("BROWSER.STILL_VISIBLE", what + " is still on the page after " + (long) timeout + " ms", "Raise timeout_ms.", true);
+                try { bs.page.waitForTimeout(250); } catch (PlaywrightException e) { throw pw(e, "Waiting"); }
+            }
+        }
+        try { l = object != null ? WebObjects.locate(ctx, bs, object, timeout, useCapturedPage) : element(ctx, session, sel, alternatives, timeout); }
+        catch (PlaywrightException e) { throw pw(e, action + " on " + what); }
+        String v = value instanceof SecureString ss ? ss.reveal() : value == null ? null : value instanceof List<?> ? null : Values.text(value);
+        java.util.function.Supplier<String> need = () -> { if (v == null || v.isEmpty()) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a value"); return v; };
+        List<com.microsoft.playwright.options.KeyboardModifier> mods = modifiers(modifiers);
+        com.microsoft.playwright.options.Position at = offsetX != null || offsetY != null
+                ? new com.microsoft.playwright.options.Position(offsetX == null ? 1 : offsetX, offsetY == null ? 1 : offsetY) : null;
+        boolean js = "javascript".equals(clickMethod);
         try {
             switch (action) {
-                case "click" -> l.click(new Locator.ClickOptions().setTimeout(timeout));
-                case "double_click" -> l.dblclick(new Locator.DblclickOptions().setTimeout(timeout));
-                case "right_click" -> l.click(new Locator.ClickOptions().setTimeout(timeout).setButton(com.microsoft.playwright.options.MouseButton.RIGHT));
-                case "hover" -> l.hover(new Locator.HoverOptions().setTimeout(timeout));
+                case "click" -> { if (js) l.evaluate("e => e.click()"); else { Locator.ClickOptions o = new Locator.ClickOptions().setTimeout(timeout).setForce(force).setModifiers(mods); if (at != null) o.setPosition(at); l.click(o); } }
+                case "double_click" -> { if (js) l.evaluate("e => { e.click(); e.click(); e.dispatchEvent(new MouseEvent('dblclick', {bubbles: true})); }");
+                    else { Locator.DblclickOptions o = new Locator.DblclickOptions().setTimeout(timeout).setForce(force).setModifiers(mods); if (at != null) o.setPosition(at); l.dblclick(o); } }
+                case "right_click" -> { if (js) l.evaluate("e => e.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, button: 2}))");
+                    else { Locator.ClickOptions o = new Locator.ClickOptions().setTimeout(timeout).setForce(force).setModifiers(mods).setButton(com.microsoft.playwright.options.MouseButton.RIGHT); if (at != null) o.setPosition(at); l.click(o); } }
+                case "middle_click" -> { Locator.ClickOptions o = new Locator.ClickOptions().setTimeout(timeout).setForce(force).setModifiers(mods).setButton(com.microsoft.playwright.options.MouseButton.MIDDLE); if (at != null) o.setPosition(at); l.click(o); }
+                case "hover" -> { Locator.HoverOptions o = new Locator.HoverOptions().setTimeout(timeout).setForce(force).setModifiers(mods); if (at != null) o.setPosition(at); l.hover(o); }
                 case "focus" -> l.focus(new Locator.FocusOptions().setTimeout(timeout));
-                case "set_text" -> l.fill(need.get(), new Locator.FillOptions().setTimeout(timeout));
-                case "append_text" -> { l.click(new Locator.ClickOptions().setTimeout(timeout)); l.press("End"); l.pressSequentially(need.get()); }
-                case "clear" -> l.clear(new Locator.ClearOptions().setTimeout(timeout));
-                case "press_key" -> l.press(need.get(), new Locator.PressOptions().setTimeout(timeout));
+                case "set_text" -> {
+                    String text = value instanceof SecureString ? v : need.get();
+                    if ("keystrokes".equals(typing)) {
+                        if (clearFirst) l.clear(new Locator.ClearOptions().setTimeout(timeout).setForce(force));
+                        else { l.click(new Locator.ClickOptions().setTimeout(timeout)); l.press("End"); }
+                        l.pressSequentially(text, new Locator.PressSequentiallyOptions().setDelay(keyDelay).setTimeout(timeout + text.length() * (keyDelay + 50)));
+                    } else if (clearFirst) l.fill(text, new Locator.FillOptions().setTimeout(timeout).setForce(force));
+                    else { l.click(new Locator.ClickOptions().setTimeout(timeout)); l.press("End"); l.pressSequentially(text, new Locator.PressSequentiallyOptions().setDelay(keyDelay)); }
+                }
+                case "append_text" -> { l.click(new Locator.ClickOptions().setTimeout(timeout)); l.press("End"); l.pressSequentially(need.get(), new Locator.PressSequentiallyOptions().setDelay(keyDelay)); }
+                case "clear" -> l.clear(new Locator.ClearOptions().setTimeout(timeout).setForce(force));
+                case "press_key" -> l.press(playwrightKeys(need.get()), new Locator.PressOptions().setTimeout(timeout));
                 case "get_text" -> result = l.innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip();
                 case "get_value" -> result = l.inputValue(new Locator.InputValueOptions().setTimeout(timeout));
                 case "get_attribute" -> result = l.getAttribute(need.get(), new Locator.GetAttributeOptions().setTimeout(timeout));
                 case "get_property" -> { l.waitFor(new Locator.WaitForOptions().setTimeout(timeout)); result = Values.toJsonable(l.evaluate("(e, p) => e[p]", need.get())); }
-                case "select_by_text" -> l.selectOption(new com.microsoft.playwright.options.SelectOption().setLabel(need.get()), new Locator.SelectOptionOptions().setTimeout(timeout));
-                case "select_by_value" -> l.selectOption(need.get(), new Locator.SelectOptionOptions().setTimeout(timeout));
-                case "select_by_index" -> l.selectOption(new com.microsoft.playwright.options.SelectOption().setIndex(Integer.parseInt(need.get().trim())), new Locator.SelectOptionOptions().setTimeout(timeout));
+                case "get_all_properties" -> result = Values.toJsonable(l.evaluate(WebObjects.ALL_PROPS_JS));
+                case "get_html" -> result = l.evaluate("e => e.outerHTML");
+                case "get_inner_html" -> result = l.innerHTML(new Locator.InnerHTMLOptions().setTimeout(timeout));
+                case "get_coordinates" -> {
+                    var b = l.boundingBox(new Locator.BoundingBoxOptions().setTimeout(timeout));
+                    if (b == null) throw new ActionException("BROWSER.NOT_VISIBLE", what + " has no position because it is not visible");
+                    result = Map.of("x", BigDecimal.valueOf(Math.round(b.x)), "y", BigDecimal.valueOf(Math.round(b.y)), "width", BigDecimal.valueOf(Math.round(b.width)), "height", BigDecimal.valueOf(Math.round(b.height)));
+                }
+                case "get_children_text" -> result = Values.toJsonable(l.evaluate("e => Array.from(e.children).map(c => (c.innerText || c.textContent || '').trim())"));
+                case "get_table" -> {
+                    Object t = l.evaluate("""
+                        e => { const t = e.closest('table') || e; const rows = Array.from(t.querySelectorAll('tr'));
+                          if (!rows.length) return null;
+                          const cells = (r) => Array.from(r.querySelectorAll('th,td')).map(c => (c.innerText || '').trim());
+                          const head = rows[0].querySelector('th') ? cells(rows[0]) : cells(rows[0]).map((_, i) => 'Column' + (i + 1));
+                          const body = rows.slice(rows[0].querySelector('th') ? 1 : 0).map(cells);
+                          return { columns: head, rows: body }; }""");
+                    if (t == null) throw new ActionException("BROWSER.NOT_A_TABLE", what + " is not a table and contains no table rows");
+                    result = Values.toJsonable(t);
+                }
+                case "select_by_text" -> l.selectOption(new com.microsoft.playwright.options.SelectOption().setLabel(need.get()), new Locator.SelectOptionOptions().setTimeout(timeout).setForce(force));
+                case "select_by_value" -> l.selectOption(need.get(), new Locator.SelectOptionOptions().setTimeout(timeout).setForce(force));
+                case "select_by_index" -> l.selectOption(new com.microsoft.playwright.options.SelectOption().setIndex(Integer.parseInt(need.get().trim())), new Locator.SelectOptionOptions().setTimeout(timeout).setForce(force));
                 case "get_selected" -> { l.waitFor(new Locator.WaitForOptions().setTimeout(timeout)); result = l.evaluate("e => e.options && e.selectedIndex >= 0 ? e.options[e.selectedIndex].text : null"); }
                 case "get_options" -> { l.waitFor(new Locator.WaitForOptions().setTimeout(timeout)); result = l.evaluate("e => Array.from(e.options || []).map(o => o.text)"); }
-                case "check" -> l.check(new Locator.CheckOptions().setTimeout(timeout));
-                case "uncheck" -> l.uncheck(new Locator.UncheckOptions().setTimeout(timeout));
+                case "check" -> l.check(new Locator.CheckOptions().setTimeout(timeout).setForce(force));
+                case "uncheck" -> l.uncheck(new Locator.UncheckOptions().setTimeout(timeout).setForce(force));
                 case "is_checked" -> result = l.isChecked(new Locator.IsCheckedOptions().setTimeout(timeout));
-                case "is_visible" -> result = l.isVisible();
                 case "is_enabled" -> result = l.isEnabled(new Locator.IsEnabledOptions().setTimeout(timeout));
-                case "count" -> result = BigDecimal.valueOf(all.count());
                 case "scroll_into_view" -> l.scrollIntoViewIfNeeded(new Locator.ScrollIntoViewIfNeededOptions().setTimeout(timeout));
+                case "highlight" -> { l.evaluate("e => { const o = e.style.outline; e.style.outline = '3px solid #a371ed'; setTimeout(() => { e.style.outline = o; }, 2000); }"); result = true; }
+                case "wait_to_appear" -> { l.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.VISIBLE)); result = true; }
+                case "drag_to" -> l.dragTo(bs.page.locator(need.get()), new Locator.DragToOptions().setTimeout(timeout).setForce(force));
+                case "upload_file" -> {
+                    List<Path> files = new ArrayList<>();
+                    if (value instanceof List<?> list) for (Object o : list) files.add(ctx.workDir().resolve(Values.text(o)));
+                    else for (String f : need.get().split("[;\\n]")) if (!f.isBlank()) files.add(ctx.workDir().resolve(f.trim()));
+                    for (Path f : files) if (!Files.isRegularFile(f)) throw new ActionException("BROWSER.FILE_NOT_FOUND", "File not found: " + f);
+                    l.setInputFiles(files.toArray(Path[]::new), new Locator.SetInputFilesOptions().setTimeout(timeout));
+                    result = BigDecimal.valueOf(files.size());
+                }
+                case "screenshot" -> {
+                    Path out = ctx.workDir().resolve(need.get());
+                    if (out.getParent() != null) Files.createDirectories(out.getParent());
+                    l.screenshot(new Locator.ScreenshotOptions().setPath(out).setTimeout(timeout));
+                    result = out.toString();
+                }
                 default -> throw new ActionException("BROWSER.BAD_ACTION", "Unknown element action '" + action + "'");
             }
-        } catch (PlaywrightException e) { throw pw(e, action + " on " + sel);
+        } catch (PlaywrightException e) { throw pw(e, action + " on " + what);
+        } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage());
         } catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_INDEX", "select_by_index needs a whole number"); }
+        if (waitAfter > 0) { try { bs.page.waitForTimeout(waitAfter); } catch (PlaywrightException ignored) { } }
+        return single(result);
+    }
+
+    private static Map<String, Object> single(Object result) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("result", result);
+        out.put("result", result instanceof Boolean || result == null || result instanceof BigDecimal || result instanceof String || result instanceof Map || result instanceof List ? result : Values.toJsonable(result));
+        return out;
+    }
+
+    static List<com.microsoft.playwright.options.KeyboardModifier> modifiers(String spec) {
+        List<com.microsoft.playwright.options.KeyboardModifier> out = new ArrayList<>();
+        if (spec == null || spec.isBlank()) return out;
+        for (String p : spec.split("[+, ]+")) {
+            switch (p.trim().toUpperCase(Locale.ROOT)) {
+                case "CTRL", "CONTROL" -> out.add(com.microsoft.playwright.options.KeyboardModifier.CONTROL);
+                case "SHIFT" -> out.add(com.microsoft.playwright.options.KeyboardModifier.SHIFT);
+                case "ALT" -> out.add(com.microsoft.playwright.options.KeyboardModifier.ALT);
+                case "WIN", "META", "CMD" -> out.add(com.microsoft.playwright.options.KeyboardModifier.META);
+                case "" -> { }
+                default -> throw new ActionException("BROWSER.BAD_MODIFIER", "Unknown modifier key '" + p + "'", "Use CTRL, SHIFT, ALT or WIN, joined with +.");
+            }
+        }
         return out;
     }
 
@@ -696,11 +828,47 @@ public final class BrowserPackage {
             const r = t.getBoundingClientRect();
             Object.assign(box.style, { display: 'block', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
           }, true);
+          const xq = (v) => v.indexOf("'") < 0 ? "'" + v + "'" : (v.indexOf('"') < 0 ? '"' + v + '"' : "'" + v.split("'").join('') + "'");
+          const absXpath = (el) => {
+            const parts = []; let e = el;
+            while (e && e.nodeType === 1) {
+              const sib = e.parentNode ? Array.from(e.parentNode.children).filter(c => c.tagName === e.tagName) : [];
+              parts.unshift(e.tagName.toLowerCase() + (sib.length > 1 ? '[' + (sib.indexOf(e) + 1) + ']' : ''));
+              e = e.parentElement;
+            }
+            return '/' + parts.join('/');
+          };
+          const relXpath = (el) => {
+            const tag = el.tagName.toLowerCase();
+            for (const a of ['id', 'name', 'data-testid', 'aria-label', 'placeholder', 'title']) {
+              const v = el.getAttribute(a); if (v && !(a === 'id' && /\\d{3,}/.test(v))) return '//' + tag + '[@' + a + '=' + xq(v) + ']';
+            }
+            const tx = (el.innerText || '').trim();
+            if (tx && tx.length < 60 && tx.indexOf(String.fromCharCode(10)) < 0) return '//' + tag + '[normalize-space()=' + xq(tx) + ']';
+            let e = el.parentElement, depth = 0;
+            while (e && depth < 6) { if (e.id && !/\\d{3,}/.test(e.id)) { const rest = absXpath(el).slice(absXpath(e).length); return '//*[@id=' + xq(e.id) + ']' + rest; } e = e.parentElement; depth++; }
+            return absXpath(el);
+          };
+          const props = (el) => {
+            const p = {};
+            const put = (k, v) => { if (v !== null && v !== undefined && String(v).trim() !== '') p[k] = String(v).trim().slice(0, 500); };
+            put('tag', el.tagName.toLowerCase());
+            for (const a of ['id', 'name', 'type', 'class', 'aria-label', 'placeholder', 'title', 'role', 'href', 'src', 'alt', 'for']) put(a, el.getAttribute(a));
+            for (const a of el.attributes) if (a.name.startsWith('data-')) put(a.name, a.value);
+            const tx = (el.innerText || '').replace(/\\s+/g, ' ').trim(); if (tx && tx.length <= 200) put('text', tx);
+            if (el.value !== undefined && el.getAttribute('type') !== 'password') put('value', el.value);
+            if (el.labels && el.labels.length) put('label', (el.labels[0].innerText || '').replace(/\\s+/g, ' ').trim());
+            return p;
+          };
           document.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
             const t = e.target;
+            const r = t.getBoundingClientRect();
+            box.style.display = 'none'; tip.style.display = 'none';
             window.__ooaPicked({ selector: sel(t), tag: t.tagName.toLowerCase(), text: (t.innerText || t.value || '').trim().slice(0, 80),
-              type: t.getAttribute('type') || '', name: t.getAttribute('name') || '', id: t.id || '', alternatives: alt(t) });
+              type: t.getAttribute('type') || '', name: t.getAttribute('name') || '', id: t.id || '', alternatives: alt(t),
+              props: props(t), css: sel(t), xpath: absXpath(t), relative_xpath: relXpath(t),
+              rect: { x: r.left, y: r.top, width: r.width, height: r.height }, page: { url: location.href, title: document.title } });
           }, true);
         })();
         """;
@@ -711,6 +879,7 @@ public final class BrowserPackage {
     @Output(name = "selector", type = OoaType.STRING, description = "Selector for the clicked element.")
     @Output(name = "element", type = OoaType.DICTIONARY, description = "tag, text, type, name and id of the element.")
     @Output(name = "alternatives", type = OoaType.DICTIONARY, description = "Self-healing fallbacks for the element; pass them as alternatives to element actions.")
+    @Output(name = "object", type = OoaType.DICTIONARY, description = "The captured object: every property with use and match settings, CSS, XPath, iframes, page and a screenshot.")
     public Map<String, Object> pickElement(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium"}, description = "Browser.") String which,
@@ -724,7 +893,8 @@ public final class BrowserPackage {
             if (which.equals("chrome")) lo.setChannel("chrome");
             com.microsoft.playwright.Browser b = pw.chromium().launch(lo);
             BrowserContext c = b.newContext();
-            c.exposeBinding("__ooaPicked", (source, args) -> { if (args.length > 0 && args[0] instanceof Map<?, ?> m) picked[0] = (Map<String, Object>) m; return null; });
+            final Frame[] pickedFrame = new Frame[1];
+            c.exposeBinding("__ooaPicked", (source, args) -> { if (args.length > 0 && args[0] instanceof Map<?, ?> m) { picked[0] = (Map<String, Object>) m; pickedFrame[0] = source.frame(); } return null; });
             c.addInitScript(PICKER_JS);
             Page p = c.newPage();
             p.navigate(url);
@@ -734,10 +904,127 @@ public final class BrowserPackage {
                 if (c.pages().isEmpty()) break;
                 try { c.pages().get(0).waitForTimeout(200); } catch (PlaywrightException e) { break; }
             }
+            if (picked[0] != null) {
+                List<String> frames = new ArrayList<>();
+                try {
+                    for (Frame f = pickedFrame[0]; f != null && f.parentFrame() != null; f = f.parentFrame())
+                        frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
+                } catch (PlaywrightException ignored) { /* the frame went away; the object still works on the page */ }
+                picked[0].put("frames", frames);
+                if (frames.isEmpty() && picked[0].get("rect") instanceof Map<?, ?> r && !c.pages().isEmpty()) {
+                    try {
+                        double x = ((Number) r.get("x")).doubleValue(), y = ((Number) r.get("y")).doubleValue(), w = ((Number) r.get("width")).doubleValue(), h = ((Number) r.get("height")).doubleValue();
+                        if (w >= 2 && h >= 2) {
+                            byte[] png = c.pages().get(0).screenshot(new Page.ScreenshotOptions().setClip(Math.max(0, x - 4), Math.max(0, y - 4), Math.min(w + 8, 1200), Math.min(h + 8, 600)));
+                            if (png.length < 300_000) picked[0].put("screenshot", Base64.getEncoder().encodeToString(png));
+                        }
+                    } catch (PlaywrightException ignored) { /* a screenshot is a nice-to-have */ }
+                }
+            }
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Picking an element"); }
         if (picked[0] == null) throw new ActionException("BROWSER.NOTHING_PICKED", "No element was picked", "Click an element in the browser window before closing it.");
         Object alternatives = picked[0].get("alternatives") instanceof Map<?, ?> m ? m : Map.of();
-        return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", picked[0], "alternatives", alternatives);
+        Map<String, Object> object = capturedObject(picked[0]);
+        Map<String, Object> element = new LinkedHashMap<>(picked[0]);
+        element.remove("screenshot"); element.remove("props");
+        return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", element, "alternatives", alternatives, "object", object);
+    }
+
+    private static final String FRAME_SELECTOR_JS = """
+        (el) => {
+          if (el.id && !/\\d{3,}/.test(el.id)) return 'iframe#' + CSS.escape(el.id);
+          const nm = el.getAttribute('name'); if (nm) return 'iframe[name="' + nm.replace(/"/g, '\\"') + '"]';
+          const src = el.getAttribute('src'); if (src && src.length < 200) return 'iframe[src="' + src.replace(/"/g, '\\"') + '"]';
+          const all = Array.from(el.ownerDocument.querySelectorAll('iframe,frame'));
+          return (el.tagName.toLowerCase()) + ':nth-of-type(' + (Array.from(el.parentElement.children).filter(c => c.tagName === el.tagName).indexOf(el) + 1) + ')';
+        }
+        """;
+
+    /** Turns the picker's raw properties into the captured object, choosing sensible properties to match by default. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> capturedObject(Map<String, Object> picked) {
+        Map<String, Object> p = picked.get("props") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        String tag = String.valueOf(p.getOrDefault("tag", "")), id = (String) p.get("id"), name = (String) p.get("name");
+        boolean stableId = id != null && !id.matches(".*\\d{3,}.*") && !id.matches("^\\d.*");
+        boolean field = Set.of("input", "select", "textarea").contains(tag);
+        String testId = (String) p.get("data-testid");
+        Set<String> use = new LinkedHashSet<>(List.of("tag"));
+        if (testId != null) use.add("data-testid");
+        else if (stableId) use.add("id");
+        else if (name != null) use.add("name");
+        else if (p.get("aria-label") != null) use.add("aria-label");
+        else if (field && p.get("placeholder") != null) use.add("placeholder");
+        else if (field && p.get("label") != null) use.add("label");
+        else if (p.get("text") != null && String.valueOf(p.get("text")).length() <= 80) use.add("text");
+        else if (p.get("title") != null) use.add("title");
+        if (field && p.get("type") != null && !use.contains("id")) use.add("type");
+        List<String> order = new ArrayList<>(List.of("tag", "id", "name", "data-testid", "type", "aria-label", "label", "placeholder", "text", "title", "role", "class", "value", "href", "src", "alt", "for"));
+        for (String k : p.keySet()) if (!order.contains(k)) order.add(k);
+        List<Map<String, Object>> props = new ArrayList<>();
+        for (String k : order) {
+            if (!p.containsKey(k)) continue;
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("name", k); e.put("value", p.get(k)); e.put("match", "equals"); e.put("use", use.contains(k));
+            props.add(e);
+        }
+        for (String k : List.of("css", "relative_xpath", "xpath"))
+            if (picked.get(k) instanceof String v && !v.isBlank()) props.add(new LinkedHashMap<>(Map.of("name", k, "value", v, "match", "equals", "use", false)));
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("technology", "web");
+        Map<String, Object> page = picked.get("page") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
+        page.put("url_match", "starts_with");
+        o.put("page", page);
+        o.put("frames", picked.getOrDefault("frames", List.of()));
+        o.put("search_by", "properties");
+        o.put("index", 0);
+        o.put("ignore_case", false);
+        o.put("properties", props);
+        if (picked.get("screenshot") != null) o.put("screenshot", picked.get("screenshot"));
+        return o;
+    }
+
+    @Action(id = "test_object", name = "Test captured object (design time)", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
+            description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by Agent Studio's Test button.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many elements match.")
+    @Output(name = "first", type = OoaType.DICTIONARY, description = "All properties of the element at the object's index, when it exists.")
+    public Map<String, Object> testObject(ActionContext ctx,
+            @Input(name = "url", type = OoaType.STRING, description = "Page to open.") String url,
+            @Input(name = "object", type = OoaType.DICTIONARY, description = "The captured object to test.") Object objectArg,
+            @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium"}, description = "Browser.") String which,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "How long to wait for the page and the element.") int waitSeconds,
+            @Input(name = "show_seconds", type = OoaType.NUMBER, required = false, defaultValue = "4", description = "How long to keep the matches outlined.") int showSeconds) {
+        Map<String, Object> object = WebObjects.object(objectArg);
+        Map<String, String> env = new HashMap<>();
+        if (!which.equals("chromium")) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
+        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(env))) {
+            BrowserType.LaunchOptions lo = new BrowserType.LaunchOptions().setHeadless(false);
+            if (which.equals("edge")) lo.setChannel("msedge");
+            if (which.equals("chrome")) lo.setChannel("chrome");
+            com.microsoft.playwright.Browser b = pw.chromium().launch(lo);
+            Page page = b.newContext().newPage();
+            page.navigate(url);
+            long end = System.currentTimeMillis() + waitSeconds * 1000L;
+            Locator[] found = new Locator[0];
+            while (System.currentTimeMillis() < end) {
+                ctx.checkCancelled();
+                try { found = WebObjects.findAll(page, object); } catch (PlaywrightException ignored) { }
+                if (found.length > 0) break;
+                page.waitForTimeout(300);
+            }
+            int idx = object.get("index") instanceof Number n ? n.intValue() : 0;
+            Object first = null;
+            for (int i = 0; i < found.length; i++) {
+                String color = i == idx ? "#16a34a" : "#a371ed";
+                try { found[i].evaluate("(e, c) => { e.style.outline = '3px solid ' + c; e.style.outlineOffset = '2px'; }", color); } catch (PlaywrightException ignored) { }
+            }
+            if (found.length > idx) { try { first = Values.toJsonable(found[idx].evaluate(WebObjects.ALL_PROPS_JS)); found[idx].scrollIntoViewIfNeeded(); } catch (PlaywrightException ignored) { } }
+            page.waitForTimeout(Math.max(0, showSeconds) * 1000.0);
+            try { b.close(); } catch (PlaywrightException ignored) { }
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("count", BigDecimal.valueOf(found.length));
+            out.put("first", first);
+            return out;
+        } catch (PlaywrightException e) { throw pw(e, "Testing the captured object"); }
     }
 }

@@ -906,6 +906,10 @@ function inputControl(step, name, prop, required) {
     return h("div", { class: "field" }, h("label", {}, name === "while" ? "Repeat while" : "Condition", required ? h("span", { class: "req", text: " *" }) : null),
       conditionEditor(current, (v) => set(v)), h("div", { class: "help", text: prop.description || "" }));
   }
+  if (name === "object" && /^ooa\.(browser|desktop_ui)\//.test(step.action)) {
+    return h("div", { class: "field" }, h("label", {}, "Captured object", required ? h("span", { class: "req", text: " *" }) : null, typeChip(type)),
+      captureEditor(step, current, set), h("div", { class: "help", text: "Tick the properties to search by and choose how each one must match. Values can use $variables. Test opens the page and outlines what matches." }));
+  }
   if (step.action === "core/loop" && name === "iterator") {
     const iters = [];
     for (const p of state.packages) for (const it of p.iterators || []) iters.push([p.id + "/" + it.id, it.name + " (" + p.name + ")"]);
@@ -3069,21 +3073,106 @@ function defaultUrl() {
   return open ? open.args.url : "https://";
 }
 
-async function pickSelector(done) {
-  const url = prompt("Open which page to pick the element from?", defaultUrl());
+async function pickSelector(done, askUrl) {
+  const url = askUrl || prompt("Open which page to pick the element from?", defaultUrl());
   if (!url || url === "https://") return;
   toast("Click the element in the browser window that opens.");
-  try { const r = await api("POST", "capture", { url, browser: "edge" }); done(r.selector, r.element); toast("Captured " + r.selector); }
+  try { const r = await api("POST", "capture", { url, browser: "edge" }); done(r.selector, r.element, r.object); toast("Captured " + (r.element && r.element.tag ? r.element.tag : "") + " with " + ((r.object && r.object.properties) || []).length + " properties"); }
   catch (e) { toast(e.message, true); }
+}
+
+const CAPTURE_MATCHES = [["equals", "equals"], ["not_equals", "not equals"], ["contains", "contains"], ["starts_with", "starts with"], ["ends_with", "ends with"], ["wildcard", "wildcard (* ?)"], ["regex", "regular expression"]];
+
+/** Editor for a captured object: page or window, iframes, search mode, index and the property table. */
+function captureEditor(step, value, set) {
+  const wrap = h("div", { class: "cap-editor" });
+  let obj = value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  const desktop = step.action.startsWith("ooa.desktop_ui/") || (obj && obj.technology === "desktop");
+  const save = () => set(obj);
+  const sel = (opts, v, on, label) => { const e = h("select", { "aria-label": label, onchange: (ev) => on(ev.target.value) }, opts.map(([k, t]) => h("option", { value: k, text: t }))); e.value = v; return e; };
+  async function recapture() {
+    if (desktop) {
+      toast("Point at the control in the application, then click it (or press Ctrl+Shift+C, as the capture window says).");
+      try { const r = await api("POST", "capture-desktop", {}); obj = r.object || r; save(); render(); toast("Captured " + ((obj.properties || []).length) + " properties"); }
+      catch (e) { toast(e.message, true); }
+      return;
+    }
+    await pickSelector((sel2, el, o) => { if (o) { obj = o; save(); render(); } }, obj && obj.page && obj.page.url ? obj.page.url : null);
+  }
+  async function test() {
+    if (!obj) return;
+    const url = (obj.page && obj.page.url) || prompt("Open which page to test on?", defaultUrl());
+    if (!url) return;
+    toast("Opening the page: matches are outlined (green = the one the step uses).");
+    try { const r = await api("POST", "capture/test", { url, object: obj, browser: "edge" }); const n = Number(r.count || 0);
+      toast(n === 0 ? "Nothing matches: loosen a property (contains, wildcard) or recapture." : n + " element" + (n === 1 ? "" : "s") + " match" + (n === 1 ? "es" : "") + "." + (n > 1 ? " Use the index to choose one, or tick another property." : ""), n === 0); }
+    catch (e) { toast(e.message, true); }
+  }
+  function render() {
+    if (!obj) {
+      wrap.replaceChildren(h("div", { class: "cap-empty" }, h("span", { text: "Nothing captured yet." }),
+        h("button", { type: "button", class: "btn", onclick: recapture }, desktop ? "Capture desktop object" : "Capture element")));
+      return;
+    }
+    const props = Array.isArray(obj.properties) ? obj.properties : (obj.properties = []);
+    const head = h("div", { class: "cap-head" },
+      h("span", { class: "chip", text: desktop ? "Desktop" : "Web" }),
+      h("span", { class: "cap-where", text: desktop ? ((obj.window && obj.window.title) || "") + (obj.window && obj.window.process ? " (" + obj.window.process + ")" : "")
+        : ((obj.page && (obj.page.title || obj.page.url)) || "") }),
+      h("span", { class: "spacer" }),
+      h("button", { type: "button", class: "btn", onclick: recapture }, "Recapture"),
+      desktop ? null : h("button", { type: "button", class: "btn", onclick: test }, "Test"));
+    const shot = obj.screenshot ? h("img", { class: "cap-shot", alt: "Captured element", src: "data:image/png;base64," + obj.screenshot }) : null;
+    const by = sel(desktop ? [["properties", "Properties"]] : [["properties", "Properties (ticked below)"], ["css", "CSS selector"], ["xpath", "XPath"]], obj.search_by || "properties", (v) => { obj.search_by = v; save(); render(); }, "Search by");
+    const idx = h("input", { type: "number", min: "0", value: String(obj.index || 0), "aria-label": "Index", onchange: (e) => { obj.index = Math.max(0, parseInt(e.target.value || "0", 10) || 0); save(); } });
+    const ic = h("input", { type: "checkbox", checked: !!obj.ignore_case, onchange: (e) => { obj.ignore_case = e.target.checked; save(); } });
+    const heal = h("input", { type: "checkbox", checked: obj.self_heal !== false, onchange: (e) => { obj.self_heal = e.target.checked; save(); } });
+    const opts = h("div", { class: "cap-opts" },
+      h("label", {}, "Search by ", by), h("label", { title: "When several elements match: 0 is the first" }, "Index ", idx),
+      h("label", { class: "check" }, ic, "Ignore case"), desktop ? null : h("label", { class: "check", title: "Try the captured CSS and XPath when the search finds nothing" }, heal, "Self-heal"));
+    const frames = !desktop && Array.isArray(obj.frames) && obj.frames.length ? h("div", { class: "cap-frames" }, "Inside iframe: ", h("code", { text: obj.frames.join("  \u203A  ") })) : null;
+    const rows = props.map((p, i) => {
+      const use = h("input", { type: "checkbox", checked: !!p.use, "aria-label": "Use " + p.name, onchange: (e) => { p.use = e.target.checked; save(); } });
+      const nm = p.custom ? h("input", { type: "text", value: p.name || "", placeholder: "attribute", "aria-label": "Property name", onchange: (e) => { p.name = e.target.value.trim(); save(); } })
+        : h("span", { class: "cap-name", text: p.name });
+      const val = h("input", { type: "text", value: p.value == null ? "" : String(p.value), "aria-label": "Value of " + p.name, onchange: (e) => { p.value = e.target.value; save(); } });
+      const m = sel(CAPTURE_MATCHES, p.match || "equals", (v) => { p.match = v; save(); }, "Match for " + p.name);
+      const del = h("button", { type: "button", class: "mini danger", title: "Remove this property", onclick: () => { props.splice(i, 1); save(); render(); } }, "\u2715");
+      const tr = h("tr", { class: p.use ? "on" : "" }, h("td", {}, use), h("td", {}, nm), h("td", {}, val), h("td", {}, m), h("td", {}, del));
+      use.addEventListener("change", () => tr.classList.toggle("on", use.checked));
+      return tr;
+    });
+    const table = h("table", { class: "cap-table" }, h("thead", {}, h("tr", {}, ["Use", "Property", "Value", "Match", ""].map((t) => h("th", { text: t })))), h("tbody", {}, rows));
+    const add = h("button", { type: "button", class: "link-btn", onclick: () => { props.push({ name: "", value: "", match: "equals", use: true, custom: true }); save(); render(); } }, "+ Add property");
+    let place = null;
+    if (!desktop) {
+      const pg = obj.page || (obj.page = {});
+      place = h("details", { class: "cap-page" }, h("summary", { text: "Page (used when the step switches to the captured page)" }),
+        h("div", { class: "cap-opts" }, h("label", {}, "Address ", h("input", { type: "text", value: pg.url || "", onchange: (e) => { pg.url = e.target.value; save(); } })),
+          sel(CAPTURE_MATCHES, pg.url_match || "starts_with", (v) => { pg.url_match = v; save(); }, "Address match")),
+        h("div", { class: "cap-opts" }, h("label", {}, "Title ", h("input", { type: "text", value: pg.title || "", onchange: (e) => { pg.title = e.target.value; save(); } })),
+          sel([["", "(ignore the title)"]].concat(CAPTURE_MATCHES), pg.title_match || "", (v) => { if (v) pg.title_match = v; else delete pg.title_match; save(); }, "Title match")));
+    } else if (obj.window) {
+      const w = obj.window;
+      place = h("details", { class: "cap-page" }, h("summary", { text: "Window" }),
+        h("div", { class: "cap-opts" }, h("label", {}, "Title ", h("input", { type: "text", value: w.title || "", onchange: (e) => { w.title = e.target.value; save(); } })),
+          sel(CAPTURE_MATCHES, w.title_match || "wildcard", (v) => { w.title_match = v; save(); }, "Window title match")),
+        h("div", { class: "cap-opts" }, h("label", {}, "Process ", h("input", { type: "text", value: w.process || "", onchange: (e) => { w.process = e.target.value; save(); } }))));
+    }
+    wrap.replaceChildren(head, shot, opts, frames, table, add, place);
+  }
+  render();
+  return wrap;
 }
 
 function captureStep() {
   if (!state.flow) { toast("Open or create an agent first.", true); return; }
-  pickSelector((selector, el) => {
+  pickSelector((selector, el, object) => {
     const tag = (el && el.tag) || "";
     const action = /^(input|textarea)$/.test(tag) && !/^(checkbox|radio|submit|button)$/.test((el && el.type) || "") ? "set_text"
       : tag === "select" ? "select_by_text" : el && el.type === "checkbox" ? "check" : "click";
-    const step = { id: freshIds([{ id: "" }])[0].id, action: "ooa.browser/element_action", args: { selector, action }, description: "Captured " + tag + (el && el.text ? ": " + el.text.slice(0, 30) : "") };
+    const args = object ? { object, action } : { selector, action };
+    const step = { id: freshIds([{ id: "" }])[0].id, action: "ooa.browser/element_action", args, description: "Captured " + tag + (el && el.text ? ": " + el.text.slice(0, 30) : "") };
     const at = insertionPoint();
     at.list.splice(at.index, 0, step);
     state.multi = new Set([step.id]); state.selected = at.path.concat(at.index); state.target = null;
