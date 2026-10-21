@@ -331,6 +331,8 @@ public final class StudioServer {
             RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(300));
             if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
             else sendJson(ex, 200, r.outputs());
+        } else if (method.equals("POST") && route.equals("capture-desktop")) {
+            captureDesktop(ex);
         } else if (method.equals("GET") && route.equals("search")) {
             sendJson(ex, 200, Map.of("results", search(query(ex).getOrDefault("q", ""))));
         } else if (route.equals("clipboard") && (method.equals("GET") || method.equals("PUT"))) {
@@ -381,6 +383,27 @@ public final class StudioServer {
             if (secret == null) secret = query(ex).get("secret");
             sendJson(ex, 202, triggers.webhook(route.substring(6), secret, body(ex)));
         } else send(ex, 404, "text/plain", "Unknown API route");
+    }
+
+    /**
+     * POST capture-desktop {timeout_seconds?: 60, screenshot?: true, highlight?: true}: runs ooa.desktop_ui/pick_object, where a
+     * person points at a control in any Windows application and presses Ctrl+Shift+C. 200 {object: {...captured object...}};
+     * 400 {error: {code, message, hint}} on timeout or failure.
+     */
+    @SuppressWarnings("unchecked")
+    private void captureDesktop(HttpExchange ex) throws IOException {
+        Map<String, Object> req = body(ex) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        if (registry.allManifests().stream().noneMatch(man -> "ooa.desktop_ui".equals(man.get("id"))))
+            throw new OoaException("STUDIO.NO_DESKTOP_MODULE", "The Desktop objects toolkit is not installed", "Add packages-windows to ooa.optionalModules in gradle.properties and run Studio on Windows.");
+        Map<String, Object> args = new LinkedHashMap<>();
+        for (String k : List.of("timeout_seconds", "screenshot", "highlight")) if (req.get(k) != null) args.put(k, req.get(k));
+        Map<String, Object> flow = new LinkedHashMap<>();
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_capture_desktop"); flow.put("name", "Agent Studio desktop capture");
+        flow.put("variables", List.of(Map.of("name", "object", "type", "Dictionary", "direction", "output")));
+        flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.desktop_ui/pick_object", "args", args, "out", Map.of("object", "object"))));
+        RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
+        if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
+        else sendJson(ex, 200, Map.of("object", r.outputs().get("object")));
     }
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }

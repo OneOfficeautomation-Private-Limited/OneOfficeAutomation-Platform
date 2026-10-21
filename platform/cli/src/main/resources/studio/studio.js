@@ -3165,6 +3165,26 @@ function captureEditor(step, value, set) {
   return wrap;
 }
 
+/** Captures a control in a Windows application and adds a Desktop objects step for it. */
+async function captureDesktopStep() {
+  if (!state.flow) { toast("Open or create an agent first.", true); return; }
+  toast("Hover over the control in the application (a red frame follows the pointer), then press Ctrl+Shift+C.");
+  try {
+    const r = await api("POST", "capture-desktop", { timeout_seconds: 60, screenshot: true, highlight: true });
+    const object = r.object || r;
+    const prop = (n) => ((object.properties || []).find((p) => p.name === n) || {}).value || "";
+    const type = prop("ControlType");
+    const action = /^(Edit|Document)$/.test(type) ? "set_text" : /^(ComboBox|List)$/.test(type) ? "select_item" : type === "CheckBox" ? "check" : "click";
+    const step = { id: freshIds([{ id: "" }])[0].id, action: "ooa.desktop_ui/object_action", args: { object, action },
+      description: "Captured " + (type || "control") + (prop("Name") ? ": " + prop("Name").slice(0, 30) : "") };
+    const at = insertionPoint();
+    at.list.splice(at.index, 0, step);
+    state.multi = new Set([step.id]); state.selected = at.path.concat(at.index); state.target = null;
+    changed(); renderProps();
+    toast("Captured " + (type || "control") + " in " + ((object.window && object.window.title) || "the window"));
+  } catch (e) { toast(e.message, true); }
+}
+
 function captureStep() {
   if (!state.flow) { toast("Open or create an agent first.", true); return; }
   pickSelector((selector, el, object) => {
@@ -3249,6 +3269,7 @@ function wire() {
   $("btn-share-copy").addEventListener("click", copyToShared);
   $("btn-share-paste").addEventListener("click", pasteFromShared);
   $("btn-capture").addEventListener("click", captureStep);
+  if ($("btn-capture-desktop")) $("btn-capture-desktop").addEventListener("click", captureDesktopStep);
   $("btn-checkin").addEventListener("click", crCheckin);
   $("tree-search").addEventListener("input", onTreeSearch);
   document.addEventListener("focusin", (e) => { if (e.target.closest && e.target.closest("#props, #item-editor") && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== "search") state.lastInput = e.target; });

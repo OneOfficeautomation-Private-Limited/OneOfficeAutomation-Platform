@@ -463,6 +463,27 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("Stop ends a debug run", await until(() => w.eval("state.lastRun && state.lastRun.result.status") === "stopped" || !w.eval("state.running"), 8000));
   w.eval("state.dirty = false");
 
+  // ================= Captured object editor (web Capture) =================
+  if (w.eval("!!state.flow")) {
+    w.eval(`state.flow.steps.push({ id: "cap_ui", action: "ooa.browser/element_action", args: { action: "click", object: { technology: "web", search_by: "properties", index: 0,
+      page: { url: "https://example.com/", title: "Example" }, properties: [{ name: "tag", value: "button", match: "equals", use: true },
+      { name: "id", value: "save-123", match: "equals", use: false }, { name: "text", value: "Save", match: "equals", use: true }] } } });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    check("the captured object editor lists every property with Use and Match", await until(() => d.querySelectorAll(".cap-table tbody tr").length === 3 && d.querySelectorAll(".cap-table select").length === 3),
+      "selected=" + JSON.stringify(w.eval("state.selected")) + " spec=" + w.eval("!!state.specs.get('ooa.browser/element_action')") + " props=" + (d.getElementById("props") ? d.getElementById("props").textContent.slice(0, 300) : "none"));
+    if (!d.querySelector(".cap-table")) throw new Error("capture editor not shown");
+    const idUse = d.querySelector('.cap-table input[aria-label="Use id"]'); idUse.checked = true; idUse.dispatchEvent(new w.Event("change"));
+    const idMatch = d.querySelector('.cap-table select[aria-label="Match for id"]'); idMatch.value = "regex"; idMatch.dispatchEvent(new w.Event("change"));
+    const capProp = () => JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.object.properties[1]"));
+    check("ticking a property and choosing its match rule updates the step", capProp().includes('"use":true') && capProp().includes('"match":"regex"'), capProp());
+    check("search by offers properties, CSS and XPath; Recapture and Test are offered",
+      [...d.querySelectorAll('.cap-opts select[aria-label="Search by"] option')].map((o) => o.value).join() === "properties,css,xpath"
+      && [...d.querySelectorAll(".cap-head button")].map((b) => b.textContent).join() === "Recapture,Test");
+    click([...d.querySelectorAll(".cap-editor .link-btn")].find((b) => b.textContent.includes("Add property")));
+    check("a custom property can be added", await until(() => d.querySelectorAll(".cap-table tbody tr").length === 4 && d.querySelector('.cap-table input[aria-label="Property name"]')));
+    w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+  }
+
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
   if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));

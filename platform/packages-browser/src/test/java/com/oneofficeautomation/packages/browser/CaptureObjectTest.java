@@ -122,7 +122,7 @@ class CaptureObjectTest {
             assertEquals("2", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-deleted").get("result"));
             assertEquals(new BigDecimal(1), act(b, c, obj(prop("tag", "button", "equals", true), prop("class", "btn del", "not_equals", true), prop("class", "btn", "starts_with", true)), "count", null).get("result"));
             del.put("index", 7);
-            assertEquals("BROWSER.OBJECT_NOT_FOUND", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null)).code());
+            assertEquals("BROWSER.INDEX_OUT_OF_RANGE", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null)).code());
 
             // search by CSS and XPath; self-healing to CSS when the properties no longer match
             Map<String, Object> status = obj(prop("id", "status-old", "equals", true), prop("css", "#status", "equals", false), prop("xpath", "/html/body/select", "equals", false));

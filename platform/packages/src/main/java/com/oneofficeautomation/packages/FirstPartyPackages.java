@@ -35,6 +35,7 @@ public final class FirstPartyPackages {
             "com.oneofficeautomation.packages.transfer.FileTransferPackage",
             "com.oneofficeautomation.packages.windows.WindowPackage",
             "com.oneofficeautomation.packages.windows.DllPackage",
+            "com.oneofficeautomation.packages.windows.DesktopUiPackage",
             "com.oneofficeautomation.packages.windows.CredentialManagerPackage");
 
     /** Development registry: signs with an ephemeral first-party key. Release builds ship pre-signed JARs. */
