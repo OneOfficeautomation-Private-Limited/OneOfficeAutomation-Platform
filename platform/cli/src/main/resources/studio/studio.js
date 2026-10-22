@@ -1412,6 +1412,18 @@ function inputControl(step, name, prop, required) {
       infoTip("Tick the properties to search by and choose how each one must match. Values can use $variables. Test opens the page and outlines what matches.")),
       captureEditor(step, current, set));
   }
+  // Text typed into a field: a credential, a variable, or plain text written in the agent
+  const typedText = (step.action === "ooa.browser/type_text" && name === "text")
+    || (step.action === "ooa.browser/element_action" && name === "value" && /^(set_text|append_text)$/.test((args.action) || ""))
+    || (step.action === "ooa.desktop_ui/object_action" && name === "text");
+  if (typedText) {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, prop["x-ooa-label"] || "Text to enter", required ? h("span", { class: "req", text: " *" }) : null,
+      infoTip("A credential from the vault for passwords (never shown or logged), a variable, or plain text saved in the agent.")), textSourceEditor(current, set));
+  }
+  if (name === "action" && step.action === "ooa.desktop_ui/object_action") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Action to take on the control", required ? h("span", { class: "req", text: " *" }) : null,
+      infoTip("The actions that suit the captured control come first; the rest are under Other actions.")), elementActionSelect(step, prop));
+  }
   if (name === "action" && step.action === "ooa.browser/element_action") {
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Action to take on the element", required ? h("span", { class: "req", text: " *" }) : null,
       infoTip("The actions that suit the captured control come first; the rest are under Other actions.")), elementActionSelect(step, prop));
@@ -1731,7 +1743,7 @@ function renderProps() {
     for (const [name, prop0] of entries) {
       if (shown && !shown.has(name)) continue;
       const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
-      if (shown && ["timeout_ms", "wait_for_page_ms", "if_not_found"].includes(name)) { timeoutBox.push([name, prop]); continue; }
+      if (shown && ["timeout_ms", "timeout_seconds", "wait_for_page_ms", "if_not_found"].includes(name)) { timeoutBox.push([name, prop]); continue; }
       // Advanced inputs (self-healing alternatives, session names) always go under More options.
       const advanced = ["alternatives", "session"].includes(name) && !req.includes(name);
       const rare = advanced || (name !== "window" && !req.includes(name) && prop.default !== undefined && main.length >= 3);
@@ -2713,8 +2725,15 @@ async function recordIn(req, hint) {
   const btn = $("btn-record");
   btn.classList.add("recording"); btn.disabled = true;
   toast(hint);
+  // "Recording actions (n)…" with Cancel while the browser records
+  const count = h("strong", { text: "0" });
+  openDialog("Recording", [h("p", {}, "Recording actions (", count, ")\u2026"), h("p", { class: "help", text: hint })], [], { closeLabel: "Cancel" });
+  const cancelBtn = [...$("dialog-actions").querySelectorAll("button")].pop();
+  if (cancelBtn) cancelBtn.onclick = () => { api("POST", "record/cancel", {}).catch(() => {}); closeDialog(); };
+  const poll = setInterval(() => api("GET", "record/progress").then((p) => { count.textContent = String(p.count || 0); }).catch(() => {}), 800);
   try {
-    const res = await api("POST", "record", req);
+    const res = await api("POST", "record", req).finally(() => { clearInterval(poll); closeDialog(); });
+    if (res.cancelled) { toast("Recording cancelled; nothing was added."); return; }
     const at = insertionPoint();
     const steps = res.steps || [];
     steps.forEach((st, k) => { st.id = newStepId() + (k ? "" : ""); at.list.splice(at.index + k, 0, st); });
@@ -4007,14 +4026,38 @@ const ACTION_OUTCOME = { get_text: "element_text", get_value: "field_value", get
   is_present: "is_present", count: "match_count", get_total_rows: "row_count", get_total_columns: "column_count", get_cell_text: "cell_text",
   get_cell_index_by_text: "cell_position", get_control_type: "control_type", toggle: "is_checked" };
 
+const DESKTOP_ACTIONS = { click: "Click", set_text: "Set text", get_text: "Get text", get_property: "Get property", get_all_properties: "Get all properties",
+  select_item: "Select item", expand: "Expand", collapse: "Collapse", toggle: "Toggle", check: "Check", uncheck: "Uncheck", invoke: "Press (invoke)",
+  focus: "Set focus", get_children: "Get all children", get_list_items: "Get all items", get_table: "Get table", wait_appear: "Wait for it to appear",
+  wait_disappear: "Wait for it to disappear", scroll_into_view: "Scroll into view", get_coordinates: "Get position" };
+const DESKTOP_COMMON = ["get_property", "get_all_properties", "get_text", "get_coordinates", "focus", "wait_appear", "wait_disappear", "scroll_into_view"];
+const DESKTOP_BY_TYPE = {
+  Edit: ["set_text", "get_text", "click"], Document: ["set_text", "get_text", "click"], Button: ["click", "invoke"], SplitButton: ["click", "invoke", "expand", "collapse"],
+  CheckBox: ["check", "uncheck", "toggle"], RadioButton: ["click", "invoke"], ComboBox: ["select_item", "get_list_items", "expand", "collapse"],
+  List: ["select_item", "get_list_items", "get_children"], ListItem: ["click", "invoke"], Tree: ["select_item", "get_children", "expand", "collapse"],
+  TreeItem: ["expand", "collapse", "click"], Tab: ["select_item", "get_list_items"], TabItem: ["click"], Table: ["get_table", "get_children"],
+  DataGrid: ["get_table", "get_children"], DataItem: ["click", "get_children"], Menu: ["get_children"], MenuBar: ["get_children"],
+  MenuItem: ["click", "invoke", "expand", "collapse"], Hyperlink: ["click", "invoke"], Text: ["get_text"], Window: ["get_children"], Pane: ["get_children"], Group: ["get_children"] };
+Object.assign(ACTION_OUTCOME, { get_children: "children", get_list_items: "items" });
+
 function stepControlType(step) {
   const o = step.args && step.args.object;
-  const p = o && Array.isArray(o.properties) ? o.properties.find((x) => x.name === "control_type") : null;
+  const want = step.action === "ooa.desktop_ui/object_action" ? "ControlType" : "control_type";
+  const p = o && Array.isArray(o.properties) ? o.properties.find((x) => x.name === want) : null;
   return p && p.value ? String(p.value) : "";
 }
 
 /** Which inputs the element action shows for its chosen action (null for other actions: all of them). */
 function elementActionFields(step) {
+  if (step.action === "ooa.desktop_ui/object_action") {
+    const a = (step.args && step.args.action) || "click";
+    const f = new Set(["object", "action", "timeout_seconds", "if_not_found"]);
+    if (a === "click") ["click_type", "click_method", "offset_x", "offset_y"].forEach((x) => f.add(x));
+    if (a === "set_text") ["text", "clear_first", "text_method", "type_delay_ms"].forEach((x) => f.add(x));
+    if (a === "get_property") f.add("property");
+    if (a === "select_item") { f.add("item"); f.add("item_index"); }
+    return f;
+  }
   if (step.action !== "ooa.browser/element_action") return null;
   const a = (step.args && step.args.action) || "click";
   const f = new Set(["window", "object", "selector", "action", "timeout_ms", "wait_for_page_ms", "if_not_found", "wait_after_ms", "use_captured_page", "session", "alternatives"]);
@@ -4040,12 +4083,14 @@ function ELEMENT_FIELD_LABELS(step, name) {
 /** The action drop-down: actions for the captured control type first, the rest under Other actions. */
 function elementActionSelect(step, prop) {
   const args = step.args || (step.args = {});
-  const all = prop.enum || Object.keys(ELEMENT_ACTIONS);
+  const desktop = step.action === "ooa.desktop_ui/object_action";
+  const NAMES = desktop ? DESKTOP_ACTIONS : ELEMENT_ACTIONS;
+  const all = prop.enum || Object.keys(NAMES);
   const ct = stepControlType(step);
-  const mine = ct ? (ACTIONS_BY_CONTROL[ct] || []).concat(COMMON_ACTIONS).filter((a, i, l) => all.includes(a) && l.indexOf(a) === i) : [];
+  const mine = ct ? ((desktop ? DESKTOP_BY_TYPE : ACTIONS_BY_CONTROL)[ct] || []).concat(desktop ? DESKTOP_COMMON : COMMON_ACTIONS).filter((a, i, l) => all.includes(a) && l.indexOf(a) === i) : [];
   const other = all.filter((a) => !mine.includes(a));
-  const opt = (a) => h("option", { value: a, text: ELEMENT_ACTIONS[a] || a });
-  const sel = h("select", { "aria-label": "Action to take on the element", onchange: (e) => {
+  const opt = (a) => h("option", { value: a, text: NAMES[a] || a });
+  const sel = h("select", { "aria-label": desktop ? "Action to take on the control" : "Action to take on the element", onchange: (e) => {
       args.action = e.target.value;
       // like the reference product, an action that returns something gets an outcome variable at once
       const out = ACTION_OUTCOME[args.action];
@@ -4063,6 +4108,43 @@ function elementActionSelect(step, prop) {
   return h("div", { class: "field-row" }, sel, ct ? h("span", { class: "chip ct-chip", title: "Control type of the captured element", text: ct }) : null);
 }
 
+/** The value of Set text: Credential (a Credential variable), Variable, or Plain text. */
+function textSourceEditor(value, set) {
+  const isVar = typeof value === "string" && /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value.trim());
+  const vname = isVar ? value.trim().slice(1) : "";
+  const vdef = vname ? state.flow.variables.find((v) => v.name === vname) : null;
+  let mode = isVar ? (vdef && vdef.type === "Credential" ? "credential" : "variable") : "plain";
+  const box = h("div", { class: "text-source" });
+  const render = () => {
+    const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Text comes from" },
+      [["credential", "Credential"], ["variable", "Variable"], ["plain", "Plain text"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String(mode === k),
+        onclick: () => { mode = k; render(); } }, t)));
+    let body;
+    if (mode === "plain") {
+      body = h("div", { class: "field-row" }, h("input", { type: "text", "aria-label": "Plain text", value: isVar ? "" : (value == null ? "" : String(value)),
+        onchange: (e) => set(e.target.value === "" ? undefined : e.target.value) }));
+    } else {
+      const want = mode === "credential" ? "Credential" : null;
+      const vars = state.flow.variables.filter((v) => (want ? v.type === want : v.type !== "Credential"));
+      const sel = h("select", { "aria-label": mode === "credential" ? "Credential variable" : "Variable", onchange: (e) => set(e.target.value ? "$" + e.target.value : undefined) },
+        h("option", { value: "", text: mode === "credential" ? "Choose a credential variable\u2026" : "Choose a variable\u2026" }),
+        vars.map((v) => h("option", { value: v.name, text: "$" + v.name + " (" + v.type + ")" })));
+      sel.value = isVar && vars.some((v) => v.name === vname) ? vname : "";
+      const add = h("button", { type: "button", title: mode === "credential" ? "Add a Credential variable (its value comes from the vault)" : "Add a variable",
+        onclick: () => {
+          const n = addVariable(mode === "credential" ? "password" : "text_value", mode === "credential" ? "Credential" : "String");
+          const v = state.flow.variables.find((x) => x.name === n);
+          if (mode === "credential" && v) { v.direction = "input"; v.description = "From the vault: map it to a credential when running."; }
+          set("$" + n); renderVariables(); renderProps();
+        } }, "+ New");
+      body = h("div", { class: "field-row" }, sel, add);
+    }
+    box.replaceChildren(seg, body, mode === "plain" ? h("div", { class: "help", text: "Saved in the agent as typed; use a credential for passwords." }) : null);
+  };
+  render();
+  return box;
+}
+
 /** "Set system time out": Basic shows the wait for the element; Advanced adds the page wait and what to do when time runs out. */
 function timeoutEditor(step, fields, req) {
   const args = step.args || {};
@@ -4072,7 +4154,8 @@ function timeoutEditor(step, fields, req) {
     const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Time-out options" },
       [["basic", "Basic"], ["advanced", "Advanced"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String((k === "advanced") === adv),
         onclick: () => { adv = k === "advanced"; state.timeoutAdvanced = adv; render(); } }, t)));
-    const rows = fields.filter(([n]) => adv || n === "timeout_ms").map(([n, p]) => inputControl(step, n, n === "timeout_ms" ? Object.assign({}, p, { "x-ooa-label": "Wait for the element (milliseconds)" })
+    const rows = fields.filter(([n]) => adv || n === "timeout_ms" || n === "timeout_seconds").map(([n, p]) => inputControl(step, n, n === "timeout_ms" ? Object.assign({}, p, { "x-ooa-label": "Wait for the element (milliseconds)" })
+      : n === "timeout_seconds" ? Object.assign({}, p, { "x-ooa-label": "Wait for the control (seconds)" })
       : n === "wait_for_page_ms" ? Object.assign({}, p, { "x-ooa-label": "Wait for the page first (milliseconds)" })
       : Object.assign({}, p, { "x-ooa-label": "When the wait runs out" }), req.includes(n)));
     box.replaceChildren(h("div", { class: "timeout-head" }, h("strong", { text: "System time-out" }), seg), ...rows);
@@ -4240,7 +4323,12 @@ function captureEditor(step, value, set, nested) {
         const v = parseInt(e.target.value || "0", 10); if (w.resize && v > 0) { w.resize[k] = v; save(); } } });
       const rz = h("input", { type: "checkbox", checked: !!w.resize, "aria-label": "Resize window", onchange: (e) => {
         if (e.target.checked) w.resize = { width: Number(size.width) || 1280, height: Number(size.height) || 800 }; else delete w.resize; save(); render(); } });
+      const preset = h("select", { "aria-label": "Window preset", onchange: (e) => {
+          if (e.target.value) w.preset = e.target.value; else delete w.preset; save(); render(); } },
+        [["", "The window with this title"], ["active", "The window in front when the step runs"], ["desktop", "The desktop"], ["taskbar", "The taskbar"]].map(([k, t]) => h("option", { value: k, text: t })));
+      preset.value = w.preset || "";
       place = h("details", { class: "cap-page", open: !!nested ? null : "" }, h("summary", { text: "Window" }),
+        h("div", { class: "cap-opts" }, h("label", {}, "Window ", preset)),
         h("div", { class: "cap-opts" }, h("label", {}, "Title ", h("input", { type: "text", value: w.title || "", onchange: (e) => { w.title = e.target.value; save(); } })),
           sel(CAPTURE_MATCHES, w.title_match || "wildcard", (v) => { w.title_match = v; save(); }, "Window title match")),
         h("div", { class: "cap-opts" }, h("label", {}, "Process ", h("input", { type: "text", value: w.process || "", onchange: (e) => { w.process = e.target.value; save(); } }))),

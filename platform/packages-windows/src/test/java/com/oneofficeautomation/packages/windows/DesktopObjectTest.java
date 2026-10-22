@@ -163,6 +163,19 @@ class DesktopObjectTest {
         assertEquals(-1, DesktopObject.nearest(cands, 900, 900, 250));
         o.put("window", Map.of("resize", Map.of("width", 0, "height", 5)));
         assertThrows(com.oneofficeautomation.sdk.ActionException.class, () -> DesktopObject.parse(o));
+
+        // window presets: the window in front, the desktop, the taskbar
+        o.remove("anchor");
+        o.put("window", Map.of("preset", "active"));
+        assertTrue(DesktopObject.parse(o).window().active());
+        assertTrue(DesktopObject.parse(o).window().test("anything", "any", "AnyClass"));
+        o.put("window", Map.of("preset", "taskbar"));
+        DesktopObject.WindowSpec tb = DesktopObject.parse(o).window();
+        assertTrue(tb.test("", "explorer", "Shell_TrayWnd") && !tb.test("Untitled - Notepad", "notepad", "Notepad"));
+        o.put("window", Map.of("preset", "desktop"));
+        assertTrue(DesktopObject.parse(o).window().test("Program Manager", "explorer", "Progman"));
+        o.put("window", Map.of("preset", "somewhere"));
+        assertThrows(com.oneofficeautomation.sdk.ActionException.class, () -> DesktopObject.parse(o));
     }
 
     @Test void tableColumnsAreUniqueAndNamed() {

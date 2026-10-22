@@ -386,9 +386,24 @@ public final class StudioServer {
             // record in an open tab of a browser connected through the extension
             if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
             flow.put("steps", List.of(Map.of("id", "rec", "action", "ooa.browser/record", "args", args, "out", Map.of("steps", "steps"))));
-            RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(3700));
-            if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
-            else sendJson(ex, 200, Map.of("steps", r.outputs().get("steps")));
+            // the recording's progress (GET record/progress) and Cancel (POST record/cancel) while this request waits
+            EventSink.ListSink sink = new EventSink.ListSink();
+            java.util.concurrent.atomic.AtomicBoolean cancel = new java.util.concurrent.atomic.AtomicBoolean();
+            recording = new Recording(sink, cancel);
+            try {
+                RunResult r = runner(sink).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(3700).cancel(cancel));
+                if (cancel.get()) sendJson(ex, 200, Map.of("steps", List.of(), "cancelled", true));
+                else if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
+                else sendJson(ex, 200, Map.of("steps", r.outputs().get("steps")));
+            } finally { recording = null; }
+        } else if (method.equals("GET") && route.equals("record/progress")) {
+            Recording rec = recording;
+            long n = rec == null ? 0 : rec.sink().events().stream().filter(e -> String.valueOf(e.data()).contains("Recorded step")).count();
+            sendJson(ex, 200, Map.of("recording", rec != null, "count", n));
+        } else if (method.equals("POST") && route.equals("record/cancel")) {
+            Recording rec = recording;
+            if (rec != null) rec.cancel().set(true);
+            sendJson(ex, 200, Map.of("ok", true));
         } else if (method.equals("GET") && route.equals("triggers")) {
             sendJson(ex, 200, Map.of("triggers", triggers.list(), "log", triggers.recentLog()));
         } else if (method.equals("PUT") && route.equals("triggers")) {
@@ -450,6 +465,10 @@ public final class StudioServer {
     }
 
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
+
+    /** The recording in progress, for its live count and Cancel. */
+    record Recording(EventSink.ListSink sink, java.util.concurrent.atomic.AtomicBoolean cancel) {}
+    private volatile Recording recording;
 
     private static final int MAX_UPLOAD = 50 * 1024 * 1024;
     private static final long MAX_DOWNLOAD = 200L * 1024 * 1024;

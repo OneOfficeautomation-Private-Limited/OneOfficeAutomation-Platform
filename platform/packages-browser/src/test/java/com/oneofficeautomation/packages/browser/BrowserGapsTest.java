@@ -29,6 +29,7 @@ class BrowserGapsTest {
             </script></head><body>
               <a href="/ok">ok</a> <a href="/ok#section">same</a> <a href="/missing">missing</a>
               <a href="/head-refused">head refused</a> <a href="mailto:x@y.test">mail</a> <a href="http://127.0.0.1:%d/">closed port</a>
+              <iframe id="inner" srcdoc="<p id='in'>Inside the frame</p>"></iframe>
             </body></html>""";
 
     static HttpServer server(int closedPort) throws Exception {
@@ -40,6 +41,14 @@ class BrowserGapsTest {
                 case "/head-refused" -> ex.getRequestMethod().equals("HEAD") ? 405 : 200;
                 default -> 404;
             };
+            if (p.equals("/report.csv")) {
+                // basic sign-in: user ann, password pw1
+                String a = ex.getRequestHeaders().getFirst("Authorization");
+                if (!("Basic " + java.util.Base64.getEncoder().encodeToString("ann:pw1".getBytes())).equals(a)) {
+                    ex.getResponseHeaders().add("WWW-Authenticate", "Basic realm=\"t\""); ex.sendResponseHeaders(401, -1); ex.close(); return; }
+                byte[] csv = "a,b\n1,2\n".getBytes(StandardCharsets.UTF_8);
+                ex.sendResponseHeaders(200, csv.length); try (OutputStream os = ex.getResponseBody()) { os.write(csv); } return;
+            }
             byte[] body = p.equals("/") ? PAGE.formatted(closedPort).getBytes(StandardCharsets.UTF_8) : "x".getBytes();
             ex.getResponseHeaders().add("Content-Type", p.equals("/") ? "text/html" : "text/plain");
             if (ex.getRequestMethod().equals("HEAD")) { ex.sendResponseHeaders(status, -1); ex.close(); return; }
@@ -84,24 +93,50 @@ class BrowserGapsTest {
             String base = "http://127.0.0.1:" + s.getAddress().getPort();
             try { b.open(c, base + "/", "edge", true, null, "browser", false, "playwright", "new_window", null, 60000); }
             catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
-            Map<String, Object> src = b.getPageSource(c, "out/page.html", "browser");
+            Map<String, Object> src = b.getPageSource(c, "out/page.html", "browser", null, null);
             assertTrue(((String) src.get("source")).contains("function greet"));
             assertTrue(Files.readString(w.resolve("out/page.html")).contains("<title>Links</title>"));
+            Map<String, Object> iframe = new LinkedHashMap<>(Map.of("technology", "web", "search_by", "properties", "index", 0,
+                    "properties", List.of(new LinkedHashMap<>(Map.of("name", "id", "value", "inner", "match", "equals", "use", true)))));
+            assertTrue(((String) b.getPageSource(c, null, "browser", iframe, null).get("source")).contains("Inside the frame"), "the source of a captured iframe");
 
-            assertEquals("Hello Ann", b.callJsFunction(c, "greet", List.of("Ann"), "browser").get("result"));
-            Map<String, Object> total = (Map<String, Object>) b.callJsFunction(c, "app.total", List.of(List.of(new BigDecimal(10), new BigDecimal(20)), new BigDecimal("0.5")), "browser").get("result");
+            // Run JavaScript from a file
+            Files.writeString(w.resolve("count.js"), "document.querySelectorAll('a').length");
+            assertEquals(0, new BigDecimal(6).compareTo(new BigDecimal(String.valueOf(b.runJs(c, null, "browser", "count.js", null).get("result")))));
+
+            assertEquals("Hello Ann", b.callJsFunction(c, "greet", List.of("Ann"), "browser", "any", null).get("result"));
+            Map<String, Object> total = (Map<String, Object>) b.callJsFunction(c, "app.total", List.of(List.of(new BigDecimal(10), new BigDecimal(20)), new BigDecimal("0.5")), "browser", "any", null).get("result");
             assertEquals(0, new BigDecimal(45).compareTo(new BigDecimal(String.valueOf(total.get("sum")))));
-            assertEquals("done 7", b.callJsFunction(c, "app.later", List.of(new BigDecimal(7)), "browser").get("result"));
-            assertEquals("BROWSER.ERROR", assertThrows(ActionException.class, () -> b.callJsFunction(c, "app.nothing", null, "browser")).code());
-            assertEquals("BROWSER.BAD_FUNCTION", assertThrows(ActionException.class, () -> b.callJsFunction(c, "alert(1)", null, "browser")).code());
+            assertEquals("done 7", b.callJsFunction(c, "app.later", List.of(new BigDecimal(7)), "browser", "any", null).get("result"));
+            // return types: none, text and a refused conversion
+            assertNull(b.callJsFunction(c, "greet", List.of("Ann"), "browser", "none", null).get("result"));
+            assertEquals("{\"sum\":45,\"n\":2}".length() > 0, ((String) b.callJsFunction(c, "app.total", List.of(List.of(new BigDecimal(10), new BigDecimal(20)), new BigDecimal("0.5")), "browser", "text", null).get("result")).contains("sum"));
+            assertEquals("BROWSER.BAD_RETURN", assertThrows(ActionException.class, () -> b.callJsFunction(c, "greet", List.of("Ann"), "browser", "number", null)).code());
+            assertEquals("BROWSER.ERROR", assertThrows(ActionException.class, () -> b.callJsFunction(c, "app.nothing", null, "browser", "any", null)).code());
+            assertEquals("BROWSER.BAD_FUNCTION", assertThrows(ActionException.class, () -> b.callJsFunction(c, "alert(1)", null, "browser", "any", null)).code());
 
-            Map<String, Object> links = b.findBrokenLinks(c, true, false, 50, 3000, "browser");
+            Map<String, Object> links = b.findBrokenLinks(c, true, false, 50, 3000, "browser", null, "page", 50, null, false, "UTF-8", 4);
             assertEquals(0, new BigDecimal(4).compareTo((BigDecimal) links.get("checked_count")), "fragments de-duplicated, mailto ignored");
             assertEquals(0, new BigDecimal(2).compareTo((BigDecimal) links.get("broken_count")));
             List<List<Object>> rows = (List<List<Object>>) ((Map<String, Object>) links.get("table")).get("rows");
             assertTrue(rows.stream().anyMatch(r -> String.valueOf(r.get(0)).endsWith("/missing")));
-            Map<String, Object> same = b.findBrokenLinks(c, false, true, 50, 3000, "browser");
+            Map<String, Object> same = b.findBrokenLinks(c, false, true, 50, 3000, "browser", null, "page", 50, null, false, "UTF-8", 1);
             assertEquals(0, new BigDecimal(4).compareTo((BigDecimal) same.get("checked_count")), "127.0.0.1 on another port is the same host");
+
+            // by address, without the browser, to a CSV file; append adds rows under the same header
+            Map<String, Object> byUrl = b.findBrokenLinks(c, true, false, 50, 3000, "nobrowser", base + "/", "site", 10, "out/links.csv", false, "UTF-8", 4);
+            assertEquals(0, new BigDecimal(2).compareTo((BigDecimal) byUrl.get("broken_count")));
+            b.findBrokenLinks(c, true, false, 50, 3000, "nobrowser", base + "/", "page", 10, "out/links.csv", true, "UTF-8", 2);
+            List<String> csv = Files.readAllLines(w.resolve("out/links.csv"));
+            assertEquals("url,status,ok,error", csv.get(0));
+            assertEquals(5, csv.size(), "a header and two broken links, twice");
+
+            // download by address with a basic sign-in; no overwrite unless asked
+            Map<String, Object> dl = b.downloadUrl(c, base + "/report.csv", "dl/", false, "ann", new com.oneofficeautomation.sdk.SecureString("pw1", "pw"), 10000);
+            assertEquals("a,b\n1,2\n", Files.readString(Path.of(String.valueOf(dl.get("path")))));
+            assertEquals("BROWSER.FILE_EXISTS", assertThrows(ActionException.class, () -> b.downloadUrl(c, base + "/report.csv", "dl/report.csv", false, "ann", new com.oneofficeautomation.sdk.SecureString("pw1", "pw"), 10000)).code());
+            b.downloadUrl(c, base + "/report.csv", "dl/report.csv", true, "ann", new com.oneofficeautomation.sdk.SecureString("pw1", "pw"), 10000);
+            assertEquals("BROWSER.SIGN_IN_FAILED", assertThrows(ActionException.class, () -> b.downloadUrl(c, base + "/report.csv", "dl/other.csv", true, "ann", new com.oneofficeautomation.sdk.SecureString("wrong", "pw"), 10000)).code());
         } finally {
             b.close(c, "browser", "session", null);
             s.stop(0);

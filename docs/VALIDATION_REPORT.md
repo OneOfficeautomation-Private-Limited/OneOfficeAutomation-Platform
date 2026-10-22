@@ -380,3 +380,28 @@ plain-text choice for Set text; Run JavaScript from a file; a return type for Ca
 by address (with NTLM sign-in and overwrite); the CSV, thread and encoding options of Find broken links; Window Assign;
 Get page source of an iframe; Run in background; the same control-type action lists for desktop objects; a live
 action count while recording; recording desktop applications.
+
+
+# Validation report: Capture / Recorder / Browser gap list (second round)
+
+| Gap | Done |
+| --- | --- |
+| Set text: credential, variable or plain text | Studio editor for the text of Set text (web element action, Set text, desktop Set text): Credential (a Credential variable, made on the spot as an input from the vault), Variable, or Plain text saved in the agent |
+| Run JavaScript from a file | `script_file` (UTF-8 .js in the workspace); window choice |
+| Return type of Call JavaScript function | `return_type`: any, none, text, number, boolean, list, dictionary (checked and converted); window choice |
+| Download file by address | New `download_url`: save to a file or folder, overwrite, sign-in with Windows (NTLM/Kerberos) or a user name and Credential password |
+| Find broken links options | Address instead of the open page (no browser needed), scope page or whole site (same host, page limit), CSV file with append and encoding (UTF-8, UTF-16, ANSI), parallel checks (1-50) |
+| Page source of an iframe | `frame`: a captured iframe (Playwright and the connector, same-site frames); window choice |
+| Desktop actions by control type | The action list follows UI Automation's control type (check box: check, uncheck, toggle; combo box: select item, items, expand, collapse; table: get table …); only the fields the action uses; outcome variable; time-out box |
+| Application presets | Desktop window: the window in front when the step runs, the desktop, or the taskbar |
+| Live count while recording | Studio shows "Recording actions (n)…" with Cancel (`GET record/progress`, `POST record/cancel`); Cancel adds nothing |
+| Playwright error text | The real message instead of "Error {" |
+| Window Assign | Not a separate action: a window variable is a Dictionary, so Set variable copies it |
+
+Tests: BrowserGapsTest (iframe source, script file, return types, broken links by address to CSV with append, download
+with basic sign-in, overwrite and wrong password); DesktopObjectTest (presets); Studio UI 229 (text source, credential
+made on the spot, desktop action list and fields, presets); recording count and Cancel checked against a Studio started
+the normal way; Java 467, 0 failed.
+
+Still open: recording desktop applications (the recorder covers web pages); Run in background (the reference product's
+option for clicks and typing without taking the mouse).

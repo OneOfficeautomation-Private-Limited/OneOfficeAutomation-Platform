@@ -195,6 +195,7 @@ public static class Bridge {
         switch (op) {
             case "ping": return "pong";
             case "windows": return Windows();
+            case "foreground": return Native.GetForegroundWindow().ToInt64();
             case "find": return Find(req);
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));

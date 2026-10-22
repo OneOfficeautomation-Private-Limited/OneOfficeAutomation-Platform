@@ -213,6 +213,11 @@
       case "wait_to_appear": return out(true);
       case "screenshot": { el.scrollIntoView({ block: "center" }); await sleep(150); const r = el.getBoundingClientRect(); return { shot_rect: { x: r.left, y: r.top, width: r.width, height: r.height }, ratio: devicePixelRatio, healed_by: healed.by || "" }; }
       case "select": setChecked(el, true); return out(true);
+      case "get_frame_html": {
+        let doc = null; try { doc = el.contentDocument; } catch (e) { doc = null; }
+        if (!doc) throw Object.assign(new Error(el.tagName === "IFRAME" || el.tagName === "FRAME" ? "The iframe is from another site; its source cannot be read from the page" : "The captured element is not an iframe"), { code: "BROWSER.NOT_A_FRAME" });
+        return out("<!DOCTYPE html>\n" + doc.documentElement.outerHTML);
+      }
       case "get_status": case "get_selected_index": case "get_total_items": case "get_total_rows": case "get_total_columns": case "get_cell_text":
       case "get_cell_index_by_text": case "set_cell_text": case "click_cell": case "set_position": case "get_control_type":
         return out(__extra(el, act, { row: req.row, column: req.column, text: v == null ? "" : v }));

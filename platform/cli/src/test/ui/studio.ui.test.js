@@ -556,6 +556,30 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     click([...d.querySelectorAll("#props .timeout-box button")].find((b) => b.textContent === "Advanced"));
     check("Advanced time-out adds the page wait and what to do when time runs out", await until(() => d.querySelector('#props .timeout-box [data-field="if_not_found"]') && d.querySelector('#props .timeout-box [data-field="wait_for_page_ms"]')));
     w.eval("state.flow.variables = state.flow.variables.filter((v) => v.name !== 'selected_index'); state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // Set text: the text comes from a credential, a variable or plain text
+    w.eval(`state.flow.steps.push({ id: "ts_ui", action: "ooa.browser/element_action", args: { action: "set_text", value: "hello", object: { technology: "web", properties: [] } } });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    await until(() => d.querySelector('#props .text-source'));
+    check("Set text shows Credential / Variable / Plain text, plain text chosen for typed text",
+      [...d.querySelectorAll('#props .text-source .seg button')].map((b) => b.textContent).join() === "Credential,Variable,Plain text"
+      && d.querySelector('#props .text-source .seg button[aria-checked="true"]').textContent === "Plain text");
+    click([...d.querySelectorAll('#props .text-source .seg button')].find((b) => b.textContent === "Credential"));
+    await until(() => d.querySelector('#props .text-source select[aria-label="Credential variable"]'));
+    click([...d.querySelectorAll('#props .text-source button')].find((b) => b.textContent === "+ New"));
+    check("a new credential variable is made and used", await until(() => /^\$password/.test(String(w.eval("state.flow.steps[state.flow.steps.length - 1].args.value")))
+      && w.eval("state.flow.variables.some((v) => v.type === 'Credential' && v.direction === 'input')")));
+    w.eval("state.flow.variables = state.flow.variables.filter((v) => !(v.type === 'Credential' && /^password/.test(v.name) && v.description && v.description.startsWith('From the vault'))); state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // Desktop objects: actions for the control type, fields per action, window presets
+    w.eval(`state.flow.steps.push({ id: "do_ui", action: "ooa.desktop_ui/object_action", args: { action: "click", object: { technology: "desktop", index: 0,
+      window: { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad" }, properties: [{ name: "ControlType", value: "CheckBox", match: "equals", use: true }] } } });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    await until(() => d.querySelector('#props select[aria-label="Action to take on the control"]'));
+    const dsel = d.querySelector('#props select[aria-label="Action to take on the control"]');
+    check("a desktop check box offers check, uncheck and toggle first", !!dsel && [...dsel.querySelector("optgroup").querySelectorAll("option")].map((o) => o.value).slice(0, 3).join() === "check,uncheck,toggle");
+    check("a desktop click shows the click options only", !!d.querySelector('#props [data-field="click_type"]') && !d.querySelector('#props [data-field="text"]') && !d.querySelector('#props [data-field="property"]'));
+    const presetSel = d.querySelector('#props select[aria-label="Window preset"]');
+    check("the desktop window offers presets (in front, desktop, taskbar)", !!presetSel && [...presetSel.options].map((o) => o.value).join() === ",active,desktop,taskbar");
+    w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
     // The window title can be case sensitive
     w.eval(`state.flow.steps.push({ id: "cs_ui", action: "ooa.browser/click", args: { window: { source: "browser", title: "Orders", title_match: "equals" } } }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
     await until(() => d.querySelector('#props .win-editor input[aria-label="Case sensitive"]'));

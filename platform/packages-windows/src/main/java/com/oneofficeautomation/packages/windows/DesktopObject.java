@@ -68,8 +68,14 @@ public final class DesktopObject {
     public record Property(Rule rule, boolean use) {}
 
     /** The top-level window; null fields are not checked. */
+    /** Window presets: the window in front when the step runs, the desktop, the taskbar (stored as a window class). */
+    public static final String ACTIVE_WINDOW = "@active";
+    static final Map<String, String> PRESETS = Map.of("active", ACTIVE_WINDOW, "desktop", "Progman", "taskbar", "Shell_TrayWnd");
+
     public record WindowSpec(String title, String titleMatch, String process, String className) {
+        public boolean active() { return ACTIVE_WINDOW.equals(className); }
         public boolean test(String windowTitle, String windowProcess, String windowClass) {
+            if (active()) return true;
             if (notBlank(title) && !matches(titleMatch, title, windowTitle == null ? "" : windowTitle)) return false;
             if (notBlank(process) && !processName(process).equalsIgnoreCase(processName(windowProcess))) return false;
             return !notBlank(className) || className.equalsIgnoreCase(windowClass == null ? "" : windowClass);
@@ -140,7 +146,12 @@ public final class DesktopObject {
             if (!MATCHES.contains(titleMatch)) throw bad("window.title_match must be one of " + MATCHES);
             String title = wm.get("title") == null ? null : String.valueOf(wm.get("title"));
             if (titleMatch.equals("regex") && title != null) compile(title, "window title");
-            w = new WindowSpec(title, titleMatch, str(wm.get("process")), str(wm.get("class_name")));
+            Object preset = wm.get("preset");
+            if (preset != null && !String.valueOf(preset).isBlank()) {
+                String cls = PRESETS.get(String.valueOf(preset).trim().toLowerCase(Locale.ROOT));
+                if (cls == null) throw bad("window.preset must be one of active, desktop or taskbar");
+                w = new WindowSpec(null, titleMatch, null, cls);
+            } else w = new WindowSpec(title, titleMatch, str(wm.get("process")), str(wm.get("class_name")));
         } else if (o.get("window") != null) throw bad("window must be a dictionary");
         List<Property> props = new ArrayList<>();
         if (!(o.get("properties") instanceof List<?> pl)) throw bad("The object has no properties list");

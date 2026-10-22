@@ -75,7 +75,11 @@ public final class BrowserPackage {
     }
 
     private static ActionException pw(PlaywrightException e, String what) {
-        String m = String.valueOf(e.getMessage()).split("\n")[0];
+        String full = String.valueOf(e.getMessage());
+        String m = full.split("\n")[0];
+        // Playwright wraps its message as "Error {\n  message='...'": show the message itself
+        var inner = java.util.regex.Pattern.compile("message='([^\\n']*)").matcher(full);
+        if (m.trim().equals("Error {") && inner.find()) m = inner.group(1);
         if (e instanceof TimeoutError || m.contains("Timeout")) return new ActionException("BROWSER.TIMEOUT", what + " timed out: " + m,
                 "Check the selector matches an element on the page, or raise timeout_ms.", true);
         if (m.contains("Executable doesn't exist") || m.contains("browserType.launch"))
@@ -437,11 +441,41 @@ public final class BrowserPackage {
             description = "Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).")
     @Output(name = "result", description = "Value returned by the script.")
     public Map<String, Object> runJs(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, example = "document.querySelectorAll('.item').length", description = "JavaScript expression or function.") String script,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", description = "JavaScript expression or function, typed here.") String script,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "script_file", type = OoaType.FILE, required = false, description = "Or a .js file to run (UTF-8), used instead of the typed script.") String scriptFile,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, 30000);
+        script = scriptText(ctx, script, scriptFile);
         if (tab(ctx, session) != null) return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), 60000)));
         try { return Out(Values.toJsonable(s(ctx, session).page.evaluate(script))); }
         catch (PlaywrightException e) { throw pw(e, "Running JavaScript"); }
+    }
+
+    /** The script to run: the typed one, or the file's content. */
+    static String scriptText(ActionContext ctx, String script, String file) {
+        if (file != null && !file.isBlank()) {
+            Path f = ctx.resolvePath(file);
+            try { return Files.readString(f, java.nio.charset.StandardCharsets.UTF_8); }
+            catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_NOT_FOUND", "Cannot read the script file " + f + ": " + e.getMessage(), "Check the path (a .js file in the workspace)."); }
+        }
+        if (script == null || script.isBlank()) throw new ActionException("BROWSER.VALUE_REQUIRED", "Give the script to run, or a script file");
+        return script;
+    }
+
+    /** The function's result in the type the agent asked for. */
+    static Object asReturnType(Object v, String type) {
+        if (type == null || type.isBlank() || type.equals("any")) return v;
+        return switch (type) {
+            case "none" -> null;
+            case "text" -> v == null ? "" : v instanceof String s ? s : com.oneofficeautomation.sdk.JsonLite.write(v);
+            case "number" -> { try { yield v instanceof BigDecimal d ? d : new BigDecimal(String.valueOf(v).trim()); }
+                catch (NumberFormatException e) { throw new ActionException("BROWSER.BAD_RETURN", "The function returned '" + v + "', not a number"); } }
+            case "boolean" -> v instanceof Boolean b ? b : v != null && !String.valueOf(v).isEmpty() && !"false".equalsIgnoreCase(String.valueOf(v)) && !"0".equals(String.valueOf(v));
+            case "list" -> { if (v instanceof List<?>) yield v; throw new ActionException("BROWSER.BAD_RETURN", "The function did not return a list"); }
+            case "dictionary" -> { if (v instanceof Map<?, ?>) yield v; throw new ActionException("BROWSER.BAD_RETURN", "The function did not return a dictionary"); }
+            default -> throw new ActionException("BROWSER.BAD_RETURN", "Unknown return type " + type);
+        };
     }
 
     private static Map<String, Object> Out(Object v) { Map<String, Object> m = new LinkedHashMap<>(); m.put("result", v); return m; }
@@ -452,9 +486,21 @@ public final class BrowserPackage {
     @Output(name = "path", type = OoaType.FILE, description = "Saved file, or empty.")
     public Map<String, Object> getPageSource(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "Also save the HTML to this file.") String path,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "The source of this iframe instead of the whole page: the captured iframe element.") Object frame,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, 30000);
         String html;
-        if (tab(ctx, session) != null) html = String.valueOf(onTab(tab(ctx, session), "page_source", Map.of(), 60000));
+        if (frame != null && tab(ctx, session) != null) html = String.valueOf(onElement(ctx, tab(ctx, session), frame, null, "get_frame_html", null, 30000, Map.of()));
+        else if (frame != null) {
+            try {
+                ElementHandle fe = target(ctx, session, frame, null, null, 30000).elementHandle();
+                Frame f = fe.contentFrame();
+                if (f == null) throw new ActionException("BROWSER.NOT_A_FRAME", "The captured element is not an iframe", "Capture the iframe itself.");
+                html = f.content();
+            } catch (PlaywrightException e) { throw pw(e, "Reading the iframe's source"); }
+        }
+        else if (tab(ctx, session) != null) html = String.valueOf(onTab(tab(ctx, session), "page_source", Map.of(), 60000));
         else try { html = s(ctx, session).page.content(); } catch (PlaywrightException e) { throw pw(e, "Reading the page source"); }
         String saved = "";
         if (path != null && !path.isBlank()) {
@@ -483,13 +529,17 @@ public final class BrowserPackage {
     public Map<String, Object> callJsFunction(ActionContext ctx,
             @Input(name = "function", type = OoaType.STRING, example = "app.calculateTotal", description = "Function name, reachable from window; dots for nested objects.") String function,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, in order (text, numbers, true/false, lists and dictionaries).") List<Object> args,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "return_type", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "none", "text", "number", "boolean", "list", "dictionary"},
+                    description = "What the function returns: the result is checked and converted (none ignores it).") String returnType,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, 30000);
         if (function == null || !function.matches("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$"))
             throw new ActionException("BROWSER.BAD_FUNCTION", "Invalid JavaScript function name '" + function + "'", "Give a name such as calculateTotal or app.utils.calculateTotal.");
         List<Object> plain = new ArrayList<>();
         if (args != null) for (Object a : args) plain.add(jsValue(Values.toJsonable(a)));
-        if (tab(ctx, session) != null) return Out(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), 60000)));
-        try { return Out(Values.toJsonable(s(ctx, session).page.evaluate(CALL_FUNCTION_JS, List.of(function, plain)))); }
+        if (tab(ctx, session) != null) return Out(asReturnType(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), 60000)), returnType));
+        try { return Out(asReturnType(Values.toJsonable(s(ctx, session).page.evaluate(CALL_FUNCTION_JS, List.of(function, plain))), returnType)); }
         catch (PlaywrightException e) { throw pw(e, "Calling " + function); }
     }
 
@@ -531,8 +581,112 @@ public final class BrowserPackage {
         return rows;
     }
 
+    static String hostOf(String u) { try { String h = java.net.URI.create(u).getHost(); return h == null ? "" : h; } catch (IllegalArgumentException e) { return ""; } }
+
+    private static final java.util.regex.Pattern HREF = java.util.regex.Pattern.compile("(?i)<(?:a|area)\\b[^>]*?\\bhref\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))");
+
+    /** The links of a page fetched over HTTP, made absolute. */
+    static List<String> linksOf(String pageUrl, int timeoutMs) {
+        List<String> out = new ArrayList<>();
+        try {
+            java.net.http.HttpResponse<String> r = LINKS.send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(pageUrl)).timeout(java.time.Duration.ofMillis(Math.max(1000, timeoutMs))).GET().build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            String ct = r.headers().firstValue("content-type").orElse("");
+            if (r.statusCode() >= 400 || (!ct.isEmpty() && !ct.contains("html"))) return out;
+            java.net.URI base = r.uri();
+            var m = HREF.matcher(r.body());
+            while (m.find()) {
+                String h = m.group(1) != null ? m.group(1) : m.group(2) != null ? m.group(2) : m.group(3);
+                h = h.replace("&amp;", "&").trim();
+                if (h.isEmpty() || h.startsWith("javascript:") || h.startsWith("mailto:") || h.startsWith("tel:")) continue;
+                try { out.add(base.resolve(h).toString()); } catch (IllegalArgumentException ignored) { }
+            }
+        } catch (java.io.IOException | IllegalArgumentException e) { /* the page itself is unreachable: it is reported as a broken link by its parent */
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        return out;
+    }
+
+    /** checkLinks with several links at the same time; rows keep the order of the links. */
+    static List<Object> checkLinksParallel(ActionContext ctx, List<String> urls, int timeoutMs, int threads) {
+        if (threads <= 1 || urls.size() <= 1) return checkLinks(ctx, urls, timeoutMs, false);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        try {
+            List<java.util.concurrent.Future<List<Object>>> fs = new ArrayList<>();
+            for (String u : urls) fs.add(pool.submit(() -> checkLinks(null, List.of(u), timeoutMs, false)));
+            List<Object> out = new ArrayList<>();
+            for (var f : fs) {
+                ctx.checkCancelled();
+                try { out.addAll(f.get()); }
+                catch (java.util.concurrent.ExecutionException e) { throw new ActionException("BROWSER.ERROR", "Checking a link failed: " + e.getCause()); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            }
+            return out;
+        } finally { pool.shutdownNow(); }
+    }
+
+    static void writeLinksCsv(Path f, List<Object> rows, boolean append, String encoding) {
+        java.nio.charset.Charset cs = "ANSI".equalsIgnoreCase(encoding) ? java.nio.charset.Charset.forName("windows-1252")
+                : "UTF-16".equalsIgnoreCase(encoding) ? java.nio.charset.StandardCharsets.UTF_16 : java.nio.charset.StandardCharsets.UTF_8;
+        boolean exists = Files.exists(f);
+        StringBuilder sb = new StringBuilder();
+        if (!append || !exists) sb.append("url,status,ok,error\r\n");
+        for (Object o : rows) {
+            List<?> r = (List<?>) o;
+            for (int i = 0; i < r.size(); i++) {
+                String v = String.valueOf(r.get(i));
+                if (v.contains(",") || v.contains("\"") || v.contains("\n")) v = "\"" + v.replace("\"", "\"\"") + "\"";
+                sb.append(i > 0 ? "," : "").append(v);
+            }
+            sb.append("\r\n");
+        }
+        try {
+            if (f.getParent() != null) Files.createDirectories(f.getParent());
+            if (append && exists) Files.writeString(f, sb.toString(), cs, java.nio.file.StandardOpenOption.APPEND);
+            else Files.writeString(f, sb.toString(), cs);
+        } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write " + f + ": " + e.getMessage(), "Check the folder is writable.", true); }
+    }
+
+    @Action(id = "download_url", name = "Download file from address", category = "Page", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
+            description = "Download a file from its address and save it, signing in with Windows (NTLM/Kerberos) or a user name and password when the server asks.")
+    @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
+    @Output(name = "size", type = OoaType.NUMBER, description = "Size in bytes.")
+    public Map<String, Object> downloadUrl(ActionContext ctx,
+            @Input(name = "url", type = OoaType.STRING, example = "https://intranet.example.com/reports/invoice.xlsx", description = "Address of the file.") String url,
+            @Input(name = "save_to", type = OoaType.FILE, description = "File to create, or a folder (the name then comes from the address).") String saveTo,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file if it already exists.") boolean overwrite,
+            @Input(name = "username", type = OoaType.STRING, required = false, description = "User name when the server asks to sign in (domain\\user for Windows sign-in); empty uses the Windows sign-in of the agent's user.") String username,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for that user name (a Credential).") Object password,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "600000", description = "How long the download may take.") int timeoutMs) {
+        Path target = ctx.resolvePath(saveTo);
+        String name = url.replaceFirst("[?#].*$", "").replaceFirst(".*/", "");
+        if (Files.isDirectory(target) || saveTo.endsWith("/") || saveTo.endsWith("\\")) target = target.resolve(name.isBlank() ? "download" : java.net.URLDecoder.decode(name, java.nio.charset.StandardCharsets.UTF_8));
+        if (Files.exists(target) && !overwrite) throw new ActionException("BROWSER.FILE_EXISTS", "The file " + target + " already exists", "Turn on overwrite, or choose another name.");
+        String pw = password instanceof SecureString ss ? ss.reveal() : password == null ? null : String.valueOf(password);
+        java.net.Authenticator auth = username == null || username.isBlank() ? null : new java.net.Authenticator() {
+            @Override protected java.net.PasswordAuthentication getPasswordAuthentication() { return new java.net.PasswordAuthentication(username, pw == null ? new char[0] : pw.toCharArray()); }
+        };
+        try {
+            // HttpURLConnection signs in with NTLM/Kerberos (Windows) as well as basic and digest
+            java.net.HttpURLConnection c = (java.net.HttpURLConnection) java.net.URI.create(url).toURL().openConnection();
+            if (auth != null) c.setAuthenticator(auth);
+            c.setConnectTimeout(Math.min(timeoutMs, 30000)); c.setReadTimeout(timeoutMs);
+            c.setInstanceFollowRedirects(true);
+            int code = c.getResponseCode();
+            if (code == 401 || code == 407) throw new ActionException("BROWSER.SIGN_IN_FAILED", "The server refused the sign-in (" + code + ")", "Check the user name and password, or the agent user's Windows access.");
+            if (code >= 400) throw new ActionException("BROWSER.DOWNLOAD_FAILED", "The server answered " + code + " for " + url, null, code >= 500);
+            if (target.getParent() != null) Files.createDirectories(target.getParent());
+            Path tmp = Files.createTempFile(target.getParent() == null ? Path.of(".") : target.getParent(), "dl", ".part");
+            try (var in = c.getInputStream()) { Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING); }
+            Files.move(tmp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            return Map.of("path", target.toString(), "size", BigDecimal.valueOf(Files.size(target)));
+        } catch (java.io.IOException | IllegalArgumentException e) {
+            throw new ActionException("BROWSER.DOWNLOAD_FAILED", "Downloading " + url + " failed: " + e.getMessage(), "Check the address and the network.", true);
+        }
+    }
+
     @Action(id = "find_broken_links", name = "Find broken links", category = "Page", timeoutSeconds = 3600, capabilities = {"browser", "network"},
-            description = "Collect the links on the current page and check each one, reporting those that fail or return an HTTP error.")
+            description = "Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail "
+                    + "or return an HTTP error; optionally save the list to a CSV file.")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: url, status (0 when unreachable), ok, error.")
     @Output(name = "broken_count", type = OoaType.NUMBER, description = "Number of links that failed.")
     @Output(name = "checked_count", type = OoaType.NUMBER, description = "Number of distinct links checked.")
@@ -542,10 +696,34 @@ public final class BrowserPackage {
             @Input(name = "same_site_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Check only links to the page's own host.") boolean sameSite,
             @Input(name = "max_links", type = OoaType.NUMBER, required = false, defaultValue = "200", description = "Safety limit on links checked.") int maxLinks,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", description = "Time allowed for each link, in milliseconds.") int timeoutMs,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to check, by its address, instead of the browser's current page (no browser needed).") String url,
+            @Input(name = "scope", type = OoaType.STRING, required = false, defaultValue = "\"page\"", enumValues = {"page", "site"},
+                    description = "page: the links of that page; site: also follow the site's own pages (same host) and check their links.") String scope,
+            @Input(name = "max_pages", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "With scope site: at most this many pages are read.") int maxPages,
+            @Input(name = "csv_path", type = OoaType.FILE, required = false, description = "Also save the list to this CSV file.") String csvPath,
+            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Add to the CSV file if it exists, instead of replacing it.") boolean append,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", enumValues = {"UTF-8", "UTF-16", "ANSI"}, description = "CSV file encoding.") String encoding,
+            @Input(name = "threads", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "How many links are checked at the same time (1-50).") int threads) {
         List<Object> hrefs;
         String pageUrl;
-        if (tab(ctx, session) != null) {
+        if (url != null && !url.isBlank()) {
+            pageUrl = url.trim();
+            hrefs = new ArrayList<>();
+            LinkedHashSet<String> seenPages = new LinkedHashSet<>();
+            ArrayDeque<String> queue = new ArrayDeque<>(List.of(pageUrl));
+            String siteHost = hostOf(pageUrl);
+            while (!queue.isEmpty() && seenPages.size() < ("site".equals(scope) ? Math.max(1, maxPages) : 1)) {
+                ctx.checkCancelled();
+                String pg = queue.poll();
+                if (!seenPages.add(pg)) continue;
+                for (String h : linksOf(pg, timeoutMs)) {
+                    hrefs.add(h);
+                    String clean = h.replaceFirst("#.*$", "");
+                    if ("site".equals(scope) && siteHost.equalsIgnoreCase(hostOf(clean)) && !seenPages.contains(clean)) queue.add(clean);
+                }
+            }
+        } else if (tab(ctx, session) != null) {
             Map<String, Object> l = (Map<String, Object>) onTab(tab(ctx, session), "links", Map.of(), 30000);
             hrefs = (List<Object>) l.get("links"); pageUrl = String.valueOf(l.get("url"));
         } else {
@@ -564,7 +742,7 @@ public final class BrowserPackage {
             urls.add(u);
             if (urls.size() >= Math.max(1, maxLinks)) break;
         }
-        List<Object> all = checkLinks(ctx, new ArrayList<>(urls), timeoutMs, false);
+        List<Object> all = checkLinksParallel(ctx, new ArrayList<>(urls), timeoutMs, Math.max(1, Math.min(50, threads)));
         List<Object> rows = new ArrayList<>();
         int broken = 0;
         for (Object o : all) {
@@ -572,6 +750,7 @@ public final class BrowserPackage {
             if (!ok) broken++;
             if (!onlyBroken || !ok) rows.add(o);
         }
+        if (csvPath != null && !csvPath.isBlank()) writeLinksCsv(ctx.resolvePath(csvPath), rows, append, encoding);
         return Map.of("table", Values.table(List.of("url", "status", "ok", "error"), rows), "broken_count", BigDecimal.valueOf(broken), "checked_count", BigDecimal.valueOf(all.size()));
     }
 
@@ -955,7 +1134,7 @@ public final class BrowserPackage {
             BrowserContext c = b.newContext();
             List<Frame> eventFrames = Collections.synchronizedList(new ArrayList<>());
             c.exposeBinding("__ooaRecord", (source, args) -> {
-                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add((Map<String, Object>) m); eventFrames.add(source.frame()); }
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add((Map<String, Object>) m); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
                 return null; });
             c.exposeBinding("__ooaStop", (source, args) -> { stopped[0] = true; return null; });
             c.addInitScript(RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS));
@@ -1048,7 +1227,7 @@ public final class BrowserPackage {
                 try { ev = sub.next(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
                 if (ev == null) continue;
                 if ("record_stopped".equals(ev.get("event"))) break;
-                if ("recorded".equals(ev.get("event")) && events.size() < 500) events.add(new LinkedHashMap<>(ev));
+                if ("recorded".equals(ev.get("event")) && events.size() < 500) { events.add(new LinkedHashMap<>(ev)); ctx.info("Recorded step " + events.size() + ": " + ev.get("kind")); }
             }
         } finally {
             try { ExtensionBridge.call(which, "record_stop", Map.of(), 10000); } catch (ActionException ignored) { }

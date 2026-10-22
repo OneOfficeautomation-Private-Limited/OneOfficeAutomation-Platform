@@ -57,6 +57,7 @@ public final class DesktopUiPackage {
     @SuppressWarnings("unchecked")
     static List<Object> windowHandles(ActionContext ctx, DesktopObject.WindowSpec spec) {
         List<Object> handles = new ArrayList<>();
+        if (spec.active()) { handles.add(call(ctx, "foreground", Map.of())); return handles; }
         for (Object o : (List<Object>) call(ctx, "windows", Map.of())) {
             Map<String, Object> w = (Map<String, Object>) o;
             if (spec.test(String.valueOf(w.get("title")), String.valueOf(w.get("process")), String.valueOf(w.get("class_name")))) handles.add(w.get("handle"));
