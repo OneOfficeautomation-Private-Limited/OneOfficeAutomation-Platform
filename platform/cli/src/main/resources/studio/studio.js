@@ -2704,18 +2704,20 @@ function makeDockDraggable() {
 // ---------- recorder ----------
 async function recordSteps() {
   if (!state.flow) { toast("Open or create an agent first.", true); return; }
-  // In the person's own browser when it is connected (any open tab), else in a new browser at an address.
+  // A Windows application, the person's own browser when it is connected (any open tab), or a new browser at an address.
   let tabs = [];
   try { tabs = (await loadWindows()).filter((w) => w.source === "browser" && w.connector && usefulWindow(w)); } catch (_) { tabs = []; }
-  if (tabs.length) {
-    const choice = await new Promise((resolve) => {
-      openDialog("Record in which window?", [h("p", { class: "help", text: "Your open browser windows (through the ONEOFFICEAUTOMATION Browser Connector):" }),
-        windowButtons(tabs, (t) => { closeDialog(); resolve(t); })],
-        [h("button", { type: "button", onclick: () => { closeDialog(); resolve("new"); } }, "Open a new page\u2026")]);
-    });
-    if (!choice) return;
-    if (choice !== "new") return recordIn({ tab_id: choice.tab_id, browser: choice.browser || "edge" }, "Recording in \u201C" + choice.title + "\u201D. Press Stop recording on the page when you are done.");
-  }
+  const choice = await new Promise((resolve) => {
+    openDialog("Record in which window?", [
+      h("p", { class: "help", text: tabs.length ? "Your open browser windows (through the ONEOFFICEAUTOMATION Browser Connector):"
+        : "No connected browser window is open: record a Windows application, or open a new page." }),
+      tabs.length ? windowButtons(tabs, (t) => { closeDialog(); resolve(t); }) : null],
+      [h("button", { type: "button", id: "rec-desktop", onclick: () => { closeDialog(); resolve("desktop"); } }, "Desktop application\u2026"),
+       h("button", { type: "button", id: "rec-new-page", onclick: () => { closeDialog(); resolve("new"); } }, "Open a new page\u2026")]);
+  });
+  if (!choice) return;
+  if (choice === "desktop") return recordIn({ target: "desktop" }, "Recording desktop actions. Work in the application, then press Stop recording on the bar at the top right of the screen.");
+  if (choice !== "new") return recordIn({ tab_id: choice.tab_id, browser: choice.browser || "edge" }, "Recording in \u201C" + choice.title + "\u201D. Press Stop recording on the page when you are done.");
   const url = prompt("Start recording at which web address?", "https://");
   if (!url || url === "https://") return;
   return recordIn({ url, browser: "edge" }, "Recording in the browser window. Press 'Stop recording' there (or close the browser) when you are done.");
@@ -2757,7 +2759,8 @@ function recordedVariables(steps) {
   const fieldName = (st) => {
     const props = (st.args && st.args.object && st.args.object.properties) || [];
     const val = (n) => { const p = props.find((x) => x.name === n); return p && p.value ? String(p.value) : ""; };
-    return val("label") || val("name") || val("aria-label") || val("placeholder") || val("id") || (st.action.endsWith("select_option") ? "choice" : "text");
+    return val("label") || val("name") || val("aria-label") || val("placeholder") || val("id")
+      || val("Name") || val("AutomationId") || (st.action.endsWith("select_option") ? "choice" : "text");
   };
   // one window variable per window the recording used (as the reference recorder does); the steps point at it
   const windows = new Map();
@@ -2774,7 +2777,8 @@ function recordedVariables(steps) {
     st.args.window = "$" + windows.get(key);
   }
   for (const st of steps) {
-    const key = st.action === "ooa.browser/type_text" ? "text" : st.action === "ooa.browser/select_option" ? "option" : null;
+    const key = st.action === "ooa.browser/type_text" || (st.action === "ooa.desktop_ui/object_action" && st.args && st.args.action === "set_text") ? "text"
+      : st.action === "ooa.browser/select_option" ? "option" : null;
     if (!key || !st.args || typeof st.args[key] !== "string" || st.args[key].startsWith("$")) continue;
     const name = uniqueVarName(fieldName(st).toLowerCase());
     state.flow.variables.push({ name, type: "String", direction: "input", default: st.args[key], description: "Recorded " + (key === "text" ? "typing" : "selection") + " (change it here or pass it in)." });
@@ -4051,16 +4055,18 @@ function stepControlType(step) {
 function elementActionFields(step) {
   if (step.action === "ooa.desktop_ui/object_action") {
     const a = (step.args && step.args.action) || "click";
-    const f = new Set(["object", "action", "timeout_seconds", "if_not_found"]);
-    if (a === "click") ["click_type", "click_method", "offset_x", "offset_y"].forEach((x) => f.add(x));
-    if (a === "set_text") ["text", "clear_first", "text_method", "type_delay_ms"].forEach((x) => f.add(x));
+    const f = new Set(["object", "action", "timeout_seconds", "if_not_found", "run_in_background"]);
+    // in the background only UI Automation is used, so the mouse and typing choices do not apply
+    const bg = step.args && step.args.run_in_background === true;
+    if (a === "click") (bg ? ["click_type"] : ["click_type", "click_method", "offset_x", "offset_y"]).forEach((x) => f.add(x));
+    if (a === "set_text") (bg ? ["text", "clear_first"] : ["text", "clear_first", "text_method", "type_delay_ms"]).forEach((x) => f.add(x));
     if (a === "get_property") f.add("property");
     if (a === "select_item") { f.add("item"); f.add("item_index"); }
     return f;
   }
   if (step.action !== "ooa.browser/element_action") return null;
   const a = (step.args && step.args.action) || "click";
-  const f = new Set(["window", "object", "selector", "action", "timeout_ms", "wait_for_page_ms", "if_not_found", "wait_after_ms", "use_captured_page", "session", "alternatives"]);
+  const f = new Set(["window", "object", "selector", "action", "timeout_ms", "wait_for_page_ms", "if_not_found", "wait_after_ms", "use_captured_page", "session", "alternatives", "run_in_background"]);
   if (/^(set_text|append_text|press_key|get_attribute|get_property|select_by_|drag_to|upload_file|screenshot|get_cell_index_by_text|set_cell_text|set_position)/.test(a)) f.add("value");
   if (/^(click|double_click|right_click|middle_click|hover)$/.test(a)) ["click_method", "modifiers", "offset_x", "offset_y", "force"].forEach((x) => f.add(x));
   if (/^(set_text|append_text)$/.test(a)) ["typing", "key_delay_ms", "clear_first"].forEach((x) => f.add(x));

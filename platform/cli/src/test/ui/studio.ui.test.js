@@ -188,6 +188,8 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   else {
     answers.push("https://example.com");
     click(d.getElementById("btn-record"));
+    const newPage = await until(() => d.getElementById("rec-new-page"));
+    if (newPage) click(newPage);
     await sleep(600);
     check("record explains when the Browser module is missing", lastToast.includes("STUDIO.NO_BROWSER_MODULE") || lastToast.includes("Inserted"), lastToast);
   }
@@ -536,6 +538,29 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
       return { made, vars, windows: steps.map((s) => s.args.window) }; })())`));
     check("the recorder makes one window variable and the steps use it", recWin.made.join() === "window_web_form" && recWin.vars[0].type === "Dictionary"
       && recWin.vars[0].default.title === "Web form" && recWin.windows.every((x) => x === "$window_web_form"), JSON.stringify(recWin));
+    // Desktop recordings: typed text becomes a variable named after the control, password fields use $password
+    const recDesk = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
+      const steps = [{ action: "ooa.desktop_ui/object_action", args: { action: "set_text", text: "Ann", object: { technology: "desktop", properties: [{ name: "Name", value: "Customer name" }, { name: "AutomationId", value: "txtName" }] } } },
+        { action: "ooa.desktop_ui/object_action", args: { action: "click", object: { technology: "desktop", properties: [{ name: "Name", value: "Save" }] } } }];
+      const made = recordedVariables(steps); const vars = state.flow.variables.slice(before); state.flow.variables.splice(before);
+      return { made, vars, text: steps[0].args.text, click: steps[1].args.text === undefined }; })())`));
+    check("recorded desktop typing becomes a variable named after the control", recDesk.made.join() === "customer_name" && recDesk.vars[0].default === "Ann"
+      && recDesk.text === "$customer_name" && recDesk.click, JSON.stringify(recDesk));
+    // Run in background: offered on both element actions; on desktop it hides the mouse and typing choices
+    const bgFields = JSON.parse(w.eval(`JSON.stringify({
+      web: [...elementActionFields({ action: "ooa.browser/element_action", args: { action: "click" } })],
+      desk: [...elementActionFields({ action: "ooa.desktop_ui/object_action", args: { action: "click" } })],
+      deskBg: [...elementActionFields({ action: "ooa.desktop_ui/object_action", args: { action: "click", run_in_background: true } })],
+      textBg: [...elementActionFields({ action: "ooa.desktop_ui/object_action", args: { action: "set_text", run_in_background: true } })] })`));
+    check("Run in background is offered for web and desktop element actions", bgFields.web.includes("run_in_background") && bgFields.desk.includes("run_in_background")
+      && bgFields.desk.includes("click_method") && !bgFields.deskBg.includes("click_method") && !bgFields.deskBg.includes("offset_x")
+      && bgFields.textBg.includes("text") && !bgFields.textBg.includes("text_method"), JSON.stringify(bgFields));
+    // The recorder asks where to record, with a desktop application always on offer
+    w.eval("recordSteps()");
+    const recDlg = await until(() => !d.getElementById("dialog").hidden && d.getElementById("rec-desktop"));
+    check("the recorder offers a desktop application and a new page", !!recDlg && !!d.getElementById("rec-new-page")
+      && d.getElementById("dialog-title").textContent === "Record in which window?", d.getElementById("dialog-title").textContent);
+    w.eval("closeDialog()");
     // Element action: actions for the captured control type, only the fields the action uses, the outcome variable, the time-out box
     w.eval(`state.flow.steps.push({ id: "ea_ui", action: "ooa.browser/element_action", args: { action: "click", object: { technology: "web", search_by: "properties", index: 0,
       properties: [{ name: "tag", value: "select", match: "equals", use: true }, { name: "control_type", value: "Drop-down list", match: "equals", use: false }] } } });

@@ -252,6 +252,13 @@ UI actions find elements by a **captured object** instead of a single selector:
   The search reads these details only when a ticked rule needs them (`DesktopObject.needsDetail`). Desktop objects
   also take `anchor` (nearest control of the same type to anchor + offset, from the screen rectangles),
   `window.resize` {width, height} (set before the search) and `object_action`'s `if_not_found`.
+- Desktop recording (`ooa.desktop_ui/record`): the UI Automation helper's `record` op. Low-level mouse and keyboard
+  hooks and the Stop recording bar run on their own thread. The helper captures the control under each mouse press and
+  the focused field's text when the person leaves it. Before its answer it sends progress lines, which
+  `UiaBridge.call(..., progress)` passes on. The result becomes `object_action` steps (`DesktopUiPackage.stepsFromEvents`).
+  Studio's `POST record` with `target: "desktop"` runs it.
+- Run in background: `object_action` uses UI Automation patterns only (no activation, mouse or keys); `element_action`
+  leaves the tab where it is (`BrowserWindows.BACKGROUND`) and clicks the element directly.
 - Web matching: `packages-browser/.../WebObjects.java`. Desktop matching: `packages-windows/.../DesktopObject.java` with
   the UI Automation helper `UiaBridge` (PowerShell + .NET UIAutomationClient).
 - Studio edits the object in `captureEditor` (`studio.js`). It uses `POST /studio/api/capture`, `capture/test` and

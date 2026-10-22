@@ -57,7 +57,7 @@ class CaptureObjectTest {
     }
 
     Map<String, Object> act(BrowserPackage b, ActionContext c, Map<String, Object> object, String action, Object value) {
-        return b.elementAction(c, object, null, action, value, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null);
+        return b.elementAction(c, object, null, action, value, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, false);
     }
 
     @Test void capturedObjectDefaultsPickStableProperties() {
@@ -102,8 +102,8 @@ class CaptureObjectTest {
 
             // equals on several properties; keystroke typing with append
             Map<String, Object> user = obj(prop("tag", "input", "equals", true), prop("name", "user", "equals", true), prop("label", "User name", "equals", true));
-            b.elementAction(c, user, null, "set_text", "Ann", 3000, "mouse", null, null, null, "keystrokes", 5, true, false, 0, false, "browser", null, null, 0, "error", null, null);
-            b.elementAction(c, user, null, "set_text", "-B", 3000, "mouse", null, null, null, "fill", 0, false, false, 0, false, "browser", null, null, 0, "error", null, null);
+            b.elementAction(c, user, null, "set_text", "Ann", 3000, "mouse", null, null, null, "keystrokes", 5, true, false, 0, false, "browser", null, null, 0, "error", null, null, false);
+            b.elementAction(c, user, null, "set_text", "-B", 3000, "mouse", null, null, null, "fill", 0, false, false, 0, false, "browser", null, null, 0, "error", null, null, false);
             assertEquals("Ann-B", act(b, c, user, "get_value", null).get("result"), "clear_first false appends");
 
             // contains / starts_with / data-* / ignore case
@@ -124,7 +124,7 @@ class CaptureObjectTest {
             assertEquals("2", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-deleted").get("result"));
             assertEquals(new BigDecimal(1), act(b, c, obj(prop("tag", "button", "equals", true), prop("class", "btn del", "not_equals", true), prop("class", "btn", "starts_with", true)), "count", null).get("result"));
             del.put("index", 7);
-            assertEquals("BROWSER.INDEX_OUT_OF_RANGE", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null)).code());
+            assertEquals("BROWSER.INDEX_OUT_OF_RANGE", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, false)).code());
 
             // search by CSS and XPath; self-healing to CSS when the properties no longer match
             Map<String, Object> status = obj(prop("id", "status-old", "equals", true), prop("css", "#status", "equals", false), prop("xpath", "/html/body/select", "equals", false));
@@ -179,10 +179,10 @@ class CaptureObjectTest {
             assertTrue(LOG.stream().anyMatch(l -> l.contains("next to its anchor")), "anchor fallback is logged");
 
             // if the element is not there in time: continue skips the step instead of failing
-            Map<String, Object> skipped = b.elementAction(c, obj(prop("id", "never", "equals", true)), null, "click", null, 400, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "continue", null, null);
+            Map<String, Object> skipped = b.elementAction(c, obj(prop("id", "never", "equals", true)), null, "click", null, 400, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "continue", null, null, false);
             assertEquals(false, skipped.get("found"));
             assertNull(skipped.get("result"));
-            assertEquals("BROWSER.OBJECT_NOT_FOUND", assertThrows(ActionException.class, () -> b.elementAction(c, obj(prop("id", "never", "equals", true)), null, "click", null, 400, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 2000, "error", null, null)).code());
+            assertEquals("BROWSER.OBJECT_NOT_FOUND", assertThrows(ActionException.class, () -> b.elementAction(c, obj(prop("id", "never", "equals", true)), null, "click", null, 400, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 2000, "error", null, null, false)).code());
 
             // control types and the actions that go with them (shared with the browser connector)
             assertEquals("Text box", act(b, c, user, "get_control_type", null).get("result"));
@@ -194,7 +194,7 @@ class CaptureObjectTest {
             assertEquals("Table", act(b, c, orders, "get_control_type", null).get("result"));
             assertEquals(new BigDecimal(3), act(b, c, orders, "get_total_rows", null).get("result"));
             assertEquals(new BigDecimal(2), act(b, c, orders, "get_total_columns", null).get("result"));
-            Map<String, Object> cellAt = b.elementAction(c, orders, null, "get_cell_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", 3, 2);
+            Map<String, Object> cellAt = b.elementAction(c, orders, null, "get_cell_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", 3, 2, false);
             assertEquals("20", cellAt.get("result"));
             Map<String, Object> where = (Map<String, Object>) act(b, c, orders, "get_cell_index_by_text", "Amount").get("result");
             assertEquals(new BigDecimal(1), where.get("row")); assertEquals(new BigDecimal(2), where.get("column"));
@@ -205,13 +205,15 @@ class CaptureObjectTest {
             assertEquals(new BigDecimal(0), act(b, c, box, "count", null).get("result"), "no check box on this page");
 
             // waiting for something to disappear
-            assertEquals(true, b.elementAction(c, obj(prop("id", "spinner", "equals", true)), null, "wait_to_disappear", null, 5000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null).get("result"));
+            assertEquals(true, b.elementAction(c, obj(prop("id", "spinner", "equals", true)), null, "wait_to_disappear", null, 5000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, false).get("result"));
 
             // a covered button: a mouse click is refused, a JavaScript click works
             Map<String, Object> covered = obj(prop("id", "covered", "equals", true));
-            assertThrows(ActionException.class, () -> b.elementAction(c, covered, null, "click", null, 800, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null));
-            b.elementAction(c, covered, null, "click", null, 3000, "javascript", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null);
+            assertThrows(ActionException.class, () -> b.elementAction(c, covered, null, "click", null, 800, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, false));
+            // in the background a click goes straight to the element, so the covered button is pressed even with the mouse method
+            b.elementAction(c, covered, null, "click", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, true);
             assertEquals("yes", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-clicked").get("result"));
+            b.elementAction(c, covered, null, "click", null, 3000, "javascript", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, false);
 
             // upload and element screenshot
             Files.writeString(w.resolve("a.txt"), "hello");
@@ -254,7 +256,7 @@ class CaptureObjectTest {
             assertEquals(home, b.pageInfo(c, "browser").get("url"), "closing a tab leaves the session on the other tab");
 
             // the selector still works for older steps, and one of the two is required
-            assertEquals("Save item", b.elementAction(c, null, "#save-123456", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null).get("result"));
+            assertEquals("Save item", b.elementAction(c, null, "#save-123456", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error", null, null, false).get("result"));
             assertEquals("BROWSER.NO_ELEMENT", assertThrows(ActionException.class, () -> act(b, c, null, "click", null)).code());
         } finally {
             try { b.close(c, "browser", "session", null); } catch (RuntimeException ignored) { }

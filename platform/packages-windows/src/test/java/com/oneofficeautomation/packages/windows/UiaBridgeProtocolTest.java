@@ -129,14 +129,14 @@ class UiaBridgeProtocolTest {
         helper = desktop(List.of(element(1, "Button", "Save draft", "btnDraft"), element(2, "Button", "Save", "btnSave"), element(3, "Edit", "Notes", "")));
         ActionContext c = ctx(helper);
         DesktopUiPackage p = new DesktopUiPackage();
-        Map<String, Object> r = p.objectAction(c, object("save", "starts_with", 1), "get_text", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 1, "error");
+        Map<String, Object> r = p.objectAction(c, object("save", "starts_with", 1), "get_text", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 1, "error", false);
         assertEquals("text of 2", r.get("result"), "index 1 picks the second of the two matching buttons");
         assertEquals("", r.get("healed_by"));
         Map<String, Object> find = helper.requests.stream().filter(q -> "find".equals(q.get("op"))).findFirst().orElseThrow();
         assertEquals(List.of(new BigDecimal(100)), find.get("windows"), "only the window matching title and process is searched");
         assertEquals(Map.of("ControlType", "Button"), find.get("prefilter"), "exact ControlType is passed on so the helper searches less");
 
-        p.objectAction(c, object("Save", "equals", 0), "click", "double", "mouse", 5, -2, null, true, "auto", 0, null, null, null, 1, "error");
+        p.objectAction(c, object("Save", "equals", 0), "click", "double", "mouse", 5, -2, null, true, "auto", 0, null, null, null, 1, "error", false);
         Map<String, Object> click = helper.requests.get(helper.requests.size() - 1);
         assertEquals("act", click.get("op"));
         assertEquals("click", click.get("action"));
@@ -150,7 +150,7 @@ class UiaBridgeProtocolTest {
     @Test void healsByRecordedAutomationIdAndLogsIt() throws Exception {
         helper = desktop(List.of(element(1, "Button", "Store", "btnSave"), element(2, "Button", "Cancel", "btnCancel")));
         ActionContext c = ctx(helper);
-        Map<String, Object> r = new DesktopUiPackage().objectAction(c, object("Save", "equals", 0), "set_text", "left", "auto", 0, 0, "hello", false, "type", 25, null, null, null, 1, "error");
+        Map<String, Object> r = new DesktopUiPackage().objectAction(c, object("Save", "equals", 0), "set_text", "left", "auto", 0, 0, "hello", false, "type", 25, null, null, null, 1, "error", false);
         assertEquals("automation_id", r.get("healed_by"));
         Map<String, Object> set = helper.requests.get(helper.requests.size() - 1);
         assertEquals("set_text", set.get("action"));
@@ -166,7 +166,7 @@ class UiaBridgeProtocolTest {
         helper = desktop(List.of(element(1, "Button", "Cancel", "btnCancel"), element(2, "Button", "Help", "btnHelp")));
         ActionContext c = ctx(helper);
         DesktopUiPackage p = new DesktopUiPackage();
-        ActionException e = assertThrows(ActionException.class, () -> p.objectAction(c, object("Save", "equals", 0), "click", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 0, "error"));
+        ActionException e = assertThrows(ActionException.class, () -> p.objectAction(c, object("Save", "equals", 0), "click", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 0, "error", false));
         assertEquals("DESKTOP_UI.OBJECT_NOT_FOUND", e.code());
         assertFalse(p.objectExists(c, object("Save", "equals", 0)), "two buttons exist, so ControlType alone does not heal");
         assertTrue(p.objectExists(c, object("help", "contains", 0)));
@@ -181,7 +181,7 @@ class UiaBridgeProtocolTest {
         helper = desktop(List.of(element(1, "Button", "Save", "btnSave")));
         ActionContext c = ctx(helper);
         InterruptRules.of(c).add(new InterruptRules.Rule("never", "No such window title 9f1c", null, null, "ignore", null, null, 0));
-        assertEquals(true, new DesktopUiPackage().objectAction(c, object("Save", "equals", 0), "invoke", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 1, "error").get("result"));
+        assertEquals(true, new DesktopUiPackage().objectAction(c, object("Save", "equals", 0), "invoke", "left", "auto", 0, 0, null, true, "auto", 0, null, null, null, 1, "error", false).get("result"));
         assertEquals("invoke", helper.requests.get(helper.requests.size() - 1).get("action"));
     }
 

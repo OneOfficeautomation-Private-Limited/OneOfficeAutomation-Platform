@@ -98,8 +98,13 @@ public class UiaBridge implements AutoCloseable {
      * Sends one request and waits for its response. A helper error becomes an ActionException with code
      * DESKTOP_UI.&lt;helper code&gt;; a helper that does not answer within the timeout is stopped (the next call starts a new one).
      */
-    @SuppressWarnings("unchecked")
     public synchronized Object call(String op, Map<String, Object> args, long timeoutMs, Runnable checkCancelled) {
+        return call(op, args, timeoutMs, checkCancelled, null);
+    }
+
+    /** As call, also passing on the progress lines ({"id": n, "progress": ...}) the helper sends before its answer. */
+    @SuppressWarnings("unchecked")
+    public synchronized Object call(String op, Map<String, Object> args, long timeoutMs, Runnable checkCancelled, java.util.function.Consumer<Map<String, Object>> progress) {
         if (!alive()) throw new ActionException("DESKTOP_UI.BRIDGE_STOPPED", "The UI Automation helper has stopped" + detail(), "Run the step again.", true);
         long id = ids.incrementAndGet();
         Map<String, Object> req = new LinkedHashMap<>();
@@ -128,6 +133,7 @@ public class UiaBridge implements AutoCloseable {
             }
             Object rid = resp.get("id");
             if (rid == null || new BigDecimal(String.valueOf(rid)).longValue() != id) continue;   // a late answer to an abandoned request
+            if (resp.containsKey("progress")) { if (progress != null) progress.accept(resp); end = System.currentTimeMillis() + timeoutMs; continue; }
             if (Boolean.TRUE.equals(resp.get("ok"))) return resp.get("result");
             String code = String.valueOf(resp.getOrDefault("code", "FAILED"));
             throw new ActionException("DESKTOP_UI." + code, String.valueOf(resp.getOrDefault("error", "UI Automation failed")), hint(code), code.equals("STALE"));

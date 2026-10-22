@@ -1291,10 +1291,12 @@ public final class BrowserPackage {
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"},
                     description = "When the page or the element is not there in time: error stops with an error; continue skips this step (result is empty) and carries on.") String ifNotFound,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Table cell actions: the row, 1 for the first.") Integer row,
-            @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Table cell actions: the column, 1 for the first.") Integer column) {
+            @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Table cell actions: the column, 1 for the first.") Integer column,
+            @Input(name = "run_in_background", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Leave the browser window where it is: the tab is not brought to the front and clicks are sent to the page (not with the mouse), so other work on the screen can go on.") boolean runInBackground) {
         if ("continue".equals(ifNotFound)) {
             try { return elementAction(ctx, objectArg, sel, action, value, timeout, clickMethod, modifiers, offsetX, offsetY, typing, keyDelay, clearFirst, force, waitAfter,
-                    useCapturedPage, session, alternatives, window, waitForPage, "error", row, column); }
+                    useCapturedPage, session, alternatives, window, waitForPage, "error", row, column, runInBackground); }
             catch (ActionException e) {
                 if (!NOT_THERE.contains(e.code())) throw e;
                 ctx.warn("Skipped '" + action + "': " + e.getMessage());
@@ -1303,7 +1305,7 @@ public final class BrowserPackage {
                 return out;
             }
         }
-        session = BrowserWindows.use(ctx, session, window, timeout);
+        session = BrowserWindows.use(ctx, session, window, timeout, runInBackground);
         if (tab(ctx, session) != null) {
             Map<String, Object> opts = new LinkedHashMap<>();
             opts.put("click_method", clickMethod == null ? "mouse" : clickMethod);
@@ -1325,6 +1327,8 @@ public final class BrowserPackage {
             if (waitAfter > 0) { try { Thread.sleep((long) waitAfter); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
             return single(r instanceof Number n ? new BigDecimal(n.toString()) : r);
         }
+        // a tab that is not in front may not paint, so a click waits for nothing and goes straight to the element
+        if (runInBackground && "click".equals(action)) clickMethod = "javascript";
         BrowserSession bs = s(ctx, session);
         if (waitForPage > 0) {
             try { bs.page.waitForLoadState(com.microsoft.playwright.options.LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(waitForPage)); }

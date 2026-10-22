@@ -192,9 +192,11 @@ public final class DesktopUiPackage {
             @Input(name = "item_index", type = OoaType.NUMBER, required = false, description = "select_item: the position of the item to select (0 is the first), used when item is empty.") Integer itemIndex,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = D_TIMEOUT + " For wait_disappear, how long to wait for it to go.") double timeout,
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"},
-                    description = "When the object is not there in time: error stops with an error; continue skips this step (result is empty, found is false) and carries on.") String ifNotFound) {
+                    description = "When the object is not there in time: error stops with an error; continue skips this step (result is empty, found is false) and carries on.") String ifNotFound,
+            @Input(name = "run_in_background", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Work through UI Automation only: the window is not brought to the front and the mouse and keyboard are not used, so the application can stay behind other windows or minimised. Clicks and text then need a control that supports it (a single left click; text set directly).") boolean runInBackground) {
         if ("continue".equals(ifNotFound)) {
-            try { return objectAction(ctx, object, action, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex, timeout, "error"); }
+            try { return objectAction(ctx, object, action, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex, timeout, "error", runInBackground); }
             catch (ActionException e) {
                 if (!Set.of("DESKTOP_UI.OBJECT_NOT_FOUND", "DESKTOP_UI.WAIT_TIMEOUT").contains(e.code())) throw e;
                 ctx.warn("Skipped '" + action + "': " + e.getMessage());
@@ -213,10 +215,30 @@ public final class DesktopUiPackage {
                     "Raise timeout_seconds, or use Wait for object with fail_on_timeout false to branch instead.", true);
             return out(true, "");
         }
+        if (runInBackground) {
+            if (a.equals("click") && clickType != null && !clickType.equals("left"))
+                throw new ActionException("DESKTOP_UI.NOT_IN_BACKGROUND", "A " + clickType + " click needs the mouse, which Run in background does not use",
+                        "Use a left click, or turn off Run in background.");
+            if (a.equals("focus")) throw new ActionException("DESKTOP_UI.NOT_IN_BACKGROUND", "Focus brings the window to the front, which Run in background does not do", "Turn off Run in background.");
+            clickMethod = "pattern";
+            textMethod = "set_value";
+        }
         SelfHealing.Found<Element> f = locate(ctx, o, timeout);
         String healed = f.healed() ? f.by().strategy() : "";
         Map<String, Object> opt = new LinkedHashMap<>();
-        Object result = switch (a) {
+        Object result;
+        try { result = act(ctx, a, f, opt, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex); }
+        catch (ActionException e) {
+            if (!runInBackground || !"DESKTOP_UI.NOT_SUPPORTED".equals(e.code())) throw e;
+            throw new ActionException("DESKTOP_UI.NOT_IN_BACKGROUND", "This " + describe(o) + " cannot be used without the mouse and keyboard: " + e.getMessage(),
+                    "Turn off Run in background for this step (the window will then come to the front).");
+        }
+        return out(result, healed);
+    }
+
+    private static Object act(ActionContext ctx, String a, SelfHealing.Found<Element> f, Map<String, Object> opt, String clickType, String clickMethod, int offsetX, int offsetY,
+            Object text, boolean clearFirst, String textMethod, int typeDelay, String property, String item, Integer itemIndex) {
+        return switch (a) {
             case "click" -> {
                 String ct = clickType == null ? "left" : clickType;
                 opt.put("button", ct.equals("double") ? "left" : ct);
@@ -256,7 +278,6 @@ public final class DesktopUiPackage {
             case "scroll_into_view" -> act(ctx, f.element(), "scroll_into_view", opt);
             default -> act(ctx, f.element(), a, opt);   // expand, collapse, check, uncheck, invoke, focus
         };
-        return out(result, healed);
     }
 
     static Map<String, Object> out(Object result, String healed) {
@@ -379,6 +400,57 @@ public final class DesktopUiPackage {
         Map<String, Object> raw = (Map<String, Object>) bridge(ctx).call("pick",
                 Map.of("timeout_ms", BigDecimal.valueOf(ms), "screenshot", screenshot, "highlight", highlight), ms + CALL_TIMEOUT_MS, ctx::checkCancelled);
         return Map.of("object", captured(ctx, raw));
+    }
+
+    @Action(id = "record", name = "Record desktop actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "desktop",
+            description = "Design time: records clicks and typing in any Windows application until Stop recording is pressed on the recording bar. "
+                    + "Each click or field becomes a Desktop object action step with the full captured object; password fields are never read.")
+    @Output(name = "steps", type = OoaType.LIST, description = "The recorded steps (ooa.desktop_ui/object_action), ready to insert into an agent.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of recorded steps.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> record(ActionContext ctx,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1800", description = "The longest the recording may run, in seconds.") double timeout,
+            @Input(name = "screenshot", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include a PNG image of each control (base64) in its object.") boolean screenshot) {
+        long ms = (long) (Math.max(5, timeout) * 1000);
+        ctx.info("Recording desktop actions: work in the application, then press Stop recording on the bar at the top right");
+        List<Object> events = (List<Object>) bridge(ctx).call("record", Map.of("timeout_ms", BigDecimal.valueOf(ms), "screenshot", screenshot),
+                CALL_TIMEOUT_MS + 60_000, ctx::checkCancelled, p -> ctx.info("Recorded step " + p.get("count") + " (" + p.get("kind") + ")"));
+        return stepsFromEvents(ctx, events);
+    }
+
+    /** Turns the helper's recorded clicks and typing into object_action steps. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> stepsFromEvents(ActionContext ctx, List<Object> events) {
+        List<Object> steps = new ArrayList<>();
+        boolean password = false;
+        for (Object x : events) {
+            if (!(x instanceof Map<?, ?> em)) continue;
+            Map<String, Object> e = (Map<String, Object>) em;
+            if (!(e.get("capture") instanceof Map<?, ?> cap)) continue;
+            Map<String, Object> obj = captured(ctx, (Map<String, Object>) cap);
+            String kind = String.valueOf(e.get("kind")), what = describe(DesktopObject.parse(obj));
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("object", obj);
+            String note;
+            if (kind.equals("type")) {
+                boolean pwd = Boolean.TRUE.equals(e.get("password"));
+                password |= pwd;
+                args.put("action", "set_text");
+                args.put("text", pwd ? "$password" : String.valueOf(e.getOrDefault("text", "")));
+                note = pwd ? "Recorded password field: map a Credential variable named password" : "Recorded typing in " + what;
+            } else {
+                args.put("action", "click");
+                if (!kind.equals("click")) args.put("click_type", kind.equals("double_click") ? "double" : "right");
+                note = "Recorded " + kind.replace('_', ' ') + " on " + what;
+            }
+            Map<String, Object> s = new LinkedHashMap<>();
+            s.put("action", "ooa.desktop_ui/object_action");
+            s.put("args", args);
+            s.put("description", note);
+            steps.add(s);
+        }
+        ctx.info("Recorded " + steps.size() + " action(s)" + (password ? "; password fields use the variable $password" : ""));
+        return Map.of("steps", steps, "count", BigDecimal.valueOf(steps.size()));
     }
 
     /** Builds the object from a raw capture and sets its index: the captured control's position among the matches in its window. */

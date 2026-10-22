@@ -375,17 +375,22 @@ public final class StudioServer {
                     "error", r.ok() ? Map.of() : r.error()));
         } else if (method.equals("POST") && route.equals("record")) {
             Map<String, Object> req = (Map<String, Object>) body(ex);
-            if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
-                throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
+            boolean desktop = "desktop".equals(req.get("target"));
+            String module = desktop ? "ooa.desktop_ui" : "ooa.browser";
+            if (registry.allManifests().stream().noneMatch(m -> module.equals(m.get("id"))))
+                throw desktop ? new OoaException("STUDIO.NO_DESKTOP_MODULE", "The Windows desktop module is not installed", "Add packages-windows to ooa.optionalModules in gradle.properties.")
+                        : new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
             Map<String, Object> flow = new LinkedHashMap<>();
             flow.put("kind", "TaskBot"); flow.put("id", "studio_recorder"); flow.put("name", "Agent Studio recorder");
             flow.put("variables", List.of(Map.of("name", "steps", "type", "List", "direction", "output")));
             Map<String, Object> args = new LinkedHashMap<>();
-            args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
-            args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
-            // record in an open tab of a browser connected through the extension
-            if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
-            flow.put("steps", List.of(Map.of("id", "rec", "action", "ooa.browser/record", "args", args, "out", Map.of("steps", "steps"))));
+            if (!desktop) {
+                args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
+                args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
+                // record in an open tab of a browser connected through the extension
+                if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
+            }
+            flow.put("steps", List.of(Map.of("id", "rec", "action", module + "/record", "args", args, "out", Map.of("steps", "steps"))));
             // the recording's progress (GET record/progress) and Cancel (POST record/cancel) while this request waits
             EventSink.ListSink sink = new EventSink.ListSink();
             java.util.concurrent.atomic.AtomicBoolean cancel = new java.util.concurrent.atomic.AtomicBoolean();

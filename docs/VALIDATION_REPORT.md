@@ -405,3 +405,26 @@ the normal way; Java 467, 0 failed.
 
 Still open: recording desktop applications (the recorder covers web pages); Run in background (the reference product's
 option for clicks and typing without taking the mouse).
+
+
+# Validation report: desktop recording and Run in background
+
+| Gap | Done |
+| --- | --- |
+| Recording desktop applications | New `ooa.desktop_ui/record`: Studio's Record asks where to record (an open browser tab, a desktop application or a new page). While it runs, a bar at the top right of the screen shows the step count and Stop recording; Studio shows the same count with Cancel. Each click (left, right, double) and each field's typing becomes a Desktop object action step with the full captured object and its window. Password fields are never read: the step types `$password`, a Credential input. Typed text becomes an input variable named after the control |
+| Run in background (desktop) | `object_action` `run_in_background`: UI Automation only. The window is not brought forward and the mouse and keyboard are not used, so the application can stay minimised. A click uses the control's pattern, text is set directly; right/double clicks and Focus are refused with `DESKTOP_UI.NOT_IN_BACKGROUND`. Studio hides the mouse and typing fields when it is on |
+| Run in background (web) | `element_action` `run_in_background`: the window choice does not bring the tab forward, and a click goes straight to the element |
+
+How the recorder works: the UI Automation helper sets low-level mouse and keyboard hooks on a thread of their own, with
+the bar. Its main thread reads the control under each mouse press and the focused text field. When the person leaves
+a field (a click elsewhere, Tab or Enter), the field's text is read. Progress lines (`{"id", "progress": true, "count"}`)
+reach `UiaBridge.call` before the answer.
+
+Tests:
+
+- **Live recording (Character Map, real input):** clicking the field, typing, Tab, clicking Select, double-clicking Select and clicking Copy gave exactly five steps: click, set_text "hello", click, double click, click. Each had AutomationId + ControlType and the window (title, process, program path, size).
+- **Live Run in background:** with Character Map minimised, set_text and a click on Select worked (the text read back as "!bg") and the window stayed minimised; a right click was refused.
+- **DesktopRecordTest:** events become steps; a password becomes `$password`; right and double clicks; background refusals.
+- **CaptureObjectTest:** a covered button is pressed in the background even with the mouse method.
+- **Studio UI:** 232 checks. New ones cover desktop typing variables, the Run in background fields, and the recorder's choice dialog.
+- **Java suites:** all pass except `EnterpriseFeaturesTest.vaultsGovernanceMcpSsoAndWorkflows`, where the AI governance total reads 0 calls instead of 1. It fails the same way on the previous commit (49d8434), so it is not from this change and is tracked separately.

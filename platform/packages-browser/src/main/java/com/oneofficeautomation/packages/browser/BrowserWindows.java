@@ -49,6 +49,16 @@ final class BrowserWindows {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(800)).build();
 
     /** The session to act in for this window choice; the matching tab becomes that session's current page. */
+    /** Set while a step runs in the background: the chosen tab is used where it is, not brought to the front. */
+    static final ThreadLocal<Boolean> BACKGROUND = ThreadLocal.withInitial(() -> false);
+
+    /** As use, leaving the window where it is when inBackground is true. */
+    static String use(ActionContext ctx, String session, Object windowArg, double timeoutMs, boolean inBackground) {
+        BACKGROUND.set(inBackground);
+        try { return use(ctx, session, windowArg, timeoutMs); }
+        finally { BACKGROUND.remove(); }
+    }
+
     static String use(ActionContext ctx, String session, Object windowArg, double timeoutMs) {
         Map<String, Object> w = window(windowArg);
         if (w == null) return session;
@@ -114,7 +124,7 @@ final class BrowserWindows {
                     for (String t : titles) if (!titleOk && matches(pt, t, titleMatch)) titleOk = true;
                     if (titleOk && (url.isEmpty() || matches(pu, url, urlMatch))) {
                         bs.page = p;
-                        try { p.bringToFront(); } catch (PlaywrightException ignored) { }
+                        if (!BACKGROUND.get()) try { p.bringToFront(); } catch (PlaywrightException ignored) { }
                         if (!name.equals(preferred)) ctx.info("Using the tab '" + pt + "' of browser session '" + name + "'");
                         return name;
                     }
@@ -161,7 +171,7 @@ final class BrowserWindows {
             String name = preferred != null && !(ctx.sessions().get(preferred) instanceof BrowserPackage.BrowserSession) ? preferred : "tab_" + id;
             boolean own = ctx.sessions().get(name) instanceof ExtensionBridge.TabSession old && old.tabId == id && old.own;
             ctx.sessions().put(name, new ExtensionBridge.TabSession(b, id, own));
-            try { ExtensionBridge.call(b, "activate", Map.of("tab_id", id), 10000); } catch (ActionException ignored) { }
+            if (!BACKGROUND.get()) try { ExtensionBridge.call(b, "activate", Map.of("tab_id", id), 10000); } catch (ActionException ignored) { }
             return name;
         }
         return null;

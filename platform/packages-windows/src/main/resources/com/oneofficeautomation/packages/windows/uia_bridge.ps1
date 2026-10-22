@@ -47,6 +47,13 @@ public static class Native {
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hgt, bool repaint);
+    public delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetWindowsHookEx(int id, HookProc fn, IntPtr mod, uint thread);
+    [DllImport("user32.dll")] public static extern bool UnhookWindowsHookEx(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr CallNextHookEx(IntPtr h, int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll")] public static extern IntPtr GetModuleHandle(string name);
+    [StructLayout(LayoutKind.Sequential)] public struct MSLLHOOKSTRUCT { public POINT pt; public uint mouseData; public uint flags; public uint time; public IntPtr extra; }
+    [StructLayout(LayoutKind.Sequential)] public struct KBDLLHOOKSTRUCT { public uint vk; public uint scan; public uint flags; public uint time; public IntPtr extra; }
 
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
     [StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
@@ -130,6 +137,34 @@ public class Frame : System.Windows.Forms.Form {
     }
 }
 
+/** The bar shown while recording a desktop application: what is happening, how many steps, and Stop recording. */
+public class RecordBar : System.Windows.Forms.Form {
+    public volatile bool Stopped;
+    readonly System.Windows.Forms.Label count;
+    protected override bool ShowWithoutActivation { get { return true; } }
+    protected override System.Windows.Forms.CreateParams CreateParams {
+        get { System.Windows.Forms.CreateParams p = base.CreateParams; p.ExStyle |= 0x80 | 0x08000000; return p; }   // tool window, no activate
+    }
+    public RecordBar() {
+        FormBorderStyle = System.Windows.Forms.FormBorderStyle.None; ShowInTaskbar = false; TopMost = true;
+        BackColor = System.Drawing.Color.FromArgb(47, 51, 54); ForeColor = System.Drawing.Color.White;
+        StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+        System.Drawing.Rectangle wa = System.Windows.Forms.Screen.PrimaryScreen.WorkingArea;
+        Bounds = new System.Drawing.Rectangle(wa.Right - 380, wa.Top + 10, 370, 40);
+        System.Windows.Forms.Label l = new System.Windows.Forms.Label();
+        l.Text = "\u25CF  ONEOFFICEAUTOMATION is recording"; l.AutoSize = false; l.Bounds = new System.Drawing.Rectangle(10, 11, 210, 20);
+        l.Font = new System.Drawing.Font("Segoe UI", 9f);
+        count = new System.Windows.Forms.Label(); count.Text = "0 steps"; count.Bounds = new System.Drawing.Rectangle(222, 11, 60, 20); count.Font = l.Font;
+        System.Windows.Forms.Button b = new System.Windows.Forms.Button();
+        b.Text = "Stop recording"; b.Bounds = new System.Drawing.Rectangle(282, 6, 82, 28); b.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+        b.BackColor = System.Drawing.Color.FromArgb(10, 123, 187); b.ForeColor = System.Drawing.Color.White; b.Font = new System.Drawing.Font("Segoe UI", 8f);
+        b.Click += (o, e) => { Stopped = true; };
+        Controls.Add(l); Controls.Add(count); Controls.Add(b);
+    }
+    public void SetCount(int n) { count.Text = n + (n == 1 ? " step" : " steps"); }
+    public bool Contains(int x, int y) { return Bounds.Contains(x, y); }
+}
+
 public static class Bridge {
     static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
     static readonly Dictionary<int, AutomationElement> Refs = new Dictionary<int, AutomationElement>();
@@ -156,6 +191,7 @@ public static class Bridge {
         try { Native.SetProcessDPIAware(); } catch (Exception) { }
         StreamReader input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
         StreamWriter output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+        Output = output;
         output.AutoFlush = true; output.NewLine = "\n";
         output.WriteLine("{\"ready\":true,\"protocol\":1}");
         string line;
@@ -191,6 +227,14 @@ public static class Bridge {
     static int Int(IDictionary<string, object> m, string k, int d) { object v; return m.TryGetValue(k, out v) && v != null ? Convert.ToInt32(v, CultureInfo.InvariantCulture) : d; }
     static bool Bool(IDictionary<string, object> m, string k, bool d) { object v; return m.TryGetValue(k, out v) && v != null ? Convert.ToBoolean(v, CultureInfo.InvariantCulture) : d; }
 
+    static StreamWriter Output;
+
+    /** A line before the answer, for a long request (the recorder's step count). */
+    static void Progress(object id, Dictionary<string, object> data) {
+        data["id"] = id; data["progress"] = true;
+        lock (Output) Output.WriteLine(Json.Serialize(data));
+    }
+
     static object Dispatch(string op, Dictionary<string, object> req) {
         switch (op) {
             case "ping": return "pong";
@@ -200,6 +244,7 @@ public static class Bridge {
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
+            case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true));
             case "resize": return Resize(Int(req, "handle", 0), Int(req, "width", 0), Int(req, "height", 0));
             default: throw new BridgeError("BAD_REQUEST", "Unknown operation '" + op + "'");
         }
@@ -735,6 +780,122 @@ public static class Bridge {
         d["screenshot"] = shot ? Screenshot(e.Current.BoundingRectangle) : "";
         d["point"] = new int[] { x, y };
         return d;
+    }
+
+    // ---------- desktop recorder ----------
+    struct Click { public int X, Y; public string Button; public DateTime At; }
+    static readonly Queue<Click> Clicks = new Queue<Click>();
+    static volatile bool KeyTyped, KeyFlush;
+    static Native.HookProc MouseProc, KeyProc;   // kept alive while hooked
+
+    /**
+     * Records clicks and typing in any desktop application until Stop recording is pressed (or the time runs out).
+     * A click is captured where the mouse went down (the control under it, before it reacts); typing is captured as
+     * the field's final text when the person leaves the field (passwords are never read). Two clicks on the same
+     * control within half a second become a double click.
+     */
+    /** A control whose text the person can type: an edit, document or editable combo box, or anything with a writable value. */
+    static bool TakesText(AutomationElement e) {
+        ControlType ct = e.Current.ControlType;
+        if (ct == ControlType.Edit || ct == ControlType.Document) return true;
+        object p;
+        return e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly && ct != ControlType.Button;
+    }
+
+    static List<object> Record(object reqId, int timeoutMs, bool shot) {
+        List<object> events = new List<object>();
+        lock (Clicks) Clicks.Clear();
+        KeyTyped = false; KeyFlush = false;
+        // The hooks and the bar live on their own thread with its own message loop, so they are answered at once
+        // while this thread reads the controls (which can take a moment in a busy application).
+        RecordBar bar = null; IntPtr mh = IntPtr.Zero, kh = IntPtr.Zero;
+        ManualResetEvent shown = new ManualResetEvent(false);
+        Thread ui = new Thread(() => {
+            bar = new RecordBar();
+            IntPtr mod = Native.GetModuleHandle(null);
+            MouseProc = (code, w, l) => {
+                if (code >= 0) {
+                    int msg = w.ToInt32();
+                    if (msg == 0x0201 || msg == 0x0204) {   // left or right button down
+                        Native.MSLLHOOKSTRUCT m = (Native.MSLLHOOKSTRUCT)Marshal.PtrToStructure(l, typeof(Native.MSLLHOOKSTRUCT));
+                        lock (Clicks) Clicks.Enqueue(new Click { X = m.pt.X, Y = m.pt.Y, Button = msg == 0x0201 ? "left" : "right", At = DateTime.UtcNow });
+                    }
+                }
+                return Native.CallNextHookEx(IntPtr.Zero, code, w, l);
+            };
+            KeyProc = (code, w, l) => {
+                if (code >= 0 && (w.ToInt32() == 0x0100 || w.ToInt32() == 0x0104)) {   // key down
+                    Native.KBDLLHOOKSTRUCT k = (Native.KBDLLHOOKSTRUCT)Marshal.PtrToStructure(l, typeof(Native.KBDLLHOOKSTRUCT));
+                    if (k.vk == 0x0D || k.vk == 0x09) KeyFlush = true;   // Enter or Tab ends a field
+                    else KeyTyped = true;
+                }
+                return Native.CallNextHookEx(IntPtr.Zero, code, w, l);
+            };
+            mh = Native.SetWindowsHookEx(14, MouseProc, mod, 0);
+            kh = Native.SetWindowsHookEx(13, KeyProc, mod, 0);
+            bar.Shown += (o, e) => shown.Set();
+            System.Windows.Forms.Application.Run(bar);
+            Native.UnhookWindowsHookEx(mh); Native.UnhookWindowsHookEx(kh);
+        });
+        ui.SetApartmentState(ApartmentState.STA);
+        ui.IsBackground = true;
+        ui.Start();
+        shown.WaitOne(10000);
+        Action<int> setCount = n => { try { bar.BeginInvoke((Action)(() => bar.SetCount(n))); } catch (Exception) { } };
+
+        AutomationElement typingIn = null; Dictionary<string, object> typingCapture = null;
+        Dictionary<string, object> lastClick = null; Click last = default(Click);
+        Action<string> progress = kind => { setCount(events.Count); Progress(reqId, new Dictionary<string, object> { { "count", events.Count }, { "kind", kind } }); };
+        Action flushTyping = () => {
+            if (typingIn == null) return;
+            try {
+                bool pwd = false; try { pwd = typingIn.Current.IsPassword; } catch (Exception) { }
+                Dictionary<string, object> ev = new Dictionary<string, object>();
+                ev["kind"] = "type"; ev["capture"] = typingCapture; ev["password"] = pwd;
+                ev["text"] = pwd ? null : Text(typingIn);
+                events.Add(ev);
+                progress("type");
+            } catch (ElementNotAvailableException) { }
+            typingIn = null; typingCapture = null;
+        };
+        DateTime end = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        try {
+            while (!bar.Stopped && DateTime.UtcNow < end && ui.IsAlive) {
+                Click c; bool has;
+                lock (Clicks) { has = Clicks.Count > 0; c = has ? Clicks.Dequeue() : default(Click); }
+                if (has && !bar.Contains(c.X, c.Y)) {
+                    bool dbl = lastClick != null && c.Button == "left" && last.Button == "left"
+                            && Math.Abs(c.X - last.X) <= 4 && Math.Abs(c.Y - last.Y) <= 4 && (c.At - last.At).TotalMilliseconds < 500;
+                    last = c;
+                    if (dbl) { lastClick["kind"] = "double_click"; lastClick = null; continue; }
+                    flushTyping();
+                    try {
+                        Dictionary<string, object> ev = new Dictionary<string, object>();
+                        ev["kind"] = c.Button == "right" ? "right_click" : "click"; ev["capture"] = CaptureAt(c.X, c.Y, shot);
+                        events.Add(ev); lastClick = ev;
+                        progress((string)ev["kind"]);
+                    } catch (Exception) { /* the control went away before it could be read */ }
+                }
+                if (KeyTyped) {
+                    KeyTyped = false;
+                    try {
+                        AutomationElement f = AutomationElement.FocusedElement;
+                        if (f != null && f.Current.ProcessId != Process.GetCurrentProcess().Id && TakesText(f) && (typingIn == null || !Automation.Compare(f, typingIn))) {
+                            flushTyping();
+                            System.Windows.Rect r = f.Current.BoundingRectangle;
+                            if (!r.IsEmpty) { typingIn = f; typingCapture = CaptureAt((int)(r.X + r.Width / 2), (int)(r.Y + r.Height / 2), shot); }
+                        }
+                    } catch (Exception) { }
+                }
+                if (KeyFlush) { KeyFlush = false; Thread.Sleep(80); flushTyping(); }
+                if (!has) Thread.Sleep(20);
+            }
+            flushTyping();
+        } finally {
+            try { bar.BeginInvoke((Action)(() => bar.Close())); } catch (Exception) { }
+            ui.Join(3000);
+        }
+        return events;
     }
 
     static Dictionary<string, object> Pick(int timeoutMs, bool shot, bool highlight) {
