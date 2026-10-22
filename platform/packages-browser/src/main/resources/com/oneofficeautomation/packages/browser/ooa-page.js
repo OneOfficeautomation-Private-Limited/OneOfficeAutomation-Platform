@@ -65,9 +65,78 @@ const __rect = (el) => {
   const r = el.getBoundingClientRect();
   return { left: Math.round(r.left + window.scrollX), top: Math.round(r.top + window.scrollY), width: Math.round(r.width), height: Math.round(r.height) };
 };
+/** What kind of control the element is; it decides which actions Studio offers for it. */
+const __controlType = (el) => {
+  const t = el.tagName, type = (el.getAttribute('type') || '').toLowerCase(), role = (el.getAttribute('role') || '').toLowerCase();
+  if (t === 'INPUT') {
+    if (type === 'password') return 'Password box';
+    if (type === 'checkbox') return 'Check box';
+    if (type === 'radio') return 'Radio button';
+    if (/^(button|submit|reset|image)$/.test(type)) return 'Button';
+    if (/^(date|datetime-local|month|week|time)$/.test(type)) return 'Calendar';
+    if (type === 'range') return 'Slider';
+    if (type === 'file') return 'File input';
+    return 'Text box';
+  }
+  if (t === 'TEXTAREA' || el.isContentEditable) return 'Text box';
+  if (t === 'SELECT') return el.multiple || el.size > 1 ? 'List' : 'Drop-down list';
+  if (t === 'BUTTON' || role === 'button') return 'Button';
+  if ((t === 'A' && el.hasAttribute('href')) || role === 'link') return 'Link';
+  if (t === 'TABLE' || role === 'grid' || role === 'table') return 'Table';
+  if (role === 'checkbox' || role === 'switch') return 'Check box';
+  if (role === 'radio') return 'Radio button';
+  if (role === 'combobox') return 'Drop-down list';
+  if (role === 'listbox') return 'List';
+  if (role === 'tab' || role === 'tablist') return 'Tab';
+  if (role === 'menu' || role === 'menubar' || role === 'menuitem') return 'Menu';
+  if (role === 'tree' || role === 'treeitem') return 'Tree';
+  if (role === 'slider') return 'Slider';
+  if (t === 'IMG' || t === 'SVG' || role === 'img') return 'Image';
+  if (t === 'LABEL') return 'Label';
+  return 'Element';
+};
+
+/** The rows of a table as arrays of cell elements (the element itself or the table around it). */
+const __grid = (el) => {
+  const t = el.closest('table') || el;
+  return Array.from(t.rows || t.querySelectorAll('tr')).map((r) => Array.from(r.cells || r.querySelectorAll('th,td')));
+};
+
+/** Actions shared by Playwright runs and the browser connector; row and column count from 1. */
+const __extra = (el, op, a) => {
+  const fail = (m) => { throw new Error(m); };
+  const fire = (x) => { x.dispatchEvent(new Event('input', { bubbles: true })); x.dispatchEvent(new Event('change', { bubbles: true })); };
+  const on = () => !!el.checked || el.getAttribute('aria-checked') === 'true';
+  const cell = () => { const c = (__grid(el)[Number(a.row) - 1] || [])[Number(a.column) - 1]; if (!c) fail('The table has no cell at row ' + a.row + ', column ' + a.column); return c; };
+  switch (op) {
+    case 'get_status': return (el.type === 'radio' || el.getAttribute('role') === 'radio') ? (on() ? 'selected' : 'deselected') : (on() ? 'checked' : 'unchecked');
+    case 'get_selected_index': return el.options ? (el.selectedIndex >= 0 ? el.selectedIndex + 1 : 0) : 0;
+    case 'get_total_items': return el.options ? el.options.length : el.querySelectorAll('[role=option],[role=menuitem],[role=tab],[role=treeitem],li').length;
+    case 'get_total_rows': return __grid(el).length;
+    case 'get_total_columns': return Math.max(0, ...__grid(el).map((r) => r.length));
+    case 'get_cell_text': return (cell().innerText || '').trim();
+    case 'get_cell_index_by_text': {
+      const g = __grid(el);
+      for (let r = 0; r < g.length; r++) for (let c = 0; c < g[r].length; c++) if ((g[r][c].innerText || '').trim() === String(a.text)) return { row: r + 1, column: c + 1 };
+      return { row: 0, column: 0 };
+    }
+    case 'set_cell_text': {
+      const c = cell(), f = c.querySelector('input,textarea,[contenteditable=true]') || (c.isContentEditable ? c : null);
+      if (!f) fail('The cell at row ' + a.row + ', column ' + a.column + ' has no field to type into');
+      if (f.isContentEditable) f.textContent = String(a.text); else f.value = String(a.text);
+      fire(f); return true;
+    }
+    case 'click_cell': { const c = cell(); c.scrollIntoView({ block: 'center' }); (c.querySelector('a,button,input') || c).click(); return true; }
+    case 'set_position': el.value = String(a.text); fire(el); return el.value;
+    case 'get_control_type': return __controlType(el);
+    default: return fail('Unknown action ' + op);
+  }
+};
+
 const __one = (el, n) => {
   switch (n) {
     case 'tag': return el.tagName.toLowerCase();
+    case 'control_type': return __controlType(el);
     case 'text': return __norm(el.innerText !== undefined ? el.innerText : el.textContent);
     case 'class': return __norm(el.getAttribute('class'));
     case 'label': return __labelOf(el);
@@ -96,6 +165,7 @@ const __props = (el) => {
   const p = {};
   const put = (k, v, max) => { if (v !== null && v !== undefined && String(v).trim() !== '') p[k] = String(v).trim().slice(0, max || 500); };
   put('tag', __one(el, 'tag'));
+  put('control_type', __controlType(el));
   for (const a of ['id', 'name', 'type', 'class', 'aria-label', 'placeholder', 'title', 'role', 'href', 'src', 'alt', 'for']) put(a, el.getAttribute(a));
   for (const a of el.attributes) if (!(a.name in p) && a.name !== 'style' && !a.name.startsWith('on')) put(a.name, a.value);
   put('text', __one(el, 'text'), 1000);

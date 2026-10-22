@@ -177,7 +177,29 @@ public final class BrowserPackage {
                             + "False closes the browser with the run, as before.") boolean keepOpen,
             @Input(name = "engine", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "connector", "playwright"},
                     description = "connector: open a window in the person's own Edge or Chrome through the ONEOFFICEAUTOMATION Browser Connector extension; "
-                            + "playwright: a browser the agent starts itself; auto: the connector when that browser has it, else playwright.") String engine) {
+                            + "playwright: a browser the agent starts itself; auto: the connector when that browser has it, else playwright.") String engine,
+            @Input(name = "open_in", type = OoaType.STRING, required = false, defaultValue = "\"new_window\"", enumValues = {"new_window", "new_tab", "existing_tab"},
+                    description = "new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab.") String openIn,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = "For new_tab and existing_tab: the tab to use. " + BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "240000", description = "How long to wait for the page to load.") double timeout) {
+        if (openIn != null && !openIn.equals("new_window")) {
+            String s = BrowserWindows.use(ctx, session, window, Math.min(timeout, 30000));
+            if (!s.equals(session)) { Object found = ctx.sessions().get(s); ctx.sessions().put(session, found); }
+            if (tab(ctx, session) != null) {
+                ExtensionBridge.TabSession t = tab(ctx, session);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> r = (Map<String, Object>) onTab(t, "open", Map.of("mode", openIn, "url", url == null || url.isBlank() ? "about:blank" : url, "timeout_ms", BigDecimal.valueOf((long) timeout)), timeout);
+                t.tabId = ((Number) r.get("tab_id")).longValue();
+                return Map.of();
+            }
+            BrowserSession bs = s(ctx, session);
+            try {
+                if (openIn.equals("new_tab")) { bs.page = bs.context.newPage(); bs.ownPages.add(bs.page); }
+                if (url != null && !url.isBlank()) bs.page.navigate(url, new Page.NavigateOptions().setTimeout(timeout));
+                bs.page.bringToFront();
+            } catch (PlaywrightException e) { throw pw(e, "Opening " + url); }
+            return Map.of();
+        }
         boolean installed = which.equals("edge") || which.equals("chrome");
         boolean connector = "connector".equals(engine) || ("auto".equals(engine == null ? "auto" : engine) && installed && !headless && downloads == null && keepOpen
                 && ExtensionBridge.browsers().contains(which));
@@ -640,11 +662,25 @@ public final class BrowserPackage {
     @Action(id = "history", name = "Back, forward or refresh", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Go back, go forward or reload the page.")
     public Map<String, Object> history(ActionContext ctx,
             @Input(name = "action", type = OoaType.STRING, enumValues = {"back", "forward", "refresh"}, description = "What to do.") String action,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        if (tab(ctx, session) != null) { onTab(tab(ctx, session), switch (action) { case "back" -> "back"; case "forward" -> "forward"; default -> "reload"; }, Map.of(), 60000); return Map.of(); }
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "steps", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "back: how many pages to go back (e.g. 3).") int steps,
+            @Input(name = "error_if_too_many", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "back: fail when the tab has visited fewer pages than the steps asked for.") boolean strict,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, 30000);
+        int n = Math.max(1, steps);
+        if (tab(ctx, session) != null) {
+            Map<String, Object> a = action.equals("back") ? Map.of("steps", n, "strict", strict) : Map.of();
+            onTab(tab(ctx, session), switch (action) { case "back" -> "back"; case "forward" -> "forward"; default -> "reload"; }, a, 60000);
+            return Map.of();
+        }
         Page p = s(ctx, session).page;
         try {
-            switch (action) { case "back" -> p.goBack(); case "forward" -> p.goForward(); default -> p.reload(); }
+            if (action.equals("back") && strict) {
+                int len = ((Number) p.evaluate("() => history.length")).intValue();
+                if (n >= len) throw new ActionException("BROWSER.HISTORY_TOO_SHORT", "The tab has only " + (len - 1) + " page(s) to go back to, not " + n, "Lower the steps, or turn off error_if_too_many.");
+            }
+            switch (action) { case "back" -> { for (int i = 0; i < n; i++) p.goBack(); } case "forward" -> p.goForward(); default -> p.reload(); }
             p.waitForLoadState(LoadState.LOAD);
         } catch (PlaywrightException e) { throw pw(e, action); }
         return Map.of();
@@ -684,13 +720,32 @@ public final class BrowserPackage {
 
     @Action(id = "close", name = "Close browser", category = "Browser", description = "Close the browser session.")
     public Map<String, Object> close(ActionContext ctx,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "what", type = OoaType.STRING, required = false, defaultValue = "\"session\"", enumValues = {"session", "tab", "window", "all"},
+                    description = "session: what this agent opened (its window, or the tab it worked in); tab: the current tab; window: the whole window; all: every browser window.") String what,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = "The tab or window to close, instead of the session's current one. " + BrowserWindows.D_WINDOW) Object window) {
+        if (window != null) session = BrowserWindows.use(ctx, session, window, 10000);
+        String w = what == null ? "session" : what;
+        if (!w.equals("session") && ctx.sessions().get(session) instanceof BrowserSession bs0 && !w.equals("all")) {
+            try { if (w.equals("tab")) { bs0.page.close(); List<Page> rest = bs0.context.pages(); if (!rest.isEmpty()) { bs0.page = rest.get(rest.size() - 1); return Map.of(); } }
+                  else for (Page pg : new ArrayList<>(bs0.context.pages())) pg.close(); }
+            catch (PlaywrightException e) { throw pw(e, "Closing the " + w); }
+        }
         Object o = ctx.sessions().remove(session);
         UiGuard.unregister(ctx, session);
         if (o instanceof ExtensionBridge.TabSession t) {
             // a window this agent opened closes; a tab it only found closes as a tab
-            try { onTab(t, "close", Map.of("what", t.own ? "window" : "tab"), 10000); } catch (ActionException e) { if (!"BROWSER.CONNECTOR_FAILED".equals(e.code())) ctx.warn("Could not close the tab: " + e.getMessage()); }
+            String how = w.equals("session") ? (t.own ? "window" : "tab") : w;
+            try { onTab(t, "close", Map.of("what", how), 10000); } catch (ActionException e) { if (!"BROWSER.CONNECTOR_FAILED".equals(e.code())) ctx.warn("Could not close the tab: " + e.getMessage()); }
             return Map.of();
+        }
+        if (w.equals("all")) {
+            // every browser: the other sessions of this run, and the connected browsers' windows
+            for (String k : new ArrayList<>(ctx.sessions().keySet())) if (ctx.sessions().get(k) instanceof BrowserSession || ctx.sessions().get(k) instanceof ExtensionBridge.TabSession) {
+                Object x = ctx.sessions().remove(k);
+                if (x instanceof BrowserSession xb) try { xb.close(); } catch (RuntimeException ignored) { }
+            }
+            for (String b : ExtensionBridge.browsers()) try { ExtensionBridge.call(b, "close", Map.of("what", "all"), 15000); } catch (ActionException ignored) { }
         }
         if (o instanceof BrowserSession b) {
             // a window this session opened in a browser that stays open: close that window, then disconnect
@@ -1030,7 +1085,9 @@ public final class BrowserPackage {
                     "press_key", "get_text", "get_value", "get_attribute", "get_property", "get_all_properties", "get_html", "get_inner_html", "get_coordinates",
                     "get_children_text", "get_table", "select_by_text", "select_by_value", "select_by_index", "get_selected", "get_options", "check", "uncheck",
                     "is_checked", "is_visible", "is_enabled", "is_present", "count", "scroll_into_view", "highlight", "wait_to_appear", "wait_to_disappear",
-                    "drag_to", "upload_file", "screenshot"}, description = "What to do with the element.") String action,
+                    "drag_to", "upload_file", "screenshot", "get_status", "toggle", "select", "get_selected_index", "get_total_items", "get_total_rows", "get_total_columns",
+                    "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "set_position", "get_control_type"},
+                    description = "What to do with the element. Studio lists the actions that suit the captured control type.") String action,
             @Input(name = "value", required = false, description = "Depends on the action: the text to type, the key (e.g. Enter, Ctrl+A), the attribute or property name, "
                     + "the option text, value or index, the target selector for drag_to, the file path(s) for upload_file, or the image path for screenshot. Credentials allowed for set_text.") Object value,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
@@ -1053,10 +1110,12 @@ public final class BrowserPackage {
             @Input(name = "wait_for_page_ms", type = OoaType.NUMBER, required = false, defaultValue = "0",
                     description = "First wait up to this long for the page to finish loading (0: don't wait). Counts as not found when it runs out.") double waitForPage,
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"},
-                    description = "When the page or the element is not there in time: error stops with an error; continue skips this step (result is empty) and carries on.") String ifNotFound) {
+                    description = "When the page or the element is not there in time: error stops with an error; continue skips this step (result is empty) and carries on.") String ifNotFound,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Table cell actions: the row, 1 for the first.") Integer row,
+            @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Table cell actions: the column, 1 for the first.") Integer column) {
         if ("continue".equals(ifNotFound)) {
             try { return elementAction(ctx, objectArg, sel, action, value, timeout, clickMethod, modifiers, offsetX, offsetY, typing, keyDelay, clearFirst, force, waitAfter,
-                    useCapturedPage, session, alternatives, window, waitForPage, "error"); }
+                    useCapturedPage, session, alternatives, window, waitForPage, "error", row, column); }
             catch (ActionException e) {
                 if (!NOT_THERE.contains(e.code())) throw e;
                 ctx.warn("Skipped '" + action + "': " + e.getMessage());
@@ -1075,6 +1134,8 @@ public final class BrowserPackage {
             opts.put("typing", typing == null ? "fill" : typing);
             opts.put("key_delay_ms", keyDelay);
             opts.put("clear_first", clearFirst);
+            if (row != null) opts.put("row", row);
+            if (column != null) opts.put("column", column);
             Object r = onElement(ctx, tab(ctx, session), objectArg, sel, action, value, timeout, opts);
             if (action.equals("screenshot") && r != null) {
                 Path out = ctx.workDir().resolve(String.valueOf(value));
@@ -1211,6 +1272,20 @@ public final class BrowserPackage {
                     l.screenshot(new Locator.ScreenshotOptions().setPath(out).setTimeout(timeout));
                     result = out.toString();
                 }
+                case "toggle" -> { if (l.isChecked(new Locator.IsCheckedOptions().setTimeout(timeout))) l.uncheck(new Locator.UncheckOptions().setTimeout(timeout).setForce(force));
+                    else l.check(new Locator.CheckOptions().setTimeout(timeout).setForce(force)); result = l.isChecked(); }
+                case "select" -> { l.check(new Locator.CheckOptions().setTimeout(timeout).setForce(force)); result = true; }
+                case "get_status", "get_selected_index", "get_total_items", "get_total_rows", "get_total_columns", "get_cell_text", "get_cell_index_by_text",
+                     "set_cell_text", "click_cell", "set_position", "get_control_type" -> {
+                    if (action.endsWith("_cell") || action.startsWith("get_cell_text") || action.equals("set_cell_text"))
+                        if (row == null || column == null) throw new ActionException("BROWSER.VALUE_REQUIRED", "The action '" + action + "' needs a row and a column (1 for the first)");
+                    Map<String, Object> a = new LinkedHashMap<>();
+                    if (row != null) a.put("row", row);
+                    if (column != null) a.put("column", column);
+                    a.put("text", v == null ? "" : v);
+                    l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
+                    result = Values.toJsonable(l.evaluate(EXTRA_JS, Map.of("op", action, "a", a)));
+                }
                 default -> throw new ActionException("BROWSER.BAD_ACTION", "Unknown element action '" + action + "'");
             }
         } catch (PlaywrightException e) { throw pw(e, action + " on " + what);
@@ -1219,6 +1294,9 @@ public final class BrowserPackage {
         if (waitAfter > 0) { try { bs.page.waitForTimeout(waitAfter); } catch (PlaywrightException ignored) { } }
         return single(result);
     }
+
+    /** The actions shared with the browser connector (ooa-page.js): status, list counts, table cells, slider position. */
+    static final String EXTRA_JS = "(el, q) => {\n" + WebObjects.LIB_JS + "\nreturn __extra(el, q.op, q.a);\n}";
 
     /** Errors that mean "the page or element was not there in time", which if_not_found = continue skips. */
     static final Set<String> NOT_THERE = Set.of("BROWSER.OBJECT_NOT_FOUND", "BROWSER.INDEX_OUT_OF_RANGE", "BROWSER.PAGE_TIMEOUT", "BROWSER.TIMEOUT",
@@ -1517,7 +1595,7 @@ public final class BrowserPackage {
         else if (p.get("text") != null && String.valueOf(p.get("text")).length() <= 80) use.add("text");
         else if (p.get("title") != null) use.add("title");
         if (field && p.get("type") != null && !use.contains("id")) use.add("type");
-        List<String> order = new ArrayList<>(List.of("tag", "id", "name", "data-testid", "type", "aria-label", "label", "placeholder", "text", "title", "role", "class", "value", "href", "src", "alt", "for"));
+        List<String> order = new ArrayList<>(List.of("tag", "control_type", "id", "name", "data-testid", "type", "aria-label", "label", "placeholder", "text", "title", "role", "class", "value", "href", "src", "alt", "for"));
         for (String k : p.keySet()) if (!order.contains(k) && !TECHNICAL.contains(k)) order.add(k);
         order.addAll(TECHNICAL);
         List<Map<String, Object>> props = new ArrayList<>();

@@ -55,7 +55,12 @@ final class BrowserWindows {
         String source = text(w.get("source"));
         if (source.isEmpty()) source = !text(w.get("variable")).isEmpty() ? "variable" : "browser";
         switch (source) {
-            case "variable" -> { return byVariable(ctx, w); }
+            case "variable" -> {
+                // a window variable (as the recorder makes): its value is a window choice
+                if (w.get("variable") instanceof Map<?, ?> m && (m.get("title") != null || m.get("url") != null) && !(m.get("variable") != null))
+                    return use(ctx, session, m, timeoutMs);
+                return byVariable(ctx, w);
+            }
             case "browser", "application" -> { return byTab(ctx, session, w, source.equals("application"), timeoutMs); }
             default -> throw new ActionException("BROWSER.BAD_WINDOW", "Unknown window source '" + source + "'", "Use browser, application or variable.");
         }
@@ -90,6 +95,8 @@ final class BrowserWindows {
         List<String> titles = application && !title.isEmpty() ? tabTitlesOf(title) : List.of(title);
         String titleMatch = match(w.get("title_match"), "wildcard"), urlMatch = match(w.get("url_match"), "contains");
         String kind = text(w.get("browser")).toLowerCase(Locale.ROOT);
+        boolean caseSensitive = Boolean.TRUE.equals(w.get("case_sensitive")) || "true".equalsIgnoreCase(text(w.get("case_sensitive")));
+        if (caseSensitive) titleMatch = titleMatch + ":case";
         long end = System.currentTimeMillis() + Math.max(0, (long) timeoutMs);
         boolean triedDefault = false;
         List<String> seen;
@@ -190,7 +197,10 @@ final class BrowserWindows {
     /** Wildcard, contains and equals ignore case; regex is used as written (add (?i) to ignore case). */
     static boolean matches(String actual, String value, String match) {
         if (actual == null) return false;
-        String a = actual.toLowerCase(Locale.ROOT), v = value.toLowerCase(Locale.ROOT);
+        // "equals:case" and the like: the window title's Case sensitive switch
+        boolean cs = match.endsWith(":case");
+        if (cs) match = match.substring(0, match.length() - 5);
+        String a = cs ? actual : actual.toLowerCase(Locale.ROOT), v = cs ? value : value.toLowerCase(Locale.ROOT);
         return switch (match) {
             case "contains" -> a.contains(v);
             case "equals" -> a.equals(v);

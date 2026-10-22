@@ -353,3 +353,30 @@ in our own design and code. Details: docs/BROWSER_CONNECTOR.md.
 Fixed while testing: the worker connected twice (one host too many); a screenshot of a window hidden behind other
 windows never finished (now brought forward, with a time limit and a fallback through the browser's own renderer);
 several matching tabs now prefer the one in front.
+
+
+# Validation report: Capture / Recorder / Browser gap list (first round)
+
+| Gap (docs/research/aa-web-capture-recorder.md) | Done |
+| --- | --- |
+| Control type of the captured element | `control_type` property (text box, password box, check box, radio button, drop-down list, list, table, button, link, label, image, calendar, slider, file input, tab, menu, tree, element), read by one shared page script |
+| Actions that follow the control type | Studio's action list puts the type's actions first ("For this drop-down list"), the rest under Other actions; readable action names |
+| Missing actions | get status, toggle, select (radio), selected index (counts from 1), total items, table: total rows / columns, cell text by index, cell index by text, set cell text, click cell; slider position; control type. Same code in Playwright runs and the browser connector; `row` and `column` inputs |
+| Fields per action | Only the fields the chosen action uses; the value field is named after the action (Text to enter, Item text, Attribute name …) |
+| Outcome variable | Choosing an action that returns something creates its outcome variable at once (e.g. selected_index) |
+| System time-out | Basic (wait for the element) / Advanced (wait for the page first, what to do when the wait runs out) box |
+| Window list | Grouped by browser with a count; Case sensitive switch for the title (runtime honours it) |
+| Open | open_in: new window, new tab, existing tab (the tab from the window choice) |
+| Close | what: session, tab, window, all browsers; optional window choice |
+| Back | steps and error_if_too_many |
+| Window variable | The recorder creates one window variable per window (a Dictionary holding the window choice) and its steps use it; a window choice of source Variable can hold one |
+
+Tests: CaptureObjectTest (Edge, headless) adds control types, list counts, selected index, table cells, open in a new /
+existing tab, back steps, too many steps, closing a tab; Studio UI 224 checks (new: window variable, action list by
+control type, outcome variable, fields per action, time-out box, case-sensitive title); Java 467 tests, 0 failed.
+
+Still open: application presets (current window, desktop, taskbar) for desktop windows; a Credential / Variable /
+plain-text choice for Set text; Run JavaScript from a file; a return type for Call JavaScript function; Download file
+by address (with NTLM sign-in and overwrite); the CSV, thread and encoding options of Find broken links; Window Assign;
+Get page source of an iframe; Run in background; the same control-type action lists for desktop objects; a live
+action count while recording; recording desktop applications.

@@ -528,6 +528,41 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
       return { made, vars, texts: [steps[0].args.text, steps[1].args.text, steps[2].args.option] }; })())`));
     check("recorded values become variables with the recorded value as default", recVars.made.join() === "username,dropdown"
       && recVars.vars[0].default === "tomsmith" && recVars.texts.join() === "$username,$password,$dropdown", JSON.stringify(recVars));
+    // The recorder makes one window variable per window, and its steps use it
+    const recWin = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
+      const win = { source: "browser", title: "Web form", title_match: "equals", link: "https://x.test/form", browser: "edge" };
+      const steps = [{ action: "ooa.browser/click", args: { window: Object.assign({}, win), object: { properties: [] } } }, { action: "ooa.browser/click", args: { window: Object.assign({}, win), object: { properties: [] } } }];
+      const made = recordedVariables(steps); const vars = state.flow.variables.slice(before); state.flow.variables.splice(before);
+      return { made, vars, windows: steps.map((s) => s.args.window) }; })())`));
+    check("the recorder makes one window variable and the steps use it", recWin.made.join() === "window_web_form" && recWin.vars[0].type === "Dictionary"
+      && recWin.vars[0].default.title === "Web form" && recWin.windows.every((x) => x === "$window_web_form"), JSON.stringify(recWin));
+    // Element action: actions for the captured control type, only the fields the action uses, the outcome variable, the time-out box
+    w.eval(`state.flow.steps.push({ id: "ea_ui", action: "ooa.browser/element_action", args: { action: "click", object: { technology: "web", search_by: "properties", index: 0,
+      properties: [{ name: "tag", value: "select", match: "equals", use: true }, { name: "control_type", value: "Drop-down list", match: "equals", use: false }] } } });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    await until(() => d.querySelector('#props select[aria-label="Action to take on the element"]'));
+    const actSel = d.querySelector('#props select[aria-label="Action to take on the element"]');
+    check("the action list starts with the drop-down list's actions", !!actSel && actSel.querySelector("optgroup").label === "For this drop-down list"
+      && [...actSel.querySelector("optgroup").querySelectorAll("option")].map((o) => o.value).slice(0, 3).join() === "select_by_text,select_by_value,select_by_index"
+      && d.querySelector("#props .ct-chip").textContent === "Drop-down list");
+    check("a click shows click options but no value field", !d.querySelector('#props .field[data-field="value"]') && !!d.querySelector('#props .field[data-field="click_method"]'));
+    check("the time-out sits in its own Basic / Advanced box", !!d.querySelector("#props .timeout-box") && !d.querySelector('#props .timeout-box [data-field="if_not_found"]'));
+    actSel.value = "get_selected_index"; actSel.dispatchEvent(new w.Event("change"));
+    check("an action that returns something gets an outcome variable", await until(() => w.eval("state.flow.steps[state.flow.steps.length - 1].out && state.flow.steps[state.flow.steps.length - 1].out.result") === "selected_index"
+      && w.eval("state.flow.variables.some((v) => v.name === 'selected_index')")));
+    const actSel2 = d.querySelector('#props select[aria-label="Action to take on the element"]'); actSel2.value = "set_text"; actSel2.dispatchEvent(new w.Event("change"));
+    check("Set text shows the text to enter and the typing options", await until(() => d.querySelector('#props .field[data-field="value"] label') && d.querySelector('#props .field[data-field="value"] label').textContent.startsWith("Text to enter")
+      && d.querySelector('#props .field[data-field="typing"]')));
+    click([...d.querySelectorAll("#props .timeout-box button")].find((b) => b.textContent === "Advanced"));
+    check("Advanced time-out adds the page wait and what to do when time runs out", await until(() => d.querySelector('#props .timeout-box [data-field="if_not_found"]') && d.querySelector('#props .timeout-box [data-field="wait_for_page_ms"]')));
+    w.eval("state.flow.variables = state.flow.variables.filter((v) => v.name !== 'selected_index'); state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // The window title can be case sensitive
+    w.eval(`state.flow.steps.push({ id: "cs_ui", action: "ooa.browser/click", args: { window: { source: "browser", title: "Orders", title_match: "equals" } } }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    await until(() => d.querySelector('#props .win-editor input[aria-label="Case sensitive"]'));
+    const cs = d.querySelector('#props .win-editor input[aria-label="Case sensitive"]');
+    if (cs) { cs.checked = true; cs.dispatchEvent(new w.Event("change")); }
+    check("the window title has a Case sensitive switch", !!cs && w.eval("state.flow.steps[state.flow.steps.length - 1].args.window.case_sensitive") === true);
+    w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
     // Dragging one of several selected steps moves all of them
     const order = w.eval(`(() => { const base = state.flow.steps.length;
       ["mv_a", "mv_b", "mv_c", "mv_d"].forEach((id) => state.flow.steps.push({ id, action: "core/log", args: { message: id } }));

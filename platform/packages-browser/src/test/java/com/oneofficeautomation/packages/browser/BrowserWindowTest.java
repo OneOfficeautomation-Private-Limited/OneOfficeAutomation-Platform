@@ -68,7 +68,7 @@ class BrowserWindowTest {
         ActionContext c = ctx(Files.createTempDirectory("ooa-window"));
         BrowserPackage b = new BrowserPackage();
         try {
-            try { b.open(c, base + "/a", "edge", true, null, "browser", false, "playwright"); }
+            try { b.open(c, base + "/a", "edge", true, null, "browser", false, "playwright", "new_window", null, 60000); }
             catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
             BrowserPackage.BrowserSession bs = (BrowserPackage.BrowserSession) c.sessions().get("browser");
             bs.context.newPage().navigate(base + "/b");
@@ -85,12 +85,12 @@ class BrowserWindowTest {
             assertEquals("Page B", text(b, c, win("source", "application", "title", "Orders - Shop - Microsoft​ Edge")));
             // the element action and conditions take the same choice
             assertEquals("Page A", b.elementAction(c, null, "#h", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null,
-                    win("title", "Invoice*"), 0, "error").get("result"));
+                    win("title", "Invoice*"), 0, "error", null, null).get("result"));
             assertTrue(b.exists(c, null, "#h", "browser", win("url", "/b")));
             assertFalse(b.elementVisible(c, null, "#h", "browser", win("title", "No such tab")), "a condition is false when the window is missing");
 
             // variable: another session by name; a tab in another session is found too
-            b.open(c, base + "/b?second", "edge", true, null, "other", false, "playwright");
+            b.open(c, base + "/b?second", "edge", true, null, "other", false, "playwright", "new_window", null, 60000);
             assertEquals("Page B", text(b, c, win("source", "variable", "variable", "other")));
             assertEquals("Page B", text(b, c, win("url", "/b?second")));
             assertEquals("BROWSER.WINDOW_NOT_FOUND", assertThrows(ActionException.class, () -> text(b, c, win("source", "variable", "variable", "missing"))).code());
@@ -105,7 +105,7 @@ class BrowserWindowTest {
             assertEquals("BROWSER.WINDOW_NOT_FOUND", app.code());
             assertTrue(String.valueOf(app.toMap()).contains("Desktop objects"), String.valueOf(app.toMap()));
         } finally {
-            for (String n : List.of("browser", "other")) try { b.close(c, n); } catch (RuntimeException ignored) { }
+            for (String n : List.of("browser", "other")) try { b.close(c, n, "session", null); } catch (RuntimeException ignored) { }
             s.stop(0);
         }
     }
@@ -142,7 +142,7 @@ class BrowserWindowTest {
             assertTrue(((BigDecimal) att.get("tab_count")).intValue() >= 1);
             b.navigate(c2, base + "/b", "browser");
             assertEquals("Page B", b.getText(c2, null, "#h", 5000, "browser", null, null).get("text"));
-            b.close(c2, "browser");
+            b.close(c2, "browser", "session", null);
             // The attached session may have used another tab, so either page is fine: what matters is that the browser is still there.
             String still = String.valueOf(b.getText(c, null, "#h", 5000, "auto", null, null).get("text"));
             assertTrue(still.equals("Page A") || still.equals("Page B"), "closing an attached session leaves the browser open: " + still);
@@ -150,7 +150,7 @@ class BrowserWindowTest {
             // reusing: a browser already listens on the port
             Map<String, Object> again = b.openForAutomation(c2, "edge", port, null, null, true, true, "browser", null, 10000);
             assertEquals(false, again.get("started"));
-            b.close(c2, "browser");
+            b.close(c2, "browser", "session", null);
 
             // listing from a fresh run: tabs come from the debugging port
             Map<String, Object> listed = b.listWindows(ctx(w), List.of("http://127.0.0.1:" + port), false);
@@ -163,7 +163,7 @@ class BrowserWindowTest {
 
             assertEquals("BROWSER.NOT_LISTENING", assertThrows(ActionException.class, () -> b.attach(ctx(w), "http://127.0.0.1:" + freePort(), null, "x", 2000)).code());
         } finally {
-            try { b.close(c, "auto"); } catch (RuntimeException ignored) { }
+            try { b.close(c, "auto", "session", null); } catch (RuntimeException ignored) { }
             if (pid > 0) ProcessHandle.of(pid).ifPresent(h -> { h.descendants().forEach(ProcessHandle::destroy); h.destroy(); });
             s.stop(0);
         }

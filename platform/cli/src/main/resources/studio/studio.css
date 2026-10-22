@@ -818,3 +818,9 @@ details.more-opts > summary .n { background: var(--code); border-radius: 10px; p
 .rw-window { font-size: 12px; color: var(--muted, #64748b); }
 .cap-window-group { display: grid; gap: 4px; }
 .cap-window-head { font-size: 12px; font-weight: 600; color: var(--muted, #64748b); margin-top: 4px; }
+
+/* element actions: control type chip; the system time-out box */
+.ct-chip { flex: 0 0 auto; font-size: 11px; }
+.timeout-box { display: grid; gap: 6px; border: 1px solid var(--line, #d0d7e2); border-radius: 8px; padding: 6px 8px; }
+.timeout-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 12px; }
+.timeout-head .seg > button { padding: 2px 10px; font-size: 12px; }

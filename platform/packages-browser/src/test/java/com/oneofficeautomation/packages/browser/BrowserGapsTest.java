@@ -82,7 +82,7 @@ class BrowserGapsTest {
         BrowserPackage b = new BrowserPackage();
         try {
             String base = "http://127.0.0.1:" + s.getAddress().getPort();
-            try { b.open(c, base + "/", "edge", true, null, "browser", false, "playwright"); }
+            try { b.open(c, base + "/", "edge", true, null, "browser", false, "playwright", "new_window", null, 60000); }
             catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
             Map<String, Object> src = b.getPageSource(c, "out/page.html", "browser");
             assertTrue(((String) src.get("source")).contains("function greet"));
@@ -103,7 +103,7 @@ class BrowserGapsTest {
             Map<String, Object> same = b.findBrokenLinks(c, false, true, 50, 3000, "browser");
             assertEquals(0, new BigDecimal(4).compareTo((BigDecimal) same.get("checked_count")), "127.0.0.1 on another port is the same host");
         } finally {
-            b.close(c, "browser");
+            b.close(c, "browser", "session", null);
             s.stop(0);
         }
     }

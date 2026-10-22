@@ -1412,6 +1412,10 @@ function inputControl(step, name, prop, required) {
       infoTip("Tick the properties to search by and choose how each one must match. Values can use $variables. Test opens the page and outlines what matches.")),
       captureEditor(step, current, set));
   }
+  if (name === "action" && step.action === "ooa.browser/element_action") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Action to take on the element", required ? h("span", { class: "req", text: " *" }) : null,
+      infoTip("The actions that suit the captured control come first; the rest are under Other actions.")), elementActionSelect(step, prop));
+  }
   if (name === "window" && type === "Dictionary") {
     return h("div", { class: "field", "data-field": name }, h("label", {}, prop["x-ooa-label"] || "Window", required ? h("span", { class: "req", text: " *" }) : null, typeChip(type),
       infoTip(prop.description || "Which browser or application window the action works in. Titles and addresses can use * and ? wildcards and $variables.")),
@@ -1482,7 +1486,7 @@ function windowEditor(value, set) {
     const out = { source: v.source };
     if (v.source === "variable") { if (v.variable) out.variable = v.variable; }
     else {
-      if (v.title) { out.title = v.title; out.title_match = v.title_match || "wildcard"; }
+      if (v.title) { out.title = v.title; out.title_match = v.title_match || "wildcard"; if (v.case_sensitive) out.case_sensitive = true; }
       if (v.source === "browser") { if (v.url) { out.url = v.url; if (v.url_match) out.url_match = v.url_match; } if (v.link) out.link = v.link; if (v.browser) out.browser = v.browser; }
     }
     set(Object.keys(out).length > 1 ? out : undefined);
@@ -1503,9 +1507,14 @@ function windowEditor(value, set) {
     const fill = (list, note) => {
       sel._list = list;
       const chosen = v.title ? list.findIndex((w) => w.title === v.title) : -1;
+      // grouped by browser with a count, as the window list of Capture shows them
+      const groups = new Map();
+      list.forEach((w, i) => { const b = w.browser === "chrome" ? "Google Chrome" : w.browser === "edge" ? "Microsoft Edge" : v.source === "application" ? "Applications" : "Browser";
+        if (!groups.has(b)) groups.set(b, []); groups.get(b).push([w, i]); });
       sel.replaceChildren(
         h("option", { value: "", text: v.title ? (chosen >= 0 ? "" : "\u201C" + v.title + "\u201D (not open now)") : note || "Choose a window\u2026" }),
-        ...list.map((w, i) => h("option", { value: String(i), text: (w.title || "(no title)") + (w.url ? "  \u2014  " + shortUrl(w.url) : "") })),
+        ...[...groups].map(([b, items]) => h("optgroup", { label: b + " (" + items.length + ")" },
+          items.map(([w, i]) => h("option", { value: String(i), text: (w.title || "(no title)") + (w.url ? "  \u2014  " + shortUrl(w.url) : "") })))),
         v.title ? h("option", { value: "__none", text: "(none: use the browser's current tab)" }) : null);
       sel.value = chosen >= 0 ? String(chosen) : "";
     };
@@ -1535,7 +1544,10 @@ function windowEditor(value, set) {
         [["wildcard", "wildcard"], ["contains", "contains"], ["equals", "equals"], ["regex", "regex"]].map(([k, t]) => h("option", { value: k, text: t })));
       match.value = v.title_match || "wildcard";
       parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Window" }), picker()),
-        h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: v.source === "browser" ? "Browser title" : "Title" }), text("title", "Window title", "or type a title; * and ? are wildcards"), match));
+        h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: v.source === "browser" ? "Browser title" : "Title" }), text("title", "Window title", "or type a title; * and ? are wildcards"), match),
+        v.title ? h("div", { class: "win-row" }, h("span", { class: "win-lbl" }), h("label", { class: "check" },
+          h("input", { type: "checkbox", checked: !!v.case_sensitive, "aria-label": "Case sensitive", onchange: (e) => { if (e.target.checked) v.case_sensitive = true; else delete v.case_sensitive; commit(); } }),
+          "Case sensitive")) : null);
       if (v.source === "browser") {
         const br = h("select", { "aria-label": "Browser", class: "win-browser", onchange: (e) => { if (e.target.value) v.browser = e.target.value; else delete v.browser; commit(); } },
           [["", "any browser"], ["edge", "Edge"], ["chrome", "Chrome"]].map(([k, t]) => h("option", { value: k, text: t })));
@@ -1714,7 +1726,12 @@ function renderProps() {
     const entries = Object.entries(props);
     // Web actions: the window comes first, then the captured object, as when choosing a window and then capturing in it.
     if (props.window && props.object && step.action.startsWith("ooa.browser/")) entries.sort((a, b) => (b[0] === "window") - (a[0] === "window"));
-    for (const [name, prop] of entries) {
+    const shown = elementActionFields(step);
+    const timeoutBox = [];
+    for (const [name, prop0] of entries) {
+      if (shown && !shown.has(name)) continue;
+      const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
+      if (shown && ["timeout_ms", "wait_for_page_ms", "if_not_found"].includes(name)) { timeoutBox.push([name, prop]); continue; }
       // Advanced inputs (self-healing alternatives, session names) always go under More options.
       const advanced = ["alternatives", "session"].includes(name) && !req.includes(name);
       const rare = advanced || (name !== "window" && !req.includes(name) && prop.default !== undefined && main.length >= 3);
@@ -1722,6 +1739,7 @@ function renderProps() {
       if (rare) moreNames.push(name);
     }
     const inputs = main;
+    if (timeoutBox.length) inputs.push(timeoutEditor(step, timeoutBox, req));
     if (more.length) {
       const setCount = moreNames.filter((n) => step.args && step.args[n] !== undefined).length;
       const d = h("details", { class: "more-opts" }, h("summary", {}, "More options ", h("span", { class: "n", text: String(more.length) }),
@@ -1741,6 +1759,7 @@ function renderProps() {
           changed();
         } }, h("option", { value: "", text: "(do not store)" }), ...outputOptions(o["x-ooa-type"]));
         sel.value = (step.out || {})[oname] || "";
+        if (step.action === "ooa.browser/element_action" && oname === "result") sel.setAttribute("aria-label", "Save the outcome to a variable");
         const mk = h("button", { type: "button", title: "Create a new variable for this output", onclick: () => {
           const n = addVariable(oname, o["x-ooa-type"]);
           step.out = step.out || {}; step.out[oname] = n;
@@ -2721,6 +2740,20 @@ function recordedVariables(steps) {
     const val = (n) => { const p = props.find((x) => x.name === n); return p && p.value ? String(p.value) : ""; };
     return val("label") || val("name") || val("aria-label") || val("placeholder") || val("id") || (st.action.endsWith("select_option") ? "choice" : "text");
   };
+  // one window variable per window the recording used (as the reference recorder does); the steps point at it
+  const windows = new Map();
+  for (const st of steps) {
+    const w = st.args && st.args.window;
+    if (!w || typeof w !== "object" || !w.title) continue;
+    const key = (w.browser || "") + "|" + w.title;
+    if (!windows.has(key)) {
+      const name = uniqueVarName("window_" + String(w.title).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40));
+      state.flow.variables.push({ name, type: "Dictionary", direction: "local", default: w, description: "Window the recording worked in (browser title " + w.title + ")." });
+      windows.set(key, name);
+      made.push(name);
+    }
+    st.args.window = "$" + windows.get(key);
+  }
   for (const st of steps) {
     const key = st.action === "ooa.browser/type_text" ? "text" : st.action === "ooa.browser/select_option" ? "option" : null;
     if (!key || !st.args || typeof st.args[key] !== "string" || st.args[key].startsWith("$")) continue;
@@ -3929,13 +3962,125 @@ const CAPTURE_MATCHES = [["equals", "equals"], ["not_equals", "not equals"], ["c
 
 /** Readable names for captured web properties; the stored name is shown on hover. Unknown names (data-*, other attributes) show as they are. */
 const CAPTURE_LABELS = {
-  tag: "HTML tag", id: "HTML ID", name: "HTML name", type: "HTML type", class: "HTML class", text: "Inner text", value: "Value", label: "Field label",
+  tag: "HTML tag", control_type: "Control type", id: "HTML ID", name: "HTML name", type: "HTML type", class: "HTML class", text: "Inner text", value: "Value", label: "Field label",
   placeholder: "Placeholder", title: "Tooltip (title)", "aria-label": "Accessible name", role: "Role", href: "Link (href)", src: "Source (src)", alt: "Alt text",
   for: "Label for", "data-testid": "Test ID", dom_xpath: "DOM XPath", relative_xpath: "Relative XPath", xpath: "Full XPath", css: "CSS selector", path: "Element path",
   parent: "Parent", tag_index: "Tag index", source_index: "Source index", child_count: "Children", left: "Left", top: "Top", width: "Width", height: "Height",
   visible: "Is visible", enabled: "Is enabled", checked: "Is checked", selected: "Selected item", in_frame: "Inside a frame", frame_url: "Frame address",
   inner_html: "Inner HTML", outer_html: "Outer HTML",
 };
+/* ---------- element actions: by control type, with only the fields each one needs ---------- */
+const ELEMENT_ACTIONS = {
+  click: "Click", double_click: "Double click", right_click: "Right click", middle_click: "Middle click", hover: "Move the mouse over",
+  focus: "Set focus", set_text: "Set text", append_text: "Append text", clear: "Clear text", press_key: "Press a key",
+  get_text: "Get text", get_value: "Get value", get_attribute: "Get attribute", get_property: "Get property", get_all_properties: "Get all properties",
+  get_html: "Get HTML", get_inner_html: "Get inner HTML", get_coordinates: "Get position", get_children_text: "Get all children text", get_table: "Get table",
+  select_by_text: "Select item by text", select_by_value: "Select item by value", select_by_index: "Select item by index (0 = first)",
+  get_selected: "Get selected text", get_selected_index: "Get selected index (1 = first)", get_total_items: "Get total items", get_options: "Get all items",
+  check: "Check", uncheck: "Uncheck", toggle: "Toggle", select: "Select", get_status: "Get status", is_checked: "Is checked",
+  is_visible: "Is visible", is_enabled: "Is enabled", is_present: "Is present", count: "Count matches", scroll_into_view: "Scroll into view",
+  highlight: "Highlight", wait_to_appear: "Wait for it to appear", wait_to_disappear: "Wait for it to disappear", drag_to: "Drag to",
+  upload_file: "Upload file", screenshot: "Screenshot", get_total_rows: "Get total rows", get_total_columns: "Get total columns",
+  get_cell_text: "Get cell text by index", get_cell_index_by_text: "Get cell index by text", set_cell_text: "Set cell text by index",
+  click_cell: "Click cell by index", set_position: "Set position", get_control_type: "Get control type",
+};
+const COMMON_ACTIONS = ["get_property", "get_all_properties", "click", "double_click", "right_click", "hover", "focus", "scroll_into_view", "highlight",
+  "screenshot", "get_coordinates", "is_visible", "is_present", "wait_to_appear", "wait_to_disappear"];
+const ACTIONS_BY_CONTROL = {
+  "Text box": ["set_text", "append_text", "clear", "press_key", "get_value", "get_text"],
+  "Password box": ["set_text", "clear", "press_key"],
+  "Check box": ["check", "uncheck", "toggle", "get_status", "is_checked"],
+  "Radio button": ["select", "get_status", "is_checked"],
+  "Drop-down list": ["select_by_text", "select_by_value", "select_by_index", "get_selected", "get_selected_index", "get_total_items", "get_options"],
+  "List": ["select_by_text", "select_by_value", "select_by_index", "get_selected", "get_selected_index", "get_total_items", "get_options"],
+  "Table": ["get_table", "get_cell_text", "get_cell_index_by_text", "set_cell_text", "click_cell", "get_total_rows", "get_total_columns"],
+  "Button": ["get_text", "is_enabled"], "Link": ["get_text", "get_attribute"], "Label": ["get_text"], "Image": ["get_attribute"],
+  "Calendar": ["set_text", "get_value"], "Slider": ["set_position", "get_value"], "File input": ["upload_file"],
+  "Tab": ["get_text", "get_total_items"], "Menu": ["get_text", "get_total_items", "get_children_text"], "Tree": ["get_text", "get_children_text"],
+  "Element": ["get_text", "get_html", "get_inner_html", "get_children_text", "set_text", "get_attribute"],
+};
+/** Suggested outcome variable for actions that return something. */
+const ACTION_OUTCOME = { get_text: "element_text", get_value: "field_value", get_attribute: "attribute_value", get_property: "property_value",
+  get_all_properties: "element_properties", get_html: "element_html", get_inner_html: "inner_html", get_coordinates: "element_position",
+  get_children_text: "children_text", get_table: "table_data", get_selected: "selected_item", get_selected_index: "selected_index",
+  get_total_items: "item_count", get_options: "items", get_status: "status", is_checked: "is_checked", is_visible: "is_visible", is_enabled: "is_enabled",
+  is_present: "is_present", count: "match_count", get_total_rows: "row_count", get_total_columns: "column_count", get_cell_text: "cell_text",
+  get_cell_index_by_text: "cell_position", get_control_type: "control_type", toggle: "is_checked" };
+
+function stepControlType(step) {
+  const o = step.args && step.args.object;
+  const p = o && Array.isArray(o.properties) ? o.properties.find((x) => x.name === "control_type") : null;
+  return p && p.value ? String(p.value) : "";
+}
+
+/** Which inputs the element action shows for its chosen action (null for other actions: all of them). */
+function elementActionFields(step) {
+  if (step.action !== "ooa.browser/element_action") return null;
+  const a = (step.args && step.args.action) || "click";
+  const f = new Set(["window", "object", "selector", "action", "timeout_ms", "wait_for_page_ms", "if_not_found", "wait_after_ms", "use_captured_page", "session", "alternatives"]);
+  if (/^(set_text|append_text|press_key|get_attribute|get_property|select_by_|drag_to|upload_file|screenshot|get_cell_index_by_text|set_cell_text|set_position)/.test(a)) f.add("value");
+  if (/^(click|double_click|right_click|middle_click|hover)$/.test(a)) ["click_method", "modifiers", "offset_x", "offset_y", "force"].forEach((x) => f.add(x));
+  if (/^(set_text|append_text)$/.test(a)) ["typing", "key_delay_ms", "clear_first"].forEach((x) => f.add(x));
+  if (/^(get_cell_text|set_cell_text|click_cell)$/.test(a)) { f.add("row"); f.add("column"); }
+  if (/^(check|uncheck|select_by_|clear)/.test(a)) f.add("force");
+  return f;
+}
+
+/** The value field's label follows the action, as the fields of each action do. */
+function ELEMENT_FIELD_LABELS(step, name) {
+  if (name !== "value") return null;
+  const a = (step.args && step.args.action) || "click";
+  const label = { set_text: "Text to enter", append_text: "Text to add", press_key: "Key (e.g. Enter, Ctrl+A)", get_attribute: "Attribute name",
+    get_property: "Property name", select_by_text: "Item text", select_by_value: "Item value", select_by_index: "Item index (0 = first)",
+    drag_to: "Drop on (selector)", upload_file: "File path(s)", screenshot: "Image file", get_cell_index_by_text: "Cell text",
+    set_cell_text: "Text to enter", set_position: "Position value" }[a];
+  return label ? { "x-ooa-label": label } : null;
+}
+
+/** The action drop-down: actions for the captured control type first, the rest under Other actions. */
+function elementActionSelect(step, prop) {
+  const args = step.args || (step.args = {});
+  const all = prop.enum || Object.keys(ELEMENT_ACTIONS);
+  const ct = stepControlType(step);
+  const mine = ct ? (ACTIONS_BY_CONTROL[ct] || []).concat(COMMON_ACTIONS).filter((a, i, l) => all.includes(a) && l.indexOf(a) === i) : [];
+  const other = all.filter((a) => !mine.includes(a));
+  const opt = (a) => h("option", { value: a, text: ELEMENT_ACTIONS[a] || a });
+  const sel = h("select", { "aria-label": "Action to take on the element", onchange: (e) => {
+      args.action = e.target.value;
+      // like the reference product, an action that returns something gets an outcome variable at once
+      const out = ACTION_OUTCOME[args.action];
+      if (out && !(step.out && step.out.result)) {
+        const n = addVariable(out, args.action === "get_table" ? "Table" : args.action.startsWith("is_") ? "Boolean" : "Any");
+        step.out = Object.assign({}, step.out, { result: n });
+        toast("The outcome goes to $" + n);
+        renderVariables();
+      }
+      changed(); renderProps();
+    } },
+    mine.length ? h("optgroup", { label: "For this " + ct.toLowerCase() }, mine.map(opt)) : null,
+    h("optgroup", { label: mine.length ? "Other actions" : "Actions" }, other.map(opt)));
+  sel.value = args.action || "click";
+  return h("div", { class: "field-row" }, sel, ct ? h("span", { class: "chip ct-chip", title: "Control type of the captured element", text: ct }) : null);
+}
+
+/** "Set system time out": Basic shows the wait for the element; Advanced adds the page wait and what to do when time runs out. */
+function timeoutEditor(step, fields, req) {
+  const args = step.args || {};
+  let adv = args.wait_for_page_ms !== undefined || args.if_not_found !== undefined || !!state.timeoutAdvanced;
+  const box = h("div", { class: "timeout-box" });
+  const render = () => {
+    const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Time-out options" },
+      [["basic", "Basic"], ["advanced", "Advanced"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String((k === "advanced") === adv),
+        onclick: () => { adv = k === "advanced"; state.timeoutAdvanced = adv; render(); } }, t)));
+    const rows = fields.filter(([n]) => adv || n === "timeout_ms").map(([n, p]) => inputControl(step, n, n === "timeout_ms" ? Object.assign({}, p, { "x-ooa-label": "Wait for the element (milliseconds)" })
+      : n === "wait_for_page_ms" ? Object.assign({}, p, { "x-ooa-label": "Wait for the page first (milliseconds)" })
+      : Object.assign({}, p, { "x-ooa-label": "When the wait runs out" }), req.includes(n)));
+    box.replaceChildren(h("div", { class: "timeout-head" }, h("strong", { text: "System time-out" }), seg), ...rows);
+  };
+  render();
+  return box;
+}
+
 /** Readable names for captured desktop (UI Automation) properties. */
 const DESKTOP_LABELS = {
   Name: "Name", AutomationId: "Automation ID", ClassName: "Class name", ControlType: "Control type", LocalizedControlType: "Role", FrameworkId: "Framework",
