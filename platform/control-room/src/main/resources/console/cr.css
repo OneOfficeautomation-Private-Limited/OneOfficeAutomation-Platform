@@ -325,3 +325,4 @@ pre.json { background: color-mix(in srgb, var(--accent, #2563eb) 6%, transparent
 .hbar-value { font-variant-numeric: tabular-nums; }
 /* vault: user-provided attributes */
 .chip.user-attr { border-style: dashed; }
+#modal-body td select { min-width: 100px; }

@@ -64,6 +64,13 @@ People only see the pages their role allows.
     members. Adding someone to the team gives them all of that.
   - Administrators (`teams.manage`) create teams, and leads change their own team's members.
   - A team that a rule still names is not deleted.
+- **Tokens for other systems.**
+  - `POST /api/auth/token` with `{"api_key": "ooak_..."}` exchanges an API key for a session token (8 hours, extended
+    while used).
+  - `POST /api/auth/refresh` gives a new token and ends the old one.
+  - `GET /api/auth/token` tells whether the token you send is valid, for whom and until when, without extending it.
+- **Users** can be deleted when they own no schedules, triggers, API tasks, running queues or single-owner vault folders.
+  Their sign-ins, keys, team places, own vault values and every rule naming them go; the audit trail keeps their name.
 - **API keys** (top bar > API keys): other systems call the API as you with `Authorization: Bearer ooak_...`. A key is
   shown once, can expire, and can be revoked at any time. Only a hash is stored.
 - **Announcement** (Administration > Settings): a banner shown to everyone, for example before maintenance.
@@ -173,7 +180,9 @@ How permissions apply:
   - the full log (filter it, or **Download log**)
   - the last value of each variable
   - the inputs and outputs
-- **Schedules** run every N minutes, daily, or weekly in a time zone, on a runner or a pool.
+- **Schedules** run every N minutes, daily, or weekly in a time zone, on a runner or a pool. They can run as a
+  **run-as user**, on that person's default runner unless a runner is given, with credentials checked against them.
+  Tick several schedules to enable, disable or hand them to another owner at once.
   - A **holiday calendar** skips the dates you list.
   - Schedules can be renamed or handed to another owner; runs use the owner's permissions.
   - A schedule whose owner is disabled does not run, and this is recorded in the One Audit Trail.
@@ -188,12 +197,40 @@ How permissions apply:
   - **Webhook**: an HTTP call with the trigger's secret.
   - The agent receives `trigger_event` (all details) and, by kind, `trigger_file`, `trigger_window`, `trigger_process`,
     `trigger_service`, `trigger_hotkey`, `trigger_email`, `trigger_record`, `trigger_item` or `payload`, when it declares them.
+  - **Edit** renames a trigger, hands it to another owner, or sets the run-as user its runs use.
   - Triggers can be paused and resumed (`POST /api/triggers/{id}/pause|resume`); `GET /api/triggers` shows the fire
     count, last fired time and last error. `POST /api/triggers/{id}/poll` checks a server trigger at once.
 - UI agents can add **interrupt rules** (`ooa.interrupts`): when a window or element appears, click, press keys, close
   the window or run a child agent. Desktop, window and browser actions check them before acting and when an element is
   missing. Browser element actions and window lookups also **self-heal**: when the selector or title finds nothing, the
   alternatives recorded with the element (Pick records them) are tried in order and the one that worked is logged.
+
+**Code analysis.** Agent repository > Code analysis sets the policy, a set of rules, each on or off and an error or a warning:
+
+- Passwords, tokens or keys typed into steps.
+- Forbidden actions or toolkits.
+- No Try/Catch in larger agents.
+- Empty Catch blocks.
+- No description.
+- Variable naming.
+- Unused variables.
+- Switched-off steps.
+- Long fixed delays.
+- Too many steps.
+- Deep nesting.
+
+Every check-in is analysed and the report is kept for that version. With "Refuse check-ins that have errors", a
+check-in with errors is refused (`CR.POLICY_VIOLATION`, with the findings). An agent's **Code analysis** shows its
+report and analyses again. The dialog also downloads a report for every agent.
+API: `POST /api/repo/analyze`, `GET /api/repo/analysis?path=`, `GET /api/repo/analysis/report`, `GET`/`PUT /api/repo/policy`.
+
+**API tasks** (Build > API tasks) put an agent behind its own address and token, for other systems to call like a web service:
+
+- `POST /api/apitasks/{id}/run` with `X-OOA-Task-Token` and `{"inputs": {...}}` runs the agent's live version on its
+  runner or pool, as the person who made the task, at high priority.
+- It waits up to the task's limit (1-300 s) and answers `{status, run_id, outputs, error}`. The answer is 200 when the
+  run has finished; when it takes longer, the answer is 202 and the caller asks `GET /api/apitasks/{id}/runs/{run_id}`.
+- The token is shown once, works only for its task, and can be replaced; the task can be switched off.
 
 ## 6. Work queues
 
@@ -219,6 +256,12 @@ Work queues hold items (invoices, tickets, orders) that an agent processes one a
    - People with `queues.all` see every queue.
 
 ## 7. One Workflow and the task inbox
+
+A workflow can have a **start form** (`"start_form": "Requests/Purchase.form.json"`). Its fields are asked when the
+workflow starts, and data from the API is checked against them. A start can carry a **reference** (for example a
+ticket or order number) to find the request again: `GET /api/workflows/runs?reference=PO-1`,
+`GET /api/workflows/runs/{id}` (with its tasks), and `GET /api/workflows/form?path=` for the start form.
+
 
 A workflow chains agents, people and decisions. Design it in One Agent Studio (Create > Workflow) with these stages:
 

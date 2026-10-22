@@ -54,12 +54,12 @@ Gaps, ranked by value for an enterprise customer:
 | 6 | Audit search | Field filters, date range, sort, paging, total, CSV export | Done (2026-10-23) |
 | 7 | Teams | Teams with members, used to scope folders, lockers and queues | Done (2026-10-23) |
 | 8 | Operations analytics | Duration distribution, longest running, most failed, total run time, per-bot statistics, CSV exports | Done (2026-10-23) |
-| 9 | Token lifecycle | Exchange an API key for a token; refresh; verify | Partial |
-| 10 | Uniform API | Get one by id for users, roles, pools, queues, schedules, triggers and devices; delete device and user; list filters and paging | Partial |
-| 11 | Scheduler extras | Activate or deactivate several at once; change owner; run-as mapping for triggers | Partial |
-| 12 | Code analysis | Analyse a bot against policy rules (on demand and at check-in), with stored reports | Partial |
-| 13 | Process composer helpers | A process's first form; a request by reference | Partial |
-| 14 | API tasks | A per-agent URL and scoped token that runs an agent and waits for the result | Partial |
+| 9 | Token lifecycle | Exchange an API key for a token; refresh; verify | Done (2026-10-23) |
+| 10 | Uniform API | Get one by id for users, roles, pools, queues, schedules, triggers and devices; delete device and user; list filters and paging | Done (2026-10-23) |
+| 11 | Scheduler extras | Activate or deactivate several at once; change owner; run-as mapping for triggers | Done (2026-10-23) |
+| 12 | Code analysis | Analyse a bot against policy rules (on demand and at check-in), with stored reports | Done (2026-10-23) |
+| 13 | Process composer helpers | A process's first form; a request by reference | Done (2026-10-23) |
+| 14 | API tasks | A per-agent URL and scoped token that runs an agent and waits for the result | Done (2026-10-23); runs on a runner or pool, not inside the Command Center |
 | 15 | Lower priority | Package-version usage; bulk package version update; licence endpoints; variable profile and log purge (retention); migration from other products | Missing |
 
 ## 3. Next checks in the Community Edition (needs a sign-in)

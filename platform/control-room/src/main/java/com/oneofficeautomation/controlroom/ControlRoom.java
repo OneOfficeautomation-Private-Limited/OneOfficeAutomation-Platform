@@ -35,6 +35,10 @@ public final class ControlRoom {
     public final VaultAdmin vaultAdmin;
     /** Run analytics for Operations. */
     public final Analytics analytics;
+    /** Code analysis against the policy (on demand and at check-in). */
+    public final CodeAnalysis codeAnalysis;
+    /** Agents behind their own URL and token. */
+    public final ApiTasks apiTasks;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     private final FlowValidator validator;
@@ -58,6 +62,8 @@ public final class ControlRoom {
         this.lifecycle = new Lifecycle(this);
         this.vaultAdmin = new VaultAdmin(this);
         this.analytics = new Analytics(this);
+        this.codeAnalysis = new CodeAnalysis(this);
+        this.apiTasks = new ApiTasks(this);
         loadRoles();
     }
 
@@ -125,10 +131,45 @@ public final class ControlRoom {
 
     private Map<String, Object> newSession(Map<String, Object> r, String ip) {
         String token = Security.token(32);
+        Instant expires = now().plus(SESSION);
         db.update("UPDATE users SET failed = 0, locked_until = NULL, last_login = ? WHERE id = ?", now(), r.get("id"));
         db.update("DELETE FROM sessions WHERE expires < ?", now());
-        db.update("INSERT INTO sessions (token_hash, user_id, created, expires, ip) VALUES (?,?,?,?,?)", Security.sha256(token), r.get("id"), now(), now().plus(SESSION), ip);
-        return Map.of("token", token, "user", me(user(r)));
+        db.update("INSERT INTO sessions (token_hash, user_id, created, expires, ip) VALUES (?,?,?,?,?)", Security.sha256(token), r.get("id"), now(), expires, ip);
+        return Map.of("token", token, "user", me(user(r)), "expires", expires.toString());
+    }
+
+    /**
+     * Exchanges an API key for a session token (8 hours, extended while used), so systems that sign in once and then
+     * send a token can use the key. The key itself keeps working as a Bearer token.
+     */
+    public Map<String, Object> tokenFromApiKey(String apiKey, String ip) {
+        User u = apiKey == null || !apiKey.startsWith("ooak_") ? null : platform.apiKeyUser(apiKey);
+        if (u == null) { audit.record("api key", "auth.token", "user", null, null, "failed", ip); throw new OoaException("CR.LOGIN_FAILED", "Unknown, expired or revoked API key", null); }
+        Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", u.username());
+        audit.record(u.username(), "auth.token", "user", u.username(), Map.of("via", "api key"), "ok", ip);
+        return newSession(r, ip);
+    }
+
+    /** A new session token for the current one, which stops working. */
+    public Map<String, Object> refreshToken(String token, User u, String ip) {
+        if (token == null || token.startsWith("ooak_")) throw new OoaException("CR.BAD_INPUT", "Refresh a session token (an API key does not expire this way)");
+        Map<String, Object> r = db.one("SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?", Security.sha256(token));
+        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
+        db.update("DELETE FROM sessions WHERE token_hash = ?", Security.sha256(token));
+        audit.record(u.username(), "auth.refresh", "user", u.username(), null, "ok", ip);
+        return newSession(r, ip);
+    }
+
+    /** Whether a token is valid now, for whom and until when, without extending it. */
+    public Map<String, Object> verifyToken(String token) {
+        if (token != null && token.startsWith("ooak_")) {
+            User u = platform.apiKeyUser(token);
+            return u == null ? Map.of("valid", false) : Map.of("valid", true, "username", u.username(), "kind", "api_key");
+        }
+        Map<String, Object> r = token == null || token.isBlank() ? null
+                : db.one("SELECT u.username, u.enabled, s.expires FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?", Security.sha256(token));
+        if (r == null || !Boolean.TRUE.equals(r.get("enabled")) || Instant.parse(r.get("expires").toString()).isBefore(now())) return Map.of("valid", false);
+        return Map.of("valid", true, "username", r.get("username"), "kind", "session", "expires", r.get("expires"));
     }
 
     /**
@@ -251,6 +292,72 @@ public final class ControlRoom {
     public List<Map<String, Object>> users(User by) {
         require(by, "users.manage", "manage users");
         return db.query("SELECT id, username, display_name, role, enabled, must_change, last_login, created, locked_until FROM users ORDER BY username");
+    }
+
+    /** One user with their teams and default runner (by id or user name). */
+    public Map<String, Object> userDetail(User by, String idOrName) {
+        require(by, "users.manage", "manage users");
+        Map<String, Object> u = db.one("SELECT id, username, display_name, email, role, enabled, must_change, last_login, created, locked_until FROM users WHERE id = ? OR username = ?", idOrName, idOrName);
+        if (u == null) throw notFound("User");
+        Map<String, Object> m = new LinkedHashMap<>(u);
+        m.put("teams", teams.teamsOf((String) u.get("username")));
+        Map<String, Object> d = db.one("SELECT device_id FROM user_devices WHERE username = ?", u.get("username"));
+        m.put("default_device", d == null ? null : d.get("device_id"));
+        return m;
+    }
+
+    /**
+     * Deletes a user: their sign-ins, API keys, default runner, team places, personal vault values and every rule that
+     * names them go. Refused while they own schedules, triggers, API tasks, vault folders or running queues, so nothing
+     * stops working unseen. The audit trail keeps their name.
+     */
+    public void deleteUser(User by, String idOrName, String ip) {
+        require(by, "users.manage", "manage users");
+        Map<String, Object> u = db.one("SELECT id, username FROM users WHERE id = ? OR username = ?", idOrName, idOrName);
+        if (u == null) throw notFound("User");
+        String name = (String) u.get("username");
+        if (name.equals(by.username())) throw new OoaException("CR.BAD_INPUT", "You cannot delete yourself");
+        List<String> owned = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT name FROM schedules WHERE created_by = ? OR run_as = ?", name, name)) owned.add("schedule " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE created_by = ? OR run_as = ?", name, name)) owned.add("trigger " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM api_tasks WHERE created_by = ?", name)) owned.add("API task " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM queues WHERE processing = TRUE AND run_as = ?", name)) owned.add("work queue " + r.get("name"));
+        for (Map<String, Object> l : db.query("SELECT name, owners FROM lockers")) if (csv(l.get("owners")).equals(List.of(name))) owned.add("vault folder " + l.get("name") + " (only owner)");
+        if (!owned.isEmpty()) throw new OoaException("CR.IN_USE", name + " still owns " + String.join(", ", owned), "Hand those to someone else first, or disable the user instead.", false, Map.of("owns", owned));
+        String p = "user:" + name;
+        db.tx(() -> {
+            db.update("DELETE FROM sessions WHERE user_id = ?", u.get("id"));
+            db.update("DELETE FROM api_keys WHERE user_id = ?", u.get("id"));
+            db.update("DELETE FROM user_devices WHERE username = ?", name);
+            db.update("DELETE FROM team_members WHERE username = ?", name);
+            db.update("DELETE FROM credential_user_values WHERE username = ?", name);
+            db.update("DELETE FROM folder_permissions WHERE principal = ?", p);
+            db.update("DELETE FROM queue_members WHERE principal = ?", p);
+            for (Map<String, Object> l : db.query("SELECT name, owners, managers, participants, consumers FROM lockers")) {
+                List<String> o = new ArrayList<>(csv(l.get("owners"))), m = new ArrayList<>(csv(l.get("managers"))), pa = new ArrayList<>(csv(l.get("participants"))), c = new ArrayList<>(csv(l.get("consumers")));
+                if (o.remove(name) | m.remove(p) | pa.remove(p) | c.remove(p))
+                    db.update("UPDATE lockers SET owners = ?, managers = ?, participants = ?, consumers = ? WHERE name = ?", String.join(",", o), String.join(",", m), String.join(",", pa), String.join(",", c), l.get("name"));
+            }
+            db.update("UPDATE credential_meta SET owner = NULL WHERE owner = ?", name);
+            db.update("DELETE FROM users WHERE id = ?", u.get("id"));
+            return null;
+        });
+        audit.record(by.username(), "user.delete", "user", name, null, "ok", ip);
+    }
+
+    /** Users filtered by text, role and enabled, with paging and the total. */
+    public Map<String, Object> usersPage(User by, Map<String, String> q) {
+        List<Map<String, Object>> all = users(by);
+        String text = q.getOrDefault("q", "").toLowerCase(Locale.ROOT);
+        List<Map<String, Object>> f = all.stream().filter(u -> (text.isEmpty() || (u.get("username") + " " + u.get("display_name")).toLowerCase(Locale.ROOT).contains(text))
+                && (q.get("role") == null || q.get("role").isBlank() || q.get("role").equals(u.get("role")))
+                && (q.get("enabled") == null || q.get("enabled").isBlank() || String.valueOf(u.get("enabled")).equals(q.get("enabled")))).toList();
+        return page("users", f, q);
+    }
+
+    static Map<String, Object> page(String key, List<Map<String, Object>> rows, Map<String, String> q) {
+        int offset = Math.max(0, intOr(q.get("offset"), 0)), limit = Math.max(1, Math.min(1000, intOr(q.get("limit"), 1000)));
+        return Map.of(key, rows.subList(Math.min(offset, rows.size()), Math.min(rows.size(), offset + limit)), "total", rows.size());
     }
 
     public Map<String, Object> createUser(User by, String username, String display, String role, String ip) {
@@ -432,6 +539,7 @@ public final class ControlRoom {
         List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
                 "Fix the problems in Agent Studio (Validate) before checking in.", false, Map.of("problems", problems));
+        codeAnalysis.atCheckin(path, flow);
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
@@ -459,6 +567,8 @@ public final class ControlRoom {
             db.update("INSERT INTO bot_versions (path, version, content, sha256, comment, author, created) VALUES (?,?,?,?,?,?,?)",
                     path, version, json, Security.sha256(json), comment == null ? "" : comment, by.username(), now());
             audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
+            // the code analysis report of the new version, against today's policy
+            if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow), by.username());
             return Map.of("path", path, "version", version, "created", b == null);
         });
     }
@@ -628,6 +738,18 @@ public final class ControlRoom {
             out.add(m);
         }
         return out;
+    }
+
+    /** Runners filtered by status (online, offline, disabled) and text, with paging and the total. */
+    public Map<String, Object> devicesPage(User by, Map<String, String> q) {
+        String text = q.getOrDefault("q", "").toLowerCase(Locale.ROOT);
+        List<Map<String, Object>> f = devices(by).stream().filter(d -> (text.isEmpty() || (d.get("name") + " " + d.get("hostname") + " " + d.get("os")).toLowerCase(Locale.ROOT).contains(text))
+                && (q.get("status") == null || q.get("status").isBlank() || q.get("status").equals(d.get("status")))).toList();
+        return page("devices", f, q);
+    }
+
+    public Map<String, Object> deviceDetail(User by, String deviceId) {
+        return devices(by).stream().filter(d -> deviceId.equals(d.get("id"))).findFirst().orElseThrow(() -> notFound("Runner"));
     }
 
     public void renameDevice(User by, String deviceId, String name, String ip) {
@@ -893,12 +1015,13 @@ public final class ControlRoom {
         String status = String.valueOf(result.getOrDefault("status", "failed"));
         if (!Set.of("success", "failed", "stopped").contains(status)) status = "failed";
         Instant started = r.get("started") == null ? now() : Instant.parse(r.get("started").toString());
+        // the run's AI calls are recorded before it shows as finished, so whoever waits for the status sees them
+        if (result.get("ai_calls") instanceof List<?> calls) platform.recordAiCalls(r, calls);
         db.update("UPDATE runs SET status = ?, finished = ?, duration_ms = ?, error = ?, outputs = ?, steps = ? WHERE id = ?",
                 status, now(), Duration.between(started, now()).toMillis(), result.get("error") == null ? null : JsonLite.write(result.get("error")),
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
-        if (result.get("ai_calls") instanceof List<?> calls) platform.recordAiCalls(r, calls);
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
@@ -1099,8 +1222,10 @@ public final class ControlRoom {
         content(String.valueOf(s.get("bot_path")), "production");
         folders.require(by, String.valueOf(s.get("bot_path")), "run", "schedule agents");
         String pool = s.get("pool_id") instanceof String ps && !ps.isBlank() ? ps : null;
+        String runAs = s.get("run_as") instanceof String ra && !ra.isBlank() ? ra : null;
+        if (runAs != null) checkRunAs(runAs, pool == null && !(s.get("device_id") instanceof String dd && !dd.isBlank()));
         if (pool != null) { if (db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw notFound("Runner pool"); }
-        else if (db.one("SELECT id FROM devices WHERE id = ?", s.get("device_id")) == null) throw notFound("Runner");
+        else if (runAs == null || s.get("device_id") instanceof String dd2 && !dd2.isBlank()) { if (db.one("SELECT id FROM devices WHERE id = ?", s.get("device_id")) == null) throw notFound("Runner"); }
         String cal = s.get("holiday_calendar") instanceof String cs && !cs.isBlank() ? cs : null;
         if (cal != null && db.one("SELECT name FROM holiday_calendars WHERE name = ?", cal) == null) throw notFound("Holiday calendar");
         String sid = id("sch");
@@ -1110,7 +1235,7 @@ public final class ControlRoom {
         db.update("INSERT INTO schedules (id, name, bot_path, device_id, kind, every_minutes, at_time, days, time_zone, inputs, enabled, next_run, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, s.get("every_minutes") instanceof Number n ? n.intValue() : null,
                 kind.equals("every") ? null : s.get("at_time"), kind.equals("weekly") ? s.get("days") : null, tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
-        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ? WHERE id = ?", pool, cal, sid);
+        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ? WHERE id = ?", pool, cal, runAs, sid);
         audit.record(by.username(), "schedule.create", "schedule", sid, Map.of("bot", s.get("bot_path"), "kind", kind), "ok", ip);
         return Map.of("id", sid, "next_run", next.toString());
     }
@@ -1132,11 +1257,56 @@ public final class ControlRoom {
             if (db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", o) == null) throw notFound("User " + o);
             db.update("UPDATE schedules SET created_by = ? WHERE id = ?", o, sid);
         }
+        if (changes.containsKey("run_as")) {
+            String ra = changes.get("run_as") instanceof String r && !r.isBlank() ? r : null;
+            Map<String, Object> cur = db.one("SELECT device_id, pool_id FROM schedules WHERE id = ?", sid);
+            if (ra != null) checkRunAs(ra, cur.get("device_id") == null && cur.get("pool_id") == null);
+            else if (cur.get("device_id") == null && cur.get("pool_id") == null) throw new OoaException("CR.BAD_INPUT", "The schedule has no runner of its own; keep a run-as user or set a runner");
+            db.update("UPDATE schedules SET run_as = ? WHERE id = ?", ra, sid);
+        }
         if (changes.containsKey("enabled")) setScheduleEnabled(by, sid, Boolean.TRUE.equals(changes.get("enabled")), ip);
         audit.record(by.username(), "schedule.update", "schedule", sid, changes, "ok", ip);
     }
 
     public List<Map<String, Object>> schedules(User by) { require(by, "schedules.view", "view schedules"); return db.query("SELECT * FROM schedules ORDER BY name"); }
+
+    public Map<String, Object> schedule(User by, String sid) {
+        require(by, "schedules.view", "view schedules");
+        Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
+        if (s == null) throw notFound("Schedule");
+        return s;
+    }
+
+    /** A run-as user must exist and be enabled; with no runner given, they need a default runner. */
+    void checkRunAs(String user, boolean needsDefault) {
+        if (db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", user) == null) throw notFound("Run-as user " + user);
+        if (needsDefault && db.one("SELECT device_id FROM user_devices WHERE username = ?", user) == null)
+            throw new OoaException("CR.NO_DEFAULT_RUNNER", user + " has no default runner", "Set one in Users, or choose a runner.");
+    }
+
+    /** Several schedules at once: enable, disable or hand to another owner. Returns how many changed. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> bulkSchedules(User by, Map<String, Object> b, String ip) {
+        require(by, "schedules.manage", "manage schedules");
+        List<String> ids = csv(b.get("ids"));
+        if (ids.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Give the schedule ids");
+        String action = String.valueOf(b.get("action"));
+        String owner = b.get("owner") instanceof String o ? o : null;
+        if (action.equals("owner") && (owner == null || db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", owner) == null)) throw notFound("User " + owner);
+        int n = 0;
+        for (String id : ids) {
+            Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", id);
+            if (s == null) continue;
+            switch (action) {
+                case "enable" -> n += db.update("UPDATE schedules SET enabled = TRUE, next_run = ? WHERE id = ?", nextRun(s, now()), id);
+                case "disable" -> n += db.update("UPDATE schedules SET enabled = FALSE, next_run = NULL WHERE id = ?", id);
+                case "owner" -> n += db.update("UPDATE schedules SET created_by = ? WHERE id = ?", owner, id);
+                default -> throw new OoaException("CR.BAD_INPUT", "The action is enable, disable or owner");
+            }
+        }
+        audit.record(by.username(), "schedule.bulk_" + action, "schedule", null, Map.of("ids", ids, "changed", n, "owner", owner == null ? "" : owner), "ok", ip);
+        return Map.of("changed", n);
+    }
 
     /** Starts a schedule's bot now, with its device and inputs, as the person who asked. */
     @SuppressWarnings("unchecked")
@@ -1144,7 +1314,7 @@ public final class ControlRoom {
         Map<String, Object> s = db.one("SELECT * FROM schedules WHERE id = ?", sid);
         if (s == null) throw notFound("Schedule");
         Map<String, Object> inputs = s.get("inputs") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) s.get("inputs"));
-        return startRun(by.username(), by.role(), (String) s.get("bot_path"), (String) s.get("device_id"), (String) s.get("pool_id"), inputs, "schedule:" + sid, ip, 0, null);
+        return startRun(by.username(), by.role(), (String) s.get("bot_path"), (String) s.get("device_id"), (String) s.get("pool_id"), inputs, "schedule:" + sid, ip, 0, null, (String) s.get("run_as"), null);
     }
 
     public void setScheduleEnabled(User by, String sid, boolean en, String ip) {
@@ -1173,7 +1343,7 @@ public final class ControlRoom {
             if (creator == null) { audit.record("scheduler", "schedule.fire", "schedule", (String) s.get("id"), "owner " + s.get("created_by") + " is disabled or deleted", "failed", null); continue; }
             try {
                 startRun((String) s.get("created_by"), (String) creator.get("role"), (String) s.get("bot_path"), (String) s.get("device_id"), (String) s.get("pool_id"),
-                        (Map<String, Object>) JsonLite.parse((String) s.get("inputs")), "schedule:" + s.get("id"), null, 0, null);
+                        (Map<String, Object>) JsonLite.parse((String) s.get("inputs")), "schedule:" + s.get("id"), null, 0, null, (String) s.get("run_as"), null);
                 started++;
             } catch (OoaException e) { audit.record("scheduler", "schedule.fire", "schedule", (String) s.get("id"), e.getMessage(), "failed", null); }
         }
@@ -1199,7 +1369,9 @@ public final class ControlRoom {
         db.update("INSERT INTO triggers (id, name, bot_path, device_id, kind, folder, pattern, secret_hash, enabled, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 tid, name, t.get("bot_path"), t.get("device_id"), kind, folderKind ? String.valueOf(t.get("folder")).trim() : null, folderKind ? pattern : null,
                 secret == null ? null : Security.sha256(secret), true, by.username());
-        db.update("UPDATE triggers SET config = ?, fire_count = 0 WHERE id = ?", JsonLite.write(config), tid);
+        String runAs = t.get("run_as") instanceof String ra && !ra.isBlank() ? ra : null;
+        if (runAs != null) checkRunAs(runAs, false);
+        db.update("UPDATE triggers SET config = ?, fire_count = 0, run_as = ? WHERE id = ?", JsonLite.write(config), runAs, tid);
         audit.record(by.username(), "trigger.create", "trigger", tid, Map.of("kind", kind, "bot", t.get("bot_path")), "ok", ip);
         Map<String, Object> out = new LinkedHashMap<>(Map.of("id", tid));
         if (secret != null) { out.put("secret", secret); out.put("url", "/api/hooks/" + tid); }
@@ -1210,7 +1382,7 @@ public final class ControlRoom {
     public List<Map<String, Object>> triggers(User by) {
         require(by, "triggers.view", "view triggers");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> t : db.query("SELECT id, name, bot_path, device_id, kind, folder, pattern, enabled, created_by, config, last_fired, fire_count, last_error FROM triggers ORDER BY name")) {
+        for (Map<String, Object> t : db.query("SELECT id, name, bot_path, device_id, kind, folder, pattern, enabled, created_by, run_as, config, last_fired, fire_count, last_error FROM triggers ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(t);
             m.put("config", TriggerKinds.publicConfig(TriggerPollers.config(t)));
             m.put("fire_count", t.get("fire_count") == null ? 0 : t.get("fire_count"));
@@ -1221,6 +1393,30 @@ public final class ControlRoom {
             out.add(m);
         }
         return out;
+    }
+
+    public Map<String, Object> trigger(User by, String tid) {
+        return triggers(by).stream().filter(t -> tid.equals(t.get("id"))).findFirst().orElseThrow(() -> notFound("Trigger"));
+    }
+
+    /** Rename a trigger, hand it to another owner (whose permissions it fires with), or set the user its runs run as. */
+    public void updateTrigger(User by, String tid, Map<String, Object> changes, String ip) {
+        require(by, "triggers.manage", "manage triggers");
+        if (db.one("SELECT id FROM triggers WHERE id = ?", tid) == null) throw notFound("Trigger");
+        if (changes.get("name") instanceof String n) {
+            if (n.isBlank() || n.length() > 200) throw new OoaException("CR.BAD_INPUT", "Trigger names have 1 to 200 characters");
+            db.update("UPDATE triggers SET name = ? WHERE id = ?", n.trim(), tid);
+        }
+        if (changes.get("owner") instanceof String o) {
+            if (db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", o) == null) throw notFound("User " + o);
+            db.update("UPDATE triggers SET created_by = ? WHERE id = ?", o, tid);
+        }
+        if (changes.containsKey("run_as")) {
+            String ra = changes.get("run_as") instanceof String r && !r.isBlank() ? r : null;
+            if (ra != null) checkRunAs(ra, false);
+            db.update("UPDATE triggers SET run_as = ? WHERE id = ?", ra, tid);
+        }
+        audit.record(by.username(), "trigger.update", "trigger", tid, changes, "ok", ip);
     }
 
     /** Pause (false) or resume (true) a trigger; resuming clears the last error and polls again soon. */
@@ -1247,7 +1443,8 @@ public final class ControlRoom {
             Map<String, Object> in = new LinkedHashMap<>();
             event.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
             Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));
-            Map<String, Object> r = startRun((String) t.get("created_by"), creator == null ? "viewer" : (String) creator.get("role"), (String) t.get("bot_path"), (String) t.get("device_id"), in, source, ip);
+            Map<String, Object> r = startRun((String) t.get("created_by"), creator == null ? "viewer" : (String) creator.get("role"), (String) t.get("bot_path"), (String) t.get("device_id"), null,
+                    in, source, ip, 0, null, (String) t.get("run_as"), null);
             db.update("UPDATE triggers SET last_fired = ?, fire_count = COALESCE(fire_count, 0) + 1, last_error = NULL WHERE id = ?", now(), t.get("id"));
             return r;
         } catch (OoaException e) {

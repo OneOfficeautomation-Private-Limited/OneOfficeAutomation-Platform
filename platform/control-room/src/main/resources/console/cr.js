@@ -143,13 +143,13 @@ const PAGES = [
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
-  ["operations", "Operations", "analytics.view", "percent", "#0891b2"],
+  ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"]];
 
 /** The menu: Home, then three groups. Pages not listed here (admin) are reachable from inside other pages only. */
 const NAV_GROUPS = [
-  ["build", "Build", ["automation", "studio", "workflows", "queues"]],
+  ["build", "Build", ["automation", "studio", "workflows", "queues", "apitasks"]],
   ["run", "Run & Monitor", ["activity", "operations", "inbox", "schedules", "triggers", "devices"]],
   ["govern", "Govern", ["users", "teams", "roles", "credentials", "globals", "toolkits", "connections", "governance", "audit", "settings"]],
 ];
@@ -403,7 +403,8 @@ const VIEWS = {
       can("repo.checkin") ? h("button", { type: "button", onclick: () => newFolderDialog() }, "New folder") : null,
       can("lifecycle.export") ? h("button", { type: "button", onclick: () => exportDialog(r.bots) }, ic("download", "#475569", "sm"), "Export / promote") : null,
       can("lifecycle.import") ? h("button", { type: "button", onclick: () => importDialog() }, "Import") : null,
-      can("repo.delete") ? h("button", { type: "button", onclick: () => deletedDialog() }, "Deleted agents") : null),
+      can("repo.delete") ? h("button", { type: "button", onclick: () => deletedDialog() }, "Deleted agents") : null,
+      h("button", { type: "button", onclick: () => policyDialog() }, "Code analysis")),
       dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.", tools,
         columns: [
           { label: "Agent", value: (b) => botName(b.path), render: (b) => { const k = kindOf(b.path); return h("div", { class: "name-cell" }, ic(k[1], k[2], "sm"), h("div", {}, h("strong", { text: botName(b.path) }),
@@ -736,17 +737,29 @@ const VIEWS = {
     const when = (s) => s.kind === "every" ? "Every " + s.every_minutes + " min" : s.kind === "daily" ? "Daily at " + s.at_time : s.days + " at " + s.at_time;
     const [cals, pools] = await Promise.all([api("GET", "calendars"), can("devices.view") ? api("GET", "pools") : { pools: [] }]);
     S.calendars = cals.calendars; S.pools = pools.pools;
-    main.replaceChildren(...header("Schedules", "Run agents automatically. Scheduled runs use the vault permissions of the schedule's owner; holiday calendars skip the dates you list.",
+    // several schedules at once: enable, disable, hand to another owner
+    const picked = new Set();
+    const bulk = (action) => async () => {
+      if (!picked.size) { toast("Tick schedules first", true); return; }
+      const body = { ids: [...picked], action };
+      if (action === "owner") { const o = prompt("New owner (user name) for " + picked.size + " schedule(s):"); if (!o) return; body.owner = o.trim(); }
+      try { const r = await api("POST", "schedules/bulk", body); toast(r.changed + " schedule(s) changed"); go("schedules"); } catch (e) { toast(e.message, true); }
+    };
+    const tools = can("schedules.manage") ? [h("button", { type: "button", onclick: bulk("enable") }, "Enable selected"), h("button", { type: "button", onclick: bulk("disable") }, "Disable selected"),
+      h("button", { type: "button", onclick: bulk("owner") }, "Change owner")] : [];
+    main.replaceChildren(...header("Schedules", "Run agents automatically. Scheduled runs use the vault permissions of the schedule's owner, or of the run-as user; holiday calendars skip the dates you list.",
       h("button", { type: "button", onclick: calendarsDialog }, ic("calendar", "#059669", "sm"), "Holiday calendars"),
       can("schedules.manage") ? h("button", { type: "button", class: "primary", onclick: scheduleDialog }, "New schedule") : null),
-      dataTable({ rows: r.schedules, search: "Search schedules", exportName: "schedules", empty: "No schedules yet.",
+      dataTable({ rows: r.schedules, search: "Search schedules", exportName: "schedules", empty: "No schedules yet.", tools,
         onRow: can("runs.view") ? (s) => { S.activity = { tab: "history", offset: 0, size: 25, f: { source: "schedule", bot: s.bot_path } }; go("activity"); } : null,
         columns: [
           { label: "Schedule", value: (s) => s.name, render: (s) => h("div", { class: "name-cell" }, ic("clock", "#059669", "sm"), h("strong", { text: s.name })) },
           { label: "Agent", value: (s) => botName(s.bot_path) },
-          { label: "Runner", value: (s) => s.pool_id ? "Pool: " + ((S.pools.find((p) => p.id === s.pool_id) || {}).name || s.pool_id) : deviceName(s.device_id) },
+          { label: "", sort: false, render: (s) => can("schedules.manage") ? h("input", { type: "checkbox", "aria-label": "Select " + s.name, checked: picked.has(s.id),
+            onchange: (e) => { if (e.target.checked) picked.add(s.id); else picked.delete(s.id); } }) : "" },
+          { label: "Runner", value: (s) => s.pool_id ? "Pool: " + ((S.pools.find((p) => p.id === s.pool_id) || {}).name || s.pool_id) : s.device_id ? deviceName(s.device_id) : "default runner of " + s.run_as },
           { label: "When", value: (s) => when(s) + " (" + s.time_zone + ")" + (s.holiday_calendar ? ", not on " + s.holiday_calendar : "") },
-          { label: "Owner", value: (s) => s.created_by || "" },
+          { label: "Owner", value: (s) => s.created_by || "", render: (s) => h("span", {}, s.created_by || "", s.run_as ? h("div", { class: "muted small", text: "runs as " + s.run_as }) : null) },
           { label: "Next run", value: (s) => s.enabled ? s.next_run || "" : "", render: (s) => s.enabled ? h("span", { title: local(s.next_run) }, ago(s.next_run)) : "\u2014" },
           { label: "Last run", value: (s) => s.last_run || "", render: (s) => s.last_run ? h("span", { title: local(s.last_run) }, ago(s.last_run)) : "never" },
           { label: "Enabled", value: (s) => s.enabled ? "Yes" : "No", render: (s) => s.enabled ? pill("enabled") : pill("disabled") },
@@ -768,7 +781,7 @@ const VIEWS = {
           { label: "Trigger", value: (t) => t.name, render: (t) => h("div", { class: "name-cell" }, ic("bolt", "#d97706", "sm"), h("strong", { text: t.name })) },
           { label: "Kind", value: (t) => triggerKindLabel(t.kind), render: (t) => h("div", {}, h("div", { text: triggerKindLabel(t.kind) }),
             h("div", { class: "muted small", text: t.evaluated_on === "server" ? "Checked by the Command Center" : t.evaluated_on === "runner" ? "Watched on the runner" + (t.windows_only ? " (Windows)" : "") : "" })) },
-          { label: "Agent", value: (t) => botName(t.bot_path) }, { label: "Runner", value: (t) => deviceName(t.device_id) },
+          { label: "Agent", value: (t) => botName(t.bot_path) }, { label: "Runner", value: (t) => deviceName(t.device_id), render: (t) => h("span", {}, deviceName(t.device_id), t.run_as ? h("div", { class: "muted small", text: "runs as " + t.run_as }) : null) },
           { label: "Details", value: (t) => triggerDetails(t), render: (t) => h("span", { class: "mono small", text: triggerDetails(t) }) },
           { label: "Monitoring", value: (t) => (t.fire_count || 0) + " " + (t.last_fired || "") + " " + (t.last_error || ""), render: (t) => h("div", { class: "small" },
             h("div", {}, h("strong", { text: String(t.fire_count || 0) }), " fired", t.last_fired ? h("span", { class: "muted", title: local(t.last_fired) }, ", last " + ago(t.last_fired)) : h("span", { class: "muted" }, ", never")),
@@ -777,6 +790,7 @@ const VIEWS = {
           { label: "", sort: false, render: (t) => can("triggers.manage") ? h("div", { class: "row-actions tight" },
             t.evaluated_on === "server" && t.enabled ? h("button", { type: "button", title: "Check now instead of waiting for the interval", onclick: () => act(async () => { const x = await api("POST", "triggers/" + t.id + "/poll"); toast(x.error ? x.error : "Checked: " + x.fired + " new"); }) }, "Check now") : null,
             h("button", { type: "button", onclick: () => act(() => api("POST", "triggers/" + t.id + (t.enabled ? "/pause" : "/resume"))) }, t.enabled ? "Pause" : "Resume"),
+            h("button", { type: "button", onclick: () => triggerEditDialog(t) }, "Edit"),
             h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete trigger " + t.name + "?")) act(() => api("DELETE", "triggers/" + t.id)); } }, "Delete")) : "" }]}));
     if (main.isConnected) S.timer = setInterval(() => { if (S.page === "triggers" && $("modal").hidden && $("drawer").hidden) go("triggers"); }, 30000);
   },
@@ -863,7 +877,32 @@ const VIEWS = {
           { label: "", sort: false, render: (u) => h("div", { class: "row-actions tight" },
             h("button", { type: "button", onclick: async () => { try { await api("PATCH", "users/" + u.id, { enabled: !u.enabled }); go("users"); } catch (e) { toast(e.message, true); } } }, u.enabled ? "Disable" : "Enable"),
             h("button", { type: "button", onclick: async () => { if (!confirm("Reset the password of " + u.username + "?")) return; const p = await api("POST", "users/" + u.id + "/reset-password");
-              modal("Temporary password", [secretBox(u.username, p.temporary_password, "Give it to the user securely. They must change it at first sign-in. Shown only once.")], []); } }, "Reset password")) }]}));
+              modal("Temporary password", [secretBox(u.username, p.temporary_password, "Give it to the user securely. They must change it at first sign-in. Shown only once.")], []); } }, "Reset password"),
+            u.username !== S.user.username ? h("button", { type: "button", class: "danger", onclick: async () => {
+              if (!confirm("Delete " + u.username + "? Their sign-ins, API keys, team places, own vault values and every rule naming them go. The audit trail keeps their name.")) return;
+              try { await api("DELETE", "users/" + u.id); toast("Deleted " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
+  },
+
+  async apitasks(main) {
+    await loadRefs();
+    const [r, pools] = await Promise.all([api("GET", "apitasks"), can("devices.view") ? api("GET", "pools") : { pools: [] }]);
+    S.pools = pools.pools;
+    main.replaceChildren(...header("API tasks", "An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.",
+      h("button", { type: "button", class: "primary", onclick: () => apiTaskDialog() }, "New API task")),
+      dataTable({ rows: r.tasks, search: "Search API tasks", exportName: "api-tasks", empty: "No API tasks yet.",
+        columns: [
+          { label: "API task", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: "POST " + location.origin + t.url })) },
+          { label: "Agent", value: (t) => botName(t.bot_path) },
+          { label: "Runs on", value: (t) => t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
+          { label: "Waits up to", value: (t) => t.timeout_seconds, render: (t) => t.timeout_seconds + " s" },
+          { label: "Calls", value: (t) => t.calls, render: (t) => h("span", {}, String(t.calls), t.last_used ? h("span", { class: "muted small", text: " \u00B7 last " + ago(t.last_used) }) : null) },
+          { label: "Status", value: (t) => t.enabled ? "On" : "Off", render: (t) => pill(t.enabled ? "active" : "paused") },
+          { label: "", sort: false, render: (t) => h("div", { class: "row-actions tight" },
+            h("button", { type: "button", onclick: async () => { try { await api("PATCH", "apitasks/" + t.id, { enabled: !t.enabled }); go("apitasks"); } catch (e) { toast(e.message, true); } } }, t.enabled ? "Switch off" : "Switch on"),
+            h("button", { type: "button", onclick: async () => {
+              if (!confirm("Make a new token for " + t.name + "? The current one stops working at once.")) return;
+              try { const n = await api("POST", "apitasks/" + t.id + "/token"); apiTaskShown(t.name, t.url, n.token); } catch (e) { toast(e.message, true); } } }, "New token"),
+            h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete API task " + t.name + "?")) return; try { await api("DELETE", "apitasks/" + t.id); go("apitasks"); } catch (e) { toast(e.message, true); } } }, "Delete")) }]}));
   },
 
   async teams(main) {
@@ -1076,6 +1115,7 @@ async function openBot(b) {
     can("runs.start") && b.production_version && /\.process\.json$/.test(b.path) ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog(b.path) }, "Start") : null,
     h("button", { type: "button", onclick: () => versionsDialog(b) }, "Versions"),
     can("analytics.view") && isAgent(b.path) ? h("button", { type: "button", onclick: () => agentStatsDialog(b.path) }, "Statistics") : null,
+    isAgent(b.path) ? h("button", { type: "button", onclick: () => analysisDialog(b.path) }, "Code analysis") : null,
     can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null]);
   try {
     const deps = await api("GET", "repo/dependencies?path=" + encodeURIComponent(b.path)).catch(() => null);
@@ -1258,7 +1298,18 @@ async function runDialog(b, deviceId) {
   if (path()) loadInputs(path());
 }
 
-function scheduleDialog() {
+/** A select of run-as users (people with a default runner are marked), for schedules and triggers. */
+async function runAsSelect(value) {
+  const sel = h("select", { "aria-label": "Run as" }, h("option", { value: "", text: "(the owner, on the runner chosen here)" }));
+  try {
+    const r = await api("GET", "devices/runasusers");
+    sel.append(...r.users.map((u) => h("option", { value: u.username, text: u.username + (u.device_id ? " (default runner " + (u.device_name || u.device_id) + ")" : " (no default runner)") })));
+  } catch (_) { /* not allowed to list them */ }
+  sel.value = value || "";
+  return sel;
+}
+
+async function scheduleDialog() {
   const name = h("input", { placeholder: "Nightly invoice run" }), bot = botSelect(), dev = deviceSelect();
   const pool = h("select", { "aria-label": "Runner pool" }, h("option", { value: "", text: "(none: use the runner)" }), (S.pools || []).map((p) => h("option", { value: p.id, text: p.name })));
   const cal = h("select", { "aria-label": "Holiday calendar" }, h("option", { value: "", text: "(none)" }), (S.calendars || []).map((c) => h("option", { value: c.name, text: c.name })));
@@ -1269,13 +1320,17 @@ function scheduleDialog() {
   const everyBox = h("label", {}, "Minutes", every), atBox = h("label", {}, "Time", at), daysBox = h("div", { class: "toolbar" }, days);
   const sync = () => { everyBox.hidden = kind.value !== "every"; atBox.hidden = kind.value === "every"; daysBox.hidden = kind.value !== "weekly"; };
   kind.addEventListener("change", sync); sync();
+  const runAs = await runAsSelect();
+  const noRunner = h("label", { class: "check" }, h("input", { type: "checkbox" }), "Use the run-as user's default runner");
   modal("New schedule", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool)),
+    h("div", { class: "grid2" }, h("label", {}, "Run as (credentials are checked against this person)", runAs), noRunner),
     h("label", {}, "Repeat", kind), everyBox, atBox, daysBox,
     h("div", { class: "grid2" }, h("label", {}, "Time zone", tz), h("label", {}, "Skip the dates of a holiday calendar", cal)), h("label", {}, "Inputs (JSON, optional)", inputs)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
-        const body = { name: name.value || "Schedule", bot_path: bot.value, device_id: pool.value ? null : dev.value, pool_id: pool.value || null, holiday_calendar: cal.value || null,
-          kind: kind.value, time_zone: tz.value, inputs: parseJson(inputs.value, {}) };
+        const useDefault = runAs.value && noRunner.firstChild.checked;
+        const body = { name: name.value || "Schedule", bot_path: bot.value, device_id: pool.value || useDefault ? null : dev.value, pool_id: useDefault ? null : pool.value || null, holiday_calendar: cal.value || null,
+          kind: kind.value, time_zone: tz.value, inputs: parseJson(inputs.value, {}), run_as: runAs.value || null };
         if (kind.value === "every") body.every_minutes = parseInt(every.value, 10); else body.at_time = at.value;
         if (kind.value === "weekly") body.days = days.map((l) => l.firstChild).filter((c) => c.checked).map((c) => c.value).join(",");
         const r = await api("POST", "schedules", body); closeModal(); toast("Next run " + local(r.next_run)); go("schedules");
@@ -1303,6 +1358,18 @@ function triggerDialog() {
         else { closeModal(); toast("Trigger created"); }
         go("triggers");
       } catch (e) { toast(e.message, true); } } }, "Create")]);
+}
+
+async function triggerEditDialog(t) {
+  const name = h("input", { value: t.name }), owner = h("input", { value: t.created_by || "" });
+  const runAs = await runAsSelect(t.run_as);
+  modal("Edit " + t.name, [h("label", {}, "Name", name), h("label", {}, "Owner (the trigger fires with the owner's permissions)", owner), h("label", {}, "Run as (credentials are checked against this person)", runAs)],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      try {
+        const body = { name: name.value, run_as: runAs.value || null };
+        if (owner.value.trim() && owner.value.trim() !== t.created_by) body.owner = owner.value.trim();
+        await api("PUT", "triggers/" + t.id, body); closeModal(); go("triggers");
+      } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
 // ---------- trigger kinds (helpers for triggerDialog and the Triggers view) ----------
@@ -1448,6 +1515,70 @@ async function vaultKeyDialog() {
     try { const r = await api("POST", "vault/rotate"); toast("Key rotated: " + r.re_encrypted + " values encrypted again. New fingerprint " + r.key_fingerprint); vaultKeyDialog(); } catch (e) { toast(e.message, true); } } }, "Rotate key")] : []);
 }
 
+function apiTaskDialog() {
+  const name = h("input", { placeholder: "Invoice lookup" }), bot = botSelect(), dev = deviceSelect();
+  const pool = h("select", { "aria-label": "Runner pool" }, h("option", { value: "", text: "(none: use the runner)" }), (S.pools || []).map((p) => h("option", { value: p.id, text: p.name })));
+  const timeout = h("input", { type: "number", min: "1", max: "300", value: "60" });
+  modal("New API task", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool)),
+    h("label", {}, "Wait for the result up to (seconds, 1-300)", timeout),
+    h("p", { class: "muted", text: "Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const r = await api("POST", "apitasks", { name: name.value, bot_path: bot.value, device_id: pool.value ? null : dev.value, pool_id: pool.value || null, timeout_seconds: Number(timeout.value) });
+      apiTaskShown(name.value, r.url, r.token); go("apitasks");
+    } catch (e) { toast(e.message, true); } } }, "Create")]);
+}
+
+function apiTaskShown(name, url, token) {
+  const full = location.origin + url;
+  modal("API task " + name, [secretBox("Address", full), secretBox("Token (send it as X-OOA-Task-Token or Authorization: Bearer)", token, "Shown only once. Make a new one if it is lost."),
+    h("h3", { text: "Example" }), h("pre", { class: "mono", text: 'curl -X POST "' + full + '" -H "X-OOA-Task-Token: <token>" -H "Content-Type: application/json" -d \'{"inputs": {"text": "hello"}}\'' }),
+    h("p", { class: "muted", text: "The answer is {status, run_id, outputs, error}: 200 when the run finished, 202 while it still runs (then GET " + url.replace(/\/run$/, "/runs/") + "<run_id> with the same token)." })], []);
+}
+
+/** An agent's code analysis report (latest version), with Analyse again. */
+async function analysisDialog(path) {
+  let r;
+  try { r = await api("GET", "repo/analysis?path=" + encodeURIComponent(path)); } catch (e) { toast(e.message, true); return; }
+  modal("Code analysis of " + botName(path) + " v" + r.version, [
+    h("p", {}, r.passed ? h("span", { class: "pill success", text: "No errors" }) : h("span", { class: "pill failed", text: r.errors + " error" + (r.errors === 1 ? "" : "s") }), " ", h("span", { class: "muted", text: r.warnings + " warning(s)" + (r.analyzed ? " \u00B7 analysed " + ago(r.analyzed) : "") })),
+    r.violations.length ? table(["Severity", "Rule", "Step", "Finding"], r.violations.map((v) => ({ data: v, cells: [pill(v.severity === "error" ? "failed" : "pending"), v.rule.replace(/_/g, " "), v.step || "", v.message] })))
+      : h("p", { class: "muted", text: "Nothing to report." })],
+  [h("button", { type: "button", onclick: async () => { try { await api("POST", "repo/analyze", { path }); analysisDialog(path); } catch (e) { toast(e.message, true); } } }, "Analyse again")]);
+}
+
+/** The code analysis policy: each rule on or off, error or warning, its settings, and blocking check-ins with errors. */
+async function policyDialog() {
+  let pol;
+  try { pol = await api("GET", "repo/policy"); } catch (e) { toast(e.message, true); return; }
+  const edit = can("settings.manage");
+  const enforce = h("input", { type: "checkbox", checked: pol.enforce_at_checkin, disabled: !edit });
+  const rows = Object.entries(pol.rules).map(([id, r]) => {
+    const on = h("input", { type: "checkbox", checked: r.enabled, disabled: !edit, "aria-label": "Use " + id });
+    const sev = h("select", { disabled: !edit, "aria-label": "Severity of " + id }, h("option", { value: "error", text: "Error" }), h("option", { value: "warning", text: "Warning" }));
+    sev.value = r.severity;
+    const params = Object.entries(r.params || {}).map(([k, v]) => ({ k, el: h("input", { value: Array.isArray(v) ? v.join(", ") : String(v), disabled: !edit, "aria-label": id + " " + k, title: k }), list: Array.isArray(v), num: typeof v === "number" }));
+    return { id, r, on, sev, params };
+  });
+  modal("Code analysis", [h("p", { class: "muted", text: "Agents are checked against these rules at every check-in, and on demand from an agent's details. Reports are kept per version." }),
+    h("label", { class: "check" }, enforce, "Refuse check-ins that have errors"),
+    table(["Use", "Rule", "Severity", "Settings"], rows.map((x) => ({ data: x, cells: [x.on, h("div", {}, h("strong", { text: x.id.replace(/_/g, " ") }), h("div", { class: "muted small", text: x.r.description })), x.sev,
+      h("div", {}, x.params.map((p) => h("label", { class: "inline" }, p.k.replace(/_/g, " ") + " ", p.el)))] })))],
+  [edit ? h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const rules = {};
+      for (const x of rows) {
+        const params = {};
+        for (const p of x.params) params[p.k] = p.list ? p.el.value.split(",").map((t) => t.trim()).filter(Boolean) : p.num ? Number(p.el.value) : p.el.value;
+        rules[x.id] = { enabled: x.on.checked, severity: x.sev.value, params };
+      }
+      await api("PUT", "repo/policy", { enforce_at_checkin: enforce.checked, rules }); closeModal(); toast("Code analysis policy saved");
+    } catch (e) { toast(e.message, true); } } }, "Save") : null,
+    h("button", { type: "button", onclick: async () => {
+      try { const res = await fetch("/api/repo/analysis/report", { credentials: "same-origin" }); if (!res.ok) throw new Error(res.statusText); download("code-analysis.csv", await res.text(), "text/csv"); } catch (e) { toast(e.message, true); } } },
+      ic("download", "#475569", "sm"), "Report for all agents (CSV)")].filter(Boolean));
+}
+
 function teamDialog(t) {
   const name = h("input", { value: t ? t.name : "", placeholder: "finance", disabled: !!t }), desc = h("input", { value: t ? t.description || "" : "" });
   modal(t ? "Edit team " + t.name : "New team", [h("label", {}, "Name (used in rules as team:name)", name), h("label", {}, "Description", desc)],
@@ -1545,11 +1676,34 @@ async function startWorkflowDialog(path) {
   const sel = h("select", {}, defs.map((b) => h("option", { value: b.path, text: botName(b.path) })));
   if (path) sel.value = path;
   const data = h("textarea", { rows: 5, placeholder: '{"amount": 1200, "vendor": "Acme"}' });
-  modal("Start a workflow", [h("label", {}, "Workflow (live production version)", sel), h("label", {}, "Starting data (JSON, optional)", data),
+  const reference = h("input", { placeholder: "e.g. PO-2026-0042 (optional)" });
+  // a workflow with a start form asks for its fields; otherwise any starting data as JSON
+  const formBox = h("div"), dataBox = h("label", {}, "Starting data (JSON, optional)", data);
+  let fields = [];
+  const loadForm = async () => {
+    fields = [];
+    try {
+      const f = await api("GET", "workflows/form?path=" + encodeURIComponent(sel.value));
+      fields = ((f.form && f.form.fields) || []).filter((x) => x.id && !["heading", "paragraph"].includes(x.type)).map((x) => {
+        const el = x.type === "checkbox" ? h("input", { type: "checkbox" }) : (x.type === "dropdown" || x.type === "radio") ? h("select", {}, h("option", { value: "", text: "(choose)" }), (x.options || []).map((o) => h("option", { value: String(o), text: String(o) })))
+          : x.type === "textarea" ? h("textarea", { rows: 3 }) : h("input", { type: x.type === "number" ? "number" : x.type === "date" ? "date" : "text" });
+        return { x, el };
+      });
+      formBox.replaceChildren(...(fields.length ? [h("h3", { text: "Request" }), ...fields.map(({ x, el }) => x.type === "checkbox" ? h("label", { class: "check" }, el, x.label || x.id)
+        : h("label", {}, h("span", {}, x.label || x.id, x.required ? h("span", { class: "req", text: " *" }) : null), el))] : []));
+      dataBox.hidden = fields.length > 0;
+    } catch (_) { formBox.replaceChildren(); dataBox.hidden = false; }
+  };
+  sel.addEventListener("change", loadForm);
+  modal("Start a workflow", [h("label", {}, "Workflow (live production version)", sel), formBox, dataBox, h("label", {}, "Reference (to find this request again)", reference),
     h("p", { class: "muted", text: "Stages use this data as $name. Agent tasks run as you on any online runner; human tasks and approvals go to the Task inbox." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
-    try { const r = await api("POST", "workflows/start", { path: sel.value, data: parseJson(data.value, {}) }); closeModal(); toast("Started " + r.id); S.page = "workflows"; await go("workflows"); openWorkflowRun({ id: r.id }); }
+    try {
+      let d = parseJson(data.value, {});
+      if (fields.length) { d = {}; for (const { x, el } of fields) { if (x.type === "checkbox") d[x.id] = el.checked; else if (el.value !== "") d[x.id] = x.type === "number" ? Number(el.value) : el.value; } }
+      const r = await api("POST", "workflows/start", { path: sel.value, data: d, reference: reference.value.trim() || null }); closeModal(); toast("Started " + r.id + (r.reference ? " (" + r.reference + ")" : "")); S.page = "workflows"; await go("workflows"); openWorkflowRun({ id: r.id }); }
     catch (e) { toast(e.message, true); } } }, "Start")]);
+  if (sel.value) loadForm();
 }
 
 async function openWorkflowRun(w) {
@@ -1560,7 +1714,7 @@ async function openWorkflowRun(w) {
     if (!cur) { body.replaceChildren(h("p", { class: "muted", text: "Not found." })); return; }
     const evLabel = { agent_started: "Agent started", agent_finished: "Agent finished", agent_failed: "Agent failed", agent_stopped: "Agent stopped", task_created: "Task created", task_completed: "Task completed",
       approved: "Approved", rejected: "Rejected", decided: "Decided", notified: "Notified", waiting: "Waiting", failed: "Failed", cancelled: "Cancelled" };
-    body.replaceChildren(kv([["Workflow", botName(cur.path) + " v" + cur.version], ["Status", pill(cur.status === "completed" ? "success" : cur.status)], ["Current stage", cur.stage || "\u2014"],
+    body.replaceChildren(kv([["Workflow", botName(cur.path) + " v" + cur.version], ["Reference", cur.reference || null], ["Status", pill(cur.status === "completed" ? "success" : cur.status)], ["Current stage", cur.stage || "\u2014"],
       ["Started", local(cur.created) + " by " + (cur.started_by || "")], ["Finished", cur.finished ? local(cur.finished) : null], ["Error", cur.error ? (cur.error.code || "") + " " + (cur.error.message || "") : null]]),
       h("h3", { text: "Timeline" }),
       h("ol", { class: "timeline" }, (cur.history || []).map((e) => h("li", {}, h("strong", { text: evLabel[e.event] || e.event }), " \u00B7 ", h("span", { text: e.stage || "" }), " \u00B7 ", h("span", { class: "muted", text: local(e.ts) }),
@@ -1621,15 +1775,17 @@ async function openTask(t) {
     done && t.result ? h("details", {}, h("summary", { text: "Answer" }), h("pre", { class: "json", text: JSON.stringify(t.result, null, 2) })) : null].filter(Boolean), acts);
 }
 
-function scheduleEditDialog(s) {
+async function scheduleEditDialog(s) {
   const name = h("input", { value: s.name });
+  const runAs = await runAsSelect(s.run_as);
   const cal = h("select", { "aria-label": "Holiday calendar" }, h("option", { value: "", text: "(none)" }), (S.calendars || []).map((c) => h("option", { value: c.name, text: c.name })));
   cal.value = s.holiday_calendar || "";
   const owner = h("input", { value: s.created_by || "", placeholder: "user name" });
-  modal("Edit " + s.name, [h("label", {}, "Name", name), h("label", {}, "Skip the dates of a holiday calendar", cal), h("label", {}, "Owner (runs use the owner's permissions)", owner)],
+  modal("Edit " + s.name, [h("label", {}, "Name", name), h("label", {}, "Skip the dates of a holiday calendar", cal), h("label", {}, "Owner (runs use the owner's permissions)", owner),
+    h("label", {}, "Run as", runAs)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
-        const body = { name: name.value, holiday_calendar: cal.value || null };
+        const body = { name: name.value, holiday_calendar: cal.value || null, run_as: runAs.value || null };
         if (owner.value.trim() && owner.value.trim() !== s.created_by) body.owner = owner.value.trim();
         await api("PUT", "schedules/" + s.id, body); closeModal(); go("schedules");
       } catch (e) { toast(e.message, true); } } }, "Save")]);

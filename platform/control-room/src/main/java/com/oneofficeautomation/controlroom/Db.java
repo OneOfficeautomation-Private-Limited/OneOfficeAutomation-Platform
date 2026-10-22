@@ -239,6 +239,21 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX runs_created ON runs (created)",
     };
 
+    /**
+     * Version 6: run-as users for schedules and triggers, workflow run references, the code analysis policy and stored
+     * reports, and API tasks (an agent behind its own URL and token).
+     */
+    private static final String[] SCHEMA_V6 = {
+        "ALTER TABLE schedules ADD COLUMN run_as VARCHAR(80)",
+        "ALTER TABLE triggers ADD COLUMN run_as VARCHAR(80)",
+        "ALTER TABLE workflow_runs ADD COLUMN reference VARCHAR(200)",
+        "CREATE TABLE code_policy (id INT PRIMARY KEY, json_value VARCHAR(20000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE code_analysis (path VARCHAR(400) NOT NULL, version INT NOT NULL, errors INT NOT NULL, warnings INT NOT NULL, violations VARCHAR(100000) NOT NULL, " +
+            "analyzed TIMESTAMP NOT NULL, analyzed_by VARCHAR(80), PRIMARY KEY (path, version))",
+        "CREATE TABLE api_tasks (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, bot_path VARCHAR(400) NOT NULL, device_id VARCHAR(40), pool_id VARCHAR(40), " +
+            "token_hash VARCHAR(64) NOT NULL, timeout_seconds INT NOT NULL, enabled BOOLEAN NOT NULL, created_by VARCHAR(80) NOT NULL, created TIMESTAMP NOT NULL, last_used TIMESTAMP, calls INT NOT NULL)",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -264,6 +279,10 @@ public final class Db implements AutoCloseable {
             if (current < 5) {
                 for (String ddl : SCHEMA_V5) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (5)");
+            }
+            if (current < 6) {
+                for (String ddl : SCHEMA_V6) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (6)");
             }
             return null;
         });

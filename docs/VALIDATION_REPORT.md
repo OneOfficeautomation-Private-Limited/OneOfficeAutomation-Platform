@@ -500,3 +500,30 @@ Tests:
   - audit search by action prefix, and CSV;
   - Teams list.
 - **Java suites:** 478 tests and 1 skipped; all pass after one SQL layout fix that the architecture guard caught. `EnterpriseFeaturesTest` (AI governance count) failed once in the full run and passed on its own. It is the same intermittent test noted earlier, outside this change.
+
+
+# Validation report: platform gaps 9 to 14 (tokens, uniform API, scheduler extras, code analysis, process composer, API tasks)
+
+| Gap | Built |
+| --- | --- |
+| Token lifecycle | `POST /api/auth/token` exchanges an API key for a session token; `POST /api/auth/refresh` gives a new token and ends the old one; `GET /api/auth/token` verifies a token without extending it. |
+| Uniform API | Get one by id for users (with teams and default runner), roles, runner pools, schedules, triggers and runners. Delete a user (refused while they own things; rules naming them are cleaned up). Filters and paging for users (text, role, enabled) and runners (status, text). |
+| Scheduler extras | Run-as users on schedules (with or without a runner of their own) and triggers. Bulk enable, disable and change owner (`POST /api/schedules/bulk`). Edit a trigger's name, owner and run-as user (`PUT /api/triggers/{id}`). |
+| Code analysis | `CodeAnalysis.java`: an 11-rule policy, each rule switchable with its severity and settings. Analysis runs at check-in (blocking errors when enforced), on demand, and on a flow that is not stored. Reports are stored per version; a repository report is available as CSV. |
+| Process composer helpers | Workflow `start_form` (data checked like a submitted form), a reference on workflow runs, get a run by id or reference (with its tasks), and get the start form. |
+| API tasks | `ApiTasks.java`: a task per agent with its own token (hash stored, shown once, replaceable), runner or pool, and time limit. A call waits for the result (200) or returns 202 to poll. At most 8 calls wait at once, so the HTTP threads never all wait. |
+| Screens | API tasks page (create, address and token shown once with a curl example, switch on/off, new token, delete). Schedules: run-as user, ticks with Enable/Disable/Change owner. Triggers: Edit (name, owner, run as). Users: Delete. Agent repository: Code analysis (policy, report CSV) and each agent's report. Workflow start: start form fields and reference. |
+
+Tests:
+
+- **TokensSchedulingAnalysisApiTasksTest** (5 tests):
+  - key exchange, refresh, verify and bad keys over HTTP;
+  - run-as schedules and webhook triggers;
+  - bulk schedule changes;
+  - get-one routes and filters;
+  - user delete refused, then cleaned up;
+  - code analysis findings, the enforced policy blocking and allowing a check-in, a forbidden toolkit, and the CSV;
+  - start form checks and lookup by reference;
+  - API tasks over HTTP: 200 with outputs from a simulated runner, 202 past the limit, wrong or foreign token, replaced token, switched off.
+- **Command Center in the browser:** API task created and listed with its address; an agent's code analysis report; schedule bulk buttons; the policy saved through its dialog.
+- **Intermittent `EnterpriseFeaturesTest` explained and fixed.** The runner sent a run's result once. When the connection was dropped (an IOException with no message), the result, with its AI calls, was lost, and in production the run would have stayed "running". `Agent.reportResult` now tries up to 6 times with backoff; repeating is harmless because the Command Center ignores a result for a run that is no longer running. The Command Center also records a run's AI calls before marking it finished. **Java suites:** 483 tests, 0 failed, 1 skipped.

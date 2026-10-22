@@ -13,7 +13,7 @@ public final class Rbac {
             "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view",
                     "queues.view", "queues.work", "analytics.view"),
             "bot_creator", Set.of("repo.view", "repo.checkin", "repo.delete", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
-                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage", "analytics.view"),
+                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage", "analytics.view", "apitasks.manage"),
             "admin", Set.of("*"));
 
     /** Permissions only administrators have unless a custom role grants them. */

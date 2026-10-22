@@ -51,6 +51,7 @@ public final class Workflows {
             for (String k : List.of("if_true", "if_false", "next")) if (s.get(k) instanceof String t && !t.isBlank() && !t.equals("end") && !ids.contains(t)) p.add(Map.of("stage", id, "message", name + " points to a missing stage " + t));
             if (s.get("on_reject") instanceof String t && !List.of("end", "continue").contains(t) && !ids.contains(t)) p.add(Map.of("stage", id, "message", name + " points to a missing stage " + t));
         }
+        if (def.get("start_form") != null && !(def.get("start_form") instanceof String f && f.endsWith(".form.json"))) p.add(Map.of("message", "The start form must be a form (.form.json)"));
         return p;
     }
 
@@ -70,20 +71,56 @@ public final class Workflows {
     private static List<Map<String, Object>> stages(Map<String, Object> def) { return (List<Map<String, Object>>) (List<?>) def.getOrDefault("stages", List.of()); }
 
     /** Starts the live production version of a workflow with the given data. */
-    public Map<String, Object> start(User by, String path, Map<String, Object> data, String ip) {
+    public Map<String, Object> start(User by, String path, Map<String, Object> data, String ip) { return start(by, path, data, null, ip); }
+
+    /**
+     * As above with the request's reference (for example a ticket number), to find the run again. When the workflow has
+     * a start form, the data is checked against it like a submitted form.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> start(User by, String path, Map<String, Object> data, String reference, String ip) {
         cr.require(by, "runs.start", "start workflows");
         if (!isWorkflow(path)) throw new OoaException("CR.BAD_INPUT", path + " is not a workflow");
         Map<String, Object> c = cr.content(path, "production");
-        @SuppressWarnings("unchecked") Map<String, Object> def = (Map<String, Object>) c.get("flow");
+        Map<String, Object> def = (Map<String, Object>) c.get("flow");
         List<Map<String, Object>> st = stages(def);
         if (st.isEmpty()) throw new OoaException("WF.EMPTY", "The workflow has no stages");
-        String id = id("wf");
         Map<String, Object> d = new LinkedHashMap<>(data == null ? Map.of() : data);
-        db.update("INSERT INTO workflow_runs (id, path, version, status, stage, data, history, started_by, created, updated) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                id, path, c.get("version"), "running", st.get(0).get("id"), JsonLite.write(d), "[]", by.username(), now(), now());
-        cr.audit.record(by.username(), "workflow.start", "workflow", path, Map.of("run", id), "ok", ip);
+        if (def.get("start_form") instanceof String sf) d.putAll(checkAnswers((Map<String, Object>) cr.content(sf, "production").get("flow"), d));
+        String ref = reference == null || reference.isBlank() ? null : reference.trim();
+        if (ref != null && ref.length() > 200) throw new OoaException("CR.BAD_INPUT", "References have up to 200 characters");
+        String id = id("wf");
+        db.update("INSERT INTO workflow_runs (id, path, version, status, stage, data, history, started_by, created, updated, reference) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                id, path, c.get("version"), "running", st.get(0).get("id"), JsonLite.write(d), "[]", by.username(), now(), now(), ref);
+        cr.audit.record(by.username(), "workflow.start", "workflow", path, ref == null ? Map.of("run", id) : Map.of("run", id, "reference", ref), "ok", ip);
         advance(id);
-        return Map.of("id", id);
+        return ref == null ? Map.of("id", id) : Map.of("id", id, "reference", ref);
+    }
+
+    /** The form a workflow starts with (its fields), or none: then any starting data is taken as it is. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> startForm(User by, String path) {
+        cr.require(by, "runs.start", "start workflows");
+        if (!isWorkflow(path)) throw new OoaException("CR.BAD_INPUT", path + " is not a workflow");
+        Map<String, Object> def = (Map<String, Object>) cr.content(path, "production").get("flow");
+        if (!(def.get("start_form") instanceof String sf)) return Map.of("path", path, "form", Map.of());
+        Map<String, Object> form = (Map<String, Object>) cr.content(sf, "production").get("flow");
+        return Map.of("path", path, "form_path", sf, "form", form);
+    }
+
+    /** One workflow run, by id or by its reference (the newest with that reference). */
+    public Map<String, Object> run(User by, String id, String reference) {
+        cr.require(by, "runs.view", "view workflow runs");
+        Map<String, Object> r = id != null ? db.one("SELECT * FROM workflow_runs WHERE id = ?", id)
+                : db.one("SELECT * FROM workflow_runs WHERE reference = ? ORDER BY created DESC LIMIT 1", reference);
+        if (r == null) throw notFound("Workflow run");
+        Map<String, Object> m = new LinkedHashMap<>(r);
+        @SuppressWarnings("unchecked") Map<String, Object> d = (Map<String, Object>) JsonLite.parse((String) r.get("data"));
+        m.put("data", visible(d));
+        m.put("history", JsonLite.parse((String) r.get("history")));
+        m.put("error", r.get("error") == null ? null : JsonLite.parse((String) r.get("error")));
+        m.put("tasks", db.query("SELECT id, stage, kind, title, assignee, status, claimed_by, outcome, created, completed FROM human_tasks WHERE workflow_run_id = ? ORDER BY created", r.get("id")));
+        return m;
     }
 
     private void history(Map<String, Object> wf, List<Object> h, String stage, String event, Object detail) {

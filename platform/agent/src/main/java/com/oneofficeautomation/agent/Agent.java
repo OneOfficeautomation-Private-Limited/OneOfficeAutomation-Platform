@@ -159,10 +159,24 @@ public final class Agent {
                     : Map.of("status", "failed", "error", Map.of("code", "AGENT.WORKER_CRASHED", "message", "The agent's worker process ended unexpectedly (exit " + w.proc.exitValue() + ")",
                             "suggestedFix", "See the agent log " + logFile + (tail.isBlank() ? "" : ": " + tail)));
         }
-        try { client.post("runs/" + runId + "/finish", Map.of("result", result)); }
-        catch (OoaException e) { log("Could not report the result of " + runId + ": " + e.getMessage()); }
+        reportResult(runId, result);
         log("Finished run " + runId + ": " + result.get("status"));
         active = null;
+    }
+
+    /**
+     * Sends a run's result, trying again when the Command Center cannot be reached (a dropped connection, a restart):
+     * 6 attempts over about a minute. Sending it twice is harmless, as the Command Center ignores a result for a run
+     * that is no longer running.
+     */
+    void reportResult(String runId, Map<String, Object> result) {
+        for (int attempt = 1; ; attempt++) {
+            try { client.post("runs/" + runId + "/finish", Map.of("result", result)); return; }
+            catch (OoaException e) {
+                if (!"AGENT.UNREACHABLE".equals(e.code()) || attempt >= 6) { log("Could not report the result of " + runId + ": " + e.getMessage()); return; }
+                try { Thread.sleep(Math.min(30_000L, 1000L << (attempt - 1))); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
