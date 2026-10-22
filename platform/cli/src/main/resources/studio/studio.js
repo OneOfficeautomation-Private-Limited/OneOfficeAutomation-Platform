@@ -42,6 +42,10 @@ const ICONS = {
   template: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7", home: "M3 11l9-8 9 8M5 10v10h14V10", plus: "M12 5v14M5 12h14",
   image: "M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M15 9.5a1.5 1.5 0 1 0 0-.01", terminal: "M3 5h18v14H3zM7 10l3 2-3 2M12 15h5",
   api: "M4 12h4l2-6 4 12 2-6h4", key: "M15 7a4 4 0 1 1-3.9 5H3v3h3v3h3v-3h2.1A4 4 0 0 1 15 7z", play: "M7 4l13 8-13 8z",
+  slides: "M3 4h18v12H3zM12 16v4M8 20h8M7 8h6M7 11h4", mouse: "M12 3a5 5 0 0 0-5 5v8a5 5 0 0 0 10 0V8a5 5 0 0 0-5-5zM12 7v3",
+  printer: "M6 9V3h12v6M6 17H4v-6h16v6h-2M6 14h12v7H6z", sound: "M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11",
+  chart: "M4 20V10M10 20V4M16 20v-7M2 20h20", transfer: "M4 8h14l-3-3M20 16H6l3 3", chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
+  users: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3 3-5 6-5s6 2 6 5M16 5a3 3 0 0 1 0 6M18 15c2 .5 3 2 3 5", more: "M12 5v.5M12 12v.5M12 19v.5",
 };
 function svg(name, cls) {
   const s = document.createElementNS(SVGNS, "svg");
@@ -58,34 +62,108 @@ function tile(icon, color, cls) {
   t.style.setProperty("--c", color);
   return t;
 }
-const CATS = {
-  logic: { name: "Logic and flow", color: "#7c3aed", icon: "branch" }, data: { name: "Data and variables", color: "#2563eb", icon: "data" },
-  files: { name: "Files and documents", color: "#059669", icon: "file" }, office: { name: "Excel, Word and PDF", color: "#16a34a", icon: "sheet" },
-  web: { name: "Browser and web", color: "#ea580c", icon: "globe" }, desktop: { name: "Desktop and applications", color: "#d97706", icon: "desktop" },
-  integration: { name: "APIs and databases", color: "#4f46e5", icon: "plug" }, email: { name: "Email and messaging", color: "#0891b2", icon: "mail" },
-  cloud: { name: "Cloud applications", color: "#0284c7", icon: "cloud" }, ai: { name: "AI", color: "#db2777", icon: "spark" },
-  scripts: { name: "Scripts", color: "#0f766e", icon: "code" }, workload: { name: "Work queues and insights", color: "#b45309", icon: "queue" },
-  system: { name: "System and security", color: "#475569", icon: "gear" }, other: { name: "Other", color: "#64748b", icon: "star" },
-};
-const PKG_CAT = {
-  core: "logic", "ooa.boolean": "data", "ooa.number": "data", "ooa.string": "data", "ooa.datetime": "data", "ooa.list": "data", "ooa.dictionary": "data",
-  "ooa.datatable": "data", "ooa.json": "data", "ooa.xml": "data", "ooa.csv": "data", "ooa.global_values": "data", "ooa.run_context": "data",
-  "ooa.file": "files", "ooa.folder": "files", "ooa.log": "files", "ooa.excel": "office", "ooa.excel_desktop": "office", "ooa.word": "office", "ooa.pdf": "office",
-  "ooa.browser": "web", "ooa.desktop": "desktop", "ooa.window": "desktop", "ooa.image": "desktop", "ooa.ocr": "desktop", "ooa.application": "desktop",
-  "ooa.terminal": "desktop", "ooa.sap": "desktop", "ooa.dll": "desktop", "ooa.sound": "desktop", "ooa.printer": "desktop",
-  "ooa.rest": "integration", "ooa.connector": "integration", "ooa.soap": "integration", "ooa.database": "integration", "ooa.network": "integration", "ooa.file_transfer": "integration",
-  "ooa.email": "email", "ooa.slack": "email", "ooa.microsoft365": "cloud", "ooa.google": "cloud", "ooa.salesforce": "cloud", "ooa.servicenow": "cloud",
-  "ooa.jira": "cloud", "ooa.workday": "cloud", "ooa.okta": "cloud", "ooa.box": "cloud", "ooa.docusign": "cloud",
-  "ooa.snowflake": "integration", "ooa.databricks": "integration", "ooa.kafka": "integration", "ooa.genai": "ai", "ooa.ai_skills": "ai", "ooa.ai_agent": "ai", "ooa.script": "scripts",
-  "ooa.workload": "workload", "ooa.insights": "workload", "ooa.system": "system", "ooa.services": "system", "ooa.crypto": "system", "ooa.pgp": "system",
-  "ooa.active_directory": "system", "ooa.fuzzy": "data", "ooa.currency": "data", "ooa.triggerloop": "logic", "ooa.credential_manager": "system",
-};
-const PKG_ICON = {
-  "ooa.string": "text", "ooa.number": "hash", "ooa.boolean": "toggle", "ooa.datetime": "calendar", "ooa.list": "list", "ooa.dictionary": "braces",
-  "ooa.datatable": "table", "ooa.csv": "table", "ooa.json": "braces", "ooa.xml": "code", "ooa.folder": "folder", "ooa.log": "note", "ooa.word": "doc",
-  "ooa.pdf": "doc", "ooa.window": "window", "ooa.image": "image", "ooa.ocr": "image", "ooa.terminal": "terminal", "ooa.database": "data", "ooa.rest": "api",
-  "ooa.soap": "api", "ooa.ai_agent": "bot", "ooa.crypto": "lock", "ooa.pgp": "key", "ooa.active_directory": "key", "ooa.global_values": "globe",
-};
+/*
+ * Action groups in the Actions panel: one group per technology, never a mix. Each row is
+ * [group id, group name, icon, colour, section, toolkit ids...]. Groups appear in this order under their section heading.
+ * A toolkit that holds several technologies is split by action in groupOf() (Scripts: one group per language).
+ * A toolkit that is not listed (a new or custom one) gets a group of its own, named after the toolkit.
+ */
+const GROUP_LIST = [
+  ["logic", "Logic and flow", "branch", "#7c3aed", "Flow and control", "core"],
+  ["triggerloop", "Trigger loop", "loop", "#6d28d9", "Flow and control", "ooa.triggerloop"],
+  ["interrupts", "Interrupt handlers", "stop", "#9333ea", "Flow and control", "ooa.interrupts"],
+  ["string", "Text", "text", "#2563eb", "Data and variables", "ooa.string"],
+  ["number", "Number", "hash", "#059669", "Data and variables", "ooa.number"],
+  ["boolean", "True or false (Boolean)", "toggle", "#7c3aed", "Data and variables", "ooa.boolean"],
+  ["datetime", "Date and time", "calendar", "#d97706", "Data and variables", "ooa.datetime"],
+  ["list", "List", "list", "#0891b2", "Data and variables", "ooa.list"],
+  ["dictionary", "Dictionary", "braces", "#db2777", "Data and variables", "ooa.dictionary"],
+  ["datatable", "Data table", "table", "#16a34a", "Data and variables", "ooa.datatable"],
+  ["currency", "Currency", "hash", "#0d9488", "Data and variables", "ooa.currency"],
+  ["fuzzy", "Fuzzy match", "text", "#4f46e5", "Data and variables", "ooa.fuzzy"],
+  ["global_values", "Shared values", "globe", "#0284c7", "Data and variables", "ooa.global_values"],
+  ["run_context", "Run context", "gear", "#475569", "Data and variables", "ooa.run_context"],
+  ["json", "JSON", "braces", "#ca8a04", "Data formats", "ooa.json"],
+  ["xml", "XML", "code", "#c2410c", "Data formats", "ooa.xml"],
+  ["csv", "CSV / Text files", "table", "#15803d", "Data formats", "ooa.csv"],
+  ["file", "Files", "file", "#059669", "Files and folders", "ooa.file"],
+  ["folder", "Folders", "folder", "#ca8a04", "Files and folders", "ooa.folder"],
+  ["log", "Log to file", "note", "#64748b", "Files and folders", "ooa.log"],
+  ["excel", "Excel", "sheet", "#16a34a", "Office documents", "ooa.excel"],
+  ["excel_desktop", "Excel desktop", "sheet", "#166534", "Office documents", "ooa.excel_desktop"],
+  ["word", "Word", "doc", "#2563eb", "Office documents", "ooa.word"],
+  ["powerpoint", "PowerPoint", "slides", "#c2410c", "Office documents", "ooa.powerpoint"],
+  ["pdf", "PDF", "doc", "#dc2626", "Office documents", "ooa.pdf"],
+  ["browser", "Browser", "globe", "#ea580c", "Web and desktop", "ooa.browser"],
+  ["desktop_ui", "Capture / Desktop objects", "cursor", "#d97706", "Web and desktop", "ooa.desktop_ui"],
+  ["window", "Window", "window", "#b45309", "Web and desktop", "ooa.window"],
+  ["mouse_keyboard", "Mouse and keyboard", "mouse", "#a16207", "Web and desktop", "ooa.desktop"],
+  ["application", "Application", "desktop", "#9a3412", "Web and desktop", "ooa.application"],
+  ["image", "Image recognition", "image", "#be185d", "Web and desktop", "ooa.image"],
+  ["ocr", "OCR (read text in images)", "image", "#9d174d", "Web and desktop", "ooa.ocr"],
+  ["terminal", "Terminal emulator", "terminal", "#0f766e", "Web and desktop", "ooa.terminal"],
+  ["sap", "SAP GUI", "desktop", "#1d4ed8", "Web and desktop", "ooa.sap"],
+  ["dll", "DLL", "code", "#475569", "Web and desktop", "ooa.dll"],
+  ["printer", "Printer", "printer", "#57534e", "Web and desktop", "ooa.printer"],
+  ["sound", "Sound", "sound", "#78716c", "Web and desktop", "ooa.sound"],
+  ["rest", "REST web service", "api", "#4f46e5", "APIs and databases", "ooa.rest"],
+  ["soap", "SOAP web service", "api", "#6d28d9", "APIs and databases", "ooa.soap"],
+  ["database", "Database", "data", "#0369a1", "APIs and databases", "ooa.database"],
+  ["connector", "Custom connectors", "plug", "#7c3aed", "APIs and databases", "ooa.connector"],
+  ["file_transfer", "FTP / SFTP", "transfer", "#0e7490", "APIs and databases", "ooa.file_transfer"],
+  ["network", "Network", "globe", "#0f766e", "APIs and databases", "ooa.network"],
+  ["snowflake", "Snowflake", "data", "#0284c7", "APIs and databases", "ooa.snowflake"],
+  ["databricks", "Databricks", "data", "#dc2626", "APIs and databases", "ooa.databricks"],
+  ["kafka", "Kafka", "queue", "#334155", "APIs and databases", "ooa.kafka"],
+  ["email", "Email", "mail", "#0891b2", "Email and collaboration", "ooa.email"],
+  ["microsoft365", "Microsoft 365", "cloud", "#2563eb", "Email and collaboration", "ooa.microsoft365"],
+  ["google", "Google Workspace", "cloud", "#16a34a", "Email and collaboration", "ooa.google"],
+  ["slack", "Slack", "chat", "#7e22ce", "Email and collaboration", "ooa.slack"],
+  ["salesforce", "Salesforce", "cloud", "#0284c7", "Business applications", "ooa.salesforce"],
+  ["servicenow", "ServiceNow", "cloud", "#15803d", "Business applications", "ooa.servicenow"],
+  ["jira", "Jira", "cloud", "#1d4ed8", "Business applications", "ooa.jira"],
+  ["workday", "Workday", "cloud", "#ea580c", "Business applications", "ooa.workday"],
+  ["okta", "Okta", "key", "#1e40af", "Business applications", "ooa.okta"],
+  ["box", "Box", "cloud", "#0369a1", "Business applications", "ooa.box"],
+  ["docusign", "DocuSign", "doc", "#ca8a04", "Business applications", "ooa.docusign"],
+  ["github", "GitHub", "code", "#1f2937", "Business applications", "ooa.github"],
+  ["asana", "Asana", "list", "#e11d48", "Business applications", "ooa.asana"],
+  ["azure_devops", "Azure DevOps", "cloud", "#0078d4", "Business applications", "ooa.azure_devops"],
+  ["zendesk", "Zendesk", "chat", "#065f46", "Business applications", "ooa.zendesk"],
+  ["genai", "Generative AI", "spark", "#db2777", "AI", "ooa.genai"],
+  ["ai_skills", "Prompt Skills", "spark", "#c026d3", "AI", "ooa.ai_skills"],
+  ["ai_agent", "AI agents", "bot", "#9333ea", "AI", "ooa.ai_agent"],
+  ["python", "Python", "code", "#2563eb", "Scripts", "script:python"],
+  ["javascript", "JavaScript", "code", "#ca8a04", "Scripts", "script:javascript"],
+  ["vbscript", "VBScript and VBA", "code", "#7c3aed", "Scripts", "script:vbscript"],
+  ["powershell", "PowerShell", "terminal", "#1e40af", "Scripts", "script:powershell"],
+  ["scripts_other", "Other scripts", "code", "#0f766e", "Scripts", "script:other"],
+  ["workload", "Work queues", "queue", "#b45309", "Operations", "ooa.workload"],
+  ["insights", "Insights", "chart", "#a16207", "Operations", "ooa.insights"],
+  ["system", "System", "gear", "#475569", "System and security", "ooa.system"],
+  ["services", "Windows services", "gear", "#334155", "System and security", "ooa.services"],
+  ["crypto", "Hash, encryption and encoding", "lock", "#b91c1c", "System and security", "ooa.crypto"],
+  ["pgp", "PGP", "key", "#9f1239", "System and security", "ooa.pgp"],
+  ["active_directory", "Active Directory", "users", "#1e3a8a", "System and security", "ooa.active_directory"],
+  ["credential_manager", "Windows Credential Manager", "lock", "#7f1d1d", "System and security", "ooa.credential_manager"],
+];
+const CATS = {}, PKG_CAT = {};
+for (const [id, name, icon, color, section, ...pkgs] of GROUP_LIST) { CATS[id] = { name, icon, color, section }; for (const p of pkgs) PKG_CAT[p] = id; }
+/** Group id of an action address such as "ooa.excel/open". Scripts split by language, read from the action id. */
+function groupOf(addr) {
+  const [pkg, act = ""] = String(addr || "").split("/");
+  if (pkg === "ooa.script") {
+    const lang = /python/.test(act) ? "python" : /javascript|node/.test(act) ? "javascript" : /vbscript|vba|macro/.test(act) ? "vbscript" : /powershell/.test(act) ? "powershell" : "other";
+    return PKG_CAT["script:" + lang];
+  }
+  return PKG_CAT[pkg] || "pkg:" + pkg;
+}
+/** Name, icon, colour and section of a group; toolkits without a listed group get one named after the toolkit. */
+function groupMeta(id) {
+  if (CATS[id]) return CATS[id];
+  const pkg = (state.packages || []).find((p) => "pkg:" + p.id === id);
+  return { name: pkg ? pkg.name : String(id).replace(/^pkg:/, ""), icon: "star", color: "#64748b", section: "More toolkits" };
+}
 const CORE_STYLE = {
   "core/if": { color: "#7c3aed", icon: "branch" }, "core/loop": { color: "#ea580c", icon: "loop" }, "core/try": { color: "#dc2626", icon: "shield" },
   "core/throw": { color: "#dc2626", icon: "stop" }, "core/set": { color: "#0d9488", icon: "varx" }, "core/log": { color: "#475569", icon: "note" },
@@ -95,16 +173,17 @@ const CORE_STYLE = {
 };
 /** Colour, icon and category of a command address such as "ooa.excel/open". */
 function styleFor(addr) {
-  const pkg = String(addr || "").split("/")[0];
-  const cat = PKG_CAT[pkg] || "other";
+  const cat = groupOf(addr), meta = groupMeta(cat);
   const core = CORE_STYLE[addr];
-  return { color: core ? core.color : CATS[cat].color, icon: core ? core.icon : PKG_ICON[pkg] || CATS[cat].icon, cat };
+  return { color: core ? core.color : meta.color, icon: core ? core.icon : meta.icon, cat };
 }
 const state = {
   packages: [], specs: new Map(), flow: null, file: null,
   tree: null, workspace: "", expanded: new Set([""]), treeSel: null, dragNode: null, dragStep: null,
   groupsOpen: new Set(), triggers: [], triggerLog: [], running: false, runStarted: 0, side: "explorer",
   multi: new Set(), history: [], future: [], lastSnapshot: null, clipboard: null,
+  anchorId: null,     // step last clicked: Shift+click selects the range from it
+  treeMulti: new Set(), treeAnchor: null, treeClip: null,   // Explorer multi-select and its Copy / Cut clipboard
   live: null, liveSteps: { running: null, done: new Set(), failed: null }, builtins: null, lastInput: null,
   selected: null,     // path of the selected step, e.g. ["steps", 0, "children", 1]
   target: null,       // path of a list chosen as insertion point (a container section)
@@ -227,14 +306,30 @@ function showView(mode) {
   $("btn-debug").hidden = mode !== "bot";
   $("btn-assistant").hidden = mode !== "bot";
   $("btn-save").hidden = mode === "home";
+  $("btn-close").hidden = mode === "home";
   $("btn-run").hidden = !(mode === "bot" || (mode === "item" && state.item && state.item.type === "script"));
   if (mode === "home") renderHome();
   renderCrumbs();
 }
 function showEditor(open) { showView(open ? "bot" : "home"); }
 
-function goHome() {
-  if (state.dirty && !confirm("Discard unsaved changes?")) return;
+/** Home and Close: asks to save unsaved changes first, then returns to the Automation home. */
+function goHome() { closeItem(); }
+
+function closeItem() {
+  if (!state.flow && !state.item) { goHomeNow(); return; }
+  if (!state.dirty) { goHomeNow(); return; }
+  const name = state.file ? displayName({ name: state.file, type: state.item ? state.item.type : "bot" }) : "this item";
+  openDialog("Save changes?", h("p", { text: "Save the changes to " + name + " before closing it?" }), [
+    h("button", { type: "button", class: "primary", id: "btn-close-save", onclick: async () => {
+      closeDialog();
+      await save();
+      if (!state.dirty) goHomeNow();
+    } }, "Save"),
+    h("button", { type: "button", id: "btn-close-discard", onclick: () => { closeDialog(); setDirty(false); goHomeNow(); } }, "Don't save")]);
+}
+
+function goHomeNow() {
   state.flow = null; state.file = null; state.item = null; state.selected = null; state.multi = new Set(); state.problems = [];
   setDirty(false);
   showView("home");
@@ -307,11 +402,27 @@ function renderTree() {
   const walk = (node, depth) => {
     const isFolder = node.type === "folder";
     const open = state.expanded.has(node.path);
+    const picked = state.treeMulti.has(node.path) || state.treeSel === node.path;
     const row = h("div", {
-      class: "node" + (state.treeSel === node.path ? " selected" : "") + (node.path === state.file ? " open-bot" : ""),
+      class: "node" + (picked ? " selected" : "") + (state.treeMulti.size > 1 && state.treeMulti.has(node.path) ? " multi" : "") + (node.path === state.file ? " open-bot" : "")
+        + (state.treeClip && state.treeClip.mode === "cut" && state.treeClip.paths.includes(node.path) ? " cut" : ""),
       role: "treeitem", tabindex: "0", "data-path": node.path, draggable: node.path !== "" ? "true" : null, title: node.path || state.workspace,
-      onclick: () => onNodeClick(node),
-      onkeydown: (e) => { if (e.key === "Enter") onNodeClick(node); },
+      "aria-selected": String(picked), "aria-expanded": isFolder ? String(open) : null,
+      onclick: (e) => onNodeRowClick(e, node),
+      oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); showTreeMenu(e, node, null); },
+      onkeydown: (e) => {
+        if (e.target !== row) return;
+        if (e.key === "Enter") onNodeClick(node);
+        else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); showTreeMenu(e, node, row.querySelector(".node-menu-btn")); }
+        else if (e.key === "Delete") { e.preventDefault(); deleteSelectedNode(); }
+        else if (e.key === "F2") { e.preventDefault(); renameSelected(); }
+        else if ((e.ctrlKey || e.metaKey) && ["c", "x", "v"].includes(e.key.toLowerCase())) {
+          e.preventDefault(); e.stopPropagation();
+          const k = e.key.toLowerCase();
+          if (!state.treeMulti.has(node.path)) { state.treeMulti = new Set([node.path]); state.treeSel = node.path; }
+          if (k === "c") treeCopy("copy"); else if (k === "x") treeCopy("cut"); else treePaste(folderOf(node));
+        }
+      },
       ondragstart: (e) => { state.dragNode = node.path; e.dataTransfer.setData("text/x-ooa-node", node.path); e.dataTransfer.effectAllowed = "move"; },
       ondragend: () => { state.dragNode = null; },
     },
@@ -319,6 +430,10 @@ function renderTree() {
       itemTile(node),
       h("span", { class: "nm", text: node.path === "" ? "Workspace" : displayName(node) }),
       node.type === "file" ? h("span", { class: "size", text: fmtSize(node.size) }) : null);
+    const menuBtn = h("button", { type: "button", class: "node-menu-btn", "aria-label": "Actions for " + (node.path || "Workspace"), "aria-haspopup": "menu", title: "More actions",
+      onclick: (e) => { e.stopPropagation(); showTreeMenu(e, node, menuBtn); } }, svg("more"));
+    menuBtn.draggable = false;
+    row.append(menuBtn);
     row.style.paddingLeft = 6 + depth * 14 + "px";
     if (isFolder) {
       row.addEventListener("dragover", (e) => {
@@ -326,7 +441,11 @@ function renderTree() {
         e.preventDefault(); row.classList.add("drop-ok");
       });
       row.addEventListener("dragleave", () => row.classList.remove("drop-ok"));
-      row.addEventListener("drop", (e) => { e.preventDefault(); row.classList.remove("drop-ok"); moveNode(e.dataTransfer.getData("text/x-ooa-node") || state.dragNode, node.path); });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault(); row.classList.remove("drop-ok");
+        const from = e.dataTransfer.getData("text/x-ooa-node") || state.dragNode;
+        if (from && state.treeMulti.size > 1 && state.treeMulti.has(from)) moveNodes(selectedNodePaths(), node.path); else moveNode(from, node.path);
+      });
     }
     rows.push(row);
     if (isFolder && open) for (const c of node.children || []) walk(c, depth + 1);
@@ -343,6 +462,181 @@ function onNodeClick(node) {
   else if (node.type === "bot") { renderTree(); openBot(node.path).catch((e) => toast(e.message, true)); }
   else if (node.type !== "file" || EDITABLE_FILE.test(node.name)) { renderTree(); openItem(node.path); }
   else { renderTree(); toast(node.name + " (" + fmtSize(node.size) + "). Agents can read this file using its path: " + node.path); }
+}
+
+/** Explorer selection: a plain click selects and opens, Ctrl+click adds or removes, Shift+click selects the visible range. */
+function onNodeRowClick(e, node) {
+  if (e.ctrlKey || e.metaKey) {
+    if (!state.treeMulti.size && state.treeSel) state.treeMulti.add(state.treeSel);
+    if (state.treeMulti.has(node.path)) state.treeMulti.delete(node.path); else state.treeMulti.add(node.path);
+    state.treeSel = state.treeMulti.has(node.path) ? node.path : [...state.treeMulti].pop() || null;
+    state.treeAnchor = node.path;
+    renderTree();
+    return;
+  }
+  if (e.shiftKey && (state.treeAnchor !== null || state.treeSel !== null)) {
+    const order = [...$("tree").querySelectorAll(".node")].map((r) => r.dataset.path);
+    const a = order.indexOf(state.treeAnchor !== null ? state.treeAnchor : state.treeSel), b = order.indexOf(node.path);
+    if (a >= 0 && b >= 0) {
+      state.treeMulti = new Set(order.slice(Math.min(a, b), Math.max(a, b) + 1).filter((p) => p !== ""));
+      state.treeSel = node.path;
+      renderTree();
+      return;
+    }
+  }
+  state.treeMulti = new Set([node.path]);
+  state.treeAnchor = node.path;
+  onNodeClick(node);
+}
+
+/** Selected Explorer paths, leaving out the workspace itself and items whose folder is also selected. */
+function selectedNodePaths() {
+  const all = (state.treeMulti.size ? [...state.treeMulti] : state.treeSel !== null ? [state.treeSel] : []).filter((p) => p && nodeByPath(p));
+  return all.filter((p) => !all.some((q) => q !== p && p.startsWith(q + "/")));
+}
+
+/** The folder an Explorer item stands for: itself, or the folder it is in. */
+function folderOf(node) { return !node ? "" : node.type === "folder" ? node.path : parentOf(node.path); }
+
+/** Right-click or ⋮ on an Explorer item. It acts on the selection, or on the clicked item when that is not selected. */
+function showTreeMenu(e, node, opener) {
+  if (!state.treeMulti.has(node.path)) { state.treeMulti = new Set(node.path ? [node.path] : []); state.treeAnchor = node.path; }
+  state.treeSel = node.path;
+  renderTree();
+  const paths = selectedNodePaths(), n = paths.length, here = folderOf(node);
+  const many = n > 1 ? " " + n + " items" : "";
+  const inFolder = (fn) => () => { state.treeSel = here; fn(); };
+  let x = e.clientX, y = e.clientY;
+  if (opener && (e.type !== "contextmenu" || (!x && !y))) { const r = opener.getBoundingClientRect(); x = r.left; y = r.bottom + 2; }
+  const rowEl = document.querySelector('#tree .node[data-path="' + CSS.escape(node.path) + '"]');
+  openMenu([
+    ["New folder", "", inFolder(newFolderHere)],
+    ["New agent here", "", inFolder(() => newBotHere("TaskBot"))],
+    ["New form here", "", inFolder(() => newItemHere("form"))],
+    ["New workflow here", "", inFolder(() => newItemHere("process"))],
+    ["New Python script here", "", inFolder(() => newItemHere("script-python"))],
+    ["New PowerShell script here", "", inFolder(() => newItemHere("script-powershell"))],
+    "-",
+    ["Rename", "F2", renameSelected, n === 1],
+    ["Copy" + many, "Ctrl+C", () => treeCopy("copy"), n > 0],
+    ["Cut" + many, "Ctrl+X", () => treeCopy("cut"), n > 0],
+    ["Paste" + (state.treeClip ? " " + state.treeClip.paths.length + (state.treeClip.paths.length === 1 ? " item" : " items") : ""), "Ctrl+V", () => treePaste(here), !!state.treeClip],
+    ["Duplicate" + many, "", treeDuplicate, n > 0],
+    ["Delete" + many, "Del", deleteSelectedNode, n > 0],
+    "-",
+    ["Move to…", "", treeMoveTo, n > 0],
+    ["Copy path", "", () => copyPath(node.path)],
+    ["Open in File Explorer", "", () => revealNode(node.path)],
+    "-",
+    ["Upload file(s)…", "", () => uploadInto(here)],
+    ["Download" + many, "", () => downloadNodes(n ? paths : [node.path])],
+  ], x, y, opener || rowEl, "Explorer actions");
+}
+
+function treeCopy(mode) {
+  const paths = selectedNodePaths();
+  if (!paths.length) { toast("Select files or folders first.", true); return; }
+  state.treeClip = { mode, paths };
+  renderTree();
+  toast((mode === "cut" ? "Cut " : "Copied ") + paths.length + (paths.length === 1 ? " item" : " items") + ". Choose Paste on a folder.");
+}
+
+/** Pastes the Explorer clipboard into a folder: copies, or moves after Cut. The open agent follows a move. */
+async function treePaste(folder) {
+  const clip = state.treeClip;
+  if (!clip) { toast("Copy or cut files first.", true); return; }
+  const done = [];
+  for (const p of clip.paths) {
+    if (clip.mode === "cut" && parentOf(p) === folder) continue;
+    try {
+      const r = await api("POST", "files/" + (clip.mode === "cut" ? "move" : "copy"), { path: p, to: folder });
+      done.push(r.path);
+      if (clip.mode === "cut") afterPathChange(p, r.path);
+    } catch (e) { toast(e.message, true); }
+  }
+  if (clip.mode === "cut") state.treeClip = null;
+  state.expanded.add(folder);
+  await loadTree();
+  if (done.length) { state.treeMulti = new Set(done); state.treeSel = done[done.length - 1]; renderTree(); toast((clip.mode === "cut" ? "Moved " : "Pasted ") + done.length + (done.length === 1 ? " item" : " items")); }
+}
+
+async function treeDuplicate() {
+  const done = [];
+  for (const p of selectedNodePaths()) {
+    try { done.push((await api("POST", "files/duplicate", { path: p })).path); } catch (e) { toast(e.message, true); }
+  }
+  await loadTree();
+  if (done.length) { state.treeMulti = new Set(done); state.treeSel = done[done.length - 1]; renderTree(); toast("Duplicated " + done.length + (done.length === 1 ? " item" : " items")); }
+}
+
+function allFolders(node = state.tree, out = []) {
+  if (!node) return out;
+  if (node.type === "folder") out.push(node.path);
+  for (const c of node.children || []) allFolders(c, out);
+  return out;
+}
+
+/** Move to…: choose a folder in a dialog. */
+function treeMoveTo() {
+  const paths = selectedNodePaths();
+  if (!paths.length) return;
+  const sel = h("select", { "aria-label": "Destination folder" },
+    allFolders().filter((f) => !paths.some((p) => f === p || f.startsWith(p + "/"))).map((f) => h("option", { value: f, text: f === "" ? "Workspace (top level)" : f })));
+  openDialog("Move " + (paths.length === 1 ? "'" + paths[0].split("/").pop() + "'" : paths.length + " items"), [field("To folder", sel)],
+    [h("button", { type: "button", class: "primary", onclick: () => { closeDialog(); moveNodes(paths, sel.value); } }, "Move")]);
+}
+
+async function moveNodes(paths, toFolder) {
+  let n = 0;
+  for (const p of paths) {
+    if (parentOf(p) === toFolder || toFolder === p || toFolder.startsWith(p + "/")) continue;
+    try { const r = await api("POST", "files/move", { path: p, to: toFolder }); afterPathChange(p, r.path); n++; } catch (e) { toast(e.message, true); }
+  }
+  state.expanded.add(toFolder);
+  await loadTree();
+  if (n) toast("Moved " + n + (n === 1 ? " item" : " items"));
+}
+
+/** Copy path: the full path on this computer. */
+function copyPath(rel) {
+  const win = /\\/.test(state.workspace || "");
+  const full = (state.workspace || "") + (rel ? (win ? "\\" : "/") + (win ? rel.replace(/\//g, "\\") : rel) : "");
+  try { navigator.clipboard.writeText(full); toast("Copied " + full); } catch (_) { toast(full); }
+}
+
+async function revealNode(rel) {
+  try { await api("POST", "files/reveal", { path: rel }); } catch (e) { toast(e.message, true); }
+}
+
+/** Upload file(s): sends each chosen file as raw bytes to files/upload; a taken name gets " (2)". */
+function uploadInto(folder) {
+  const input = h("input", { type: "file", multiple: true, hidden: true });
+  input.addEventListener("change", async () => {
+    const files = [...(input.files || [])];
+    input.remove();
+    let ok = 0;
+    for (const f of files) {
+      try {
+        const res = await fetch("api/files/upload?parent=" + encodeURIComponent(folder) + "&name=" + encodeURIComponent(f.name), { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: f });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((data.error && data.error.message) || res.statusText);
+        ok++;
+      } catch (e) { toast(f.name + ": " + e.message, true); }
+    }
+    state.expanded.add(folder);
+    await loadTree();
+    if (ok) toast("Uploaded " + ok + (ok === 1 ? " file" : " files") + " to " + (folder || "the workspace"));
+  });
+  document.body.appendChild(input);
+  input.click();
+}
+
+/** Download: files as they are, folders as .zip. */
+function downloadNodes(paths) {
+  for (const p of paths) {
+    const a = h("a", { href: "api/files/download?path=" + encodeURIComponent(p), download: (p.split("/").pop() || "workspace") + (nodeByPath(p) && nodeByPath(p).type === "folder" ? ".zip" : "") });
+    document.body.appendChild(a); a.click(); a.remove();
+  }
 }
 
 function expandTo(path) { let p = parentOf(path); while (true) { state.expanded.add(p); if (!p) break; p = parentOf(p); } }
@@ -383,15 +677,24 @@ async function renameSelected() {
   if (path) afterPathChange(node.path, path);
 }
 
+/** Delete moves the selected items (one or several) to the workspace trash, after a confirmation. */
 async function deleteSelectedNode() {
-  const node = state.treeSel && nodeByPath(state.treeSel);
-  if (!node || node.path === "") { toast("Select a file or folder to delete.", true); return; }
-  if (!confirm("Move '" + node.name + "'" + (node.type === "folder" ? " and everything in it" : "") + " to the workspace trash?")) return;
-  const path = await fileOp("delete", { path: node.path }, "Moved to trash (workspace .trash folder)");
-  if (path !== null) {
-    if (state.file && (state.file === node.path || state.file.startsWith(node.path + "/"))) { state.file = null; state.flow = null; state.item = null; setDirty(false); showEditor(false); renderProps(); }
-    state.treeSel = null; renderTree();
+  const paths = selectedNodePaths();
+  if (!paths.length) { toast("Select a file or folder to delete.", true); return; }
+  const first = nodeByPath(paths[0]);
+  const what = paths.length === 1 ? "'" + first.name + "'" + (first.type === "folder" ? " and everything in it" : "") : paths.length + " items";
+  if (!confirm("Move " + what + " to the workspace trash?")) return;
+  let n = 0;
+  for (const p of paths) {
+    try {
+      await api("POST", "files/delete", { path: p });
+      n++;
+      if (state.file && (state.file === p || state.file.startsWith(p + "/"))) { state.file = null; state.flow = null; state.item = null; setDirty(false); showEditor(false); renderProps(); }
+    } catch (e) { toast(e.message, true); }
   }
+  state.treeSel = null; state.treeMulti = new Set();
+  await loadTree();
+  if (n) toast(n === 1 ? "Moved to trash (workspace .trash folder)" : "Moved " + n + " items to the trash (workspace .trash folder)");
 }
 
 async function moveNode(from, toFolder) {
@@ -464,6 +767,10 @@ function updateEditButtons() {
   set("btn-cut", has && sel); set("btn-copy", has && sel); set("btn-del", has && sel);
   set("btn-paste", has && !!state.clipboard);
   set("btn-share-copy", has && sel);
+  for (const id of ["btn-dup", "btn-toggle", "btn-up", "btn-down"]) set(id, has && sel);
+  const tg = $("btn-toggle");
+  if (tg) tg.textContent = has && sel && !selectedSteps().some((x) => !x.disabled) ? "Enable" : "Disable";
+  renderSelectionCount();
 }
 
 // ---------- library ----------
@@ -477,9 +784,12 @@ function renderLibrary() {
   const q = $("cmd-search").value.trim().toLowerCase();
   const groups = new Map(Object.keys(CATS).map((c) => [c, []]));
   for (const p of state.packages) for (const a of p.actions) {
-    if (q && !(a.name + " " + a.id + " " + a.description + " " + p.name + " " + (a.category || "")).toLowerCase().includes(q)) continue;
-    groups.get(styleFor(p.id + "/" + a.id).cat).push({ p, a, addr: p.id + "/" + a.id });
+    const g = groupOf(p.id + "/" + a.id);
+    if (q && !(a.name + " " + a.id + " " + a.description + " " + p.name + " " + groupMeta(g).name + " " + (a.category || "")).toLowerCase().includes(q)) continue;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push({ p, a, addr: p.id + "/" + a.id });
   }
+  state.libGroupIds = [...groups.keys()];
   const out = [];
   let count = 0;
   const cmdRow = ({ p, a, addr }) => {
@@ -494,18 +804,22 @@ function renderLibrary() {
   };
   const group = (id, meta, items) => {
     const open = q !== "" || state.groupsOpen.has(id);
-    out.push(h("button", { type: "button", class: "pkg-head", "aria-expanded": String(open),
+    out.push(h("button", { type: "button", class: "pkg-head", "aria-expanded": String(open), "data-group": id,
       onclick: () => { if (state.groupsOpen.has(id)) state.groupsOpen.delete(id); else state.groupsOpen.add(id); renderLibrary(); } },
       h("span", { class: "chev", text: open ? "\u25BE" : "\u25B8" }), tile(meta.icon, meta.color, "sm"), h("span", { class: "gname", text: meta.name }), h("span", { class: "n", text: items.length })));
     if (open) out.push(h("div", { class: "cmd-group" }, items.map(cmdRow)));
   };
   const recent = q ? [] : recentCommands().filter((x) => state.specs.has(x)).map((addr) => ({ p: state.specs.get(addr).pkg, a: state.specs.get(addr).action, addr }));
   if (recent.length) group("recent", { name: "Recently used", color: "#64748b", icon: "clock" }, recent);
+  let section = null;
   for (const [cat, items] of groups) {
     if (!items.length) continue;
     count += items.length;
-    group(cat, CATS[cat], items);
+    const meta = groupMeta(cat);
+    if (meta.section !== section) { section = meta.section; out.push(h("div", { class: "lib-section", text: section })); }
+    group(cat, meta, items);
   }
+  if (!count) out.push(h("div", { class: "empty", text: "No action matches “" + q + "”." }));
   $("library").replaceChildren(...out);
   $("cmd-count").textContent = "(" + count + ")";
   $("btn-fold-groups").textContent = state.groupsOpen.size ? "Collapse all" : "Expand all";
@@ -514,9 +828,10 @@ function renderLibrary() {
 // ---------- steps ----------
 function insertionPoint() {
   if (state.target) { const list = getAt(state.flow, state.target); return { list, index: list.length, path: state.target }; }
-  if (state.selected) {
-    const listPath = state.selected.slice(0, -1);
-    return { list: getAt(state.flow, listPath), index: state.selected[state.selected.length - 1] + 1, path: listPath };
+  const after = state.multi.size > 1 ? lastSelectedPath() : state.selected;
+  if (after) {
+    const listPath = after.slice(0, -1);
+    return { list: getAt(state.flow, listPath), index: after[after.length - 1] + 1, path: listPath };
   }
   return { list: state.flow.steps, index: state.flow.steps.length, path: ["steps"] };
 }
@@ -610,19 +925,82 @@ function siblingsRange(p1, p2) {
   return list.slice(Math.min(i, j), Math.max(i, j) + 1).map((x) => x.id);
 }
 
+/**
+ * Selecting steps on the canvas: a plain click selects one step, Ctrl+click adds or removes one, and Shift+click selects the
+ * range from the step clicked last (within the same list; across lists only the clicked step is selected).
+ */
 function clickStep(e, p, step) {
+  const anchor = state.anchorId && findPathById(state.anchorId);
   if (e.ctrlKey || e.metaKey) {
     if (state.multi.has(step.id)) state.multi.delete(step.id); else state.multi.add(step.id);
     state.selected = state.multi.size ? (state.multi.has(step.id) ? p : findPathById([...state.multi][0])) : null;
-  } else if (e.shiftKey && state.selected) {
-    const ids = siblingsRange(state.selected, p);
-    if (ids) state.multi = new Set(ids); else state.multi = new Set([step.id]);
+    state.anchorId = step.id;
+  } else if (e.shiftKey && (anchor || state.selected)) {
+    const ids = siblingsRange(anchor || state.selected, p);
+    state.multi = new Set(ids || [step.id]);
+    state.selected = p;
+    if (!ids) state.anchorId = step.id;
   } else {
     state.multi = new Set([step.id]);
     state.selected = p;
+    state.anchorId = step.id;
   }
   state.target = null;
   renderSteps(); renderProps(); updateEditButtons();
+}
+
+/** Path of the selected step that comes last in the agent: pasted and duplicated steps go after it. */
+function lastSelectedPath() {
+  const steps = state.flow ? selectedSteps() : [];
+  return steps.length ? findPathById(steps[steps.length - 1].id) : state.selected;
+}
+
+/** Copies of the selected steps (with new ids) after the last selected step; the clipboard is left alone. */
+function duplicateSelection() {
+  const steps = selectedSteps();
+  if (!steps.length) return;
+  const copies = freshIds(JSON.parse(JSON.stringify(steps)));
+  const at = insertionPoint();
+  at.list.splice(at.index, 0, ...copies);
+  state.multi = new Set(copies.map((x) => x.id));
+  state.selected = at.path.concat(at.index + copies.length - 1);
+  state.anchorId = copies[0].id;
+  state.target = null;
+  changed(); renderProps();
+  toast("Duplicated " + copies.length + (copies.length === 1 ? " step" : " steps"));
+}
+
+/** Moves every selected step one place up (-1) or down (+1) within its own list; selected neighbours move together. */
+function moveSelection(delta) {
+  const steps = selectedSteps();
+  if (!steps.length) return;
+  const lists = new Map();
+  for (const st of steps) {
+    const p = findPathById(st.id);
+    const key = JSON.stringify(p.slice(0, -1));
+    if (!lists.has(key)) lists.set(key, { list: getAt(state.flow, p.slice(0, -1)), idx: [] });
+    lists.get(key).idx.push(p[p.length - 1]);
+  }
+  let moved = 0;
+  for (const { list, idx } of lists.values()) {
+    idx.sort((a, b) => (delta < 0 ? a - b : b - a));
+    const chosen = new Set(idx.map((i) => list[i]));
+    for (const i of idx) {
+      const j = i + delta;
+      if (j < 0 || j >= list.length || chosen.has(list[j])) continue;
+      [list[i], list[j]] = [list[j], list[i]];
+      moved++;
+    }
+  }
+  if (!moved) { toast(delta < 0 ? "Already at the top of its block" : "Already at the bottom of its block"); return; }
+  const cur = state.selected && getAt(state.flow, state.selected);
+  state.selected = cur ? findPathById(cur.id) : lastSelectedPath();
+  changed(); renderProps();
+}
+
+function selectionLabel() {
+  const n = state.multi.size;
+  return n > 1 ? n + " steps selected" : n === 1 ? "1 step selected" : "";
 }
 
 /** Selected steps in document order, leaving out steps whose block is also selected. */
@@ -653,6 +1031,8 @@ function copySelection(silent) {
 function deleteSelection(silent) {
   const steps = selectedSteps();
   if (!steps.length) return;
+  const inside = steps.reduce((n, st) => n + allSteps([st]).length - 1, 0);
+  if (!silent && inside > 0 && !confirm("Delete " + (steps.length === 1 ? "this step" : steps.length + " steps") + " and the " + inside + " step(s) inside?")) return;
   for (const st of steps.slice().reverse()) {
     const p = findPathById(st.id);
     if (p) getAt(state.flow, p.slice(0, -1)).splice(p[p.length - 1], 1);
@@ -712,33 +1092,97 @@ function toggleDisabled() {
   changed(); renderProps();
 }
 
+/** Ctrl+A on the canvas: every step, including the steps inside blocks. */
 function selectAllSteps() {
   if (!state.flow) return;
-  state.multi = new Set(state.flow.steps.map((x) => x.id));
+  const all = allSteps(state.flow.steps);
+  state.multi = new Set(all.map((x) => x.id));
   state.selected = state.flow.steps.length ? ["steps", 0] : null;
+  state.anchorId = all.length ? all[0].id : null;
+  state.target = null;
   renderSteps(); renderProps(); updateEditButtons();
 }
 
-function showContextMenu(e, p, step) {
-  e.preventDefault();
-  if (!state.multi.has(step.id)) { state.multi = new Set([step.id]); state.selected = p; renderSteps(); renderProps(); }
+function clearSelection() {
+  state.multi = new Set(); state.selected = null; state.target = null;
+  renderSteps(); renderProps(); updateEditButtons();
+}
+
+/**
+ * A pop-up menu. items: [label, keys, fn, enabled?] or "-" for a separator. It opens at (x, y), takes the keyboard focus,
+ * and closes on Esc (focus goes back to `opener`), Tab, a choice or a click outside. Arrow keys, Home and End move.
+ */
+function openMenu(items, x, y, opener, label) {
   closeContextMenu();
-  const item = (label, keys, fn, enabled = true) => h("button", { type: "button", role: "menuitem", disabled: !enabled,
-    onclick: () => { closeContextMenu(); fn(); } }, h("span", { text: label }), h("span", { class: "keys", text: keys }));
-  const n = selectedSteps().length;
-  const menu = h("div", { class: "ctx-menu", role: "menu", id: "ctx-menu" },
-    item("Cut", "Ctrl+X", cutSelection), item("Copy", "Ctrl+C", () => copySelection()), item("Paste after", "Ctrl+V", () => pasteSteps(state.clipboard), !!state.clipboard),
-    h("hr"),
-    item("Copy to shared clipboard", "", copyToShared), item("Paste from shared clipboard", "", pasteFromShared),
-    h("hr"),
-    item(n > 1 ? "Duplicate" : "Duplicate", "Ctrl+D", () => { copySelection(true); pasteSteps(state.clipboard); }),
-    item(selectedSteps().some((x) => !x.disabled) ? "Disable" : "Enable", "", toggleDisabled),
-    item(breakpointSet().has(step.id) ? "Clear breakpoint" : "Set breakpoint", "F9", () => toggleBreakpoint(step.id)),
-    item("Delete" + (n > 1 ? " " + n + " steps" : ""), "Del", () => deleteSelection()));
-  menu.style.left = Math.min(e.clientX, window.innerWidth - 240) + "px";
-  menu.style.top = Math.min(e.clientY, window.innerHeight - 320) + "px";
+  const menu = h("div", { class: "ctx-menu", role: "menu", id: "ctx-menu", "aria-label": label || "Actions" });
+  let rows = 0;
+  for (const it of items) {
+    if (it === "-") { if (menu.lastChild && menu.lastChild.tagName !== "HR") menu.append(h("hr")); continue; }
+    const [text, keys, fn, enabled = true] = it;
+    rows++;
+    menu.append(h("button", { type: "button", role: "menuitem", disabled: !enabled, "data-item": text,
+      onclick: (e) => { e.stopPropagation(); closeContextMenu(); fn(); } }, h("span", { text }), h("span", { class: "keys", text: keys || "" })));
+  }
+  menu.addEventListener("keydown", (e) => {
+    const btns = [...menu.querySelectorAll("button:not(:disabled)")], i = btns.indexOf(document.activeElement);
+    const go = (b) => { e.preventDefault(); if (b) b.focus(); };
+    if (e.key === "ArrowDown") go(btns[i + 1] || btns[0]);
+    else if (e.key === "ArrowUp") go(btns[i - 1] || btns[btns.length - 1]);
+    else if (e.key === "Home") go(btns[0]);
+    else if (e.key === "End") go(btns[btns.length - 1]);
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeContextMenu(); if (opener && opener.focus) opener.focus(); }
+    else if (e.key === "Tab") closeContextMenu();
+    else if (e.key !== "Enter" && e.key !== " ") e.stopPropagation();   // menu keys never reach the canvas shortcuts
+  });
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - 260)) + "px";
+  menu.style.top = Math.max(4, Math.min(y, window.innerHeight - (rows * 31 + 24))) + "px";
   document.body.appendChild(menu);
-  menu.querySelector("button").focus();
+  state.menuOpener = opener || null;
+  const first = menu.querySelector("button:not(:disabled)");
+  if (first) first.focus();
+  return menu;
+}
+
+/** The step menu, from the step's ⋮ button or a right-click. It acts on the selection, or on the clicked step if it is not selected. */
+function showContextMenu(e, p, step, opener) {
+  e.preventDefault();
+  if (!state.multi.has(step.id)) { state.multi = new Set([step.id]); state.selected = p; state.anchorId = step.id; state.target = null; renderSteps(); renderProps(); updateEditButtons(); }
+  const n = selectedSteps().length;
+  const many = n > 1 ? " " + n + " steps" : "";
+  const anyOn = selectedSteps().some((x) => !x.disabled);
+  let x = e.clientX, y = e.clientY;
+  if (opener && opener.getBoundingClientRect && (!x && !y || e.type !== "contextmenu")) { const r = opener.getBoundingClientRect(); x = r.left; y = r.bottom + 2; }
+  const row = () => document.querySelector('[data-step-id="' + CSS.escape(step.id) + '"]');
+  openMenu([
+    ["Run from here", "", () => runFrom(step.id, false), !state.running],
+    ["Run this step only", "", () => runFrom(step.id, true), !state.running],
+    "-",
+    ["Copy" + many, "Ctrl+C", () => copySelection()],
+    ["Cut" + many, "Ctrl+X", cutSelection],
+    ["Paste after", "Ctrl+V", () => pasteSteps(state.clipboard), !!state.clipboard],
+    ["Duplicate" + many, "Ctrl+D", duplicateSelection],
+    ["Delete" + many, "Del", () => deleteSelection()],
+    "-",
+    [anyOn ? "Disable" + many : "Enable" + many, "Ctrl+/", toggleDisabled],
+    ["Toggle breakpoint", "F9", () => toggleBreakpoint(step.id)],
+    ["Move up", "Alt+↑", () => moveSelection(-1)],
+    ["Move down", "Alt+↓", () => moveSelection(1)],
+    ["Add note…", "", () => editStepNote(step.id)],
+    "-",
+    ["Copy to shared clipboard", "", copyToShared],
+    ["Paste from shared clipboard", "", pasteFromShared],
+  ], x, y, opener || row(), "Step actions");
+}
+
+/** Add note/comment: the note is shown on the step card instead of its settings summary. */
+function editStepNote(id) {
+  const p = findPathById(id);
+  const st = p && getAt(state.flow, p);
+  if (!st) return;
+  const text = prompt("Note for step " + id + " (leave empty to remove it):", st.description || "");
+  if (text === null || text === undefined) return;
+  if (text.trim()) st.description = text.trim(); else delete st.description;
+  changed(); renderProps();
 }
 
 function closeContextMenu() { const m = $("ctx-menu"); if (m) m.remove(); }
@@ -770,7 +1214,9 @@ function renderSteps() {
         onclick: (e) => { e.stopPropagation(); clickStep(e, p, s); },
         oncontextmenu: (e) => { e.stopPropagation(); showContextMenu(e, p, s); },
         onkeydown: (e) => {
+          if (e.target !== row) return;
           if (e.key === "Enter") select(p);
+          if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) { e.preventDefault(); e.stopPropagation(); showContextMenu(e, p, s, row.querySelector(".step-menu-btn")); }
           if (isContainer && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); if ((e.key === "ArrowLeft") !== folded) toggleFold(s.id); }
         },
         ondragstart: (e) => {
@@ -791,7 +1237,8 @@ function renderSteps() {
         h("span", { class: "summary", text: s.description ? s.description : summary(s) }),
         folded && hiddenCount ? h("span", { class: "hidden-pill", text: hiddenCount + (hiddenCount === 1 ? " step hidden" : " steps hidden") }) : null,
         s.disabled ? h("span", { class: "off-pill", text: "Disabled" }) : null,
-        problemsBy.get(s.id) ? h("span", { class: "flag", title: "Has problems; see the Problems tab", text: "!" + problemsBy.get(s.id) }) : null);
+        problemsBy.get(s.id) ? h("span", { class: "flag", title: "Has problems; see the Problems tab", text: "!" + problemsBy.get(s.id) }) : null,
+        stepMenuButton(p, s));
       row.style.setProperty("--c", st.color);
       out.push(row);
       let sections = SECTIONS[s.action] || [];
@@ -832,13 +1279,34 @@ function renderSteps() {
   } else container.replaceChildren(...list(state.flow.steps, ["steps"], ""));
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
+  renderSelectionCount();
   $("insert-hint").textContent = state.target ? "Clicked actions go into the highlighted section."
     : state.selected ? "Clicked actions go after the selected step." : "Clicked actions go at the end.";
+}
+
+/** The small ⋮ button on every step card: opens the step menu (also on right-click, Shift+F10 or the context-menu key). */
+function stepMenuButton(p, s) {
+  const b = h("button", { type: "button", class: "step-menu-btn", title: "Step actions", "aria-label": "Step actions for " + s.id, "aria-haspopup": "menu",
+    onclick: (e) => { e.stopPropagation(); showContextMenu(e, p, s, b); } }, svg("more"));
+  b.addEventListener("pointerdown", (e) => e.stopPropagation());
+  b.draggable = false;
+  return b;
+}
+
+/** "3 steps selected" in the canvas toolbar, with a quick way to clear the selection. */
+function renderSelectionCount() {
+  const box = $("sel-count");
+  if (!box) return;
+  const n = state.flow ? state.multi.size : 0;
+  box.hidden = n < 2;
+  box.replaceChildren(h("span", { text: selectionLabel() }),
+    h("button", { type: "button", class: "link-btn", title: "Clear the selection (Esc)", "aria-label": "Clear the selection", onclick: clearSelection }, "✕"));
 }
 
 function select(path) {
   const st = getAt(state.flow, path);
   state.multi = new Set(st ? [st.id] : []);
+  state.anchorId = st ? st.id : null;
   state.selected = path;
   state.target = null;
   renderSteps();
@@ -854,33 +1322,10 @@ function selectById(id) {
   if (row) row.scrollIntoView({ block: "center" });
 }
 
-function moveSelected(delta) {
-  const listPath = state.selected.slice(0, -1), i = state.selected[state.selected.length - 1];
-  const list = getAt(state.flow, listPath), j = i + delta;
-  if (j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  state.selected = listPath.concat(j);
-  changed(); renderProps();
-}
-
-function deleteSelected() {
-  if (!state.selected) return;
-  const listPath = state.selected.slice(0, -1), i = state.selected[state.selected.length - 1];
-  const step = getAt(state.flow, state.selected);
-  if (SECTIONS[step.action] && allSteps([step]).length > 1 && !confirm("Delete this step and everything inside it?")) return;
-  getAt(state.flow, listPath).splice(i, 1);
-  state.selected = null; state.target = null;
-  changed(); renderProps();
-}
-
-function duplicateSelected() {
-  const listPath = state.selected.slice(0, -1), i = state.selected[state.selected.length - 1];
-  const copy = JSON.parse(JSON.stringify(getAt(state.flow, state.selected)));
-  for (const s of allSteps([copy])) s.id = newStepId() + "_" + Math.random().toString(36).slice(2, 5);
-  getAt(state.flow, listPath).splice(i + 1, 0, copy);
-  state.selected = listPath.concat(i + 1);
-  changed(); renderProps();
-}
+/** Settings panel buttons act on the whole selection, like the toolbar and the step menu. */
+function moveSelected(delta) { moveSelection(delta); }
+function deleteSelected() { deleteSelection(); }
+function duplicateSelected() { duplicateSelection(); }
 
 // ---------- properties panel ----------
 function varNames() { return state.flow.variables.map((v) => v.name); }
@@ -897,18 +1342,24 @@ function inputControl(step, name, prop, required) {
   const type = prop["x-ooa-type"] || "Any";
   const current = args[name];
   const set = (v) => {
-    if (v === undefined) delete args[name]; else args[name] = v;
+    if (v === undefined) delete args[name]; else { args[name] = v; step.args = args; }
     if (!Object.keys(args).length) delete step.args;
     changed();
   };
   let control;
   if ((name === "condition" || name === "while") && step.action.startsWith("core/")) {
-    return h("div", { class: "field" }, h("label", {}, name === "while" ? "Repeat while" : "Condition", required ? h("span", { class: "req", text: " *" }) : null),
-      conditionEditor(current, (v) => set(v)), h("div", { class: "help", text: prop.description || "" }));
+    return h("div", { class: "field", "data-field": name }, h("label", {}, name === "while" ? "Repeat while" : "Condition", required ? h("span", { class: "req", text: " *" }) : null, infoTip(prop.description)),
+      conditionEditor(current, (v) => set(v)));
   }
   if (name === "object" && /^ooa\.(browser|desktop_ui)\//.test(step.action)) {
-    return h("div", { class: "field" }, h("label", {}, "Captured object", required ? h("span", { class: "req", text: " *" }) : null, typeChip(type)),
-      captureEditor(step, current, set), h("div", { class: "help", text: "Tick the properties to search by and choose how each one must match. Values can use $variables. Test opens the page and outlines what matches." }));
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Captured object", required ? h("span", { class: "req", text: " *" }) : null, typeChip(type),
+      infoTip("Tick the properties to search by and choose how each one must match. Values can use $variables. Test opens the page and outlines what matches.")),
+      captureEditor(step, current, set));
+  }
+  if (name === "window" && type === "Dictionary") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, prop["x-ooa-label"] || "Window", required ? h("span", { class: "req", text: " *" }) : null, typeChip(type),
+      infoTip(prop.description || "Which browser or application window the action works in. Titles and addresses can use * and ? wildcards and $variables.")),
+      windowEditor(current, set));
   }
   if (step.action === "core/loop" && name === "iterator") {
     const iters = [];
@@ -949,10 +1400,94 @@ function inputControl(step, name, prop, required) {
       }) }, takesObject ? "Capture" : "Pick");
     control = h("div", { class: "field-row" }, control, pick);
   }
-  const help = [prop.description, prop.examples ? "Example: " + prop.examples[0] : null].filter(Boolean).join("  ");
-  return h("div", { class: "field" },
-    h("label", {}, (prop["x-ooa-label"] || name), required ? h("span", { class: "req", text: " *" }) : null, typeChip(type)),
-    control, h("div", { class: "help", text: help }));
+  const help = [prop.description, prop.examples ? "Example: " + showValue(prop.examples[0]) : null].filter(Boolean).join("  ");
+  return h("div", { class: "field", "data-field": name },
+    h("label", {}, (prop["x-ooa-label"] || name), required ? h("span", { class: "req", text: " *" }) : null, typeChip(type), infoTip(help)),
+    control);
+}
+
+/** An ⓘ that shows a field's help text on hover or keyboard focus, instead of printing it under every field. */
+function infoTip(text) {
+  if (!text) return null;
+  return h("span", { class: "info-tip", tabindex: "0", role: "note", title: text, "aria-label": text, "data-tip": text }, "ⓘ");
+}
+
+/**
+ * Editor for a web action's `window` input (a Dictionary): where the action looks for its window.
+ * {source: "browser"|"application"|"variable", title, title_match: "wildcard"|"contains"|"equals"|"regex", url?, browser?, variable?}.
+ * The title can be picked from the open windows (GET windows); when that list is not available the field still works.
+ */
+function windowEditor(value, set) {
+  const v = value && typeof value === "object" && !Array.isArray(value) ? Object.assign({}, value) : {};
+  if (typeof value === "string" && value.trim()) { if (value.trim().startsWith("$")) { v.source = "variable"; v.variable = value.trim(); } else v.title = value; }
+  if (!["browser", "application", "variable"].includes(v.source)) v.source = "browser";
+  const box = h("div", { class: "win-editor" });
+  const commit = () => {
+    const out = { source: v.source };
+    if (v.source === "variable") { if (v.variable) out.variable = v.variable; }
+    else {
+      if (v.title) { out.title = v.title; out.title_match = v.title_match || "wildcard"; }
+      if (v.source === "browser") { if (v.url) out.url = v.url; if (v.browser) out.browser = v.browser; }
+    }
+    set(Object.keys(out).length > 1 ? out : undefined);
+  };
+  const text = (key, label, placeholder, type) => withPicker(h("input", { type: "text", value: v[key] || "", placeholder, "aria-label": label,
+    onchange: (e) => { const t = e.target.value.trim(); if (t) v[key] = t; else delete v[key]; commit(); } }), type || "String");
+  function picker() {
+    const sel = h("select", { class: "win-pick", "aria-label": "Pick from open windows",
+      onchange: () => {
+        const w = (sel._list || [])[Number(sel.value)];
+        if (!w) return;
+        v.title = w.title || ""; v.title_match = v.title_match || "equals";
+        if (v.source === "browser") { if (w.url) v.url = w.url; if (w.browser) v.browser = w.browser; }
+        commit(); render();
+      } }, h("option", { value: "", text: "Pick from open windows…" }));
+    const fill = (list, note) => {
+      sel._list = list;
+      sel.replaceChildren(h("option", { value: "", text: note || "Pick from open windows…" }),
+        ...list.map((w, i) => h("option", { value: String(i), text: (w.title || "(no title)") + (w.url ? "  — " + w.url : "") })));
+    };
+    loadWindows().then((all) => {
+      const want = v.source === "application" ? "application" : "browser";
+      const list = all.filter((w) => (w.source || "browser") === want);
+      fill(list, list.length ? null : "No open " + (want === "browser" ? "browser" : "application") + " windows");
+    }).catch(() => fill([], "Open windows are not available"));
+    sel.addEventListener("focus", () => { if (state.windowsAt && Date.now() - state.windowsAt > 5000) { state.windows = null; } });
+    return sel;
+  }
+  function render() {
+    const seg = h("div", { class: "seg win-source", role: "radiogroup", "aria-label": "Window source" },
+      [["browser", "Browser"], ["application", "Application"], ["variable", "Variable"]].map(([k, l]) =>
+        h("button", { type: "button", role: "radio", "aria-checked": String(v.source === k), "data-source": k, onclick: () => { v.source = k; commit(); render(); } }, l)));
+    const parts = [seg];
+    if (v.source === "variable") {
+      parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Variable" }), text("variable", "Window variable", "$myBrowser", "Window")));
+    } else {
+      const match = h("select", { "aria-label": "Title match", class: "win-match", onchange: (e) => { v.title_match = e.target.value; commit(); } },
+        [["wildcard", "wildcard"], ["contains", "contains"], ["equals", "equals"], ["regex", "regex"]].map(([k, t]) => h("option", { value: k, text: t })));
+      match.value = v.title_match || "wildcard";
+      parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Title" }), text("title", "Window title", v.source === "browser" ? "*Invoices*" : "*Notepad"), match),
+        h("div", { class: "win-row" }, h("span", { class: "win-lbl" }), picker()));
+      if (v.source === "browser") {
+        const br = h("select", { "aria-label": "Browser", class: "win-browser", onchange: (e) => { if (e.target.value) v.browser = e.target.value; else delete v.browser; commit(); } },
+          [["", "any browser"], ["edge", "Edge"], ["chrome", "Chrome"]].map(([k, t]) => h("option", { value: k, text: t })));
+        br.value = v.browser || "";
+        parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Address" }), text("url", "Window address", "https://*.example.com/*"), br));
+      }
+    }
+    box.replaceChildren(...parts);
+  }
+  render();
+  return box;
+}
+
+/** Open windows for the Window editor (design time); cached for a few seconds. Fails when Studio has no such endpoint. */
+function loadWindows() {
+  if (state.windows && Date.now() - state.windowsAt < 5000) return state.windows;
+  state.windowsAt = Date.now();
+  state.windows = api("GET", "windows").then((r) => (Array.isArray(r.windows) ? r.windows : []));
+  state.windows.catch(() => { state.windows = null; });
+  return state.windows;
 }
 
 function acc(title, nodes, open) {
@@ -1085,7 +1620,8 @@ function renderProps() {
   parts.push(h("div", { class: "props-title" }, tile(st.icon, st.color, "lg"),
     h("div", {}, h("h2", { class: "props-head", text: spec ? spec.action.name : step.action }),
       h("div", { class: "desc", text: (spec ? spec.pkg.name + " \u00B7 " : "") + step.action }))));
-  parts.push(h("p", { class: "desc", text: spec ? spec.action.description : "Unknown action" }));
+  parts.push(h("p", { class: "desc props-desc", text: spec ? spec.action.description : "Unknown action", title: spec ? spec.action.description : "" }));
+  if (state.multi.size > 1) parts.push(h("div", { class: "note sel-note", text: selectionLabel() + ". Copy, Cut, Delete, Duplicate, Disable and Move act on all of them; the settings below are for step " + step.id + "." }));
 
   const general = [
     h("div", { class: "field" }, h("label", { text: "Step id" }),
@@ -1102,7 +1638,24 @@ function renderProps() {
 
   if (spec) {
     const props = spec.action.inputs.properties, req = spec.action.inputs.required || [];
-    const inputs = Object.entries(props).map(([name, prop]) => inputControl(step, name, prop, req.includes(name)));
+    // Rarely used inputs (not required, with a default) after the first few go under "More options".
+    const main = [], more = [], moreNames = [];
+    for (const [name, prop] of Object.entries(props)) {
+      // Advanced inputs (self-healing alternatives, session names) always go under More options.
+      const advanced = ["alternatives", "session"].includes(name) && !req.includes(name);
+      const rare = advanced || (!req.includes(name) && prop.default !== undefined && main.length >= 3);
+      (rare ? more : main).push(inputControl(step, name, prop, req.includes(name)));
+      if (rare) moreNames.push(name);
+    }
+    const inputs = main;
+    if (more.length) {
+      const setCount = moreNames.filter((n) => step.args && step.args[n] !== undefined).length;
+      const d = h("details", { class: "more-opts" }, h("summary", {}, "More options ", h("span", { class: "n", text: String(more.length) }),
+        setCount ? h("span", { class: "muted", text: " · " + setCount + " changed" }) : null), h("div", { class: "more-body" }, more));
+      d.open = setCount > 0 || !!state.moreOpen;
+      d.addEventListener("toggle", () => { state.moreOpen = d.open; });
+      inputs.push(d);
+    }
     if (inputs.length) parts.push(acc("Inputs", inputs, true));
     const outs = Object.entries(spec.action.outputs || {});
     if (outs.length) {
@@ -1120,8 +1673,8 @@ function renderProps() {
           changed(); renderProps(); renderVariables();
           toast("Created variable " + n);
         } }, "+ New");
-        return h("div", { class: "field" }, h("label", {}, oname, typeChip(o["x-ooa-type"] || "Any")),
-          h("div", { class: "field-row" }, sel, mk), h("div", { class: "help", text: o.description || "" }));
+        return h("div", { class: "field" }, h("label", {}, oname, typeChip(o["x-ooa-type"] || "Any"), infoTip(o.description)),
+          h("div", { class: "field-row" }, sel, mk));
       });
       parts.push(acc("Outputs", nodes, true));
     }
@@ -1164,11 +1717,11 @@ function renderProps() {
   }
   parts.push(acc("Error handling", handling, false));
   parts.push(acc("General", general, false));
-  parts.push(h("div", { class: "row-actions" },
-    h("button", { type: "button", onclick: () => moveSelected(-1) }, "Move up"),
-    h("button", { type: "button", onclick: () => moveSelected(1) }, "Move down"),
-    h("button", { type: "button", onclick: duplicateSelected }, "Duplicate"),
-    h("button", { type: "button", class: "danger", onclick: deleteSelected }, "Delete")));
+  parts.push(h("div", { class: "row-actions props-actions" },
+    h("button", { type: "button", class: "small", onclick: () => moveSelected(-1) }, "Move up"),
+    h("button", { type: "button", class: "small", onclick: () => moveSelected(1) }, "Move down"),
+    h("button", { type: "button", class: "small", onclick: duplicateSelected }, "Duplicate"),
+    h("button", { type: "button", class: "small danger", onclick: deleteSelected }, "Delete")));
   box.replaceChildren(...parts);
 }
 
@@ -1391,7 +1944,11 @@ function openDialog(title, body, actions, opts = {}) {
   const first = $("dialog-body").querySelector("input, select, textarea, button");
   if (first) first.focus();
 }
-function closeDialog() { $("dialog").hidden = true; }
+function closeDialog() {
+  // A hidden dialog must not keep the keyboard focus, or canvas shortcuts would think the person is still typing.
+  if (document.activeElement && $("dialog").contains(document.activeElement)) document.activeElement.blur();
+  $("dialog").hidden = true;
+}
 function field(label, control, help) { return h("div", { class: "field" }, h("label", { text: label }), control, help ? h("div", { class: "help", text: help }) : null); }
 
 /** Create or edit a bot variable: name, type, use (input/output/inside), default value editor for the type, description. */
@@ -1692,15 +2249,22 @@ async function runBot() {
 async function runFlow(flow, inputs, opts = {}) {
   if (state.running) return;
   state.running = true; state.runStarted = Date.now();
-  state.live = { id: null, state: "starting", events: [], seq: 0, total: allSteps(flow.steps).length, finished: 0, current: null };
+  const from = opts.onlyStep || opts.startAt || null;
+  // With Run from here, only the start step and what follows it count towards the progress.
+  const order = allSteps(flow.steps), at = from ? order.findIndex((x) => x.id === from) : -1;
+  const total = opts.onlyStep ? allSteps(order.filter((x) => x.id === from)).length : at > 0 ? order.length - at : order.length;
+  state.live = { id: null, state: "starting", events: [], seq: 0, total, finished: 0, current: null, flow, name: flow.name || flow.id || "Agent",
+    from, only: !!opts.onlyStep, file: state.file };
   state.liveSteps = { running: null, done: new Set(), failed: null, paused: null };
   $("btn-run").disabled = true; $("btn-debug").disabled = true;
   $("run-progress").hidden = false;
   if (document.body.classList.contains("no-dock")) setPref("dock", true);
   if (!document.body.classList.contains("dock-mini")) switchConsole("run");
-  renderLive();
+  renderLive(); renderRunWindow();
   try {
-    const start = await api("POST", "runs", Object.assign({ flow, inputs }, opts.debug ? { debug: true, breakpoints: [...breakpointSet()], stopAtStart: !!opts.stopAtStart } : {}));
+    const body = Object.assign({ flow, inputs }, opts.debug ? { debug: true, breakpoints: [...breakpointSet()], stopAtStart: !!opts.stopAtStart } : {});
+    if (opts.onlyStep) body.only_step = opts.onlyStep; else if (opts.startAt) body.start_at = opts.startAt;
+    const start = await api("POST", "runs", body);
     state.live.id = start.run_id;
     while (true) {
       const r = await api("GET", "runs/" + state.live.id + "?after=" + state.live.seq);
@@ -1715,7 +2279,8 @@ async function runFlow(flow, inputs, opts = {}) {
         if (document.body.classList.contains("no-dock")) setPref("dock", true);
         switchConsole("run");
       }
-      renderLive(); renderSteps(); updateMini();
+      renderLive(); renderSteps(); updateMini(); renderRunWindow();
+      followRunningStep();
       if (r.result) {
         state.lastRun = { result: r.result, events: state.live.events };
         if (r.result.status === "success") state.liveSteps.running = null;
@@ -1734,8 +2299,120 @@ async function runFlow(flow, inputs, opts = {}) {
     state.running = false; $("btn-run").disabled = false; $("btn-debug").disabled = false; $("run-progress").hidden = true;
     state.liveSteps.paused = null; if (state.live) state.live.debug = null;
     state.live && (state.live.state = state.lastRun ? state.lastRun.result.status : "failed");
-    renderLive(); updateMini();
+    renderLive(); updateMini(); renderRunWindow();
   }
+}
+
+/** Run from here (start_at) or Run this step only (only_step), from the step menu. */
+function runFrom(id, only) {
+  if (!state.flow) return;
+  if (state.running) { toast("A run is already in progress.", true); return; }
+  toast(only ? "Running only step " + id : "Running from step " + id + "; earlier steps are skipped");
+  return runFlow(state.flow, collectInputs(), only ? { onlyStep: id } : { startAt: id });
+}
+
+/** Keeps the step that is running in view on the canvas. */
+function followRunningStep() {
+  const L = state.live, id = state.liveSteps.paused || state.liveSteps.running;
+  if (!L || !id || L.followed === id || state.file !== L.file) return;
+  L.followed = id;
+  const row = document.querySelector('#steps [data-step-id="' + CSS.escape(id) + '"]');
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
+
+/** Display numbers of the steps, as on the canvas: 1, 2, 2.1 ... */
+function stepNumbers(flow) {
+  const out = new Map();
+  const walk = (steps, prefix) => (steps || []).forEach((s, i) => {
+    const num = prefix + (i + 1);
+    out.set(s.id, num);
+    const sections = s.action === "core/if" ? [["children"], ...(s.elseIf || []).map((_, k) => ["elseIf", k, "children"]), ["else"]]
+      : (SECTIONS[s.action] || []).map(([k]) => (Array.isArray(k) ? k : [k]));
+    for (const k of sections) walk(getAt(s, k), num + ".");
+  });
+  walk(flow && flow.steps, "");
+  return out;
+}
+
+/**
+ * The floating Run window: agent name, the current step (number, action and note), elapsed time, progress and the run
+ * controls (Pause/Resume, Stop; Continue and Step while debugging). It can be dragged by its title and minimised; its
+ * place is remembered. It stays after the run with the result until it is closed or the next run starts.
+ */
+function renderRunWindow() {
+  let win = $("run-window");
+  const L = state.live;
+  if (!L) { if (win) win.remove(); return; }
+  if (!win) {
+    win = h("section", { id: "run-window", class: "run-window", role: "dialog", "aria-label": "Run window" });
+    document.body.appendChild(win);
+    const pos = prefs().runWin;
+    if (pos && typeof pos.x === "number") placeRunWindow(win, pos.x, pos.y);
+    makeRunWindowDraggable(win);
+  }
+  const p = prefs();
+  win.classList.toggle("min", !!p.runWinMin);
+  const done = !state.running;
+  const status = L.debug ? "debugging" : done ? (state.lastRun ? state.lastRun.result.status : L.state) : L.state === "paused" ? "paused" : L.state === "starting" ? "starting" : "running";
+  const statusText = { debugging: "Paused at step", paused: "Paused", starting: "Starting", running: "Running", success: "Finished", failed: "Failed", stopped: "Stopped" }[status] || status;
+  const cur = L.debug ? { id: L.debug.stepId, action: L.debug.action } : L.current;
+  const nums = L.numbers || (L.numbers = stepNumbers(L.flow));
+  const stepObj = cur && L.flow ? allSteps(L.flow.steps).find((x) => x.id === cur.id) : null;
+  const spec = cur ? state.specs.get(cur.action) : null;
+  const secs = Math.round((done && state.lastRun ? state.lastRun.result.durationMs : (L.elapsed || (Date.now() - state.runStarted))) / 1000);
+  const elapsed = secs >= 60 ? Math.floor(secs / 60) + " min " + (secs % 60) + " s" : secs + " s";
+  const pct = L.total ? Math.min(100, Math.round(100 * L.finished / L.total)) : 0;
+  const bar = h("div", { class: "rw-bar" }, h("div", {}));
+  bar.firstChild.style.width = (done && status === "success" ? 100 : pct) + "%";
+  const btn = (text, title, fn, cls) => h("button", { type: "button", class: "small" + (cls ? " " + cls : ""), title, onclick: fn }, text);
+  const controls = done ? [btn("Close", "Close the run window", () => { state.live = null; renderRunWindow(); })]
+    : L.debug ? [btn("Continue", "Continue (F5)", () => debugCommand("continue"), "primary"), btn("Step", "Step over (F10)", () => debugCommand("stepOver")),
+      btn("Step into", "Step into (F11)", () => debugCommand("stepInto")), btn("Stop", "Stop the run", () => liveControl("stop"), "danger")]
+      : [L.state === "paused" ? btn("Resume", "Resume the run", () => liveControl("resume"), "primary") : btn("Pause", "Pause after the current step", () => liveControl("pause")),
+        btn("Stop", "Stop the run", () => liveControl("stop"), "danger")];
+  const head = h("div", { class: "rw-head", title: "Drag to move" },
+    h("span", { class: "rw-dot " + status, "aria-hidden": "true" }),
+    h("strong", { class: "rw-title", text: L.name }),
+    h("span", { class: "rw-mini muted", text: statusText + " · " + L.finished + "/" + L.total }),
+    h("span", { class: "spacer" }),
+    h("button", { type: "button", class: "icon-mini", "aria-label": p.runWinMin ? "Restore the run window" : "Minimise the run window", title: p.runWinMin ? "Restore" : "Minimise",
+      onclick: () => { setPref("runWinMin", !prefs().runWinMin); renderRunWindow(); } }, p.runWinMin ? "▢" : "–"),
+    done ? h("button", { type: "button", class: "icon-mini", "aria-label": "Close the run window", title: "Close", onclick: () => { state.live = null; renderRunWindow(); } }, "✕") : null);
+  const now = cur ? h("div", { class: "rw-step" },
+    h("span", { class: "rw-num", text: nums.get(cur.id) ? "Step " + nums.get(cur.id) : "Step" }),
+    h("a", { class: "link", text: spec ? spec.action.name : cur.action, title: "Show this step", onclick: () => { if (state.file === L.file) selectById(cur.id); } }),
+    stepObj && stepObj.description ? h("div", { class: "rw-note", text: stepObj.description }) : null)
+    : h("div", { class: "rw-step muted", text: done ? "" : L.from ? (L.only ? "Running only step " : "Starting at step ") + (nums.get(L.from) || L.from) : "Preparing…" });
+  const err = done && state.lastRun && state.lastRun.result.error ? h("div", { class: "rw-error", text: (state.lastRun.result.error.code || "") + " " + (state.lastRun.result.error.message || "") }) : null;
+  win.replaceChildren(head, h("div", { class: "rw-body" },
+    h("div", { class: "rw-status" }, h("span", { class: "status " + (status === "starting" || status === "paused" ? "running" : status), text: statusText }),
+      h("span", { class: "rw-time", text: elapsed }), h("span", { class: "muted", text: L.finished + " of " + L.total + " steps" })),
+    bar, now, err, h("div", { class: "rw-actions" }, controls)));
+}
+
+function placeRunWindow(win, x, y) {
+  const w = win.offsetWidth || 320, hgt = win.offsetHeight || 140;
+  win.style.left = Math.max(0, Math.min(x, window.innerWidth - w)) + "px";
+  win.style.top = Math.max(0, Math.min(y, window.innerHeight - Math.min(hgt, 60))) + "px";
+  win.style.right = "auto"; win.style.bottom = "auto";
+}
+
+/** Dragging by the title bar. The listeners sit on the window itself, which survives the re-renders during a run. */
+function makeRunWindowDraggable(win) {
+  win.addEventListener("pointerdown", (e) => {
+    if (!e.target.closest(".rw-head") || e.target.closest("button, a")) return;
+    const r = win.getBoundingClientRect(), sx = e.clientX, sy = e.clientY;
+    if (win.setPointerCapture) try { win.setPointerCapture(e.pointerId); } catch (_) { /* pointer already released */ }
+    win.classList.add("dragging");
+    const move = (ev) => placeRunWindow(win, r.left + ev.clientX - sx, r.top + ev.clientY - sy);
+    const up = () => {
+      win.removeEventListener("pointermove", move); win.removeEventListener("pointerup", up);
+      win.classList.remove("dragging");
+      const nr = win.getBoundingClientRect(), pp = prefs();
+      pp.runWin = { x: Math.round(nr.left), y: Math.round(nr.top) }; savePrefs(pp);
+    };
+    win.addEventListener("pointermove", move); win.addEventListener("pointerup", up);
+  });
 }
 
 function applyLiveEvent(e) {
@@ -1879,7 +2556,7 @@ function setPref(key, value) {
   applyPrefs();
 }
 function applyPrefs() {
-  const p = Object.assign({ left: true, right: true, dock: true, theme: "brand", density: "comfortable", dockPos: "bottom" }, prefs());
+  const p = Object.assign({ left: true, right: true, dock: true, theme: "brand", density: "compact", dockPos: "bottom" }, prefs());
   document.body.classList.toggle("no-left", !p.left);
   document.body.classList.toggle("no-right", !p.right);
   document.body.classList.toggle("no-dock", !p.dock);
@@ -2850,7 +3527,7 @@ function renderFlowView() {
       onclick: (e) => { e.stopPropagation(); clickStep(e, p, s); }, oncontextmenu: (e) => { e.stopPropagation(); showContextMenu(e, p, s); } },
       tile(st.icon, st.color, "ico"), h("div", { class: "fn-text" }, h("div", { class: "fn-title", text: spec ? spec.action.name : s.action }),
         h("div", { class: "fn-sum", text: s.description || summary(s) })),
-      problemsBy.get(s.id) ? h("span", { class: "flag", text: "!" + problemsBy.get(s.id) }) : null);
+      problemsBy.get(s.id) ? h("span", { class: "flag", text: "!" + problemsBy.get(s.id) }) : null, stepMenuButton(p, s));
     el.style.setProperty("--c", st.color);
     return el;
   };
@@ -2883,6 +3560,7 @@ function renderFlowView() {
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
   $("insert-hint").textContent = "Flow view: select steps here; drag and drop in List view.";
+  renderSelectionCount();
 }
 
 // ---------- assistant: build from a description, explain this agent ----------
@@ -3290,12 +3968,17 @@ function wire() {
   makeDockDraggable();
   $("cmd-search").addEventListener("input", renderLibrary);
   $("btn-fold-groups").addEventListener("click", () => {
-    if (state.groupsOpen.size) state.groupsOpen.clear(); else for (const id of ["recent", ...Object.keys(CATS)]) state.groupsOpen.add(id);
+    if (state.groupsOpen.size) state.groupsOpen.clear(); else for (const id of ["recent", ...(state.libGroupIds || Object.keys(CATS))]) state.groupsOpen.add(id);
     renderLibrary();
   });
   buildCreateMenu();
   $("btn-create").addEventListener("click", (e) => { e.stopPropagation(); toggleCreateMenu(); });
   $("btn-home").addEventListener("click", goHome);
+  $("btn-close").addEventListener("click", closeItem);
+  $("btn-dup").addEventListener("click", duplicateSelection);
+  $("btn-toggle").addEventListener("click", toggleDisabled);
+  $("btn-up").addEventListener("click", () => moveSelection(-1));
+  $("btn-down").addEventListener("click", () => moveSelection(1));
   $("btn-new-folder").addEventListener("click", newFolderHere);
   $("btn-rename").addEventListener("click", renameSelected);
   $("btn-delete").addEventListener("click", deleteSelectedNode);
@@ -3345,13 +4028,19 @@ function wire() {
     if (mod && k === "s") { e.preventDefault(); save(); return; }
     if (e.key === "Escape" && $("var-pop")) { closeVarPicker(); return; }
     if (e.key === "Escape" && !$("dialog").hidden) { closeDialog(); return; }
-    if (e.key === "Escape") { closeContextMenu(); if (state.multi.size) { state.multi = new Set(); state.selected = null; renderSteps(); renderProps(); updateEditButtons(); } return; }
+    if (e.key === "Escape" && $("ctx-menu")) { closeContextMenu(); if (state.menuOpener && state.menuOpener.focus) state.menuOpener.focus(); return; }
+    if (e.key === "Escape") { if (state.multi.size) clearSelection(); if (state.treeMulti.size > 1) { state.treeMulti = new Set(state.treeSel ? [state.treeSel] : []); renderTree(); } return; }
+    if (mod && k === "w" && state.view !== "home" && !e.shiftKey) { e.preventDefault(); closeItem(); return; }
     if (state.live && state.live.debug && ["F5", "F10", "F11"].includes(e.key)) {
       e.preventDefault(); debugCommand(e.key === "F5" ? "continue" : e.key === "F10" ? "stepOver" : e.shiftKey ? "stepOut" : "stepInto"); return;
     }
     if (mod && k === "k" && state.flow) { e.preventDefault(); openQuickAdd(); return; }
-    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
-    if (typing || !state.flow) return;
+    const active = document.activeElement;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((active || {}).tagName || "") || (active && active.isContentEditable);
+    if (typing || state.view !== "bot" || !state.flow) return;
+    // Canvas shortcuts work when the canvas (or nothing in particular) has the focus, never in the Explorer or a menu.
+    const inCanvas = !active || active === document.body || !!(active.closest && active.closest("#tab-steps, #canvas-bar, #props-panel, #run-window"));
+    if (!inCanvas) return;
     if (e.key === "F9" && state.selected) { e.preventDefault(); const st = getAt(state.flow, state.selected); if (st) toggleBreakpoint(st.id); return; }
     if (e.key === "/" && !mod) { e.preventDefault(); openQuickAdd(); return; }
     if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
@@ -3359,8 +4048,10 @@ function wire() {
     else if (mod && k === "c") { e.preventDefault(); copySelection(); }
     else if (mod && k === "x") { e.preventDefault(); cutSelection(); }
     else if (mod && k === "v") { e.preventDefault(); pasteSteps(state.clipboard); }
-    else if (mod && k === "d") { e.preventDefault(); if (copySelection(true)) pasteSteps(state.clipboard); }
+    else if (mod && k === "d") { e.preventDefault(); duplicateSelection(); }
     else if (mod && k === "a") { e.preventDefault(); selectAllSteps(); }
+    else if (mod && e.key === "/") { e.preventDefault(); toggleDisabled(); }
+    else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && state.multi.size) { e.preventDefault(); moveSelection(e.key === "ArrowUp" ? -1 : 1); }
     else if (e.key === "Delete" && state.multi.size) { e.preventDefault(); deleteSelection(); }
   });
   document.addEventListener("dragend", () => document.body.classList.remove("dnd"));

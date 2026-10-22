@@ -216,3 +216,44 @@ repository with check-in/check-out) gets its own report.
 - Not tested against the real products here: Tesseract OCR, Excel desktop, SAP GUI, mainframe terminals, live cloud tenants (simulated services are used).
 - Desktop Capture cannot see inside Java Swing, SAP GUI, Citrix/RDP sessions or canvas-drawn apps (UI Automation limits); the Ctrl+Shift+C capture key also reaches the app under the pointer.
 - Left out on purpose (reasons in the tables): EWS, .msg export, password-protected zip, NTLM, SNMP v3, ODBC, MP3, terminal types other than 3270, weak PDF encryption.
+
+
+# Validation report: Part 6 (One Agent Studio usability)
+
+## What was added
+
+| Item | Result |
+| --- | --- |
+| Action groups | One group per technology under section headings (Flow and control, Data and variables, Data formats, Files and folders, Office documents, Web and desktop, APIs and databases, Email and collaboration, Business applications, AI, Scripts, Operations, System and security). Excel, Excel desktop, Word, PowerPoint and PDF; XML, JSON and CSV/Text; REST, SOAP and Database; Email, Microsoft 365 and Google Workspace; Browser, Capture/Desktop objects, Window and Mouse and keyboard are separate. The Scripts toolkit is split into Python, JavaScript, VBScript and VBA, and PowerShell by action id. `ooa.terminal` is the **Terminal emulator** group. Toolkits without a listed group get their own group. Search covers group names too. |
+| Canvas multi-select | Click, Ctrl+click (add or remove), Shift+click (range from the last clicked step, same list), Ctrl+A (canvas focus), Esc. "N steps selected" in the toolbar. Copy, Cut, Paste (after the last selected step), Delete, Duplicate, Disable/Enable, Move up/down and Copy to shared act on the whole selection from the toolbar, keys (Ctrl+C/X/V/D, Del, Ctrl+/, Alt+Up/Down) and menus. |
+| Step menu | A ⋮ button on every step card (list and flow view), right-click, Shift+F10 or the menu key. Run from here, Run this step only, Copy, Cut, Paste after, Duplicate, Delete, Disable/Enable, Toggle breakpoint, Move up/down, Add note, shared clipboard. Arrow keys, Home/End, Esc (focus returns), Tab and outside clicks. |
+| Run from here | `Runner.RunOptions.startAt` / `onlyStep`; `POST runs` accepts `start_at` and `only_step`. Blocks around the start step are entered without evaluating them (documented in ARCHITECTURE 5.3). |
+| Layout | The workbench row gives the side panels and the canvas minimum widths; side panels shrink first, the canvas clips instead of covering a neighbour, and the workbench scrolls sideways when even the minimums do not fit. Measured in a real browser: 1280 px (side 52-340, canvas 341-939, settings 940-1280), 1024 px (52-340, 341-683, 684-1024), 800 px (52-257, 258-558, 559-800); with the dock on the right at 800 px the workbench scrolls instead of overlapping. |
+| Density | Compact (new default) and Comfortable in Theme and density. Compact cards: smaller padding, icon tiles, numbers and fonts. |
+| Close | ✕ next to the open item's name (and Ctrl+W where the browser lets a page use it): asks Save / Don't save / Cancel when there are unsaved changes, then returns to the Automation home. Home does the same. |
+| Action settings | Tighter spacing and smaller labels; help text behind an ⓘ (hover or keyboard focus); inputs that are not required, have a default and come after the first three sit under a closed "More options" (opened automatically when one of them is set). |
+| Run window | A floating, draggable, minimisable window during Studio runs: agent name, current step number, action and note, elapsed time, progress, Pause/Resume and Stop, Continue/Step/Step into while debugging. The running step is highlighted and scrolled into view. Position and minimised state are remembered. |
+| Explorer | Right-click or ⋮: new folder, agent, form, workflow, Python or PowerShell script here; Rename, Copy, Cut, Paste, Duplicate, Delete (confirmed, to the trash); Move to…, Copy path, Open in File Explorer; Upload file(s), Download (folders as .zip). Ctrl/Shift multi-select; dragging a selection moves all of it. New endpoints `files/copy`, `files/duplicate`, `files/upload`, `files/download`, `files/reveal`, all through `Workspace.resolve`. |
+| Window editor | A web action input named `window` (Dictionary) gets a compact editor: Browser / Application / Variable, title with wildcard/contains/equals/regex, a pick list from `GET windows` (works without it), address and browser for Browser, a variable for Variable. |
+
+## Automated results
+
+| Suite | Result |
+| --- | --- |
+| `.\gradlew.bat :runner:test :cli:test` (PowerShell, headless) | runner 39 tests, cli 21 tests, 0 failed (new: `RunFromStepTest` 8, `StudioFilesTest` 2; `ArchitectureTest` passes with the File Explorer launcher) |
+| Studio browser tests (jsdom) | 205 passed, 0 failed (new: groups, multi-select, step menu, Run from here, Close, More options, Run window, Explorer menu and file operations, Window editor, layout rules at 1280/1024/800 px) |
+
+## Known limitations
+
+- Ctrl+W is reserved by most browsers for closing the tab, so the ✕ button is the dependable way to close an item.
+- jsdom has no layout engine: the UI test reads the CSS rules and checks the flex arithmetic; the real pixel positions above were measured in a browser.
+- The `GET windows` endpoint and the toolkit side of the `window` option belong to another change; until they land, the pick list says that open windows are not available.
+- Run from here does not replay skipped steps, so variables those steps would set keep their defaults.
+
+## Part 6 additions merged with it
+
+| Item | Result |
+| --- | --- |
+| Command Center menu | Home plus three collapsible groups: Build, Run & Monitor, Govern; Settings, Roles, Toolkits and One Model Connections are their own pages |
+| Window choice for web actions | `window` input on every element action: Browser (tab by title/address, wildcards and variables), Application (browser window by desktop title), Variable (session); `open_for_automation`, `attach`, `list_windows`; Studio `GET windows` and the window editor |
+| Final results (merged) | Java 465 tests, 0 failed (1 skipped); Studio UI 205; console UI 61; checked by eye in a real Studio and Command Center |

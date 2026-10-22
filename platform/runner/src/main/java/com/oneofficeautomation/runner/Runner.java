@@ -70,6 +70,8 @@ public final class Runner {
         Run r = new Run(flow, runId, opts.cancel != null ? opts.cancel : new AtomicBoolean(), opts.maxRunSeconds, 0);
         r.pause = opts.pause != null ? opts.pause : new AtomicBoolean();
         r.debugger = opts.debugger;
+        r.startAt = opts.startAt;
+        r.onlyStep = opts.onlyStep;
         return r.execute(inputs == null ? Map.of() : inputs, true);
     }
 
@@ -93,8 +95,23 @@ public final class Runner {
         void setVariable(String name, Object value);
     }
 
+    /**
+     * Run options. {@link #startAt(String)} and {@link #onlyStep(String)} are for testing from Studio ("Run from here" and
+     * "Run this step only"), and apply to the agent being run, not to its child agents:
+     * <ul>
+     *   <li>Steps before the start step, in document order, are skipped: they are not run and emit no events.</li>
+     *   <li>Blocks that contain the start step (If, Loop, Try, Step group, Parallel) are entered without evaluating them:
+     *       an If's condition is not checked, a Loop runs one pass without setting its item or index variable, and a Parallel
+     *       runs only the branch that holds the start step. Try keeps its Catch and Finally when the start step is in the Try
+     *       part. After the enclosing blocks end, the run carries on normally with the steps that follow them.</li>
+     *   <li>With onlyStep, the run ends successfully once the start step (and, for a block, everything inside it) has run.</li>
+     * </ul>
+     * Variables keep their defaults and inputs, because the skipped steps never set them.
+     */
     public static final class RunOptions {
-        String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger;
+        String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger; String startAt; boolean onlyStep;
+        public RunOptions startAt(String stepId) { startAt = stepId == null || stepId.isBlank() ? null : stepId; return this; }
+        public RunOptions onlyStep(String stepId) { startAt(stepId); onlyStep = startAt != null; return this; }
         public RunOptions debugger(Debugger d) { debugger = d; return this; }
         public RunOptions pause(AtomicBoolean p) { pause = p; return this; }
         public RunOptions runId(String id) { runId = id; return this; }
@@ -169,6 +186,11 @@ public final class Runner {
         final ThreadLocal<ExecutorService> worker = new ThreadLocal<>();
         AtomicBoolean pause = new AtomicBoolean();
         Debugger debugger;
+        /** Run from here / run this step only (see RunOptions): the start step, the ids of the blocks around it, and progress. */
+        String startAt;
+        boolean onlyStep;
+        Set<String> startPath = Set.of();
+        volatile boolean reached, onlyDone;
         Run parent;
         String parentStep;
         volatile int nesting;
@@ -275,8 +297,15 @@ public final class Runner {
                 if (validate) validator.validateOrThrow(flow);
                 bindInputs(inputs);
                 planHash = planHash(inputs);
+                if (startAt != null) {
+                    List<String> path = pathTo((List<Object>) flow.get("steps"), startAt);
+                    if (path == null) throw new OoaException("RUN.START_NOT_FOUND", "There is no step '" + startAt + "' in agent " + aid,
+                            "Choose a step of the agent being run.");
+                    startPath = Set.copyOf(path.subList(0, path.size() - 1));
+                }
                 emit("run.started", null, data("automation", aid, "kind", flow.get("kind"), "planHash", planHash, "depth", depth,
-                        "totalSteps", Steps.walk((List<Object>) flow.get("steps")).size()));
+                        "totalSteps", Steps.walk((List<Object>) flow.get("steps")).size(), "startAt", startAt, "onlyStep", onlyStep));
+                if (startAt != null) log("info", (onlyStep ? "Running only step " : "Running from step ") + startAt + "; earlier steps are skipped", null);
                 execSteps((List<Object>) flow.get("steps"), true);
             } catch (OoaException e) {
                 status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : "failed";
@@ -388,11 +417,70 @@ public final class Runner {
             if (!topLevel) nesting++;
             try {
                 for (Object o : steps == null ? List.of() : steps) {
+                    if (onlyDone) return;
                     Map<String, Object> s = (Map<String, Object>) o;
-                    if (Boolean.TRUE.equals(s.get("disabled"))) continue;
-                    execStep(s, continueDefault);
+                    boolean off = Boolean.TRUE.equals(s.get("disabled"));
+                    String id = String.valueOf(s.get("id"));
+                    if (startAt != null && !reached) {
+                        if (id.equals(startAt)) reached = true;
+                        else { if (!off && startPath.contains(id)) enterTowards(s); continue; }
+                    }
+                    if (!off) execStep(s, continueDefault);
+                    if (onlyStep && id.equals(startAt)) onlyDone = true;
                 }
             } finally { if (!topLevel) nesting--; }
+        }
+
+        /** Ids from the outermost block down to the step with `id`, or null when the agent has no such step. */
+        @SuppressWarnings("unchecked")
+        List<String> pathTo(List<Object> steps, String id) {
+            for (Object o : steps == null ? List.of() : steps) {
+                if (!(o instanceof Map)) continue;
+                Map<String, Object> s = (Map<String, Object>) o;
+                String sid = String.valueOf(s.get("id"));
+                if (sid.equals(id)) return new ArrayList<>(List.of(sid));
+                List<List<Object>> sections = new ArrayList<>();
+                for (String k : List.of("children", "else", "finally")) sections.add(list(s, k));
+                for (String k : List.of("elseIf", "catch"))
+                    for (Object b : list(s, k)) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) sections.add((List<Object>) c);
+                for (List<Object> sec : sections) {
+                    List<String> p = pathTo(sec, id);
+                    if (p != null) { p.add(0, sid); return p; }
+                }
+            }
+            return null;
+        }
+
+        boolean holdsStart(List<Object> steps) { return pathTo(steps, startAt) != null; }
+
+        /**
+         * Run from here: goes into a block that holds the start step without evaluating it (no If condition, one Loop pass
+         * without item variables, only the Parallel branch that holds the step). A Try keeps its Catch and Finally.
+         */
+        @SuppressWarnings("unchecked")
+        void enterTowards(Map<String, Object> step) {
+            check();
+            String act = String.valueOf(step.get("action")), sid = String.valueOf(step.get("id"));
+            log("info", "Entering " + act + " [" + sid + "] without evaluating it, to reach step " + startAt, sid);
+            List<Object> kids = list(step, "children");
+            if (holdsStart(kids)) {
+                switch (act) {
+                    case "core/try" -> tryBlock(step);
+                    case "core/parallel" -> { for (Object b : kids) if (holdsStart(List.of(b))) { execSteps(List.of(b), false); break; } }
+                    case "core/loop" -> {
+                        Map<String, Object> a = step.get("args") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+                        String label = optText(a.get("label"));
+                        try { execSteps(kids, false); }
+                        catch (ContinueSignal | BreakSignal e) { if (labelOf(e) != null && !labelOf(e).equals(label)) throw e; }
+                    }
+                    default -> execSteps(kids, false);
+                }
+                return;
+            }
+            for (String k : List.of("else", "finally")) if (holdsStart(list(step, k))) { execSteps(list(step, k), false); return; }
+            for (String k : List.of("elseIf", "catch"))
+                for (Object b : list(step, k))
+                    if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c && holdsStart((List<Object>) c)) { execSteps((List<Object>) c, false); return; }
         }
 
         /** The debugger's view of this run, stopped before `step`. */

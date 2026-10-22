@@ -490,6 +490,249 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
   }
 
+  // ================= Part 6: action groups, multi-select, step menu, close, settings, run window, explorer, window editor, layout =================
+  // ---- one group per technology ----
+  const libSearch = d.getElementById("cmd-search");
+  libSearch.value = ""; libSearch.dispatchEvent(new w.Event("input"));
+  const gnames = [...d.querySelectorAll("#library .pkg-head .gname")].map((x) => x.textContent);
+  check("Terminal emulator has its own, clearly named group", w.eval("groupOf('ooa.terminal/connect')") === "terminal" && w.eval("groupMeta('terminal').name") === "Terminal emulator"
+    && (!w.eval("state.specs.has('ooa.terminal/connect') || state.packages.some((p) => p.id === 'ooa.terminal')") || gnames.includes("Terminal emulator")), gnames.join(", "));
+  check("XML and JSON are separate groups", gnames.includes("XML") && gnames.includes("JSON") && w.eval("groupOf('ooa.xml/read') !== groupOf('ooa.json/parse')"), gnames.join(", "));
+  check("REST and SOAP web services are separate groups", gnames.includes("REST web service") && gnames.includes("SOAP web service"), gnames.join(", "));
+  check("Excel, Word, PDF and CSV have their own groups", ["Excel", "Word", "PDF", "CSV / Text files"].every((g) => gnames.includes(g)) && w.eval("groupOf('ooa.excel_desktop/run_macro')") === "excel_desktop", gnames.join(", "));
+  check("scripts are split by language", w.eval("[groupOf('ooa.script/run_python'), groupOf('ooa.script/run_javascript_function'), groupOf('ooa.script/run_vbscript'), groupOf('ooa.script/run_powershell')].join()") === "python,javascript,vbscript,powershell");
+  const mixedGroups = w.eval(`(() => { const by = new Map(); for (const p of state.packages) for (const a of p.actions) { const g = groupOf(p.id + "/" + a.id); if (!by.has(g)) by.set(g, new Set()); by.get(g).add(p.id); } return [...by].filter(([, s]) => s.size > 1).map(([g, s]) => g + ": " + [...s].join("+")); })()`);
+  check("no group mixes toolkits", mixedGroups.length === 0, JSON.stringify(mixedGroups));
+  check("groups sit under section headings", d.querySelectorAll("#library .lib-section").length >= 6);
+  libSearch.value = "soap"; libSearch.dispatchEvent(new w.Event("input"));
+  check("search still works across groups", await until(() => d.querySelectorAll("#library .cmd").length > 0 && [...d.querySelectorAll("#library .cmd")].every((c) => /soap/i.test(c.textContent + c.title + c.dataset.action))));
+  libSearch.value = ""; libSearch.dispatchEvent(new w.Event("input"));
+
+  // ---- canvas multi-select and selection commands ----
+  fs.writeFileSync(path.join(WS, "My Agents", "multi_test.flow.json"), JSON.stringify({ kind: "TaskBot", id: "multi_test", name: "Multi test", description: "",
+    variables: [{ name: "out", type: "String", direction: "output", default: "-" }],
+    steps: [1, 2, 3, 4, 5].map((i) => ({ id: "m" + i, action: "core/set", args: { variable: "out", value: "v" + i } })) }));
+  w.eval("state.dirty = false");
+  click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  click(d.getElementById("btn-refresh"));
+  await until(() => node("My Agents/multi_test.flow.json") || (node("My Agents") && !w.eval("state.expanded.has('My Agents')") && click(node("My Agents")), false));
+  click(node("My Agents/multi_test.flow.json"));
+  check("open the multi-select test agent", await until(() => w.eval("state.file") === "My Agents/multi_test.flow.json" && stepById("m5")));
+  const ids = () => w.eval("state.flow.steps.map((s) => s.id).join()");
+  mclick(stepById("m1")); mclick(stepById("m2"), { ctrlKey: true }); mclick(stepById("m4"), { ctrlKey: true });
+  check("Ctrl+click adds steps to the selection", w.eval("state.multi.size") === 3 && d.querySelectorAll(".step.selected").length === 3);
+  check("the selection count is shown", !d.getElementById("sel-count").hidden && d.getElementById("sel-count").textContent.includes("3 steps selected"), d.getElementById("sel-count").textContent);
+  mclick(stepById("m2"), { ctrlKey: true });
+  check("Ctrl+click removes a selected step", w.eval("state.multi.size") === 2 && !stepById("m2").classList.contains("selected"));
+  mclick(stepById("m2"), { ctrlKey: true });
+  click(d.getElementById("btn-copy"));
+  check("copying 3 selected steps copies all 3", w.eval("state.clipboard.steps.length") === 3 && w.eval("state.clipboard.steps.map((s) => s.id).join()") === "m1,m2,m4");
+  click(d.getElementById("btn-paste"));
+  check("paste goes after the last selected step", w.eval("state.flow.steps.length") === 8 && JSON.stringify(w.eval("state.flow.steps.slice(4, 7).map((s) => s.args.value)")) === '["v1","v2","v4"]' && w.eval("state.flow.steps[7].id") === "m5", ids());
+  key("z", { ctrlKey: true });
+  mclick(stepById("m2")); mclick(stepById("m4"), { shiftKey: true });
+  check("Shift+click selects the range from the last clicked step", w.eval("[...state.multi].sort().join()") === "m2,m3,m4");
+  mclick(stepById("m5"), { shiftKey: true });
+  check("Shift+click again extends from the same anchor", w.eval("[...state.multi].sort().join()") === "m2,m3,m4,m5");
+  stepById("m1").focus();
+  key("a", { ctrlKey: true });
+  check("Ctrl+A selects all steps when the canvas has focus", w.eval("state.multi.size") === 5);
+  key("Escape");
+  check("Esc clears the selection", w.eval("state.multi.size") === 0 && d.getElementById("sel-count").hidden);
+  mclick(stepById("m2")); mclick(stepById("m3"), { ctrlKey: true });
+  click(d.getElementById("btn-down"));
+  check("Move down moves the whole selection", ids() === "m1,m4,m2,m3,m5", ids());
+  stepById("m2").focus();
+  key("ArrowUp", { altKey: true });
+  check("Alt+Up moves it back", ids() === "m1,m2,m3,m4,m5", ids());
+  click(d.getElementById("btn-toggle"));
+  check("Disable acts on the whole selection", w.eval("state.flow.steps.filter((s) => s.disabled).map((s) => s.id).join()") === "m2,m3" && d.getElementById("btn-toggle").textContent === "Enable");
+  key("/", { ctrlKey: true });
+  check("Ctrl+/ enables them again", w.eval("state.flow.steps.filter((s) => s.disabled).length") === 0);
+  key("d", { ctrlKey: true });
+  check("Ctrl+D duplicates the selection after it", w.eval("state.flow.steps.length") === 7 && w.eval("state.multi.size") === 2
+    && JSON.stringify(w.eval("state.flow.steps.slice(3, 5).map((s) => s.args.value)")) === '["v2","v3"]' && w.eval("state.flow.steps[5].id") === "m4", ids());
+  key("z", { ctrlKey: true });
+  mclick(stepById("m1")); mclick(stepById("m2"), { ctrlKey: true });
+  key("Delete");
+  check("Delete removes the whole selection", ids() === "m3,m4,m5", ids());
+  key("z", { ctrlKey: true });
+  check("and undo brings them back", ids() === "m1,m2,m3,m4,m5", ids());
+
+  // ---- step menu (⋮ and right-click) ----
+  mclick(stepById("m1")); mclick(stepById("m2"), { ctrlKey: true });
+  check("every step card has a ⋮ button", d.querySelectorAll("#steps .step .step-menu-btn").length === 5);
+  click(stepById("m1").querySelector(".step-menu-btn"));
+  const smenu = d.getElementById("ctx-menu");
+  const want = ["Run from here", "Run this step only", "Copy", "Cut", "Paste after", "Duplicate", "Delete", "Disable", "Toggle breakpoint", "Move up", "Move down", "Add note"];
+  check("the ⋮ button opens the step menu with every item", smenu && want.every((t) => [...smenu.querySelectorAll("button")].some((b) => b.dataset.item.startsWith(t))),
+    smenu && [...smenu.querySelectorAll("button")].map((b) => b.dataset.item).join(" | "));
+  check("the menu acts on the selection", smenu && [...smenu.querySelectorAll("button")].some((b) => b.dataset.item === "Copy 2 steps"));
+  check("the menu takes the keyboard focus", smenu && d.activeElement === smenu.querySelector("button"));
+  smenu.dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  check("arrow keys move through the menu", d.activeElement === smenu.querySelectorAll("button")[1]);
+  smenu.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  check("Esc closes the menu and keeps the selection", !d.getElementById("ctx-menu") && w.eval("state.multi.size") === 2);
+  stepById("m4").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  check("right-click on an unselected step opens the menu for that step only", d.getElementById("ctx-menu") && w.eval("[...state.multi].join()") === "m4");
+  click(d.body);
+  check("an outside click closes the menu", !d.getElementById("ctx-menu"));
+  answers.push("Sets the fourth value");
+  stepById("m4").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item.startsWith("Add note")));
+  check("Add note sets the step's note", w.eval("state.flow.steps[3].description") === "Sets the fourth value" && stepById("m4").textContent.includes("Sets the fourth value"));
+  stepById("m4").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Toggle breakpoint"));
+  check("Toggle breakpoint from the menu", JSON.stringify(w.eval("state.flow.ui && state.flow.ui.breakpoints")) === '["m4"]');
+  w.eval("toggleBreakpoint('m4')");
+  const sent = [];
+  const realFetch = w.fetch;
+  w.fetch = (u, o) => { if (String(u).endsWith("api/runs") && o && o.method === "POST") sent.push(JSON.parse(o.body)); return realFetch(u, o); };
+  stepById("m3").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Run from here"));
+  check("Run from here sends start_at", await until(() => sent.length === 1 && sent[0].start_at === "m3" && !sent[0].only_step), JSON.stringify(sent.map((s) => ({ start_at: s.start_at, only_step: s.only_step }))));
+  check("Run from here skips the earlier steps", await until(() => w.eval("state.lastRun && state.lastRun.result.status") === "success", 8000)
+    && !w.eval("state.lastRun.events.some((e) => e.type === 'step.started' && (e.stepId === 'm1' || e.stepId === 'm2'))") && w.eval("state.lastRun.result.outputs.out") === "v5");
+  stepById("m2").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Run this step only"));
+  check("Run this step only sends only_step and runs one step", await until(() => sent.length === 2 && sent[1].only_step === "m2" && w.eval("state.lastRun && state.lastRun.result.outputs.out") === "v2", 8000));
+  w.fetch = realFetch;
+  w.eval("state.live = null; renderRunWindow()");
+
+  // ---- Action settings: compact, help behind ⓘ, More options ----
+  const moreAddr = w.eval(`(() => { for (const [addr, sp] of state.specs) { if (/^(core|ooa\\.browser|ooa\\.desktop_ui)/.test(addr)) continue; const pr = sp.action.inputs.properties, req = sp.action.inputs.required || []; let main = 0, more = 0;
+    for (const [n, p] of Object.entries(pr)) { if (!req.includes(n) && p.default !== undefined && main >= 3) more++; else main++; } if (more >= 2) return addr; } return null; })()`);
+  w.eval(`state.flow.steps.push({ id: "mo", action: ${JSON.stringify(moreAddr)} }); state.selected = ["steps", state.flow.steps.length - 1]; state.multi = new Set(["mo"]); renderSteps(); renderProps();`);
+  check("rarely used inputs sit under a closed More options section", await until(() => d.querySelector("#props details.more-opts") && !d.querySelector("#props details.more-opts").open
+    && d.querySelectorAll("#props details.more-opts .field").length >= 2), moreAddr);
+  check("help text sits behind an ⓘ instead of under every field", d.querySelectorAll("#props .field > .help").length === 0 && d.querySelectorAll("#props .info-tip").length > 0);
+  click(d.querySelector("#props details.more-opts summary"));
+  w.eval("state.flow.steps.pop(); state.selected = null; state.multi = new Set(); renderSteps(); renderProps()");
+
+  // ---- window editor for web actions ----
+  w.eval(`state.specs.set("test.win/click", { pkg: { id: "test.win", name: "Window test" }, action: { id: "click", name: "Click in a window", description: "Test action", timeoutSeconds: 30,
+    inputs: { properties: { window: { "x-ooa-type": "Dictionary", description: "Which window" } }, required: [] }, outputs: {} } });
+    state.flow.steps.push({ id: "wn", action: "test.win/click" }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+  check("a window input gets the Window editor", await until(() => d.querySelector("#props .win-editor") && d.querySelectorAll("#props .win-editor .win-source button").length === 3
+    && d.querySelector('#props .win-editor input[aria-label="Window title"]') && d.querySelector('#props .win-editor select[aria-label="Title match"]') && d.querySelector('#props .win-editor input[aria-label="Window address"]')));
+  change(d.querySelector('#props .win-editor input[aria-label="Window title"]'), "*Invoices*");
+  check("the title is stored with its match rule", JSON.stringify(w.eval("state.flow.steps.find((s) => s.id === 'wn').args.window")) === JSON.stringify({ source: "browser", title: "*Invoices*", title_match: "wildcard" }),
+    JSON.stringify(w.eval("state.flow.steps.find((s) => s.id === 'wn').args")));
+  check("the open-windows list fails gracefully or fills in", await until(() => { const s = d.querySelector("#props .win-pick"); return s && (s.options.length > 1 || s.options[0].text !== "Pick from open windows…"); }, 4000),
+    d.querySelector("#props .win-pick") && d.querySelector("#props .win-pick").options[0].text);
+  click(d.querySelector('#props .win-editor button[data-source="variable"]'));
+  await until(() => d.querySelector('#props .win-editor input[aria-label="Window variable"]'));
+  change(d.querySelector('#props .win-editor input[aria-label="Window variable"]'), "$myBrowser");
+  check("Variable stores the window variable", JSON.stringify(w.eval("state.flow.steps.find((s) => s.id === 'wn').args.window")) === JSON.stringify({ source: "variable", variable: "$myBrowser" }));
+  w.eval("state.flow.steps.pop(); state.specs.delete('test.win/click'); state.selected = null; renderSteps(); renderProps()");
+
+  // ---- Close asks to save ----
+  mclick(stepById("m1")); click(d.getElementById("btn-toggle"));
+  check("Close is shown for the open agent", !d.getElementById("btn-close").hidden && w.eval("state.dirty") === true);
+  click(d.getElementById("btn-close"));
+  check("Close asks to save unsaved changes", !d.getElementById("dialog").hidden && d.getElementById("btn-close-save") && d.getElementById("btn-close-discard") && w.eval("state.view") === "bot");
+  click(d.getElementById("btn-close-save"));
+  check("Save and close saves, then returns to the Automation home", await until(() => w.eval("state.view") === "home" && !w.eval("state.file")
+    && JSON.parse(fs.readFileSync(path.join(WS, "My Agents/multi_test.flow.json"), "utf8")).steps[0].disabled === true) && d.getElementById("btn-close").hidden);
+  click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  click(node("My Agents/multi_test.flow.json"));
+  await until(() => w.eval("state.file") === "My Agents/multi_test.flow.json" && stepById("m1"));
+  mclick(stepById("m2")); click(d.getElementById("btn-toggle"));
+  click(d.getElementById("btn-close"));
+  click(d.getElementById("btn-close-discard"));
+  check("Don't save closes without saving", await until(() => w.eval("state.view") === "home") && !JSON.parse(fs.readFileSync(path.join(WS, "My Agents/multi_test.flow.json"), "utf8")).steps[1].disabled);
+
+  // ---- run window ----
+  click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
+  click(node("My Agents/slow_bot.flow.json"));
+  await until(() => w.eval("state.file") === "My Agents/slow_bot.flow.json");
+  click(d.getElementById("btn-run"));
+  check("the Run window appears during a run", await until(() => { const rw = d.getElementById("run-window"); return rw && rw.textContent.includes("slow") && rw.textContent.includes("of 4 steps") && /Step \d/.test(rw.textContent); }, 5000),
+    d.getElementById("run-window") && d.getElementById("run-window").textContent);
+  check("it offers Pause and Stop, and the canvas highlights the running step", [...d.querySelectorAll("#run-window button")].some((b) => b.textContent === "Pause") && d.querySelector(".step.running"));
+  click([...d.querySelectorAll("#run-window button")].find((b) => b.getAttribute("aria-label") === "Minimise the run window"));
+  check("the Run window can be minimised", d.getElementById("run-window").classList.contains("min"));
+  click([...d.querySelectorAll("#run-window button")].find((b) => b.getAttribute("aria-label") === "Restore the run window"));
+  click([...d.querySelectorAll("#run-window button")].find((b) => b.textContent === "Stop"));
+  check("Stop in the Run window stops the run", await until(() => w.eval("state.lastRun && state.lastRun.result.status") === "stopped", 8000) && d.getElementById("run-window").textContent.includes("Stopped"));
+  click([...d.querySelectorAll("#run-window button")].find((b) => b.textContent === "Close"));
+  check("the finished Run window closes", !d.getElementById("run-window"));
+
+  // ---- Explorer: context menu, new folder, multi-select, copy, paste, duplicate, delete ----
+  w.eval("state.dirty = false");
+  const ctx = (el) => el.dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 120, clientY: 160 }));
+  const menuItem = (t) => [...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item.startsWith(t));
+  if (!node("My Agents")) { click(d.querySelector('.rail-btn[data-side="explorer"]')); }
+  await until(() => node("My Agents"), 8000);
+  ctx(node("My Agents"));
+  const tmenu = d.getElementById("ctx-menu");
+  const treeItems = ["New folder", "New agent here", "New form here", "New workflow here", "New Python script here", "Rename", "Copy", "Cut", "Paste", "Duplicate", "Delete", "Move to", "Copy path", "Open in File Explorer", "Upload file(s)", "Download"];
+  check("right-click on an Explorer item opens its menu", tmenu && treeItems.every((t) => [...tmenu.querySelectorAll("button")].some((b) => b.dataset.item.startsWith(t))),
+    tmenu && [...tmenu.querySelectorAll("button")].map((b) => b.dataset.item).join(" | "));
+  answers.push("Batch");
+  click(menuItem("New folder"));
+  check("New folder from the menu creates it in that folder", await until(() => fsx("My Agents/Batch") && node("My Agents/Batch")));
+  check("Explorer items have a ⋮ button", !!node("My Agents/other_bot.flow.json").querySelector(".node-menu-btn"));
+  mclick(node("My Agents/other_bot.flow.json")); await until(() => w.eval("state.file") === "My Agents/other_bot.flow.json");
+  mclick(node("My Agents/slow_bot.flow.json"), { ctrlKey: true });
+  check("Ctrl+click selects several Explorer items", w.eval("state.treeMulti.size") === 2 && d.querySelectorAll("#tree .node.selected").length === 2);
+  click(node("My Agents/slow_bot.flow.json").querySelector(".node-menu-btn"));
+  click(menuItem("Copy 2 items"));
+  check("Copy keeps both items", w.eval("state.treeClip && state.treeClip.paths.length") === 2);
+  ctx(node("My Agents/Batch"));
+  click(menuItem("Paste"));
+  check("Paste copies them into the folder", await until(() => fsx("My Agents/Batch/other_bot.flow.json") && fsx("My Agents/Batch/slow_bot.flow.json") && fsx("My Agents/other_bot.flow.json")));
+  ctx(node("My Agents/Batch/slow_bot.flow.json"));
+  click(menuItem("Duplicate"));
+  check("Duplicate makes a copy next to it", await until(() => fsx("My Agents/Batch/slow_bot - Copy.flow.json")));
+  mclick(node("My Agents/Batch/other_bot.flow.json")); await until(() => w.eval("state.file") === "My Agents/Batch/other_bot.flow.json");
+  mclick(node("My Agents/Batch/slow_bot.flow.json"), { shiftKey: true });
+  check("Shift+click selects a range in the Explorer", w.eval("state.treeMulti.size") === 3, w.eval("[...state.treeMulti].join()"));
+  ctx(node("My Agents/Batch"));
+  click(menuItem("Delete"));
+  check("Delete (after confirming) moves the folder to the trash", await until(() => !fsx("My Agents/Batch") && !node("My Agents/Batch")) && w.eval("state.view") === "home");
+  const outside = await (await fetch(BASE + "/api/files/copy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: "My Agents", to: "../.." }) })).json();
+  check("file copy refuses paths outside the workspace", outside.error && outside.error.code === "WORKSPACE.OUTSIDE", JSON.stringify(outside));
+
+  // ---- layout: panels never overlap (CSS rules read with jsdom, then the flex arithmetic at 1280, 1024 and 800 px) ----
+  const cssText = fs.readFileSync(S + "/studio.css", "utf8");
+  const st = d.createElement("style"); st.textContent = cssText; d.head.appendChild(st);
+  const cs = (id) => w.getComputedStyle(d.getElementById(id));
+  const px = (v) => parseFloat(v) || 0;
+  const center = cs("center"), side = cs("side"), propsP = cs("props-panel");
+  check("the canvas keeps a minimum width and clips instead of covering its neighbours", px(center.minWidth) >= 300 && center.overflow === "hidden" && center.flexGrow === "1", center.minWidth + " " + center.overflow + " " + center.flexGrow);
+  check("the side panels can shrink to a minimum width", px(side.minWidth) >= 160 && side.flexShrink === "1" && px(propsP.minWidth) >= 200 && propsP.flexShrink === "1", side.minWidth + " " + side.flexShrink + " " + propsP.minWidth);
+  check("the workbench scrolls sideways when even the minimums do not fit", cs("workbench").overflowX === "auto");
+  const mins = (wpx) => {
+    let m = { side: px(side.minWidth), props: px(propsP.minWidth), center: px(center.minWidth) };
+    for (const [max, sel] of [[1100, /@media \(max-width: 1100px\) \{([^}]*\}[^}]*\}[^}]*\})/], [860, /@media \(max-width: 860px\) \{([^}]*\}[^}]*\}[^}]*\})/]]) {
+      const mm = sel.exec(cssText);
+      if (mm && wpx <= max) for (const k of ["side", "props", "center"]) { const r = new RegExp("\\." + k + " \\{ min-width: (\\d+)px").exec(mm[1]); if (r) m[k] = +r[1]; }
+    }
+    return m;
+  };
+  const layoutAt = (wpx) => {
+    const m = mins(wpx), rail = 52, splits = 2;
+    let sideW = 288, propsW = 340;
+    let centerW = wpx - rail - splits - sideW - propsW;
+    if (centerW < m.center) {   // flex-shrink: side and props give way in proportion to their size, never below their minimum
+      let need = m.center - centerW;
+      const room = (sideW - m.side) + (propsW - m.props);
+      const take = Math.min(need, room);
+      sideW -= take * (sideW - m.side) / room; propsW -= take * (propsW - m.props) / room;
+      centerW = wpx - rail - splits - sideW - propsW;
+    }
+    return { m, sideW, propsW, centerW, total: rail + splits + sideW + propsW + Math.max(centerW, m.center) };
+  };
+  for (const wpx of [1280, 1024, 800]) {
+    const L = layoutAt(wpx);
+    check("at " + wpx + " px the three panels fit side by side without overlapping", L.centerW >= L.m.center && L.sideW >= L.m.side && L.propsW >= L.m.props && L.total <= wpx + 0.5, JSON.stringify(L));
+  }
+  st.remove();
+
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
   if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));

@@ -285,3 +285,19 @@ button.link { background: none; border: none; padding: 0; color: var(--accent, #
 pre.json { background: color-mix(in srgb, var(--accent, #2563eb) 6%, transparent); padding: 10px; border-radius: 8px; overflow: auto; max-height: 260px; font-size: 12px; }
 .radio-group { display: flex; flex-wrap: wrap; gap: 10px; }
 .form-card h3 { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; }
+
+/* ---- grouped menu: Build / Run & Monitor / Govern ---- */
+.nav { overflow-y: auto; }
+.nav-section { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.nav .nav-group { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 4px 10px; background: transparent; box-shadow: none; display: flex; gap: 6px; align-items: center; }
+.nav .nav-group:hover { background: transparent; color: var(--ink); }
+.nav-caret { width: 10px; display: inline-block; }
+.nav-items { display: flex; flex-direction: column; gap: 2px; }
+.nav a.nav-link { --c: var(--accent); display: flex; align-items: center; gap: 10px; border-radius: 9px; padding: 7px 10px; color: var(--ink); text-decoration: none; }
+.nav a.nav-link:hover { background: var(--bg); }
+.nav-ext { margin-left: auto; opacity: .6; font-size: 12px; }
+.nav .nav-group { color: color-mix(in srgb, var(--frame-ink, #cbd5e1) 70%, transparent); }
+.nav a.nav-link { color: var(--frame-ink, inherit); }
+.nav a.nav-link:hover { background: var(--frame-hover, var(--bg)); }
+.nav a.nav-link .ic { background: color-mix(in srgb, var(--c) 30%, transparent); color: color-mix(in srgb, var(--c) 45%, #fff); }
+@media (max-width: 760px) { .nav .nav-group, .nav a.nav-link { font-size: 0; justify-content: center; } .nav-caret, .nav-ext { display: none; } }

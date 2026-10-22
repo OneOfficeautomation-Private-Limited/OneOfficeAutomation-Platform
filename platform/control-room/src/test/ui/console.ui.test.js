@@ -48,8 +48,16 @@ async function page() {
   d.getElementById("pw-new").value = "Console-Passw0rd-1"; d.getElementById("pw-repeat").value = "Console-Passw0rd-1";
   submit(d.getElementById("password-form"));
   check("after the change the console opens", await until(() => !d.getElementById("app").hidden && d.getElementById("main").textContent.includes("Welcome")));
-  const navItems = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
-  check("an administrator sees all fifteen sections", navItems.length === 15 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance") && navItems.includes("Administration"), navItems.join(","));
+  const navItems = [...d.querySelectorAll("#nav button:not(.nav-group)")].map((b) => b.textContent);
+  const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.replace(/^[^A-Za-z]+/, ""));
+  check("the menu is grouped into Build, Run & Monitor and Govern", groups.join("|") === "Build|Run & Monitor|Govern", groups.join("|"));
+  check("an administrator sees all eighteen sections", navItems.length === 18 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
+    && ["Settings", "Roles", "Toolkits", "One Model Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
+  const govern = [...d.querySelectorAll('#nav .nav-section[aria-label="Govern"] button:not(.nav-group)')].map((b) => b.textContent);
+  check("Govern holds the administration pages", ["Users", "Roles", "One Agent Vault", "Settings", "One Audit Trail"].every((x) => govern.includes(x)), govern.join(","));
+  click(d.querySelector('#nav .nav-group[data-group="build"]'));
+  check("a menu group can be collapsed", await until(() => !d.querySelector('#nav .nav-section[aria-label="Build"] .nav-items')));
+  click(d.querySelector('#nav .nav-group[data-group="build"]'));
   check("home shows hours saved", d.getElementById("main").textContent.includes("Hours saved (30 days)"));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
@@ -145,12 +153,12 @@ async function page() {
   check("holiday calendars can be saved", await until(() => d.getElementById("modal-body").textContent.includes("India 2026") && d.getElementById("modal-body").textContent.includes("2 dates")));
   click(btn("Close"));
 
-  nav("Administration");
-  check("Administration has settings, roles, connections and toolkits", await until(() => btn("Save settings") && btn("Roles") && btn("One Model Connections") && btn("Toolkits")));
+  nav("Settings");
+  check("Settings is its own page under Govern", await until(() => btn("Save settings") && d.querySelector("h1.page").textContent === "Settings"));
   d.querySelector("#main textarea").value = "Maintenance on Saturday";
   click(btn("Save settings"));
   check("an announcement is shown to everyone", await until(() => !d.getElementById("announcement").hidden && d.getElementById("announcement").textContent.includes("Maintenance on Saturday")));
-  click(btn("Roles"));
+  nav("Roles");
   await until(() => btn("New role"));
   check("built-in roles are listed with their permissions", d.getElementById("main").textContent.includes("Agent builder") && d.getElementById("main").textContent.includes("repo.checkin"));
   click(btn("New role"));
@@ -159,7 +167,7 @@ async function page() {
   for (const c of d.querySelectorAll("#modal-body input[type=checkbox]")) if (c.value === "queues.view" || c.value === "queues.work") c.checked = true;
   click(btn("Save role"));
   check("a custom role can be created", await until(() => d.getElementById("main").textContent.includes("queue_clerk") && d.getElementById("main").textContent.includes("queues.work")));
-  click(btn("One Model Connections"));
+  nav("One Model Connections");
   await until(() => btn("New connection"));
   click(btn("New connection"));
   await until(() => !d.getElementById("modal").hidden);
@@ -170,10 +178,10 @@ async function page() {
   ci[3].value = "ai/openai/key";
   click(btn("Save connection"));
   check("a model connection can be saved with a vault reference", await until(() => d.getElementById("main").textContent.includes("company-gpt") && d.getElementById("main").textContent.includes("ai/openai/key")));
-  click(btn("Toolkits"));
+  nav("Toolkits");
   check("toolkits are listed with usage and status", await until(() => d.getElementById("main").textContent.includes("ooa.string") && btn("Switch off")));
 
-  check("settings include single sign-on and AI assistant (MCP) access", btn("Settings") && (click(btn("Settings")), await until(() => d.getElementById("main").textContent.includes("Single sign-on (OpenID Connect)") && d.getElementById("main").textContent.includes("/api/mcp"))));
+  check("settings include single sign-on and AI assistant (MCP) access", (nav("Settings"), await until(() => d.getElementById("main").textContent.includes("Single sign-on (OpenID Connect)") && d.getElementById("main").textContent.includes("/api/mcp"))));
 
   nav("Task inbox");
   check("the task inbox opens with an empty state", await until(() => d.getElementById("main").textContent.includes("Nothing waiting for you")));
@@ -236,9 +244,9 @@ async function page() {
   d.getElementById("pw-current").value = carolTemp; d.getElementById("pw-new").value = "Carol-Passw0rd-22"; d.getElementById("pw-repeat").value = "Carol-Passw0rd-22";
   submit(d.getElementById("password-form"));
   await until(() => !d.getElementById("app").hidden);
-  const carolNav = [...d.querySelectorAll("#nav button")].map((b) => b.textContent);
+  const carolNav = [...d.querySelectorAll("#nav button:not(.nav-group)")].map((b) => b.textContent);
   check("a bot creator does not see Users or Audit log", !carolNav.includes("Users") && !carolNav.includes("One Audit Trail") && carolNav.includes("Agent repository"), carolNav.join(","));
-  check("an agent builder sees work queues but not Administration", carolNav.includes("Work queues") && !carolNav.includes("Administration"), carolNav.join(","));
+  check("an agent builder sees work queues but not Administration", carolNav.includes("Work queues") && !carolNav.includes("Settings") && !carolNav.includes("Roles"), carolNav.join(","));
   check("everyone has a task inbox; AI governance is for auditors", carolNav.includes("Task inbox") && carolNav.includes("One Workflow") && !carolNav.includes("AI governance"), carolNav.join(","));
   check("other users see the announcement", await until(() => !d.getElementById("announcement").hidden && d.getElementById("announcement").textContent.includes("Maintenance")));
   nav("One Agent Vault");

@@ -24,8 +24,20 @@ public final class BrowserPackage {
 
     public static final class BrowserSession implements AutoCloseable {
         final Playwright pw; final com.microsoft.playwright.Browser browser; final BrowserContext context; Page page;
-        BrowserSession(Playwright pw, com.microsoft.playwright.Browser b, BrowserContext c, Page p) { this.pw = pw; browser = b; context = c; page = p; }
-        @Override public void close() { try { context.close(); } finally { try { browser.close(); } finally { pw.close(); } } }
+        /** edge, chrome, chromium or firefox. */
+        final String kind;
+        /** DevTools endpoint for an attached browser, otherwise null. */
+        final String endpoint;
+        /** An attached browser belongs to the person or to another agent: closing the session only disconnects. */
+        final boolean attached;
+        BrowserSession(Playwright pw, com.microsoft.playwright.Browser b, BrowserContext c, Page p) { this(pw, b, c, p, "edge", null, false); }
+        BrowserSession(Playwright pw, com.microsoft.playwright.Browser b, BrowserContext c, Page p, String kind, String endpoint, boolean attached) {
+            this.pw = pw; browser = b; context = c; page = p; this.kind = kind; this.endpoint = endpoint; this.attached = attached;
+        }
+        @Override public void close() {
+            if (attached) { try { browser.close(); } finally { pw.close(); } return; }
+            try { context.close(); } finally { try { browser.close(); } finally { pw.close(); } }
+        }
     }
 
     private static BrowserSession s(ActionContext ctx, String name) { return ctx.session(name, BrowserSession.class); }
@@ -58,6 +70,8 @@ public final class BrowserPackage {
             public void press(String keys) { bs.page.keyboard().press(playwrightKeys(keys)); }
         });
     }
+
+    static void registerHooksPublic(ActionContext ctx, String session, BrowserSession bs) { registerHooks(ctx, session, bs); }
 
     /** "CTRL+ENTER" or "ESC" in the desktop key style becomes Playwright's "Control+Enter" or "Escape". */
     static String playwrightKeys(String keys) {
@@ -141,7 +155,7 @@ public final class BrowserPackage {
             BrowserContext c = b.newContext(new com.microsoft.playwright.Browser.NewContextOptions().setAcceptDownloads(true));
             Page p = c.newPage();
             if (url != null && !url.isBlank()) p.navigate(url);
-            BrowserSession bs = new BrowserSession(pw, b, c, p);
+            BrowserSession bs = new BrowserSession(pw, b, c, p, which, null, false);
             ctx.sessions().put(session, bs);
             registerHooks(ctx, session, bs);
         } catch (PlaywrightException e) {
@@ -166,7 +180,9 @@ public final class BrowserPackage {
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
             if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout)); else l.click(new Locator.ClickOptions().setTimeout(timeout));
@@ -183,7 +199,9 @@ public final class BrowserPackage {
             @Input(name = "press_enter", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Press Enter afterwards.") boolean enter,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         String value = text instanceof SecureString ss ? ss.reveal() : Values.text(text);
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
@@ -200,7 +218,9 @@ public final class BrowserPackage {
             @Input(name = "option", type = OoaType.STRING, description = "Option value or visible text.") String option,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
             List<String> chosen = l.selectOption(option, new Locator.SelectOptionOptions().setTimeout(timeout));
@@ -216,7 +236,9 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try { return Map.of("text", target(ctx, session, object, sel, alternatives, timeout).innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
         catch (PlaywrightException e) { throw pw(e, "Reading " + what(object, sel)); }
     }
@@ -228,7 +250,9 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "attribute", type = OoaType.STRING, example = "href", description = "Attribute name; use value for input fields.") String attr,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try {
             Locator l = target(ctx, session, object, sel, null, timeout);
             String v = attr.equals("value") ? l.inputValue(new Locator.InputValueOptions().setTimeout(timeout)) : l.getAttribute(attr, new Locator.GetAttributeOptions().setTimeout(timeout));
@@ -242,7 +266,9 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"visible\"", enumValues = {"visible", "attached", "hidden", "detached"}, description = "State to wait for.") String state,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try {
             UiGuard.before(ctx);
             WaitForSelectorState st = WaitForSelectorState.valueOf(state.toUpperCase(Locale.ROOT));
@@ -272,7 +298,9 @@ public final class BrowserPackage {
     public boolean exists(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        try { session = BrowserWindows.use(ctx, session, window, 0); } catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
         try { return countNow(ctx, session, object, sel) > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
@@ -282,7 +310,9 @@ public final class BrowserPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, defaultValue = "\"table\"", description = "Selector of the table element, used when no captured object is given.") String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try {
             Locator l = object != null ? target(ctx, session, object, null, null, timeout) : s(ctx, session).page.locator(sel).first();
             l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
@@ -437,7 +467,9 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, required = false, description = "Element that starts the download, used when no captured object is given.") String sel,
             @Input(name = "folder", type = OoaType.FILE, description = "Folder to save into.") String folder,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "120000", description = "How long to wait for the download.") double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         try {
             Page p = s(ctx, session).page;
             Locator trigger = target(ctx, session, object, sel, null, Math.min(timeout, 30000));
@@ -458,7 +490,9 @@ public final class BrowserPackage {
             @Input(name = "full_page", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Whole scrollable page.") boolean full,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = "Only this element (selector).") String sel,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "Only this element: the captured object from Capture or Pick in Agent Studio.") Object object) {
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "Only this element: the captured object from Capture or Pick in Agent Studio.") Object object,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, 30000);
         Path p = ctx.resolvePath(path);
         try {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
@@ -516,6 +550,119 @@ public final class BrowserPackage {
         UiGuard.unregister(ctx, session);
         if (o instanceof BrowserSession b) try { b.close(); } catch (RuntimeException ignored) { }
         return Map.of();
+    }
+
+    // ---------- Browsers that are already open ----------
+
+    private static Map<String, Object> attachedOut(BrowserSession bs, String session) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        String title = "", url = "";
+        try { title = bs.page.title(); url = bs.page.url(); } catch (PlaywrightException ignored) { }
+        out.put("title", title);
+        out.put("url", url);
+        out.put("tab_count", BigDecimal.valueOf(BrowserWindows.pages(bs).size()));
+        out.put("window", new LinkedHashMap<>(Map.of("source", "variable", "variable", session)));
+        return out;
+    }
+
+    @Action(id = "attach", name = "Attach to open browser", category = "Browser", timeoutSeconds = 120, capabilities = "browser",
+            description = "Connect to an Edge or Chrome that is already running, through its DevTools debugging port, and use it as a named session. "
+                    + "Only a browser started with a debugging port can be reached (use Start browser for automation, or start it with --remote-debugging-port); "
+                    + "a browser opened the usual way has none. Closing the session later only disconnects; the browser stays open.")
+    @Output(name = "title", type = OoaType.STRING, description = "Title of the session's current tab.")
+    @Output(name = "url", type = OoaType.STRING, description = "Address of the session's current tab.")
+    @Output(name = "tab_count", type = OoaType.NUMBER, description = "Number of open tabs in the browser.")
+    @Output(name = "window", type = OoaType.DICTIONARY, description = "A window choice for this session, to pass as the window of element actions.")
+    public Map<String, Object> attach(ActionContext ctx,
+            @Input(name = "endpoint", type = OoaType.STRING, required = false, defaultValue = "\"http://127.0.0.1:9222\"", example = "http://127.0.0.1:9222",
+                    description = "Debugging address of the browser: http://host:port, just the port, or a ws:// DevTools address.") String endpoint,
+            @Input(name = "browser", type = OoaType.STRING, required = false, enumValues = {"edge", "chrome"},
+                    description = "Which browser it is; found out from the browser itself when left empty. Used by window choices that name a browser.") String which,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = "How long to wait for the connection, in milliseconds.") double timeout) {
+        BrowserSession bs = BrowserWindows.attach(ctx, endpoint, which, session, timeout);
+        return attachedOut(bs, session);
+    }
+
+    @Action(id = "open_for_automation", name = "Start browser for automation", category = "Browser", timeoutSeconds = 180, capabilities = {"browser", "filesystem"},
+            description = "Start Edge or Chrome with a debugging port and its own profile folder in the workspace, so this agent, later agents and Attach to open browser "
+                    + "can all reach it. When a browser already listens on the port it is reused instead. A browser opened the usual way cannot be reached, "
+                    + "because it has no debugging port; recent browsers also refuse a debugging port on the everyday profile, which is why a separate profile is used. "
+                    + "The browser keeps running after the agent ends.")
+    @Output(name = "title", type = OoaType.STRING, description = "Title of the current tab (when attached).")
+    @Output(name = "url", type = OoaType.STRING, description = "Address of the current tab (when attached).")
+    @Output(name = "tab_count", type = OoaType.NUMBER, description = "Number of open tabs (when attached).")
+    @Output(name = "window", type = OoaType.DICTIONARY, description = "A window choice for this session, to pass as the window of element actions.")
+    @Output(name = "endpoint", type = OoaType.STRING, description = "Debugging address to attach to.")
+    @Output(name = "started", type = OoaType.BOOLEAN, description = "True when a new browser was started; false when one already listened on the port.")
+    @Output(name = "pid", type = OoaType.NUMBER, description = "Process id of the started browser, or 0 when an existing one was reused.")
+    public Map<String, Object> openForAutomation(ActionContext ctx,
+            @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome"}, description = "Installed browser to start.") String which,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "9222", description = "Debugging port. 9222 is the one window choices look at by themselves.") int port,
+            @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to open first.") String url,
+            @Input(name = "profile_folder", type = OoaType.FILE, required = false,
+                    description = "Profile folder for this browser (cookies, sign-ins). Default: .ooa/browser-profiles/<browser>-<port> in the workspace.") String profile,
+            @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Run without a visible window.") boolean headless,
+            @Input(name = "attach", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also attach to it as the named session.") boolean attach,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "executable", type = OoaType.FILE, required = false, description = "Path of the browser program, when it is not installed in the usual place.") String executable,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = "How long to wait for the browser to start, in milliseconds.") double timeout) {
+        if (port < 1 || port > 65535) throw new ActionException("BROWSER.BAD_PORT", "The port must be between 1 and 65535");
+        String kind = "chrome".equals(which) ? "chrome" : "edge";
+        String ep = "http://127.0.0.1:" + port;
+        boolean started = false;
+        long pid = 0;
+        if (BrowserWindows.version(ep) == null) {
+            if (!BrowserWindows.portFree(port))
+                throw new ActionException("BROWSER.PORT_IN_USE", "Port " + port + " is used by another program that is not a browser", "Choose another port.");
+            Path exe = BrowserWindows.executable(kind, executable);
+            Path dir = profile != null && !profile.isBlank() ? ctx.resolvePath(profile) : ctx.workDir().resolve(".ooa").resolve("browser-profiles").resolve(kind + "-" + port);
+            Process p = BrowserWindows.start(exe, port, dir, url, headless);
+            pid = p.pid();
+            started = true;
+            long end = System.currentTimeMillis() + (long) Math.max(1000, timeout);
+            while (BrowserWindows.version(ep) == null) {
+                ctx.checkCancelled();
+                if (System.currentTimeMillis() >= end) {
+                    throw new ActionException("BROWSER.NOT_LISTENING", "The browser started but did not open debugging port " + port + " within " + (long) timeout + " ms",
+                            "If this profile folder is already open in a browser without a debugging port, close that window, or choose another profile folder.", true);
+                }
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            }
+            ctx.info("Started " + kind + " with debugging port " + port + " and profile " + dir);
+        } else ctx.info("A browser already listens on port " + port + "; reusing it");
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (attach) {
+            BrowserSession bs = BrowserWindows.attach(ctx, ep, kind, session, timeout);
+            if (!started && url != null && !url.isBlank()) { try { bs.page.navigate(url); } catch (PlaywrightException e) { throw pw(e, "Opening " + url); } }
+            out.putAll(attachedOut(bs, session));
+        } else {
+            out.put("title", ""); out.put("url", ""); out.put("tab_count", BigDecimal.ZERO);
+            out.put("window", new LinkedHashMap<>(Map.of("source", "browser", "url", url == null ? "" : url)));
+        }
+        out.put("endpoint", ep);
+        out.put("started", started);
+        out.put("pid", BigDecimal.valueOf(pid));
+        return out;
+    }
+
+    @Action(id = "list_windows", name = "List windows (design time)", category = "Browser", timeoutSeconds = 60, idempotent = true, capabilities = "browser",
+            description = "List the browser tabs an agent can reach (in this run's sessions and in browsers with a debugging port) and, on Windows, the titles of "
+                    + "open desktop windows. Used by Agent Studio to offer windows to choose from.")
+    @Output(name = "windows", type = OoaType.LIST, description = "One entry per window: source (browser or application), title, url and browser.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows listed.")
+    public Map<String, Object> listWindows(ActionContext ctx,
+            @Input(name = "endpoints", type = OoaType.LIST, required = false, description = "Debugging addresses to look at; default http://127.0.0.1:9222.") List<Object> endpoints,
+            @Input(name = "include_desktop", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also list desktop window titles (Windows only).") boolean desktop) {
+        List<String> eps = new ArrayList<>();
+        if (endpoints != null) for (Object e : endpoints) if (e != null && !String.valueOf(e).isBlank()) eps.add(String.valueOf(e));
+        if (eps.isEmpty()) eps.add(BrowserWindows.DEFAULT_ENDPOINT);
+        List<Object> rows = new ArrayList<>(BrowserWindows.browserTabs(ctx, eps));
+        if (desktop) rows.addAll(BrowserWindows.desktopWindows(ctx));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("windows", rows);
+        out.put("count", BigDecimal.valueOf(rows.size()));
+        return out;
     }
 
     // ---------- Web recorder ----------
@@ -666,7 +813,9 @@ public final class BrowserPackage {
             @Input(name = "use_captured_page", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Switch to the open tab whose address (and title, when its match rule is set) matches the page recorded with the captured object.") boolean useCapturedPage,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
         BrowserSession bs = s(ctx, session);
         Map<String, Object> object = objectArg == null ? null : WebObjects.object(objectArg);
         if (object == null && (sel == null || sel.isBlank()))
@@ -824,7 +973,9 @@ public final class BrowserPackage {
     public boolean elementVisible(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        try { session = BrowserWindows.use(ctx, session, window, 0); } catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
         try {
             if (object != null) { Map<String, Object> o = WebObjects.object(object); int idx = o.get("index") instanceof Number n ? n.intValue() : 0;
                 Locator[] f = WebObjects.findAll(s(ctx, session).page, o); return f.length > idx && f[idx].isVisible(); }

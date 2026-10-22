@@ -128,7 +128,7 @@ function showApp() {
   $("login-view").hidden = true; $("password-view").hidden = true; $("app").hidden = false;
   $("who").textContent = S.user.display_name + " (" + roleLabel(S.user.role) + ")";
   $("avatar").textContent = (S.user.display_name || S.user.username || "?").trim().charAt(0).toUpperCase();
-  api("GET", "health").then((r) => { $("btn-studio").hidden = !r.studio; }).catch(() => {});
+  api("GET", "health").then((r) => { $("btn-studio").hidden = !r.studio; S.studioAvailable = !!r.studio; renderNav(); }).catch(() => {});
   api("GET", "catalog").then((r) => { S.names = r.actions || {}; }).catch(() => {});
   api("GET", "auth/me").then((u) => showAnnouncement(u.announcement)).catch(() => {});
   renderNav(); go(S.page);
@@ -139,14 +139,53 @@ const PAGES = [
   ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["users", "Users", "users.manage", "users", "#7c3aed"],
-  ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"], ["admin", "Administration", "settings.manage", "gear", "#334155"]];
+  ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
+  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
+  ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
+  ["admin", "Administration", "settings.manage", "gear", "#334155"]];
+
+/** The menu: Home, then three groups. Pages not listed here (admin) are reachable from inside other pages only. */
+const NAV_GROUPS = [
+  ["build", "Build", ["automation", "studio", "workflows", "queues"]],
+  ["run", "Run & Monitor", ["activity", "inbox", "schedules", "triggers", "devices"]],
+  ["govern", "Govern", ["users", "roles", "credentials", "globals", "toolkits", "connections", "governance", "audit", "settings"]],
+];
+const NAV_COLLAPSED_KEY = "ooa.cc.navCollapsed";
+function navCollapsed() { try { return JSON.parse(localStorage.getItem(NAV_COLLAPSED_KEY) || "[]"); } catch (_) { return []; } }
+
+function navButton(id) {
+  if (id === "studio") {
+    if (!S.studioAvailable) return null;
+    const a = h("a", { class: "nav-link", href: "/studio/", target: "ooa-studio", "aria-label": "One Agent Studio", title: "Build and test agents in One Agent Studio (opens in a new tab)" },
+      ic("code", "#2563eb"), "One Agent Studio", h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
+    a.style.setProperty("--c", "#2563eb");
+    return a;
+  }
+  const page = PAGES.find((x) => x[0] === id);
+  if (!page || (page[2] && !can(page[2]))) return null;
+  const [, label, , icon, color] = page;
+  const b = h("button", { type: "button", class: S.page === id ? "active" : "", "aria-current": S.page === id ? "page" : null, "aria-label": label, onclick: () => go(id) }, ic(icon, color), label);
+  b.style.setProperty("--c", color);
+  return b;
+}
 
 function renderNav() {
-  $("nav").replaceChildren(...PAGES.filter(([, , p]) => !p || can(p)).map(([id, label, , icon, color]) => {
-    const b = h("button", { type: "button", class: S.page === id ? "active" : "", "aria-current": S.page === id ? "page" : null, "aria-label": label, onclick: () => go(id) }, ic(icon, color), label);
-    b.style.setProperty("--c", color);
-    return b;
-  }));
+  const collapsed = navCollapsed();
+  const parts = [navButton("home")];
+  for (const [gid, glabel, ids] of NAV_GROUPS) {
+    const items = ids.map(navButton).filter(Boolean);
+    if (!items.length) continue;
+    const isCollapsed = collapsed.includes(gid) && !ids.includes(S.page);
+    const head = h("button", { type: "button", class: "nav-group" + (isCollapsed ? " collapsed" : ""), "aria-expanded": String(!isCollapsed), "data-group": gid,
+      onclick: () => {
+        const c = navCollapsed();
+        const next = c.includes(gid) ? c.filter((x) => x !== gid) : c.concat(gid);
+        try { localStorage.setItem(NAV_COLLAPSED_KEY, JSON.stringify(next)); } catch (_) { /* storage unavailable */ }
+        renderNav();
+      } }, h("span", { class: "nav-caret", "aria-hidden": "true", text: isCollapsed ? "\u25B8" : "\u25BE" }), glabel);
+    parts.push(h("div", { class: "nav-section", role: "group", "aria-label": glabel }, head, isCollapsed ? null : h("div", { class: "nav-items" }, items)));
+  }
+  $("nav").replaceChildren(...parts.filter(Boolean));
 }
 
 /** The administrator's announcement, shown to everyone at the top of the Command Center (dismissable per browser session). */
@@ -579,11 +618,21 @@ const VIEWS = {
           { label: "Fingerprint", value: (c) => c.prompt_sha256 || "", render: (c) => h("span", { class: "mono small", title: c.prompt_sha256 || "", text: String(c.prompt_sha256 || "").slice(0, 12) }) }] })));
   },
 
+  async settings(main) { S.adminTab = "settings"; return VIEWS.admin(main); },
+  async roles(main) { S.adminTab = "roles"; return VIEWS.admin(main); },
+  async connections(main) { S.adminTab = "connections"; return VIEWS.admin(main); },
+  async toolkits(main) { S.adminTab = "toolkits"; return VIEWS.admin(main); },
+
   async admin(main) {
     S.adminTab = S.adminTab || "settings";
     const tab = S.adminTab;
-    const tabs = tabStrip([["settings", "Settings"], ["roles", "Roles"], ["connections", "One Model Connections"], ["toolkits", "Toolkits"]], tab, (t) => { S.adminTab = t; go("admin"); });
-    const head = header("Administration", "Settings for everyone, roles and permissions, AI model connections and the toolkits agents may use.");
+    const tabs = null;
+    const ADMIN_TITLES = {
+      settings: ["Settings", "Settings for everyone: announcement, sign-in, single sign-on, AI assistants (MCP), uploads and value tracking."],
+      roles: ["Roles", "Built-in and custom roles, and the permissions each one grants."],
+      connections: ["One Model Connections", "Named AI model connections agents use; keys stay in the One Agent Vault."],
+      toolkits: ["Toolkits", "Every toolkit, how many agents use it, and switching it on or off."] };
+    const head = header(ADMIN_TITLES[tab][0], ADMIN_TITLES[tab][1]);
     if (tab === "settings") {
       const st = await api("GET", "settings");
       const ann = h("textarea", { rows: 2, value: st.announcement || "", placeholder: "Maintenance on Saturday 10:00\u201312:00 UTC" });
@@ -625,7 +674,7 @@ const VIEWS = {
             { label: "Permissions", value: (x) => x.permissions.join(" "), render: (x) => h("div", { class: "chips" }, x.permissions.map((p) => h("span", { class: "chip", text: p }))) },
             { label: "Users", value: (x) => x.users === undefined ? "" : x.users },
             { label: "", sort: false, render: (x) => x.builtin ? "" : h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => roleDialog(x, r.permissions) }, "Edit"),
-              h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete role " + x.name + "?")) { try { await api("DELETE", "roles/" + encodeURIComponent(x.name)); go("admin"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
+              h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete role " + x.name + "?")) { try { await api("DELETE", "roles/" + encodeURIComponent(x.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else if (tab === "connections") {
       const r = await api("GET", "connections");
       main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the One Prompt Skill, AI agent and generative AI actions. Keys stay in the One Agent Vault; agents receive only the reference." }),
@@ -638,7 +687,7 @@ const VIEWS = {
             { label: "Key", value: (c) => c.key_ref || "", render: (c) => c.key_ref ? h("span", {}, ic("lock", "#dc2626", "sm"), h("code", { text: c.key_ref })) : h("span", { class: "muted", text: "none" }) },
             { label: "Updated", value: (c) => c.updated || "", render: (c) => ago(c.updated) + " by " + (c.updated_by || "") },
             { label: "", sort: false, render: (c) => h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => connectionDialog(c) }, "Edit"),
-              h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete connection " + c.name + "?")) { try { await api("DELETE", "connections/" + encodeURIComponent(c.name)); go("admin"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
+              h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete connection " + c.name + "?")) { try { await api("DELETE", "connections/" + encodeURIComponent(c.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else {
       const r = await api("GET", "toolkits");
       main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Switch a toolkit off to stop agents that use it from being checked in or run. The core toolkit is always on." }),
@@ -652,7 +701,7 @@ const VIEWS = {
             { label: "Status", value: (t) => t.enabled ? "On" : "Off", render: (t) => pill(t.enabled ? "enabled" : "disabled") },
             { label: "", sort: false, render: (t) => t.id === "core" ? "" : h("button", { type: "button", onclick: async () => {
               if (t.enabled && t.used_by && !confirm(t.used_by + " agents use " + t.name + ". They will stop running. Switch it off?")) return;
-              try { await api("PATCH", "toolkits/" + encodeURIComponent(t.id), { enabled: !t.enabled }); go("admin"); } catch (e) { toast(e.message, true); } } }, t.enabled ? "Switch off" : "Switch on") }]}));
+              try { await api("PATCH", "toolkits/" + encodeURIComponent(t.id), { enabled: !t.enabled }); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, t.enabled ? "Switch off" : "Switch on") }]}));
     }
   },
 
@@ -1452,7 +1501,7 @@ function roleDialog(role, permissions) {
   modal(role ? "Edit role " + role.name : "New role", [h("div", { class: "grid2" }, h("label", {}, "Name (letters, digits, _)", name), h("label", {}, "Description", desc)),
     h("div", { class: "perm-grid" }, body)],
   [h("button", { type: "button", class: "primary", onclick: async () => {
-    try { await api("PUT", "roles/" + encodeURIComponent(name.value.trim()), { description: desc.value, permissions: boxes.filter((c) => c.checked).map((c) => c.value) }); closeModal(); go("admin"); }
+    try { await api("PUT", "roles/" + encodeURIComponent(name.value.trim()), { description: desc.value, permissions: boxes.filter((c) => c.checked).map((c) => c.value) }); closeModal(); go(S.adminTab || "settings"); }
     catch (e) { toast(e.message, true); } } }, "Save role")]);
 }
 
@@ -1467,7 +1516,7 @@ function connectionDialog(c) {
     h("p", { class: "muted", text: "Only the vault reference is stored here. Runners read the key from the vault while an agent runs, and only for agents whose owner may use that vault folder." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try { await api("PUT", "connections/" + encodeURIComponent(name.value.trim()), { provider: provider.value, model: model.value.trim() || null, base_url: base.value.trim() || null, key_ref: key.value.trim() || null, description: desc.value });
-      closeModal(); go("admin"); } catch (e) { toast(e.message, true); } } }, "Save connection")]);
+      closeModal(); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, "Save connection")]);
 }
 
 async function apiKeysDialog() {

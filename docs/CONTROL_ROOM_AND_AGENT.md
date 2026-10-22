@@ -26,6 +26,18 @@ The database upgrades itself on start (schema versions 1 to 3).
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
 Without it a key file is created next to the database.
 
+## Finding your way: the menu
+
+The menu on the left has **Home** and three groups (each can be collapsed):
+
+| Group | Pages |
+| --- | --- |
+| **Build** | Agent repository, One Agent Studio (opens in a new tab), One Workflow, Work queues |
+| **Run & Monitor** | Agent Runs (Live and History), Task inbox, Schedules, Triggers, Runners |
+| **Govern** | Users, Roles, One Agent Vault, Shared values, Toolkits, One Model Connections, AI governance, One Audit Trail, Settings |
+
+People only see the pages their role allows.
+
 ## 2. People, roles and sign-in
 
 | Built-in role | Can |

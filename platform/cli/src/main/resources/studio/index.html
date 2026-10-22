@@ -17,6 +17,8 @@
     <button type="button" class="icon-btn" id="btn-home" aria-label="Automation home" title="Automation home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg></button>
     <nav class="crumbs" id="crumbs" aria-label="Open item"></nav>
+    <button type="button" class="icon-btn close-btn" id="btn-close" aria-label="Close the open item" title="Close and return to the Automation home (asks to save changes)" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="actions">
       <span id="dirty" class="dirty" hidden>Unsaved</span>
       <a id="btn-open-cr" class="button-link" href="../" target="ooa-control-room" hidden title="Open Command Center (agent repository, runners, runs) in another tab">One Command Center</a>
@@ -42,7 +44,7 @@
             </select>
           </label>
           <label>Density
-            <select id="sel-density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
+            <select id="sel-density"><option value="compact">Compact (more steps on screen)</option><option value="comfortable">Comfortable</option></select>
           </label>
           <button type="button" id="btn-connections" title="Named language-model settings used by AI actions, Prompt Skills and the assistant">One Model Connections&#8230;</button>
           <button type="button" id="btn-connectors" title="Import an OpenAPI, Swagger or Postman file as a custom connector agents can call">Connectors&#8230;</button>
@@ -126,6 +128,12 @@
             <button type="button" id="btn-del" class="danger" title="Delete (Del)">Delete</button>
           </div>
           <div class="btn-group">
+            <button type="button" id="btn-dup" title="Duplicate the selected steps (Ctrl+D)">Duplicate</button>
+            <button type="button" id="btn-toggle" title="Disable or enable the selected steps (Ctrl+/)">Disable</button>
+            <button type="button" id="btn-up" title="Move the selected steps up (Alt+Up)" aria-label="Move up">&#8593;</button>
+            <button type="button" id="btn-down" title="Move the selected steps down (Alt+Down)" aria-label="Move down">&#8595;</button>
+          </div>
+          <div class="btn-group">
             <button type="button" id="btn-share-copy" title="Copy the selected steps to the shared clipboard, to paste into another agent">Copy to shared</button>
             <button type="button" id="btn-share-paste" title="Paste steps from the shared clipboard">Paste shared</button>
           </div>
@@ -140,6 +148,7 @@
           <button type="button" id="btn-expand-all">Expand all</button>
           <button type="button" id="btn-collapse-all">Collapse all</button>
           <span class="muted" id="canvas-stats"></span>
+          <span class="sel-count" id="sel-count" role="status" hidden></span>
           <span class="spacer"></span>
           <span class="hint" id="insert-hint"></span>
         </div>

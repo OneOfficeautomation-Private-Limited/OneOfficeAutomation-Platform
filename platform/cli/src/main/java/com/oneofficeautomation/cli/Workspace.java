@@ -264,6 +264,78 @@ final class Workspace {
         return rel(target);
     }
 
+    /**
+     * Copies a file or folder (with everything in it) into a folder of the workspace. When the name is taken there, the copy
+     * is called "name - Copy", then "name - Copy (2)" and so on, keeping the item type (agent.flow.json stays an agent).
+     * Hidden entries and links inside a folder are not copied. Returns the path of the copy.
+     */
+    String copy(String path, String toFolder) throws IOException {
+        Path p = resolve(path), dest = resolve(toFolder);
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be copied");
+        if (!Files.exists(p, LinkOption.NOFOLLOW_LINKS)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
+        if (Files.isSymbolicLink(p)) throw new OoaException("WORKSPACE.LINK", "Links cannot be copied: " + path);
+        if (!Files.isDirectory(dest)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + toFolder);
+        if (Files.isDirectory(p) && dest.startsWith(p)) throw new OoaException("WORKSPACE.INTO_ITSELF", "A folder cannot be copied into itself");
+        Path target = dest.resolve(p.getFileName().toString());
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) target = freeName(dest, p.getFileName().toString(), Files.isDirectory(p), " - Copy");
+        if (!Files.isDirectory(p)) { Files.copy(p, target); return rel(target); }
+        try (Stream<Path> s = Files.walk(p)) {
+            for (Path x : s.toList()) {
+                Path r = p.relativize(x);
+                boolean hidden = false;
+                for (Path part : r) if (part.toString().startsWith(".")) hidden = true;
+                if (hidden || Files.isSymbolicLink(x)) continue;
+                Path t = target.resolve(r.toString());
+                if (Files.isDirectory(x, LinkOption.NOFOLLOW_LINKS)) Files.createDirectories(t); else Files.copy(x, t);
+            }
+        }
+        return rel(target);
+    }
+
+    /** A copy next to the original ("name - Copy"). */
+    String duplicate(String path) throws IOException {
+        Path p = resolve(path);
+        if (p.equals(root)) throw new OoaException("WORKSPACE.ROOT", "The workspace itself cannot be duplicated");
+        return copy(path, rel(p.getParent()));
+    }
+
+    /** Type suffix kept when a name changes: .flow.json and the other item suffixes, or the file extension. */
+    static String suffixOf(String name, boolean folder) {
+        if (folder) return "";
+        String lower = name.toLowerCase(Locale.ROOT);
+        for (String s : List.of(BOT_SUFFIX, ".form.json", ".process.json", ".doc.json")) if (lower.endsWith(s)) return name.substring(name.length() - s.length());
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(dot) : "";
+    }
+
+    /** The first free "base{tag} (n){suffix}" in dir. */
+    private static Path freeName(Path dir, String name, boolean folder, String tag) {
+        String suffix = suffixOf(name, folder), base = name.substring(0, name.length() - suffix.length());
+        for (int i = tag.isEmpty() ? 2 : 1; i < 1000; i++) {
+            Path t = dir.resolve(base + tag + (i > 1 ? " (" + i + ")" : "") + suffix);
+            if (!Files.exists(t, LinkOption.NOFOLLOW_LINKS)) return t;
+        }
+        throw new OoaException("WORKSPACE.EXISTS", "Too many copies of '" + name + "' in this folder", "Rename or delete some of them.");
+    }
+
+    /** Saves an uploaded file into a folder. Unsafe characters in the name become _, and a taken name gets " (2)" and so on. */
+    String upload(String parent, String name, byte[] content) throws IOException {
+        Path dir = resolve(parent);
+        if (!Files.isDirectory(dir)) throw new OoaException("WORKSPACE.NOT_FOUND", "Folder not found: " + parent);
+        String n = name == null ? "" : name.replace('\\', '/');
+        n = n.substring(n.lastIndexOf('/') + 1).replaceAll("[^A-Za-z0-9 _.()&-]", "_").replaceAll("^[ .]+", "").trim();
+        while (n.contains("..")) n = n.replace("..", ".");
+        if (n.isEmpty()) n = "upload";
+        if (n.length() > 100) { String ext = suffixOf(n, false); n = n.substring(0, Math.max(1, 100 - ext.length())) + ext; }
+        n = checkName(n, true);
+        Path target = dir.resolve(n);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) target = freeName(dir, n, false, "");
+        Path tmp = target.resolveSibling("." + target.getFileName() + ".uploading");
+        Files.write(tmp, content);
+        Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+        return rel(target);
+    }
+
     /** Moves the item to .trash/<timestamp>_<name>; restore by moving it back in File Explorer. */
     String delete(String path) throws IOException {
         Path p = resolve(path);
@@ -271,7 +343,9 @@ final class Workspace {
         if (!Files.exists(p)) throw new OoaException("WORKSPACE.NOT_FOUND", "Not found: " + path);
         Path trash = root.resolve(".trash");
         Files.createDirectories(trash);
-        Path target = trash.resolve(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + "_" + p.getFileName());
+        String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        Path target = trash.resolve(stamp + "_" + p.getFileName());
+        for (int i = 2; Files.exists(target, LinkOption.NOFOLLOW_LINKS); i++) target = trash.resolve(stamp + "-" + i + "_" + p.getFileName());
         Files.move(p, target);
         return rel(target);
     }

@@ -172,10 +172,21 @@ public final class StudioServer {
                 Files.move(tmp, p, StandardCopyOption.REPLACE_EXISTING);
                 sendJson(ex, 200, Map.of("saved", rel, "problems", validator().validate(flow)));
             } else send(ex, 405, "text/plain", "Method not allowed");
+        } else if (method.equals("POST") && route.equals("files/upload")) {
+            // Raw bytes, so uploads are not limited by the JSON body size: POST files/upload?parent=<folder>&name=<file name>
+            Map<String, String> q = query(ex);
+            byte[] data = ex.getRequestBody().readNBytes(MAX_UPLOAD + 1);
+            if (data.length > MAX_UPLOAD) throw new OoaException("STUDIO.TOO_LARGE", "Uploads are limited to " + (MAX_UPLOAD / 1024 / 1024) + " MB per file");
+            sendJson(ex, 200, Map.of("path", ws.upload(q.getOrDefault("parent", ""), q.getOrDefault("name", ""), data)));
+        } else if (method.equals("GET") && route.equals("files/download")) {
+            download(ex, query(ex).getOrDefault("path", ""));
         } else if (method.equals("POST") && route.startsWith("files/")) {
             Map<String, Object> b = (Map<String, Object>) body(ex);
             String path = String.valueOf(b.getOrDefault("path", ""));
             String result = switch (route.substring(6)) {
+                case "copy" -> ws.copy(path, String.valueOf(b.getOrDefault("to", "")));
+                case "duplicate" -> renameDuplicatedAgent(ws.duplicate(path));
+                case "reveal" -> reveal(path);
                 case "folder" -> ws.createFolder(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")));
                 case "bot" -> ws.createBot(String.valueOf(b.getOrDefault("parent", "")), String.valueOf(b.get("name")),
                         String.valueOf(b.getOrDefault("kind", "TaskBot")), v -> json.write(v, true));
@@ -254,6 +265,9 @@ public final class StudioServer {
                 lr.debugger = new StudioDebugger(bps, Boolean.TRUE.equals(req.get("stopAtStart")), lr.cancel);
                 opts.debugger(lr.debugger).maxRunSeconds(86400);
             }
+            // Step menu: "Run this step only" (only_step) and "Run from here" (start_at); see Runner.RunOptions.
+            if (req.get("only_step") instanceof String only && !only.isBlank()) opts.onlyStep(only);
+            else if (req.get("start_at") instanceof String from && !from.isBlank()) opts.startAt(from);
             live.put(id, lr);
             Thread t = new Thread(() -> {
                 try { lr.result = runner(lr.sink).run(flow, inputs, opts); }
@@ -333,6 +347,8 @@ public final class StudioServer {
             else sendJson(ex, 200, r.outputs());
         } else if (method.equals("POST") && route.equals("capture-desktop")) {
             captureDesktop(ex);
+        } else if (method.equals("GET") && route.equals("windows")) {
+            listWindows(ex);
         } else if (method.equals("GET") && route.equals("search")) {
             sendJson(ex, 200, Map.of("results", search(query(ex).getOrDefault("q", ""))));
         } else if (route.equals("clipboard") && (method.equals("GET") || method.equals("PUT"))) {
@@ -406,7 +422,91 @@ public final class StudioServer {
         else sendJson(ex, 200, Map.of("object", r.outputs().get("object")));
     }
 
+    /**
+     * GET windows[?endpoints=http://127.0.0.1:9222,9333][&desktop=false]: runs ooa.browser/list_windows for the window choice of
+     * web actions. 200 {windows: [{source: "browser" | "application", title, url, browser}]}; browser tabs come from browsers with a
+     * debugging port, desktop titles only on Windows.
+     */
+    private void listWindows(HttpExchange ex) throws IOException {
+        if (registry.allManifests().stream().noneMatch(m -> "ooa.browser".equals(m.get("id"))))
+            throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties.");
+        Map<String, String> q = query(ex);
+        Map<String, Object> args = new LinkedHashMap<>();
+        String eps = q.getOrDefault("endpoints", "");
+        if (!eps.isBlank()) args.put("endpoints", Arrays.stream(eps.split(",")).map(String::trim).filter(e -> !e.isEmpty()).toList());
+        args.put("include_desktop", !"false".equalsIgnoreCase(q.getOrDefault("desktop", "true")));
+        Map<String, Object> flow = new LinkedHashMap<>();
+        flow.put("kind", "TaskBot"); flow.put("id", "studio_list_windows"); flow.put("name", "Agent Studio window list");
+        flow.put("variables", List.of(Map.of("name", "windows", "type", "List", "direction", "output")));
+        flow.put("steps", List.of(Map.of("id", "list", "action", "ooa.browser/list_windows", "args", args, "out", Map.of("windows", "windows"))));
+        RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(60));
+        if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));
+        else sendJson(ex, 200, Map.of("windows", r.outputs().get("windows") instanceof List<?> l ? l : List.of()));
+    }
+
     private FlowValidator validator() { return new FlowValidator(registry, schema); }
+
+    private static final int MAX_UPLOAD = 50 * 1024 * 1024;
+    private static final long MAX_DOWNLOAD = 200L * 1024 * 1024;
+
+    /** A duplicated agent gets its own agent id (from its new name), so it does not clash with the original at check-in. */
+    @SuppressWarnings("unchecked")
+    private String renameDuplicatedAgent(String rel) throws IOException {
+        if (!rel.endsWith(Workspace.BOT_SUFFIX)) return rel;
+        Path p = ws.resolve(rel);
+        try {
+            Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
+            String name = p.getFileName().toString();
+            name = name.substring(0, name.length() - Workspace.BOT_SUFFIX.length());
+            flow.put("id", name.trim().replaceAll("[^A-Za-z0-9_.-]+", "_"));
+            flow.put("name", name);
+            Files.writeString(p, json.write(flow, true));
+        } catch (RuntimeException unreadable) { /* not a valid agent file: keep the plain copy */ }
+        return rel;
+    }
+
+    /** GET files/download?path=: a file as it is, or a folder as a .zip (hidden entries left out). */
+    private void download(HttpExchange ex, String rel) throws IOException {
+        Path p = ws.resolve(rel);
+        if (!Files.exists(p) || Files.isSymbolicLink(p)) throw new OoaException("STUDIO.NOT_FOUND", "Not found: " + rel);
+        byte[] bytes;
+        String name = p.equals(ws.root) ? "workspace" : p.getFileName().toString();
+        if (Files.isDirectory(p)) {
+            var buf = new java.io.ByteArrayOutputStream();
+            long total = 0;
+            try (var zip = new java.util.zip.ZipOutputStream(buf); Stream<Path> s = Files.walk(p)) {
+                for (Path x : s.filter(Files::isRegularFile).toList()) {
+                    Path r = p.relativize(x);
+                    boolean hidden = false;
+                    for (Path part : r) if (part.toString().startsWith(".")) hidden = true;
+                    if (hidden || Files.isSymbolicLink(x)) continue;
+                    total += Files.size(x);
+                    if (total > MAX_DOWNLOAD) throw new OoaException("STUDIO.TOO_LARGE", "The folder is larger than 200 MB", "Download smaller folders, or copy it in File Explorer.");
+                    zip.putNextEntry(new java.util.zip.ZipEntry(name + "/" + r.toString().replace('\\', '/')));
+                    Files.copy(x, zip);
+                    zip.closeEntry();
+                }
+            }
+            bytes = buf.toByteArray();
+            name = name + ".zip";
+        } else {
+            if (Files.size(p) > MAX_DOWNLOAD) throw new OoaException("STUDIO.TOO_LARGE", "The file is larger than 200 MB", "Copy it in File Explorer instead.");
+            bytes = Files.readAllBytes(p);
+        }
+        ex.getResponseHeaders().set("Content-Disposition", "attachment; filename*=UTF-8''" + java.net.URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20"));
+        sendBytes(ex, 200, "application/octet-stream", bytes);
+    }
+
+    /** Opens File Explorer at a workspace item (Windows). Started with an argument list, never through a shell. */
+    private String reveal(String rel) throws IOException {
+        Path p = ws.resolve(rel);
+        if (!Files.exists(p)) throw new OoaException("STUDIO.NOT_FOUND", "Not found: " + rel);
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win"))
+            throw new OoaException("STUDIO.UNSUPPORTED", "Open in File Explorer works on Windows only", "Open the workspace folder yourself: " + ws.root);
+        List<String> cmd = Files.isDirectory(p) ? List.of("explorer.exe", p.toString()) : List.of("explorer.exe", "/select," + p);
+        new ProcessBuilder(cmd).start();
+        return rel;
+    }
 
     /**
      * Custom connectors in {workspace}/connectors: GET connectors (list), POST connectors/import {text, name?, server?, overwrite?},

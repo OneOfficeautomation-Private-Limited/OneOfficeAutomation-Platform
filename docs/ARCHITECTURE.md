@@ -205,7 +205,7 @@ public final class CrmPackage {
   - the word "bot" is not used in user-facing text
   - inputs that are secrets are `OoaType.CREDENTIAL`
 
-Today there are **73 toolkits and 945 actions**. The full list is in `docs/COMMAND_CATALOG.md`.
+Today there are **73 toolkits and 948 actions**. The full list is in `docs/COMMAND_CATALOG.md`.
 
 ### 5.2a Captured objects (web and desktop Capture)
 
@@ -228,6 +228,46 @@ UI actions find elements by a **captured object** instead of a single selector:
 - Studio edits the object in `captureEditor` (`studio.js`). It uses `POST /studio/api/capture`, `capture/test` and
   `capture-desktop`.
 
+### 5.2b Window choice of web actions, and browsers that are already open
+
+Every web element action (`element_action`, `click`, `type_text`, `select_option`, `get_text`, `get_attribute`,
+`wait_for`, `extract_table`, `download`, `screenshot`) and the conditions `element_exists` and `element_visible` take an
+optional `window` input. Values may contain `$variables`; the Runner resolves them before the action runs.
+
+```json
+{"source": "browser",            // or "application" / "variable"
+ "title": "Invoice * - Shop", "title_match": "wildcard",   // wildcard (default), contains, equals, regex
+ "url": "shop.test/invoices", "url_match": "contains",     // contains is the default for the address
+ "browser": "edge",              // optional filter: edge or chrome
+ "variable": "browser"}          // source variable: the browser session name
+```
+
+- **browser:** the first tab, among every page of the run's browser sessions (own, attached, and a browser listening on
+  the default debugging port 9222, which is attached automatically as session `attached_9222`), whose title and/or
+  address matches. The step's own session is searched first. That tab becomes its session's current page and the action
+  runs in that session. Wildcard, contains and equals ignore case; regex is used as written.
+- **variable:** the browser session with that name (`attach` and `open_for_automation` return a ready `window` value).
+- **application:** a desktop window title. A browser window's title is its tab title plus the browser name (and maybe
+  the profile name and "and N more pages"); those parts are removed and the rest is matched against the tabs as above.
+  Any other desktop window cannot take web element actions: the error points to the Desktop objects toolkit.
+- The action waits up to its `timeout_ms` for the window. Otherwise it fails with `BROWSER.WINDOW_NOT_FOUND`, which
+  lists the open tabs. Conditions return false instead.
+
+Browsers that are already open are reached through the DevTools protocol (Playwright `connectOverCDP`):
+
+- `ooa.browser/attach` connects to `http://127.0.0.1:9222` (or another endpoint) as a session. Closing that session only
+  disconnects.
+- `ooa.browser/open_for_automation` starts Edge or Chrome with `--remote-debugging-port` and its own profile folder
+  (`.ooa/browser-profiles/<browser>-<port>` in the workspace), or reuses the browser already listening on that port. A
+  browser started the usual way has no debugging port and cannot be reached; recent browsers also refuse a debugging port
+  on the everyday profile.
+- `ooa.browser/list_windows` lists reachable tabs (from the run's sessions and `/json/list` of each endpoint) and, on
+  Windows, desktop window titles (one PowerShell `Get-Process` call, started with an argument list). Studio calls it
+  through `GET /studio/api/windows[?endpoints=...&desktop=false]`, which returns
+  `{"windows": [{"source": "browser"|"application", "title", "url", "browser"}]}`.
+
+Code: `packages-browser/.../BrowserWindows.java`.
+
 ### 5.3 Runner engine
 
 `Runner.builder(registry).sink(eventSink).workDir(dir).service("vault", vault)...build().run(flow, inputs, options)`
@@ -244,6 +284,13 @@ UI actions find elements by a **captured object** instead of a single selector:
    retries with backoff.
 5. **Run controls** through `RunOptions`: `cancel` and `pause` flags, `maxRunSeconds`, and a `Debugger` hook. Studio's
    debugger implements step into, step over, step out, breakpoints and variable edits through that hook.
+   - `startAt(stepId)` ("Run from here") skips the steps before the start step in document order; they do not run
+     and emit no events. Blocks that hold the start step are entered **without being evaluated**: an If's condition is
+     not checked, a Loop runs one pass without setting its item or index variable, and a Parallel runs only the branch
+     with the start step. A Try keeps its Catch and Finally when the start step is in the Try part. After those blocks
+     the run carries on normally. Variables keep their inputs and defaults, since skipped steps never set them.
+   - `onlyStep(stepId)` ("Run this step only") does the same and ends the run successfully after that step (for a
+     block, after everything inside it). Both apply to the agent being run, not to its child agents.
 6. **Events** (`RunEvent`):
    - `run.started`, `run.paused`, `run.resumed`, `run.finished`
    - `step.started`, `step.finished`, `step.failed`, `step.retry`
@@ -279,8 +326,26 @@ studio.js ──HTTP──► StudioServer ──► Workspace (files in My Work
   `deps`, `record`, `capture`, `clipboard`, `connections`, `connectors`, `triggers`, `assistant/build`, `info`.
   Command Center link: `cr/connect`, `cr/disconnect`, `cr/status`, `cr/repo`, `cr/checkin`, `cr/checkout`,
   `cr/undo-checkout`, `cr/versions`.
+- **Runs:** `POST runs {flow, inputs, debug?, breakpoints?, start_at?, only_step?}` starts a run in the background;
+  `start_at` and `only_step` map to `RunOptions.startAt` and `onlyStep` (the step menu's Run from here and Run this
+  step only). `GET runs/{id}?after=n` returns new events, state and the result; `pause`, `resume`, `stop`, `debug`,
+  `breakpoints` and `variable` control it. Studio follows the run in the Run dock and in the floating Run window.
+- **Explorer files (`files/...`):** `folder`, `bot`, `item`, `rename`, `move`, `copy` (`{path, to}`; a taken name gets
+  " - Copy"), `duplicate` (a duplicated agent gets its own agent id), `delete` (to `.trash`), `upload`
+  (`POST files/upload?parent=&name=` with the raw bytes, 50 MB per file, unsafe characters in the name become `_`),
+  `download` (`GET files/download?path=`; a folder comes as a .zip) and `reveal` (opens File Explorer with an argument
+  list, Windows only). Every path goes through `Workspace.resolve`, so nothing outside the workspace or hidden is
+  reachable.
+- **Design time, provided elsewhere:** `GET windows` lists open browser and application windows for the Window editor
+  of web actions (`{"windows": [{source, title, url, browser}]}`); the editor still works when the endpoint is missing.
 - **Debug runs** use `StudioDebugger`, which pauses the runner thread before a step and resumes it on the UI's
   commands.
+- **Studio UI building blocks (`studio.js`):** action groups come from `GROUP_LIST` (one group per technology, under a
+  section heading; `groupOf()` splits a toolkit that holds several technologies, such as Scripts by language); the
+  canvas selection is `state.multi` with `state.anchorId` for Shift ranges; `openMenu()` builds the keyboard-accessible
+  pop-up menus (step menu and Explorer menu); `renderRunWindow()` draws the floating Run window; `windowEditor()` edits
+  a `window` input; inputs that are not required, have a default and come after the first three go under "More
+  options" in the Action settings.
 
 ### 6.2 Check-in to the Command Center
 
@@ -459,7 +524,7 @@ in the API at once.
 | --- | --- | --- |
 | All Java tests | `.\gradlew.bat test` (add `$env:JAVA_TOOL_OPTIONS='-Djava.awt.headless=true'` on a desktop) | 314 tests: runner, every toolkit against local fake services, Command Center end to end (`ControlRoomE2ETest`, `PlatformTest`, `EnterpriseFeaturesTest`, `UnifiedServerTest`, trigger tests), debugger, architecture rules |
 | One module or class | `.\gradlew.bat :packages:test --tests "*GitHubPackageTest*"` | |
-| Studio UI | `cli/src/test/ui/studio.ui.test.js` with Node + jsdom against a running `ooa studio` | 131 checks |
+| Studio UI | `cli/src/test/ui/studio.ui.test.js` with Node + jsdom against a running `ooa studio` | 205 checks |
 | Console UI | `control-room/src/test/ui/console.ui.test.js` with jsdom against a running `ooa control-room` (env `CR_URL`, `CR_ADMIN_PASSWORD`) | 58 checks |
 
 Conventions:
@@ -487,7 +552,9 @@ Conventions:
 3. Register it in `FirstPartyPackages` (`ALL`, or `OPTIONAL` by class name).
 4. Write `<Name>PackageTest` with the fake server, and run `.\gradlew.bat :packages:test --tests "*<Name>*"` plus
    `ArchitectureTest`.
-5. Add a row to `docs/COMMAND_CATALOG.md`. If its category is new, add it to `PKG_CAT` in `studio.js`.
+5. Add a row to `docs/COMMAND_CATALOG.md`. Give the toolkit its own row in `GROUP_LIST` in `studio.js` (group name,
+   icon, colour and section). Without one it still gets a group of its own, named after the toolkit, under "More
+   toolkits". A toolkit that covers several technologies is split by action id in `groupOf()`.
 6. Nothing else is needed: Studio's action list, validation, the AI assistant and the Command Center's Toolkits page
    all read the manifest.
 
