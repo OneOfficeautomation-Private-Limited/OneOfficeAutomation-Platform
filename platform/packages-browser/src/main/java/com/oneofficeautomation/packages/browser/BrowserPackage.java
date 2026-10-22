@@ -43,6 +43,9 @@ public final class BrowserPackage {
     static ActionException pwPublic(PlaywrightException e, String what) { return pw(e, what); }
 
     private static final String D_SEL = "Element selector: CSS (#id, .class), text=\"Sign in\", role=button[name=\"Save\"] or xpath=//input[@name='q'].";
+    private static final String D_OBJ = "The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: "
+            + "equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given.";
+    private static final String D_SEL_OPT = "Element selector, used when no captured object is given: CSS (#id, .class), text=\"Sign in\", role=button[name=\"Save\"] or xpath=//input[@name='q'].";
     private static final String D_TIMEOUT = "How long to wait for the element, in milliseconds.";
     private static final String D_ALT = "Self-healing fallbacks recorded with the element (Pick records them): automation_id, name, id, aria_label, tag, class, index, text, "
             + "relative {anchor, direction}. Tried in that order when the selector finds nothing; the one that works is logged.";
@@ -77,6 +80,26 @@ public final class BrowserPackage {
      * Playwright locator (which waits by itself); otherwise the selector and its recorded alternatives are polled in order
      * until one matches, running the interrupt rules again on the first miss, and a healed match is logged.
      */
+    /** The element from the captured object when given, otherwise from the selector (with its recorded alternatives). */
+    static Locator target(ActionContext ctx, String session, Object object, String sel, Map<String, Object> alternatives, double timeoutMs) {
+        if (object != null) return WebObjects.locate(ctx, s(ctx, session), WebObjects.object(object), timeoutMs, false);
+        if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Pick or Capture in Agent Studio, or type a selector.");
+        return element(ctx, session, sel, alternatives, timeoutMs);
+    }
+
+    /** How the element is named in error messages. */
+    static String what(Object object, String sel) {
+        if (object == null) return sel;
+        try { return "the captured object " + WebObjects.describe(WebObjects.object(object)); } catch (ActionException e) { return "the captured object"; }
+    }
+
+    /** Elements matching right now (no waiting), from the captured object or the selector. */
+    static int countNow(ActionContext ctx, String session, Object object, String sel) {
+        if (object != null) { Map<String, Object> o = WebObjects.object(object); return WebObjects.findAll(s(ctx, session).page, o).length; }
+        if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
+        return s(ctx, session).page.locator(sel).count();
+    }
+
     static Locator element(ActionContext ctx, String session, String sel, Map<String, Object> alternatives, double timeoutMs) {
         Page page = s(ctx, session).page;
         UiGuard.before(ctx);
@@ -138,22 +161,24 @@ public final class BrowserPackage {
 
     @Action(id = "click", name = "Click element", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Click an element (waits until it is visible and enabled).")
     public Map<String, Object> click(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         try {
-            Locator l = element(ctx, session, sel, alternatives, timeout);
+            Locator l = target(ctx, session, object, sel, alternatives, timeout);
             if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout)); else l.click(new Locator.ClickOptions().setTimeout(timeout));
-        } catch (PlaywrightException e) { throw pw(e, "Clicking " + sel); }
+        } catch (PlaywrightException e) { throw pw(e, "Clicking " + what(object, sel)); }
         return Map.of();
     }
 
     @Action(id = "type_text", name = "Set text", category = "Elements", timeoutSeconds = 120, capabilities = "browser",
             description = "Fill a text field (replacing its content); Credential values are typed without ever being logged.")
     public Map<String, Object> typeText(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "press_enter", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Press Enter afterwards.") boolean enter,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
@@ -161,83 +186,107 @@ public final class BrowserPackage {
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         String value = text instanceof SecureString ss ? ss.reveal() : Values.text(text);
         try {
-            Locator l = element(ctx, session, sel, alternatives, timeout);
+            Locator l = target(ctx, session, object, sel, alternatives, timeout);
             l.fill(value, new Locator.FillOptions().setTimeout(timeout));
             if (enter) l.press("Enter");
-        } catch (PlaywrightException e) { throw pw(e, "Typing into " + sel); }
+        } catch (PlaywrightException e) { throw pw(e, "Typing into " + what(object, sel)); }
         return Map.of();
     }
 
     @Action(id = "select_option", name = "Select item", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Choose an option in a drop-down list by its value or visible text.")
     public Map<String, Object> select(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "option", type = OoaType.STRING, description = "Option value or visible text.") String option,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
         try {
-            Locator l = element(ctx, session, sel, alternatives, timeout);
+            Locator l = target(ctx, session, object, sel, alternatives, timeout);
             List<String> chosen = l.selectOption(option, new Locator.SelectOptionOptions().setTimeout(timeout));
             if (chosen.isEmpty()) l.selectOption(new com.microsoft.playwright.options.SelectOption().setLabel(option), new Locator.SelectOptionOptions().setTimeout(timeout));
-        } catch (PlaywrightException e) { throw pw(e, "Selecting '" + option + "' in " + sel); }
+        } catch (PlaywrightException e) { throw pw(e, "Selecting '" + option + "' in " + what(object, sel)); }
         return Map.of();
     }
 
     @Action(id = "get_text", name = "Get text", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read the visible text of an element.")
     @Output(name = "text", type = OoaType.STRING, description = "Element text.")
     public Map<String, Object> getText(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
-        try { return Map.of("text", element(ctx, session, sel, alternatives, timeout).innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
-        catch (PlaywrightException e) { throw pw(e, "Reading " + sel); }
+        try { return Map.of("text", target(ctx, session, object, sel, alternatives, timeout).innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
+        catch (PlaywrightException e) { throw pw(e, "Reading " + what(object, sel)); }
     }
 
     @Action(id = "get_attribute", name = "Get attribute", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read an attribute of an element, e.g. href or value.")
     @Output(name = "value", type = OoaType.STRING, description = "Attribute value, empty when missing.")
     public Map<String, Object> getAttribute(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "attribute", type = OoaType.STRING, example = "href", description = "Attribute name; use value for input fields.") String attr,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         try {
-            Locator l = element(ctx, session, sel, null, timeout);
+            Locator l = target(ctx, session, object, sel, null, timeout);
             String v = attr.equals("value") ? l.inputValue(new Locator.InputValueOptions().setTimeout(timeout)) : l.getAttribute(attr, new Locator.GetAttributeOptions().setTimeout(timeout));
             return Map.of("value", v == null ? "" : v);
-        } catch (PlaywrightException e) { throw pw(e, "Reading " + attr + " of " + sel); }
+        } catch (PlaywrightException e) { throw pw(e, "Reading " + attr + " of " + what(object, sel)); }
     }
 
     @Action(id = "wait_for", name = "Wait for element", category = "Elements", timeoutSeconds = 600, capabilities = "browser", description = "Wait until an element appears, becomes visible, hidden or is removed.")
     public Map<String, Object> waitFor(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"visible\"", enumValues = {"visible", "attached", "hidden", "detached"}, description = "State to wait for.") String state,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         try {
             UiGuard.before(ctx);
-            s(ctx, session).page.locator(sel).first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.valueOf(state.toUpperCase(Locale.ROOT))));
-        } catch (PlaywrightException e) { throw pw(e, "Waiting for " + sel); }
+            WaitForSelectorState st = WaitForSelectorState.valueOf(state.toUpperCase(Locale.ROOT));
+            if (object == null) {
+                if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
+                s(ctx, session).page.locator(sel).first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(st));
+            } else if (st == WaitForSelectorState.VISIBLE || st == WaitForSelectorState.ATTACHED) {
+                Locator l = target(ctx, session, object, null, null, timeout);
+                l.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(st));
+            } else {
+                long end = System.currentTimeMillis() + (long) timeout;
+                Map<String, Object> o = WebObjects.object(object);
+                while (true) {
+                    ctx.checkCancelled();
+                    Locator[] found = WebObjects.findAll(s(ctx, session).page, o);
+                    boolean gone = st == WaitForSelectorState.DETACHED ? found.length == 0 : java.util.Arrays.stream(found).noneMatch(Locator::isVisible);
+                    if (gone) break;
+                    if (System.currentTimeMillis() >= end) throw new ActionException("BROWSER.TIMEOUT", what(object, null) + " is still on the page after " + (long) timeout + " ms", "Raise timeout_ms.", true);
+                    s(ctx, session).page.waitForTimeout(250);
+                }
+            }
+        } catch (PlaywrightException e) { throw pw(e, "Waiting for " + what(object, sel)); }
         return Map.of();
     }
 
     @Condition(id = "element_exists", name = "Element exists", description = "True when at least one element matches the selector right now.")
     public boolean exists(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        try { return s(ctx, session).page.locator(sel).count() > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + sel); }
+        try { return countNow(ctx, session, object, sel) > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
     @Action(id = "extract_table", name = "Extract table", category = "Data", timeoutSeconds = 120, capabilities = "browser", description = "Read an HTML table into a Data Table (first row as column names).")
     @Output(name = "table", type = OoaType.TABLE, description = "Table content.")
     public Map<String, Object> extractTable(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, required = false, defaultValue = "\"table\"", description = "Selector of the table element.") String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, defaultValue = "\"table\"", description = "Selector of the table element, used when no captured object is given.") String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         try {
-            Locator l = s(ctx, session).page.locator(sel).first();
+            Locator l = object != null ? target(ctx, session, object, null, null, timeout) : s(ctx, session).page.locator(sel).first();
             l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
-            Object raw = l.evaluate("t => Array.from(t.rows).map(r => Array.from(r.cells).map(c => c.innerText.trim()))");
+            Object raw = l.evaluate("t => Array.from((t.closest('table') || t).rows).map(r => Array.from(r.cells).map(c => c.innerText.trim()))");
             List<List<Object>> grid = new ArrayList<>();
             if (raw instanceof List<?> rows) for (Object r : rows) grid.add(new ArrayList<>((List<?>) r));
             List<String> cols = new ArrayList<>();
@@ -245,7 +294,7 @@ public final class BrowserPackage {
             List<Object> rows = new ArrayList<>();
             for (List<Object> g : grid) { while (g.size() < cols.size()) g.add(""); rows.add(g); }
             return Map.of("table", Values.table(cols, rows));
-        } catch (PlaywrightException e) { throw pw(e, "Reading table " + sel); }
+        } catch (PlaywrightException e) { throw pw(e, "Reading table " + what(object, sel)); }
     }
 
     @Action(id = "run_javascript", name = "Run JavaScript", category = "Page", timeoutSeconds = 120, capabilities = "browser",
@@ -384,19 +433,21 @@ public final class BrowserPackage {
             description = "Click a link or button that starts a download and save the file into a folder.")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> download(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = "Element that starts the download.") String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = "Element that starts the download, used when no captured object is given.") String sel,
             @Input(name = "folder", type = OoaType.FILE, description = "Folder to save into.") String folder,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "120000", description = "How long to wait for the download.") double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         try {
             Page p = s(ctx, session).page;
-            Download d = p.waitForDownload(new Page.WaitForDownloadOptions().setTimeout(timeout), () -> p.locator(sel).first().click());
+            Locator trigger = target(ctx, session, object, sel, null, Math.min(timeout, 30000));
+            Download d = p.waitForDownload(new Page.WaitForDownloadOptions().setTimeout(timeout), () -> trigger.click());
             String name = d.suggestedFilename().replaceAll("[\\\\/:*?\"<>|\\x00-\\x1f]", "_");
             Path target = ctx.resolvePath(folder).resolve(name.isBlank() ? "download" : name);
             Files.createDirectories(target.getParent());
             d.saveAs(target);
             return Map.of("path", target.toString());
-        } catch (PlaywrightException e) { throw pw(e, "Downloading via " + sel);
+        } catch (PlaywrightException e) { throw pw(e, "Downloading via " + what(object, sel));
         } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
     }
 
@@ -405,13 +456,15 @@ public final class BrowserPackage {
     public Map<String, Object> screenshot(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PNG file to create.") String path,
             @Input(name = "full_page", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Whole scrollable page.") boolean full,
-            @Input(name = "selector", type = OoaType.STRING, required = false, description = "Only this element.") String sel,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = "Only this element (selector).") String sel,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "Only this element: the captured object from Capture or Pick in Agent Studio.") Object object) {
         Path p = ctx.resolvePath(path);
         try {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
             Page page = s(ctx, session).page;
-            if (sel != null && !sel.isBlank()) page.locator(sel).first().screenshot(new Locator.ScreenshotOptions().setPath(p));
+            if (object != null) target(ctx, session, object, null, null, 30000).screenshot(new Locator.ScreenshotOptions().setPath(p));
+            else if (sel != null && !sel.isBlank()) page.locator(sel).first().screenshot(new Locator.ScreenshotOptions().setPath(p));
             else page.screenshot(new Page.ScreenshotOptions().setPath(p).setFullPage(full));
         } catch (PlaywrightException e) { throw pw(e, "Taking a screenshot");
         } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
@@ -767,11 +820,17 @@ public final class BrowserPackage {
         return out;
     }
 
-    @Condition(id = "element_visible", name = "Element is visible", description = "True when an element matching the selector is visible now.")
+    @Condition(id = "element_visible", name = "Element is visible", description = "True when the captured element (or one matching the selector) is visible now.")
     public boolean elementVisible(ActionContext ctx,
-            @Input(name = "selector", type = OoaType.STRING, description = D_SEL) String sel,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        try { return s(ctx, session).page.locator(sel).first().isVisible(); } catch (PlaywrightException e) { throw pw(e, "Checking " + sel); }
+        try {
+            if (object != null) { Map<String, Object> o = WebObjects.object(object); int idx = o.get("index") instanceof Number n ? n.intValue() : 0;
+                Locator[] f = WebObjects.findAll(s(ctx, session).page, o); return f.length > idx && f[idx].isVisible(); }
+            if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
+            return s(ctx, session).page.locator(sel).first().isVisible();
+        } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
     @Condition(id = "text_on_page", name = "Page contains text", description = "True when the visible page text contains the text.")

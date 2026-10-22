@@ -163,6 +163,28 @@ class CaptureObjectTest {
             act(b, c, user, "screenshot", "shots/user.png");
             assertTrue(Files.size(w.resolve("shots/user.png")) > 100);
 
+            // every web action takes the captured object, not only the element action
+            Map<String, Object> userBox = obj(prop("label", "User name", "equals", true));
+            b.typeText(c, userBox, null, "Zoe", false, 3000, "browser", null);
+            assertEquals("Zoe", b.getAttribute(c, userBox, null, "value", 3000, "browser").get("value"));
+            Map<String, Object> saveBtn = obj(prop("tag", "button", "equals", true), prop("text", "Save*", "wildcard", true));
+            assertEquals("Save item", b.getText(c, saveBtn, null, 3000, "browser", null).get("text"));
+            Map<String, Object> firstDelete = obj(prop("class", "del", "contains", true));
+            b.click(c, firstDelete, null, false, 3000, "browser", null);
+            assertEquals("0", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-deleted").get("result"));
+            b.select(c, obj(prop("id", "status", "equals", true)), null, "Open", 3000, "browser", null);
+            assertEquals("Open", act(b, c, obj(prop("id", "status", "equals", true)), "get_selected", null).get("result"));
+            b.waitFor(c, saveBtn, null, "visible", 3000, "browser");
+            b.waitFor(c, obj(prop("id", "never-there", "equals", true)), null, "detached", 1000, "browser");
+            assertTrue(b.exists(c, saveBtn, null, "browser"));
+            assertFalse(b.exists(c, obj(prop("id", "nope", "equals", true)), null, "browser"));
+            assertTrue(b.elementVisible(c, saveBtn, null, "browser"));
+            Map<String, Object> ordersTable = (Map<String, Object>) b.extractTable(c, obj(prop("id", "orders", "equals", true)), null, 3000, "browser").get("table");
+            assertEquals(List.of("Id", "Amount"), ordersTable.get("columns"));
+            b.screenshot(c, "shots/save.png", false, null, "browser", saveBtn);
+            assertTrue(Files.size(w.resolve("shots/save.png")) > 100);
+            assertEquals("BROWSER.NO_ELEMENT", assertThrows(ActionException.class, () -> b.click(c, null, null, false, 1000, "browser", null)).code());
+
             // the selector still works for older steps, and one of the two is required
             assertEquals("Save item", b.elementAction(c, null, "#save-123456", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null).get("result"));
             assertEquals("BROWSER.NO_ELEMENT", assertThrows(ActionException.class, () -> act(b, c, null, "click", null)).code());

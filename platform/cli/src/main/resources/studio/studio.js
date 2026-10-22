@@ -938,7 +938,15 @@ function inputControl(step, name, prop, required) {
   }
   if (control.tagName === "INPUT" || control.tagName === "TEXTAREA") { control.dataset.argName = name; control = withPicker(control, type); }
   if (name === "selector" && step.action.startsWith("ooa.browser/")) {
-    const pick = h("button", { type: "button", title: "Open the page and click the element to capture its selector", onclick: () => pickSelector((sel) => { set(sel); renderProps(); }) }, "Pick");
+    // Pick records the full captured object (all properties, editable match rules) when the action accepts one; otherwise just the selector.
+    const takesObject = !!(state.specs.get(step.action) && state.specs.get(step.action).action.inputs.properties.object);
+    const pick = h("button", { type: "button", title: takesObject ? "Open the page and click the element: all its properties are captured, and you choose which to match"
+        : "Open the page and click the element to capture its selector",
+      onclick: () => pickSelector((sel, el, obj) => {
+        if (takesObject && obj) { args.object = obj; delete args[name]; changed(); }
+        else set(sel);
+        renderProps();
+      }) }, takesObject ? "Capture" : "Pick");
     control = h("div", { class: "field-row" }, control, pick);
   }
   const help = [prop.description, prop.examples ? "Example: " + prop.examples[0] : null].filter(Boolean).join("  ");
@@ -3140,11 +3148,13 @@ function captureEditor(step, value, set) {
       const val = h("input", { type: "text", value: p.value == null ? "" : String(p.value), "aria-label": "Value of " + p.name, onchange: (e) => { p.value = e.target.value; save(); } });
       const m = sel(CAPTURE_MATCHES, p.match || "equals", (v) => { p.match = v; save(); }, "Match for " + p.name);
       const del = h("button", { type: "button", class: "mini danger", title: "Remove this property", onclick: () => { props.splice(i, 1); save(); render(); } }, "\u2715");
-      const tr = h("tr", { class: p.use ? "on" : "" }, h("td", {}, use), h("td", {}, nm), h("td", {}, val), h("td", {}, m), h("td", {}, del));
-      use.addEventListener("change", () => tr.classList.toggle("on", use.checked));
-      return tr;
+      // One block per property: Use, name, match and remove on the first line; the value full width below it.
+      const row = h("div", { class: "cap-row" + (p.use ? " on" : "") }, h("span", { class: "cap-use" }, use), h("span", { class: "cap-prop" }, nm), m, del, h("span", { class: "cap-val" }, val));
+      use.addEventListener("change", () => row.classList.toggle("on", use.checked));
+      return row;
     });
-    const table = h("table", { class: "cap-table" }, h("thead", {}, h("tr", {}, ["Use", "Property", "Value", "Match", ""].map((t) => h("th", { text: t })))), h("tbody", {}, rows));
+    const table = h("div", { class: "cap-table", role: "group", "aria-label": "Captured properties" },
+      h("div", { class: "cap-row cap-headrow" }, h("span", { text: "Use" }), h("span", { text: "Property and value" }), h("span", { text: "Match" }), h("span")), rows);
     const add = h("button", { type: "button", class: "link-btn", onclick: () => { props.push({ name: "", value: "", match: "equals", use: true, custom: true }); save(); render(); } }, "+ Add property");
     let place = null;
     if (!desktop) {

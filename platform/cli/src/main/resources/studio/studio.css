@@ -630,3 +630,15 @@ pre.explain { white-space: pre-wrap; font-family: "Segoe UI", system-ui, sans-se
 .cap-name { font-family: Consolas, monospace; word-break: break-all; }
 .cap-empty { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted, #64748b); }
 .cap-page summary { cursor: pointer; font-size: 12px; }
+
+/* capture properties: one block per property, value on its own full-width line (fits a narrow settings panel) */
+.cap-table { display: grid; gap: 4px; }
+.cap-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 96px 24px; grid-template-areas: "use prop match del" "val val val val"; gap: 2px 6px; align-items: center;
+  padding: 4px 6px; border: 1px solid var(--line, #d0d7e2); border-radius: 6px; }
+.cap-row.on { border-color: color-mix(in srgb, var(--accent, #6d28d9) 55%, transparent); background: color-mix(in srgb, var(--accent, #6d28d9) 6%, transparent); }
+.cap-row .cap-use { grid-area: use; } .cap-row .cap-prop { grid-area: prop; min-width: 0; } .cap-row select { grid-area: match; width: 100%; min-width: 0; font-size: 11px; }
+.cap-row .mini { grid-area: del; padding: 0 4px; min-width: 0; } .cap-row .cap-val { grid-area: val; }
+.cap-row .cap-val input, .cap-row .cap-prop input { width: 100%; box-sizing: border-box; min-width: 0; font-family: Consolas, monospace; font-size: 12px; }
+.cap-headrow { border: 0; padding: 0 6px; font-size: 11px; font-weight: 600; color: var(--muted, #64748b); grid-template-areas: "use prop match del"; }
+.cap-row.on .cap-name { font-weight: 600; color: var(--accent, #6d28d9); }
+.cap-name { font-family: Consolas, monospace; font-size: 12px; word-break: break-all; }
