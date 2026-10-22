@@ -86,7 +86,7 @@ public final class ControlRoomServer {
                 case "CR.UNAUTHENTICATED", "CR.LOGIN_FAILED" -> 401;
                 case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "VAULT.DENIED", "CR.CSRF" -> 403;
                 case "CR.NOT_FOUND", "VAULT.NOT_FOUND" -> 404;
-                case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID" -> 409;
+                case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED" -> 409;
                 case "CR.LOCKED_OUT" -> 429;
                 default -> 400;
             };
@@ -283,8 +283,33 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "queue-models" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("models", cr.platform.workItemModels(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.platform.saveWorkItemModel(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.platform.saveWorkItemModel(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteWorkItemModel(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "lifecycle" -> {
+                if (m.equals("POST") && route.equals("lifecycle/export")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.lifecycle.export(u, (List<Object>) b.get("paths"), b.get("version"), !Boolean.FALSE.equals(b.get("include_dependencies")), ip));
+                } else if (m.equals("POST") && route.equals("lifecycle/import")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.lifecycle.importBundle(u, b.get("bundle") instanceof Map<?, ?> bm ? (Map<String, Object>) bm : null, (String) b.get("conflict"),
+                            Boolean.TRUE.equals(b.get("production")), (String) b.get("target_folder"), ip));
+                } else if (m.equals("POST") && route.equals("lifecycle/promote")) sendJson(ex, 200, cr.lifecycle.promote(u, map(body(ex)), ip));
+                else notFound(ex);
+            }
             case "queues" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("queues", cr.platform.queues(u)));
+                else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.platform.queue(u, seg[1]));
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("members")) { cr.platform.setQueueMembers(u, seg[1], (List<Object>) map(body(ex)).get("members"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("items") && seg[3].equals("export"))
+                    sendText(ex, 200, "text/csv; charset=utf-8", cr.platform.exportCsv(u, seg[1], q.get("status")), "work-items.csv");
+                else if (m.equals("GET") && seg.length == 4 && seg[2].equals("items")) sendJson(ex, 200, cr.platform.item(u, seg[1], seg[3]));
+                else if (m.equals("PUT") && seg.length == 4 && seg[2].equals("items")) { cr.platform.updateItem(u, seg[1], seg[3], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items") && seg[3].equals("csv")) sendJson(ex, 200, cr.platform.importCsv(u, seg[1], (String) map(body(ex)).get("csv"), ip));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.platform.saveQueue(u, null, map(body(ex)), ip));
                 else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.platform.saveQueue(u, seg[1], map(body(ex)), ip));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deleteQueue(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
@@ -318,11 +343,26 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) { cr.updateUser(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-password")) sendJson(ex, 200, cr.resetPassword(u, seg[1], ip));
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("default-device")) { cr.setDefaultDevice(u, seg[1], (String) map(body(ex)).get("device_id"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "repo" -> {
                 String p = q.get("path");
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("bots", cr.repoList(u, q.get("q"))));
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("bots", cr.repoList(u, q.get("q"), q.get("folder"), "true".equals(q.get("deleted")))));
+                else if (m.equals("GET") && route.equals("repo/folders")) sendJson(ex, 200, Map.of("folders", cr.folders.list(u)));
+                else if (m.equals("POST") && route.equals("repo/folders")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.folders.create(u, (String) b.get("path"), (String) b.get("description"), ip)); }
+                else if (m.equals("DELETE") && route.equals("repo/folders")) { cr.folders.delete(u, p, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && route.equals("repo/permissions")) sendJson(ex, 200, Map.of("folder", q.getOrDefault("folder", ""), "permissions", cr.folders.permissions(u, q.get("folder"))));
+                else if (m.equals("PUT") && route.equals("repo/permissions")) { Map<String, Object> b = map(body(ex)); cr.folders.setPermissions(u, (String) b.get("folder"), (List<Object>) b.get("permissions"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && route.equals("repo/delete")) sendJson(ex, 200, cr.deleteBot(u, (String) map(body(ex)).get("path"), ip));
+                else if (m.equals("POST") && route.equals("repo/recover")) { cr.recoverBot(u, (String) map(body(ex)).get("path"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && route.equals("repo/labels")) {
+                    Map<String, Object> b = map(body(ex));
+                    if (!(b.get("version") instanceof Number v)) throw new OoaException("CR.BAD_INPUT", "Give the version to label");
+                    cr.setLabel(u, (String) b.get("path"), (String) b.get("label"), v.intValue(), ip); sendJson(ex, 200, Map.of("ok", true));
+                }
+                else if (m.equals("DELETE") && route.equals("repo/labels")) { cr.removeLabel(u, p, q.get("label"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && route.equals("repo/dependencies")) sendJson(ex, 200, cr.dependencies(u, p, q.getOrDefault("version", "latest")));
                 else if (m.equals("GET") && route.equals("repo/bot")) sendJson(ex, 200, cr.getBot(u, p, q.getOrDefault("version", "latest")));
                 else if (m.equals("GET") && route.equals("repo/versions")) sendJson(ex, 200, Map.of("versions", cr.versions(u, p)));
                 else if (m.equals("POST") && route.equals("repo/roi")) { Map<String, Object> b = map(body(ex)); cr.platform.setMinutesSaved(u, (String) b.get("path"), b.get("minutes_saved"), ip); sendJson(ex, 200, Map.of("ok", true)); }
@@ -339,6 +379,8 @@ public final class ControlRoomServer {
             }
             case "devices" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("devices", cr.devices(u)));
+                else if (m.equals("GET") && route.equals("devices/runasusers")) sendJson(ex, 200, Map.of("users", cr.runAsUsers(u)));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.deleteDevice(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && route.equals("devices/registration-key")) sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) map(body(ex)).getOrDefault("hours", 24)).intValue(), ip));
                 else if (m.equals("PATCH") && seg.length == 2) {
                     Map<String, Object> b = map(body(ex));
@@ -352,9 +394,11 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.runsPage(u, q));
                 else if (m.equals("POST") && seg.length == 1) {
                     Map<String, Object> b = map(body(ex));
+                    // several targets at once (run-as users and/or runners): one run each
+                    if (b.get("run_as_users") instanceof List || b.get("device_ids") instanceof List) { sendJson(ex, 200, cr.deploy(u, b, ip)); return; }
                     sendJson(ex, 200, cr.startRun(u.username(), u.role(), (String) b.get("bot_path"), (String) b.get("device_id"), (String) b.get("pool_id"),
                             (Map<String, Object>) b.getOrDefault("inputs", Map.of()), b.get("source") instanceof String src && src.equals("api") ? "api" : "manual", ip,
-                            b.get("priority") instanceof Number pr ? pr.intValue() : 0, (String) b.get("callback_url")));
+                            b.get("priority") instanceof Number pr ? pr.intValue() : 0, (String) b.get("callback_url"), (String) b.get("run_as"), (String) b.get("mode")));
                 } else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.run(u, seg[1], Long.parseLong(q.getOrDefault("after", "0"))));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("rerun")) sendJson(ex, 200, cr.rerun(u, seg[1], ip));
                 else if (m.equals("POST") && seg.length == 3) { cr.control(u, seg[1], seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
@@ -417,6 +461,16 @@ public final class ControlRoomServer {
         h.set("Referrer-Policy", "no-referrer");
         h.set("Cache-Control", "no-store");
         h.set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    }
+
+    /** A text download (CSV) with a file name. */
+    static void sendText(HttpExchange ex, int status, String type, String body, String filename) throws IOException {
+        securityHeaders(ex);
+        byte[] b = body.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", type);
+        ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        ex.sendResponseHeaders(status, b.length);
+        try (OutputStream os = ex.getResponseBody()) { os.write(b); }
     }
 
     static void sendJson(HttpExchange ex, int status, Object body) throws IOException {

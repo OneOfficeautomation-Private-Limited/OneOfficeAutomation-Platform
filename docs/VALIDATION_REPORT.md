@@ -452,3 +452,22 @@ Tests:
 - **Live web recorder (kept-open Edge, input sent as real browser events):** typing and a click became two steps, each with the window title. Stop removed the bar and the page stayed open.
 - **Live desktop run window:** checked on screen with Line, count, time, Pause and Stop, kept on top.
 - **⋮ menu:** checked in Studio; it opens at the button.
+
+
+# Validation report: platform gaps, first four (lifecycle, repository, run-as users, work queues)
+
+From docs/research/aa-platform-gap-list.md, items 1 to 4.
+
+| Gap | Built |
+| --- | --- |
+| Bot lifecycle | `Lifecycle.java` with three routes. **Export** (`POST /api/lifecycle/export`): agents at a version or label, plus the agents they call, each with content and SHA-256, and a bundle checksum. **Import** (`/import`): checks the checksums, validates each agent, applies folder permissions, then stores all or none. Existing agents are skipped or get a new version, optionally under a target folder and made live. **Promote** (`/promote`): export, then import into another Command Center, with its API key read from a vault folder the caller may use. Permissions `lifecycle.export` and `lifecycle.import`. |
+| Repository folders and permissions | `Folders.java`. Explicit folders, and permissions per folder for roles and users (view, run, edit, manage); the nearest folder with permissions decides. These are enforced on list, view, versions, check-out, check-in, live version, labels, run, schedule, trigger, delete, export and import. Also: delete and recover agents (refused while schedules, triggers or queues use them), version labels (runs and exports accept a label), dependencies and called-by. |
+| Run-as users | `user_devices` holds each user's default runner. Runs can name a run-as user: the run goes to that user's runner and reads credentials as them. One call can deploy to several users and runners. Run mode is unattended, attended or headless (headless refuses agents that need a desktop). Runners can be deleted. |
+| Work queues | Work item models with typed, required fields that items are checked against; a model in use cannot lose or change fields. Get and edit one item, delete items, CSV import (typed) and export (formula-safe). Queue members: owners, participants, consumers. `queues.all` lets someone see every queue. |
+| Command Center screens | Agent repository: folder filter, New folder, Folder permissions, Delete folder, Deleted agents (recover), Delete, labels in Versions, dependencies in the agent's details, Export / promote and Import. Run dialog: run-as users and run mode. Users: default runner. Runners: Remove. Work queues: Work item models, the model in the queue settings, Members, item editor, Delete selected, Export CSV. Runs show "admin as jane". |
+
+Tests:
+
+- **RepositoryLifecycleTest** (5 tests, two Command Centers): folder access levels and inheritance, shutting out unnamed users, delete/recover/labels/dependencies, export with dependencies, import (create, skip, overwrite, tampered content, bad checksum, all-or-nothing), promote over HTTP with a vault-held API key, run-as deploy (one target without a default runner reported), principal and mode in the job, runner delete rules, and work item models / items / CSV / members.
+- **Command Center in the browser (throwaway server):** folder permissions saved through the dialog; a label set from Versions; export and import with a new version; item editor saving a typed value; members dialog; run as jane from the Run dialog, shown as "admin as jane" in the runs list.
+- **Java suites:** 474 tests, 0 failed, 1 skipped. The architecture guard on parameterised SQL caught one query layout, which was then fixed.

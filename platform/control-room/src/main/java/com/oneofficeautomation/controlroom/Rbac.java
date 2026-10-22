@@ -12,13 +12,13 @@ public final class Rbac {
             "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view"),
             "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view",
                     "queues.view", "queues.work"),
-            "bot_creator", Set.of("repo.view", "repo.checkin", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
+            "bot_creator", Set.of("repo.view", "repo.checkin", "repo.delete", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
                     "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage"),
             "admin", Set.of("*"));
 
     /** Permissions only administrators have unless a custom role grants them. */
-    public static final List<String> ADMIN_ONLY = List.of("repo.production", "users.manage", "devices.manage", "lockers.manage", "globals.manage", "audit.view",
-            "pools.manage", "settings.manage", "connections.manage", "toolkits.manage");
+    public static final List<String> ADMIN_ONLY = List.of("repo.production", "repo.permissions", "lifecycle.export", "lifecycle.import", "queues.all", "users.manage", "devices.manage",
+            "lockers.manage", "globals.manage", "audit.view", "pools.manage", "settings.manage", "connections.manage", "toolkits.manage");
 
     /** Every permission, for building custom roles. */
     public static List<String> all() { return permissions("admin"); }

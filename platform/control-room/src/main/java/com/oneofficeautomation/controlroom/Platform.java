@@ -277,7 +277,9 @@ public final class Platform {
         cr.require(by, "queues.view", "view work queues");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> q : db.query("SELECT * FROM queues ORDER BY name")) {
+            if (!queueAllows(by, (String) q.get("id"), "view")) continue;
             Map<String, Object> m = new LinkedHashMap<>(q);
+            m.put("my_roles", memberRoles(by, (String) q.get("id")));
             m.put("counts", counts((String) q.get("id")));
             if (q.get("sla_minutes") instanceof Number sla && sla.intValue() > 0)
                 m.put("overdue", cr.count("SELECT COUNT(*) AS n FROM queue_items WHERE queue_id = ? AND status IN ('new', 'in_progress', 'retry') AND created < ?",
@@ -297,6 +299,9 @@ public final class Platform {
     @SuppressWarnings("unchecked")
     public Map<String, Object> saveQueue(User by, String queueId, Map<String, Object> q, String ip) {
         cr.require(by, "queues.manage", "manage work queues");
+        if (queueId != null && !queueId.isBlank()) requireQueue(by, queueId, "manage", "change this work queue");
+        String model = q.get("model_id") instanceof String ms && !ms.isBlank() ? ms : null;
+        if (model != null && db.one("SELECT id FROM work_item_models WHERE id = ?", model) == null) throw notFound("Work item model");
         String name = String.valueOf(q.getOrDefault("name", "")).trim();
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Queue names have 1 to 120 characters");
         String bot = (String) q.get("bot_path");
@@ -312,6 +317,12 @@ public final class Platform {
                     qid, name, q.get("description"), blankToNull(bot), blankToNull(pool), sla, attempts, false, by.username(), by.username(), now());
         else if (db.update("UPDATE queues SET name = ?, description = ?, bot_path = ?, pool_id = ?, sla_minutes = ?, max_attempts = ? WHERE id = ?",
                 name, q.get("description"), blankToNull(bot), blankToNull(pool), sla, attempts, qid) == 0) throw notFound("Queue");
+        if (q.containsKey("model_id")) {
+            if (queueId != null && !queueId.isBlank() && model != null && !model.equals(db.one("SELECT model_id FROM queues WHERE id = ?", qid).get("model_id"))
+                    && cr.count("SELECT COUNT(*) AS n FROM queue_items WHERE queue_id = ?", qid) > 0)
+                throw new OoaException("CR.CONFLICT", "The queue already has work items", "The work item model can only change while the queue is empty.");
+            db.update("UPDATE queues SET model_id = ? WHERE id = ?", model, qid);
+        }
         cr.audit.record(by.username(), "queue.save", "queue", qid, Map.of("name", name), "ok", ip);
         return Map.of("id", qid);
     }
@@ -320,15 +331,18 @@ public final class Platform {
 
     public void deleteQueue(User by, String qid, String ip) {
         cr.require(by, "queues.manage", "manage work queues");
+        requireQueue(by, qid, "manage", "delete this work queue");
         if (cr.count("SELECT COUNT(*) AS n FROM queue_items WHERE queue_id = ? AND status = 'in_progress'", qid) > 0)
             throw new OoaException("CR.CONFLICT", "Items are being worked on", "Stop processing and wait for them to finish.");
-        db.tx(() -> { db.update("DELETE FROM queue_items WHERE queue_id = ?", qid); if (db.update("DELETE FROM queues WHERE id = ?", qid) == 0) throw notFound("Queue"); return null; });
+        db.tx(() -> { db.update("DELETE FROM queue_items WHERE queue_id = ?", qid); db.update("DELETE FROM queue_members WHERE queue_id = ?", qid);
+            if (db.update("DELETE FROM queues WHERE id = ?", qid) == 0) throw notFound("Queue"); return null; });
         cr.audit.record(by.username(), "queue.delete", "queue", qid, null, "ok", ip);
     }
 
     /** Starts or stops automatic processing; processing needs an agent and a runner pool. The person who starts it is the run-as user. */
     public void setProcessing(User by, String qid, boolean on, String ip) {
         cr.require(by, "queues.work", "process work queues");
+        requireQueue(by, qid, "process", "process this work queue");
         Map<String, Object> q = db.one("SELECT * FROM queues WHERE id = ?", qid);
         if (q == null) throw notFound("Queue");
         if (on && (q.get("bot_path") == null || q.get("pool_id") == null))
@@ -341,16 +355,22 @@ public final class Platform {
     @SuppressWarnings("unchecked")
     public Map<String, Object> addItems(User by, String qid, List<Object> items, String ip) {
         cr.require(by, "queues.work", "add work items");
-        if (db.one("SELECT id FROM queues WHERE id = ?", qid) == null) throw notFound("Queue");
+        Map<String, Object> queue = db.one("SELECT id, model_id FROM queues WHERE id = ?", qid);
+        if (queue == null) throw notFound("Queue");
+        requireQueue(by, qid, "add", "add work items to this queue");
         if (items == null || items.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Send at least one item");
         if (items.size() > 10000) throw new OoaException("CR.TOO_LARGE", "Add at most 10,000 items at a time");
+        List<Map<String, Object>> fields = modelFields((String) queue.get("model_id"));
         List<String> ids = new ArrayList<>();
         db.tx(() -> {
+            int row = 0;
             for (Object o : items) {
+                row++;
                 if (!(o instanceof Map<?, ?> m)) throw new OoaException("CR.BAD_INPUT", "Each item is a JSON object");
                 Map<String, Object> item = new LinkedHashMap<>((Map<String, Object>) m);
                 Object ref = item.remove("_reference");
                 Object pr = item.remove("_priority");
+                if (fields != null) item = checkItem(fields, item, "Item " + row);
                 String iid = id("item");
                 db.update("INSERT INTO queue_items (id, queue_id, reference, data, status, priority, attempts, created, updated) VALUES (?,?,?,?,?,?,?,?,?)",
                         iid, qid, ref == null ? null : String.valueOf(ref), JsonLite.write(item), "new", pr instanceof Number n ? n.intValue() : 0, 0, now(), now());
@@ -364,6 +384,7 @@ public final class Platform {
 
     public Map<String, Object> items(User by, String qid, String status, String q, int limit, int offset) {
         cr.require(by, "queues.view", "view work queues");
+        requireQueue(by, qid, "view", "view this work queue");
         List<Object> p = new ArrayList<>(List.of(qid));
         String where = " WHERE queue_id = ?";
         if (status != null && !status.isBlank()) { where += " AND status = ?"; p.add(status); }
@@ -380,12 +401,342 @@ public final class Platform {
     /** Puts failed or deferred items back to new (attempts reset) or marks items deferred. */
     public void updateItems(User by, String qid, List<Object> ids, String action, String ip) {
         cr.require(by, "queues.work", "change work items");
-        String to = switch (action) { case "retry" -> "new"; case "defer" -> "deferred"; default -> throw new OoaException("CR.BAD_INPUT", "Use retry or defer"); };
+        if (action.equals("delete")) { deleteItems(by, qid, ids, ip); return; }
+        requireQueue(by, qid, "process", "change work items in this queue");
+        String to = switch (action) { case "retry" -> "new"; case "defer" -> "deferred"; default -> throw new OoaException("CR.BAD_INPUT", "Use retry, defer or delete"); };
         int n = 0;
         for (Object o : ids == null ? List.of() : ids)
             n += db.update("UPDATE queue_items SET status = ?, attempts = CASE WHEN ? = 'new' THEN 0 ELSE attempts END, updated = ? WHERE id = ? AND queue_id = ? AND status IN ('failed', 'deferred', 'new', 'retry')",
                     to, to, now(), String.valueOf(o), qid);
         cr.audit.record(by.username(), "queue.items_" + action, "queue", qid, Map.of("count", n), "ok", ip);
+    }
+
+    // ----- work item models, queue members, single items, CSV -----
+
+    static final Set<String> FIELD_TYPES = Set.of("text", "number", "boolean", "date");
+    static final java.util.regex.Pattern FIELD = java.util.regex.Pattern.compile("^[A-Za-z_][A-Za-z0-9_]{0,63}$");
+
+    public List<Map<String, Object>> workItemModels(User by) {
+        cr.require(by, "queues.view", "view work queues");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> m : db.query("SELECT * FROM work_item_models ORDER BY name")) {
+            Map<String, Object> r = new LinkedHashMap<>(m);
+            r.put("fields", JsonLite.parse((String) m.get("fields")));
+            r.put("queues", cr.count("SELECT COUNT(*) AS n FROM queues WHERE model_id = ?", m.get("id")));
+            out.add(r);
+        }
+        return out;
+    }
+
+    /**
+     * A work item model: the fields every item of a queue has, each {name, type: text|number|boolean|date, required,
+     * display (shown in the item list)}. Items are checked against it when they are added or changed.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> saveWorkItemModel(User by, String modelId, Map<String, Object> m, String ip) {
+        cr.require(by, "queues.manage", "manage work queues");
+        String name = String.valueOf(m.getOrDefault("name", "")).trim();
+        if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Model names have 1 to 120 characters");
+        if (!(m.get("fields") instanceof List<?> list) || list.isEmpty()) throw new OoaException("CR.BAD_INPUT", "A model has at least one field");
+        if (list.size() > 100) throw new OoaException("CR.TOO_LARGE", "A model has at most 100 fields");
+        List<Map<String, Object>> fields = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> f)) throw new OoaException("CR.BAD_INPUT", "Each field is {name, type, required}");
+            String fn = String.valueOf(f.get("name")), type = String.valueOf(f.containsKey("type") ? f.get("type") : "text");
+            if (!FIELD.matcher(fn).matches()) throw new OoaException("CR.BAD_INPUT", "Field '" + fn + "': names start with a letter or _ and use letters, digits and _");
+            if (!seen.add(fn.toLowerCase(Locale.ROOT))) throw new OoaException("CR.BAD_INPUT", "Field '" + fn + "' is there twice");
+            if (!FIELD_TYPES.contains(type)) throw new OoaException("CR.BAD_INPUT", "Field '" + fn + "': the type is text, number, boolean or date");
+            Map<String, Object> clean = new LinkedHashMap<>();
+            clean.put("name", fn); clean.put("type", type);
+            clean.put("required", Boolean.TRUE.equals(f.get("required")));
+            clean.put("display", !Boolean.FALSE.equals(f.get("display")));
+            fields.add(clean);
+        }
+        String id = modelId == null || modelId.isBlank() ? id("model") : modelId;
+        if (modelId == null || modelId.isBlank())
+            db.update("INSERT INTO work_item_models (id, name, description, fields, created, created_by) VALUES (?,?,?,?,?,?)", id, name, m.get("description"), JsonLite.write(fields), now(), by.username());
+        else {
+            Map<String, Object> old = db.one("SELECT fields FROM work_item_models WHERE id = ?", id);
+            if (old == null) throw notFound("Work item model");
+            // a model in use can gain optional fields and change labels, but not lose fields, change types or add required ones
+            if (cr.count("SELECT COUNT(*) AS n FROM queues q JOIN queue_items i ON i.queue_id = q.id WHERE q.model_id = ?", id) > 0) {
+                Map<String, Map<String, Object>> before = new HashMap<>();
+                for (Object o : (List<Object>) JsonLite.parse((String) old.get("fields"))) before.put(String.valueOf(((Map<String, Object>) o).get("name")), (Map<String, Object>) o);
+                for (Map<String, Object> f : fields) {
+                    Map<String, Object> b = before.remove(String.valueOf(f.get("name")));
+                    if (b == null ? Boolean.TRUE.equals(f.get("required")) : !Objects.equals(b.get("type"), f.get("type")) || (!Boolean.TRUE.equals(b.get("required")) && Boolean.TRUE.equals(f.get("required"))))
+                        throw new OoaException("CR.CONFLICT", "Queues with work items use this model: field '" + f.get("name") + "' cannot become required or change type");
+                }
+                if (!before.isEmpty()) throw new OoaException("CR.CONFLICT", "Queues with work items use this model: fields " + before.keySet() + " cannot be removed");
+            }
+            db.update("UPDATE work_item_models SET name = ?, description = ?, fields = ? WHERE id = ?", name, m.get("description"), JsonLite.write(fields), id);
+        }
+        cr.audit.record(by.username(), "queue.model_save", "work_item_model", id, Map.of("name", name, "fields", fields.size()), "ok", ip);
+        return Map.of("id", id);
+    }
+
+    public void deleteWorkItemModel(User by, String modelId, String ip) {
+        cr.require(by, "queues.manage", "manage work queues");
+        if (cr.count("SELECT COUNT(*) AS n FROM queues WHERE model_id = ?", modelId) > 0) throw new OoaException("CR.IN_USE", "Queues use this model", "Change those queues first.");
+        if (db.update("DELETE FROM work_item_models WHERE id = ?", modelId) == 0) throw notFound("Work item model");
+        cr.audit.record(by.username(), "queue.model_delete", "work_item_model", modelId, null, "ok", ip);
+    }
+
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> modelFields(String modelId) {
+        if (modelId == null) return null;
+        Map<String, Object> m = db.one("SELECT fields FROM work_item_models WHERE id = ?", modelId);
+        return m == null ? null : (List<Map<String, Object>>) JsonLite.parse((String) m.get("fields"));
+    }
+
+    /** An item's data checked against the model: known fields only, required ones present, values of the field's type. */
+    static Map<String, Object> checkItem(List<Map<String, Object>> fields, Map<String, Object> data, String where) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        Set<String> known = new HashSet<>();
+        for (Map<String, Object> f : fields) {
+            String n = String.valueOf(f.get("name"));
+            known.add(n);
+            Object v = data.get(n);
+            if (v == null || (v instanceof String sv && sv.isEmpty())) {
+                if (Boolean.TRUE.equals(f.get("required"))) throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' is required");
+                continue;
+            }
+            out.put(n, switch (String.valueOf(f.get("type"))) {
+                case "number" -> {
+                    if (v instanceof Number) yield v;
+                    try { yield new java.math.BigDecimal(String.valueOf(v).trim()); }
+                    catch (NumberFormatException e) { throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be a number, not '" + v + "'"); }
+                }
+                case "boolean" -> {
+                    if (v instanceof Boolean) yield v;
+                    String t = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
+                    if (Set.of("true", "yes", "1").contains(t)) yield true;
+                    if (Set.of("false", "no", "0").contains(t)) yield false;
+                    throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be true or false, not '" + v + "'");
+                }
+                case "date" -> {
+                    String t = String.valueOf(v).trim();
+                    try { LocalDate.parse(t.length() > 10 ? t.substring(0, 10) : t); yield t; }
+                    catch (DateTimeException e) { throw new OoaException("CR.BAD_ITEM", where + ": the field '" + n + "' must be a date like 2026-10-23, not '" + v + "'"); }
+                }
+                default -> String.valueOf(v);
+            });
+        }
+        for (String k : data.keySet()) if (!known.contains(k)) throw new OoaException("CR.BAD_ITEM", where + ": '" + k + "' is not a field of the work item model");
+        return out;
+    }
+
+    // members: owners manage the queue, participants add and change items, consumers process them (their runs work it)
+    static final Set<String> MEMBER_ROLES = Set.of("owner", "participant", "consumer");
+
+    List<String> memberRoles(User u, String qid) {
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT principal, member_role FROM queue_members WHERE queue_id = ?", qid)) {
+            String p = (String) r.get("principal");
+            if ((p.equals("user:" + u.username()) || p.equals("role:" + u.role()) || p.equals("role:*")) && !out.contains(r.get("member_role"))) out.add((String) r.get("member_role"));
+        }
+        return out;
+    }
+
+    /**
+     * Whether the user may view, add, process or manage a queue. A queue without members follows the roles alone; one
+     * with members admits only them (owners everything, participants view and add, consumers view and process), except
+     * people with queues.all.
+     */
+    boolean queueAllows(User u, String qid, String need) {
+        if (cr.allowed(u.role(), "queues.all")) return true;
+        if (cr.count("SELECT COUNT(*) AS n FROM queue_members WHERE queue_id = ?", qid) == 0) return true;
+        List<String> mine = memberRoles(u, qid);
+        if (mine.contains("owner")) return true;
+        return switch (need) {
+            case "view" -> !mine.isEmpty();
+            case "add" -> mine.contains("participant");
+            case "process" -> mine.contains("consumer");
+            default -> false;
+        };
+    }
+
+    void requireQueue(User u, String qid, String need, String what) {
+        if (db.one("SELECT id FROM queues WHERE id = ?", qid) == null) throw notFound("Queue");
+        if (!queueAllows(u, qid, need)) throw new OoaException("CR.FORBIDDEN", "You do not have permission to " + what,
+                "Ask an owner of the queue to add you as " + (need.equals("add") ? "a participant" : need.equals("process") ? "a consumer" : "an owner") + ".");
+    }
+
+    /** One queue with its counts, model and members. */
+    public Map<String, Object> queue(User by, String qid) {
+        cr.require(by, "queues.view", "view work queues");
+        requireQueue(by, qid, "view", "view this work queue");
+        Map<String, Object> m = new LinkedHashMap<>(db.one("SELECT * FROM queues WHERE id = ?", qid));
+        m.put("counts", counts(qid));
+        m.put("model", m.get("model_id") == null ? null : Map.of("id", m.get("model_id"), "fields", modelFields((String) m.get("model_id"))));
+        m.put("members", db.query("SELECT principal, member_role, updated, updated_by FROM queue_members WHERE queue_id = ? ORDER BY member_role, principal", qid));
+        m.put("my_roles", memberRoles(by, qid));
+        return m;
+    }
+
+    /** Replaces the queue's members [{principal: user:x | role:y, role: owner | participant | consumer}]; the caller must stay an owner. */
+    public void setQueueMembers(User by, String qid, List<Object> members, String ip) {
+        cr.require(by, "queues.manage", "manage work queues");
+        requireQueue(by, qid, "manage", "change this queue's members");
+        List<String[]> clean = new ArrayList<>();
+        for (Object o : members == null ? List.of() : members) {
+            if (!(o instanceof Map<?, ?> mm)) throw new OoaException("CR.BAD_INPUT", "Each member is {principal, role}");
+            String principal = String.valueOf(mm.get("principal")), role = String.valueOf(mm.get("role"));
+            if (!MEMBER_ROLES.contains(role)) throw new OoaException("CR.BAD_INPUT", "Member roles are owner, participant and consumer");
+            if (principal.startsWith("user:")) { if (db.one("SELECT id FROM users WHERE username = ?", principal.substring(5)) == null) throw notFound("User " + principal.substring(5)); }
+            else if (principal.startsWith("role:")) { String r = principal.substring(5); if (!r.equals("*") && !cr.roleExists(r)) throw notFound("Role " + r); }
+            else throw new OoaException("CR.BAD_INPUT", "Principals look like user:jane or role:bot_runner");
+            clean.add(new String[]{principal, role});
+        }
+        boolean hasOwner = clean.stream().anyMatch(c -> c[1].equals("owner"));
+        if (!clean.isEmpty() && !hasOwner) throw new OoaException("CR.BAD_INPUT", "A queue with members needs at least one owner");
+        if (!clean.isEmpty() && !cr.allowed(by.role(), "queues.all")
+                && clean.stream().noneMatch(c -> c[1].equals("owner") && (c[0].equals("user:" + by.username()) || c[0].equals("role:" + by.role()))))
+            throw new OoaException("CR.BAD_INPUT", "Keep yourself (or your role) as an owner, or you could not change the queue any more");
+        db.tx(() -> {
+            db.update("DELETE FROM queue_members WHERE queue_id = ?", qid);
+            for (String[] c : clean) if (db.one("SELECT queue_id FROM queue_members WHERE queue_id = ? AND principal = ? AND member_role = ?", qid, c[0], c[1]) == null)
+                db.update("INSERT INTO queue_members (queue_id, principal, member_role, updated, updated_by) VALUES (?,?,?,?,?)", qid, c[0], c[1], now(), by.username());
+            return null;
+        });
+        cr.audit.record(by.username(), "queue.members", "queue", qid, Map.of("members", clean.stream().map(c -> c[0] + "=" + c[1]).toList()), "ok", ip);
+    }
+
+    public Map<String, Object> item(User by, String qid, String itemId) {
+        cr.require(by, "queues.view", "view work queues");
+        requireQueue(by, qid, "view", "view this work queue");
+        Map<String, Object> i = db.one("SELECT * FROM queue_items WHERE id = ? AND queue_id = ?", itemId, qid);
+        if (i == null) throw notFound("Work item");
+        Map<String, Object> m = new LinkedHashMap<>(i);
+        m.put("data", JsonLite.parse((String) i.get("data")));
+        if (i.get("result") != null) m.put("result", JsonLite.parse((String) i.get("result")));
+        if (i.get("error") != null) m.put("error", JsonLite.parse((String) i.get("error")));
+        return m;
+    }
+
+    /** Changes an item's data, reference or priority while it is not being worked on. */
+    @SuppressWarnings("unchecked")
+    public void updateItem(User by, String qid, String itemId, Map<String, Object> changes, String ip) {
+        cr.require(by, "queues.work", "change work items");
+        requireQueue(by, qid, "add", "change work items in this queue");
+        Map<String, Object> i = db.one("SELECT i.status, q.model_id FROM queue_items i JOIN queues q ON q.id = i.queue_id WHERE i.id = ? AND i.queue_id = ?", itemId, qid);
+        if (i == null) throw notFound("Work item");
+        if ("in_progress".equals(i.get("status"))) throw new OoaException("CR.CONFLICT", "The item is being worked on", "Change it after its run ends.");
+        if (changes.get("data") instanceof Map<?, ?> d) {
+            Map<String, Object> data = new LinkedHashMap<>((Map<String, Object>) d);
+            List<Map<String, Object>> fields = modelFields((String) i.get("model_id"));
+            if (fields != null) data = checkItem(fields, data, "The item");
+            db.update("UPDATE queue_items SET data = ?, updated = ? WHERE id = ?", JsonLite.write(data), now(), itemId);
+        }
+        if (changes.containsKey("reference")) db.update("UPDATE queue_items SET reference = ?, updated = ? WHERE id = ?", changes.get("reference") == null ? null : String.valueOf(changes.get("reference")), now(), itemId);
+        if (changes.get("priority") instanceof Number n) db.update("UPDATE queue_items SET priority = ?, updated = ? WHERE id = ?", n.intValue(), now(), itemId);
+        cr.audit.record(by.username(), "queue.item_update", "work_item", itemId, Map.of("queue", qid, "fields", new ArrayList<>(changes.keySet())), "ok", ip);
+    }
+
+    /** Deletes items that are not being worked on; returns how many went. */
+    public int deleteItems(User by, String qid, List<Object> ids, String ip) {
+        cr.require(by, "queues.work", "delete work items");
+        requireQueue(by, qid, "add", "delete work items in this queue");
+        int n = 0;
+        for (Object o : ids == null ? List.of() : ids) n += db.update("DELETE FROM queue_items WHERE id = ? AND queue_id = ? AND status <> 'in_progress'", String.valueOf(o), qid);
+        cr.audit.record(by.username(), "queue.items_delete", "queue", qid, Map.of("count", n), "ok", ip);
+        return n;
+    }
+
+    /** Adds items from CSV text: the first row names the fields (reference and priority are kept apart), each other row is an item. */
+    public Map<String, Object> importCsv(User by, String qid, String csv, String ip) {
+        List<List<String>> rows = Csv.parse(csv == null ? "" : csv);
+        if (rows.size() < 2) throw new OoaException("CR.BAD_INPUT", "The CSV needs a header row and at least one item");
+        List<String> head = rows.get(0).stream().map(String::trim).toList();
+        List<Object> items = new ArrayList<>();
+        for (int r = 1; r < rows.size(); r++) {
+            List<String> row = rows.get(r);
+            if (row.size() == 1 && row.get(0).isBlank()) continue;
+            Map<String, Object> item = new LinkedHashMap<>();
+            for (int c = 0; c < head.size(); c++) {
+                String v = c < row.size() ? row.get(c) : "";
+                String h = head.get(c);
+                if (h.equalsIgnoreCase("reference") || h.equals("_reference")) { if (!v.isEmpty()) item.put("_reference", v); }
+                else if (h.equalsIgnoreCase("priority") || h.equals("_priority")) { if (!v.isBlank()) try { item.put("_priority", Integer.parseInt(v.trim())); } catch (NumberFormatException e) { throw new OoaException("CR.BAD_ITEM", "Row " + (r + 1) + ": priority must be a whole number"); } }
+                else if (!h.isEmpty()) item.put(h, v);
+            }
+            items.add(item);
+        }
+        return addItems(by, qid, items, ip);
+    }
+
+    /** The queue's items as CSV: reference, priority, status, attempts, dates, then the data fields. */
+    @SuppressWarnings("unchecked")
+    public String exportCsv(User by, String qid, String status) {
+        cr.require(by, "queues.view", "view work queues");
+        requireQueue(by, qid, "view", "view this work queue");
+        List<Object> p = new ArrayList<>(List.of(qid));
+        String where = " WHERE queue_id = ?";
+        if (status != null && !status.isBlank()) { where += " AND status = ?"; p.add(status); }
+        List<Map<String, Object>> rows = db.query("SELECT * FROM queue_items" +
+                where + " ORDER BY created LIMIT 100000", p.toArray());
+        List<String> fields = new ArrayList<>();
+        List<Map<String, Object>> model = modelFields((String) db.one("SELECT model_id FROM queues WHERE id = ?", qid).get("model_id"));
+        if (model != null) for (Map<String, Object> f : model) fields.add(String.valueOf(f.get("name")));
+        List<Map<String, Object>> datas = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> d = (Map<String, Object>) JsonLite.parse((String) r.get("data"));
+            datas.add(d);
+            if (model == null) for (String k : d.keySet()) if (!fields.contains(k)) fields.add(k);
+        }
+        StringBuilder sb = new StringBuilder();
+        List<String> head = new ArrayList<>(List.of("id", "reference", "priority", "status", "attempts", "created", "finished"));
+        head.addAll(fields);
+        sb.append(Csv.row(head));
+        for (int i = 0; i < rows.size(); i++) {
+            Map<String, Object> r = rows.get(i);
+            List<String> cells = new ArrayList<>();
+            for (String h : List.of("id", "reference", "priority", "status", "attempts", "created", "finished")) cells.add(r.get(h) == null ? "" : String.valueOf(r.get(h)));
+            for (String f : fields) { Object v = datas.get(i).get(f); cells.add(v == null ? "" : v instanceof Map || v instanceof List ? JsonLite.write(v) : String.valueOf(v)); }
+            sb.append(Csv.row(cells));
+        }
+        return sb.toString();
+    }
+
+    /** Small RFC 4180 CSV reader and writer (quotes, doubled quotes, line breaks inside quotes). */
+    static final class Csv {
+        static List<List<String>> parse(String text) {
+            List<List<String>> rows = new ArrayList<>();
+            List<String> row = new ArrayList<>();
+            StringBuilder cell = new StringBuilder();
+            boolean quoted = false;
+            String t = text.startsWith("\uFEFF") ? text.substring(1) : text;
+            for (int i = 0; i < t.length(); i++) {
+                char c = t.charAt(i);
+                if (quoted) {
+                    if (c == '"' && i + 1 < t.length() && t.charAt(i + 1) == '"') { cell.append('"'); i++; }
+                    else if (c == '"') quoted = false;
+                    else cell.append(c);
+                } else if (c == '"' && cell.isEmpty()) quoted = true;
+                else if (c == ',') { row.add(cell.toString()); cell.setLength(0); }
+                else if (c == '\n' || c == '\r') {
+                    if (c == '\r' && i + 1 < t.length() && t.charAt(i + 1) == '\n') i++;
+                    row.add(cell.toString()); cell.setLength(0);
+                    rows.add(row); row = new ArrayList<>();
+                } else cell.append(c);
+            }
+            if (!cell.isEmpty() || !row.isEmpty()) { row.add(cell.toString()); rows.add(row); }
+            return rows;
+        }
+
+        static String row(List<String> cells) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < cells.size(); i++) {
+                if (i > 0) sb.append(',');
+                String v = cells.get(i);
+                // a leading = + - @ would be read as a formula by spreadsheet programs
+                if (!v.isEmpty() && "=+-@".indexOf(v.charAt(0)) >= 0 && !v.matches("^-?\\d+(\\.\\d+)?$")) v = "'" + v;
+                if (v.contains(",") || v.contains("\"") || v.contains("\n") || v.contains("\r")) v = "\"" + v.replace("\"", "\"\"") + "\"";
+                sb.append(v);
+            }
+            return sb.append("\r\n").toString();
+        }
     }
 
     /**

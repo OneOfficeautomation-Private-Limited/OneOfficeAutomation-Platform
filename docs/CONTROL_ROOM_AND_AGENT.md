@@ -101,10 +101,61 @@ busy online runner.
 - Administration > Toolkits lists every toolkit with its version, number of actions and the agents that use it. Switching
   a toolkit off stops agents that use it from being checked in or run; the core toolkit is always on.
 
+**Folders and folder permissions.** Agents live in folders (the path before the name). **New folder** creates one,
+even empty. An administrator can give a folder **permissions**: roles or users get one level each.
+
+| Level | What it allows |
+| --- | --- |
+| View | See the agents and export them |
+| Run | Also run and schedule them |
+| Edit | Also check out, check in, delete and recover |
+| Manage | Also set the live version and labels |
+
+How permissions apply:
+
+- The nearest folder with permissions decides. A sub-folder without its own follows its parent.
+- A folder with permissions shuts out everyone it does not name. Folders without permissions (up to the root) follow the roles alone.
+- Role permissions still apply: folder access never grants what the role does not allow.
+- People with the `repo.permissions` permission (administrators) see everything.
+
+**Delete and recover.**
+
+- **Delete** removes an agent from the list and stops it running; its versions are kept, and **Deleted agents** brings it back.
+- An agent still used by a schedule, trigger or work queue is not deleted (they are listed).
+- An empty folder can be deleted.
+
+**Labels and dependencies.**
+
+- **Versions > Label** puts a label (UAT, Release-3 …) on a version. A label is on one version at a time, and runs and
+  exports can ask for an agent by label.
+- The agent's details show the agents it calls, the agents that call it, and its toolkits.
+
+**Moving agents between Command Centers (lifecycle).**
+
+- **Export / promote** makes a bundle of the ticked agents at a version (production, latest, a number or a label) and,
+  optionally, every agent they call. Each agent's exact content goes in with its SHA-256, and the bundle has a checksum.
+- **Import** checks the bundle and validates every agent as check-in does, with folder permissions. Then it stores all of
+  them in one go, or none. An agent that already exists is skipped or gets a new version; history is never replaced.
+  Import can put the agents under another folder and make the versions live.
+- **Promote** does both at once against another Command Center. Create an API key there as someone allowed to import,
+  store it in a vault folder here, and give its reference. The key is read from the vault and sent only to that address.
+- Exporting and importing need `lifecycle.export` and `lifecycle.import` (administrators by default).
+
 ## 5. Running agents
 
-- Agent repository > Run: choose a runner or a runner pool and give inputs. Optionally set a priority (urgent runs start
-  first on a busy runner) and a **callback URL** that receives the result as JSON when the run ends (3 attempts).
+- Agent repository > Run: choose a runner, a runner pool, or **run-as users**, and give inputs. Optionally set a
+  priority (urgent runs start first on a busy runner) and a **callback URL** that receives the result as JSON when the
+  run ends (3 attempts).
+- **Run-as users.**
+  - Each user can have a **default runner** (Users > Default runner).
+  - A run for several run-as users starts one run each, on that user's default runner. The agent's vault credentials are
+    checked against that user.
+  - The list of runs shows "admin as jane".
+  - Over the API: `POST /api/runs` with `run_as_users: [...]` and/or `device_ids: [...]`. Each target gets its own run,
+    and a target that cannot run is reported while the others start.
+- **Run mode:** unattended (default), attended, or headless. Headless refuses agents that need a desktop.
+- A runner can be **removed** when nothing is queued or running on it and no schedule or trigger uses it. It is taken off
+  pools and default runners.
   Credential inputs are vault references such as `{"$credential": "finance/erp/password"}`, never the secret itself.
 - **Agent Runs > Live** shows every queued and running agent: the runner, who started it and how, how long it has run, a
   progress bar and the step running now. Pause, Resume and Stop reach the runner within seconds.
@@ -143,13 +194,24 @@ busy online runner.
 
 Work queues hold items (invoices, tickets, orders) that an agent processes one at a time on a runner pool.
 
-1. Work queues > New work queue: choose the agent, the runner pool, the attempts per item and a service level in minutes.
+1. Work queues > New work queue: choose the agent, the runner pool, the attempts per item and a service level in
+   minutes, and optionally a **work item model**.
+   - A model (Work item models) lists the fields every item has, each text, number, true/false or date, optionally required.
+   - Items are checked against it: required fields present, values of the right type, no unknown fields. CSV cells are
+     converted to the field's type.
+   - While items use a model, it can gain optional fields but not lose fields or change them.
 2. Add items by pasting JSON or CSV, or by uploading a file. A `reference` column names each item; a `priority` column
-   puts it first. Items can also be added through the API.
+   puts it first. Items can also be added through the API (`POST /api/queues/{id}/items`, or `/items/csv` with CSV text).
 3. Start processing. The agent receives each item in the input `work_item` (a dictionary) and its id in `work_item_id`.
    Its outputs are kept with the item. A failed item is retried until its attempts are used.
 4. The queue shows counts by status, items past the service level, and each item's result or error with a link to its run.
-   Failed or deferred items can be retried; waiting items can be deferred.
+   - Failed or deferred items can be retried, waiting items can be deferred, and items not being worked on can be deleted.
+   - **Open** an item to change its data, reference or priority (the form follows the model).
+   - **Export CSV** downloads the items (filtered by status). Cells that a spreadsheet would read as a formula are made safe.
+5. **Members** (optional) limit who can use a queue.
+   - Owners manage it, participants add and change items, and consumers start processing and retry items.
+   - Without members, the roles alone decide.
+   - People with `queues.all` see every queue.
 
 ## 7. One Workflow and the task inbox
 

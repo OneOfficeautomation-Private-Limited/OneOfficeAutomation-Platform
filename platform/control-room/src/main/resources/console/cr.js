@@ -91,6 +91,8 @@ function dur(ms) {
   if (s < 3600) return Math.floor(s / 60) + " min " + (s % 60) + " s";
   return Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min";
 }
+/** Who started a run, and the run-as user it ran as when that is someone else. */
+function startedBy(r) { return (r.requested_by || "") + (r.run_as && r.run_as !== r.requested_by ? " as " + r.run_as : ""); }
 function runStatus(r) { return r.status === "running" && r.pause_requested ? "paused" : r.status === "running" && r.cancel_requested ? "stopping" : r.status; }
 /** Display names of the built-in roles (ids stay admin, bot_creator, bot_runner, viewer). */
 const ROLE_LABELS = { admin: "Administrator", bot_creator: "Agent builder", bot_runner: "Agent operator", viewer: "Viewer" };
@@ -381,13 +383,32 @@ const VIEWS = {
 
   async automation(main) {
     await loadRefs();
-    const r = await api("GET", "repo");
-    main.replaceChildren(...header("Agent repository", "The public agent repository: agents checked in from One Agent Studio, with every version. Run the live production version on any runner."),
-      dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.",
+    S.repoFolder = S.repoFolder || "";
+    const [r, f] = await Promise.all([api("GET", "repo" + (S.repoFolder ? "?folder=" + encodeURIComponent(S.repoFolder) : "")), api("GET", "repo/folders")]);
+    S.folders = f.folders;
+    const folderSel = h("select", { "aria-label": "Folder", onchange: (e) => { S.repoFolder = e.target.value; go("automation"); } },
+      h("option", { value: "", text: "All folders" }), f.folders.map((x) => h("option", { value: x.path, text: "\u00A0".repeat(2 * (x.path.split("/").length - 1)) + x.path.split("/").pop()
+        + " (" + x.agents + ")" + (x.has_permissions ? " \uD83D\uDD12" : "") })));
+    folderSel.value = S.repoFolder;
+    const cur = f.folders.find((x) => x.path === S.repoFolder);
+    // agents in the folder and below: only an empty folder can be deleted
+    const inside = cur ? f.folders.filter((x) => x.path === cur.path || x.path.startsWith(cur.path + "/")).reduce((n, x) => n + x.agents, 0) : 0;
+    const tools = [folderSel,
+      S.repoFolder && can("repo.permissions") ? h("button", { type: "button", onclick: () => folderPermissionsDialog(S.repoFolder) }, ic("lock", "#dc2626", "sm"), "Folder permissions") : null,
+      S.repoFolder && can("repo.delete") && cur && inside === 0 ? h("button", { type: "button", class: "danger", onclick: async () => {
+        if (!confirm("Delete the empty folder " + S.repoFolder + "?")) return;
+        try { await api("DELETE", "repo/folders?path=" + encodeURIComponent(S.repoFolder)); S.repoFolder = ""; go("automation"); } catch (e) { toast(e.message, true); } } }, "Delete folder") : null].filter(Boolean);
+    main.replaceChildren(...header("Agent repository", "The public agent repository: agents checked in from One Agent Studio, with every version. Run the live production version on any runner.",
+      can("repo.checkin") ? h("button", { type: "button", onclick: () => newFolderDialog() }, "New folder") : null,
+      can("lifecycle.export") ? h("button", { type: "button", onclick: () => exportDialog(r.bots) }, ic("download", "#475569", "sm"), "Export / promote") : null,
+      can("lifecycle.import") ? h("button", { type: "button", onclick: () => importDialog() }, "Import") : null,
+      can("repo.delete") ? h("button", { type: "button", onclick: () => deletedDialog() }, "Deleted agents") : null),
+      dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.", tools,
         columns: [
           { label: "Agent", value: (b) => botName(b.path), render: (b) => { const k = kindOf(b.path); return h("div", { class: "name-cell" }, ic(k[1], k[2], "sm"), h("div", {}, h("strong", { text: botName(b.path) }),
             k[0] !== "Agent" ? h("span", { class: "tag", text: k[0] }) : null, h("div", { class: "muted small", text: b.description || "" }))); } },
-          { label: "Latest", value: (b) => b.latest_version, render: (b) => "v" + b.latest_version },
+          { label: "Folder", value: (b) => b.folder || "", render: (b) => b.folder ? h("span", { class: "muted", text: b.folder }) : h("span", { class: "muted", text: "(root)" }) },
+          { label: "Latest", value: (b) => b.latest_version, render: (b) => h("span", {}, "v" + b.latest_version, ...(b.labels || []).map((l) => h("span", { class: "chip", title: "Label on v" + l.version, text: l.label }))) },
           { label: "Live production", value: (b) => b.production_version || 0, render: (b) => b.production_version ? h("span", { class: "pill success", text: "v" + b.production_version }) : "\u2014" },
           { label: "Status", value: (b) => b.locked_by ? "Checked out by " + b.locked_by : "Checked in", render: (b) => b.locked_by ? h("span", { class: "pill locked", text: "Checked out by " + b.locked_by }) : h("span", { class: "pill", text: "Checked in" }) },
           { label: "Updated", value: (b) => b.updated, render: (b) => h("span", { title: local(b.updated) }, ago(b.updated) + " by " + (b.updated_by || "")) },
@@ -396,7 +417,8 @@ const VIEWS = {
             can("runs.start") && b.production_version && isAgent(b.path) ? h("button", { type: "button", class: "primary", onclick: () => runDialog(b) }, "Run") : null,
             can("runs.start") && b.production_version && /\.process\.json$/.test(b.path) ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog(b.path) }, "Start") : null,
             b.locked_by && (b.locked_by === S.user.username || can("repo.production")) ? h("button", { type: "button", onclick: async () => {
-              try { await api("POST", "repo/undo-checkout", { path: b.path }); toast("Agent check-out undone"); go("automation"); } catch (err) { toast(err.message, true); } } }, "Undo check-out") : null) }]}));
+              try { await api("POST", "repo/undo-checkout", { path: b.path }); toast("Agent check-out undone"); go("automation"); } catch (err) { toast(err.message, true); } } }, "Undo check-out") : null,
+            can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null) }]}));
   },
 
   async activity(main) {
@@ -459,7 +481,7 @@ const VIEWS = {
         progressBar(pct, status === "queued" ? "waiting" : ""),
         h("div", { class: "lc-now" }, status === "queued" ? "Waiting for " + (run.device_name || run.device_id) + " to pick it up"
           : h("span", {}, "Step " + Math.min(p.finished + 1, p.total || p.finished + 1) + (p.total ? " of " + p.total : "") + ": ", h("strong", { text: p.action ? actionName(p.action) : "starting" }), p.step_id ? h("span", { class: "muted", text: "  [" + p.step_id + "]" }) : null)),
-        h("div", { class: "lc-meta muted" }, [["Runner", run.device_name || run.device_id], ["Started by", run.requested_by + " (" + sourceLabel(run.source) + ")"],
+        h("div", { class: "lc-meta muted" }, [["Runner", run.device_name || run.device_id], ["Started by", startedBy(run) + " (" + sourceLabel(run.source) + ")"],
           ["Queued", ago(run.created)], ["Running for", elapsed !== null ? dur(elapsed) : "\u2014"]].map(([k, v]) => h("span", {}, k + ": ", h("b", { text: v })))));
       return card;
     }
@@ -470,7 +492,7 @@ const VIEWS = {
           const e = parseMaybe(x.error);
           const tr = h("tr", { class: "clickable", tabindex: "0" },
             h("td", {}, pill(x.status)), h("td", {}, h("strong", { text: botName(x.bot_path) }), h("span", { class: "muted", text: " v" + x.version })),
-            h("td", { text: x.device_name || x.device_id }), h("td", { text: x.requested_by }), h("td", { text: sourceLabel(x.source) }),
+            h("td", { text: x.device_name || x.device_id }), h("td", { text: startedBy(x) }), h("td", { text: sourceLabel(x.source) }),
             h("td", { title: local(x.started || x.created), text: ago(x.started || x.created) }), h("td", { text: dur(x.duration_ms) }), h("td", { text: x.steps ?? "" }),
             h("td", { class: "err-cell", title: e && e.message ? e.message : "", text: e ? (e.code || (typeof e === "string" ? e : "")) : "" }),
             h("td", {}, can("runs.start") ? h("button", { type: "button", onclick: () => rerun(x.id) }, "Rerun") : null));
@@ -537,7 +559,9 @@ const VIEWS = {
     S.pools = pools.pools;
     const waiting = (q) => Number(q.counts.new || 0) + Number(q.counts.retry || 0);
     const done = (q) => Number(q.counts.success || 0) + Number(q.counts.failed || 0);
+    try { S.models = (await api("GET", "queue-models")).models; } catch (_) { S.models = []; }
     main.replaceChildren(...header("Work queues", "Lists of work items (invoices, tickets, orders) that agents process one by one on a runner pool, with retries and service levels.",
+      h("button", { type: "button", onclick: () => modelsDialog() }, "Work item models"),
       can("queues.manage") ? h("button", { type: "button", class: "primary", onclick: () => queueDialog() }, "New work queue") : null),
       dataTable({ rows: r.queues, search: "Search work queues", exportName: "work-queues", onRow: openQueue, empty: "No work queues yet. Create one, then add items by hand, from a CSV file or from an agent.",
         columns: [
@@ -792,18 +816,25 @@ const VIEWS = {
   },
 
   async users(main) {
-    const r = await api("GET", "users");
-    S.users = r.users;
+    const [r, ra, dv] = await Promise.all([api("GET", "users"), api("GET", "devices/runasusers").catch(() => ({ users: [] })), api("GET", "devices").catch(() => ({ devices: [] }))]);
+    S.users = r.users; S.devices = dv.devices;
+    // run-as users: the runner each user's runs go to by default
+    const runAs = Object.fromEntries(ra.users.map((x) => [x.username, x]));
     try { S.roles = (await api("GET", "roles")).roles.map((x) => x.name); } catch (_) { S.roles = Object.keys(ROLE_LABELS); }
     const roleSel = (u) => { const s = h("select", { "aria-label": "Role of " + u.username, onchange: async (e) => { try { await api("PATCH", "users/" + u.id, { role: e.target.value }); toast("Role changed"); } catch (err) { toast(err.message, true); go("users"); } } },
       (S.roles || Object.keys(ROLE_LABELS)).map((x) => h("option", { value: x, text: roleLabel(x) }))); s.value = u.role; return s; };
     const status = (u) => u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled";
-    main.replaceChildren(...header("Users", "People who can sign in, and their roles.", h("button", { type: "button", class: "primary", onclick: userDialog }, "New user")),
+    main.replaceChildren(...header("Users", "People who can sign in, their roles, and the runner their runs go to as run-as users.", h("button", { type: "button", class: "primary", onclick: userDialog }, "New user")),
       dataTable({ rows: r.users, search: "Search users", exportName: "users", onRow: can("audit.view") ? openUser : null,
         columns: [
           { label: "User", value: (u) => (u.display_name || "") + " " + u.username, render: (u) => h("div", { class: "name-cell" }, h("span", { class: "avatar sm", text: (u.display_name || u.username).charAt(0).toUpperCase() }), h("div", {}, h("strong", { text: u.display_name || u.username }), h("div", { class: "muted small", text: u.username }))) },
           { label: "Role", value: (u) => u.role, render: roleSel },
           { label: "Status", value: status, render: (u) => pill(u.enabled ? (u.must_change ? "pending" : "active") : "disabled") },
+          { label: "Default runner", value: (u) => (runAs[u.username] || {}).device_name || "", render: (u) => {
+            const sel = h("select", { "aria-label": "Default runner of " + u.username, onchange: async (e) => {
+              try { await api("PUT", "users/" + u.id + "/default-device", { device_id: e.target.value || null }); toast("Default runner of " + u.username + " saved"); } catch (err) { toast(err.message, true); go("users"); } } },
+              h("option", { value: "", text: "(none)" }), (S.devices || []).map((d) => h("option", { value: d.id, text: d.name })));
+            sel.value = (runAs[u.username] || {}).device_id || ""; return sel; } },
           { label: "Last sign-in", value: (u) => u.last_login || "", render: (u) => u.last_login ? h("span", { title: local(u.last_login) }, ago(u.last_login)) : "never" },
           { label: "", sort: false, render: (u) => h("div", { class: "row-actions tight" },
             h("button", { type: "button", onclick: async () => { try { await api("PATCH", "users/" + u.id, { enabled: !u.enabled }); go("users"); } catch (e) { toast(e.message, true); } } }, u.enabled ? "Disable" : "Enable"),
@@ -838,7 +869,7 @@ const VIEWS = {
 
 function runTable(runs, onRow) {
   return table(["Status", "Agent", "Runner", "Started by", "Source", "Created", "Duration"], runs.map((r) => ({ data: r, cells: [pill(runStatus(r)),
-    botName(r.bot_path) + " v" + r.version, r.device_name || r.device_id, r.requested_by, sourceLabel(r.source), h("span", { title: local(r.created) }, ago(r.created)), dur(r.duration_ms)] })), onRow);
+    botName(r.bot_path) + " v" + r.version, r.device_name || r.device_id, startedBy(r), sourceLabel(r.source), h("span", { title: local(r.created) }, ago(r.created)), dur(r.duration_ms)] })), onRow);
 }
 
 async function control(id, action, after) {
@@ -926,7 +957,7 @@ async function openRun(id) {
         h("div", { class: "muted small", text: x.finished + (x.total ? " of " + x.total : "") + " steps" + (active && x.current ? "  \u00B7  now: " + actionName(x.current.action) + " [" + x.current.id + "]" : "") })) : null,
       err ? h("div", { class: "error-box" }, h("div", {}, h("span", { class: "code", text: err.code || "Error" }), " ", err.message || (typeof err === "string" ? err : "")),
         err.stepId ? h("div", { class: "small", text: "At step " + err.stepId }) : null, err.suggestedFix ? h("div", { class: "small", text: "Fix: " + err.suggestedFix }) : null) : null,
-      kv([["Run", h("code", { text: r.id })], ["Agent", botName(r.bot_path) + " v" + r.version], ["Runner", r.device_name || r.device_id], ["Started by", r.requested_by + " (" + sourceLabel(r.source) + ")"],
+      kv([["Run", h("code", { text: r.id })], ["Agent", botName(r.bot_path) + " v" + r.version], ["Runner", r.device_name || r.device_id], ["Started by", startedBy(r) + " (" + sourceLabel(r.source) + ")"],
         ["Queued", local(r.created)], ["Started", local(r.started)], ["Finished", local(r.finished)], ["Steps run", r.steps]]),
       tabs, pane);
     $("drawer-actions").replaceChildren(...[
@@ -947,13 +978,15 @@ async function openBot(b) {
   openDrawer([ic("bot", "#6d28d9"), h("span", { text: botName(b.path) })], body, [
     can("runs.start") && b.production_version && isAgent(b.path) ? h("button", { type: "button", class: "primary", onclick: () => runDialog(b) }, "Run") : null,
     can("runs.start") && b.production_version && /\.process\.json$/.test(b.path) ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog(b.path) }, "Start") : null,
-    h("button", { type: "button", onclick: () => versionsDialog(b) }, "Versions")]);
+    h("button", { type: "button", onclick: () => versionsDialog(b) }, "Versions"),
+    can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null]);
   try {
+    const deps = await api("GET", "repo/dependencies?path=" + encodeURIComponent(b.path)).catch(() => null);
     const [prod, runs, vers] = await Promise.all([b.production_version ? api("GET", "repo/bot?path=" + encodeURIComponent(b.path) + "&version=production") : null,
       can("runs.view") ? api("GET", "runs?limit=10&bot=" + encodeURIComponent(b.path)) : { runs: [] }, api("GET", "repo/versions?path=" + encodeURIComponent(b.path))]);
     const flow = prod ? prod.flow : null;
-    const inputs = flow ? (flow.variables || []).filter((v) => v.direction === "input") : [];
-    const outputs = flow ? (flow.variables || []).filter((v) => v.direction === "output") : [];
+    const inputs = flow ? (flow.variables || []).filter((v) => v.direction === "input" || v.direction === "in_out") : [];
+    const outputs = flow ? (flow.variables || []).filter((v) => v.direction === "output" || v.direction === "in_out") : [];
     body.replaceChildren(
       b.description ? h("p", { text: b.description }) : null,
       kv([["Agent id", flow ? h("code", { text: flow.id }) : null], ["Kind", flow ? flow.kind : null], ["Live production", b.production_version ? "v" + b.production_version : "none"], ["Latest", "v" + b.latest_version],
@@ -961,6 +994,10 @@ async function openBot(b) {
       h("h3", { text: "Inputs" }), inputs.length ? table(["Name", "Type", "Required", "Description"], inputs.map((v) => ({ data: v, cells: [h("code", { text: v.name }), v.type, v.required ? "Yes" : "", v.description || ""] }))) : h("p", { class: "muted", text: "No inputs." }),
       outputs.length ? [h("h3", { text: "Outputs" }), table(["Name", "Type", "Description"], outputs.map((v) => ({ data: v, cells: [h("code", { text: v.name }), v.type, v.description || ""] })))] : null,
       roiBox(b),
+      deps ? [h("h3", { text: "Dependencies" }), kv([
+        ["Calls these agents", deps.agents.length ? h("div", { class: "chips" }, deps.agents.map((a) => h("span", { class: "chip" + (a.found ? "" : " missing"), title: a.found ? "" : "Not in this Command Center", text: a.path ? botName(a.path) : a.bot_id }))) : "none"],
+        ["Called by", deps.called_by.length ? h("div", { class: "chips" }, deps.called_by.map((p) => h("span", { class: "chip", text: botName(p) }))) : "no other agent"],
+        ["Toolkits", deps.toolkits.length ? h("div", { class: "chips" }, deps.toolkits.map((t) => h("span", { class: "chip", text: t }))) : "built-in actions only"]])] : null,
       h("h3", { text: "Recent runs" }), runTable(runs.runs, (r) => openRun(r.id)),
       h("h3", { text: "Versions" }), table(["Version", "Author", "Date", "Comment"], vers.versions.slice(0, 8).map((v) => ({ data: v, cells: ["v" + v.version + (v.version === b.production_version ? " (production)" : ""), v.author, ago(v.created), v.comment || ""] }))));
   } catch (e) { body.replaceChildren(h("p", { class: "error", text: e.message })); }
@@ -975,7 +1012,10 @@ async function openDevice(d) {
   } }, "Rename") : null;
   openDrawer([h("span", { class: "dot " + d.status }), h("span", { text: d.name })], body, [
     can("runs.start") ? h("button", { type: "button", class: "primary", onclick: async () => { await loadRefs(); runDialog(null, d.id); } }, "Run an agent here") : null, rename,
-    can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : null]);
+    can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : null,
+    can("devices.manage") ? h("button", { type: "button", class: "danger", onclick: async () => {
+      if (!confirm("Remove runner " + d.name + "? It is taken off runner pools and default runners; register it again to use it.")) return;
+      try { await api("DELETE", "devices/" + d.id); closeDrawer(); toast("Runner removed"); go("devices"); } catch (e) { toast(e.message, true); } } }, "Remove") : null]);
   try {
     const [active, hist] = can("runs.view") ? await Promise.all([api("GET", "runs?filter=active&device=" + encodeURIComponent(d.id)), api("GET", "runs?filter=history&limit=15&device=" + encodeURIComponent(d.id))]) : [{ runs: [] }, { runs: [] }];
     body.replaceChildren(
@@ -1002,11 +1042,19 @@ async function versionsDialog(b) {
   const picks = new Set();
   const compare = h("button", { type: "button", disabled: true, onclick: () => { const [x, y] = [...picks].sort((p, q) => p - q); diffDialog(b, x, y); } }, "Compare selected");
   modal("Versions of " + botName(b.path), [h("p", { class: "muted", text: "Tick two versions to compare them." }),
-    table(["", "Version", "Author", "Date", "Comment", ""], r.versions.map((v) => ({ data: v, cells: [
+    table(["", "Version", "Labels", "Author", "Date", "Comment", ""], r.versions.map((v) => ({ data: v, cells: [
       h("input", { type: "checkbox", "aria-label": "Select v" + v.version, onchange: (e) => { if (e.target.checked) picks.add(v.version); else picks.delete(v.version); compare.disabled = picks.size !== 2; } }),
-      "v" + v.version + (v.version === b.production_version ? " (production)" : ""), v.author, local(v.created), v.comment || "",
-      can("repo.production") && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
-        try { await api("POST", "repo/production", { path: b.path, version: v.version }); toast("Live production is now v" + v.version); closeModal(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Set as production") : ""] })))],
+      "v" + v.version + (v.version === b.production_version ? " (production)" : ""),
+      h("div", { class: "chips" }, (v.labels || []).map((l) => h("span", { class: "chip" }, l, can("repo.checkin") ? h("button", { type: "button", class: "chip-x", "aria-label": "Remove label " + l, onclick: async () => {
+        try { await api("DELETE", "repo/labels?path=" + encodeURIComponent(b.path) + "&label=" + encodeURIComponent(l)); versionsDialog(b); } catch (e) { toast(e.message, true); } } }, "\u00D7") : null))),
+      v.author, local(v.created), v.comment || "",
+      h("div", { class: "row-actions tight" },
+        can("repo.production") && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
+          try { await api("POST", "repo/production", { path: b.path, version: v.version }); toast("Live production is now v" + v.version); closeModal(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Set as production") : null,
+        can("repo.checkin") ? h("button", { type: "button", onclick: async () => {
+          const l = prompt("Label for v" + v.version + " (for example UAT or Release-3). A label moves from the version that has it.", "UAT");
+          if (!l) return;
+          try { await api("PUT", "repo/labels", { path: b.path, label: l.trim(), version: v.version }); versionsDialog(b); } catch (e) { toast(e.message, true); } } }, "Label") : null)] })))],
   [compare]);
 }
 
@@ -1046,7 +1094,7 @@ async function runDialog(b, deviceId) {
     inputsBox.replaceChildren(h("p", { class: "muted", text: "Loading inputs..." }));
     try {
       const flow = (await api("GET", "repo/bot?path=" + encodeURIComponent(path) + "&version=production")).flow;
-      const ins = (flow.variables || []).filter((v) => v.direction === "input");
+      const ins = (flow.variables || []).filter((v) => v.direction === "input" || v.direction === "in_out");
       fields = ins.map((v) => {
         const el = v.type === "Boolean" ? h("select", {}, h("option", { value: "", text: "(not set)" }), h("option", { value: "true", text: "True" }), h("option", { value: "false", text: "False" }))
           : Array.isArray(v.enum) && v.enum.length ? h("select", {}, h("option", { value: "", text: "(not set)" }), v.enum.map((o) => h("option", { value: JSON.stringify(o), text: String(o) })))
@@ -1075,21 +1123,40 @@ async function runDialog(b, deviceId) {
   const path = () => (b ? b.path : bot.value);
   if (bot) bot.addEventListener("change", () => loadInputs(bot.value));
   if (!S.pools && can("devices.view")) { try { S.pools = (await api("GET", "pools")).pools; } catch (_) { S.pools = []; } }
-  const target = h("select", { "aria-label": "Run on" }, h("option", { value: "device", text: "A runner" }), (S.pools || []).length ? h("option", { value: "pool", text: "A runner pool (least busy runner)" }) : null);
+  const target = h("select", { "aria-label": "Run on" }, h("option", { value: "device", text: "A runner" }), (S.pools || []).length ? h("option", { value: "pool", text: "A runner pool (least busy runner)" }) : null,
+    h("option", { value: "users", text: "Run-as users (each on their default runner)" }));
   const pool = h("select", { "aria-label": "Runner pool" }, (S.pools || []).map((p) => h("option", { value: p.id, text: p.name })));
   const devBox = h("label", {}, "Runner", dev), poolBox = h("label", {}, "Runner pool", pool);
-  const syncTarget = () => { devBox.hidden = target.value !== "device"; poolBox.hidden = target.value !== "pool"; };
+  // run-as users: each gets its own run, as that user (credentials are checked against them)
+  const picked = new Set();
+  const usersList = h("div", { class: "pick-list" }, h("p", { class: "muted", text: "Loading users\u2026" }));
+  const usersBox = h("div", {}, h("span", { class: "label-text", text: "Run-as users" }), usersList);
+  api("GET", "devices/runasusers").then((r) => usersList.replaceChildren(...(r.users.length ? r.users.map((u) => h("label", { class: "check" },
+    h("input", { type: "checkbox", disabled: !u.device_id, onchange: (e) => { if (e.target.checked) picked.add(u.username); else picked.delete(u.username); } }),
+    h("span", {}, h("strong", { text: u.username }), " ", h("span", { class: "muted", text: u.device_id ? "on " + (u.device_name || u.device_id) + " (" + (u.device_status || "") + ")" : "no default runner" })))) : [h("p", { class: "muted", text: "No users." })])))
+    .catch(() => usersList.replaceChildren(h("p", { class: "muted", text: "Run-as users are not available to you." })));
+  const mode = h("select", { "aria-label": "Run mode" }, [["unattended", "Unattended (nobody at the runner)"], ["attended", "Attended (someone is at the runner)"], ["headless", "Headless (no desktop)"]].map(([v, l]) => h("option", { value: v, text: l })));
+  const syncTarget = () => { devBox.hidden = target.value !== "device"; poolBox.hidden = target.value !== "pool"; usersBox.hidden = target.value !== "users"; };
   target.addEventListener("change", syncTarget); syncTarget();
   const priority = h("select", { "aria-label": "Priority" }, [["0", "Normal"], ["5", "High"], ["9", "Urgent"], ["-5", "Low"]].map(([v, l]) => h("option", { value: v, text: l })));
   const callback = h("input", { type: "url", placeholder: "https://example.com/hooks/agent-finished" });
-  modal("Run " + (b ? botName(b.path) : "an agent"), [bot ? h("label", {}, "Agent (live production version)", bot) : null, h("label", {}, "Run on", target), devBox, poolBox, inputsBox,
+  modal("Run " + (b ? botName(b.path) : "an agent"), [bot ? h("label", {}, "Agent (live production version)", bot) : null, h("label", {}, "Run on", target), devBox, poolBox, usersBox, inputsBox,
     h("details", {}, h("summary", { text: "More inputs as JSON (optional)" }), raw),
-    h("details", {}, h("summary", { text: "Priority and result callback (optional)" }), h("div", { class: "grid2" }, h("label", {}, "Priority on the runner", priority),
+    h("details", {}, h("summary", { text: "Run mode, priority and result callback (optional)" }), h("div", { class: "grid2" }, h("label", {}, "Run mode", mode), h("label", {}, "Priority on the runner", priority),
       h("label", {}, "Callback URL (gets the result as JSON)", callback))),
     h("p", { class: "muted", text: "Credential inputs are vault references, never the secret itself." })].filter(Boolean),
   [h("button", { type: "button", class: "primary", onclick: async () => {
-    try { const r = await api("POST", "runs", { bot_path: path(), device_id: target.value === "device" ? dev.value : null, pool_id: target.value === "pool" ? pool.value : null,
-      inputs: collect(), priority: Number(priority.value), callback_url: callback.value.trim() || null }); closeModal(); toast("Queued " + r.run_id); S.activity = Object.assign({}, S.activity, { tab: "active" }); await go("activity"); openRun(r.run_id); }
+    try {
+      if (target.value === "users") {
+        if (!picked.size) throw new Error("Tick at least one run-as user");
+        const r = await api("POST", "runs", { bot_path: path(), run_as_users: [...picked], inputs: collect(), priority: Number(priority.value), mode: mode.value, callback_url: callback.value.trim() || null });
+        closeModal();
+        const bad = r.runs.filter((x) => x.error);
+        toast("Started " + r.started + " of " + r.runs.length + " runs" + (bad.length ? ": " + bad.map((x) => x.run_as + " (" + x.error.message + ")").join("; ") : ""), bad.length > 0);
+        S.activity = Object.assign({}, S.activity, { tab: "active" }); await go("activity"); return;
+      }
+      const r = await api("POST", "runs", { bot_path: path(), device_id: target.value === "device" ? dev.value : null, pool_id: target.value === "pool" ? pool.value : null,
+        inputs: collect(), priority: Number(priority.value), mode: mode.value, callback_url: callback.value.trim() || null }); closeModal(); toast("Queued " + r.run_id); S.activity = Object.assign({}, S.activity, { tab: "active" }); await go("activity"); openRun(r.run_id); }
     catch (e) { toast(e.message, true); } } }, "Run now")]);
   if (path()) loadInputs(path());
 }
@@ -1409,14 +1476,16 @@ function queueDialog(q) {
   const pool = h("select", {}, h("option", { value: "", text: "(choose later)" }), (S.pools || []).map((p) => h("option", { value: p.id, text: p.name })));
   const sla = h("input", { type: "number", min: "0", value: q && q.sla_minutes ? String(q.sla_minutes) : "", placeholder: "e.g. 240" });
   const attempts = h("input", { type: "number", min: "1", max: "10", value: String(q ? q.max_attempts : 2) });
-  if (q) { bot.value = q.bot_path || ""; pool.value = q.pool_id || ""; }
+  const model = h("select", {}, h("option", { value: "", text: "(none: items are free-form)" }), (S.models || []).map((m) => h("option", { value: m.id, text: m.name + " (" + m.fields.length + " fields)" })));
+  if (q) { bot.value = q.bot_path || ""; pool.value = q.pool_id || ""; model.value = q.model_id || ""; }
   modal(q ? "Edit " + q.name : "New work queue", [h("label", {}, "Name", name), h("label", {}, "Description", desc),
+    h("label", {}, "Work item model (the fields every item has; items are checked against it)", model),
     h("div", { class: "grid2" }, h("label", {}, "Agent that works the items", bot), h("label", {}, "Runner pool", pool),
       h("label", {}, "Service level (minutes from added to done)", sla), h("label", {}, "Attempts per item", attempts)),
     h("p", { class: "muted", text: "The agent receives each item in an input named work_item (a dictionary) and its id in work_item_id. Outputs are kept with the item; a failed run retries the item until the attempts are used." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try { await api(q ? "PUT" : "POST", "queues" + (q ? "/" + q.id : ""), { name: name.value, description: desc.value, bot_path: bot.value || null, pool_id: pool.value || null,
-      sla_minutes: sla.value ? Number(sla.value) : null, max_attempts: Number(attempts.value) }); closeModal(); closeDrawer(); go("queues"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+      sla_minutes: sla.value ? Number(sla.value) : null, max_attempts: Number(attempts.value), model_id: model.value || null }); closeModal(); closeDrawer(); go("queues"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
 /** Parses CSV text (first row = column names) into objects. */
@@ -1446,9 +1515,10 @@ function addItemsDialog(q, after) {
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
       const t = text.value.trim();
-      const items = t.startsWith("[") || t.startsWith("{") ? [].concat(parseJson(t, [])) : parseCsv(t);
-      if (!items.length) throw new Error("No items found");
-      const r = await api("POST", "queues/" + q.id + "/items", { items }); closeModal(); toast("Added " + r.added + " items"); if (after) after();
+      // CSV is read by the Command Center, which converts each cell to its field's type in the work item model
+      const r = t.startsWith("[") || t.startsWith("{") ? await api("POST", "queues/" + q.id + "/items", { items: [].concat(parseJson(t, [])) })
+        : await api("POST", "queues/" + q.id + "/items/csv", { csv: t });
+      closeModal(); toast("Added " + r.added + " items"); if (after) after();
     } catch (e) { toast(e.message, true); } } }, "Add items")]);
 }
 
@@ -1460,19 +1530,22 @@ async function openQueue(q) {
   const list = h("div"), summary = h("div", { class: "q-summary" });
   const act = (action) => h("button", { type: "button", onclick: async () => {
     if (!sel.size) { toast("Tick items first", true); return; }
-    try { await api("POST", "queues/" + q.id + "/items/" + action, { ids: [...sel] }); sel.clear(); load(); } catch (e) { toast(e.message, true); } } }, action === "retry" ? "Retry selected" : "Defer selected");
+    if (action === "delete" && !confirm("Delete " + sel.size + " item(s)? Items being worked on are kept.")) return;
+    try { await api("POST", "queues/" + q.id + "/items/" + action, { ids: [...sel] }); sel.clear(); load(); } catch (e) { toast(e.message, true); } } },
+    action === "retry" ? "Retry selected" : action === "defer" ? "Defer selected" : "Delete selected");
   async function load() {
     const [r, all] = await Promise.all([api("GET", "queues/" + q.id + "/items?limit=200&status=" + st.status + "&q=" + encodeURIComponent(st.q)), api("GET", "queues")]);
     const cur = all.queues.find((x) => x.id === q.id) || q;
     summary.replaceChildren(...["new", "in_progress", "retry", "success", "failed", "deferred"].map((k) => h("span", { class: "pill " + ({ new: "queued", in_progress: "running", retry: "pending", success: "success", failed: "failed", deferred: "stopped" })[k],
       text: k.replace("_", " ") + ": " + (cur.counts[k] || 0) })), cur.overdue ? h("span", { class: "pill failed", text: cur.overdue + " past service level" }) : null);
-    list.replaceChildren(table(["", "Reference", "Status", "Attempts", "Priority", "Added", "Result or error"], r.items.map((it) => {
+    list.replaceChildren(table(["", "Reference", "Status", "Attempts", "Priority", "Added", "Result or error", ""], r.items.map((it) => {
       const box = h("input", { type: "checkbox", "aria-label": "Select " + (it.reference || it.id), checked: sel.has(it.id), onchange: (e) => { if (e.target.checked) sel.add(it.id); else sel.delete(it.id); } });
       const err = parseMaybe(it.error), res = parseMaybe(it.result);
       return { data: it, cells: [can("queues.work") ? box : "", h("div", {}, h("strong", { text: it.reference || it.id }), h("div", { class: "muted small mono", text: String(it.data).slice(0, 120) })),
         pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
         it.run_id ? h("button", { type: "button", class: "link", onclick: () => openRun(it.run_id) }, err ? (err.code || "") + " " + (err.message || "") : res ? JSON.stringify(res).slice(0, 80) : "view run")
-          : h("span", { class: "muted", text: err ? (err.code || JSON.stringify(err)) : "" })] };
+          : h("span", { class: "muted", text: err ? (err.code || JSON.stringify(err)) : "" }),
+        h("button", { type: "button", onclick: () => itemDialog(q, it.id, load) }, it.status === "in_progress" ? "View" : "Open")] };
     })), r.total > r.items.length ? h("p", { class: "muted", text: "Showing " + r.items.length + " of " + r.total + ". Narrow the search to see more." }) : null);
   }
   status.addEventListener("change", () => { st.status = status.value; load(); });
@@ -1480,13 +1553,203 @@ async function openQueue(q) {
   openDrawer([ic("inbox", "#9333ea"), h("span", { text: q.name })], [
     kv([["Agent", q.bot_path ? botName(q.bot_path) : "not chosen"], ["Runner pool", ((S.pools || []).find((p) => p.id === q.pool_id) || {}).name || "not chosen"],
       ["Attempts per item", String(q.max_attempts)], ["Service level", q.sla_minutes ? q.sla_minutes + " minutes" : "none"], ["Processing", q.processing ? "On (as " + q.run_as + ")" : "Off"]]),
-    summary, h("div", { class: "toolbar" }, status, search, can("queues.work") ? act("retry") : null, can("queues.work") ? act("defer") : null), list], [
+    summary, h("div", { class: "toolbar" }, status, search, can("queues.work") ? act("retry") : null, can("queues.work") ? act("defer") : null, can("queues.work") ? act("delete") : null,
+      h("span", { class: "spacer" }), h("button", { type: "button", onclick: () => exportItems(q, st.status) }, ic("download", "#475569", "sm"), "Export CSV")), list], [
     can("queues.work") ? h("button", { type: "button", class: "primary", onclick: () => addItemsDialog(q, load) }, "Add items") : null,
+    can("queues.manage") ? h("button", { type: "button", onclick: () => membersDialog(q) }, "Members") : null,
     can("queues.work") ? h("button", { type: "button", onclick: async () => { try { await api("POST", "queues/" + q.id + (q.processing ? "/stop" : "/start")); q.processing = !q.processing; closeDrawer(); go("queues"); } catch (e) { toast(e.message, true); } } }, q.processing ? "Stop processing" : "Start processing") : null,
     can("queues.manage") ? h("button", { type: "button", onclick: () => queueDialog(q) }, "Edit") : null,
     can("queues.manage") ? h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete work queue " + q.name + " and its items?")) { try { await api("DELETE", "queues/" + q.id); closeDrawer(); go("queues"); } catch (e) { toast(e.message, true); } } } }, "Delete") : null]);
   await load();
   S.drawerTimer = setInterval(() => { if (!$("drawer").hidden && $("modal").hidden) load().catch(() => {}); }, 5000);
+}
+
+// ---------- repository: folders, permissions, deleted agents, lifecycle ----------
+function newFolderDialog() {
+  const path = h("input", { value: S.repoFolder ? S.repoFolder + "/" : "", placeholder: "Finance/Invoices" }), desc = h("input", {});
+  modal("New folder", [h("label", {}, "Folder (sub-folders with /)", path), h("label", {}, "Description", desc)],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      try { const r = await api("POST", "repo/folders", { path: path.value.trim(), description: desc.value }); closeModal(); S.repoFolder = r.path; go("automation"); } catch (e) { toast(e.message, true); } } }, "Create")]);
+}
+
+const ACCESS = [["view", "View (see, export)"], ["run", "Run (also run and schedule)"], ["edit", "Edit (also check out, check in, delete)"], ["manage", "Manage (also live version and labels)"]];
+async function folderPermissionsDialog(folder) {
+  let rows;
+  try { rows = (await api("GET", "repo/permissions?folder=" + encodeURIComponent(folder))).permissions.map((p) => ({ principal: p.principal, access: p.access })); } catch (e) { toast(e.message, true); return; }
+  let roles = [];
+  try { roles = (await api("GET", "roles")).roles.map((x) => x.name); } catch (_) { roles = Object.keys(ROLE_LABELS); }
+  const box = h("div");
+  const draw = () => box.replaceChildren(rows.length ? table(["Who", "Access", ""], rows.map((r, i) => {
+    const acc = h("select", { "aria-label": "Access of " + r.principal, onchange: (e) => { r.access = e.target.value; } }, ACCESS.map(([v, l]) => h("option", { value: v, text: l })));
+    acc.value = r.access;
+    return { data: r, cells: [r.principal.startsWith("role:") ? "Role " + roleLabel(r.principal.slice(5)) : "User " + r.principal.slice(5), acc,
+      h("button", { type: "button", onclick: () => { rows.splice(i, 1); draw(); } }, "Remove")] };
+  })) : h("p", { class: "muted", text: "No permissions of its own: the folder follows its parent folder (or, at the top, the roles alone)." }));
+  const who = h("select", { "aria-label": "Role or user" }, h("optgroup", { label: "Roles" }, roles.map((r) => h("option", { value: "role:" + r, text: roleLabel(r) })), h("option", { value: "role:*", text: "Everyone" })),
+    h("optgroup", { label: "Users" }, (S.users && S.users.length ? S.users : []).map((u) => h("option", { value: "user:" + u.username, text: u.username }))));
+  const user = h("input", { placeholder: "or a user name" });
+  const level = h("select", { "aria-label": "Access" }, ACCESS.map(([v, l]) => h("option", { value: v, text: l })));
+  draw();
+  modal("Permissions of " + folder, [h("p", { class: "muted", text: "Once a folder has permissions, only the roles and users listed here can see its agents (and its sub-folders' agents, unless a sub-folder has its own). Role permissions still apply: folder access never grants what a role does not allow." }),
+    box, h("div", { class: "grid2" }, h("label", {}, "Add", who), h("label", {}, "User name (instead)", user), h("label", {}, "Access", level)),
+    h("button", { type: "button", onclick: () => { const pr = user.value.trim() ? "user:" + user.value.trim() : who.value; if (!rows.some((x) => x.principal === pr)) rows.push({ principal: pr, access: level.value }); user.value = ""; draw(); } }, "+ Add")],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api("PUT", "repo/permissions", { folder, permissions: rows }); closeModal(); toast("Permissions of " + folder + " saved"); go("automation"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+async function deleteBotAsk(b) {
+  if (!confirm("Delete " + botName(b.path) + "? It stops being listed and cannot run, but its versions are kept and it can be recovered from Deleted agents.")) return;
+  try {
+    const r = await api("POST", "repo/delete", { path: b.path });
+    closeDrawer();
+    toast("Deleted " + botName(b.path) + (r.called_by && r.called_by.length ? ". Note: " + r.called_by.map(botName).join(", ") + " still call it." : ""), !!(r.called_by && r.called_by.length));
+    go("automation");
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deletedDialog() {
+  let r;
+  try { r = await api("GET", "repo?deleted=true"); } catch (e) { toast(e.message, true); return; }
+  modal("Deleted agents", [r.bots.length ? table(["Agent", "Deleted", "By", ""], r.bots.map((b) => ({ data: b, cells: [botName(b.path), local(b.deleted_at), b.deleted_by || "",
+    h("button", { type: "button", onclick: async () => { try { await api("POST", "repo/recover", { path: b.path }); toast("Recovered " + botName(b.path)); deletedDialog(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Recover")] })))
+    : h("p", { class: "muted", text: "No deleted agents." })], []);
+}
+
+function exportDialog(bots) {
+  const picked = new Set();
+  const list = h("div", { class: "pick-list" }, bots.map((b) => h("label", { class: "check" }, h("input", { type: "checkbox", onchange: (e) => { if (e.target.checked) picked.add(b.path); else picked.delete(b.path); } }),
+    h("span", {}, botName(b.path), " ", h("span", { class: "muted", text: "v" + b.latest_version + (b.production_version ? ", live v" + b.production_version : "") })))));
+  const version = h("input", { value: "production", "aria-label": "Version" });
+  const deps = h("input", { type: "checkbox", checked: true });
+  const target = h("input", { type: "url", placeholder: "https://cc-prod.example.com" }), key = h("input", { placeholder: "vault folder/credential/attribute" });
+  const conflict = h("select", {}, h("option", { value: "skip", text: "Skip agents that are already there" }), h("option", { value: "overwrite", text: "Add a new version of agents that are already there" }));
+  const live = h("input", { type: "checkbox" });
+  const req = () => { if (!picked.size) throw new Error("Tick at least one agent"); return { paths: [...picked], version: version.value.trim() || "production", include_dependencies: deps.checked }; };
+  modal("Export or promote agents", [h("p", { class: "muted", text: "A bundle holds each agent's exact version with a checksum, and (when ticked) every agent it calls. Import it in another Command Center, or promote straight to one." }),
+    list, h("div", { class: "grid2" }, h("label", {}, "Version (production, latest, a number or a label)", version), h("label", { class: "check" }, deps, "Include the agents they call")),
+    h("details", {}, h("summary", { text: "Promote to another Command Center" }),
+      h("div", { class: "grid2" }, h("label", {}, "Its address", target), h("label", {}, "Its API key (vault reference)", key), h("label", {}, "If an agent is already there", conflict), h("label", { class: "check" }, live, "Make the versions live there")),
+      h("p", { class: "muted", text: "Create an API key there (Your API keys) as someone allowed to import, and store it in a vault folder here. The key is read from the vault and sent only to that address." }),
+      h("button", { type: "button", class: "primary", onclick: async () => {
+        try {
+          const r = await api("POST", "lifecycle/promote", Object.assign(req(), { target_url: target.value.trim(), api_key_ref: key.value.trim(), conflict: conflict.value, production: live.checked }));
+          const res = r.result && r.result.results ? r.result.results : [];
+          if (r.ok) { closeModal(); toast("Promoted: " + res.map((x) => botName(x.path) + " " + x.status).join(", ")); }
+          else toast("Not promoted (" + r.status + "): " + (res.filter((x) => x.error).map((x) => botName(x.path) + ": " + x.error.message).join("; ") || JSON.stringify(r.result).slice(0, 200)), true);
+        } catch (e) { toast(e.message, true); } } }, "Promote"))],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const b = await api("POST", "lifecycle/export", req()); download("agents-" + new Date().toISOString().slice(0, 10) + ".ooabundle.json", JSON.stringify(b, null, 2), "application/json"); toast("Exported " + b.agents.length + " agents"); }
+    catch (e) { toast(e.message, true); } } }, "Download bundle")]);
+}
+
+function importDialog() {
+  const file = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Bundle file" });
+  const folder = h("input", { placeholder: "(keep the folders of the bundle)" });
+  const conflict = h("select", {}, h("option", { value: "skip", text: "Skip agents that are already here" }), h("option", { value: "overwrite", text: "Add a new version of agents that are already here" }));
+  const live = h("input", { type: "checkbox" });
+  const out = h("div");
+  modal("Import agents", [h("p", { class: "muted", text: "Import a bundle exported from a Command Center. Every agent is checked first (checksum, validation, folder permissions); nothing is imported unless all of them pass. History is kept: an agent that exists gets a new version." }),
+    file, h("div", { class: "grid2" }, h("label", {}, "Put them under folder", folder), h("label", {}, "If an agent is already here", conflict), h("label", { class: "check" }, live, "Make the imported versions live")), out],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const f = file.files[0]; if (!f) throw new Error("Choose a bundle file");
+      const bundle = JSON.parse(await f.text());
+      const r = await api("POST", "lifecycle/import", { bundle, conflict: conflict.value, production: live.checked, target_folder: folder.value.trim() || null });
+      out.replaceChildren(table(["Agent", "Result", "Version", "Problem"], r.results.map((x) => ({ data: x, cells: [botName(x.path), pill(x.status === "created" || x.status === "updated" ? "success" : x.status === "skipped" ? "stopped" : "failed"),
+        x.version ? "v" + x.version : "", x.error ? x.error.message : x.status] }))));
+      toast(r.ok ? "Imported " + r.imported + " agents" : "Nothing imported: fix the problems listed", !r.ok);
+      if (r.ok) go("automation");
+    } catch (e) { toast(e.message, true); } } }, "Import")]);
+}
+
+// ---------- work queues: models, members, items ----------
+async function modelsDialog() {
+  try { S.models = (await api("GET", "queue-models")).models; } catch (e) { toast(e.message, true); return; }
+  modal("Work item models", [h("p", { class: "muted", text: "A model names the fields of a queue's items and their types. Items added by hand, from CSV, by agents or over the API are checked against it." }),
+    S.models.length ? table(["Model", "Fields", "Queues", ""], S.models.map((m) => ({ data: m, cells: [h("strong", { text: m.name }), m.fields.map((f) => f.name + (f.required ? "*" : "") + " (" + f.type + ")").join(", "), String(m.queues),
+      can("queues.manage") ? h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => modelDialog(m) }, "Edit"),
+        h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete model " + m.name + "?")) return; try { await api("DELETE", "queue-models/" + m.id); modelsDialog(); } catch (e) { toast(e.message, true); } } }, "Delete")) : ""] })))
+      : h("p", { class: "muted", text: "No models yet." })],
+  can("queues.manage") ? [h("button", { type: "button", class: "primary", onclick: () => modelDialog() }, "New model")] : []);
+}
+
+function modelDialog(m) {
+  const name = h("input", { value: m ? m.name : "", placeholder: "Invoice" }), desc = h("input", { value: m ? m.description || "" : "" });
+  const fields = m ? m.fields.map((f) => Object.assign({}, f)) : [{ name: "", type: "text", required: true, display: true }];
+  const box = h("div");
+  const draw = () => box.replaceChildren(table(["Field", "Type", "Required", "Shown in the list", ""], fields.map((f, i) => {
+    const n = h("input", { value: f.name, placeholder: "invoice_no", "aria-label": "Field name", oninput: (e) => { f.name = e.target.value.trim(); } });
+    const t = h("select", { "aria-label": "Field type", onchange: (e) => { f.type = e.target.value; } }, [["text", "Text"], ["number", "Number"], ["boolean", "True/false"], ["date", "Date"]].map(([v, l]) => h("option", { value: v, text: l })));
+    t.value = f.type;
+    return { data: f, cells: [n, t, h("input", { type: "checkbox", checked: !!f.required, "aria-label": "Required", onchange: (e) => { f.required = e.target.checked; } }),
+      h("input", { type: "checkbox", checked: f.display !== false, "aria-label": "Shown in the list", onchange: (e) => { f.display = e.target.checked; } }),
+      h("button", { type: "button", onclick: () => { fields.splice(i, 1); draw(); } }, "Remove")] };
+  })));
+  draw();
+  modal(m ? "Edit model " + m.name : "New work item model", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Description", desc)), box,
+    h("button", { type: "button", onclick: () => { fields.push({ name: "", type: "text", required: false, display: true }); draw(); } }, "+ Field"),
+    m ? h("p", { class: "muted", text: "While queues using this model have items, fields can be added (optional) but not removed, made required or given another type." }) : null].filter(Boolean),
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api(m ? "PUT" : "POST", "queue-models" + (m ? "/" + m.id : ""), { name: name.value, description: desc.value, fields }); modelsDialog(); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+async function membersDialog(q) {
+  let full;
+  try { full = await api("GET", "queues/" + q.id); } catch (e) { toast(e.message, true); return; }
+  const rows = full.members.map((x) => ({ principal: x.principal, role: x.member_role }));
+  const box = h("div");
+  const ROLES = [["owner", "Owner (manages the queue)"], ["participant", "Participant (adds and changes items)"], ["consumer", "Consumer (processes the items)"]];
+  const draw = () => box.replaceChildren(rows.length ? table(["Who", "Member as", ""], rows.map((r, i) => ({ data: r, cells: [r.principal, (ROLES.find((x) => x[0] === r.role) || [0, r.role])[1],
+    h("button", { type: "button", onclick: () => { rows.splice(i, 1); draw(); } }, "Remove")] })))
+    : h("p", { class: "muted", text: "No members: everyone whose role allows it can use this queue." }));
+  const who = h("input", { placeholder: "user:jane or role:bot_runner", value: "user:" + S.user.username });
+  const role = h("select", {}, ROLES.map(([v, l]) => h("option", { value: v, text: l })));
+  draw();
+  modal("Members of " + q.name, [h("p", { class: "muted", text: "With members, only they can use the queue: owners everything, participants add and change items, consumers start processing and retry items. Keep yourself as an owner." }),
+    box, h("div", { class: "grid2" }, h("label", {}, "Who", who), h("label", {}, "As", role)),
+    h("button", { type: "button", onclick: () => { const p = who.value.trim(); if (p && !rows.some((x) => x.principal === p && x.role === role.value)) rows.push({ principal: p, role: role.value }); draw(); } }, "+ Add")],
+  [h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "queues/" + q.id + "/members", { members: rows }); closeModal(); toast("Members saved"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+async function itemDialog(q, itemId, after) {
+  let it, full;
+  try { [it, full] = await Promise.all([api("GET", "queues/" + q.id + "/items/" + itemId), api("GET", "queues/" + q.id)]); } catch (e) { toast(e.message, true); return; }
+  const fields = full.model ? full.model.fields : null;
+  const locked = it.status === "in_progress";
+  const inputs = {};
+  const dataBox = fields ? h("div", { class: "grid2" }, fields.map((f) => {
+    const v = it.data[f.name];
+    const el = f.type === "boolean" ? h("select", { disabled: locked }, h("option", { value: "", text: "(empty)" }), h("option", { value: "true", text: "True" }), h("option", { value: "false", text: "False" }))
+      : h("input", { type: f.type === "number" ? "number" : f.type === "date" ? "date" : "text", value: v === undefined || v === null ? "" : String(v), disabled: locked });
+    if (f.type === "boolean") el.value = v === true ? "true" : v === false ? "false" : "";
+    inputs[f.name] = el;
+    return h("label", {}, h("span", {}, f.name, f.required ? h("span", { class: "req", text: " *" }) : null, h("span", { class: "type", text: f.type })), el);
+  })) : h("textarea", { rows: 8, disabled: locked, value: JSON.stringify(it.data, null, 2) });
+  const ref = h("input", { value: it.reference || "", disabled: locked }), prio = h("input", { type: "number", value: String(it.priority), disabled: locked });
+  modal("Work item " + (it.reference || it.id), [kv([["Status", pill(it.status)], ["Attempts", String(it.attempts)], ["Added", local(it.created)], ["Finished", local(it.finished)]]),
+    h("div", { class: "grid2" }, h("label", {}, "Reference", ref), h("label", {}, "Priority", prio)), h("h3", { text: "Data" }), dataBox,
+    it.result ? [h("h3", { text: "Result" }), h("pre", { class: "mono", text: JSON.stringify(it.result, null, 2) })] : null,
+    it.error ? [h("h3", { text: "Error" }), h("pre", { class: "mono error", text: JSON.stringify(it.error, null, 2) })] : null,
+    locked ? h("p", { class: "muted", text: "The item is being worked on; it can be changed after its run ends." }) : null].flat().filter(Boolean),
+  locked || !can("queues.work") ? [] : [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      let data;
+      if (fields) { data = {}; for (const f of fields) { const t = inputs[f.name].value; if (t !== "") data[f.name] = f.type === "number" ? Number(t) : f.type === "boolean" ? t === "true" : t; } }
+      else data = parseJson(dataBox.value, {});
+      await api("PUT", "queues/" + q.id + "/items/" + itemId, { data, reference: ref.value.trim() || null, priority: Number(prio.value || 0) });
+      closeModal(); toast("Item saved"); if (after) after();
+    } catch (e) { toast(e.message, true); } } }, "Save"),
+    h("button", { type: "button", class: "danger", onclick: async () => {
+      if (!confirm("Delete this item?")) return;
+      try { await api("POST", "queues/" + q.id + "/items/delete", { ids: [itemId] }); closeModal(); if (after) after(); } catch (e) { toast(e.message, true); } } }, "Delete")]);
+}
+
+async function exportItems(q, status) {
+  try {
+    const res = await fetch("/api/queues/" + q.id + "/items/export" + (status ? "?status=" + encodeURIComponent(status) : ""), { credentials: "same-origin" });
+    if (!res.ok) { const e = (await res.json().catch(() => ({}))).error || {}; throw new Error(e.message || res.statusText); }
+    download(q.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + "-items.csv", await res.text(), "text/csv");
+  } catch (e) { toast(e.message, true); }
 }
 
 function roleDialog(role, permissions) {

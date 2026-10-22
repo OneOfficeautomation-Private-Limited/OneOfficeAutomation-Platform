@@ -25,6 +25,10 @@ public final class ControlRoom {
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults();
     public final Workflows workflows;
+    /** Repository folders and folder permissions. */
+    final Folders folders;
+    /** Export, import and promotion of agents between Command Centers. */
+    public final Lifecycle lifecycle;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     private final FlowValidator validator;
@@ -43,6 +47,8 @@ public final class ControlRoom {
         db.migrate();
         this.platform = new Platform(this, registry);
         this.workflows = new Workflows(this);
+        this.folders = new Folders(this);
+        this.lifecycle = new Lifecycle(this);
         loadRoles();
     }
 
@@ -290,33 +296,81 @@ public final class ControlRoom {
 
     // ===================== repository =====================
 
-    public List<Map<String, Object>> repoList(User by, String q) {
+    public List<Map<String, Object>> repoList(User by, String q) { return repoList(by, q, null, false); }
+
+    /**
+     * Agents the caller may see (folder permissions), optionally in one folder and below, with the caller's access and
+     * the version labels. deleted lists deleted agents instead, for recovery.
+     */
+    public List<Map<String, Object>> repoList(User by, String q, String folder, boolean deleted) {
         require(by, "repo.view", "view the agent repository");
+        if (deleted) require(by, "repo.delete", "see deleted agents");
         String like = "%" + (q == null ? "" : q.toLowerCase(Locale.ROOT)) + "%";
-        return db.query("SELECT path, bot_id, name, description, latest_version, production_version, locked_by, locked_at, updated, updated_by, minutes_saved FROM bots " +
-                "WHERE LOWER(path) LIKE ? OR LOWER(COALESCE(description, '')) LIKE ? OR LOWER(bot_id) LIKE ? ORDER BY path", like, like, like);
+        String in = folder == null || folder.isBlank() ? null : Folders.normalize(folder) + "/";
+        Map<String, Map<String, String>> perms = folders.entries();
+        Map<String, List<Object>> labels = new HashMap<>();
+        for (Map<String, Object> l : db.query("SELECT path, label, version FROM bot_labels ORDER BY label"))
+            labels.computeIfAbsent((String) l.get("path"), k -> new ArrayList<>()).add(Map.of("label", l.get("label"), "version", l.get("version")));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> b : db.query("SELECT path, bot_id, name, description, latest_version, production_version, locked_by, locked_at, updated, updated_by, minutes_saved, " +
+                "deleted_at, deleted_by FROM bots WHERE (LOWER(path) LIKE ? OR LOWER(COALESCE(description, '')) LIKE ? OR LOWER(bot_id) LIKE ?) AND deleted_at IS " + (deleted ? "NOT NULL" : "NULL") +
+                " ORDER BY path", like, like, like)) {
+            String path = (String) b.get("path");
+            if (in != null && !path.startsWith(in)) continue;
+            String access = folders.accessToFolder(by.username(), by.role(), Folders.folderOf(path), perms);
+            if (access.equals("none")) continue;
+            Map<String, Object> m = new LinkedHashMap<>(b);
+            if (!deleted) { m.remove("deleted_at"); m.remove("deleted_by"); }
+            m.put("folder", Folders.folderOf(path));
+            m.put("access", access);
+            m.put("labels", labels.getOrDefault(path, List.of()));
+            out.add(m);
+        }
+        return out;
     }
 
     public List<Map<String, Object>> versions(User by, String path) {
         require(by, "repo.view", "view the agent repository");
-        return db.query("SELECT version, sha256, comment, author, created FROM bot_versions WHERE path = ? ORDER BY version DESC", path);
+        folders.require(by, path, "view", "view agents");
+        Map<String, List<String>> byVersion = new HashMap<>();
+        for (Map<String, Object> l : db.query("SELECT label, version FROM bot_labels WHERE path = ?", path))
+            byVersion.computeIfAbsent(String.valueOf(l.get("version")), k -> new ArrayList<>()).add((String) l.get("label"));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> v : db.query("SELECT version, sha256, comment, author, created FROM bot_versions WHERE path = ? ORDER BY version DESC", path)) {
+            Map<String, Object> m = new LinkedHashMap<>(v);
+            m.put("labels", byVersion.getOrDefault(String.valueOf(v.get("version")), List.of()));
+            out.add(m);
+        }
+        return out;
     }
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> content(String path, Object version) {
-        Map<String, Object> b = db.one("SELECT latest_version, production_version FROM bots WHERE path = ?", path);
+        Map<String, Object> b = db.one("SELECT latest_version, production_version, deleted_at FROM bots WHERE path = ?", path);
         if (b == null) throw notFound("Agent " + path);
+        if (b.get("deleted_at") != null) throw new OoaException("CR.DELETED", "Agent " + path + " was deleted", "Recover it in the agent repository (Deleted agents) to use it again.");
         Object v = version == null || "latest".equals(version) ? b.get("latest_version") : "production".equals(version) ? b.get("production_version") : version;
+        if (v instanceof String label && !label.matches("^\\d+$")) {
+            // a version label (for example UAT), set in the agent repository
+            Map<String, Object> l = db.one("SELECT version FROM bot_labels WHERE path = ? AND label = ?", path, label);
+            if (l == null) throw new OoaException("CR.NOT_FOUND", "Agent " + path + " has no version labelled '" + label + "'");
+            v = l.get("version");
+        }
         if (v == null) throw new OoaException("CR.NO_PRODUCTION", "Agent " + path + " has no live production version", "Set a live production version in the agent repository.");
         Map<String, Object> row = db.one("SELECT content, version FROM bot_versions WHERE path = ? AND version = ?", path, Integer.parseInt(String.valueOf(v)));
         if (row == null) throw notFound("Version " + v + " of " + path);
         return Map.of("version", row.get("version"), "flow", JsonLite.parse((String) row.get("content")));
     }
 
-    public Map<String, Object> getBot(User by, String path, Object version) { require(by, "repo.view", "view the agent repository"); return content(path, version); }
+    public Map<String, Object> getBot(User by, String path, Object version) {
+        require(by, "repo.view", "view the agent repository");
+        folders.require(by, path, "view", "view agents");
+        return content(path, version);
+    }
 
     public Map<String, Object> checkout(User by, String path, String ip) {
         require(by, "repo.checkin", "check out agents");
+        folders.require(by, path, "edit", "check out agents");
         return db.tx(() -> {
             Map<String, Object> b = db.one("SELECT locked_by, locked_at FROM bots WHERE path = ?", path);
             if (b == null) throw notFound("Agent " + path);
@@ -330,6 +384,7 @@ public final class ControlRoom {
 
     public void undoCheckout(User by, String path, String ip) {
         require(by, "repo.checkin", "check out agents");
+        folders.require(by, path, "edit", "undo check-outs");
         Map<String, Object> b = db.one("SELECT locked_by FROM bots WHERE path = ?", path);
         if (b == null) throw notFound("Agent " + path);
         if (b.get("locked_by") == null) return;
@@ -340,22 +395,40 @@ public final class ControlRoom {
     }
 
     /** Validates and stores a new version. Existing bots must be checked out by the same user. */
-    @SuppressWarnings("unchecked")
     public Map<String, Object> checkin(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, String ip) {
+        return storeVersion(by, path, flow, comment, makeProduction, true, ip);
+    }
+
+    /** Validates a flow for the path as check-in does (toolkits, schema, workflow or form rules); returns the problems. */
+    List<Map<String, Object>> problemsOf(String path, Map<String, Object> flow) {
+        boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
+        if (!workflow && !form) platform.checkToolkits(flow);
+        return workflow ? Workflows.validate(flow) : form ? Workflows.validateForm(flow) : validator.validate(flow);
+    }
+
+    /**
+     * Stores a new version. With checkedOut, an existing agent must be checked out by the same user (check-in); without
+     * it (import), the agent must not be checked out by someone else.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, boolean checkedOut, String ip) {
         require(by, "repo.checkin", "check in agents");
         if (path == null || !PATH.matcher(path).matches() || path.contains(".."))
             throw new OoaException("CR.BAD_PATH", "Invalid agent repository path '" + path + "'", "Use folders and a name ending in .flow.json, e.g. Finance/Invoice approval.flow.json");
+        folders.require(by, path, "edit", "check in agents");
+        if (makeProduction) folders.require(by, path, "manage", "set live production versions");
         // Workflows and forms are checked in like agents (versions, check-out, live production version) but validated differently.
         boolean workflow = Workflows.isWorkflow(path), form = Workflows.isForm(path);
-        if (!workflow && !form) platform.checkToolkits(flow);
-        List<Map<String, Object>> problems = workflow ? Workflows.validate(flow) : form ? Workflows.validateForm(flow) : validator.validate(flow);
+        List<Map<String, Object>> problems = problemsOf(path, flow);
         if (!problems.isEmpty()) throw new OoaException("CR.INVALID_BOT", problems.size() + " validation problem(s): " + problems.get(0).get("message"),
                 "Fix the problems in Agent Studio (Validate) before checking in.", false, Map.of("problems", problems));
         String botId = workflow || form ? (workflow ? "workflow:" : "form:") + path.replaceAll("\\.(process|form)\\.json$", "") : String.valueOf(flow.get("id"));
         return db.tx(() -> {
             Map<String, Object> other = db.one("SELECT path FROM bots WHERE bot_id = ? AND path <> ?", botId, path);
             if (other != null) throw new OoaException("CR.DUPLICATE_ID", "Agent id '" + botId + "' is already used by " + other.get("path"), "Change the agent id in Agent settings.");
-            Map<String, Object> b = db.one("SELECT latest_version, locked_by, production_version FROM bots WHERE path = ?", path);
+            Map<String, Object> b = db.one("SELECT latest_version, locked_by, production_version, deleted_at FROM bots WHERE path = ?", path);
+            if (b != null && b.get("deleted_at") != null)
+                throw new OoaException("CR.DELETED", "A deleted agent is at " + path, "Recover it first (Deleted agents), or use another name.");
             String json = JsonLite.write(flow);
             int version;
             if (b == null) {
@@ -363,9 +436,11 @@ public final class ControlRoom {
                 db.update("INSERT INTO bots (path, bot_id, name, description, latest_version, production_version, created, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
                         path, botId, String.valueOf(flow.getOrDefault("name", botId)), String.valueOf(flow.getOrDefault("description", "")), 1, makeProduction ? 1 : null, now(), now(), by.username());
             } else {
-                if (!by.username().equals(b.get("locked_by")))
+                if (checkedOut && !by.username().equals(b.get("locked_by")))
                     throw new OoaException("CR.NOT_CHECKED_OUT", b.get("locked_by") == null ? "Check the agent out before checking in a new version" : "Checked out by " + b.get("locked_by"),
                             "Use Agent check-out first, so two people never overwrite each other's work.");
+                if (!checkedOut && b.get("locked_by") != null && !by.username().equals(b.get("locked_by")))
+                    throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by"), "Ask them to check it in first.");
                 version = ((Number) b.get("latest_version")).intValue() + 1;
                 db.update("UPDATE bots SET bot_id = ?, name = ?, description = ?, latest_version = ?, production_version = ?, locked_by = NULL, locked_at = NULL, updated = ?, updated_by = ? WHERE path = ?",
                         botId, String.valueOf(flow.getOrDefault("name", botId)), String.valueOf(flow.getOrDefault("description", "")), version,
@@ -373,16 +448,121 @@ public final class ControlRoom {
             }
             db.update("INSERT INTO bot_versions (path, version, content, sha256, comment, author, created) VALUES (?,?,?,?,?,?,?)",
                     path, version, json, Security.sha256(json), comment == null ? "" : comment, by.username(), now());
-            audit.record(by.username(), "repo.checkin", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
-            return Map.of("path", path, "version", version);
+            audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
+            return Map.of("path", path, "version", version, "created", b == null);
         });
     }
 
     public void setProduction(User by, String path, int version, String ip) {
         require(by, "repo.production", "set live production versions");
+        folders.require(by, path, "manage", "set live production versions");
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
         db.update("UPDATE bots SET production_version = ?, updated = ?, updated_by = ? WHERE path = ?", version, now(), by.username(), path);
         audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version), "ok", ip);
+    }
+
+    /**
+     * Deletes an agent: it disappears from the repository and can no longer run, but its versions are kept and it can be
+     * recovered. Agents still used by schedules, triggers or work queues are not deleted (those are listed).
+     */
+    public Map<String, Object> deleteBot(User by, String path, String ip) {
+        require(by, "repo.delete", "delete agents");
+        folders.require(by, path, "edit", "delete agents");
+        Map<String, Object> b = db.one("SELECT locked_by, deleted_at, bot_id FROM bots WHERE path = ?", path);
+        if (b == null || b.get("deleted_at") != null) throw notFound("Agent " + path);
+        if (b.get("locked_by") != null && !by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", "Checked out by " + b.get("locked_by"));
+        List<String> users = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT name FROM schedules WHERE bot_path = ?", path)) users.add("schedule " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE bot_path = ?", path)) users.add("trigger " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM queues WHERE bot_path = ?", path)) users.add("work queue " + r.get("name"));
+        if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
+        db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
+        audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
+        return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
+    }
+
+    public void recoverBot(User by, String path, String ip) {
+        require(by, "repo.delete", "recover agents");
+        folders.require(by, path, "edit", "recover agents");
+        if (db.update("UPDATE bots SET deleted_at = NULL, deleted_by = NULL WHERE path = ? AND deleted_at IS NOT NULL", path) == 0) throw notFound("Deleted agent " + path);
+        audit.record(by.username(), "repo.recover", "bot", path, null, "ok", ip);
+    }
+
+    static final Pattern LABEL = Pattern.compile("^[A-Za-z0-9_.-]{1,40}$");
+
+    /** Puts a label (for example UAT or Release-3) on a version; a label is on one version of an agent at a time. */
+    public void setLabel(User by, String path, String label, int version, String ip) {
+        require(by, "repo.checkin", "label versions");
+        folders.require(by, path, "manage", "label versions");
+        if (label == null || !LABEL.matcher(label).matches() || Set.of("latest", "production").contains(label.toLowerCase(Locale.ROOT)))
+            throw new OoaException("CR.BAD_INPUT", "Labels use letters, digits, . _ - (up to 40); latest and production are reserved");
+        if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
+        db.tx(() -> {
+            db.update("DELETE FROM bot_labels WHERE path = ? AND label = ?", path, label);
+            db.update("INSERT INTO bot_labels (path, label, version, created, created_by) VALUES (?,?,?,?,?)", path, label, version, now(), by.username());
+            return null;
+        });
+        audit.record(by.username(), "repo.label", "bot", path, Map.of("label", label, "version", version), "ok", ip);
+    }
+
+    public void removeLabel(User by, String path, String label, String ip) {
+        require(by, "repo.checkin", "label versions");
+        folders.require(by, path, "manage", "label versions");
+        if (db.update("DELETE FROM bot_labels WHERE path = ? AND label = ?", path, label) == 0) throw notFound("Label " + label);
+        audit.record(by.username(), "repo.unlabel", "bot", path, Map.of("label", label), "ok", ip);
+    }
+
+    /** Agent ids an agent calls: Run Agent steps and the tools of AI agent steps. */
+    @SuppressWarnings("unchecked")
+    static List<String> childBotIds(Map<String, Object> flow) {
+        List<String> ids = new ArrayList<>();
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+            Map<String, Object> a = s.get("args") instanceof Map ? (Map<String, Object>) s.get("args") : Map.of();
+            if ("core/run_bot".equals(s.get("action")) && a.get("automation") instanceof String b && !ids.contains(b)) ids.add(b);
+            if ("core/run_bot".equals(s.get("action")) && a.get("bot") instanceof String b && !ids.contains(b)) ids.add(b);
+            if ("ooa.ai_agent/run".equals(s.get("action")))
+                for (String k : List.of("tools", "sensitive_tools")) if (a.get(k) instanceof List<?> l) for (Object x : l) if (x instanceof String xs && !ids.contains(xs)) ids.add(xs);
+        }
+        return ids;
+    }
+
+    /** Toolkits (packages) an agent's steps use. */
+    @SuppressWarnings("unchecked")
+    static List<String> toolkitsOf(Map<String, Object> flow) {
+        TreeSet<String> ids = new TreeSet<>();
+        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
+            String a = String.valueOf(s.get("action"));
+            int i = a.indexOf('/');
+            if (i > 0 && !a.startsWith("core/")) ids.add(a.substring(0, i));
+        }
+        return new ArrayList<>(ids);
+    }
+
+    /** Agents whose latest version calls this agent id. */
+    List<String> parentsOf(String botId) {
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT b.path, v.content FROM bots b JOIN bot_versions v ON v.path = b.path AND v.version = b.latest_version " +
+                "WHERE b.deleted_at IS NULL AND v.content LIKE ?", "%\"" + botId.replace("%", "\\%").replace("_", "\\_") + "\"%")) {
+            @SuppressWarnings("unchecked") Map<String, Object> f = (Map<String, Object>) JsonLite.parse((String) r.get("content"));
+            if (childBotIds(f).contains(botId)) out.add((String) r.get("path"));
+        }
+        return out;
+    }
+
+    /** What an agent depends on (child agents, toolkits) and which agents call it. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> dependencies(User by, String path, Object version) {
+        Map<String, Object> flow = (Map<String, Object>) getBot(by, path, version == null ? "latest" : version).get("flow");
+        List<Object> children = new ArrayList<>();
+        for (String id : childBotIds(flow)) {
+            Map<String, Object> b = db.one("SELECT path, production_version FROM bots WHERE bot_id = ? AND deleted_at IS NULL", id);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("bot_id", id); m.put("path", b == null ? null : b.get("path")); m.put("found", b != null);
+            m.put("production_version", b == null ? null : b.get("production_version"));
+            children.add(m);
+        }
+        Map<String, Object> self = db.one("SELECT bot_id FROM bots WHERE path = ?", path);
+        return Map.of("path", path, "agents", children, "toolkits", toolkitsOf(flow), "called_by", self == null ? List.of() : parentsOf((String) self.get("bot_id")));
     }
 
     // ===================== devices and agents =====================
@@ -486,8 +666,32 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl) {
+        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, null, null);
+    }
+
+    static final Set<String> RUN_MODES = Set.of("unattended", "attended", "headless");
+
+    /**
+     * As above, as a run-as user: the run goes to that user's default runner (unless a runner or pool is given), and the
+     * agent's credentials are checked against that user. The mode is unattended (default), attended (someone is at the
+     * runner) or headless (no desktop: the agent must not need one).
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
+                                        int priority, String callbackUrl, String runAs, String mode) {
         if (!allowed(role, "runs.start")) throw denied("start runs");
         if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from One Workflow; forms run inside workflows.");
+        folders.require(requestedBy, role, path, "run", "run agents");
+        String runMode = mode == null || mode.isBlank() ? "unattended" : mode;
+        if (!RUN_MODES.contains(runMode)) throw new OoaException("CR.BAD_INPUT", "The run mode is unattended, attended or headless");
+        if (runAs != null && !runAs.isBlank()) {
+            if (db.one("SELECT id FROM users WHERE username = ? AND enabled = TRUE", runAs) == null) throw notFound("Run-as user " + runAs);
+            if ((deviceId == null || deviceId.isBlank()) && (poolId == null || poolId.isBlank())) {
+                Map<String, Object> ud = db.one("SELECT device_id FROM user_devices WHERE username = ?", runAs);
+                if (ud == null) throw new OoaException("CR.NO_DEFAULT_RUNNER", runAs + " has no default runner", "Set one in Users (Default runner), or choose a runner.");
+                deviceId = (String) ud.get("device_id");
+            }
+        }
         if ((deviceId == null || deviceId.isBlank()) && poolId != null && !poolId.isBlank()) {
             deviceId = platform.pickDevice(poolId);
             if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
@@ -497,6 +701,8 @@ public final class ControlRoom {
         Map<String, Object> c = content(path, "production");
         Map<String, Object> flow = (Map<String, Object>) c.get("flow");
         platform.checkToolkits(flow);
+        if (runMode.equals("headless") && flow.get("requires") instanceof Map<?, ?> req && req.get("capabilities") instanceof List<?> caps && caps.contains("desktop"))
+            throw new OoaException("CR.BAD_INPUT", "This agent needs a desktop, so it cannot run headless", "Run it unattended or attended.");
         Map<String, Object> dev = db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw notFound("Runner " + deviceId);
         if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled");
@@ -517,8 +723,95 @@ public final class ControlRoom {
         db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 runId, path, c.get("version"), deviceId, "queued", JsonLite.write(clean), requestedBy, source, now(), false, false, priority,
                 callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl);
-        audit.record(requestedBy, "run.start", "run", runId, Map.of("bot", path, "version", c.get("version"), "device", deviceId, "source", source), "ok", ip);
-        return Map.of("run_id", runId, "version", c.get("version"));
+        String asUser = runAs == null || runAs.isBlank() ? null : runAs;
+        if (asUser != null || !runMode.equals("unattended")) db.update("UPDATE runs SET run_as = ?, run_mode = ? WHERE id = ?", asUser, runMode, runId);
+        Map<String, Object> details = new LinkedHashMap<>(Map.of("bot", path, "version", c.get("version"), "device", deviceId, "source", source, "mode", runMode));
+        if (asUser != null) details.put("run_as", asUser);
+        audit.record(requestedBy, "run.start", "run", runId, details, "ok", ip);
+        Map<String, Object> out = new LinkedHashMap<>(Map.of("run_id", runId, "version", c.get("version"), "device_id", deviceId));
+        if (asUser != null) out.put("run_as", asUser);
+        return out;
+    }
+
+    /**
+     * Deploy to several targets at once: each run-as user (on their default runner) and each runner. Every target gets
+     * its own run; a target that cannot run is reported with its error and the others still start.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> deploy(User by, Map<String, Object> b, String ip) {
+        require(by, "runs.start", "start runs");
+        String path = (String) b.get("bot_path");
+        Map<String, Object> inputs = (Map<String, Object>) b.getOrDefault("inputs", Map.of());
+        String mode = (String) b.get("mode"), callback = (String) b.get("callback_url");
+        int priority = b.get("priority") instanceof Number pr ? pr.intValue() : 0;
+        String source = b.get("source") instanceof String src && src.equals("api") ? "api" : "manual";
+        List<Object> runs = new ArrayList<>();
+        int started = 0;
+        for (Object u : b.get("run_as_users") instanceof List<?> l ? l : List.of()) {
+            try { runs.add(startRun(by.username(), by.role(), path, null, null, inputs, source, ip, priority, callback, String.valueOf(u), mode)); started++; }
+            catch (OoaException e) { runs.add(Map.of("run_as", String.valueOf(u), "error", e.toMap())); }
+        }
+        for (Object d : b.get("device_ids") instanceof List<?> l ? l : List.of()) {
+            try { runs.add(startRun(by.username(), by.role(), path, String.valueOf(d), null, inputs, source, ip, priority, callback, null, mode)); started++; }
+            catch (OoaException e) { runs.add(Map.of("device_id", String.valueOf(d), "error", e.toMap())); }
+        }
+        if (runs.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Give run_as_users or device_ids");
+        return Map.of("runs", runs, "started", started, "failed", runs.size() - started);
+    }
+
+    /** Users who can be run-as users, with their default runner. */
+    public List<Map<String, Object>> runAsUsers(User by) {
+        require(by, "devices.view", "view runners");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT u.username, u.display_name, u.role, ud.device_id, d.name AS device_name, d.last_seen, d.enabled AS device_enabled " +
+                "FROM users u LEFT JOIN user_devices ud ON ud.username = u.username LEFT JOIN devices d ON d.id = ud.device_id WHERE u.enabled = TRUE ORDER BY u.username")) {
+            Map<String, Object> m = new LinkedHashMap<>(r);
+            boolean online = r.get("last_seen") != null && Instant.parse(r.get("last_seen").toString()).isAfter(now().minus(ONLINE));
+            m.remove("last_seen"); m.remove("device_enabled");
+            m.put("device_status", r.get("device_id") == null ? null : !Boolean.TRUE.equals(r.get("device_enabled")) ? "disabled" : online ? "online" : "offline");
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** Sets (or with null clears) the runner a user's runs go to by default. */
+    public void setDefaultDevice(User by, String userId, String deviceId, String ip) {
+        require(by, "users.manage", "manage users");
+        Map<String, Object> u = db.one("SELECT username FROM users WHERE id = ? OR username = ?", userId, userId);
+        if (u == null) throw notFound("User");
+        String name = (String) u.get("username");
+        if (deviceId == null || deviceId.isBlank()) db.update("DELETE FROM user_devices WHERE username = ?", name);
+        else {
+            if (db.one("SELECT id FROM devices WHERE id = ?", deviceId) == null) throw notFound("Runner");
+            db.tx(() -> {
+                db.update("DELETE FROM user_devices WHERE username = ?", name);
+                db.update("INSERT INTO user_devices (username, device_id, updated, updated_by) VALUES (?,?,?,?)", name, deviceId, now(), by.username());
+                return null;
+            });
+        }
+        audit.record(by.username(), "user.default_runner", "user", name, Map.of("device", deviceId == null ? "" : deviceId), "ok", ip);
+    }
+
+    /** Removes a runner: it must not be running anything and is taken off pools, schedules, triggers and default runners. */
+    public void deleteDevice(User by, String deviceId, String ip) {
+        require(by, "devices.manage", "manage runners");
+        if (db.one("SELECT id FROM devices WHERE id = ?", deviceId) == null) throw notFound("Runner");
+        if (count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status IN ('queued', 'running')", deviceId) > 0)
+            throw new OoaException("CR.CONFLICT", "The runner has queued or running work", "Stop it or wait for it to finish.");
+        List<String> used = new ArrayList<>();
+        for (Map<String, Object> r : db.query("SELECT name FROM schedules WHERE device_id = ?", deviceId)) used.add("schedule " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE device_id = ?", deviceId)) used.add("trigger " + r.get("name"));
+        if (!used.isEmpty()) throw new OoaException("CR.IN_USE", "The runner is used by " + String.join(", ", used), "Change those first.", false, Map.of("used_by", used));
+        db.tx(() -> {
+            db.update("DELETE FROM user_devices WHERE device_id = ?", deviceId);
+            for (Map<String, Object> p : db.query("SELECT id, devices FROM device_pools")) {
+                List<String> devs = new ArrayList<>(csv(p.get("devices")));
+                if (devs.remove(deviceId)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
+            }
+            db.update("DELETE FROM devices WHERE id = ?", deviceId);
+            return null;
+        });
+        audit.record(by.username(), "device.delete", "device", deviceId, null, "ok", ip);
     }
 
     /** Atomically assigns the oldest queued run of this device and returns its job (bot bundle, inputs, global values). */
@@ -533,8 +826,11 @@ public final class ControlRoom {
             collect(main, bundle, 0);
             Map<String, Object> globals = new LinkedHashMap<>();
             for (Map<String, Object> g : db.query("SELECT name, json_value FROM global_values")) globals.put((String) g.get("name"), JsonLite.parse((String) g.get("json_value")));
+            // a run-as user's runs use that user's identity (credentials, audit of the agent's own actions)
+            Object principal = run.get("run_as") != null ? run.get("run_as") : run.get("requested_by");
             Map<String, Object> job = new LinkedHashMap<>(Map.of("run_id", run.get("id"), "bot_path", run.get("bot_path"), "version", run.get("version"), "flow", main, "bots", bundle,
-                    "inputs", JsonLite.parse((String) run.get("inputs")), "principal", run.get("requested_by"), "global_values", globals));
+                    "inputs", JsonLite.parse((String) run.get("inputs")), "principal", principal, "global_values", globals));
+            job.put("mode", run.get("run_mode") == null ? "unattended" : run.get("run_mode"));
             job.put("model_connections", platform.connectionsForJob());
             return job;
         }
@@ -545,23 +841,15 @@ public final class ControlRoom {
     @SuppressWarnings("unchecked")
     void collect(Map<String, Object> flow, Map<String, Object> bundle, int depth) {
         if (depth > 10 || bundle.size() > 100) return;
-        for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of()))) {
-            Map<String, Object> a = s.get("args") instanceof Map ? (Map<String, Object>) s.get("args") : Map.of();
-            List<String> ids = new ArrayList<>();
-            if ("core/run_bot".equals(s.get("action")) && a.get("automation") instanceof String b) ids.add(b);
-            if ("core/run_bot".equals(s.get("action")) && a.get("bot") instanceof String b) ids.add(b);
-            if ("ooa.ai_agent/run".equals(s.get("action")))
-                for (String k : List.of("tools", "sensitive_tools")) if (a.get(k) instanceof List<?> l) for (Object x : l) if (x instanceof String xs) ids.add(xs);
-            for (String botId : ids) {
-                if (bundle.containsKey(botId)) continue;
-                Map<String, Object> b = db.one("SELECT path FROM bots WHERE bot_id = ?", botId);
-                if (b == null) continue;  // the Runner reports a clear error if the bot is really needed
-                try {
-                    Map<String, Object> child = (Map<String, Object>) content((String) b.get("path"), "production").get("flow");
-                    bundle.put(botId, child);
-                    collect(child, bundle, depth + 1);
-                } catch (OoaException ignored) { }
-            }
+        for (String botId : childBotIds(flow)) {
+            if (bundle.containsKey(botId)) continue;
+            Map<String, Object> b = db.one("SELECT path FROM bots WHERE bot_id = ? AND deleted_at IS NULL", botId);
+            if (b == null) continue;  // the Runner reports a clear error if the bot is really needed
+            try {
+                Map<String, Object> child = (Map<String, Object>) content((String) b.get("path"), "production").get("flow");
+                bundle.put(botId, child);
+                collect(child, bundle, depth + 1);
+            } catch (OoaException ignored) { }
         }
     }
 
@@ -647,7 +935,7 @@ public final class ControlRoom {
     public List<Map<String, Object>> runs(User by, String filter, int limit) {
         require(by, "runs.view", "view runs");
         String where = "active".equals(filter) ? "WHERE r.status IN ('queued', 'running')" : "history".equals(filter) ? "WHERE r.status IN ('success', 'failed', 'stopped')" : "";
-        return db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.source, r.created, r.started, r.finished, r.duration_ms, " +
+        return db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.run_as, r.run_mode, r.source, r.created, r.started, r.finished, r.duration_ms, " +
                 "r.error, r.pause_requested, r.cancel_requested, r.steps FROM runs r LEFT JOIN devices d ON d.id = r.device_id " + where + " ORDER BY r.created DESC LIMIT " + Math.max(1, Math.min(500, limit)));
     }
 
@@ -683,7 +971,7 @@ public final class ControlRoom {
         int limit = Math.max(1, Math.min(500, intOr(q.get("limit"), 100))), offset = Math.max(0, intOr(q.get("offset"), 0));
         long total = count("SELECT COUNT(*) AS n FROM runs r" + w, p.toArray());
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> r : db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.source, r.created, r.started, r.finished, " +
+        for (Map<String, Object> r : db.query("SELECT r.id, r.bot_path, r.version, r.device_id, d.name AS device_name, r.status, r.requested_by, r.run_as, r.run_mode, r.source, r.created, r.started, r.finished, " +
                 "r.duration_ms, r.error, r.pause_requested, r.cancel_requested, r.steps FROM runs r LEFT JOIN devices d ON d.id = r.device_id" + w +
                 " ORDER BY r.created DESC LIMIT " + limit + " OFFSET " + offset, p.toArray())) {
             Map<String, Object> m = new LinkedHashMap<>(r);
@@ -799,6 +1087,7 @@ public final class ControlRoom {
         String tz = String.valueOf(s.getOrDefault("time_zone", "UTC"));
         try { ZoneId.of(tz); } catch (DateTimeException e) { throw new OoaException("CR.BAD_SCHEDULE", "Unknown time zone " + tz, "Example: Asia/Kolkata, Europe/London, UTC"); }
         content(String.valueOf(s.get("bot_path")), "production");
+        folders.require(by, String.valueOf(s.get("bot_path")), "run", "schedule agents");
         String pool = s.get("pool_id") instanceof String ps && !ps.isBlank() ? ps : null;
         if (pool != null) { if (db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw notFound("Runner pool"); }
         else if (db.one("SELECT id FROM devices WHERE id = ?", s.get("device_id")) == null) throw notFound("Runner");
@@ -889,6 +1178,7 @@ public final class ControlRoom {
         TriggerKinds.kind(kind);
         Map<String, Object> config = TriggerKinds.validate(kind, t);
         content(String.valueOf(t.get("bot_path")), "production");
+        folders.require(by, String.valueOf(t.get("bot_path")), "run", "set triggers for agents");
         if (db.one("SELECT id FROM devices WHERE id = ?", t.get("device_id")) == null) throw notFound("Runner");
         String name = String.valueOf(t.getOrDefault("name", "Trigger"));
         if (name.isBlank() || name.length() > 200) throw new OoaException("CR.BAD_INPUT", "Trigger names have 1 to 200 characters");
@@ -1081,7 +1371,10 @@ public final class ControlRoom {
 
     /** Just-in-time secret for a running bot: the run must be running on this device and its requester must consume the locker. */
     public String credentialForRun(Map<String, Object> d, String runId, String ref) {
-        Map<String, Object> r = runOnDevice(d, runId);
+        Map<String, Object> r0 = runOnDevice(d, runId);
+        // a run-as user's run reads credentials as that user
+        Map<String, Object> r = new HashMap<>(r0);
+        if (r0.get("run_as") != null) r.put("requested_by", r0.get("run_as"));
         String[] p = ref == null ? new String[0] : ref.split("/");
         String actor = "agent:" + d.get("name") + " for " + r.get("requested_by");
         if (!"running".equals(r.get("status")) || p.length != 3) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "denied", null); throw new OoaException("VAULT.DENIED", "Credentials are only available to running agents"); }

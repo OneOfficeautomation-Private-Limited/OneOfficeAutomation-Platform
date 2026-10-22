@@ -201,6 +201,27 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE users ADD COLUMN sso_subject VARCHAR(300)",
     };
 
+    /**
+     * Version 4: repository folders and folder permissions, deleted (recoverable) agents, version labels, run-as users
+     * (each user's default runner), run modes, work item models and queue members.
+     */
+    private static final String[] SCHEMA_V4 = {
+        "CREATE TABLE repo_folders (path VARCHAR(400) PRIMARY KEY, description VARCHAR(500), created TIMESTAMP NOT NULL, created_by VARCHAR(80))",
+        "CREATE TABLE folder_permissions (folder VARCHAR(400) NOT NULL, principal VARCHAR(120) NOT NULL, access VARCHAR(20) NOT NULL, " +
+            "updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), PRIMARY KEY (folder, principal))",
+        "ALTER TABLE bots ADD COLUMN deleted_at TIMESTAMP",
+        "ALTER TABLE bots ADD COLUMN deleted_by VARCHAR(80)",
+        "CREATE TABLE bot_labels (path VARCHAR(400) NOT NULL, label VARCHAR(40) NOT NULL, version INT NOT NULL, created TIMESTAMP NOT NULL, created_by VARCHAR(80), PRIMARY KEY (path, label))",
+        "CREATE TABLE user_devices (username VARCHAR(80) PRIMARY KEY, device_id VARCHAR(40) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "ALTER TABLE runs ADD COLUMN run_as VARCHAR(80)",
+        "ALTER TABLE runs ADD COLUMN run_mode VARCHAR(20)",
+        "CREATE TABLE work_item_models (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, description VARCHAR(1000), fields VARCHAR(20000) NOT NULL, " +
+            "created TIMESTAMP NOT NULL, created_by VARCHAR(80))",
+        "ALTER TABLE queues ADD COLUMN model_id VARCHAR(40)",
+        "CREATE TABLE queue_members (queue_id VARCHAR(40) NOT NULL, principal VARCHAR(120) NOT NULL, member_role VARCHAR(20) NOT NULL, " +
+            "updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), PRIMARY KEY (queue_id, principal, member_role))",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -218,6 +239,10 @@ public final class Db implements AutoCloseable {
             if (current < 3) {
                 for (String ddl : SCHEMA_V3) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (3)");
+            }
+            if (current < 4) {
+                for (String ddl : SCHEMA_V4) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (4)");
             }
             return null;
         });

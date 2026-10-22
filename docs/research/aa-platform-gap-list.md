@@ -46,10 +46,10 @@ Gaps, ranked by value for an enterprise customer:
 
 | # | Gap | Reference capability | Status |
 | --- | --- | --- | --- |
-| 1 | Bot lifecycle | Export a bot with its child bots and dependencies (by version or label); import with overwrite/skip; promote to another Control Room; job status; download | Missing |
-| 2 | Repository folders and permissions | Folder objects (create, rename, delete); role permissions per folder; delete and recover bots; version labels; file dependencies and parents | Missing / partial |
-| 3 | Run-as users | Each user is bound to a default device; deploy to users (several at once); run mode (attended, unattended, headless) | Missing |
-| 4 | Work queues, complete | Work item models (field schemas); get, update and delete items; bulk delete; items from CSV/Excel; export items; queue owners, participants and consumers; queue export/import | Partial |
+| 1 | Bot lifecycle | Export a bot with its child bots and dependencies (by version or label); import with overwrite/skip; promote to another Control Room; job status; download | Done (2026-10-23) |
+| 2 | Repository folders and permissions | Folder objects (create, rename, delete); role permissions per folder; delete and recover bots; version labels; file dependencies and parents | Done, except renaming folders (2026-10-23) |
+| 3 | Run-as users | Each user is bound to a default device; deploy to users (several at once); run mode (attended, unattended, headless) | Done (2026-10-23) |
+| 4 | Work queues, complete | Work item models (field schemas); get, update and delete items; bulk delete; items from CSV/Excel; export items; queue owners, participants and consumers; queue export/import | Done, except Excel files and queue export/import (2026-10-23) |
 | 5 | Credential vault model | Whole-credential get and delete; delete a locker; locker managers and participants; each user's own attribute values; credential owner; vault mode and master-key status, unlock and rotation | Partial |
 | 6 | Audit search | Field filters, date range, sort, paging, total, CSV export | Partial |
 | 7 | Teams | Teams with members, used to scope folders, lockers and queues | Missing |
