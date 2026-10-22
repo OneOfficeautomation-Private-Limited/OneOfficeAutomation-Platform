@@ -97,7 +97,7 @@ class CaptureObjectTest {
         ActionContext c = ctx(w);
         BrowserPackage b = new BrowserPackage();
         try {
-            try { b.open(c, "http://127.0.0.1:" + s.getAddress().getPort() + "/", "edge", true, null, "browser"); }
+            try { b.open(c, "http://127.0.0.1:" + s.getAddress().getPort() + "/", "edge", true, null, "browser", false, "playwright"); }
             catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
 
             // equals on several properties; keystroke typing with append

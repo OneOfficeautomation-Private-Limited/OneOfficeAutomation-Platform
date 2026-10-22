@@ -22,3 +22,13 @@ tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
     standardInput = System.`in`
 }
+
+// The browser connector extension ships in the install (browser-extension\), with the shared page script.
+distributions {
+    main {
+        contents {
+            from(rootProject.file("browser-extension")) { into("browser-extension") }
+            from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension") }
+        }
+    }
+}

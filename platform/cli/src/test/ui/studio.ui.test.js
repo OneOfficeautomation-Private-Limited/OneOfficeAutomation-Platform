@@ -510,6 +510,33 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     click([...d.querySelectorAll(".cap-tabs button")].find((b) => b.textContent.startsWith("Anchor")));
     check("the desktop Anchor tab offers Capture anchor", await until(() => [...d.querySelectorAll(".cap-anchor button")].some((b) => b.textContent === "Capture anchor")));
     w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // Web actions: the window comes before the captured object, and Capture fills it from the page (title, link, browser)
+    w.eval(`state.flow.steps.push({ id: "win_ui", action: "ooa.browser/element_action", args: { action: "click" } }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    check("a web action shows the window before the captured object", await until(() => {
+      const f = [...d.querySelectorAll("#props .field[data-field]")].map((x) => x.dataset.field);
+      return f.includes("window") && f.indexOf("window") < f.indexOf("object"); }), [...d.querySelectorAll("#props .field[data-field]")].map((x) => x.dataset.field).join());
+    w.eval(`fillWindowFromCapture(state.flow.steps[state.flow.steps.length - 1], { page: { title: "The Internet", url: "https://the-internet.herokuapp.com/login" } }); renderProps();`);
+    check("Capture fills the browser title, the link of the web page and the browser",
+      JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.window")) === JSON.stringify({ source: "browser", title: "The Internet", title_match: "equals", link: "https://the-internet.herokuapp.com/login", browser: "edge" })
+      && !!(await until(() => d.querySelector(".win-link") && d.querySelector(".win-link").textContent === "https://the-internet.herokuapp.com/login")));
+    w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // Recorded typing and selections become input variables named after the field
+    const recVars = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
+      const steps = [{ action: "ooa.browser/type_text", args: { text: "tomsmith", object: { properties: [{ name: "label", value: "Username" }, { name: "name", value: "user" }] } } },
+        { action: "ooa.browser/type_text", args: { text: "$password" } }, { action: "ooa.browser/select_option", args: { option: "Option 2", object: { properties: [{ name: "id", value: "dropdown" }] } } }];
+      const made = recordedVariables(steps); const vars = state.flow.variables.slice(before); state.flow.variables.splice(before);
+      return { made, vars, texts: [steps[0].args.text, steps[1].args.text, steps[2].args.option] }; })())`));
+    check("recorded values become variables with the recorded value as default", recVars.made.join() === "username,dropdown"
+      && recVars.vars[0].default === "tomsmith" && recVars.texts.join() === "$username,$password,$dropdown", JSON.stringify(recVars));
+    // Dragging one of several selected steps moves all of them
+    const order = w.eval(`(() => { const base = state.flow.steps.length;
+      ["mv_a", "mv_b", "mv_c", "mv_d"].forEach((id) => state.flow.steps.push({ id, action: "core/log", args: { message: id } }));
+      state.multi = new Set(["mv_b", "mv_d"]);
+      dropAt({ dataTransfer: { getData: (t) => t === "text/x-ooa-step" ? JSON.stringify(["steps", base + 1]) : "" } }, ["steps"], base);
+      const ids = state.flow.steps.slice(base).map((x) => x.id).join();
+      state.flow.steps.splice(base); state.multi = new Set(); state.selected = null; renderProps(); state.dirty = false;
+      return ids; })()`);
+    check("dragging one of several selected steps moves all of them, in order", order === "mv_b,mv_d,mv_a,mv_c", order);
     // Every web action (not only the element action) offers the captured object and a Capture button by its selector.
     w.eval(`state.flow.steps.push({ id: "click_ui", action: "ooa.browser/click", args: {} }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
     check("Click element offers a captured object with a Capture button", await until(() => d.querySelector(".cap-editor .cap-empty")

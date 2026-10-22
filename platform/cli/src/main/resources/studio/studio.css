@@ -799,3 +799,22 @@ details.more-opts > summary .n { background: var(--code); border-radius: 10px; p
 .rw-note { flex-basis: 100%; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rw-error { font-size: 12px; color: var(--danger); }
 .rw-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Capture: choosing an open browser window; the window editor's page link */
+.cap-windows { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
+.cap-window { display: grid; gap: 2px; text-align: left; padding: 8px 10px; }
+.cap-window .help { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.win-link { font-size: 12px; color: var(--muted, #64748b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* Window choice: what the step works in, and the open-window drop-down first */
+.win-now { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 12.5px; padding: 4px 6px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent, #2563eb) 8%, transparent); }
+.win-now.none { background: var(--bg, #f8fafc); color: var(--muted, #64748b); }
+.win-now strong { font-weight: 600; overflow-wrap: anywhere; }
+.win-now-lbl { font-size: 11px; color: var(--muted, #64748b); }
+.win-pick-row { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.win-pick-row select { flex: 1; min-width: 0; }
+.win-refresh { flex: 0 0 auto; }
+.rw-window { font-size: 12px; color: var(--muted, #64748b); }
+.cap-window-group { display: grid; gap: 4px; }
+.cap-window-head { font-size: 12px; font-weight: 600; color: var(--muted, #64748b); margin-top: 4px; }

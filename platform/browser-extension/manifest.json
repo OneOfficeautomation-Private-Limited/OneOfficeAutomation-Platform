@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "ONEOFFICEAUTOMATION Browser Connector",
+  "short_name": "OOA Connector",
+  "version": "1.0.0",
+  "description": "Lets ONEOFFICEAUTOMATION agents and Agent Studio see, capture, record and automate tabs in this browser.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuk315TbLqjjsqH3xUBRd8eXyY24OI8vaXU7VXHaU94hxvKvGyO1xeKUq9x0qEEJ/k/IX9MjgyoZ36bjqn7ibAayTJKjzHv2JFCQkk8bNPply22gKfl1USkTHYzuX+f4Q9gTvoJaRBGwaIwKirXSZX2S/M0t4fI9YxeeyepMhvUM7xd4Cj1I8w8lPIo7os4aZqQknPPl1mjKQ4ilviV0w90f5BqkMT+Tt+fX9vbRLtAxKmc411qIzxiREEdXWx1P1G4Z71ojSSSwoWd1waY618WNo+fsy6oNgILFIVclKFSHcdUUXzvIkAt4i6dPPX3M5urEqkjLncFPIZneaBNEzJwIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabs", "scripting", "nativeMessaging", "webNavigation", "storage", "alarms", "downloads", "debugger"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "all_frames": true,
+    "match_about_blank": true,
+    "run_at": "document_idle",
+    "js": ["ooa-page.js", "content.js"]
+  }],
+  "action": { "default_title": "ONEOFFICEAUTOMATION Browser Connector", "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" } },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

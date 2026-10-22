@@ -865,9 +865,39 @@ function summary(step) {
   if (step.action === "core/set") return (a.variable || "?") + " = " + showValue(a.value);
   if (step.action === "core/if") return "if " + showValue(a.condition);
   if (step.action === "core/loop") return a.iterator + (a.over ? " over " + showValue(a.over) : a.count ? " x " + showValue(a.count) : "") + (a.as ? " as " + a.as : "");
-  const parts = Object.entries(a).slice(0, 3).map(([k, v]) => k + ": " + showValue(v));
+  const where = windowLabel(a.window);
+  const parts = Object.entries(a).filter(([k]) => k !== "window" && k !== "object").slice(0, 3).map(([k, v]) => k + ": " + showValue(v));
+  if (a.object && typeof a.object === "object") parts.unshift(objectLabel(a.object));
   const outs = Object.entries(step.out || {}).map(([k, v]) => "-> " + v);
-  return parts.concat(outs).join("   ");
+  return (where ? "in \u201C" + where + "\u201D   " : "") + parts.concat(outs).join("   ");
+}
+
+/** Short name of a window choice: its title, variable or address; empty when the step uses the session's current tab. */
+function windowLabel(w) {
+  if (!w) return "";
+  if (typeof w === "string") return w;
+  if (w.source === "variable") return w.variable || "";
+  return w.title || w.url || "";
+}
+
+/** Short description of a captured object for step cards: tag and the most telling property. */
+function objectLabel(o) {
+  const props = o.properties || [];
+  const val = (n) => { const p = props.find((x) => x.name === n); return p && p.value ? String(p.value) : ""; };
+  if (o.technology === "desktop") return (val("ControlType") || "control") + (val("Name") ? " \u201C" + val("Name").slice(0, 30) + "\u201D" : "");
+  const label = val("label") || val("text") || val("aria-label") || val("placeholder") || val("name") || val("id");
+  return (val("tag") || "element") + (label ? " \u201C" + label.slice(0, 30) + "\u201D" : "");
+}
+
+/** The open windows worth offering: real pages, not extension, settings or blank pages. */
+function usefulWindow(w) {
+  const u = String(w.url || "");
+  return !/^(chrome-extension|edge|chrome|devtools|about):/i.test(u) && !/^blob:/i.test(u) && (w.title || u);
+}
+
+/** An address shortened for lists: host and path, without the query. */
+function shortUrl(u) {
+  try { const x = new URL(u); return x.host + (x.pathname === "/" ? "" : x.pathname); } catch (_) { return String(u || "").slice(0, 60); }
 }
 
 function makeSlot(listPath, index) {
@@ -888,19 +918,45 @@ function dropAt(e, listPath, index) {
   if (command) { addStep(command, { list, index, path: listPath }); return; }
   if (!stepData) return;
   const from = JSON.parse(stepData);
-  const prefix = from.length <= listPath.length && from.every((k, i) => listPath[i] === k);
-  if (prefix) { toast("A block cannot be moved inside itself.", true); return; }
-  const srcList = getAt(state.flow, from.slice(0, -1));
-  const fi = from[from.length - 1];
-  const step = srcList[fi];
-  srcList.splice(fi, 1);
-  let ti = index;
-  if (srcList === list && fi < ti) ti--;
-  list.splice(ti, 0, step);
+  const dragged = getAt(state.flow, from);
+  // Several steps selected and one of them dragged: all of them move, in their order, to the drop point.
+  let paths = [from];
+  if (dragged && state.multi && state.multi.size > 1 && state.multi.has(dragged.id)) {
+    paths = [...state.multi].map((id) => findPathById(id)).filter(Boolean);
+    paths = paths.filter((p) => !paths.some((q) => q !== p && q.length < p.length && q.every((k, i) => p[i] === k)));   // not inside another moved block
+    paths.sort(comparePaths);
+  }
+  for (const p of paths) {
+    if (p.length <= listPath.length && p.every((k, i) => listPath[i] === k)) { toast("A block cannot be moved inside itself.", true); return; }
+  }
+  const ids = paths.map((p) => getAt(state.flow, p).id);
+  const target = index < list.length ? list[index] : null;
+  const moved = [];
+  for (const p of paths.slice().reverse()) {   // remove from the end so earlier paths stay valid
+    const src = getAt(state.flow, p.slice(0, -1));
+    moved.unshift(src.splice(p[p.length - 1], 1)[0]);
+  }
+  // the drop point, found again after the removals (the step it was in front of may have moved too)
+  let ti = target && !ids.includes(target.id) ? list.indexOf(target) : -1;
+  if (ti < 0) ti = target ? Math.min(index, list.length) : list.length;
+  list.splice(ti, 0, ...moved);
   state.dragStep = null;
-  state.selected = findPathById(step.id);
+  state.multi = new Set(ids);
+  state.selected = findPathById(ids[0]);
   state.target = null;
   changed(); renderProps();
+  if (moved.length > 1) toast("Moved " + moved.length + " steps");
+}
+
+/** Document order of two step paths (["steps", 2, "children", 0] ...). */
+function comparePaths(a, b) {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    if (a[i] === b[i]) continue;
+    if (typeof a[i] === "number" && typeof b[i] === "number") return a[i] - b[i];
+    const order = ["children", "else", "catch", "finally"];
+    return order.indexOf(String(a[i])) - order.indexOf(String(b[i]));
+  }
+  return a.length - b.length;
 }
 
 function collapsedSet() { return new Set(((state.flow && state.flow.ui) || {}).collapsed || []); }
@@ -1394,10 +1450,10 @@ function inputControl(step, name, prop, required) {
     const pick = h("button", { type: "button", title: takesObject ? "Open the page and click the element: all its properties are captured, and you choose which to match"
         : "Open the page and click the element to capture its selector",
       onclick: () => pickSelector((sel, el, obj) => {
-        if (takesObject && obj) { args.object = obj; delete args[name]; changed(); }
+        if (takesObject && obj) { args.object = obj; delete args[name]; fillWindowFromCapture(step, obj); changed(); }
         else set(sel);
         renderProps();
-      }) }, takesObject ? "Capture" : "Pick");
+      }, null, step) }, takesObject ? "Capture" : "Pick");
     control = h("div", { class: "field-row" }, control, pick);
   }
   const help = [prop.description, prop.examples ? "Example: " + showValue(prop.examples[0]) : null].filter(Boolean).join("  ");
@@ -1427,52 +1483,67 @@ function windowEditor(value, set) {
     if (v.source === "variable") { if (v.variable) out.variable = v.variable; }
     else {
       if (v.title) { out.title = v.title; out.title_match = v.title_match || "wildcard"; }
-      if (v.source === "browser") { if (v.url) out.url = v.url; if (v.browser) out.browser = v.browser; }
+      if (v.source === "browser") { if (v.url) { out.url = v.url; if (v.url_match) out.url_match = v.url_match; } if (v.link) out.link = v.link; if (v.browser) out.browser = v.browser; }
     }
     set(Object.keys(out).length > 1 ? out : undefined);
   };
   const text = (key, label, placeholder, type) => withPicker(h("input", { type: "text", value: v[key] || "", placeholder, "aria-label": label,
     onchange: (e) => { const t = e.target.value.trim(); if (t) v[key] = t; else delete v[key]; commit(); } }), type || "String");
   function picker() {
-    const sel = h("select", { class: "win-pick", "aria-label": "Pick from open windows",
+    const sel = h("select", { class: "win-pick", "aria-label": "Window",
       onchange: () => {
+        if (sel.value === "__none") { delete v.title; delete v.link; delete v.url; commit(); render(); return; }
         const w = (sel._list || [])[Number(sel.value)];
         if (!w) return;
         v.title = w.title || ""; v.title_match = v.title_match || "equals";
-        if (v.source === "browser") { if (w.url) v.url = w.url; if (w.browser) v.browser = w.browser; }
+        // the page's address is shown (link), not used to match: the page may move on while the agent works
+        if (v.source === "browser") { if (w.url) v.link = w.url; if (w.browser) v.browser = w.browser; }
         commit(); render();
       } }, h("option", { value: "", text: "Pick from open windows…" }));
     const fill = (list, note) => {
       sel._list = list;
-      sel.replaceChildren(h("option", { value: "", text: note || "Pick from open windows…" }),
-        ...list.map((w, i) => h("option", { value: String(i), text: (w.title || "(no title)") + (w.url ? "  — " + w.url : "") })));
+      const chosen = v.title ? list.findIndex((w) => w.title === v.title) : -1;
+      sel.replaceChildren(
+        h("option", { value: "", text: v.title ? (chosen >= 0 ? "" : "\u201C" + v.title + "\u201D (not open now)") : note || "Choose a window\u2026" }),
+        ...list.map((w, i) => h("option", { value: String(i), text: (w.title || "(no title)") + (w.url ? "  \u2014  " + shortUrl(w.url) : "") })),
+        v.title ? h("option", { value: "__none", text: "(none: use the browser's current tab)" }) : null);
+      sel.value = chosen >= 0 ? String(chosen) : "";
     };
-    loadWindows().then((all) => {
+    const load = () => loadWindows().then((all) => {
       const want = v.source === "application" ? "application" : "browser";
-      const list = all.filter((w) => (w.source || "browser") === want);
+      const list = all.filter((w) => (w.source || "browser") === want && usefulWindow(w));
       fill(list, list.length ? null : "No open " + (want === "browser" ? "browser" : "application") + " windows");
     }).catch(() => fill([], "Open windows are not available"));
-    sel.addEventListener("focus", () => { if (state.windowsAt && Date.now() - state.windowsAt > 5000) { state.windows = null; } });
-    return sel;
+    load();
+    const refresh = h("button", { type: "button", class: "icon-mini win-refresh", title: "Refresh the list of open windows", "aria-label": "Refresh windows",
+      onclick: () => { state.windows = null; load(); } }, "\u21BB");
+    return h("div", { class: "win-pick-row" }, sel, refresh);
   }
   function render() {
     const seg = h("div", { class: "seg win-source", role: "radiogroup", "aria-label": "Window source" },
       [["browser", "Browser"], ["application", "Application"], ["variable", "Variable"]].map(([k, l]) =>
         h("button", { type: "button", role: "radio", "aria-checked": String(v.source === k), "data-source": k, onclick: () => { v.source = k; commit(); render(); } }, l)));
-    const parts = [seg];
+    const working = v.source === "variable" ? (v.variable ? "the browser session in " + v.variable : "")
+      : v.title ? "\u201C" + v.title + "\u201D" + (v.title_match && v.title_match !== "equals" ? " (" + v.title_match + ")" : "") : "";
+    const now = h("div", { class: "win-now" + (working ? "" : " none") }, h("span", { class: "win-now-lbl", text: "Working in" }),
+      h("strong", { text: working || "the browser's current tab (no window chosen)" }));
+    const parts = [seg, now];
     if (v.source === "variable") {
       parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Variable" }), text("variable", "Window variable", "$myBrowser", "Window")));
     } else {
       const match = h("select", { "aria-label": "Title match", class: "win-match", onchange: (e) => { v.title_match = e.target.value; commit(); } },
         [["wildcard", "wildcard"], ["contains", "contains"], ["equals", "equals"], ["regex", "regex"]].map(([k, t]) => h("option", { value: k, text: t })));
       match.value = v.title_match || "wildcard";
-      parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Title" }), text("title", "Window title", v.source === "browser" ? "*Invoices*" : "*Notepad"), match),
-        h("div", { class: "win-row" }, h("span", { class: "win-lbl" }), picker()));
+      parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Window" }), picker()),
+        h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: v.source === "browser" ? "Browser title" : "Title" }), text("title", "Window title", "or type a title; * and ? are wildcards"), match));
       if (v.source === "browser") {
         const br = h("select", { "aria-label": "Browser", class: "win-browser", onchange: (e) => { if (e.target.value) v.browser = e.target.value; else delete v.browser; commit(); } },
           [["", "any browser"], ["edge", "Edge"], ["chrome", "Chrome"]].map(([k, t]) => h("option", { value: k, text: t })));
         br.value = v.browser || "";
-        parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Address" }), text("url", "Window address", "https://*.example.com/*"), br));
+        if (v.link) parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Link of web page" }),
+          h("span", { class: "win-link", title: v.link, text: v.link })));
+        parts.push(h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Browser" }), br),
+          h("div", { class: "win-row" }, h("span", { class: "win-lbl", text: "Address must" }), text("url", "Window address", "contain, e.g. example.com/invoices")));
       }
     }
     box.replaceChildren(...parts);
@@ -1640,10 +1711,13 @@ function renderProps() {
     const props = spec.action.inputs.properties, req = spec.action.inputs.required || [];
     // Rarely used inputs (not required, with a default) after the first few go under "More options".
     const main = [], more = [], moreNames = [];
-    for (const [name, prop] of Object.entries(props)) {
+    const entries = Object.entries(props);
+    // Web actions: the window comes first, then the captured object, as when choosing a window and then capturing in it.
+    if (props.window && props.object && step.action.startsWith("ooa.browser/")) entries.sort((a, b) => (b[0] === "window") - (a[0] === "window"));
+    for (const [name, prop] of entries) {
       // Advanced inputs (self-healing alternatives, session names) always go under More options.
       const advanced = ["alternatives", "session"].includes(name) && !req.includes(name);
-      const rare = advanced || (!req.includes(name) && prop.default !== undefined && main.length >= 3);
+      const rare = advanced || (name !== "window" && !req.includes(name) && prop.default !== undefined && main.length >= 3);
       (rare ? more : main).push(inputControl(step, name, prop, req.includes(name)));
       if (rare) moreNames.push(name);
     }
@@ -2381,7 +2455,8 @@ function renderRunWindow() {
   const now = cur ? h("div", { class: "rw-step" },
     h("span", { class: "rw-num", text: nums.get(cur.id) ? "Step " + nums.get(cur.id) : "Step" }),
     h("a", { class: "link", text: spec ? spec.action.name : cur.action, title: "Show this step", onclick: () => { if (state.file === L.file) selectById(cur.id); } }),
-    stepObj && stepObj.description ? h("div", { class: "rw-note", text: stepObj.description }) : null)
+    stepObj && stepObj.description ? h("div", { class: "rw-note", text: stepObj.description }) : null,
+    stepObj && stepObj.args && windowLabel(stepObj.args.window) ? h("div", { class: "rw-note rw-window", text: "In window \u201C" + windowLabel(stepObj.args.window) + "\u201D" }) : null)
     : h("div", { class: "rw-step muted", text: done ? "" : L.from ? (L.only ? "Running only step " : "Starting at step ") + (nums.get(L.from) || L.from) : "Preparing…" });
   const err = done && state.lastRun && state.lastRun.result.error ? h("div", { class: "rw-error", text: (state.lastRun.result.error.code || "") + " " + (state.lastRun.result.error.message || "") }) : null;
   win.replaceChildren(head, h("div", { class: "rw-body" },
@@ -2598,22 +2673,63 @@ function makeDockDraggable() {
 // ---------- recorder ----------
 async function recordSteps() {
   if (!state.flow) { toast("Open or create an agent first.", true); return; }
+  // In the person's own browser when it is connected (any open tab), else in a new browser at an address.
+  let tabs = [];
+  try { tabs = (await loadWindows()).filter((w) => w.source === "browser" && w.connector && usefulWindow(w)); } catch (_) { tabs = []; }
+  if (tabs.length) {
+    const choice = await new Promise((resolve) => {
+      openDialog("Record in which window?", [h("p", { class: "help", text: "Your open browser windows (through the ONEOFFICEAUTOMATION Browser Connector):" }),
+        windowButtons(tabs, (t) => { closeDialog(); resolve(t); })],
+        [h("button", { type: "button", onclick: () => { closeDialog(); resolve("new"); } }, "Open a new page\u2026")]);
+    });
+    if (!choice) return;
+    if (choice !== "new") return recordIn({ tab_id: choice.tab_id, browser: choice.browser || "edge" }, "Recording in \u201C" + choice.title + "\u201D. Press Stop recording on the page when you are done.");
+  }
   const url = prompt("Start recording at which web address?", "https://");
   if (!url || url === "https://") return;
+  return recordIn({ url, browser: "edge" }, "Recording in the browser window. Press 'Stop recording' there (or close the browser) when you are done.");
+}
+
+async function recordIn(req, hint) {
   const btn = $("btn-record");
   btn.classList.add("recording"); btn.disabled = true;
-  toast("Recording in the browser window. Press 'Stop recording' there (or close the browser) when you are done.");
+  toast(hint);
   try {
-    const res = await api("POST", "record", { url, browser: "edge" });
+    const res = await api("POST", "record", req);
     const at = insertionPoint();
     const steps = res.steps || [];
     steps.forEach((st, k) => { st.id = newStepId() + (k ? "" : ""); at.list.splice(at.index + k, 0, st); });
-    if (JSON.stringify(steps).includes('"$password"') && !state.flow.variables.some((v) => v.name === "password"))
+    const made = recordedVariables(steps);
+    if (JSON.stringify(steps).includes('"$password"') && !state.flow.variables.some((v) => v.name === "password")) {
       state.flow.variables.push({ name: "password", type: "Credential", direction: "input", description: "Password used by the recorded steps (from the vault)." });
+      made.push("password");
+    }
     changed(); renderVariables();
-    toast("Inserted " + steps.length + " recorded steps.");
+    toast("Inserted " + steps.length + " recorded steps" + (made.length ? " and created " + made.length + " variable" + (made.length === 1 ? "" : "s") + ": " + made.map((n) => "$" + n).join(", ") : "."));
   } catch (e) { toast(e.message, true); }
   finally { btn.classList.remove("recording"); btn.disabled = false; }
+}
+
+/**
+ * Variables for recorded steps: each typed value becomes an input variable named after the field (its label, name or
+ * id), holding the recorded text as its default, and the step types $variable; each selected option likewise.
+ */
+function recordedVariables(steps) {
+  const made = [];
+  const fieldName = (st) => {
+    const props = (st.args && st.args.object && st.args.object.properties) || [];
+    const val = (n) => { const p = props.find((x) => x.name === n); return p && p.value ? String(p.value) : ""; };
+    return val("label") || val("name") || val("aria-label") || val("placeholder") || val("id") || (st.action.endsWith("select_option") ? "choice" : "text");
+  };
+  for (const st of steps) {
+    const key = st.action === "ooa.browser/type_text" ? "text" : st.action === "ooa.browser/select_option" ? "option" : null;
+    if (!key || !st.args || typeof st.args[key] !== "string" || st.args[key].startsWith("$")) continue;
+    const name = uniqueVarName(fieldName(st).toLowerCase());
+    state.flow.variables.push({ name, type: "String", direction: "input", default: st.args[key], description: "Recorded " + (key === "text" ? "typing" : "selection") + " (change it here or pass it in)." });
+    st.args[key] = "$" + name;
+    made.push(name);
+  }
+  return made;
 }
 
 // ---------- triggers ----------
@@ -3761,12 +3877,52 @@ function defaultUrl() {
   return open ? open.args.url : "https://";
 }
 
-async function pickSelector(done, askUrl) {
-  const url = askUrl || prompt("Open which page to pick the element from?", defaultUrl());
-  if (!url || url === "https://") return;
-  toast("Click the element in the browser window that opens.");
-  try { const r = await api("POST", "capture", { url, browser: "edge" }); done(r.selector, r.element, r.object); toast("Captured " + (r.element && r.element.tag ? r.element.tag : "") + " with " + ((r.object && r.object.properties) || []).length + " properties"); }
-  catch (e) { toast(e.message, true); }
+/**
+ * Capture: in the window the step already names when it is open, else in a window chosen from the open browser
+ * windows (browsers agents opened stay open and are listed), else in a new browser at an address.
+ */
+async function pickSelector(done, askUrl, step) {
+  let tabs = [];
+  try { tabs = (await loadWindows()).filter((w) => w.source === "browser" && (w.endpoint || w.connector) && usefulWindow(w)); } catch (_) { tabs = []; }
+  const win = step && step.args && step.args.window && typeof step.args.window === "object" ? step.args.window : null;
+  const named = win && win.title ? tabs.find((t) => t.title === win.title) : null;
+  const run = async (req, hint) => {
+    toast(hint);
+    try { const r = await api("POST", "capture", req); done(r.selector, r.element, r.object); toast("Captured " + (r.element && r.element.tag ? r.element.tag : "") + " with " + ((r.object && r.object.properties) || []).length + " properties"); }
+    catch (e) { toast(e.message, true); }
+  };
+  const inTab = (t) => run(t.connector ? { tab_id: t.tab_id, browser: t.browser || "edge" } : { endpoint: t.endpoint, tab_title: t.title, tab_url: t.url, browser: t.browser || "edge" },
+    "Click the element in the window \u201C" + t.title + "\u201D (Esc cancels).");
+  const fresh = () => {
+    const url = askUrl || prompt("Open which page to pick the element from?", defaultUrl());
+    if (!url || url === "https://") return;
+    run({ url, browser: "edge" }, "Click the element in the browser window that opens.");
+  };
+  if (named) return inTab(named);
+  if (!tabs.length) return fresh();
+  openDialog("Capture in which window?", [h("p", { class: "help", text: "Open browser windows (a browser opened by an agent stays open):" }),
+    windowButtons(tabs, (t) => { closeDialog(); inTab(t); }) ],
+    [h("button", { type: "button", onclick: () => { closeDialog(); fresh(); } }, "Open a new page\u2026")]);
+}
+
+/** Open browser tabs as buttons, grouped by browser with a count, as in the window list of Capture. */
+function windowButtons(tabs, choose) {
+  const groups = new Map();
+  for (const t of tabs) { const b = t.browser === "chrome" ? "Google Chrome" : t.browser === "edge" ? "Microsoft Edge" : "Browser"; if (!groups.has(b)) groups.set(b, []); groups.get(b).push(t); }
+  return h("div", { class: "cap-windows" }, [...groups].map(([b, list]) => h("div", { class: "cap-window-group" },
+    h("div", { class: "cap-window-head", text: b + " (" + list.length + ")" }),
+    list.map((t) => h("button", { type: "button", class: "cap-window", onclick: () => choose(t) },
+      h("strong", { text: t.title || "(no title)" }), h("span", { class: "help", text: shortUrl(t.url) }))))));
+}
+
+/** After a web capture: the step's window becomes the captured page (browser title, link, browser) when none is set. */
+function fillWindowFromCapture(step, obj) {
+  const spec = state.specs.get(step.action);
+  if (!obj || !obj.page || !spec || !spec.action.inputs.properties.window) return;
+  const args = step.args || (step.args = {});
+  if (args.window && (args.window.title || args.window.url || args.window.variable)) return;
+  args.window = { source: "browser", title: obj.page.title || "", title_match: "equals", link: obj.page.url || "", browser: "edge" };
+  if (!args.window.title) delete args.window.title;
 }
 
 const CAPTURE_MATCHES = [["equals", "equals"], ["not_equals", "not equals"], ["contains", "contains"], ["starts_with", "starts with"], ["ends_with", "ends with"], ["wildcard", "wildcard (* ?)"], ["regex", "regular expression"]];
@@ -3816,8 +3972,9 @@ function captureEditor(step, value, set, nested) {
       const anchor = obj && obj.anchor;
       obj = o;
       if (anchor) { obj.anchor = anchor; anchorOffset(); }
-      save(); render();
-    }, pageUrl());
+      save();
+      if (!nested) { fillWindowFromCapture(step, obj); renderProps(); } else render();
+    }, pageUrl(), step);
   }
   /** Where the element sits relative to its anchor, in page pixels, so the run can look next to the anchor. */
   function anchorOffset() {
@@ -3846,7 +4003,7 @@ function captureEditor(step, value, set, nested) {
       delete o.screenshot;
       obj.anchor = o; anchorOffset(); save(); render();
       toast("Anchor captured" + (obj.anchor.offset ? " (" + obj.anchor.offset.dx + ", " + obj.anchor.offset.dy + " px from the element)" : ""));
-    }, pageUrl());
+    }, pageUrl(), step);
   }
   async function test() {
     if (!obj) return;
@@ -3980,6 +4137,7 @@ function captureStep() {
       : tag === "select" ? "select_by_text" : el && el.type === "checkbox" ? "check" : "click";
     const args = object ? { object, action } : { selector, action };
     const step = { id: freshIds([{ id: "" }])[0].id, action: "ooa.browser/element_action", args, description: "Captured " + tag + (el && el.text ? ": " + el.text.slice(0, 30) : "") };
+    if (object) fillWindowFromCapture(step, object);
     const at = insertionPoint();
     at.list.splice(at.index, 0, step);
     state.multi = new Set([step.id]); state.selected = at.path.concat(at.index); state.target = null;

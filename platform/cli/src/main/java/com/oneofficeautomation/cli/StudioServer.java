@@ -324,6 +324,9 @@ public final class StudioServer {
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
             args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
+            // pick in a window that is already open (a browser with a debugging port), instead of opening a new one
+            for (String k : List.of("endpoint", "tab_title", "tab_url")) if (req.get(k) != null && !String.valueOf(req.get(k)).isBlank()) args.put(k, String.valueOf(req.get(k)));
+            if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
             flow.put("steps", List.of(Map.of("id", "pick", "action", "ooa.browser/pick_element", "args", args,
                     "out", Map.of("selector", "selector", "element", "element", "object", "object", "alternatives", "alternatives"))));
             RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(900));
@@ -380,6 +383,8 @@ public final class StudioServer {
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
             args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
+            // record in an open tab of a browser connected through the extension
+            if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
             flow.put("steps", List.of(Map.of("id", "rec", "action", "ooa.browser/record", "args", args, "out", Map.of("steps", "steps"))));
             RunResult r = runner(new EventSink.ListSink()).run(flow, Map.of(), new Runner.RunOptions().maxRunSeconds(3700));
             if (!r.ok()) sendJson(ex, 400, Map.of("error", r.error()));

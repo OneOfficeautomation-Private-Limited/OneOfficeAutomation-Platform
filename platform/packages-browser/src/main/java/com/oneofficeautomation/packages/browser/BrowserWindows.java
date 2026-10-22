@@ -1,5 +1,6 @@
 package com.oneofficeautomation.packages.browser;
 
+import com.google.gson.JsonObject;
 import com.microsoft.playwright.*;
 import com.oneofficeautomation.sdk.ActionContext;
 import com.oneofficeautomation.sdk.ActionException;
@@ -79,7 +80,7 @@ final class BrowserWindows {
             for (Map.Entry<String, Object> e : ctx.sessions().entrySet()) if (e.getValue() == bs) return e.getKey();
         }
         String name = text(v);
-        if (ctx.sessions().get(name) instanceof BrowserPackage.BrowserSession) return name;
+        if (ctx.sessions().get(name) instanceof BrowserPackage.BrowserSession || ctx.sessions().get(name) instanceof ExtensionBridge.TabSession) return name;
         throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "There is no browser session named '" + name + "'. Open browser sessions: " + sessionNames(ctx),
                 "Open or attach the browser first (open, attach or open_for_automation), or check the variable holds the session name.");
     }
@@ -112,6 +113,9 @@ final class BrowserWindows {
                     }
                 }
             }
+            // the person's own Edge or Chrome, through the browser connector
+            String viaConnector = connectorTab(ctx, preferred, titles, title.isEmpty(), titleMatch, url, urlMatch, kind, seen);
+            if (viaConnector != null) return viaConnector;
             if (!triedDefault) {
                 triedDefault = true;
                 autoAttachDefault(ctx);
@@ -130,6 +134,30 @@ final class BrowserWindows {
                   + "start it with open_for_automation, then attach.";
         throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "No " + (application ? "browser window" : "tab") + " with " + wanted + " within " + (long) timeoutMs
                 + " ms. Open tabs: " + tabs, hint, true, Map.of("tabs", seen));
+    }
+
+    /** A tab of a browser connected through the extension that matches; registered as a session (the preferred name when free). */
+    static String connectorTab(ActionContext ctx, String preferred, List<String> titles, boolean anyTitle, String titleMatch, String url, String urlMatch, String kind, List<String> seen) {
+        if (!ExtensionBridge.available()) return null;
+        // when several tabs match, the one the person looks at wins: the active tab of the focused window, then active tabs
+        List<Map<String, Object>> all = new ArrayList<>(ExtensionBridge.tabs());
+        all.sort(Comparator.comparingInt(t -> (Boolean.TRUE.equals(t.get("active")) && Boolean.TRUE.equals(t.get("focused")) ? 0 : Boolean.TRUE.equals(t.get("active")) ? 1 : 2)));
+        for (Map<String, Object> t : all) {
+            String b = text(t.get("browser"));
+            if (!kind.isEmpty() && !kind.equals(b)) continue;
+            String pt = text(t.get("title")), pu = text(t.get("url"));
+            seen.add("'" + pt + "' (" + pu + ", " + b + ")");
+            boolean titleOk = anyTitle;
+            for (String x : titles) if (!titleOk && matches(pt, x, titleMatch)) titleOk = true;
+            if (!titleOk || !(url.isEmpty() || matches(pu, url, urlMatch))) continue;
+            long id = ((Number) t.get("tab_id")).longValue();
+            String name = preferred != null && !(ctx.sessions().get(preferred) instanceof BrowserPackage.BrowserSession) ? preferred : "tab_" + id;
+            boolean own = ctx.sessions().get(name) instanceof ExtensionBridge.TabSession old && old.tabId == id && old.own;
+            ctx.sessions().put(name, new ExtensionBridge.TabSession(b, id, own));
+            try { ExtensionBridge.call(b, "activate", Map.of("tab_id", id), 10000); } catch (ActionException ignored) { }
+            return name;
+        }
+        return null;
     }
 
     private static final Pattern BROWSER_NAME = Pattern.compile("(?i)\\s+-\\s+(Microsoft\\W{0,2}Edge|Google Chrome|Chromium)\\s*$");
@@ -277,6 +305,58 @@ final class BrowserWindows {
         }
     }
 
+    // ---------- Opening a window that stays open ----------
+
+    /** Debugging port used for browsers that agents open: Edge 9222 (the one window lists look at), Chrome 9223. */
+    static int keepOpenPort(String kind) { return "chrome".equals(kind) ? 9223 : 9222; }
+
+    /**
+     * Open browser with keep_open: a new window in the Edge or Chrome that listens on the agents' debugging port (started
+     * with its own profile when none is running), used through the DevTools protocol. The run ending only disconnects,
+     * so the window stays; Close browser closes the windows this session opened.
+     */
+    static BrowserPackage.BrowserSession openWindow(ActionContext ctx, String kind, String url, String session, double timeoutMs) {
+        int port = keepOpenPort(kind);
+        String ep = "http://127.0.0.1:" + port;
+        boolean started = false;
+        if (version(ep) == null) {
+            if (!portFree(port)) throw new ActionException("BROWSER.PORT_IN_USE", "Port " + port + " is used by another program", "Close that program, or set keep_open to false.");
+            Path dir = ctx.workDir().resolve(".ooa").resolve("browser-profiles").resolve(kind + "-" + port);
+            start(executable(kind, null), port, dir, url, false);
+            started = true;
+            long end = System.currentTimeMillis() + (long) Math.max(1000, timeoutMs);
+            while (version(ep) == null) {
+                ctx.checkCancelled();
+                if (System.currentTimeMillis() >= end)
+                    throw new ActionException("BROWSER.NOT_LISTENING", "The browser started but did not open debugging port " + port + " within " + (long) timeoutMs + " ms",
+                            "Close other windows that use the profile " + dir + ", or set keep_open to false.", true);
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            }
+        }
+        BrowserPackage.BrowserSession bs = attach(ctx, ep, kind, session, timeoutMs);
+        try {
+            Page page;
+            if (started) {
+                page = bs.page;
+            } else {
+                // a new window, like opening the browser again, in the browser that is already running
+                CDPSession cdp = bs.browser.newBrowserCDPSession();
+                JsonObject params = new JsonObject();
+                params.addProperty("url", "about:blank");
+                params.addProperty("newWindow", true);
+                page = bs.context.waitForPage(() -> cdp.send("Target.createTarget", params));
+                try { cdp.detach(); } catch (PlaywrightException ignored) { }
+                if (url != null && !url.isBlank()) page.navigate(url);
+            }
+            if (started && url != null && !url.isBlank() && !page.url().startsWith(url.replaceAll("/$", ""))) page.navigate(url);
+            bs.page = page;
+            page.bringToFront();
+            bs.ownPages.add(page);
+            ctx.info((started ? "Started " : "Opened a window in ") + kind + " (debugging port " + port + "); it stays open after the agent ends");
+            return bs;
+        } catch (PlaywrightException e) { throw BrowserPackage.pwPublic(e, "Opening a browser window"); }
+    }
+
     // ---------- Starting a browser with a debugging port ----------
 
     static Path executable(String kind, String override) {
@@ -342,7 +422,7 @@ final class BrowserWindows {
             String kind = kindOf(version);
             if (getJson(ep, "/json/list") instanceof List<?> l)
                 for (Object o : l)
-                    if (o instanceof Map<?, ?> m && "page".equals(m.get("type"))) out.add(row("browser", text(m.get("title")), text(m.get("url")), kind));
+                    if (o instanceof Map<?, ?> m && "page".equals(m.get("type"))) { Map<String, Object> r = row("browser", text(m.get("title")), text(m.get("url")), kind); r.put("endpoint", ep); out.add(r); }
         }
         return out;
     }

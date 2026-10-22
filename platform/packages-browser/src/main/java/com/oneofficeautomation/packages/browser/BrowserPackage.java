@@ -30,6 +30,8 @@ public final class BrowserPackage {
         final String endpoint;
         /** An attached browser belongs to the person or to another agent: closing the session only disconnects. */
         final boolean attached;
+        /** Windows this session opened in a browser that stays open after the run; Close browser closes them. */
+        final List<Page> ownPages = new ArrayList<>();
         BrowserSession(Playwright pw, com.microsoft.playwright.Browser b, BrowserContext c, Page p) { this(pw, b, c, p, "edge", null, false); }
         BrowserSession(Playwright pw, com.microsoft.playwright.Browser b, BrowserContext c, Page p, String kind, String endpoint, boolean attached) {
             this.pw = pw; browser = b; context = c; page = p; this.kind = kind; this.endpoint = endpoint; this.attached = attached;
@@ -40,7 +42,37 @@ public final class BrowserPackage {
         }
     }
 
-    private static BrowserSession s(ActionContext ctx, String name) { return ctx.session(name, BrowserSession.class); }
+    private static BrowserSession s(ActionContext ctx, String name) {
+        if (ctx.sessions().get(name) instanceof ExtensionBridge.TabSession)
+            throw new ActionException("BROWSER.NOT_SUPPORTED", "This action is not available for a tab driven through the browser connector",
+                    "Use the Capture element action, or open the browser with engine playwright for this agent.");
+        return ctx.session(name, BrowserSession.class);
+    }
+
+    // ---------- the browser connector: the person's own Edge or Chrome, through the extension ----------
+    static ExtensionBridge.TabSession tab(ActionContext ctx, String session) { return ctx.sessions().get(session) instanceof ExtensionBridge.TabSession t ? t : null; }
+
+    static Object onTab(ExtensionBridge.TabSession t, String op, Map<String, Object> args, double timeoutMs) {
+        Map<String, Object> a = new LinkedHashMap<>(args);
+        a.put("tab_id", t.tabId);
+        return ExtensionBridge.call(t.browser, op, a, (long) timeoutMs + 5000);
+    }
+
+    /** One element request through the extension: the captured object (or selector), the action, its value and options. */
+    @SuppressWarnings("unchecked")
+    static Object onElement(ActionContext ctx, ExtensionBridge.TabSession t, Object object, String sel, String action, Object value, double timeoutMs, Map<String, Object> opts) {
+        UiGuard.before(ctx);
+        Map<String, Object> a = new LinkedHashMap<>(opts);
+        if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); a.put("object", o); }
+        else if (sel != null && !sel.isBlank()) a.put("selector", sel);
+        else throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in Agent Studio, or type a selector.");
+        a.put("action", action);
+        if (value != null) a.put("value", value instanceof SecureString ss ? ss.reveal() : value instanceof List<?> ? value : Values.text(value));
+        a.put("timeout_ms", BigDecimal.valueOf((long) timeoutMs));
+        Map<String, Object> r = (Map<String, Object>) onTab(t, "element", a, timeoutMs);
+        if (r != null && r.get("healed_by") instanceof String h && !h.isBlank()) ctx.warn("Captured object found by its " + h + " (self-healing)");
+        return r == null ? null : r.get("result");
+    }
 
     private static ActionException pw(PlaywrightException e, String what) {
         String m = String.valueOf(e.getMessage()).split("\n")[0];
@@ -139,8 +171,28 @@ public final class BrowserPackage {
                     description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright.") String which,
             @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Run without a visible window (for unattended agents).") boolean headless,
             @Input(name = "download_folder", type = OoaType.FILE, required = false, description = "Where downloads are saved.") String downloads,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "keep_open", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let Studio and later agents reach it. "
+                            + "False closes the browser with the run, as before.") boolean keepOpen,
+            @Input(name = "engine", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "connector", "playwright"},
+                    description = "connector: open a window in the person's own Edge or Chrome through the ONEOFFICEAUTOMATION Browser Connector extension; "
+                            + "playwright: a browser the agent starts itself; auto: the connector when that browser has it, else playwright.") String engine) {
         boolean installed = which.equals("edge") || which.equals("chrome");
+        boolean connector = "connector".equals(engine) || ("auto".equals(engine == null ? "auto" : engine) && installed && !headless && downloads == null && keepOpen
+                && ExtensionBridge.browsers().contains(which));
+        if (connector) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> t = (Map<String, Object>) ExtensionBridge.call(which, "open", Map.of("mode", "new_window", "url", url == null || url.isBlank() ? "about:blank" : url), 90000);
+            Object old = ctx.sessions().put(session, new ExtensionBridge.TabSession(which, ((Number) t.get("tab_id")).longValue(), true));
+            if (old instanceof AutoCloseable c && !(old instanceof ExtensionBridge.TabSession)) try { c.close(); } catch (Exception ignored) { }
+            ctx.info("Opened a window in " + which + " through the browser connector: " + t.get("title"));
+            return Map.of();
+        }
+        if (keepOpen && installed && !headless && downloads == null) {
+            BrowserWindows.openWindow(ctx, which, url, session, 30000);
+            return Map.of();
+        }
         Map<String, String> env = new HashMap<>();
         if (installed) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         Playwright pw = null;
@@ -169,6 +221,7 @@ public final class BrowserPackage {
     public Map<String, Object> navigate(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Address to open.") String url,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (tab(ctx, session) != null) { onTab(tab(ctx, session), "navigate", Map.of("url", url), 60000); return Map.of(); }
         try { s(ctx, session).page.navigate(url); } catch (PlaywrightException e) { throw pw(e, "Opening " + url); }
         return Map.of();
     }
@@ -183,6 +236,7 @@ public final class BrowserPackage {
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) { onElement(ctx, tab(ctx, session), object, sel, dbl ? "double_click" : "click", null, timeout, Map.of()); return Map.of(); }
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
             if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout)); else l.click(new Locator.ClickOptions().setTimeout(timeout));
@@ -203,6 +257,11 @@ public final class BrowserPackage {
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
         String value = text instanceof SecureString ss ? ss.reveal() : Values.text(text);
+        if (tab(ctx, session) != null) {
+            onElement(ctx, tab(ctx, session), object, sel, "set_text", value, timeout, Map.of());
+            if (enter) onElement(ctx, tab(ctx, session), object, sel, "press_key", "Enter", timeout, Map.of());
+            return Map.of();
+        }
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
             l.fill(value, new Locator.FillOptions().setTimeout(timeout));
@@ -221,6 +280,11 @@ public final class BrowserPackage {
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) {
+            try { onElement(ctx, tab(ctx, session), object, sel, "select_by_text", option, timeout, Map.of()); }
+            catch (ActionException e) { if (!"BROWSER.NO_ITEM".equals(e.code())) throw e; onElement(ctx, tab(ctx, session), object, sel, "select_by_value", option, timeout, Map.of()); }
+            return Map.of();
+        }
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
             List<String> chosen = l.selectOption(option, new Locator.SelectOptionOptions().setTimeout(timeout));
@@ -239,6 +303,7 @@ public final class BrowserPackage {
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) return Map.of("text", String.valueOf(onElement(ctx, tab(ctx, session), object, sel, "get_text", null, timeout, Map.of())));
         try { return Map.of("text", target(ctx, session, object, sel, alternatives, timeout).innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
         catch (PlaywrightException e) { throw pw(e, "Reading " + what(object, sel)); }
     }
@@ -253,6 +318,10 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) {
+            Object v = onElement(ctx, tab(ctx, session), object, sel, attr.equals("value") ? "get_value" : "get_attribute", attr.equals("value") ? null : attr, timeout, Map.of());
+            return Map.of("value", v == null ? "" : String.valueOf(v));
+        }
         try {
             Locator l = target(ctx, session, object, sel, null, timeout);
             String v = attr.equals("value") ? l.inputValue(new Locator.InputValueOptions().setTimeout(timeout)) : l.getAttribute(attr, new Locator.GetAttributeOptions().setTimeout(timeout));
@@ -269,6 +338,11 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) {
+            String how = switch (state) { case "hidden" -> "wait_to_disappear"; case "detached" -> "wait_detached"; default -> "wait_to_appear"; };
+            onElement(ctx, tab(ctx, session), object, sel, how, null, timeout, Map.of());
+            return Map.of();
+        }
         try {
             UiGuard.before(ctx);
             WaitForSelectorState st = WaitForSelectorState.valueOf(state.toUpperCase(Locale.ROOT));
@@ -301,6 +375,7 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         try { session = BrowserWindows.use(ctx, session, window, 0); } catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
+        if (tab(ctx, session) != null) return ((Number) onElement(ctx, tab(ctx, session), object, sel, "count", null, 0, Map.of())).intValue() > 0;
         try { return countNow(ctx, session, object, sel) > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
@@ -313,6 +388,15 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> t = (Map<String, Object>) onElement(ctx, tab(ctx, session), object, object == null ? sel : null, "get_table", null, timeout, Map.of());
+            List<String> cols = new ArrayList<>();
+            for (Object h : (List<?>) t.get("columns")) cols.add(String.valueOf(h));
+            List<Object> rows = new ArrayList<>();
+            for (Object r : (List<?>) t.get("rows")) { List<Object> g = new ArrayList<>((List<?>) r); while (g.size() < cols.size()) g.add(""); rows.add(g); }
+            return Map.of("table", Values.table(cols, rows));
+        }
         try {
             Locator l = object != null ? target(ctx, session, object, null, null, timeout) : s(ctx, session).page.locator(sel).first();
             l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
@@ -333,6 +417,7 @@ public final class BrowserPackage {
     public Map<String, Object> runJs(ActionContext ctx,
             @Input(name = "script", type = OoaType.STRING, example = "document.querySelectorAll('.item').length", description = "JavaScript expression or function.") String script,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (tab(ctx, session) != null) return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), 60000)));
         try { return Out(Values.toJsonable(s(ctx, session).page.evaluate(script))); }
         catch (PlaywrightException e) { throw pw(e, "Running JavaScript"); }
     }
@@ -347,7 +432,8 @@ public final class BrowserPackage {
             @Input(name = "path", type = OoaType.FILE, required = false, description = "Also save the HTML to this file.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         String html;
-        try { html = s(ctx, session).page.content(); } catch (PlaywrightException e) { throw pw(e, "Reading the page source"); }
+        if (tab(ctx, session) != null) html = String.valueOf(onTab(tab(ctx, session), "page_source", Map.of(), 60000));
+        else try { html = s(ctx, session).page.content(); } catch (PlaywrightException e) { throw pw(e, "Reading the page source"); }
         String saved = "";
         if (path != null && !path.isBlank()) {
             Path p = ctx.resolvePath(path);
@@ -380,6 +466,7 @@ public final class BrowserPackage {
             throw new ActionException("BROWSER.BAD_FUNCTION", "Invalid JavaScript function name '" + function + "'", "Give a name such as calculateTotal or app.utils.calculateTotal.");
         List<Object> plain = new ArrayList<>();
         if (args != null) for (Object a : args) plain.add(jsValue(Values.toJsonable(a)));
+        if (tab(ctx, session) != null) return Out(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), 60000)));
         try { return Out(Values.toJsonable(s(ctx, session).page.evaluate(CALL_FUNCTION_JS, List.of(function, plain)))); }
         catch (PlaywrightException e) { throw pw(e, "Calling " + function); }
     }
@@ -434,12 +521,19 @@ public final class BrowserPackage {
             @Input(name = "max_links", type = OoaType.NUMBER, required = false, defaultValue = "200", description = "Safety limit on links checked.") int maxLinks,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", description = "Time allowed for each link, in milliseconds.") int timeoutMs,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        Page page = s(ctx, session).page;
         List<Object> hrefs;
-        try { hrefs = (List<Object>) page.evaluate("() => Array.from(document.querySelectorAll('a[href], area[href]')).map(a => a.href)"); }
-        catch (PlaywrightException e) { throw pw(e, "Reading the links"); }
+        String pageUrl;
+        if (tab(ctx, session) != null) {
+            Map<String, Object> l = (Map<String, Object>) onTab(tab(ctx, session), "links", Map.of(), 30000);
+            hrefs = (List<Object>) l.get("links"); pageUrl = String.valueOf(l.get("url"));
+        } else {
+            Page page = s(ctx, session).page;
+            try { hrefs = (List<Object>) page.evaluate("() => Array.from(document.querySelectorAll('a[href], area[href]')).map(a => a.href)"); }
+            catch (PlaywrightException e) { throw pw(e, "Reading the links"); }
+            pageUrl = page.url();
+        }
         String host = "";
-        try { host = String.valueOf(java.net.URI.create(page.url()).getHost()); } catch (IllegalArgumentException ignored) { }
+        try { host = String.valueOf(java.net.URI.create(pageUrl).getHost()); } catch (IllegalArgumentException ignored) { }
         LinkedHashSet<String> urls = new LinkedHashSet<>();
         for (Object h : hrefs) {
             String u = String.valueOf(h).replaceFirst("#.*$", "");
@@ -470,6 +564,20 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) {
+            Map<String, Object> el = new LinkedHashMap<>();
+            if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); el.put("object", o); } else el.put("selector", sel);
+            el.put("timeout_ms", BigDecimal.valueOf((long) Math.min(timeout, 30000)));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> d = (Map<String, Object>) onTab(tab(ctx, session), "download_click", Map.of("element", el, "timeout_ms", BigDecimal.valueOf((long) timeout)), timeout);
+            try {
+                Path src = Path.of(String.valueOf(d.get("path")));
+                Path target = ctx.resolvePath(folder).resolve(src.getFileName().toString());
+                Files.createDirectories(target.getParent());
+                Files.copy(src, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return Map.of("path", target.toString());
+            } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+        }
         try {
             Page p = s(ctx, session).page;
             Locator trigger = target(ctx, session, object, sel, null, Math.min(timeout, 30000));
@@ -494,6 +602,16 @@ public final class BrowserPackage {
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         Path p = ctx.resolvePath(path);
+        if (tab(ctx, session) != null) {
+            Object b64 = object != null || (sel != null && !sel.isBlank()) ? onElement(ctx, tab(ctx, session), object, sel, "screenshot", null, 30000, Map.of())
+                    : onTab(tab(ctx, session), "screenshot", Map.of(), 30000);
+            if (full) ctx.warn("A tab driven through the browser connector is captured as it is shown (not the whole scrollable page)");
+            try {
+                if (p.getParent() != null) Files.createDirectories(p.getParent());
+                Files.write(p, Base64.getDecoder().decode(String.valueOf(b64)));
+            } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+            return Map.of("path", p.toString());
+        }
         try {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
             Page page = s(ctx, session).page;
@@ -510,6 +628,11 @@ public final class BrowserPackage {
     @Output(name = "title", type = OoaType.STRING, description = "Page title.")
     public Map<String, Object> pageInfo(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (tab(ctx, session) != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> t = (Map<String, Object>) onTab(tab(ctx, session), "info", Map.of(), 10000);
+            return Map.of("url", String.valueOf(t.get("url")), "title", String.valueOf(t.get("title")));
+        }
         Page p = s(ctx, session).page;
         return Map.of("url", p.url(), "title", p.title());
     }
@@ -518,6 +641,7 @@ public final class BrowserPackage {
     public Map<String, Object> history(ActionContext ctx,
             @Input(name = "action", type = OoaType.STRING, enumValues = {"back", "forward", "refresh"}, description = "What to do.") String action,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (tab(ctx, session) != null) { onTab(tab(ctx, session), switch (action) { case "back" -> "back"; case "forward" -> "forward"; default -> "reload"; }, Map.of(), 60000); return Map.of(); }
         Page p = s(ctx, session).page;
         try {
             switch (action) { case "back" -> p.goBack(); case "forward" -> p.goForward(); default -> p.reload(); }
@@ -532,6 +656,21 @@ public final class BrowserPackage {
             @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Tab number, starting at 0; -1 for the newest.") Integer index,
             @Input(name = "title_contains", type = OoaType.STRING, required = false, description = "Pick the first tab whose title contains this text.") String title,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (tab(ctx, session) != null) {
+            ExtensionBridge.TabSession t = tab(ctx, session);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cur = (Map<String, Object>) onTab(t, "info", Map.of(), 10000);
+            List<Map<String, Object>> same = new ArrayList<>();
+            for (Map<String, Object> x : ExtensionBridge.tabs()) if (t.browser.equals(x.get("browser")) && String.valueOf(cur.get("window_id")).equals(String.valueOf(x.get("window_id")))) same.add(x);
+            same.sort(Comparator.comparingInt(x -> ((Number) x.get("index")).intValue()));
+            Map<String, Object> pick = null;
+            if (title != null && !title.isBlank()) for (Map<String, Object> x : same) if (String.valueOf(x.get("title")).toLowerCase(Locale.ROOT).contains(title.toLowerCase(Locale.ROOT))) { pick = x; break; }
+            if (pick == null && index != null) { int i = index < 0 ? same.size() + index : index; if (i >= 0 && i < same.size()) pick = same.get(i); }
+            if (pick == null) throw new ActionException("BROWSER.NO_TAB", "No matching tab among " + same.size() + " open tab(s)", "Check the tab number or title text.");
+            t.tabId = ((Number) pick.get("tab_id")).longValue();
+            onTab(t, "activate", Map.of(), 10000);
+            return Map.of("title", String.valueOf(pick.get("title")), "count", BigDecimal.valueOf(same.size()));
+        }
         BrowserSession bs = s(ctx, session);
         List<Page> pages = bs.context.pages();
         Page target = null;
@@ -548,7 +687,16 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         Object o = ctx.sessions().remove(session);
         UiGuard.unregister(ctx, session);
-        if (o instanceof BrowserSession b) try { b.close(); } catch (RuntimeException ignored) { }
+        if (o instanceof ExtensionBridge.TabSession t) {
+            // a window this agent opened closes; a tab it only found closes as a tab
+            try { onTab(t, "close", Map.of("what", t.own ? "window" : "tab"), 10000); } catch (ActionException e) { if (!"BROWSER.CONNECTOR_FAILED".equals(e.code())) ctx.warn("Could not close the tab: " + e.getMessage()); }
+            return Map.of();
+        }
+        if (o instanceof BrowserSession b) {
+            // a window this session opened in a browser that stays open: close that window, then disconnect
+            for (Page p : b.ownPages) try { if (!p.isClosed()) p.close(); } catch (RuntimeException ignored) { }
+            try { b.close(); } catch (RuntimeException ignored) { }
+        }
         return Map.of();
     }
 
@@ -656,8 +804,15 @@ public final class BrowserPackage {
             @Input(name = "include_desktop", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also list desktop window titles (Windows only).") boolean desktop) {
         List<String> eps = new ArrayList<>();
         if (endpoints != null) for (Object e : endpoints) if (e != null && !String.valueOf(e).isBlank()) eps.add(String.valueOf(e));
-        if (eps.isEmpty()) eps.add(BrowserWindows.DEFAULT_ENDPOINT);
-        List<Object> rows = new ArrayList<>(BrowserWindows.browserTabs(ctx, eps));
+        if (eps.isEmpty()) { eps.add(BrowserWindows.DEFAULT_ENDPOINT); eps.add("http://127.0.0.1:" + BrowserWindows.keepOpenPort("chrome")); }
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> t : ExtensionBridge.tabs()) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("source", "browser"); r.put("title", t.get("title")); r.put("url", t.get("url")); r.put("browser", t.get("browser"));
+            r.put("tab_id", t.get("tab_id")); r.put("window_id", t.get("window_id")); r.put("connector", true);
+            rows.add(r);
+        }
+        rows.addAll(BrowserWindows.browserTabs(ctx, eps));
         if (desktop) rows.addAll(BrowserWindows.desktopWindows(ctx));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("windows", rows);
@@ -729,7 +884,10 @@ public final class BrowserPackage {
     public Map<String, Object> record(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Page to start on.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium"}, description = "Browser to record in.") String which,
-            @Input(name = "timeout_minutes", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Stop recording automatically after this long.") int minutes) {
+            @Input(name = "timeout_minutes", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Stop recording automatically after this long.") int minutes,
+            @Input(name = "tab_id", type = OoaType.NUMBER, required = false,
+                    description = "Record in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list) instead of a new browser.") Long tabId) {
+        if (tabId != null) return recordInTab(ctx, which, tabId, minutes);
         List<Map<String, Object>> events = Collections.synchronizedList(new ArrayList<>());
         final boolean[] stopped = {false};
         Map<String, String> env = new HashMap<>();
@@ -765,8 +923,14 @@ public final class BrowserPackage {
             }
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Recording"); }
+        return stepsFromEvents(ctx, events, url, which, false);
+    }
+
+    /** Recorded events (click, type, select with the element's properties) as steps; open/close steps when a URL is given. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> stepsFromEvents(ActionContext ctx, List<Map<String, Object>> events, String url, String which, boolean inTab) {
         List<Object> steps = new ArrayList<>();
-        steps.add(stepMap("ooa.browser/open", Map.of("url", url, "browser", which), "Recorded: open " + url));
+        if (url != null) steps.add(stepMap("ooa.browser/open", Map.of("url", url, "browser", which), "Recorded: open " + url));
         Map<String, Object> lastType = null;
         boolean password = false;
         for (Map<String, Object> e : events) {
@@ -780,6 +944,15 @@ public final class BrowserPackage {
                 picked.put("props", props);
                 target.put("object", capturedObject(picked));
             } else target.put("selector", sel);
+            if (inTab && e.get("page") instanceof Map<?, ?> pg) {
+                // recorded in the person's own browser: each step names the window it happened in, as Capture does
+                Map<String, Object> w = new LinkedHashMap<>();
+                w.put("source", "browser");
+                if (pg.get("title") != null && !String.valueOf(pg.get("title")).isBlank()) { w.put("title", String.valueOf(pg.get("title"))); w.put("title_match", "equals"); }
+                if (pg.get("url") != null) w.put("link", String.valueOf(pg.get("url")));
+                w.put("browser", which);
+                if (w.containsKey("title")) target.put("window", w);
+            }
             if (kind.equals("type")) {
                 boolean pwd = Boolean.TRUE.equals(e.get("password"));
                 password |= pwd;
@@ -799,9 +972,33 @@ public final class BrowserPackage {
                 } else steps.add(stepMap("ooa.browser/click", args, "Recorded click" + label(e)));
             }
         }
-        steps.add(stepMap("ooa.browser/close", Map.of(), "Recorded: close browser"));
-        ctx.info("Recorded " + (steps.size() - 2) + " action(s)" + (password ? "; password fields use the variable $password" : ""));
+        if (url != null) steps.add(stepMap("ooa.browser/close", Map.of(), "Recorded: close browser"));
+        ctx.info("Recorded " + (steps.size() - (url != null ? 2 : 0)) + " action(s)" + (password ? "; password fields use the variable $password" : ""));
         return Map.of("steps", steps, "count", BigDecimal.valueOf(steps.size()));
+    }
+
+    /** Records in an open tab through the browser connector until Stop recording is pressed on the page (or the time runs out). */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> recordInTab(ActionContext ctx, String which, long tabId, int minutes) {
+        String token = "rec-" + UUID.randomUUID();
+        List<Map<String, Object>> events = new ArrayList<>();
+        Map<String, Object> tabInfo;
+        try (ExtensionBridge.Subscription sub = ExtensionBridge.subscribe(m -> token.equals(m.get("token")))) {
+            tabInfo = (Map<String, Object>) ExtensionBridge.call(which, "record", Map.of("tab_id", tabId, "token", token), 15000);
+            ctx.info("Recording in " + which + ": press Stop recording on the page when you are done");
+            long end = System.currentTimeMillis() + minutes * 60_000L;
+            while (System.currentTimeMillis() < end) {
+                ctx.checkCancelled();
+                Map<String, Object> ev;
+                try { ev = sub.next(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                if (ev == null) continue;
+                if ("record_stopped".equals(ev.get("event"))) break;
+                if ("recorded".equals(ev.get("event")) && events.size() < 500) events.add(new LinkedHashMap<>(ev));
+            }
+        } finally {
+            try { ExtensionBridge.call(which, "record_stop", Map.of(), 10000); } catch (ActionException ignored) { }
+        }
+        return stepsFromEvents(ctx, events, null, which, true);
     }
 
     private static String label(Map<String, Object> e) {
@@ -869,6 +1066,25 @@ public final class BrowserPackage {
             }
         }
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (tab(ctx, session) != null) {
+            Map<String, Object> opts = new LinkedHashMap<>();
+            opts.put("click_method", clickMethod == null ? "mouse" : clickMethod);
+            if (modifiers != null) opts.put("modifiers", modifiers);
+            if (offsetX != null) opts.put("offset_x", offsetX);
+            if (offsetY != null) opts.put("offset_y", offsetY);
+            opts.put("typing", typing == null ? "fill" : typing);
+            opts.put("key_delay_ms", keyDelay);
+            opts.put("clear_first", clearFirst);
+            Object r = onElement(ctx, tab(ctx, session), objectArg, sel, action, value, timeout, opts);
+            if (action.equals("screenshot") && r != null) {
+                Path out = ctx.workDir().resolve(String.valueOf(value));
+                try { if (out.getParent() != null) Files.createDirectories(out.getParent()); Files.write(out, Base64.getDecoder().decode(String.valueOf(r))); }
+                catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot write the screenshot: " + e.getMessage()); }
+                r = out.toString();
+            }
+            if (waitAfter > 0) { try { Thread.sleep((long) waitAfter); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
+            return single(r instanceof Number n ? new BigDecimal(n.toString()) : r);
+        }
         BrowserSession bs = s(ctx, session);
         if (waitForPage > 0) {
             try { bs.page.waitForLoadState(com.microsoft.playwright.options.LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(waitForPage)); }
@@ -1038,6 +1254,7 @@ public final class BrowserPackage {
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         try { session = BrowserWindows.use(ctx, session, window, 0); } catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
         try {
+            if (tab(ctx, session) != null) return Boolean.TRUE.equals(onElement(ctx, tab(ctx, session), object, sel, "is_visible", null, 0, Map.of()));
             if (object != null) { Map<String, Object> o = WebObjects.object(object); int idx = o.get("index") instanceof Number n ? n.intValue() : 0;
                 Locator[] f = WebObjects.findAll(s(ctx, session).page, o); return f.length > idx && f[idx].isVisible(); }
             if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
@@ -1095,12 +1312,14 @@ public final class BrowserPackage {
           const add = () => { if (document.body && !box.isConnected) { document.body.append(box, tip); } };
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
           document.addEventListener('mousemove', (e) => {
+            if (window.__ooaPickOff) { box.style.display = 'none'; tip.style.display = 'none'; return; }
             const t = e.target; if (!t || t === box || t === tip) return;
             const r = t.getBoundingClientRect();
             Object.assign(box.style, { display: 'block', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
           }, true);
           /*OOA_LIB*/
           document.addEventListener('click', (e) => {
+            if (window.__ooaPickOff) return;
             e.preventDefault(); e.stopPropagation();
             const t = e.target;
             const r = t.getBoundingClientRect();
@@ -1123,7 +1342,15 @@ public final class BrowserPackage {
     public Map<String, Object> pickElement(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium"}, description = "Browser.") String which,
-            @Input(name = "timeout_minutes", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Give up after this long.") int minutes) {
+            @Input(name = "timeout_minutes", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "Give up after this long.") int minutes,
+            @Input(name = "endpoint", type = OoaType.STRING, required = false,
+                    description = "Pick in a browser that is already open (its debugging address, e.g. http://127.0.0.1:9222) instead of opening a new one; it stays open.") String endpoint,
+            @Input(name = "tab_title", type = OoaType.STRING, required = false, description = "With endpoint: the tab to pick in, by its exact title.") String tabTitle,
+            @Input(name = "tab_url", type = OoaType.STRING, required = false, description = "With endpoint: the tab to pick in, by its address (used when the title is not given or not found).") String tabUrl,
+            @Input(name = "tab_id", type = OoaType.NUMBER, required = false,
+                    description = "Pick in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list).") Long tabId) {
+        if (tabId != null) return pickInConnectorTab(ctx, which, tabId, minutes);
+        if (endpoint != null && !endpoint.isBlank()) return pickInOpenTab(ctx, endpoint, tabTitle, tabUrl, minutes);
         final Map<String, Object>[] picked = new Map[]{null};
         Map<String, String> env = new HashMap<>();
         if (!which.equals("chromium")) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
@@ -1164,6 +1391,97 @@ public final class BrowserPackage {
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Picking an element"); }
         if (picked[0] == null) throw new ActionException("BROWSER.NOTHING_PICKED", "No element was picked", "Click an element in the browser window before closing it.");
+        Object alternatives = picked[0].get("alternatives") instanceof Map<?, ?> m ? m : Map.of();
+        Map<String, Object> object = capturedObject(picked[0]);
+        Map<String, Object> element = new LinkedHashMap<>(picked[0]);
+        element.remove("screenshot"); element.remove("props");
+        return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", element, "alternatives", alternatives, "object", object);
+    }
+
+    /** Pick element in a tab of the person's own browser, through the connector: the page shows the picker, the extension sends the element back. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> pickInConnectorTab(ActionContext ctx, String which, long tabId, int minutes) {
+        String token = "pick-" + UUID.randomUUID();
+        Map<String, Object> picked = null;
+        try (ExtensionBridge.Subscription sub = ExtensionBridge.subscribe(m -> token.equals(m.get("token")))) {
+            ExtensionBridge.call(which, "pick", Map.of("tab_id", tabId, "token", token), 15000);
+            long end = System.currentTimeMillis() + minutes * 60_000L;
+            while (System.currentTimeMillis() < end && picked == null) {
+                ctx.checkCancelled();
+                Map<String, Object> ev;
+                try { ev = sub.next(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                if (ev == null) continue;
+                if ("pick_cancelled".equals(ev.get("event"))) throw new ActionException("BROWSER.NOTHING_PICKED", "Capture was cancelled in the browser (Esc)");
+                if ("picked".equals(ev.get("event"))) picked = new LinkedHashMap<>(ev);
+            }
+        } finally {
+            if (picked == null) try { ExtensionBridge.call(which, "pick_cancel", Map.of("tab_id", tabId), 5000); } catch (ActionException ignored) { }
+        }
+        if (picked == null) throw new ActionException("BROWSER.NOTHING_PICKED", "No element was picked", "Click an element in the browser window.");
+        // the tab's title for the page (a frame does not know it)
+        try {
+            Map<String, Object> info = (Map<String, Object>) ExtensionBridge.call(which, "info", Map.of("tab_id", tabId), 5000);
+            Map<String, Object> page = picked.get("page") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
+            page.put("title", String.valueOf(info.get("title"))); page.put("url", String.valueOf(info.get("url")));
+            picked.put("page", page);
+        } catch (ActionException ignored) { }
+        Map<String, Object> object = capturedObject(picked);
+        Map<String, Object> element = new LinkedHashMap<>(picked);
+        element.remove("screenshot"); element.remove("props"); element.remove("token"); element.remove("event");
+        return Map.of("selector", String.valueOf(picked.get("selector")), "element", element, "alternatives", Map.of(), "object", object);
+    }
+
+    /** Pick element in a tab of a browser that stays open: the picker is added to that tab and switched off afterwards. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> pickInOpenTab(ActionContext ctx, String endpoint, String tabTitle, String tabUrl, int minutes) {
+        String ep = BrowserWindows.endpoint(endpoint);
+        String id = Long.toString(System.nanoTime(), 36);
+        String script = PICKER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS).replace("__ooaPick", "__ooaPick" + id);
+        final Map<String, Object>[] picked = new Map[]{null};
+        final Frame[] pickedFrame = new Frame[1];
+        Map<String, String> env = Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
+        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(env))) {
+            com.microsoft.playwright.Browser b = pw.chromium().connectOverCDP(ep);
+            if (b.contexts().isEmpty()) throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "The browser at " + ep + " has no open window");
+            BrowserContext c = b.contexts().get(0);
+            Page page = null;
+            boolean hasTitle = tabTitle != null && !tabTitle.isBlank(), hasUrl = tabUrl != null && !tabUrl.isBlank();
+            // several tabs can share a title: the one with the same title and address first, then the address, then the title
+            for (Page p : c.pages()) if (hasTitle && hasUrl && tabTitle.equals(p.title()) && p.url().equals(tabUrl)) { page = p; break; }
+            if (page == null) for (Page p : c.pages()) if (hasUrl && p.url().startsWith(tabUrl)) { page = p; break; }
+            if (page == null) for (Page p : c.pages()) if (hasTitle && tabTitle.equals(p.title())) { page = p; break; }
+            if (page == null) throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "No open tab is titled '" + tabTitle + "'" + (tabUrl == null ? "" : " or at " + tabUrl),
+                    "Choose the window again from the list; it may have been closed or navigated.");
+            c.exposeBinding("__ooaPick" + id + "ed", (source, args) -> { if (args.length > 0 && args[0] instanceof Map<?, ?> m) { picked[0] = (Map<String, Object>) m; pickedFrame[0] = source.frame(); } return null; });
+            for (Frame f : page.frames()) { try { f.evaluate("() => { " + script + " }"); } catch (PlaywrightException e) { if (f == page.mainFrame()) throw e; } }
+            page.bringToFront();
+            long end = System.currentTimeMillis() + minutes * 60_000L;
+            while (picked[0] == null && System.currentTimeMillis() < end) {
+                ctx.checkCancelled();
+                if (page.isClosed()) break;
+                try { page.waitForTimeout(200); } catch (PlaywrightException e) { break; }
+            }
+            for (Frame f : page.isClosed() ? List.<Frame>of() : page.frames()) { try { f.evaluate("() => { window.__ooaPick" + id + "Off = true; }"); } catch (PlaywrightException ignored) { } }
+            if (picked[0] != null) {
+                List<String> frames = new ArrayList<>();
+                try {
+                    for (Frame f = pickedFrame[0]; f != null && f.parentFrame() != null; f = f.parentFrame())
+                        frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
+                } catch (PlaywrightException ignored) { }
+                picked[0].put("frames", frames);
+                if (frames.isEmpty() && picked[0].get("rect") instanceof Map<?, ?> r) {
+                    try {
+                        double x = ((Number) r.get("x")).doubleValue(), y = ((Number) r.get("y")).doubleValue(), w = ((Number) r.get("width")).doubleValue(), h = ((Number) r.get("height")).doubleValue();
+                        if (w >= 2 && h >= 2) {
+                            byte[] png = page.screenshot(new Page.ScreenshotOptions().setClip(Math.max(0, x - 4), Math.max(0, y - 4), Math.min(w + 8, 1200), Math.min(h + 8, 600)));
+                            if (png.length < 300_000) picked[0].put("screenshot", Base64.getEncoder().encodeToString(png));
+                        }
+                    } catch (PlaywrightException ignored) { }
+                }
+            }
+            // Playwright closing here only disconnects: the browser and its windows stay open.
+        } catch (PlaywrightException e) { throw pw(e, "Picking an element in the open browser"); }
+        if (picked[0] == null) throw new ActionException("BROWSER.NOTHING_PICKED", "No element was picked", "Click an element in the browser window.");
         Object alternatives = picked[0].get("alternatives") instanceof Map<?, ?> m ? m : Map.of();
         Map<String, Object> object = capturedObject(picked[0]);
         Map<String, Object> element = new LinkedHashMap<>(picked[0]);

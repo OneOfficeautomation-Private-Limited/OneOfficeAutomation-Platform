@@ -318,3 +318,38 @@ more), the actions Get property, Set text, Append text and the clicks, and the s
 - The anchor offset assumes the page layout is about the same as at capture; on a very different layout use more
   properties or the index instead.
 - The Recorder does not take element screenshots (Capture does).
+
+
+# Validation report: Part 7 fixes (reported after trying it)
+
+| Reported | Cause | Fix | Checked |
+| --- | --- | --- | --- |
+| Edge closes at the end of a run without a Close step | The run ends every session, and a browser Playwright started dies with it | `open` (`keep_open`, default true, Edge and Chrome with a window) starts the browser with a debugging port (Edge 9222, Chrome 9223, own profile under `.ooa/browser-profiles`) or opens a new window in the one already running, and works through DevTools; the run ending only disconnects. Close browser closes the windows that session opened | Real Edge: the window stays after a run without Close; a run with Close leaves no window |
+| Window title and address not captured | Capture opened a new browser and filled only the object; the step's window stayed empty and sat under the captured object | The window comes first on web actions; Capture fills it as the reference product does: browser title (equals), link of the web page (shown, not matched), browser. Capture works inside an open window: the step's window when it is open, else a list of open browser windows (browsers agents opened stay open and are listed), else a new page | Real Edge: capture in the open checkboxes tab returned the element with the page title and address; the tab stayed open and works normally afterwards. Studio UI: window first, title/link/browser filled |
+| No variables made by the recorder | Recorded values were written into the steps | Each typed value and selection becomes an input variable named after the field (label, name, id), with the recorded value as its default; the step uses `$name`. Passwords stay a Credential variable | Studio UI |
+| Dragging several selected steps moved only one | The drop handled only the dragged step | Dragging one of the selected steps moves all of them, in order, to the drop point (blocks with their contents) | Studio UI |
+
+Results: packages-browser 7 tests, cli 21, runner 39, 0 failed; Studio UI 216 passed.
+
+
+# Validation report: Browser Connector
+
+Built to match how the reference product drives the person's own browser (extension + native-messaging host),
+in our own design and code. Details: docs/BROWSER_CONNECTOR.md.
+
+| Check (real Edge with the extension, through a test Studio) | Result |
+| --- | --- |
+| Open a window through the connector, set text and read it back, select by text, check a box, count matches, page title, Run JavaScript, screenshot | pass |
+| A later agent finds the window by title and address; the window stayed open with its text | pass |
+| if_not_found continue through the connector | pass |
+| Studio's window list shows the connector's tabs | pass |
+| Capture in an open tab: element, all properties, page title and address, preview image | pass |
+| Close browser closes the tab | pass |
+| Record in an open tab: typing, click and selection become three steps with full captured objects and their window; the page's Stop recording ends it | pass |
+| Native host unit test: framing, registration, token check, request/response routing, events, clean exit | pass |
+| Java suites | 467 tests, 0 failed, 1 skipped |
+| Studio browser tests | 216 passed |
+
+Fixed while testing: the worker connected twice (one host too many); a screenshot of a window hidden behind other
+windows never finished (now brought forward, with a time limit and a fallback through the browser's own renderer);
+several matching tabs now prefer the one in front.

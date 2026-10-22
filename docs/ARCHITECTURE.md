@@ -238,6 +238,14 @@ UI actions find elements by a **captured object** instead of a single selector:
   (`error`, or `continue`: skip the step, `found` = false).
 - The Recorder (`ooa.browser/record`) gives each recorded click, typing and selection the full captured object,
   including the iframe path.
+- **Browser Connector** (docs/BROWSER_CONNECTOR.md): an Edge/Chrome extension, a native-messaging host
+  (`ooa native-host`, `cli/.../NativeHost.java`) and the bridge (`packages-browser/.../ExtensionBridge.java`). Web
+  actions work in the person's own browser tabs; Studio lists, captures and records in them. The page script
+  `ooa-page.js` is shared by Playwright runs and the extension.
+- Browsers stay open after a run: `ooa.browser/open` (`keep_open`) runs Edge on debugging port 9222 and Chrome on 9223
+  with a profile under `.ooa/browser-profiles`, and connects over DevTools, so ending the run only disconnects; Close
+  browser closes the windows that session opened. Studio lists those tabs (`GET windows`, with `endpoint`) and
+  captures inside them (`POST capture` with `endpoint`, `tab_title`, `tab_url`).
 - Desktop capture records the UI Automation properties plus `Text`, `Path` (child positions from the window),
   `XPath` (`ControlType[n]` steps, the last with its AutomationId or Name), `Index`, `Parent`, `Left`/`Top`/`Width`/
   `Height` (relative to the window), `States`, the patterns and states, and the window's program `path` and `size`.

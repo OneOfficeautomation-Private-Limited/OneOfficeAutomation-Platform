@@ -58,6 +58,8 @@ public final class Ooa {
                 case "control-room" -> controlRoom(Arrays.copyOfRange(args, 1, args.length));
                 case "agent" -> agent(Arrays.copyOfRange(args, 1, args.length));
                 case "reset-admin" -> resetAdmin(Arrays.copyOfRange(args, 1, args.length));
+                case "native-host" -> NativeHost.main(Arrays.copyOfRange(args, 1, args.length));
+                case "browser-connector" -> BrowserConnector.main(Arrays.copyOfRange(args, 1, args.length));
                 default -> { usage(); yield 1; }
             };
         } catch (OoaException e) {
@@ -72,7 +74,8 @@ public final class Ooa {
                 + " | server [--port N] [--workspace DIR] [--data DIR] [--no-agent] [--no-browser]"
                 + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
                 + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]"
-                + " | reset-admin [--user NAME] [--data DIR] (stop the server first)");
+                + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
+                + " | browser-connector install|status|uninstall | native-host (started by the browser)");
     }
 
     static int studio(String[] a) throws Exception {

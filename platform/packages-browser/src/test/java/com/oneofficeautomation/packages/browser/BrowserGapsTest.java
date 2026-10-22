@@ -82,7 +82,7 @@ class BrowserGapsTest {
         BrowserPackage b = new BrowserPackage();
         try {
             String base = "http://127.0.0.1:" + s.getAddress().getPort();
-            try { b.open(c, base + "/", "edge", true, null, "browser"); }
+            try { b.open(c, base + "/", "edge", true, null, "browser", false, "playwright"); }
             catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
             Map<String, Object> src = b.getPageSource(c, "out/page.html", "browser");
             assertTrue(((String) src.get("source")).contains("function greet"));

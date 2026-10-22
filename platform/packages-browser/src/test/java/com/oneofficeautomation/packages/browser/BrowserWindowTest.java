@@ -68,7 +68,7 @@ class BrowserWindowTest {
         ActionContext c = ctx(Files.createTempDirectory("ooa-window"));
         BrowserPackage b = new BrowserPackage();
         try {
-            try { b.open(c, base + "/a", "edge", true, null, "browser"); }
+            try { b.open(c, base + "/a", "edge", true, null, "browser", false, "playwright"); }
             catch (RuntimeException e) { System.out.println("    (no browser available: " + e.getMessage() + "; skipped)"); return; }
             BrowserPackage.BrowserSession bs = (BrowserPackage.BrowserSession) c.sessions().get("browser");
             bs.context.newPage().navigate(base + "/b");
@@ -90,7 +90,7 @@ class BrowserWindowTest {
             assertFalse(b.elementVisible(c, null, "#h", "browser", win("title", "No such tab")), "a condition is false when the window is missing");
 
             // variable: another session by name; a tab in another session is found too
-            b.open(c, base + "/b?second", "edge", true, null, "other");
+            b.open(c, base + "/b?second", "edge", true, null, "other", false, "playwright");
             assertEquals("Page B", text(b, c, win("source", "variable", "variable", "other")));
             assertEquals("Page B", text(b, c, win("url", "/b?second")));
             assertEquals("BROWSER.WINDOW_NOT_FOUND", assertThrows(ActionException.class, () -> text(b, c, win("source", "variable", "variable", "missing"))).code());
@@ -157,7 +157,9 @@ class BrowserWindowTest {
             List<Map<String, Object>> rows = (List<Map<String, Object>>) listed.get("windows");
             assertTrue(rows.stream().anyMatch(r -> "browser".equals(r.get("source")) && "Orders - Shop".equals(r.get("title"))
                     && String.valueOf(r.get("url")).endsWith("/b") && "edge".equals(r.get("browser"))), String.valueOf(rows));
-            assertEquals(Set.of("source", "title", "url", "browser"), rows.get(0).keySet());
+            // (tabs of a browser connected through the extension may be listed too, with tab_id and connector)
+            Map<String, Object> viaPort = rows.stream().filter(r -> r.get("endpoint") != null).findFirst().orElseThrow();
+            assertEquals(Set.of("source", "title", "url", "browser", "endpoint"), viaPort.keySet(), "tabs found through a debugging address say which one, so Studio can capture in them");
 
             assertEquals("BROWSER.NOT_LISTENING", assertThrows(ActionException.class, () -> b.attach(ctx(w), "http://127.0.0.1:" + freePort(), null, "x", 2000)).code());
         } finally {
