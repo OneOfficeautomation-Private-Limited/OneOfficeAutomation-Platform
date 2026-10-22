@@ -115,7 +115,7 @@ public final class TriggerPollers {
         String[] p = ref == null ? new String[0] : ref.split("/");
         Map<String, Object> l = p.length == 3 ? cr.db.one("SELECT * FROM lockers WHERE name = ?", p[0]) : null;
         Map<String, Object> u = cr.db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));
-        if (l == null || u == null || !ControlRoom.consumes((String) t.get("created_by"), (String) u.get("role"), l)) {
+        if (l == null || u == null || !cr.consumes((String) t.get("created_by"), (String) u.get("role"), l)) {
             cr.audit.record(actor, "credential.read", "credential", ref, Map.of("trigger", t.get("id")), "denied", null);
             throw new OoaException("VAULT.DENIED", "'" + t.get("created_by") + "' may not use vault folder '" + (p.length > 0 ? p[0] : ref) + "'",
                     "Ask the vault folder owner to add the trigger's owner as a consumer.");

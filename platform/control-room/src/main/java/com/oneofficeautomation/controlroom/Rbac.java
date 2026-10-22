@@ -9,15 +9,15 @@ public final class Rbac {
     public static final List<String> ROLES = List.of("admin", "bot_creator", "bot_runner", "viewer");
 
     private static final Map<String, Set<String>> PERMS = Map.of(
-            "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view"),
+            "viewer", Set.of("repo.view", "runs.view", "devices.view", "schedules.view", "triggers.view", "globals.view", "queues.view", "analytics.view"),
             "bot_runner", Set.of("repo.view", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "triggers.view", "globals.view",
-                    "queues.view", "queues.work"),
+                    "queues.view", "queues.work", "analytics.view"),
             "bot_creator", Set.of("repo.view", "repo.checkin", "repo.delete", "runs.view", "runs.start", "runs.stop", "devices.view", "schedules.view", "schedules.manage",
-                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage"),
+                    "triggers.view", "triggers.manage", "globals.view", "lockers.own", "queues.view", "queues.work", "queues.manage", "analytics.view"),
             "admin", Set.of("*"));
 
     /** Permissions only administrators have unless a custom role grants them. */
-    public static final List<String> ADMIN_ONLY = List.of("repo.production", "repo.permissions", "lifecycle.export", "lifecycle.import", "queues.all", "users.manage", "devices.manage",
+    public static final List<String> ADMIN_ONLY = List.of("repo.production", "repo.permissions", "lifecycle.export", "lifecycle.import", "queues.all", "teams.manage", "users.manage", "devices.manage",
             "lockers.manage", "globals.manage", "audit.view", "pools.manage", "settings.manage", "connections.manage", "toolkits.manage");
 
     /** Every permission, for building custom roles. */

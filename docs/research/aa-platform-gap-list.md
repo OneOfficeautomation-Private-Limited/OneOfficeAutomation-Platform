@@ -50,10 +50,10 @@ Gaps, ranked by value for an enterprise customer:
 | 2 | Repository folders and permissions | Folder objects (create, rename, delete); role permissions per folder; delete and recover bots; version labels; file dependencies and parents | Done, except renaming folders (2026-10-23) |
 | 3 | Run-as users | Each user is bound to a default device; deploy to users (several at once); run mode (attended, unattended, headless) | Done (2026-10-23) |
 | 4 | Work queues, complete | Work item models (field schemas); get, update and delete items; bulk delete; items from CSV/Excel; export items; queue owners, participants and consumers; queue export/import | Done, except Excel files and queue export/import (2026-10-23) |
-| 5 | Credential vault model | Whole-credential get and delete; delete a locker; locker managers and participants; each user's own attribute values; credential owner; vault mode and master-key status, unlock and rotation | Partial |
-| 6 | Audit search | Field filters, date range, sort, paging, total, CSV export | Partial |
-| 7 | Teams | Teams with members, used to scope folders, lockers and queues | Missing |
-| 8 | Operations analytics | Duration distribution, longest running, most failed, total run time, per-bot statistics, CSV exports | Partial |
+| 5 | Credential vault model | Whole-credential get and delete; delete a locker; locker managers and participants; each user's own attribute values; credential owner; vault mode and master-key status, unlock and rotation | Done (2026-10-23); unlock with a typed master key not needed: the key comes from the key file or OOA_MASTER_KEY |
+| 6 | Audit search | Field filters, date range, sort, paging, total, CSV export | Done (2026-10-23) |
+| 7 | Teams | Teams with members, used to scope folders, lockers and queues | Done (2026-10-23) |
+| 8 | Operations analytics | Duration distribution, longest running, most failed, total run time, per-bot statistics, CSV exports | Done (2026-10-23) |
 | 9 | Token lifecycle | Exchange an API key for a token; refresh; verify | Partial |
 | 10 | Uniform API | Get one by id for users, roles, pools, queues, schedules, triggers and devices; delete device and user; list filters and paging | Partial |
 | 11 | Scheduler extras | Activate or deactivate several at once; change owner; run-as mapping for triggers | Partial |

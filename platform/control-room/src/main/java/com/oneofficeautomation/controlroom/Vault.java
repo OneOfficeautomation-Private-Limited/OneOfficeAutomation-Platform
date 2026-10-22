@@ -17,15 +17,35 @@ import java.util.Base64;
  * associated data), so an encrypted value cannot be moved to another credential.
  */
 public final class Vault {
-    private final SecretKeySpec key;
+    private volatile SecretKeySpec key;
     public final String keySource;
+    /** The key file, or null when the key comes from OOA_MASTER_KEY. */
+    final Path keyFile;
+
+    private Vault(SecretKeySpec key, String keySource, Path keyFile) { this.key = key; this.keySource = keySource; this.keyFile = keyFile; }
+
+    /** A vault with a new random key (for rotating the master key). */
+    static Vault fresh() {
+        byte[] k = new byte[32];
+        Security.RANDOM.nextBytes(k);
+        return new Vault(new SecretKeySpec(k, "AES"), "new key", null);
+    }
+
+    String keyBase64() { return Base64.getEncoder().encodeToString(key.getEncoded()); }
+
+    /** A short fingerprint of the key (SHA-256 of the key, first 12 hex digits), to tell keys apart without showing them. */
+    String fingerprint() { return Security.sha256(keyBase64()).substring(0, 12); }
+
+    /** Switches to another vault's key (after every value was re-encrypted with it). */
+    synchronized void adopt(Vault next) { this.key = next.key; }
 
     public Vault(Path dataDir) {
         String env = System.getenv("OOA_MASTER_KEY");
         byte[] raw;
-        if (env != null && !env.isBlank()) { raw = Base64.getDecoder().decode(env.trim()); keySource = "environment variable OOA_MASTER_KEY"; }
+        if (env != null && !env.isBlank()) { raw = Base64.getDecoder().decode(env.trim()); keySource = "environment variable OOA_MASTER_KEY"; keyFile = null; }
         else {
             Path f = dataDir.resolve("master.key");
+            keyFile = f;
             try {
                 if (!Files.exists(f)) {
                     byte[] k = new byte[32];
@@ -41,7 +61,7 @@ public final class Vault {
         key = new SecretKeySpec(raw, "AES");
     }
 
-    public String encrypt(String plain, String boundTo) {
+    public synchronized String encrypt(String plain, String boundTo) {
         try {
             byte[] iv = new byte[12];
             Security.RANDOM.nextBytes(iv);
@@ -53,7 +73,7 @@ public final class Vault {
         } catch (Exception e) { throw new OoaException("CR.VAULT_ERROR", "Encryption failed"); }
     }
 
-    public String decrypt(String stored, String boundTo) {
+    public synchronized String decrypt(String stored, String boundTo) {
         try {
             String[] p = stored.split(":");
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");

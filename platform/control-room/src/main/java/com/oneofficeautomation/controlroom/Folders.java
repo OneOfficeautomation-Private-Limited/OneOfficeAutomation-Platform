@@ -9,7 +9,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * Repository folders and folder permissions. A folder can give roles (role:bot_creator) and users (user:jane) one of
+ * Repository folders and folder permissions. A folder can give roles (role:bot_creator), teams (team:finance) and users (user:jane) one of
  * four levels of access to what it holds: view (see and export), run (also run and schedule), edit (also check out,
  * check in, delete and recover) and manage (also set the live version and labels). The nearest folder that has any
  * permission decides: a sub-folder without its own permissions follows its parent, and a folder with permissions
@@ -43,12 +43,17 @@ final class Folders {
 
     /** What a user may do in a folder: none, view, run, edit or manage. */
     String accessToFolder(String username, String role, String folder, Map<String, Map<String, String>> all) {
+        return accessToFolder(cr.teams.principalsOf(username, role), role, folder, all);
+    }
+
+    /** As above with the user's principals (user:, role:, team:) worked out once by the caller. */
+    String accessToFolder(List<String> principals, String role, String folder, Map<String, Map<String, String>> all) {
         if (cr.allowed(role, "repo.permissions")) return "manage";
         for (String f = folder; ; f = parentOf(f)) {
             Map<String, String> here = all.get(f);
             if (here != null && !here.isEmpty()) {
                 String best = "none";
-                for (String p : List.of("user:" + username, "role:" + role, "role:*")) {
+                for (String p : principals) {
                     String a = here.get(p);
                     if (a != null && LEVELS.indexOf(a) > LEVELS.indexOf(best)) best = a;
                 }
@@ -76,6 +81,7 @@ final class Folders {
     List<Map<String, Object>> list(User by) {
         cr.require(by, "repo.view", "view the agent repository");
         Map<String, Map<String, String>> all = entries();
+        List<String> mine = cr.teams.principalsOf(by.username(), by.role());
         TreeMap<String, Map<String, Object>> out = new TreeMap<>();
         java.util.function.Consumer<String> add = f -> {
             for (String x = f; !x.isEmpty(); x = parentOf(x)) out.computeIfAbsent(x, k -> new LinkedHashMap<>(Map.of("path", k)));
@@ -93,7 +99,7 @@ final class Folders {
         List<Map<String, Object>> list = new ArrayList<>();
         for (Map<String, Object> f : out.values()) {
             String p = (String) f.get("path");
-            String a = accessToFolder(by.username(), by.role(), p, all);
+            String a = accessToFolder(mine, by.role(), p, all);
             if (a.equals("none")) continue;
             Map<String, Object> m = new LinkedHashMap<>(f);
             m.put("access", a);
@@ -146,12 +152,7 @@ final class Folders {
             if (!(o instanceof Map<?, ?> m)) throw new OoaException("CR.BAD_INPUT", "Each permission is {principal, access}");
             String principal = String.valueOf(m.get("principal")), access = String.valueOf(m.get("access"));
             if (!LEVELS.contains(access) || access.equals("none")) throw new OoaException("CR.BAD_INPUT", "Access is view, run, edit or manage");
-            if (principal.startsWith("role:")) {
-                String r = principal.substring(5);
-                if (!r.equals("*") && !cr.roleExists(r)) throw notFound("Role " + r);
-            } else if (principal.startsWith("user:")) {
-                if (db.one("SELECT id FROM users WHERE username = ?", principal.substring(5)) == null) throw notFound("User " + principal.substring(5));
-            } else throw new OoaException("CR.BAD_INPUT", "Principals look like role:bot_creator or user:jane");
+            cr.teams.checkPrincipal(principal);
             clean.add(Map.of("principal", principal, "access", access));
         }
         db.tx(() -> {

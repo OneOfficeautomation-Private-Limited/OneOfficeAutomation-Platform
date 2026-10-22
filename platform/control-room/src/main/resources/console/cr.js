@@ -142,15 +142,16 @@ const PAGES = [
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
-  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
+  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
+  ["operations", "Operations", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"]];
 
 /** The menu: Home, then three groups. Pages not listed here (admin) are reachable from inside other pages only. */
 const NAV_GROUPS = [
   ["build", "Build", ["automation", "studio", "workflows", "queues"]],
-  ["run", "Run & Monitor", ["activity", "inbox", "schedules", "triggers", "devices"]],
-  ["govern", "Govern", ["users", "roles", "credentials", "globals", "toolkits", "connections", "governance", "audit", "settings"]],
+  ["run", "Run & Monitor", ["activity", "operations", "inbox", "schedules", "triggers", "devices"]],
+  ["govern", "Govern", ["users", "teams", "roles", "credentials", "globals", "toolkits", "connections", "governance", "audit", "settings"]],
 ];
 const NAV_COLLAPSED_KEY = "ooa.cc.navCollapsed";
 function navCollapsed() { try { return JSON.parse(localStorage.getItem(NAV_COLLAPSED_KEY) || "[]"); } catch (_) { return []; } }
@@ -786,19 +787,42 @@ const VIEWS = {
     const box = h("div", { class: "locker-grid" });
     const render = () => {
       const f = q.value.trim().toLowerCase();
-      const lockers = r.lockers.filter((l) => !f || (l.name + " " + (l.description || "") + " " + l.credentials.map((c) => c.name + " " + c.attribute).join(" ")).toLowerCase().includes(f)).map((l) => h("div", { class: "card locker" },
-        h("div", { class: "locker-head" }, ic("lock", "#dc2626"), h("div", {}, h("h2", { text: l.name }), h("p", { class: "muted", text: (l.description || "") + "  Owners: " + l.owners + ".  Consumers: " + (l.consumers || "none") + "." }),
-          l.external ? h("p", {}, h("span", { class: "pill running", text: "Linked: " + (EXT_VAULTS[l.external.provider] || l.external.provider) }), " ", h("span", { class: "muted small", text: (l.external.url || l.external.region || "") + " \u00B7 credentials are read from there as name/attribute" })) : null)),
-        table(["Credential", "Attribute", "Updated", ""], l.credentials.map((c) => ({ data: c, cells: [c.name, c.attribute, ago(c.updated) + " by " + c.updated_by,
-          l.can_manage ? h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete " + c.name + "/" + c.attribute + "?")) { await api("DELETE", "lockers/" + l.name + "/" + c.name + "/" + c.attribute); go("credentials"); } } }, "Delete") : ""] }))),
-        l.can_manage ? h("div", { class: "row-actions" },
-          h("button", { type: "button", onclick: () => credentialDialog(l.name) }, "Add or update credential"),
-          h("button", { type: "button", onclick: () => consumersDialog(l) }, "Consumers"),
-          h("button", { type: "button", onclick: () => externalVaultDialog(l) }, l.external ? "External vault" : "Link an external vault")) : null));
+      const lockers = r.lockers.filter((l) => !f || (l.name + " " + (l.description || "") + " " + l.credentials.map((c) => c.name + " " + c.attribute).join(" ")).toLowerCase().includes(f)).map((l) => {
+        // one row per credential: its attributes (user-provided ones marked), owner and last change
+        const info = Object.fromEntries((l.credential_info || []).map((c) => [c.name, c]));
+        const byName = {};
+        for (const c of l.credentials) (byName[c.name] = byName[c.name] || []).push(c);
+        for (const n of Object.keys(info)) byName[n] = byName[n] || [];
+        const writer = ["owner", "manager"].includes(l.my_role);
+        const canChange = (n) => writer || (l.my_role === "participant" && (!info[n] || info[n].owner === S.user.username));
+        const rows = Object.keys(byName).sort().map((n) => {
+          const ci = info[n] || { user_attributes: [], my_values: [] };
+          const last = byName[n].slice().sort((a, b) => String(b.updated).localeCompare(String(a.updated)))[0];
+          return { data: n, cells: [h("strong", { text: n }), h("div", { class: "chips" }, byName[n].map((c) => h("span", { class: "chip", text: c.attribute })),
+            (ci.user_attributes || []).map((a) => h("span", { class: "chip user-attr", title: "Each person stores their own value" + ((ci.my_values || []).includes(a) ? " (yours is set)" : " (yours is not set)"), text: a + ((ci.my_values || []).includes(a) ? " \u2713" : " \u2026") }))),
+            ci.owner || "", last ? ago(last.updated) + " by " + last.updated_by : "",
+            h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => credentialDetails(l, n) }, "Details"),
+              canChange(n) ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the credential " + n + " with all its values (everyone's own values too)?")) return;
+                try { await api("DELETE", "vault/credential?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(n)); go("credentials"); } catch (e) { toast(e.message, true); } } }, "Delete") : null)] };
+        });
+        return h("div", { class: "card locker" },
+          h("div", { class: "locker-head" }, ic("lock", "#dc2626"), h("div", {}, h("h2", {}, l.name, " ", h("span", { class: "pill", text: "You: " + l.my_role })),
+            h("p", { class: "muted", text: (l.description || "") + "  Owners: " + l.owners + ".  Consumers: " + (l.consumers || "none") + "."
+              + (l.managers && l.managers.length ? "  Managers: " + l.managers.join(", ") + "." : "") + (l.participants && l.participants.length ? "  Participants: " + l.participants.join(", ") + "." : "") }),
+            l.external ? h("p", {}, h("span", { class: "pill running", text: "Linked: " + (EXT_VAULTS[l.external.provider] || l.external.provider) }), " ", h("span", { class: "muted small", text: (l.external.url || l.external.region || "") + " \u00B7 credentials are read from there as name/attribute" })) : null)),
+          table(["Credential", "Attributes", "Owner", "Updated", ""], rows),
+          h("div", { class: "row-actions" },
+            writer || l.my_role === "participant" ? h("button", { type: "button", onclick: () => credentialDialog(l.name) }, "Add or update credential") : null,
+            l.can_manage ? h("button", { type: "button", onclick: () => lockerMembersDialog(l) }, "Members") : null,
+            l.can_manage ? h("button", { type: "button", onclick: () => externalVaultDialog(l) }, l.external ? "External vault" : "Link an external vault") : null,
+            l.can_manage && !rows.length ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the empty vault folder " + l.name + "?")) return;
+              try { await api("DELETE", "lockers/" + encodeURIComponent(l.name)); go("credentials"); } catch (e) { toast(e.message, true); } } }, "Delete folder") : null));
+      });
       box.replaceChildren(...(lockers.length ? lockers : [h("p", { class: "muted", text: r.lockers.length ? "No matches." : "No vault folders you own or consume yet." })]));
     };
     q.addEventListener("input", render);
     main.replaceChildren(...header("One Agent Vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
+      can("lockers.manage") ? h("button", { type: "button", onclick: vaultKeyDialog }, ic("key", "#475569", "sm"), "Vault key") : null,
       can("lockers.manage") || can("lockers.own") ? h("button", { type: "button", class: "primary", onclick: lockerDialog }, "New vault folder") : null), h("div", { class: "toolbar" }, q), box);
     render();
   },
@@ -842,27 +866,99 @@ const VIEWS = {
               modal("Temporary password", [secretBox(u.username, p.temporary_password, "Give it to the user securely. They must change it at first sign-in. Shown only once.")], []); } }, "Reset password")) }]}));
   },
 
+  async teams(main) {
+    const [r, u] = await Promise.all([api("GET", "teams"), api("GET", "users").catch(() => ({ users: [] }))]);
+    S.users = u.users;
+    main.replaceChildren(...header("Teams", "Groups of people. Name a team as team:finance in folder permissions, vault folders and work queue members; adding someone to the team gives them all of it.",
+      can("teams.manage") ? h("button", { type: "button", class: "primary", onclick: () => teamDialog() }, "New team") : null),
+      dataTable({ rows: r.teams, search: "Search teams", exportName: "teams", empty: "No teams yet.",
+        columns: [
+          { label: "Team", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small", text: t.description || "" })) },
+          { label: "Leads", value: (t) => t.members.filter((m) => m.team_role === "lead").map((m) => m.username).join(", ") },
+          { label: "Members", value: (t) => t.members.length, render: (t) => h("div", { class: "chips" }, t.members.map((m) => h("span", { class: "chip", text: m.username + (m.team_role === "lead" ? " (lead)" : "") }))) },
+          { label: "Use in rules as", value: (t) => "team:" + t.name, render: (t) => h("code", { text: "team:" + t.name }) },
+          { label: "", sort: false, render: (t) => h("div", { class: "row-actions tight" },
+            can("teams.manage") || t.members.some((m) => m.username === S.user.username && m.team_role === "lead") ? h("button", { type: "button", onclick: () => teamMembersDialog(t) }, "Members") : null,
+            can("teams.manage") ? h("button", { type: "button", onclick: () => teamDialog(t) }, "Edit") : null,
+            can("teams.manage") ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete team " + t.name + "?")) return; try { await api("DELETE", "teams/" + t.id); go("teams"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
+  },
+
+  async operations(main) {
+    await loadRefs();
+    S.ops = S.ops || { days: "30", bot: "" };
+    const days = h("select", { "aria-label": "Period" }, [["1", "Last 24 hours"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"], ["365", "Last year"]].map(([v, l]) => h("option", { value: v, text: l })));
+    days.value = S.ops.days;
+    const bot = h("select", { "aria-label": "Agent" }, h("option", { value: "", text: "All agents" }), S.bots.filter((b) => isAgent(b.path)).map((b) => h("option", { value: b.path, text: botName(b.path) })));
+    bot.value = S.ops.bot;
+    const query = () => "days=" + S.ops.days + (S.ops.bot ? "&bot=" + encodeURIComponent(S.ops.bot) : "");
+    days.addEventListener("change", () => { S.ops.days = days.value; go("operations"); });
+    bot.addEventListener("change", () => { S.ops.bot = bot.value; go("operations"); });
+    const o = await api("GET", "analytics?" + query());
+    const t = o.totals;
+    const csvBtn = (report, label) => h("button", { type: "button", class: "small", onclick: async () => {
+      try { const res = await fetch("/api/analytics/export?report=" + report + "&" + query(), { credentials: "same-origin" }); if (!res.ok) throw new Error(res.statusText);
+        download("operations-" + report + ".csv", await res.text(), "text/csv"); } catch (e) { toast(e.message, true); } } }, ic("download", "#475569", "sm"), label || "CSV");
+    const tile = (label, value, sub) => h("div", { class: "card kpi" }, h("div", { class: "muted small", text: label }), h("div", { class: "kpi-value", text: value }), sub ? h("div", { class: "muted small", text: sub }) : null);
+    const bars = (items, label, value, fmtv) => { const max = Math.max(1, ...items.map(value)); return h("div", { class: "hbars" }, items.map((it) => h("div", { class: "hbar" },
+      h("span", { class: "hbar-label", text: label(it) }), h("span", { class: "hbar-track" }, (() => { const b = h("span", { class: "hbar-fill" }); b.style.width = (100 * value(it) / max) + "%"; return b; })()),
+      h("span", { class: "hbar-value", text: fmtv ? fmtv(it) : String(value(it)) })))); };
+    const rate = (x) => x === null || x === undefined ? "\u2014" : x + "%";
+    const statTable = (rows, first, extra = []) => table([first, "Runs", "Success rate", "Average", "95% within", "Total time", ...extra.map((e) => e[0])], rows.map((r) => ({ data: r,
+      cells: [first === "Agent" ? h("button", { type: "button", class: "link", onclick: () => agentStatsDialog(r.bot_path) }, botName(r.bot_path)) : String(r.runner || r.source || r.day || ""),
+        String(r.runs), rate(r.success_rate), dur(r.avg_ms), dur(r.p95_ms), dur(r.total_ms), ...extra.map((e) => e[1](r))] })));
+    main.replaceChildren(...header("Operations", "How agents ran in the period: volumes, success, run time, the agents that run most, take longest and fail most, and the use of each runner.", csvBtn("run_history", "Run history CSV")),
+      h("div", { class: "toolbar" }, days, bot, o.period.capped ? h("span", { class: "pill failed", text: "Only the first " + o.period.runs_counted + " runs are counted" }) : null),
+      h("div", { class: "kpis" }, tile("Runs", String(t.runs), t.active ? t.active + " still active" : null), tile("Success rate", rate(t.success_rate), t.success + " succeeded, " + t.failed + " failed, " + t.stopped + " stopped"),
+        tile("Run time", dur(t.total_ms), "average " + dur(t.avg_ms)), tile("95% of runs finish within", dur(t.p95_ms), "longest " + dur(t.max_ms))),
+      h("div", { class: "grid2 ops-grid" },
+        h("div", { class: "card" }, h("h3", { text: "How long runs take" }), bars(o.duration_distribution, (x) => x.bucket, (x) => x.runs)),
+        h("div", { class: "card" }, h("h3", { text: "Runs per day" }), o.by_day.length ? bars(o.by_day.slice(-31), (x) => x.day.slice(5), (x) => x.runs, (x) => x.runs + (x.failed ? " (" + x.failed + " failed)" : "")) : h("p", { class: "muted", text: "No runs in the period." }))),
+      h("div", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Agents run most" }), csvBtn("most_run")), statTable(o.most_run, "Agent")),
+      h("div", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Agents that take longest (average)" }), csvBtn("longest")), statTable(o.longest, "Agent", [["Longest", (r) => dur(r.max_ms)]])),
+      h("div", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Agents that fail most" }), csvBtn("most_failed")),
+        o.most_failed.length ? statTable(o.most_failed, "Agent", [["Failed", (r) => String(r.failed)], ["Failure rate", (r) => rate(r.failure_rate)], ["Errors", (r) => (r.top_errors || []).join(", ")]]) : h("p", { class: "muted", text: "No failures in the period." })),
+      h("div", { class: "grid2 ops-grid" },
+        h("div", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "Runners" }), csvBtn("by_runner")), statTable(o.by_runner, "Runner")),
+        h("div", { class: "card" }, h("div", { class: "card-head" }, h("h3", { text: "How runs were started" }), csvBtn("by_source")), statTable(o.by_source, "Source"))));
+  },
+
   async audit(main) {
-    const q = h("input", { type: "search", placeholder: "Filter by user, action or object", "aria-label": "Filter audit trail" });
-    const result = h("select", { "aria-label": "Result" }, h("option", { value: "", text: "Any result" }), h("option", { value: "ok", text: "Succeeded" }), h("option", { value: "failed", text: "Failed or refused" }));
+    const q = h("input", { type: "search", placeholder: "Search everything", "aria-label": "Search the audit trail" });
+    const actor = h("input", { placeholder: "Who (user name)", "aria-label": "Who" }), action = h("input", { placeholder: "Action, e.g. repo. or run.start", "aria-label": "Action" });
+    const otype = h("input", { placeholder: "Object type, e.g. bot", "aria-label": "Object type" });
+    const result = h("select", { "aria-label": "Result" }, [["", "Any result"], ["ok", "Succeeded"], ["failed", "Failed"], ["denied", "Refused"], ["not_found", "Not found"]].map(([v, l]) => h("option", { value: v, text: l })));
+    const from = h("input", { type: "date", "aria-label": "From" }), to = h("input", { type: "date", "aria-label": "To" });
+    const sort = h("select", { "aria-label": "Order" }, h("option", { value: "newest", text: "Newest first" }), h("option", { value: "oldest", text: "Oldest first" }));
     const box = h("div"), status = h("span", { class: "muted" });
+    let page = 0;
+    const SIZE = 100;
+    const params = () => [["q", q.value], ["actor", actor.value], ["action", action.value], ["object_type", otype.value], ["result", result.value], ["from", from.value], ["to", to.value], ["sort", sort.value]]
+      .filter(([, v]) => v && v.trim()).map(([k, v]) => k + "=" + encodeURIComponent(v.trim())).join("&");
     const render = async () => {
-      const r = await api("GET", "audit?limit=1000&q=" + encodeURIComponent(q.value));
-      const rows = r.records.filter((a) => !result.value || (result.value === "ok" ? a.result === "ok" : a.result !== "ok"));
-      box.replaceChildren(dataTable({ rows, search: false, pageSize: 50, exportName: "audit-log",
+      const r = await api("GET", "audit?limit=" + SIZE + "&offset=" + page * SIZE + "&" + params());
+      const rows = r.records;
+      const pages = Math.max(1, Math.ceil(r.total / SIZE));
+      box.replaceChildren(h("p", { class: "muted", text: r.total + " record" + (r.total === 1 ? "" : "s") + " match." }), r.total > SIZE ? pager(page, pages, r.total, SIZE, (p) => { page = p; render(); }) : null, dataTable({ rows, search: false, pageSize: SIZE,
         columns: [{ label: "#", value: (a) => a.seq }, { label: "Time", value: (a) => a.ts, render: (a) => h("span", { title: a.ts }, local(a.ts)) }, { label: "Who", value: (a) => a.actor },
           { label: "Action", value: (a) => a.action, render: (a) => h("span", { class: "tag", text: a.action }) }, { label: "Object", value: (a) => (a.object_type || "") + " " + (a.object_id || "") },
           { label: "Result", value: (a) => a.result, render: (a) => h("span", { class: "pill " + (a.result === "ok" ? "success" : "failed"), text: a.result }) },
           { label: "Details", value: (a) => a.details || "", render: (a) => h("span", { class: "mono small", text: a.details || "" }) }] }));
     };
-    q.addEventListener("input", () => { clearTimeout(q.t); q.t = setTimeout(render, 250); });
-    result.addEventListener("change", render);
+    for (const el of [q, actor, action, otype]) el.addEventListener("input", () => { clearTimeout(q.t); q.t = setTimeout(() => { page = 0; render(); }, 300); });
+    for (const el of [result, from, to, sort]) el.addEventListener("change", () => { page = 0; render(); });
+    const exportCsv = h("button", { type: "button", onclick: async () => {
+      try {
+        const res = await fetch("/api/audit/export?" + params(), { credentials: "same-origin" });
+        if (!res.ok) { const e = (await res.json().catch(() => ({}))).error || {}; throw new Error(e.message || res.statusText); }
+        download("audit-trail.csv", await res.text(), "text/csv");
+      } catch (e) { toast(e.message, true); } } }, ic("download", "#475569", "sm"), "Export CSV");
     const verify = h("button", { type: "button", onclick: async () => {
       const v = await api("GET", "audit/verify");
       status.textContent = v.valid ? "Chain intact: " + v.records + " records verified." : "TAMPERING DETECTED at record " + v.broken_at + ".";
       status.className = v.valid ? "ok-text" : "error";
     } }, "Verify integrity");
-    main.replaceChildren(...header("One Audit Trail", "Every sign-in, change, run and credential use. Records are hash-chained, so editing history is detectable."), h("div", { class: "toolbar" }, q, result, verify, status), box);
+    main.replaceChildren(...header("One Audit Trail", "Every sign-in, change, run and credential use. Records are hash-chained, so editing history is detectable."),
+      h("div", { class: "toolbar" }, q, actor, action, otype, result), h("div", { class: "toolbar" }, h("label", { class: "inline" }, "From ", from), h("label", { class: "inline" }, "To ", to), sort, exportCsv, verify, status), box);
     await render();
   },
 };
@@ -979,6 +1075,7 @@ async function openBot(b) {
     can("runs.start") && b.production_version && isAgent(b.path) ? h("button", { type: "button", class: "primary", onclick: () => runDialog(b) }, "Run") : null,
     can("runs.start") && b.production_version && /\.process\.json$/.test(b.path) ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog(b.path) }, "Start") : null,
     h("button", { type: "button", onclick: () => versionsDialog(b) }, "Versions"),
+    can("analytics.view") && isAgent(b.path) ? h("button", { type: "button", onclick: () => agentStatsDialog(b.path) }, "Statistics") : null,
     can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null]);
   try {
     const deps = await api("GET", "repo/dependencies?path=" + encodeURIComponent(b.path)).catch(() => null);
@@ -1030,7 +1127,7 @@ async function openUser(u) {
   const body = h("div", { class: "run-detail" });
   openDrawer([h("span", { class: "avatar sm", text: (u.display_name || u.username).charAt(0).toUpperCase() }), h("span", { text: u.display_name || u.username })], body, []);
   try {
-    const a = await api("GET", "audit?limit=30&q=" + encodeURIComponent(u.username));
+    const a = await api("GET", "audit?limit=30&actor=" + encodeURIComponent(u.username));
     body.replaceChildren(kv([["User name", u.username], ["Role", roleLabel(u.role)], ["Status", u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled"], ["Last sign-in", local(u.last_login) || "never"]]),
       h("h3", { text: "Recent activity" }), table(["Time", "Action", "Object", "Result"], a.records.filter((x) => x.actor === u.username).map((x) => ({ data: x, cells: [local(x.ts), x.action, (x.object_type || "") + " " + (x.object_id || ""), x.result] }))));
   } catch (e) { body.replaceChildren(h("p", { class: "error", text: e.message })); }
@@ -1291,6 +1388,99 @@ function credentialDialog(locker) {
     h("p", { class: "muted", text: "Agents refer to it as " + locker + "/credential/attribute." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try { await api("PUT", "lockers/" + locker + "/" + name.value + "/" + attr.value, { value: val.value }); val.value = ""; closeModal(); toast("Saved and encrypted"); go("credentials"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+/** Owners (people), managers, participants and consumers (people, roles or teams) of a vault folder. */
+function lockerMembersDialog(l) {
+  const list = (v) => (Array.isArray(v) ? v : String(v || "").split(",")).map((x) => x.trim()).filter(Boolean).join(", ");
+  const owners = h("input", { value: list(l.owners) }), managers = h("input", { value: list(l.managers), placeholder: "user:carl, team:finance-admins" });
+  const participants = h("input", { value: list(l.participants), placeholder: "team:finance" }), consumers = h("input", { value: list(l.consumers), placeholder: "role:bot_runner, team:finance" });
+  modal("Members of " + l.name, [
+    h("label", {}, "Owners (user names): everything, members included", owners),
+    h("label", {}, "Managers: add, change and delete every credential", managers),
+    h("label", {}, "Participants: see the folder, add credentials and change their own", participants),
+    h("label", {}, "Consumers: their agents may use the credentials", consumers),
+    h("p", { class: "muted", text: "Managers, participants and consumers can be users (user:jane), roles (role:bot_runner) or teams (team:finance)." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api("PUT", "lockers/" + encodeURIComponent(l.name) + "/members", { owners: owners.value, managers: managers.value, participants: participants.value, consumers: consumers.value }); closeModal(); go("credentials"); }
+    catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+/** A credential's attributes, owner, description, user-provided attributes and the caller's own values. */
+async function credentialDetails(l, name) {
+  let c;
+  try { c = await api("GET", "vault/credential?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(name)); } catch (e) { toast(e.message, true); return; }
+  const ref = l.name + "/" + name;
+  const userAttrs = c.attributes.filter((a) => a.user_provided).map((a) => a.attribute);
+  const desc = h("input", { value: c.description || "", disabled: !c.can_change });
+  const ua = h("input", { value: userAttrs.join(", "), disabled: !c.can_change, placeholder: "password" });
+  const owner = h("input", { value: c.owner || "", disabled: !["owner", "manager"].includes(l.my_role) });
+  const mine = userAttrs.map((a) => {
+    const v = h("input", { type: "password", autocomplete: "new-password", placeholder: c.my_values.includes(a) ? "(your value is set; type to replace)" : "your value" });
+    return h("div", { class: "grid2" }, h("label", {}, "Your " + a, v), h("div", { class: "row-actions" },
+      h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "vault/my-value", { locker: l.name, name, attribute: a, value: v.value }); v.value = ""; toast("Your " + a + " is saved"); credentialDetails(l, name); } catch (e) { toast(e.message, true); } } }, "Save mine"),
+      c.my_values.includes(a) ? h("button", { type: "button", onclick: async () => { try { await api("DELETE", "vault/my-value?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(name) + "&attribute=" + encodeURIComponent(a)); credentialDetails(l, name); } catch (e) { toast(e.message, true); } } }, "Clear mine") : null));
+  });
+  modal("Credential " + ref, [
+    table(["Attribute", "Value", "Updated"], c.attributes.map((a) => ({ data: a, cells: [h("code", { text: ref + "/" + a.attribute }), a.user_provided ? "each person's own" + (c.my_values.includes(a.attribute) ? " (yours is set)" : " (yours is not set)") : "shared, encrypted",
+      a.updated ? ago(a.updated) + " by " + a.updated_by : ""] }))),
+    h("div", { class: "grid2" }, h("label", {}, "Description", desc), h("label", {}, "Owner", owner), h("label", {}, "User-provided attributes (each person stores their own)", ua)),
+    userAttrs.length ? h("h3", { text: "Your values" }) : null, ...mine,
+    h("p", { class: "muted", text: "A run reads a user-provided attribute from the person it runs as (the run-as user, or whoever started it)." })].filter(Boolean),
+  c.can_change || ["owner", "manager"].includes(l.my_role) ? [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const body = { description: desc.value, user_attributes: ua.value.split(",").map((x) => x.trim()).filter(Boolean) };
+      if (owner.value.trim() && owner.value.trim() !== c.owner) body.owner = owner.value.trim();
+      await api("PUT", "vault/credential?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(name), body); closeModal(); go("credentials");
+    } catch (e) { toast(e.message, true); } } }, "Save details")] : []);
+}
+
+/** The master key: where it comes from, its fingerprint, and rotating it (every stored value is encrypted again). */
+async function vaultKeyDialog() {
+  let st;
+  try { st = await api("GET", "vault/status"); } catch (e) { toast(e.message, true); return; }
+  modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : "OOA_MASTER_KEY environment variable"], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
+    ["Vault folders", String(st.vault_folders)], ["Shared values", String(st.values)], ["People's own values", String(st.personal_values)], ["External vault links", String(st.external_links)]]),
+    h("p", { class: "muted", text: st.can_rotate ? "Rotating makes a new master key and encrypts every stored value again with it, in one transaction. The old key file is kept beside the new one (master.key.old-…) until you remove it; back it up with the database." :
+      "The key comes from OOA_MASTER_KEY, so it is rotated where that variable is managed." })],
+  st.can_rotate ? [h("button", { type: "button", class: "danger", onclick: async () => {
+    if (!confirm("Rotate the vault master key now? Agents keep working; every value is encrypted again.")) return;
+    try { const r = await api("POST", "vault/rotate"); toast("Key rotated: " + r.re_encrypted + " values encrypted again. New fingerprint " + r.key_fingerprint); vaultKeyDialog(); } catch (e) { toast(e.message, true); } } }, "Rotate key")] : []);
+}
+
+function teamDialog(t) {
+  const name = h("input", { value: t ? t.name : "", placeholder: "finance", disabled: !!t }), desc = h("input", { value: t ? t.description || "" : "" });
+  modal(t ? "Edit team " + t.name : "New team", [h("label", {}, "Name (used in rules as team:name)", name), h("label", {}, "Description", desc)],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      try { const r = await api(t ? "PUT" : "POST", "teams" + (t ? "/" + t.id : ""), { name: name.value.trim(), description: desc.value }); closeModal(); if (!t) teamMembersDialog({ id: r.id, name: r.name, members: [] }); else go("teams"); }
+      catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+function teamMembersDialog(t) {
+  const rows = t.members.map((m) => ({ username: m.username, role: m.team_role }));
+  const box = h("div");
+  const draw = () => box.replaceChildren(rows.length ? table(["Person", "Role", ""], rows.map((r, i) => {
+    const role = h("select", { "aria-label": "Role of " + r.username, onchange: (e) => { r.role = e.target.value; } }, h("option", { value: "member", text: "Member" }), h("option", { value: "lead", text: "Lead (changes the members)" }));
+    role.value = r.role;
+    return { data: r, cells: [r.username, role, h("button", { type: "button", onclick: () => { rows.splice(i, 1); draw(); } }, "Remove")] };
+  })) : h("p", { class: "muted", text: "No members yet." }));
+  const who = h("select", { "aria-label": "Person" }, (S.users || []).map((u) => h("option", { value: u.username, text: (u.display_name || u.username) + " (" + u.username + ")" })));
+  const typed = h("input", { placeholder: "or a user name" });
+  draw();
+  modal("Members of " + t.name, [box, h("div", { class: "grid2" }, h("label", {}, "Add", who), h("label", {}, "User name (instead)", typed)),
+    h("button", { type: "button", onclick: () => { const u = typed.value.trim() || who.value; if (u && !rows.some((x) => x.username === u)) rows.push({ username: u, role: "member" }); typed.value = ""; draw(); } }, "+ Add")],
+  [h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "teams/" + t.id + "/members", { members: rows }); closeModal(); go("teams"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+/** One agent's statistics for the Operations period. */
+async function agentStatsDialog(path) {
+  let a;
+  try { a = await api("GET", "analytics/agent?path=" + encodeURIComponent(path) + "&days=" + ((S.ops && S.ops.days) || "30")); } catch (e) { toast(e.message, true); return; }
+  const t = a.totals;
+  modal("Statistics of " + botName(path), [kv([["Runs", String(t.runs)], ["Success rate", t.success_rate === null ? "\u2014" : t.success_rate + "%"], ["Average", dur(t.avg_ms)], ["95% within", dur(t.p95_ms)], ["Longest", dur(t.max_ms)],
+    ["Last run", a.last_run ? local(a.last_run.created) + " (" + a.last_run.status + ")" : "none"], ["Last failure", a.last_failure ? local(a.last_failure.created) + " (" + a.last_failure.code + ")" : "none"]]),
+    a.errors.length ? [h("h3", { text: "Errors" }), table(["Error", "Runs"], a.errors.map((e) => ({ data: e, cells: [h("code", { text: e.code }), String(e.runs)] })))] : null,
+    h("h3", { text: "Runners" }), table(["Runner", "Runs", "Success rate", "Average"], a.by_runner.map((r) => ({ data: r, cells: [String(r.runner), String(r.runs), r.success_rate === null ? "\u2014" : r.success_rate + "%", dur(r.avg_ms)] })))].flat().filter(Boolean), []);
 }
 
 function consumersDialog(l) {

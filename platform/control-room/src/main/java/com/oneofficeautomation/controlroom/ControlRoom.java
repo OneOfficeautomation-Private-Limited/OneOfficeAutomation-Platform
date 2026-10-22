@@ -29,6 +29,12 @@ public final class ControlRoom {
     final Folders folders;
     /** Export, import and promotion of agents between Command Centers. */
     public final Lifecycle lifecycle;
+    /** Teams of people, named team:x in access rules. */
+    public final Teams teams;
+    /** Vault folder members, credential owners, people's own values and the master key. */
+    public final VaultAdmin vaultAdmin;
+    /** Run analytics for Operations. */
+    public final Analytics analytics;
     /** Server-side triggers (email, Outlook, ServiceNow, universal poller); the server clock calls tick(). */
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     private final FlowValidator validator;
@@ -47,8 +53,11 @@ public final class ControlRoom {
         db.migrate();
         this.platform = new Platform(this, registry);
         this.workflows = new Workflows(this);
+        this.teams = new Teams(this);
         this.folders = new Folders(this);
         this.lifecycle = new Lifecycle(this);
+        this.vaultAdmin = new VaultAdmin(this);
+        this.analytics = new Analytics(this);
         loadRoles();
     }
 
@@ -308,6 +317,7 @@ public final class ControlRoom {
         String like = "%" + (q == null ? "" : q.toLowerCase(Locale.ROOT)) + "%";
         String in = folder == null || folder.isBlank() ? null : Folders.normalize(folder) + "/";
         Map<String, Map<String, String>> perms = folders.entries();
+        List<String> mine = teams.principalsOf(by.username(), by.role());
         Map<String, List<Object>> labels = new HashMap<>();
         for (Map<String, Object> l : db.query("SELECT path, label, version FROM bot_labels ORDER BY label"))
             labels.computeIfAbsent((String) l.get("path"), k -> new ArrayList<>()).add(Map.of("label", l.get("label"), "version", l.get("version")));
@@ -317,7 +327,7 @@ public final class ControlRoom {
                 " ORDER BY path", like, like, like)) {
             String path = (String) b.get("path");
             if (in != null && !path.startsWith(in)) continue;
-            String access = folders.accessToFolder(by.username(), by.role(), Folders.folderOf(path), perms);
+            String access = folders.accessToFolder(mine, by.role(), Folders.folderOf(path), perms);
             if (access.equals("none")) continue;
             Map<String, Object> m = new LinkedHashMap<>(b);
             if (!deleted) { m.remove("deleted_at"); m.remove("deleted_by"); }
@@ -1305,11 +1315,35 @@ public final class ControlRoom {
         return allowed(u.role(), "lockers.manage") || csv(locker.get("owners")).contains(u.username());
     }
 
+    /**
+     * The caller's place in a vault folder: owner (everything, members included), manager (every credential),
+     * participant (sees the folder; adds credentials and changes their own), consumer (agents use its credentials),
+     * or null. Managers, participants and consumers can be users, roles or teams.
+     */
+    String lockerRole(User u, Map<String, Object> locker) {
+        if (ownsLocker(u, locker)) return "owner";
+        List<String> mine = teams.principalsOf(u.username(), u.role());
+        if (csv(locker.get("managers")).stream().anyMatch(mine::contains)) return "manager";
+        if (csv(locker.get("participants")).stream().anyMatch(mine::contains)) return "participant";
+        if (csv(locker.get("consumers")).stream().anyMatch(mine::contains)) return "consumer";
+        return null;
+    }
+
+    /** Owners and managers change every credential; a participant creates credentials and changes the ones they own. */
+    boolean canChangeCredential(User u, Map<String, Object> locker, String credential) {
+        String r = lockerRole(u, locker);
+        if ("owner".equals(r) || "manager".equals(r)) return true;
+        if (!"participant".equals(r)) return false;
+        Map<String, Object> meta = db.one("SELECT owner FROM credential_meta WHERE locker = ? AND name = ?", locker.get("name"), credential);
+        boolean exists = meta != null || db.one("SELECT name FROM credentials WHERE locker = ? AND name = ? LIMIT 1", locker.get("name"), credential) != null;
+        return !exists || (meta != null && u.username().equals(meta.get("owner")));
+    }
+
     public void createLocker(User by, String name, String description, Object consumers, String ip) {
         if (!allowed(by.role(), "lockers.manage") && !allowed(by.role(), "lockers.own")) throw denied("create lockers");
         if (name == null || !NAME.matcher(name).matches()) throw new OoaException("CR.BAD_INPUT", "Vault folder names use letters, digits, . _ -");
         List<String> cons = csv(consumers);
-        for (String c : cons) if (!c.startsWith("role:") && !c.startsWith("user:")) throw new OoaException("CR.BAD_INPUT", "Consumers look like role:bot_runner or user:jane");
+        for (String c : cons) teams.checkPrincipal(c);
         db.update("INSERT INTO lockers (name, description, owners, consumers, created_by) VALUES (?,?,?,?,?)", name, description, by.username(), String.join(",", cons), by.username());
         audit.record(by.username(), "locker.create", "locker", name, Map.of("consumers", cons), "ok", ip);
     }
@@ -1326,45 +1360,56 @@ public final class ControlRoom {
     public List<Map<String, Object>> lockers(User by) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> l : db.query("SELECT * FROM lockers ORDER BY name")) {
-            boolean owner = ownsLocker(by, l);
-            if (!owner && !consumes(by.username(), by.role(), l)) continue;
+            String role = lockerRole(by, l);
+            if (role == null) continue;
             Map<String, Object> m = new LinkedHashMap<>(l);
             m.remove("external_secret");
             m.put("external", l.get("external") == null ? null : JsonLite.parse((String) l.get("external")));
-            m.put("can_manage", owner);
+            m.put("can_manage", role.equals("owner"));
+            m.put("my_role", role);
+            for (String k : List.of("managers", "participants")) m.put(k, csv(l.get(k)));
             List<Object> creds = new ArrayList<>();
             for (Map<String, Object> c : db.query("SELECT name, attribute, updated, updated_by FROM credentials WHERE locker = ? ORDER BY name, attribute", l.get("name"))) creds.add(c);
             m.put("credentials", creds);
+            m.put("credential_info", vaultAdmin.credentialInfo(by, (String) l.get("name")));
             out.add(m);
         }
         return out;
     }
 
-    static boolean consumes(String username, String role, Map<String, Object> locker) {
+    /** Whether a user (directly, by role, or through a team) may use a vault folder's credentials in agents. */
+    boolean consumes(String username, String role, Map<String, Object> locker) {
         List<String> c = csv(locker.get("consumers"));
-        return c.contains("user:" + username) || c.contains("role:" + role) || c.contains("role:*");
+        return teams.principalsOf(username, role).stream().anyMatch(c::contains);
     }
 
     public void setCredential(User by, String locker, String name, String attribute, String value, String ip) {
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", locker);
         if (l == null) throw notFound("Vault folder");
-        if (!ownsLocker(by, l)) throw denied("change credentials in this vault folder");
+        if (!canChangeCredential(by, l, name)) throw denied("change this credential");
         if (!NAME.matcher(name == null ? "" : name).matches() || !NAME.matcher(attribute == null ? "" : attribute).matches()) throw new OoaException("CR.BAD_INPUT", "Credential and attribute names use letters, digits, . _ -");
         if (value == null || value.isEmpty()) throw new OoaException("CR.BAD_INPUT", "The value is empty");
         String ref = locker + "/" + name + "/" + attribute;
-        String ct = vault.encrypt(value, ref);
-        db.tx(() -> {
-            if (db.update("UPDATE credentials SET ciphertext = ?, updated = ?, updated_by = ? WHERE locker = ? AND name = ? AND attribute = ?", ct, now(), by.username(), locker, name, attribute) == 0)
-                db.update("INSERT INTO credentials (locker, name, attribute, ciphertext, updated, updated_by) VALUES (?,?,?,?,?,?)", locker, name, attribute, ct, now(), by.username());
-            return null;
-        });
+        if (vaultAdmin.userProvided(locker, name, attribute)) throw new OoaException("CR.BAD_INPUT", "'" + attribute + "' is user-provided: each person stores their own value (My value)");
+        // the vault lock is held until the value is stored, so a key rotation never sees it half-way
+        synchronized (vault) {
+            String ct = vault.encrypt(value, ref);
+            db.tx(() -> {
+                if (db.update("UPDATE credentials SET ciphertext = ?, updated = ?, updated_by = ? WHERE locker = ? AND name = ? AND attribute = ?", ct, now(), by.username(), locker, name, attribute) == 0)
+                    db.update("INSERT INTO credentials (locker, name, attribute, ciphertext, updated, updated_by) VALUES (?,?,?,?,?,?)", locker, name, attribute, ct, now(), by.username());
+                // the person who creates a credential owns it
+                if (db.one("SELECT name FROM credential_meta WHERE locker = ? AND name = ?", locker, name) == null)
+                    db.update("INSERT INTO credential_meta (locker, name, owner, created) VALUES (?,?,?,?)", locker, name, by.username(), now());
+                return null;
+            });
+        }
         audit.record(by.username(), "credential.set", "credential", ref, null, "ok", ip);
     }
 
     public void deleteCredential(User by, String locker, String name, String attribute, String ip) {
         Map<String, Object> l = db.one("SELECT * FROM lockers WHERE name = ?", locker);
         if (l == null) throw notFound("Vault folder");
-        if (!ownsLocker(by, l)) throw denied("change credentials in this vault folder");
+        if (!canChangeCredential(by, l, name)) throw denied("change this credential");
         db.update("DELETE FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", locker, name, attribute);
         audit.record(by.username(), "credential.delete", "credential", locker + "/" + name + "/" + attribute, null, "ok", ip);
     }
@@ -1395,6 +1440,17 @@ public final class ControlRoom {
                 throw e;
             }
         }
+        if (vaultAdmin.userProvided(p[0], p[1], p[2])) {
+            // a user-provided attribute: the value the run's user stored for themselves
+            String who = (String) r.get("requested_by");
+            Map<String, Object> uv = db.one("SELECT ciphertext FROM credential_user_values WHERE locker = ? AND name = ? AND attribute = ? AND username = ?", p[0], p[1], p[2], who);
+            if (uv == null) {
+                audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "user_value", true), "not_found", null);
+                throw new OoaException("VAULT.NOT_FOUND", who + " has not stored their own value for '" + ref + "'", "Ask " + who + " to enter it in One Agent Vault (My value).");
+            }
+            audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "user_value", true), "ok", null);
+            return vault.decrypt((String) uv.get("ciphertext"), VaultAdmin.userBound(ref, who));
+        }
         Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", p[0], p[1], p[2]);
         if (c == null) { audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "not_found", null); throw new OoaException("VAULT.NOT_FOUND", "Credential '" + ref + "' not found"); }
         audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId), "ok", null);
@@ -1419,8 +1475,10 @@ public final class ControlRoom {
             return;
         }
         Map<String, Object> clean = ExternalVaults.validate(cfg);
-        String ct = secret == null || secret.isEmpty() ? (String) l.get("external_secret") : vault.encrypt(secret, "external:" + locker);
-        db.update("UPDATE lockers SET external = ?, external_secret = ? WHERE name = ?", JsonLite.write(clean), ct, locker);
+        synchronized (vault) {
+            String ct = secret == null || secret.isEmpty() ? (String) l.get("external_secret") : vault.encrypt(secret, "external:" + locker);
+            db.update("UPDATE lockers SET external = ?, external_secret = ? WHERE name = ?", JsonLite.write(clean), ct, locker);
+        }
         audit.record(by.username(), "locker.link_external", "locker", locker, Map.of("provider", clean.get("provider")), "ok", ip);
     }
 
@@ -1463,6 +1521,62 @@ public final class ControlRoom {
         require(by, "globals.manage", "manage shared values");
         db.update("DELETE FROM global_values WHERE name = ?", name);
         audit.record(by.username(), "global.delete", "global", name, null, "ok", ip);
+    }
+
+    /**
+     * Audit search: free text (q), who (actor), action (a prefix such as repo. or the exact action), object type and id,
+     * result, a date range (from, to: dates or times), sort (newest or oldest first), paging (limit up to 1000, offset)
+     * and the total. The hash chain is unchanged by searching.
+     */
+    public Map<String, Object> auditSearch(User by, Map<String, String> f) {
+        require(by, "audit.view", "view the audit trail");
+        List<String> where = new ArrayList<>();
+        List<Object> p = new ArrayList<>();
+        String q = f.get("q");
+        if (q != null && !q.isBlank()) {
+            String like = "%" + q.toLowerCase(Locale.ROOT) + "%";
+            where.add("(LOWER(actor) LIKE ? OR LOWER(action) LIKE ? OR LOWER(COALESCE(object_id, '')) LIKE ? OR LOWER(COALESCE(details, '')) LIKE ?)");
+            p.add(like); p.add(like); p.add(like); p.add(like);
+        }
+        if (f.get("actor") != null && !f.get("actor").isBlank()) { where.add("LOWER(actor) = ?"); p.add(f.get("actor").toLowerCase(Locale.ROOT)); }
+        if (f.get("action") != null && !f.get("action").isBlank()) {
+            String a = f.get("action").trim();
+            if (a.endsWith(".") || a.endsWith("*")) { where.add("action LIKE ?"); p.add(a.replace("*", "") + "%"); } else { where.add("action = ?"); p.add(a); }
+        }
+        for (String[] k : new String[][] {{"object_type", "object_type"}, {"object_id", "object_id"}, {"result", "result"}})
+            if (f.get(k[0]) != null && !f.get(k[0]).isBlank()) { where.add(k[1] + " = ?"); p.add(f.get(k[0])); }
+        if (f.get("from") != null && !f.get("from").isBlank()) { where.add("ts >= ?"); p.add(instant(f.get("from"), false)); }
+        if (f.get("to") != null && !f.get("to").isBlank()) { where.add("ts <= ?"); p.add(instant(f.get("to"), true)); }
+        String w = where.isEmpty() ? "" : " WHERE " + String.join(" AND ", where);
+        long total = count("SELECT COUNT(*) AS n FROM audit" + w, p.toArray());
+        String order = "oldest".equals(f.get("sort")) ? "ASC" : "DESC";
+        List<Object> page = new ArrayList<>(p);
+        page.add(Math.max(1, Math.min(1000, intOr(f.get("limit"), 100))));
+        page.add(Math.max(0, intOr(f.get("offset"), 0)));
+        List<Map<String, Object>> rows = db.query("SELECT seq, ts, actor, action, object_type, object_id, details, result, ip FROM audit" +
+                w + " ORDER BY seq " + order + " LIMIT ? OFFSET ?", page.toArray());
+        return Map.of("records", rows, "total", total);
+    }
+
+    /** The search as CSV (up to 50,000 records), for compliance exports. Exporting is itself recorded. */
+    @SuppressWarnings("unchecked")
+    public String auditCsv(User by, Map<String, String> f, String ip) {
+        Map<String, String> all = new HashMap<>(f);
+        StringBuilder sb = new StringBuilder(Platform.Csv.row(List.of("seq", "time", "actor", "action", "object_type", "object_id", "result", "ip", "details")));
+        int got = 0;
+        for (int off = 0; off < 50000; off += 1000) {
+            all.put("limit", "1000"); all.put("offset", String.valueOf(off));
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) auditSearch(by, all).get("records");
+            for (Map<String, Object> r : rows) {
+                List<String> cells = new ArrayList<>();
+                for (String k : List.of("seq", "ts", "actor", "action", "object_type", "object_id", "result", "ip", "details")) cells.add(r.get(k) == null ? "" : String.valueOf(r.get(k)));
+                sb.append(Platform.Csv.row(cells));
+            }
+            got += rows.size();
+            if (rows.size() < 1000) break;
+        }
+        audit.record(by.username(), "audit.export", "audit", null, Map.of("records", got, "filters", f), "ok", ip);
+        return sb.toString();
     }
 
     public List<Map<String, Object>> auditLog(User by, String q, int limit) {

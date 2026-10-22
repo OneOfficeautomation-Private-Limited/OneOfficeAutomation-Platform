@@ -283,6 +283,34 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "teams" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("teams", cr.teams.list(u)));
+                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.teams.save(u, null, (String) b.get("name"), (String) b.get("description"), ip)); }
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.teams.save(u, seg[1], (String) b.get("name"), (String) b.get("description"), ip)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.teams.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("members")) { cr.teams.setMembers(u, seg[1], (List<Object>) map(body(ex)).get("members"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "vault" -> {
+                String locker = q.get("locker"), name = q.get("name");
+                if (m.equals("GET") && route.equals("vault/status")) sendJson(ex, 200, cr.vaultAdmin.status(u));
+                else if (m.equals("POST") && route.equals("vault/rotate")) sendJson(ex, 200, cr.vaultAdmin.rotate(u, ip));
+                else if (m.equals("GET") && route.equals("vault/credential")) sendJson(ex, 200, cr.vaultAdmin.credential(u, locker, name));
+                else if (m.equals("PUT") && route.equals("vault/credential")) { cr.vaultAdmin.saveCredential(u, locker, name, map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && route.equals("vault/credential")) { cr.vaultAdmin.deleteCredential(u, locker, name, ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("PUT") && route.equals("vault/my-value")) { Map<String, Object> b = map(body(ex)); cr.vaultAdmin.setMyValue(u, (String) b.get("locker"), (String) b.get("name"), (String) b.get("attribute"), (String) b.get("value"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && route.equals("vault/my-value")) { cr.vaultAdmin.deleteMyValue(u, locker, name, q.get("attribute"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
+            case "analytics" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.analytics.overview(u, q));
+                else if (m.equals("GET") && route.equals("analytics/agent")) sendJson(ex, 200, cr.analytics.agent(u, q.get("path"), q));
+                else if (m.equals("GET") && route.equals("analytics/export")) {
+                    String report = q.getOrDefault("report", "");
+                    sendText(ex, 200, "text/csv; charset=utf-8", cr.analytics.csv(u, report, q), "operations-" + report + ".csv");
+                }
+                else notFound(ex);
+            }
             case "queue-models" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("models", cr.platform.workItemModels(u)));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.platform.saveWorkItemModel(u, null, map(body(ex)), ip));
@@ -435,6 +463,8 @@ public final class ControlRoomServer {
                 }
                 else if (m.equals("DELETE") && seg.length == 3 && seg[2].equals("external")) { cr.linkExternalVault(u, seg[1], null, null, ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("test")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.testExternalVault(u, seg[1], (String) b.get("credential"), (String) b.get("attribute"), ip)); }
+                else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("members")) { cr.vaultAdmin.setMembers(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.vaultAdmin.deleteLocker(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
             case "globals" -> {
@@ -444,7 +474,8 @@ public final class ControlRoomServer {
                 else notFound(ex);
             }
             case "audit" -> {
-                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("records", cr.auditLog(u, q.get("q"), Integer.parseInt(q.getOrDefault("limit", "200")))));
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.auditSearch(u, q));
+                else if (m.equals("GET") && route.equals("audit/export")) sendText(ex, 200, "text/csv; charset=utf-8", cr.auditCsv(u, q, ip), "audit-trail.csv");
                 else if (m.equals("GET") && route.equals("audit/verify")) { cr.require(u, "audit.view", "view the audit trail"); sendJson(ex, 200, cr.audit.verify()); }
                 else notFound(ex);
             }

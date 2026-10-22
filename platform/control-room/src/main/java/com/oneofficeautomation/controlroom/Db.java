@@ -222,6 +222,23 @@ public final class Db implements AutoCloseable {
             "updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), PRIMARY KEY (queue_id, principal, member_role))",
     };
 
+    /**
+     * Version 5: teams, vault folder managers and participants, credential owners and user-provided attributes (each
+     * person's own value), and indexes for audit search.
+     */
+    private static final String[] SCHEMA_V5 = {
+        "CREATE TABLE teams (id VARCHAR(40) PRIMARY KEY, name VARCHAR(80) NOT NULL UNIQUE, description VARCHAR(500), created TIMESTAMP NOT NULL, created_by VARCHAR(80))",
+        "CREATE TABLE team_members (team_id VARCHAR(40) NOT NULL, username VARCHAR(80) NOT NULL, team_role VARCHAR(20) NOT NULL, PRIMARY KEY (team_id, username))",
+        "ALTER TABLE lockers ADD COLUMN managers VARCHAR(1000)",
+        "ALTER TABLE lockers ADD COLUMN participants VARCHAR(1000)",
+        "CREATE TABLE credential_meta (locker VARCHAR(80) NOT NULL, name VARCHAR(80) NOT NULL, owner VARCHAR(80), description VARCHAR(500), " +
+            "user_attributes VARCHAR(1000), created TIMESTAMP NOT NULL, PRIMARY KEY (locker, name))",
+        "CREATE TABLE credential_user_values (locker VARCHAR(80) NOT NULL, name VARCHAR(80) NOT NULL, attribute VARCHAR(80) NOT NULL, username VARCHAR(80) NOT NULL, " +
+            "ciphertext VARCHAR(20000) NOT NULL, updated TIMESTAMP NOT NULL, PRIMARY KEY (locker, name, attribute, username))",
+        "CREATE INDEX audit_ts ON audit (ts)",
+        "CREATE INDEX runs_created ON runs (created)",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -243,6 +260,10 @@ public final class Db implements AutoCloseable {
             if (current < 4) {
                 for (String ddl : SCHEMA_V4) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (4)");
+            }
+            if (current < 5) {
+                for (String ddl : SCHEMA_V5) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (5)");
             }
             return null;
         });

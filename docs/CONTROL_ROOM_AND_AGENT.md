@@ -59,6 +59,11 @@ People only see the pages their role allows.
   - On the first sign-in, an existing account with the same verified e-mail address or user name is linked.
   - Otherwise a new account is created with the role you choose. Leave that role empty to allow existing accounts only.
   - The provider's signature, issuer, audience, expiry and a one-time nonce are checked, using PKCE.
+- **Teams** (Govern > Teams): named groups of people, each person a member or a lead.
+  - Name a team as `team:finance` in folder permissions, vault folders (managers, participants, consumers) and work queue
+    members. Adding someone to the team gives them all of that.
+  - Administrators (`teams.manage`) create teams, and leads change their own team's members.
+  - A team that a rule still names is not deleted.
 - **API keys** (top bar > API keys): other systems call the API as you with `Authorization: Bearer ooak_...`. A key is
   shown once, can expire, and can be revoked at any time. Only a hash is stored.
 - **Announcement** (Administration > Settings): a banner shown to everyone, for example before maintenance.
@@ -234,8 +239,30 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 
 ## 8. One Agent Vault
 
-- One Agent Vault > New vault folder. Owners manage values; consumers (`role:bot_runner`, `user:jane`) may use them in agents.
-  Values are encrypted (AES-256-GCM), never shown again, handed to an agent only while it runs, and every use is audited.
+- One Agent Vault > New vault folder. Values are encrypted (AES-256-GCM), never shown again, handed to an agent only while
+  it runs, and every use is audited. A folder's **Members**:
+
+  | Member | Can |
+  | --- | --- |
+  | Owners (people) | Everything, members included |
+  | Managers | Add, change and delete every credential |
+  | Participants | See the folder, add credentials and change the ones they own |
+  | Consumers | Their agents may use the credentials |
+
+  Managers, participants and consumers can be users (`user:jane`), roles (`role:bot_runner`) or teams (`team:finance`).
+- **Credentials.**
+  - Each credential has an **owner** (who created it; owners and managers can hand it over) and a description.
+  - **Details** lists its attributes, never their values.
+  - **Delete** removes the whole credential with all its values.
+  - An empty folder can be deleted.
+- **User-provided attributes** (Details): each person stores their own value (for example their own password) under
+  **Your values**. A run reads the value of the person it runs as (the run-as user, or whoever started it). A shared
+  value cannot be set for such an attribute.
+- **Vault key** (administrators): shows whether the master key comes from the key file or `OOA_MASTER_KEY`, and its
+  fingerprint. **Rotate key** makes a new key and encrypts every stored value again in one transaction:
+  - shared values, people's own values and external-vault sign-in secrets are all included;
+  - the old key file is kept as `master.key.old-…`;
+  - with `OOA_MASTER_KEY`, rotate where that variable is managed.
 - **External vaults**: a vault folder can be linked to HashiCorp Vault (KV v2), Azure Key Vault, AWS Secrets Manager or the
   CyberArk Central Credential Provider.
   - Agents still ask for `folder/credential/attribute`, so owners, consumers and the audit trail work as before.
@@ -267,3 +294,22 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 
 Every sign-in, change, run, credential use, task and workflow event is recorded and hash-chained. One Audit Trail >
 Verify integrity re-checks the whole chain and reports any record that was edited or deleted.
+
+Search by any text, who, action (a prefix such as `repo.` or an exact action), object type, result and a date range,
+newest or oldest first, with paging and the total. **Export CSV** downloads the search (up to 50,000 records); the
+export is itself recorded. API: `GET /api/audit?actor=&action=&object_type=&object_id=&result=&from=&to=&sort=&limit=&offset=`
+and `GET /api/audit/export` with the same filters.
+
+## 10a. Operations
+
+Run & Monitor > Operations shows how agents ran over a period (24 hours to a year), for all agents or one:
+
+- runs, success rate, total and average run time, and the time within which 95% of runs finish;
+- how long runs take (a distribution) and runs per day;
+- the agents run most, that take longest and that fail most (with their most common errors);
+- use per runner and by how runs were started.
+
+Each list has a CSV download, and **Run history CSV** lists every run. An agent's **Statistics** (agent details, or a
+click in these lists) shows its errors and runners. Only agents the person may see (folder permissions) are counted.
+API: `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=`, `GET /api/analytics/agent?path=`,
+`GET /api/analytics/export?report=most_run|longest|most_failed|by_runner|by_day|by_source|run_history`.

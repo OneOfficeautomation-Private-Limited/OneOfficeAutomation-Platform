@@ -471,3 +471,32 @@ Tests:
 - **RepositoryLifecycleTest** (5 tests, two Command Centers): folder access levels and inheritance, shutting out unnamed users, delete/recover/labels/dependencies, export with dependencies, import (create, skip, overwrite, tampered content, bad checksum, all-or-nothing), promote over HTTP with a vault-held API key, run-as deploy (one target without a default runner reported), principal and mode in the job, runner delete rules, and work item models / items / CSV / members.
 - **Command Center in the browser (throwaway server):** folder permissions saved through the dialog; a label set from Versions; export and import with a new version; item editor saving a typed value; members dialog; run as jane from the Run dialog, shown as "admin as jane" in the runs list.
 - **Java suites:** 474 tests, 0 failed, 1 skipped. The architecture guard on parameterised SQL caught one query layout, which was then fixed.
+
+
+# Validation report: platform gaps 5 to 8 (vault model, audit search, teams, operations analytics)
+
+| Gap | Built |
+| --- | --- |
+| Credential vault model | `VaultAdmin.java`. Get one credential (attributes, never values); delete a whole credential; delete an empty vault folder. Members: owners, managers, participants and consumers (users, roles or teams). Credential owners. User-provided attributes: each person's own value, bound to that person in the encryption; a run reads the run-as user's value. Key status (source, fingerprint) and rotation, which re-encrypts shared values, personal values and external-vault secrets in one transaction and keeps the old key file. Crypto calls and the writes that follow them take the vault lock, so a rotation never meets a half-written value. |
+| Audit search | `auditSearch`: text, who, action (prefix or exact), object type and id, result, date range, sort, paging, total. `auditCsv` exports up to 50,000 records, and the export is itself audited. |
+| Teams | `Teams.java`. Teams with members and leads. `team:x` works in folder permissions, vault folder members and consumers, and queue members, through one place (`principalsOf`). Leads manage their members; a team still named in a rule cannot be deleted. |
+| Operations analytics | `Analytics.java`. Per period and filter: totals, success rate, run time, 95th percentile, duration distribution, per day, most run, longest, most failed with top errors, per runner and per source; per-agent statistics; CSV for every list and the run history. Only agents the caller may see are counted. |
+| Screens | Teams page; vault folder members, credential details with "Your values", Delete credential/folder, Vault key with Rotate; audit filters, paging and server CSV; Operations page (KPI tiles, bars, tables, CSV) and Statistics on each agent. |
+
+Tests:
+
+- **TeamsVaultAuditAnalyticsTest** (4 tests):
+  - team leads, and team access to folders;
+  - participant, manager and owner rights;
+  - people's own values read by run-as runs, and a manager who is not a consumer refused;
+  - key rotation: values still readable, new key on disk, old key kept;
+  - delete rules;
+  - audit filters, paging, sort and CSV;
+  - analytics totals, distribution, rankings, errors, folder filtering and CSV.
+- **Command Center in the browser (throwaway server, runs finished through the agent API):**
+  - Operations tiles and tables;
+  - vault page with roles and a personal value;
+  - credential details dialog;
+  - audit search by action prefix, and CSV;
+  - Teams list.
+- **Java suites:** 478 tests and 1 skipped; all pass after one SQL layout fix that the architecture guard caught. `EnterpriseFeaturesTest` (AI governance count) failed once in the full run and passed on its own. It is the same intermittent test noted earlier, outside this change.

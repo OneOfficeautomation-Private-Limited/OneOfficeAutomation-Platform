@@ -172,7 +172,7 @@ public final class Lifecycle {
         if (p.length != 3) throw new OoaException("CR.BAD_INPUT", "api_key_ref is a vault reference: vault folder/credential/attribute", "Store the other Command Center's API key in a vault folder first.");
         Map<String, Object> locker = db.one("SELECT * FROM lockers WHERE name = ?", p[0]);
         if (locker == null) throw notFound("Vault folder " + p[0]);
-        if (!cr.ownsLocker(by, locker) && !consumes(by.username(), by.role(), locker)) throw new OoaException("VAULT.DENIED", "You may not use vault folder '" + p[0] + "'");
+        if (!cr.ownsLocker(by, locker) && !cr.consumes(by.username(), by.role(), locker)) throw new OoaException("VAULT.DENIED", "You may not use vault folder '" + p[0] + "'");
         Map<String, Object> bundle = export(by, (List<Object>) req.get("paths"), req.get("version"), !Boolean.FALSE.equals(req.get("include_dependencies")), ip);
         String key = cr.systemCredential(ref);
         Map<String, Object> body = new LinkedHashMap<>();

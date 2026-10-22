@@ -450,16 +450,16 @@ failed or cancelled), the current stage, its data and a history.
 
 ## 7. Data model (Command Center database)
 
-Schema migrations are versioned in `Db.java` (`SCHEMA_V1` to `SCHEMA_V4`) and recorded in
+Schema migrations are versioned in `Db.java` (`SCHEMA_V1` to `SCHEMA_V5`) and recorded in
 `schema_version`. They run automatically at start.
 
 | Area | Tables |
 | --- | --- |
-| People and access | `users` (PBKDF2 hash, role, lockout, SSO subject), `sessions` (token hashes), `roles` (custom), `api_keys` (hashes) |
+| People and access | `users` (PBKDF2 hash, role, lockout, SSO subject), `sessions` (token hashes), `roles` (custom), `api_keys` (hashes), `teams`, `team_members` (member or lead) |
 | Agent repository | `bots` (path, latest and live production version, lock, minutes saved, deleted at/by), `bot_versions` (JSON content, SHA-256, author, comment), `bot_labels`, `repo_folders`, `folder_permissions` (folder, role:/user: principal, view/run/edit/manage) |
 | Runners and runs | `devices`, `registration_keys`, `device_pools`, `user_devices` (each run-as user's default runner), `runs` (status, inputs, outputs, error, priority, callback, queue item, run-as user, run mode), `run_events` |
 | Automation | `schedules`, `triggers` (config JSON, fire count, last fired, last error, cursor), `holiday_calendars`, `queues` (with `model_id`), `queue_items`, `work_item_models` (typed fields), `queue_members` (owner, participant, consumer), `workflow_runs`, `human_tasks` |
-| Secrets and settings | `lockers` (vault folders, consumers, owners, external vault link), `credentials` (AES-GCM ciphertext), `global_values` (shared values), `settings`, `model_connections`, `toolkit_settings` |
+| Secrets and settings | `lockers` (vault folders: owners, managers, participants, consumers, external vault link), `credentials` (AES-GCM ciphertext), `credential_meta` (owner, description, user-provided attributes), `credential_user_values` (each person's own values, bound to the person), `global_values` (shared values), `settings`, `model_connections`, `toolkit_settings` |
 | Oversight | `audit` (hash chain: `prev_hash`, `hash`), `ai_calls` (model, tokens, masking, tools, prompt fingerprint) |
 
 New tables or columns go into a **new** `SCHEMA_Vn` array. Never edit an earlier version that may already be applied

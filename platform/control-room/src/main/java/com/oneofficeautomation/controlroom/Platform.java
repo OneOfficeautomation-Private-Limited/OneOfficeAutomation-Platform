@@ -532,9 +532,10 @@ public final class Platform {
 
     List<String> memberRoles(User u, String qid) {
         List<String> out = new ArrayList<>();
+        List<String> mine = null;
         for (Map<String, Object> r : db.query("SELECT principal, member_role FROM queue_members WHERE queue_id = ?", qid)) {
-            String p = (String) r.get("principal");
-            if ((p.equals("user:" + u.username()) || p.equals("role:" + u.role()) || p.equals("role:*")) && !out.contains(r.get("member_role"))) out.add((String) r.get("member_role"));
+            if (mine == null) mine = cr.teams.principalsOf(u.username(), u.role());
+            if (mine.contains((String) r.get("principal")) && !out.contains(r.get("member_role"))) out.add((String) r.get("member_role"));
         }
         return out;
     }
@@ -584,15 +585,13 @@ public final class Platform {
             if (!(o instanceof Map<?, ?> mm)) throw new OoaException("CR.BAD_INPUT", "Each member is {principal, role}");
             String principal = String.valueOf(mm.get("principal")), role = String.valueOf(mm.get("role"));
             if (!MEMBER_ROLES.contains(role)) throw new OoaException("CR.BAD_INPUT", "Member roles are owner, participant and consumer");
-            if (principal.startsWith("user:")) { if (db.one("SELECT id FROM users WHERE username = ?", principal.substring(5)) == null) throw notFound("User " + principal.substring(5)); }
-            else if (principal.startsWith("role:")) { String r = principal.substring(5); if (!r.equals("*") && !cr.roleExists(r)) throw notFound("Role " + r); }
-            else throw new OoaException("CR.BAD_INPUT", "Principals look like user:jane or role:bot_runner");
+            cr.teams.checkPrincipal(principal);
             clean.add(new String[]{principal, role});
         }
         boolean hasOwner = clean.stream().anyMatch(c -> c[1].equals("owner"));
         if (!clean.isEmpty() && !hasOwner) throw new OoaException("CR.BAD_INPUT", "A queue with members needs at least one owner");
-        if (!clean.isEmpty() && !cr.allowed(by.role(), "queues.all")
-                && clean.stream().noneMatch(c -> c[1].equals("owner") && (c[0].equals("user:" + by.username()) || c[0].equals("role:" + by.role()))))
+        List<String> mine = cr.teams.principalsOf(by.username(), by.role());
+        if (!clean.isEmpty() && !cr.allowed(by.role(), "queues.all") && clean.stream().noneMatch(c -> c[1].equals("owner") && mine.contains(c[0])))
             throw new OoaException("CR.BAD_INPUT", "Keep yourself (or your role) as an owner, or you could not change the queue any more");
         db.tx(() -> {
             db.update("DELETE FROM queue_members WHERE queue_id = ?", qid);
