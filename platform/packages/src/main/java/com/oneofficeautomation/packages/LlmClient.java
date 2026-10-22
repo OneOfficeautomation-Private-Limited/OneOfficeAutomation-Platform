@@ -27,15 +27,52 @@ final class LlmClient {
      * accessKeyId the AWS access key id and region the AWS region.
      */
     record Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii,
-                  Object accessKeyId, String region) {
+                  Object accessKeyId, String region, Options options) {
         Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii) {
-            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, null, null);
+            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, null, null, null);
+        }
+        Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii, Object accessKeyId, String region) {
+            this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, null);
+        }
+        Config with(Options o) { return new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o); }
+        Options opts() { return options == null ? Options.NONE : options; }
+    }
+
+    /**
+     * Optional sampling settings; null fields are not sent, so each provider keeps its own default. topK is used by
+     * Anthropic only; presence and frequency penalties, seed, user and n by OpenAI-style APIs only.
+     */
+    record Options(Double topP, Integer topK, List<String> stop, Double presencePenalty, Double frequencyPenalty, Integer seed, String user,
+                   Integer n, Integer timeoutSeconds) {
+        static final Options NONE = new Options(null, null, null, null, null, null, null, null, null);
+        int timeout() { return timeoutSeconds == null || timeoutSeconds <= 0 ? 180 : timeoutSeconds; }
+
+        /** Builds options from action inputs, checking ranges; empty values mean "provider default". */
+        static Options of(Double topP, Integer topK, List<Object> stop, Double presence, Double frequency, Integer seed, String user, Integer n, Integer timeout) {
+            if (topP != null && (topP <= 0 || topP > 1)) throw new ActionException(P + ".BAD_OPTION", "top_p must be above 0 and at most 1");
+            if (topK != null && (topK < 1 || topK > 500)) throw new ActionException(P + ".BAD_OPTION", "top_k must be between 1 and 500");
+            if (presence != null && (presence < -2 || presence > 2)) throw new ActionException(P + ".BAD_OPTION", "presence_penalty must be between -2 and 2");
+            if (frequency != null && (frequency < -2 || frequency > 2)) throw new ActionException(P + ".BAD_OPTION", "frequency_penalty must be between -2 and 2");
+            if (n != null && (n < 1 || n > 10)) throw new ActionException(P + ".BAD_OPTION", "number_of_responses must be between 1 and 10");
+            if (timeout != null && (timeout < 0 || timeout > 1800)) throw new ActionException(P + ".BAD_OPTION", "timeout_seconds must be between 1 and 1800");
+            List<String> s = null;
+            if (stop != null && !stop.isEmpty()) {
+                s = new ArrayList<>();
+                for (Object o : stop) { String t = Values.text(o); if (!t.isEmpty()) s.add(t); }
+                if (s.size() > 4) throw new ActionException(P + ".BAD_OPTION", "Give at most 4 stop sequences");
+                if (s.isEmpty()) s = null;
+            }
+            return new Options(topP, topK, s, presence, frequency, seed, user == null || user.isBlank() ? null : user.strip(), n == null || n == 1 ? null : n, timeout == null || timeout == 0 ? null : timeout);
         }
     }
 
     static final String HUGGINGFACE_URL = "https://router.huggingface.co/v1";
     record ToolCall(String id, String name, Map<String, Object> args) {}
-    record Reply(String text, List<ToolCall> toolCalls, int inTokens, int outTokens, Map<String, Integer> masked) {}
+    record Reply(String text, List<ToolCall> toolCalls, int inTokens, int outTokens, Map<String, Integer> masked, List<String> choices) {
+        Reply(String text, List<ToolCall> toolCalls, int inTokens, int outTokens, Map<String, Integer> masked) { this(text, toolCalls, inTokens, outTokens, masked, null); }
+        /** Every answer when several were asked for; just the one answer otherwise. */
+        List<String> all() { return choices != null && !choices.isEmpty() ? choices : text == null ? List.of() : List.of(text); }
+    }
 
     // ---------- PII guard (same rules as the Python reference) ----------
     private static final Map<String, Pattern> PII = new LinkedHashMap<>();
@@ -127,7 +164,9 @@ final class LlmClient {
         };
         List<ToolCall> calls = new ArrayList<>();
         for (ToolCall tc : r.toolCalls()) calls.add(new ToolCall(tc.id(), tc.name(), (Map<String, Object>) unmaskDeep(tc.args(), mapping)));
-        Reply out = new Reply(unmask(r.text(), mapping), calls, r.inTokens(), r.outTokens(), counts);
+        List<String> choices = null;
+        if (r.choices() != null) { choices = new ArrayList<>(); for (String c : r.choices()) choices.add(unmask(c, mapping)); }
+        Reply out = new Reply(unmask(r.text(), mapping), calls, r.inTokens(), r.outTokens(), counts, choices);
         govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs);
         return out;
     }
@@ -179,6 +218,14 @@ final class LlmClient {
         body.put("messages", out);
         body.put("temperature", BigDecimal.valueOf(cfg.temperature()));
         body.put("max_tokens", cfg.maxTokens());
+        Options o = cfg.opts();
+        if (o.topP() != null) body.put("top_p", BigDecimal.valueOf(o.topP()));
+        if (o.stop() != null) body.put("stop", o.stop());
+        if (o.presencePenalty() != null) body.put("presence_penalty", BigDecimal.valueOf(o.presencePenalty()));
+        if (o.frequencyPenalty() != null) body.put("frequency_penalty", BigDecimal.valueOf(o.frequencyPenalty()));
+        if (o.seed() != null) body.put("seed", o.seed());
+        if (o.user() != null) body.put("user", o.user());
+        if (o.n() != null) body.put("n", o.n());
         if (tools != null && !tools.isEmpty()) {
             List<Object> l = new ArrayList<>();
             for (Map<String, Object> t : tools) l.add(Map.of("type", "function", "function", Map.of("name", t.get("name"), "description", t.get("description"), "parameters", t.get("input_schema"))));
@@ -205,12 +252,18 @@ final class LlmClient {
             else if (provider.equals("huggingface") && (cfg.baseUrl() == null || cfg.baseUrl().isBlank()))
                 throw new ActionException(P + ".NO_KEY", "A Hugging Face access token from the vault is required", "Map api_key to a Credential holding your hf_... token.");
         }
-        return openAiReply(req.json(body).timeout(180).send(ctx).map());
+        return openAiReply(req.json(body).timeout(cfg.opts().timeout()).send(ctx).map());
     }
 
     @SuppressWarnings("unchecked")
     static Reply openAiReply(Map<String, Object> r) {
-        Map<String, Object> msg = (Map<String, Object>) ((Map<String, Object>) ((List<?>) r.getOrDefault("choices", List.of(Map.of()))).get(0)).getOrDefault("message", Map.of());
+        List<?> all = (List<?>) r.getOrDefault("choices", List.of(Map.of()));
+        Map<String, Object> msg = (Map<String, Object>) ((Map<String, Object>) all.get(0)).getOrDefault("message", Map.of());
+        List<String> choices = null;
+        if (all.size() > 1) {
+            choices = new ArrayList<>();
+            for (Object c : all) if (c instanceof Map<?, ?> cm && cm.get("message") instanceof Map<?, ?> mm && mm.get("content") instanceof String s) choices.add(s);
+        }
         List<ToolCall> calls = new ArrayList<>();
         if (msg.get("tool_calls") instanceof List<?> tcs) for (Object t : tcs) {
             Map<String, Object> tc = (Map<String, Object>) t, fn = (Map<String, Object>) tc.get("function");
@@ -219,7 +272,7 @@ final class LlmClient {
             calls.add(new ToolCall(String.valueOf(tc.get("id")), String.valueOf(fn.get("name")), args instanceof Map ? (Map<String, Object>) args : Map.of()));
         }
         Map<String, Object> u = r.get("usage") instanceof Map ? (Map<String, Object>) r.get("usage") : Map.of();
-        return new Reply((String) msg.get("content"), calls, num(u.get("prompt_tokens")), num(u.get("completion_tokens")), Map.of());
+        return new Reply((String) msg.get("content"), calls, num(u.get("prompt_tokens")), num(u.get("completion_tokens")), Map.of(), choices);
     }
 
     /**
@@ -243,7 +296,7 @@ final class LlmClient {
         signed.put("accept", "application/json");
         HttpJson.Req req = HttpJson.req(P, "POST", url).bytes(payload, "application/json").header("Accept", "application/json");
         AwsSigV4.sign("POST", uri, signed, payload, keys[0], keys[1], region, "sagemaker", Instant.now()).forEach(req::header);
-        Object j = req.timeout(180).send(ctx).json();
+        Object j = req.timeout(cfg.opts().timeout()).send(ctx).json();
         if (j instanceof Map<?, ?> m && m.get("choices") instanceof List) return openAiReply((Map<String, Object>) m);
         Object first = j instanceof List<?> l && !l.isEmpty() ? l.get(0) : j;
         if (first instanceof Map<?, ?> m && m.get("generated_text") != null) return new Reply(String.valueOf(m.get("generated_text")), List.of(), 0, 0, Map.of());
@@ -304,10 +357,14 @@ final class LlmClient {
         if (system.length() > 0) body.put("system", system.toString().strip());
         body.put("messages", out);
         if (tools != null && !tools.isEmpty()) body.put("tools", tools);
+        Options opt = cfg.opts();
+        if (opt.topP() != null) body.put("top_p", BigDecimal.valueOf(opt.topP()));
+        if (opt.topK() != null) body.put("top_k", opt.topK());
+        if (opt.stop() != null) body.put("stop_sequences", opt.stop());
         if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required", "Map api_key to a Credential variable.");
         String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.anthropic.com" : cfg.baseUrl().replaceAll("/+$", "");
         Map<String, Object> r = HttpJson.req(P, "POST", base + "/v1/messages").header("x-api-key", k.reveal()).header("anthropic-version", "2023-06-01")
-                .json(body).timeout(180).send(ctx).map();
+                .json(body).timeout(opt.timeout()).send(ctx).map();
         StringBuilder text = new StringBuilder();
         List<ToolCall> calls = new ArrayList<>();
         for (Object o : (List<?>) r.getOrDefault("content", List.of())) {

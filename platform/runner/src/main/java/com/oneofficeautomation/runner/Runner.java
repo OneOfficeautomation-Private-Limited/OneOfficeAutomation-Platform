@@ -103,8 +103,27 @@ public final class Runner {
     }
 
     // internal control-flow signals
-    private static final class BreakSignal extends RuntimeException { BreakSignal() { super(null, null, false, false); } }
-    private static final class ContinueSignal extends RuntimeException { ContinueSignal() { super(null, null, false, false); } }
+    private static final class BreakSignal extends RuntimeException {
+        final String label;
+        BreakSignal(String label) { super(null, null, false, false); this.label = label; }
+    }
+    private static final class ContinueSignal extends RuntimeException {
+        final String label;
+        ContinueSignal(String label) { super(null, null, false, false); this.label = label; }
+    }
+    /** core/stop: ends the current agent; Finally blocks still run because it passes through them as an exception. */
+    private static final class StopSignal extends RuntimeException {
+        final boolean failed; final String reason;
+        StopSignal(boolean failed, String reason) { super(null, null, false, false); this.failed = failed; this.reason = reason; }
+    }
+
+    private static String labelOf(RuntimeException e) {
+        return e instanceof BreakSignal b ? b.label : e instanceof ContinueSignal c ? c.label : null;
+    }
+
+    /** Takes a screenshot for a Catch block (screenshot option). Register one as service "screen_capture"; otherwise the desktop is captured when there is one. */
+    @FunctionalInterface
+    public interface ScreenCapture { void capture(Path target) throws Exception; }
 
     /** Bot-level variable scope. Child bots get a new scope (inputs/outputs only). */
     /** Names reserved for built-in, read-only variables: $sys.* (system values) and $global.* (global values). */
@@ -141,7 +160,8 @@ public final class Runner {
         final int depth;
         final Scope scope = new Scope();
         final Map<String, Object> requires;
-        final Map<String, Object> sessions = new ConcurrentHashMap<>();
+        Map<String, Object> sessions = new ConcurrentHashMap<>();
+        boolean borrowedSessions;
         final List<String> secrets = new CopyOnWriteArrayList<>();
         final List<SecureString> secureValues = new CopyOnWriteArrayList<>();
         final AtomicLong seq = new AtomicLong();
@@ -182,6 +202,23 @@ public final class Runner {
             m.put("day", java.math.BigDecimal.valueOf(local.getDayOfMonth()));
             m.put("weekday", local.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH));
             m.put("hour", java.math.BigDecimal.valueOf(local.getHour()));
+            m.put("minute", java.math.BigDecimal.valueOf(local.getMinute()));
+            m.put("second", java.math.BigDecimal.valueOf(local.getSecond()));
+            m.put("millisecond", java.math.BigDecimal.valueOf(System.currentTimeMillis() % 1000));
+            m.put("day_of_year", java.math.BigDecimal.valueOf(local.getDayOfYear()));
+            m.put("timestamp", java.math.BigDecimal.valueOf(System.currentTimeMillis()));
+            m.put("os_version", System.getProperty("os.version", ""));
+            m.put("processors", java.math.BigDecimal.valueOf(Runtime.getRuntime().availableProcessors()));
+            m.put("user_domain", Objects.requireNonNullElse(System.getenv("USERDOMAIN"), ""));
+            m.put("home_folder", System.getProperty("user.home", ""));
+            m.put("file_separator", java.io.File.separator);
+            if (java.lang.management.ManagementFactory.getOperatingSystemMXBean() instanceof com.sun.management.OperatingSystemMXBean os) {
+                long total = os.getTotalMemorySize(), free = os.getFreeMemorySize();
+                double cpu = os.getCpuLoad();
+                m.put("cpu_usage", cpu < 0 ? null : java.math.BigDecimal.valueOf(Math.round(cpu * 1000) / 10.0));
+                m.put("total_ram_mb", java.math.BigDecimal.valueOf(total / (1024 * 1024)));
+                m.put("ram_usage_mb", java.math.BigDecimal.valueOf((total - free) / (1024 * 1024)));
+            }
             m.put("user", System.getProperty("user.name", ""));
             String host;
             try { host = java.net.InetAddress.getLocalHost().getHostName(); } catch (Exception e) { host = "unknown"; }
@@ -246,12 +283,17 @@ public final class Runner {
                 error = e.toMap();
             } catch (BreakSignal | ContinueSignal e) {
                 status = "failed";
-                error = new OoaException("FLOW.BAD_BREAK", "break/continue used outside a loop").toMap();
+                error = new OoaException("FLOW.BAD_BREAK", "break/continue used outside a loop" + (labelOf(e) == null ? "" : " with label '" + labelOf(e) + "'")).toMap();
+            } catch (StopSignal e) {
+                if (e.failed) {
+                    status = "failed";
+                    error = new OoaException("AGENT.STOPPED", e.reason == null || e.reason.isEmpty() ? "The agent was stopped by a Stop agent step" : e.reason).toMap();
+                }
             } catch (RuntimeException e) {
                 status = "failed";
                 error = new OoaException("RUN.INTERNAL", "Internal runner error: " + e).toMap();
             } finally {
-                closeSessions();
+                if (!borrowedSessions) closeSessions();
                 workers.forEach(ExecutorService::shutdownNow);
             }
             Map<String, Object> outputs = new LinkedHashMap<>();
@@ -404,7 +446,7 @@ public final class Runner {
                 String pid = act.substring(0, act.indexOf('/')), aid = act.substring(act.indexOf('/') + 1);
                 if (pid.equals("core")) execCore(step, aid); else execLeaf(step, pid, aid);
                 stepsExecuted.incrementAndGet();
-            } catch (BreakSignal | ContinueSignal sig) {
+            } catch (BreakSignal | ContinueSignal | StopSignal sig) {
                 emit("step.finished", sid, data("action", act, "durationMs", (System.nanoTime() - t0) / 1_000_000));
                 throw sig;
             } catch (OoaException e) {
@@ -444,29 +486,90 @@ public final class Runner {
                     emit("variable.set", sid, data("name", a.get("variable"), "value", Values.safeRepr(stored)));
                 }
                 case "log" -> log(String.valueOf(a.getOrDefault("level", "info")), Values.text(resolve(a.get("message"))), sid);
-                case "delay" -> sleep(Values.toNumber(resolve(a.get("seconds"))).doubleValue());
+                case "delay" -> delay(a);
                 case "wait_until" -> {
                     double timeout = Values.toNumber(resolve(a.getOrDefault("timeout_seconds", BigDecimal.valueOf(30)))).doubleValue();
                     double poll = Values.toNumber(resolve(a.getOrDefault("poll_seconds", BigDecimal.ONE))).doubleValue();
+                    boolean failOnTimeout = !Boolean.FALSE.equals(Values.coerce(resolve(a.getOrDefault("fail_on_timeout", true)), "Boolean", "fail_on_timeout"));
                     long end = System.nanoTime() + (long) (timeout * 1e9);
+                    boolean met = true;
                     while (!condition(a.get("condition"), sid)) {
-                        if (System.nanoTime() >= end) throw new OoaException("WAIT.TIMEOUT", "Condition not met within " + timeout + " s", null, true, null);
+                        if (System.nanoTime() >= end) {
+                            if (failOnTimeout) throw new OoaException("WAIT.TIMEOUT", "Condition not met within " + timeout + " s", null, true, null);
+                            log("info", "Condition not met within " + timeout + " s; carrying on", sid);
+                            met = false;
+                            break;
+                        }
                         sleep(poll);
                     }
+                    storeOutputs(step, Map.of("met", met));
                 }
                 case "throw" -> {
                     Object fix = resolve(a.get("suggested_fix"));
-                    throw new OoaException(Values.text(resolve(a.get("code"))), Values.text(resolve(a.get("message"))), fix == null ? null : Values.text(fix));
+                    Object details = resolve(a.get("details"));
+                    boolean retryable = Boolean.TRUE.equals(Values.coerce(resolve(a.get("retryable")), "Boolean", "retryable"));
+                    throw new OoaException(Values.text(resolve(a.get("code"))), Values.text(resolve(a.get("message"))), fix == null ? null : Values.text(fix),
+                            retryable, details instanceof Map<?, ?> d ? (Map<String, Object>) d : null);
                 }
                 case "comment" -> { }
-                case "break" -> throw new BreakSignal();
-                case "continue" -> throw new ContinueSignal();
+                case "break" -> throw new BreakSignal(optText(a.get("label")));
+                case "continue" -> throw new ContinueSignal(optText(a.get("label")));
+                case "stop" -> {
+                    String msg = optText(a.get("message"));
+                    boolean failed = "failed".equals(optText(a.get("status")));
+                    log(failed ? "error" : "info", "Agent stopped" + (msg == null ? "" : ": " + msg), sid);
+                    throw new StopSignal(failed, msg);
+                }
+                case "pause" -> pauseHere(a, sid);
                 case "run_bot" -> runChild(step, a);
                 default -> throw new OoaException("FLOW.UNKNOWN_ACTION", "Unknown core action '" + aid + "'");
             }
         }
 
         Object resolve(Object v) { return Expressions.resolve(v, this::lookup); }
+
+        String optText(Object raw) {
+            Object v = resolve(raw);
+            return v == null || Values.text(v).isEmpty() ? null : Values.text(v);
+        }
+
+        boolean flag(Map<String, Object> a, String key, boolean def) {
+            Object v = resolve(a.get(key));
+            return v == null ? def : Boolean.TRUE.equals(Values.coerce(v, "Boolean", key));
+        }
+
+        void delay(Map<String, Object> a) {
+            double low = Values.toNumber(resolve(a.get("seconds"))).doubleValue();
+            Object maxRaw = resolve(a.get("random_max"));
+            double wait = low;
+            if (maxRaw != null && !"".equals(maxRaw)) {
+                double high = Values.toNumber(maxRaw).doubleValue();
+                if (high < low) throw new OoaException("DELAY.BAD_RANGE", "random_max (" + Values.text(maxRaw) + ") is smaller than seconds (" + Values.text(resolve(a.get("seconds"))) + ")",
+                        "Give a random_max at least as large as seconds.");
+                wait = low + ThreadLocalRandom.current().nextDouble() * (high - low);
+            }
+            if (wait < 0) throw new OoaException("DELAY.BAD_VALUE", "A delay cannot be negative", "Use 0 or more.");
+            String unit = optText(a.get("unit"));
+            if (unit != null && !unit.equals("seconds") && !unit.equals("milliseconds"))
+                throw new OoaException("DELAY.BAD_UNIT", "Unknown delay unit '" + unit + "'", "Use seconds or milliseconds.");
+            sleep("milliseconds".equals(unit) ? wait / 1000 : wait);
+        }
+
+        /** core/pause: the same pause the Control Center button uses, started from inside the agent. */
+        void pauseHere(Map<String, Object> a, String sid) {
+            String msg = optText(a.get("message"));
+            Object t = resolve(a.get("timeout_seconds"));
+            long end = t == null || "".equals(t) ? Long.MAX_VALUE : System.nanoTime() + (long) (Values.toNumber(t).doubleValue() * 1e9);
+            log("info", "Paused by the agent" + (msg == null ? "" : ": " + msg), sid);
+            emit("run.paused", sid, data("message", msg, "byAgent", true));
+            pause.set(true);
+            while (pause.get() && !cancel.get() && System.nanoTime() < end) {
+                try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Run thread interrupted"); }
+            }
+            pause.set(false);
+            if (cancel.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped while paused");
+            emit("run.resumed", sid, data());
+        }
 
         void sleep(double seconds) {
             long end = System.nanoTime() + (long) (seconds * 1e9);
@@ -490,7 +593,25 @@ public final class Runner {
                 if (m.get("any") instanceof List<?> l) { for (Object x : l) if (condition(x, stepId)) return true; return false; }
                 if (m.containsKey("not")) return !condition(m.get("not"), stepId);
                 if (m.containsKey("expr")) return Expressions.truthy(Expressions.evaluate(String.valueOf(m.get("expr")), this::lookup));
-                if (m.containsKey("op")) return Conditions.compare(String.valueOf(m.get("op")), resolve(m.get("left")), resolve(m.get("right")));
+                if (m.containsKey("waitSeconds")) {
+                    double wait = Values.toNumber(resolve(m.get("waitSeconds"))).doubleValue();
+                    double poll = m.containsKey("pollSeconds") ? Values.toNumber(resolve(m.get("pollSeconds"))).doubleValue() : 0.5;
+                    Map<String, Object> once = new LinkedHashMap<>(m);
+                    once.remove("waitSeconds"); once.remove("pollSeconds");
+                    long end = System.nanoTime() + (long) (wait * 1e9);
+                    while (true) {
+                        if (condition(once, stepId)) return true;
+                        if (System.nanoTime() >= end) return false;
+                        sleep(Math.max(0.01, poll));
+                    }
+                }
+                if (m.containsKey("op")) {
+                    Map<String, Object> opts = new HashMap<>();
+                    for (String k : List.of("ignoreCase", "trim", "includeTime", "ignoreLineBreaks")) if (m.containsKey(k)) opts.put(k, resolve(m.get(k)));
+                    Object left = resolve(m.get("left")), right = resolve(m.get("right"));
+                    if (Boolean.TRUE.equals(opts.get("ignoreLineBreaks"))) { left = noBreaks(left); right = noBreaks(right); }
+                    return Conditions.compare(String.valueOf(m.get("op")), left, right, opts);
+                }
                 if (m.get("condition") instanceof String addr) {
                     String pid = addr.substring(0, addr.indexOf('/')), cid = addr.substring(addr.indexOf('/') + 1);
                     PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
@@ -503,59 +624,96 @@ public final class Runner {
             return Expressions.truthy(resolve(c));
         }
 
+        Object noBreaks(Object v) { return v instanceof String s ? s.replace("\r", "").replace("\n", "") : v; }
+
+        Long optLong(Object raw, String name) {
+            Object v = resolve(raw);
+            if (v == null || "".equals(v)) return null;
+            BigDecimal d = Values.toNumber(v);
+            if (d.stripTrailingZeros().scale() > 0) throw new OoaException("LOOP.BAD_RANGE", "'" + name + "' must be a whole number, got " + Values.text(d), "Use 0, 1, 2 ...");
+            return d.longValue();
+        }
+
+        /** Applies from_index, to_index, step and reverse to a finite list; each entry is {item, zero-based position}. */
+        List<Object[]> select(List<Object> all, Long from, Long to, long every, boolean reverse) {
+            List<Object[]> out = new ArrayList<>();
+            long hi = to == null ? all.size() - 1 : Math.min(all.size() - 1, to);
+            for (long i = from == null ? 0 : from; i <= hi; i += every) out.add(new Object[]{all.get((int) i), BigDecimal.valueOf(i)});
+            if (reverse) Collections.reverse(out);
+            return out;
+        }
+
         @SuppressWarnings("unchecked")
         void loop(Map<String, Object> step, Map<String, Object> a) {
             String sid = String.valueOf(step.get("id"));
             long limit = Values.toNumber(resolve(a.getOrDefault("max_iterations", BigDecimal.valueOf(100000)))).longValue();
             String it = String.valueOf(a.get("iterator"));
-            Iterator<Object> items;
+            String label = optText(a.get("label"));
+            Long from = optLong(a.get("from_index"), "from_index"), to = optLong(a.get("to_index"), "to_index");
+            if ((from != null && from < 0) || (to != null && to < 0))
+                throw new OoaException("LOOP.BAD_RANGE", "from_index and to_index cannot be negative", "Indexes start at 0.");
+            boolean reverse = flag(a, "reverse", false);
+            Iterator<Object[]> items;
             switch (it) {
                 case "times" -> {
                     long n = Values.toNumber(resolve(a.get("count"))).longValue();
+                    Object st = resolve(a.get("start")), inc = resolve(a.get("step"));
+                    BigDecimal start = st == null || "".equals(st) ? BigDecimal.ZERO : Values.toNumber(st);
+                    BigDecimal by = inc == null || "".equals(inc) ? BigDecimal.ONE : Values.toNumber(inc);
                     items = new Iterator<>() {
                         long i = 0;
                         public boolean hasNext() { return i < n; }
-                        public Object next() { return BigDecimal.valueOf(i++); }
+                        public Object[] next() { Object[] r = {start.add(by.multiply(BigDecimal.valueOf(i))), BigDecimal.valueOf(i)}; i++; return r; }
                     };
                 }
-                case "while" -> items = new Iterator<>() {
-                    public boolean hasNext() { return condition(a.get("condition"), sid); }
-                    public Object next() { return null; }
-                };
-                case "list" -> {
-                    Object over = resolve(a.get("over"));
-                    items = over == null ? Collections.emptyIterator() : new ArrayList<>((List<Object>) Values.coerce(over, "List", "over")).iterator();
+                case "while" -> {
+                    boolean atEnd = flag(a, "check_at_end", false);
+                    items = new Iterator<>() {
+                        long i = 0;
+                        public boolean hasNext() { return (atEnd && i == 0) || condition(a.get("condition"), sid); }
+                        public Object[] next() { return new Object[]{null, BigDecimal.valueOf(i++)}; }
+                    };
                 }
-                case "dictionary" -> {
+                case "list", "dictionary", "dictionary_keys", "dictionary_values", "table_rows" -> {
+                    long every = stepOf(a);
                     Object over = resolve(a.get("over"));
-                    List<Object> kv = new ArrayList<>();
-                    if (over != null) ((Map<String, Object>) Values.coerce(over, "Dictionary", "over")).forEach((k, v) -> {
-                        Map<String, Object> e = new LinkedHashMap<>(); e.put("key", k); e.put("value", v); kv.add(e);
-                    });
-                    items = kv.iterator();
-                }
-                case "table_rows" -> {
-                    Object over = resolve(a.get("over"));
-                    List<Object> recs = new ArrayList<>();
-                    if (over != null) {
-                        Map<String, Object> t = (Map<String, Object>) Values.coerce(over, "Table", "over");
-                        List<Object> cols = (List<Object>) t.get("columns");
-                        for (Object r : (List<Object>) t.get("rows")) {
-                            Map<String, Object> rec = new LinkedHashMap<>();
-                            List<Object> row = (List<Object>) r;
-                            for (int i = 0; i < cols.size(); i++) rec.put(String.valueOf(cols.get(i)), i < row.size() ? row.get(i) : null);
-                            recs.add(rec);
+                    List<Object> all = new ArrayList<>();
+                    if (over != null) switch (it) {
+                        case "list" -> all.addAll((List<Object>) Values.coerce(over, "List", "over"));
+                        case "dictionary" -> ((Map<String, Object>) Values.coerce(over, "Dictionary", "over")).forEach((k, v) -> {
+                            Map<String, Object> e = new LinkedHashMap<>(); e.put("key", k); e.put("value", v); all.add(e);
+                        });
+                        case "dictionary_keys" -> all.addAll(((Map<String, Object>) Values.coerce(over, "Dictionary", "over")).keySet());
+                        case "dictionary_values" -> all.addAll(((Map<String, Object>) Values.coerce(over, "Dictionary", "over")).values());
+                        default -> {
+                            Map<String, Object> t = (Map<String, Object>) Values.coerce(over, "Table", "over");
+                            List<Object> cols = (List<Object>) t.get("columns");
+                            for (Object r : (List<Object>) t.get("rows")) {
+                                Map<String, Object> rec = new LinkedHashMap<>();
+                                List<Object> row = (List<Object>) r;
+                                for (int i = 0; i < cols.size(); i++) rec.put(String.valueOf(cols.get(i)), i < row.size() ? row.get(i) : null);
+                                all.add(rec);
+                            }
                         }
                     }
-                    items = recs.iterator();
+                    items = select(all, from, to, every, reverse).iterator();
                 }
                 default -> {
+                    long every = stepOf(a);
                     String pid = it.substring(0, it.indexOf('/')), iid = it.substring(it.indexOf('/') + 1);
                     PackageRegistry.LoadedPackage pkg = registry.resolve(pid, (String) requires.get(pid));
                     ActionSpec spec = pkg.spec("iterator", iid);
                     if (spec == null) throw new OoaException("FLOW.UNKNOWN_ITERATOR", "Unknown iterator '" + it + "'");
                     Object res = invoke(pkg, spec, prepareArgs(spec, (Map<String, Object>) resolve(a.getOrDefault("iterator_args", Map.of()))), ctx(sid));
-                    items = ((Iterable<Object>) res).iterator();
+                    Iterator<Object> src = ((Iterable<Object>) res).iterator();
+                    if (reverse) {
+                        List<Object> all = new ArrayList<>();
+                        while (src.hasNext()) {
+                            if (all.size() > limit) throw new OoaException("LOOP.LIMIT", "Loop exceeded " + limit + " iterations", "A reversed loop reads every item first; raise max_iterations or turn reverse off.");
+                            all.add(src.next());
+                        }
+                        items = select(all, from, to, every, true).iterator();
+                    } else items = lazyRange(src, from == null ? 0 : from, to, every);
                 }
             }
             long i = 0;
@@ -563,18 +721,80 @@ public final class Runner {
                 if (i >= limit) throw new OoaException("LOOP.LIMIT", "Loop exceeded " + limit + " iterations",
                         "Check the loop condition or raise max_iterations.");
                 check();
-                Object item = items.next();
-                if (a.get("as") instanceof String as) scope.set(as, item);
-                if (a.get("index") instanceof String idx) scope.set(idx, BigDecimal.valueOf(i));
+                Object[] cur = items.next();
+                if (a.get("as") instanceof String as) scope.set(as, cur[0]);
+                if (a.get("index") instanceof String idx) scope.set(idx, cur[1]);
                 i++;
                 try { execSteps(list(step, "children"), false); }
-                catch (ContinueSignal c) { continue; }
-                catch (BreakSignal b) { break; }
+                catch (ContinueSignal c) { if (c.label != null && !c.label.equals(label)) throw c; }
+                catch (BreakSignal b) { if (b.label != null && !b.label.equals(label)) throw b; break; }
+            }
+        }
+
+        long stepOf(Map<String, Object> a) {
+            Long every = optLong(a.get("step"), "step");
+            if (every == null) return 1;
+            if (every < 1) throw new OoaException("LOOP.BAD_RANGE", "step must be 1 or more for this iterator, got " + every, "Use 1 to visit every item, 2 for every second item.");
+            return every;
+        }
+
+        /** Toolkit iterators can be endless (trigger loops), so the range is applied while reading. */
+        Iterator<Object[]> lazyRange(Iterator<Object> src, long lo, Long to, long every) {
+            return new Iterator<Object[]>() {
+                long pos = -1; Object[] pending; boolean done;
+                void advance() {
+                    while (!done && pending == null) {
+                        if (to != null && pos >= to) { done = true; return; }
+                        if (!src.hasNext()) { done = true; return; }
+                        Object x = src.next();
+                        pos++;
+                        if (pos < lo || (pos - lo) % every != 0) continue;
+                        pending = new Object[]{x, BigDecimal.valueOf(pos)};
+                    }
+                }
+                public boolean hasNext() { advance(); return pending != null; }
+                public Object[] next() { advance(); Object[] r = pending; pending = null; return r; }
+            };
+        }
+
+        private List<Map<String, Object>> walked;
+
+        /** The error as a Catch variable: code, message, suggestedFix, stepId, plus the failing step's action and its line (1-based position in the agent). */
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorInfo(OoaException e) {
+            Map<String, Object> m = new LinkedHashMap<>(e.toMap());
+            if (walked == null) walked = Steps.walk((List<Object>) flow.get("steps"));
+            Object line = null, action = null;
+            for (int i = 0; i < walked.size(); i++)
+                if (String.valueOf(walked.get(i).get("id")).equals(e.stepId())) { line = BigDecimal.valueOf(i + 1); action = walked.get(i).get("action"); break; }
+            m.put("line", line);
+            m.put("action", action);
+            return m;
+        }
+
+        /** Screenshot for a Catch block; never fails the Catch. Returns the file path, or null when no picture could be taken. */
+        String screenshot(Object option, String stepId) {
+            Object v = resolve(option);
+            String name = v instanceof String s && !s.isBlank() && !s.equalsIgnoreCase("true") ? s
+                    : "screenshots/" + runId + "_" + stepId + "_" + System.currentTimeMillis() + ".png";
+            Path target = workDir.resolve(name).toAbsolutePath();
+            try {
+                if (target.getParent() != null) java.nio.file.Files.createDirectories(target.getParent());
+                if (services.get("screen_capture") instanceof ScreenCapture sc) sc.capture(target);
+                else if (!java.awt.GraphicsEnvironment.isHeadless()) {
+                    java.awt.Rectangle all = new java.awt.Rectangle(java.awt.Toolkit.getDefaultToolkit().getScreenSize());
+                    javax.imageio.ImageIO.write(new java.awt.Robot().createScreenCapture(all), "png", target.toFile());
+                } else { log("warning", "No screen to capture for the error screenshot", stepId); return null; }
+                return target.toString();
+            } catch (Exception | LinkageError ex) {
+                log("warning", "Could not take the error screenshot: " + ex.getMessage(), stepId);
+                return null;
             }
         }
 
         @SuppressWarnings("unchecked")
         void tryBlock(Map<String, Object> step) {
+            String sid = String.valueOf(step.get("id"));
             try {
                 execSteps(list(step, "children"), false);
             } catch (OoaException e) {
@@ -586,10 +806,18 @@ public final class Runner {
                     boolean match = codes.isEmpty() || codes.stream().map(String::valueOf).anyMatch(x ->
                             x.equals(e.code()) || (x.endsWith("*") && e.code().startsWith(x.substring(0, x.length() - 1))));
                     if (match) {
-                        if (c.get("as") instanceof String as) scope.set(as, e.toMap());
-                        log("info", "Caught " + e.code(), String.valueOf(step.get("id")));
-                        execSteps((List<Object>) c.get("children"), false);
+                        Map<String, Object> err = errorInfo(e);
+                        if (c.get("screenshot") != null && !Boolean.FALSE.equals(c.get("screenshot"))) err.put("screenshot", screenshot(c.get("screenshot"), e.stepId() == null ? sid : e.stepId()));
+                        if (c.get("as") instanceof String as) scope.set(as, err);
+                        log("info", "Caught " + e.code(), sid);
+                        List<Object> body = c.get("children") instanceof List<?> l ? (List<Object>) l : List.of();
+                        if (Boolean.TRUE.equals(c.get("continueOnError"))) {
+                            nesting++;
+                            try { for (Object s : body) if (!Boolean.TRUE.equals(((Map<String, Object>) s).get("disabled"))) execStep((Map<String, Object>) s, true); }
+                            finally { nesting--; }
+                        } else execSteps(body, false);
                         handled = true;
+                        if (Boolean.TRUE.equals(c.get("rethrow"))) throw e;
                         break;
                     }
                 }
@@ -606,15 +834,18 @@ public final class Runner {
             for (Object o : list(step, "children")) if (!Boolean.TRUE.equals(((Map<String, Object>) o).get("disabled"))) branches.add((Map<String, Object>) o);
             Semaphore permits = new Semaphore(Math.max(1, n));
             List<OoaException> errors = new CopyOnWriteArrayList<>();
+            List<StopSignal> stops = new CopyOnWriteArrayList<>();
             try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {
                 for (Map<String, Object> b : branches) ex.submit(() -> {
                     try { permits.acquire(); execStep(b, false); }
                     catch (OoaException e) { errors.add(e); }
+                    catch (StopSignal s) { stops.add(s); }
                     catch (InterruptedException e) { Thread.currentThread().interrupt(); }
                     finally { permits.release(); }
                 });
             }
             if (!errors.isEmpty()) throw errors.get(0);
+            if (!stops.isEmpty()) throw stops.get(0);
         }
 
         @SuppressWarnings("unchecked")
@@ -625,25 +856,62 @@ public final class Runner {
             if (repo == null) throw new OoaException("SERVICE.UNAVAILABLE", "No agent repository available for child agents");
             Map<String, Object> args = (Map<String, Object>) resolve(a);
             String automation = Values.text(args.get("automation"));
-            Map<String, Object> childFlow = repo.get(automation, args.getOrDefault("version", "production"));
-            Run child = new Run(childFlow, runId + "." + step.get("id"), cancel, null, depth + 1);
-            child.pause = pause;
-            child.debugger = debugger;
-            child.parent = this;
-            child.parentStep = String.valueOf(step.get("id"));
+            Object version = args.get("version") == null || "".equals(args.get("version")) ? "production" : args.get("version");
+            int repeat = args.get("repeat") == null ? 1 : Values.toNumber(args.get("repeat")).intValue();
+            if (repeat < 1) throw new OoaException("CHILD.BAD_REPEAT", "repeat must be 1 or more, got " + repeat, "Use 1 to run the child once.");
+            double repeatDelay = args.get("repeat_delay_seconds") == null ? 0 : Values.toNumber(args.get("repeat_delay_seconds")).doubleValue();
+            boolean failOnError = args.get("fail_on_error") == null || Boolean.TRUE.equals(Values.coerce(args.get("fail_on_error"), "Boolean", "fail_on_error"));
+            boolean same = args.get("same_session") != null && Boolean.TRUE.equals(Values.coerce(args.get("same_session"), "Boolean", "same_session"));
+            Double timeout = args.get("timeout_seconds") == null || "".equals(args.get("timeout_seconds")) ? null : Values.toNumber(args.get("timeout_seconds")).doubleValue();
+            if (timeout != null && timeout <= 0) throw new OoaException("CHILD.BAD_TIMEOUT", "timeout_seconds must be more than 0", "Leave it empty for no limit.");
             Map<String, Object> childInputs = args.get("inputs") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
-            RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
-            stepsExecuted.addAndGet(res.stepsExecuted());
-            if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped");
-            if (!res.ok()) {
-                Map<String, Object> err = res.error() == null ? Map.of() : res.error();
-                throw new OoaException(String.valueOf(err.getOrDefault("code", "CHILD.FAILED")),
-                        "Child agent '" + automation + "' failed: " + err.get("message"), (String) err.get("suggestedFix"), false,
-                        Map.of("childRunId", res.runId(), "childStepId", String.valueOf(err.get("stepId"))));
+            Map<String, Object> outputs = Map.of(), error = new LinkedHashMap<>();
+            String status = "success";
+            int runs = 0;
+            for (int r = 0; r < repeat; r++) {
+                if (r > 0 && repeatDelay > 0) sleep(repeatDelay);
+                Map<String, Object> childFlow = repo.get(automation, version);
+                Run child = new Run(childFlow, runId + "." + step.get("id") + (repeat > 1 ? "." + (r + 1) : ""), cancel, timeout, depth + 1);
+                child.pause = pause;
+                child.debugger = debugger;
+                child.parent = this;
+                child.parentStep = String.valueOf(step.get("id"));
+                if (same) { child.sessions = sessions; child.borrowedSessions = true; }
+                RunResult res = child.executeAsChild(childInputs, deadlineNanos, secrets);
+                runs++;
+                stepsExecuted.addAndGet(res.stepsExecuted());
+                if ("stopped".equals(res.status())) throw new OoaException("RUN.CANCELLED", "Child run was stopped");
+                outputs = res.outputs();
+                if (!res.ok()) {
+                    Map<String, Object> err = res.error() == null ? Map.of() : res.error();
+                    String code = String.valueOf(err.getOrDefault("code", "CHILD.FAILED"));
+                    String msg = "Child agent '" + automation + "' failed: " + err.get("message");
+                    if ("RUN.TIMEOUT".equals(code) && timeout != null) { code = "CHILD.TIMEOUT"; msg = "Child agent '" + automation + "' did not finish within " + Values.text(BigDecimal.valueOf(timeout)) + " s"; }
+                    if (failOnError) throw new OoaException(code, msg, (String) err.get("suggestedFix"), false,
+                            Map.of("childRunId", res.runId(), "childStepId", String.valueOf(err.get("stepId"))));
+                    status = "failed";
+                    error = new LinkedHashMap<>();
+                    error.put("code", code); error.put("message", msg); error.put("stepId", err.get("stepId")); error.put("childRunId", res.runId());
+                    log("warning", msg + " (carrying on: fail_on_error is off)", String.valueOf(step.get("id")));
+                }
+            }
+            if (args.get("output_map") instanceof Map<?, ?> om) {
+                for (var e : ((Map<String, Object>) om).entrySet()) {
+                    if (!outputs.containsKey(e.getKey())) {
+                        if ("failed".equals(status)) continue;
+                        throw new OoaException("CHILD.OUTPUT_MISSING", "Child agent '" + automation + "' has no output '" + e.getKey() + "'",
+                                "Outputs: " + String.join(", ", outputs.keySet()) + ".");
+                    }
+                    Object v = outputs.get(e.getKey());
+                    Object stored = scope.set(Values.text(e.getValue()), Values.toJsonable(v) == v ? v : normalise(v));
+                    emit("variable.set", String.valueOf(step.get("id")), data("name", Values.text(e.getValue()), "value", Values.safeRepr(stored)));
+                }
             }
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("outputs", res.outputs());
-            result.put("status", res.status());
+            result.put("outputs", outputs);
+            result.put("status", status);
+            result.put("error", error);
+            result.put("runs", BigDecimal.valueOf(runs));
             storeOutputs(step, result);
         }
 

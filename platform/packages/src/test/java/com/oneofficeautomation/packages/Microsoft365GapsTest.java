@@ -120,26 +120,26 @@ class Microsoft365GapsTest {
             assertNotNull(f.last("DELETE", me + "/messages/m2"));
 
             f.calls.clear();
-            Map<String, Object> del = pkg.deleteAllMail(ctx, tok, "inbox", false, "acme", null, true, 1000, "me", b);
+            Map<String, Object> del = pkg.deleteAllMail(ctx, tok, "inbox", false, "acme", null, true, 1000, false, null, null, "me", b);
             assertEquals(BigDecimal.valueOf(2), del.get("count"));
             assertEquals(List.of(me + "/messages/m1", me + "/messages/m3"), f.all("DELETE", ".*").stream().map(Call::path).toList(), "follows paging, filters sender");
             int firstDelete = f.calls.indexOf(f.all("DELETE", ".*").get(0));
             assertTrue(f.calls.subList(firstDelete, f.calls.size()).stream().noneMatch(c -> c.method().equals("GET")), "all pages read before deleting");
 
             f.calls.clear();
-            Map<String, Object> mv = pkg.moveAllMail(ctx, tok, "archive", "inbox", false, null, "invoice", 1, "me", b);
+            Map<String, Object> mv = pkg.moveAllMail(ctx, tok, "archive", "inbox", false, null, "invoice", 1, false, null, null, "me", b);
             assertEquals(BigDecimal.ONE, mv.get("count"), "max_results caps the run");
             assertEquals("archive", f.last("POST", me + "/messages/m1/move").json().get("destinationId"));
 
-            pkg.forwardMail(ctx, tok, "m1", "x@y.com; z@y.com", "FYI", "me", b);
+            pkg.forwardMail(ctx, tok, "m1", "x@y.com; z@y.com", "FYI", null, null, null, null, null, "me", b);
             Map<String, Object> fw = f.last("POST", me + "/messages/m1/forward").json();
             assertEquals(2, ((List<?>) fw.get("toRecipients")).size());
             assertEquals("FYI", fw.get("comment"));
-            assertEquals("M365.NO_RECIPIENTS", assertThrows(ActionException.class, () -> pkg.forwardMail(ctx, tok, "m1", "", "", "me", b)).code());
+            assertEquals("M365.NO_RECIPIENTS", assertThrows(ActionException.class, () -> pkg.forwardMail(ctx, tok, "m1", "", "", null, null, null, null, null, "me", b)).code());
 
-            pkg.replyMail(ctx, tok, "m1", "Thanks", false, "me", b);
+            pkg.replyMail(ctx, tok, "m1", "Thanks", false, null, null, null, null, null, false, "me", b);
             assertEquals("Thanks", f.last("POST", me + "/messages/m1/reply").json().get("comment"));
-            pkg.replyAllMail(ctx, tok, "m1", "Thanks all", "me", b);
+            pkg.replyAllMail(ctx, tok, "m1", "Thanks all", null, null, null, null, null, false, "me", b);
             assertEquals("Thanks all", f.last("POST", me + "/messages/m1/replyAll").json().get("comment"));
 
             Map<String, Object> ex = pkg.folderExists(ctx, tok, "Invoices", "me", b);
@@ -150,7 +150,7 @@ class Microsoft365GapsTest {
             assertEquals(false, no.get("exists"));
             assertTrue(f.last("GET", me + "/mailFolders").q().contains("'O''Brien'"), "quotes escaped in the filter");
 
-            Map<String, Object> eml = pkg.saveEml(ctx, tok, "m1", "mail/inv.eml", "me", b);
+            Map<String, Object> eml = pkg.saveEml(ctx, tok, "m1", "mail/inv.eml", true, "me", b);
             assertTrue(Files.readString(Path.of((String) eml.get("path"))).endsWith("Hello"));
 
             pkg.markMail(ctx, tok, "m1", "unread", "ap@acme.com", b);
@@ -185,19 +185,19 @@ class Microsoft365GapsTest {
             Path w = tmp();
             ActionContext ctx = ctx(w);
 
-            Map<String, Object> cp = pkg.copyItem(ctx, tok, "Docs/a.docx", "Archive", "a-copy.docx", null, 30, "me/drive", b);
+            Map<String, Object> cp = pkg.copyItem(ctx, tok, "Docs/a.docx", "Archive", "a-copy.docx", null, 30, "fail", "me/drive", b);
             assertEquals("NEW1", cp.get("item_id"));
             assertEquals("completed", cp.get("status"));
             Map<String, Object> copyBody = f.last("POST", d + "/root:/Docs/a.docx:/copy").json();
             assertEquals(Map.of("driveId", "D1", "id", "F1"), copyBody.get("parentReference"));
             assertEquals("a-copy.docx", copyBody.get("name"));
             assertNull(f.last("GET", "/monitor/1").header("Authorization"), "the monitor URL never receives the token");
-            Map<String, Object> cp0 = pkg.copyItem(ctx, tok, "Docs/a.docx", "", null, null, 0, "me/drive", b);
+            Map<String, Object> cp0 = pkg.copyItem(ctx, tok, "Docs/a.docx", "", null, null, 0, "fail", "me/drive", b);
             assertEquals(f.url() + "/monitor/1", cp0.get("monitor_url"));
             assertEquals("inProgress", cp0.get("status"));
             assertEquals("ROOT", ((Map<?, ?>) f.last("POST", d + "/root:/Docs/a.docx:/copy").json().get("parentReference")).get("id"));
 
-            Map<String, Object> mv = pkg.moveItem(ctx, tok, "id:I9", "Archive", "b.docx", "me/drive", b);
+            Map<String, Object> mv = pkg.moveItem(ctx, tok, "id:I9", "Archive", "b.docx", "fail", "me/drive", b);
             assertEquals("https://od/I9", mv.get("web_url"));
             Map<String, Object> mvBody = f.last("PATCH", d + "/items/I9").json();
             assertEquals(Map.of("id", "F1"), mvBody.get("parentReference"));
@@ -205,9 +205,9 @@ class Microsoft365GapsTest {
             pkg.renameItem(ctx, tok, "id:I9", "c.docx", "me/drive", b);
             assertEquals(Map.of("name", "c.docx"), f.last("PATCH", d + "/items/I9").json());
 
-            pkg.deleteItem(ctx, tok, "Old/x.txt", "me/drive", b);
+            pkg.deleteItem(ctx, tok, "Old/x.txt", false, "me/drive", b);
             assertNotNull(f.last("DELETE", d + "/root:/Old/x.txt"));
-            assertEquals("M365.BAD_ITEM", assertThrows(ActionException.class, () -> pkg.deleteItem(ctx, tok, " ", "me/drive", b)).code());
+            assertEquals("M365.BAD_ITEM", assertThrows(ActionException.class, () -> pkg.deleteItem(ctx, tok, " ", false, "me/drive", b)).code());
 
             assertEquals("NF", pkg.createFolder(ctx, tok, "2026", "", "rename", "me/drive", b).get("item_id"));
             Map<String, Object> cf = f.last("POST", d + "/root/children").json();
@@ -215,7 +215,7 @@ class Microsoft365GapsTest {
             assertEquals(Map.of(), cf.get("folder"));
             assertEquals("SF", pkg.createFolder(ctx, tok, "Q4", "Shared/Reports", "fail", "sites/S1/drive", b).get("item_id"), "SharePoint library drive");
 
-            Map<String, Object> found = pkg.findItems(ctx, tok, "inv", 10, "me/drive", b);
+            Map<String, Object> found = pkg.findItems(ctx, tok, "inv", 10, "any", null, false, "me/drive", b);
             assertEquals(BigDecimal.valueOf(3), found.get("count"));
             assertEquals("folder", rows(found.get("table")).get(1).get(2));
             assertTrue(f.all("GET", ".*/search.*").get(0).path().endsWith("/root/search(q=%27inv%27)"));
@@ -251,7 +251,7 @@ class Microsoft365GapsTest {
             f.at("GET", d + "/root", c -> ok("{\"id\":\"ROOT\"}"))
              .at("POST", d + "/items/X/copy", c -> new Object[]{202, "", Map.of("Location", f.url() + "/monitor/9")})
              .at("GET", "/monitor/9", c -> ok("{\"status\":\"failed\",\"error\":{\"message\":\"Name already exists\"}}"));
-            ActionException e = assertThrows(ActionException.class, () -> pkg.copyItem(ctx(tmp()), tok, "id:X", "", null, null, 5, "me/drive", f.base()));
+            ActionException e = assertThrows(ActionException.class, () -> pkg.copyItem(ctx(tmp()), tok, "id:X", "", null, null, 5, "fail", "me/drive", f.base()));
             assertEquals("M365.COPY_FAILED", e.code());
             assertTrue(e.getMessage().contains("Name already exists"));
         }
@@ -320,11 +320,11 @@ class Microsoft365GapsTest {
             pkg.excelAutofitRows(ctx, tok, book, "Data", "A1:A50", dr, b);
             assertNotNull(f.last("POST", sh + "/range(address='A1:A50')/format/autofitRows"));
 
-            pkg.excelFormat(ctx, tok, book, "Data", "A1:B2", "#FFF2CC", true, "#C00000", "0.00", dr, b);
+            pkg.excelFormat(ctx, tok, book, "Data", "A1:B2", "#FFF2CC", true, "#C00000", "0.00", null, null, null, null, null, null, null, null, null, null, null, null, null, dr, b);
             assertEquals(Map.of("color", "#FFF2CC"), f.last("PATCH", sh + "/range(address='A1:B2')/format/fill").json());
             assertEquals(Map.of("bold", true, "color", "#C00000"), f.last("PATCH", sh + "/range(address='A1:B2')/format/font").json());
             assertEquals(Map.of("numberFormat", List.of(List.of("0.00", "0.00"), List.of("0.00", "0.00"))), f.last("PATCH", sh + "/range(address='A1:B2')").json());
-            assertEquals("M365.NOTHING_TO_DO", assertThrows(ActionException.class, () -> pkg.excelFormat(ctx, tok, book, "Data", "A1:B2", null, null, null, null, dr, b)).code());
+            assertEquals("M365.NOTHING_TO_DO", assertThrows(ActionException.class, () -> pkg.excelFormat(ctx, tok, book, "Data", "A1:B2", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, dr, b)).code());
         }
     }
 
@@ -405,14 +405,14 @@ class Microsoft365GapsTest {
             ActionContext ctx = ctx(w);
             LocalDateTime s = LocalDateTime.parse("2026-11-02T09:00"), e = LocalDateTime.parse("2026-11-02T10:00");
 
-            assertEquals("https://outlook/E1", pkg.updateEvent(ctx, tok, "E1", "Budget review", s, e, "UTC", null, "Room 4", "me", b).get("web_link"));
+            assertEquals("https://outlook/E1", pkg.updateEvent(ctx, tok, "E1", "Budget review", s, e, "UTC", null, "Room 4", false, null, null, null, null, null, "me", b).get("web_link"));
             Map<String, Object> up = f.last("PATCH", ev).json();
             assertEquals("Budget review", up.get("subject"));
             assertEquals("2026-11-02T09:00", ((Map<?, ?>) up.get("start")).get("dateTime"));
             assertEquals(Map.of("displayName", "Room 4"), up.get("location"));
             assertFalse(up.containsKey("body"), "unchanged fields are not sent");
-            assertEquals("M365.NOTHING_TO_DO", assertThrows(ActionException.class, () -> pkg.updateEvent(ctx, tok, "E1", null, null, null, "UTC", null, null, "me", b)).code());
-            assertEquals("M365.BAD_TIMES", assertThrows(ActionException.class, () -> pkg.updateEvent(ctx, tok, "E1", null, e, s, "UTC", null, null, "me", b)).code());
+            assertEquals("M365.NOTHING_TO_DO", assertThrows(ActionException.class, () -> pkg.updateEvent(ctx, tok, "E1", null, null, null, "UTC", null, null, false, null, null, null, null, null, "me", b)).code());
+            assertEquals("M365.BAD_TIMES", assertThrows(ActionException.class, () -> pkg.updateEvent(ctx, tok, "E1", null, e, s, "UTC", null, null, false, null, null, null, null, null, "me", b)).code());
 
             pkg.cancelEvent(ctx, tok, "E1", "Moved to next week", "me", b);
             assertEquals(Map.of("comment", "Moved to next week"), f.last("POST", ev + "/cancel").json());
@@ -476,7 +476,7 @@ class Microsoft365GapsTest {
             assertEquals("Controller", user.get("job_title"));
             assertEquals("ann@x.com", user.get("email"));
 
-            assertEquals("M9", pkg.sendChatMessage(ctx, tok, "CH1", "<b>Done</b>", true, b).get("message_id"));
+            assertEquals("M9", pkg.sendChatMessage(ctx, tok, "CH1", "<b>Done</b>", true, "normal", b).get("message_id"));
             assertEquals(Map.of("contentType", "html", "content", "<b>Done</b>"), f.last("POST", "/v1.0/chats/CH1/messages").json().get("body"));
             assertEquals("CH2", pkg.createChat(ctx, tok, "bob@x.com", b).get("chat_id"));
             Map<String, Object> chat = f.last("POST", "/v1.0/chats").json();
@@ -550,7 +550,7 @@ class Microsoft365GapsTest {
             assertEquals(true, r.error().get("retryable"));
             assertTrue(String.valueOf(r.error().get("message")).contains("Please retry after 10 seconds"));
 
-            ActionException nf = assertThrows(ActionException.class, () -> pkg.deleteItem(ctx(tmp()), tok, "Gone.txt", "me/drive", b));
+            ActionException nf = assertThrows(ActionException.class, () -> pkg.deleteItem(ctx(tmp()), tok, "Gone.txt", false, "me/drive", b));
             assertEquals("M365.NOT_FOUND", nf.code());
             assertFalse(nf.retryable());
             assertTrue(nf.getMessage().contains("could not be found"));

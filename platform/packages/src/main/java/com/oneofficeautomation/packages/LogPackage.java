@@ -20,17 +20,40 @@ public final class LogPackage {
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,
             @Input(name = "level", type = OoaType.STRING, required = false, defaultValue = "\"INFO\"", enumValues = {"DEBUG", "INFO", "WARN", "ERROR"}, description = "Level label.") String level,
             @Input(name = "timestamp", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Start the line with the date and time.") boolean ts,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", enumValues = {"utf-8", "utf-16le", "ansi"},
+                    description = "File encoding: utf-8, utf-16le (Unicode, written with a byte-order mark) or ansi (the runner's code page). Match the existing file when appending.") String encoding,
+            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
         Path p = ctx.resolvePath(path);
-        String line = (ts ? OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + " " : "") + level + " " + ctx.redact(message) + System.lineSeparator();
+        String line = (ts ? now(tsFormat) + " " : "") + level + " " + ctx.redact(message) + System.lineSeparator();
         synchronized (LOCK) {
             try {
                 if (p.getParent() != null) Files.createDirectories(p.getParent());
-                if (overwrite) Files.writeString(p, line, StandardCharsets.UTF_8);
-                else Files.writeString(p, line, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                append(p, line, encoding, overwrite);
             } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write log " + p + ": " + e.getMessage(), "Check the folder exists and is writable.", true); }
         }
         return Map.of();
+    }
+
+    static String now(String pattern) {
+        if (pattern == null || pattern.isBlank()) return OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+        try { return OffsetDateTime.now().format(DateTimeFormatter.ofPattern(pattern)); }
+        catch (IllegalArgumentException e) { throw new ActionException("LOG.BAD_TIMESTAMP_FORMAT", "Invalid timestamp format '" + pattern + "'", "Use a pattern such as yyyy-MM-dd HH:mm:ss."); }
+    }
+
+    /** Writes text in the chosen encoding; a new or replaced UTF-16LE file starts with a byte-order mark. */
+    static void append(Path p, String text, String encoding, boolean overwrite) throws IOException {
+        String e = encoding == null || encoding.isBlank() ? "utf-8" : encoding.strip().toLowerCase(Locale.ROOT);
+        java.nio.charset.Charset cs = switch (e) {
+            case "utf-8", "utf8" -> StandardCharsets.UTF_8;
+            case "utf-16le", "unicode" -> StandardCharsets.UTF_16LE;
+            case "ansi" -> java.nio.charset.Charset.defaultCharset();
+            default -> throw new ActionException("LOG.BAD_ENCODING", "Unknown encoding '" + encoding + "'", "Use utf-8, utf-16le or ansi.");
+        };
+        boolean fresh = overwrite || !Files.exists(p) || Files.size(p) == 0;
+        String out = (fresh && cs == StandardCharsets.UTF_16LE ? "\uFEFF" : "") + text;
+        if (overwrite) Files.writeString(p, out, cs);
+        else Files.writeString(p, out, cs, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     }
 
     static String render(Object v) {
@@ -46,11 +69,14 @@ public final class LogPackage {
             @Input(name = "variables", type = OoaType.DICTIONARY, description = "Names and values to write, e.g. {\"invoice\": \"$invoice\", \"total\": \"$total\"}.") Map<String, Object> variables,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "Heading line written before the variables.") String title,
             @Input(name = "timestamp", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Start the heading with the date and time.") boolean ts,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", enumValues = {"utf-8", "utf-16le", "ansi"},
+                    description = "File encoding: utf-8, utf-16le (Unicode, written with a byte-order mark) or ansi (the runner's code page). Match the existing file when appending.") String encoding,
+            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
         Path p = ctx.resolvePath(path);
         String nl = System.lineSeparator();
         StringBuilder sb = new StringBuilder();
-        String head = (ts ? OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : "") + (title == null || title.isBlank() ? "" : (ts ? " " : "") + title);
+        String head = (ts ? now(tsFormat) : "") + (title == null || title.isBlank() ? "" : (ts ? " " : "") + title);
         if (!head.isBlank()) sb.append(ctx.redact(head)).append(nl);
         int n = 0;
         if (variables != null) for (var e : variables.entrySet()) {
@@ -61,8 +87,7 @@ public final class LogPackage {
         synchronized (LOCK) {
             try {
                 if (p.getParent() != null) Files.createDirectories(p.getParent());
-                if (overwrite) Files.writeString(p, sb, StandardCharsets.UTF_8);
-                else Files.writeString(p, sb, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                append(p, sb.toString(), encoding, overwrite);
             } catch (IOException e) { throw new ActionException("LOG.IO_ERROR", "Cannot write log " + p + ": " + e.getMessage(), "Check the folder exists and is writable.", true); }
         }
         return Map.of("lines", java.math.BigDecimal.valueOf(n));

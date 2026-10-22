@@ -33,12 +33,34 @@ public final class DatabasePackage {
             @Input(name = "jdbc_url", type = OoaType.STRING, pattern = "^jdbc:", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp or jdbc:postgresql://host/db.") String url,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name for later steps.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name for later steps.") String session,
+            @Input(name = "driver_class", type = OoaType.STRING, required = false, example = "org.postgresql.Driver", description = "JDBC driver class to load first, for drivers that do not register themselves.") String driverClass,
+            @Input(name = "login_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Give up connecting after this many seconds; 0 uses the driver's default.") int loginTimeout,
+            @Input(name = "properties", type = OoaType.DICTIONARY, required = false, description = "Extra driver properties, e.g. {\"encrypt\": \"true\"}; Credential values are revealed only to the driver.") Map<String, Object> properties,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the connection read-only, so the agent cannot change data by mistake (when the driver supports it).") boolean readOnly,
+            @Input(name = "auto_commit", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save each statement at once; false starts in a transaction that needs Commit.") boolean autoCommit) {
+        if (driverClass != null && !driverClass.isBlank()) {
+            if (!driverClass.strip().matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+"))
+                throw new ActionException("DB.BAD_DRIVER", "Invalid driver class '" + driverClass + "'", "Give the full class name, e.g. org.postgresql.Driver.");
+            try { Class.forName(driverClass.strip(), true, Thread.currentThread().getContextClassLoader() != null ? Thread.currentThread().getContextClassLoader() : DatabasePackage.class.getClassLoader()); }
+            catch (ClassNotFoundException | LinkageError e) { throw new ActionException("DB.NO_DRIVER", "JDBC driver " + driverClass + " is not installed on the runner", "Ask an administrator to install the database driver on the runner."); }
+        }
         try {
             Properties p = new Properties();
+            if (properties != null) properties.forEach((k, v) -> { if (v != null) p.setProperty(k, v instanceof SecureString ss ? ss.reveal() : Values.text(v)); });
             if (user != null) p.setProperty("user", user);
             if (password instanceof SecureString s) p.setProperty("password", s.reveal());
-            ctx.sessions().put(session, new DbSession(DriverManager.getConnection(url, p)));
+            Connection conn;
+            synchronized (DriverManager.class) {  // the login timeout is global in JDBC, so set it only around this connection
+                int previous = DriverManager.getLoginTimeout();
+                if (loginTimeout > 0) DriverManager.setLoginTimeout(loginTimeout);
+                try { conn = DriverManager.getConnection(url, p); } finally { DriverManager.setLoginTimeout(previous); }
+            }
+            try {
+                if (readOnly) conn.setReadOnly(true);
+                if (!autoCommit) conn.setAutoCommit(false);
+            } catch (SQLException e) { conn.close(); throw e; }
+            ctx.sessions().put(session, new DbSession(conn));
             ctx.info("Connected session '" + session + "' to " + url.replaceAll("(?i)password=[^;&]+", "password=****"));
         } catch (SQLException e) {
             if ("08001".equals(e.getSQLState()) || e.getMessage().contains("No suitable driver"))
@@ -67,10 +89,12 @@ public final class DatabasePackage {
             @Input(name = "sql", type = OoaType.STRING, description = "SELECT statement with ? placeholders.") String sql,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Safety limit on rows returned.") int maxRows,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
         Connection c = ctx.session(session, DbSession.class).conn;
         try (PreparedStatement ps = prepare(c, sql, params)) {
             ps.setMaxRows(maxRows);
+            if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
             try (ResultSet rs = ps.executeQuery()) {
                 ResultSetMetaData md = rs.getMetaData();
                 List<String> cols = new ArrayList<>();
@@ -101,9 +125,11 @@ public final class DatabasePackage {
     public Map<String, Object> execute(ActionContext ctx,
             @Input(name = "sql", type = OoaType.STRING, description = "Statement with ? placeholders.") String sql,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
         Connection c = ctx.session(session, DbSession.class).conn;
         try (PreparedStatement ps = prepare(c, sql, params)) {
+            if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
             return Out.of("rows_affected", BigDecimal.valueOf(ps.executeUpdate()));
         } catch (SQLException e) { throw sql(e); }
     }
@@ -207,13 +233,15 @@ public final class DatabasePackage {
             @Input(name = "procedure", type = OoaType.STRING, example = "dbo.close_period", description = "Procedure name, optionally schema.name.") String procedure,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Input values, in the procedure's parameter order.") List<Object> params,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Safety limit on rows returned.") int maxRows,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
         String name = identifier(procedure, "procedure");
         int n = params == null ? 0 : params.size();
         String call = "{call " + name + "(" + String.join(", ", Collections.nCopies(n, "?")) + ")}";
         Connection c = ctx.session(session, DbSession.class).conn;
         try (CallableStatement cs = c.prepareCall(call)) {
             for (int i = 0; i < n; i++) bind(cs, i + 1, params.get(i));
+            if (queryTimeout > 0) cs.setQueryTimeout(queryTimeout);
             boolean hasRs = cs.execute();
             Map<String, Object> table = Values.table(List.of(), new ArrayList<>());
             long affected = -1;
@@ -242,16 +270,20 @@ public final class DatabasePackage {
             @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field separator, e.g. , or ; or tab.") String delimiter,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Write the column names as the first line.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding of the file.") String encoding,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite) {
         char d = delimiter == null || delimiter.isEmpty() ? ',' : delimiter.equalsIgnoreCase("tab") ? '\t' : delimiter.charAt(0);
         java.nio.file.Path p = ctx.resolvePath(path);
+        if (!overwrite && java.nio.file.Files.exists(p)) throw new ActionException("DB.FILE_EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
         Connection c = ctx.session(session, DbSession.class).conn;
         long count = 0;
         try (PreparedStatement ps = prepare(c, sql, params)) {
             ps.setFetchSize(1000);
+            if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
             try (ResultSet rs = ps.executeQuery()) {
                 if (p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent());
-                try (java.io.BufferedWriter w = java.nio.file.Files.newBufferedWriter(p, java.nio.charset.Charset.forName(encoding))) {
+                try (java.io.BufferedWriter w = java.nio.file.Files.newBufferedWriter(p, FilePackage.charset(encoding))) {
                     ResultSetMetaData md = rs.getMetaData();
                     int n = md.getColumnCount();
                     if (header) {

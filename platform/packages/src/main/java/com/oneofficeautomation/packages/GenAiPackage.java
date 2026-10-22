@@ -40,8 +40,18 @@ public final class GenAiPackage {
         return t;
     }
 
-    @Action(id = "prompt", name = "Prompt", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Send a prompt and return the model's answer.")
-    @Output(name = "text", type = OoaType.STRING, description = "Answer.")
+    static final String D_TOP_P = "Nucleus sampling: only the most likely words whose chances add up to this share are used (above 0 to 1); provider default when empty.";
+    static final String D_STOP = "Up to 4 texts at which the model stops writing.";
+    static final String D_PRESENCE = "From -2 to 2; higher values push the model toward new topics (OpenAI-style providers).";
+    static final String D_FREQUENCY = "From -2 to 2; higher values make the model repeat itself less (OpenAI-style providers).";
+    static final String D_TIMEOUT = "Seconds to wait for the model; 180 when 0.";
+
+    @Action(id = "prompt", name = "Prompt", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"}, description = "Send a prompt and return the model's answer.")
+    @Output(name = "text", type = OoaType.STRING, description = "Answer (the first one when several were asked for).")
+    @Output(name = "responses", type = OoaType.LIST, description = "Every answer, when number_of_responses is more than 1.")
+    @Output(name = "json", description = "The answer parsed as JSON, when response_format is json.")
+    @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request.")
+    @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens in the answer.")
     public Map<String, Object> prompt(ActionContext ctx,
             @Input(name = "prompt", type = OoaType.STRING, description = "Your request; ${...} interpolation allowed.") String prompt,
             @Input(name = "system", type = OoaType.STRING, required = false, defaultValue = "\"You are a precise business assistant.\"", description = "Instructions for the model's role and tone.") String system,
@@ -54,8 +64,98 @@ public final class GenAiPackage {
             @Input(name = "max_tokens", type = OoaType.NUMBER, required = false, defaultValue = "1024", description = "Maximum answer length in tokens.") int max,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
+            @Input(name = "top_p", type = OoaType.NUMBER, required = false, description = D_TOP_P) Double topP,
+            @Input(name = "top_k", type = OoaType.NUMBER, required = false, description = "Only pick from this many most likely words (Anthropic models).") Integer topK,
+            @Input(name = "stop_sequences", type = OoaType.LIST, required = false, description = D_STOP) List<Object> stop,
+            @Input(name = "presence_penalty", type = OoaType.NUMBER, required = false, description = D_PRESENCE) Double presence,
+            @Input(name = "frequency_penalty", type = OoaType.NUMBER, required = false, description = D_FREQUENCY) Double frequency,
+            @Input(name = "seed", type = OoaType.NUMBER, required = false, description = "Same seed and settings give the same answer where the provider supports it.") Integer seed,
+            @Input(name = "number_of_responses", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many alternative answers to ask for, 1 to 10 (OpenAI-style providers).") int n,
+            @Input(name = "response_format", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "json"}, description = "json: ask for one JSON object and also return it parsed.") String format,
+            @Input(name = "end_user", type = OoaType.STRING, required = false, description = "An id for the person the answer is for, passed on for the provider's abuse monitoring (OpenAI-style providers).") String endUser,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout) {
+        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
+                .with(LlmClient.Options.of(topP, topK, stop, presence, frequency, seed, endUser, n, timeout));
+        boolean json = "json".equals(format);
+        List<Map<String, Object>> m = new ArrayList<>();
+        if (system != null && !system.isBlank()) m.add(Map.of("role", "system", "content", system));
+        m.add(Map.of("role", "user", "content", prompt));
+        LlmClient.Reply r = LlmClient.chat(ctx, c, m, null, json, "prompt");
+        if (r.text() == null) throw new ActionException("AI.EMPTY", "The model returned no text", "Retry or raise max_tokens.", true);
+        return Out.of("text", r.text(), "responses", new ArrayList<Object>(r.all()), "json", json ? LlmClient.parseJson(r.text()) : null,
+                "input_tokens", BigDecimal.valueOf(r.inTokens()), "output_tokens", BigDecimal.valueOf(r.outTokens()));
+    }
+
+    /** Earlier signature, kept for callers written before the sampling options. */
+    public Map<String, Object> prompt(ActionContext ctx, String prompt, String system, String provider, String connection, String model, Object key, String base,
+                                      double temp, int max, boolean mask, Object awsKeyId, String awsRegion) {
+        return prompt(ctx, prompt, system, provider, connection, model, key, base, temp, max, mask, awsKeyId, awsRegion, null, null, null, null, null, null, 1, "text", null, 0);
+    }
+
+    /** One chat conversation: the messages so far (unmasked; masking happens on every call). */
+    static final class ChatSession {
+        final List<Map<String, Object>> messages = new ArrayList<>();
+        String system;
+    }
+
+    private static String chatKey(String session) {
+        String s = session == null || session.isBlank() ? "Default" : session.strip();
+        if (!s.matches("^[A-Za-z0-9 _.-]{1,64}$")) throw new ActionException("AI.BAD_SESSION", "Invalid chat session name '" + session + "'", "Use letters, digits, spaces, . - and _.");
+        return "genai_chat:" + s;
+    }
+
+    @Action(id = "chat", name = "Chat", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
+            description = "Send a message in a conversation that remembers earlier messages of the same chat session until End chat.")
+    @Output(name = "text", type = OoaType.STRING, description = "The model's reply.")
+    @Output(name = "turns", type = OoaType.NUMBER, description = "Number of messages now held in the session (yours and the model's).")
+    @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request.")
+    @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens in the reply.")
+    public Map<String, Object> chat(ActionContext ctx,
+            @Input(name = "message", type = OoaType.STRING, description = "Your next message.") String message,
+            @Input(name = "chat_session", type = OoaType.STRING, required = false, defaultValue = "\"Default\"", description = "Name of the conversation; use different names for separate chats in one agent.") String session,
+            @Input(name = "system", type = OoaType.STRING, required = false, description = "Instructions for the model's role; set on the first message of a session (a new value replaces the old one).") String system,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = D_PROVIDER) String provider,
+            @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
+            @Input(name = "model", type = OoaType.STRING, required = false, description = D_MODEL) String model,
+            @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = D_KEY) Object key,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
+            @Input(name = "temperature", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "0 = consistent, higher = more creative.") double temp,
+            @Input(name = "max_tokens", type = OoaType.NUMBER, required = false, defaultValue = "1024", description = "Maximum reply length in tokens.") int max,
+            @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MASK) boolean mask,
+            @Input(name = "history_limit", type = OoaType.NUMBER, required = false, defaultValue = "40", description = "Most messages to keep in the session; the oldest are dropped first.") int limit,
+            @Input(name = "top_p", type = OoaType.NUMBER, required = false, description = D_TOP_P) Double topP,
+            @Input(name = "stop_sequences", type = OoaType.LIST, required = false, description = D_STOP) List<Object> stop,
+            @Input(name = "presence_penalty", type = OoaType.NUMBER, required = false, description = D_PRESENCE) Double presence,
+            @Input(name = "frequency_penalty", type = OoaType.NUMBER, required = false, description = D_FREQUENCY) Double frequency,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_TIMEOUT) int timeout,
+            @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
-        return Map.of("text", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion), system, prompt, false, "prompt"));
+        if (message == null || message.isBlank()) throw new ActionException("AI.EMPTY_MESSAGE", "The message is empty");
+        if (limit < 2 || limit > 500) throw new ActionException("AI.BAD_OPTION", "history_limit must be between 2 and 500");
+        String k = chatKey(session);
+        ChatSession cs = ctx.sessions().get(k) instanceof ChatSession existing ? existing : new ChatSession();
+        if (system != null && !system.isBlank()) cs.system = system;
+        LlmClient.Config c = ModelConnections.config(ctx, connection, provider, model, key, base, temp, max, mask, awsKeyId, awsRegion)
+                .with(LlmClient.Options.of(topP, null, stop, presence, frequency, null, null, null, timeout));
+        List<Map<String, Object>> m = new ArrayList<>();
+        if (cs.system != null) m.add(Map.of("role", "system", "content", cs.system));
+        m.addAll(cs.messages);
+        m.add(Map.of("role", "user", "content", message));
+        LlmClient.Reply r = LlmClient.chat(ctx, c, m, null, false, "chat");
+        String text = r.text() == null ? "" : r.text();
+        cs.messages.add(Map.of("role", "user", "content", message));
+        cs.messages.add(Map.of("role", "assistant", "content", text));
+        while (cs.messages.size() > limit) cs.messages.remove(0);
+        ctx.sessions().put(k, cs);
+        return Out.of("text", text, "turns", BigDecimal.valueOf(cs.messages.size()), "input_tokens", BigDecimal.valueOf(r.inTokens()), "output_tokens", BigDecimal.valueOf(r.outTokens()));
+    }
+
+    @Action(id = "end_chat", name = "End chat", category = "Generative AI", description = "Forget the messages of a chat session, so the next Chat starts a new conversation.")
+    public Map<String, Object> endChat(ActionContext ctx,
+            @Input(name = "chat_session", type = OoaType.STRING, required = false, defaultValue = "\"Default\"", description = "Name of the conversation to end.") String session) {
+        ctx.sessions().remove(chatKey(session));
+        return Map.of();
     }
 
     @Action(id = "summarize", name = "Summarise", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Summarise text in a few sentences, keeping figures exact.")

@@ -47,8 +47,59 @@ public final class CsvPackage {
 
     private static char delim(String d) {
         if (d.equals("\\t") || d.equals("tab")) return '\t';
-        if (d.length() != 1) throw new ActionException("CSV.BAD_DELIMITER", "Delimiter must be one character", "Use , ; | or tab.");
+        if (d.equals("regional")) {
+            // the list separator of the machine's locale: ; where the decimal separator is a comma, otherwise ,
+            return java.text.DecimalFormatSymbols.getInstance().getDecimalSeparator() == ',' ? ';' : ',';
+        }
+        if (d.length() != 1) throw new ActionException("CSV.BAD_DELIMITER", "Delimiter must be one character", "Use , ; | tab or regional.");
         return d.charAt(0);
+    }
+
+    /** A text encoding and whether a byte order mark is written. */
+    record Enc(Charset charset, boolean bom) {}
+
+    /** Accepts Java names plus the names people know from other tools: ansi, unicode, utf-8-bom. */
+    static Enc encoding(String name) {
+        String n = name == null || name.isBlank() ? "utf-8" : name.trim().toLowerCase(Locale.ROOT);
+        try {
+            return switch (n) {
+                case "ansi" -> new Enc(Charset.forName("windows-1252"), false);
+                case "unicode", "utf-16le" -> new Enc(java.nio.charset.StandardCharsets.UTF_16LE, true);
+                case "utf-8-bom", "utf-8 bom", "utf8bom" -> new Enc(java.nio.charset.StandardCharsets.UTF_8, true);
+                default -> new Enc(Charset.forName(n), false);
+            };
+        } catch (IllegalArgumentException e) {
+            throw new ActionException("FILE.BAD_ENCODING", "Unknown text encoding '" + name + "'", "Use utf-8, utf-8-bom, ansi, unicode, utf-16 or windows-1251.");
+        }
+    }
+
+    /** Reads a CSV file into a header and rows with the read options; shared by read and the rows iterator. */
+    static Map<String, Object> load(ActionContext ctx, String path, String d, boolean header, String enc, String trim, int skipLines, Integer maxRows, boolean skipEmptyRows) {
+        Path p = ctx.resolvePath(path);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
+        if (skipLines < 0) throw new ActionException("CSV.BAD_OPTION", "skip_lines cannot be negative", "Use 0 or more.");
+        String text;
+        try { text = new String(Files.readAllBytes(p), encoding(enc).charset()); }
+        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+        if (!text.isEmpty() && text.charAt(0) == '\uFEFF') text = text.substring(1);
+        for (int i = 0; i < skipLines && !text.isEmpty(); i++) { int nl = text.indexOf('\n'); text = nl < 0 ? "" : text.substring(nl + 1); }
+        List<List<String>> rows = parse(text, delim(d));
+        String t = trim == null ? "none" : trim;
+        if (!t.equals("none")) for (List<String> r : rows) r.replaceAll(v -> switch (t) {
+            case "leading" -> v.stripLeading(); case "trailing" -> v.stripTrailing(); case "both" -> v.strip();
+            default -> throw new ActionException("CSV.BAD_OPTION", "Unknown trim option '" + t + "'", "Use none, leading, trailing or both.");
+        });
+        if (skipEmptyRows) rows.removeIf(r -> r.stream().allMatch(String::isEmpty));
+        int width = rows.stream().mapToInt(List::size).max().orElse(0);
+        List<String> cols = new ArrayList<>();
+        if (header && !rows.isEmpty()) cols.addAll(rows.remove(0));
+        while (cols.size() < width) cols.add("Column" + (cols.size() + 1));
+        List<Object> data = new ArrayList<>();
+        for (List<String> r : rows) {
+            if (maxRows != null && data.size() >= maxRows) break;
+            List<Object> row = new ArrayList<>(r); while (row.size() < cols.size()) row.add(""); data.add(row);
+        }
+        return Values.table(cols, data);
     }
 
     @Action(id = "read", name = "Read to table", category = "CSV", idempotent = true, capabilities = "filesystem",
@@ -59,19 +110,33 @@ public final class CsvPackage {
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
             @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | or tab.") String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
-            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding.") String enc) {
-        Path p = ctx.resolvePath(path);
-        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
-        List<List<String>> rows;
-        try { rows = parse(Files.readString(p, Charset.forName(enc)), delim(d)); }
-        catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
-        int width = rows.stream().mapToInt(List::size).max().orElse(0);
-        List<String> cols = new ArrayList<>();
-        if (header && !rows.isEmpty()) cols.addAll(rows.remove(0));
-        while (cols.size() < width) cols.add("Column" + (cols.size() + 1));
-        List<Object> data = new ArrayList<>();
-        for (List<String> r : rows) { List<Object> row = new ArrayList<>(r); while (row.size() < cols.size()) row.add(""); data.add(row); }
-        return Out.of("table", Values.table(cols, data), "row_count", java.math.BigDecimal.valueOf(data.size()));
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, utf-8-bom, ansi, unicode, utf-16, windows-1251 ...") String enc,
+            @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
+                    description = "Remove spaces at the start and/or end of every value.") String trim,
+            @Input(name = "skip_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Lines to skip at the top of the file, before the header.") int skipLines,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, description = "Read at most this many data rows; all when empty.") Integer maxRows,
+            @Input(name = "skip_empty_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out rows whose values are all empty (blank lines are always skipped).") boolean skipEmptyRows) {
+        Map<String, Object> t = load(ctx, path, d, header, enc, trim, skipLines, maxRows, skipEmptyRows);
+        return Out.of("table", t, "row_count", java.math.BigDecimal.valueOf(((List<?>) t.get("rows")).size()));
+    }
+
+    @LoopIterator(id = "rows", name = "Each row in CSV/TXT", description = "Yield each data row of a CSV or delimited text file as a record keyed by column name.")
+    public Iterable<Object> rows(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab or regional.") String d,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding.") String enc,
+            @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
+                    description = "Remove spaces at the start and/or end of every value.") String trim) {
+        Map<String, Object> t = load(ctx, path, d, header, enc, trim, 0, null, false);
+        List<String> cols = DataTablePackage.cols(t);
+        List<Object> out = new ArrayList<>();
+        for (List<Object> r : DataTablePackage.rows(t)) {
+            Map<String, Object> rec = new LinkedHashMap<>();
+            for (int i = 0; i < cols.size(); i++) rec.put(cols.get(i), DataTablePackage.cell(r, i));
+            out.add(rec);
+        }
+        return out;
     }
 
     @Action(id = "write", name = "Write from table", category = "CSV", capabilities = "filesystem",
@@ -81,24 +146,35 @@ public final class CsvPackage {
             @Input(name = "path", type = OoaType.FILE, description = "Target path.") String path,
             @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter.") String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Write column names first (not when appending to an existing file).") boolean header,
-            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Append rows to an existing file.") boolean append) {
+            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Append rows to an existing file.") boolean append,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, utf-8-bom, ansi, unicode, utf-16 ...") String enc,
+            @Input(name = "quote_all", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Put every value in double quotes, not only values that need them.") boolean quoteAll,
+            @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, description = "Line ending: crlf (Windows) or lf.") String lineEnding) {
         char c = delim(d);
         Path p = ctx.resolvePath(path);
+        String eol = "lf".equals(lineEnding) ? "\n" : "\r\n";
+        Enc e = encoding(enc);
         StringBuilder sb = new StringBuilder();
-        boolean writeHeader = header && !(append && Files.exists(p));
-        if (writeHeader) sb.append(line(new ArrayList<>(DataTablePackage.cols(table)), c));
-        for (List<Object> r : DataTablePackage.rows(table)) sb.append(line(r, c));
+        boolean exists = append && Files.exists(p);
+        boolean writeHeader = header && !exists;
+        if (e.bom() && !exists) sb.append('\uFEFF');
+        if (writeHeader) sb.append(line(new ArrayList<>(DataTablePackage.cols(table)), c, quoteAll, eol));
+        for (List<Object> r : DataTablePackage.rows(table)) sb.append(line(r, c, quoteAll, eol));
         try {
             if (p.getParent() != null) Files.createDirectories(p.getParent());
-            if (append) Files.writeString(p, sb, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-            else Files.writeString(p, sb);
-        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + e.getMessage(), null, true); }
+            byte[] bytes = sb.toString().getBytes(e.charset());
+            if (append) Files.write(p, bytes, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            else Files.write(p, bytes);
+        } catch (IOException ex) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + ex.getMessage(), null, true); }
         return Out.of();
     }
 
-    private static String line(List<?> values, char d) {
+    private static String line(List<?> values, char d, boolean quoteAll, String eol) {
         StringJoiner j = new StringJoiner(String.valueOf(d));
-        for (Object v : values) j.add(quote(v == null ? "" : Values.text(Values.toJsonable(v)), d));
-        return j + "\r\n";
+        for (Object v : values) {
+            String s = v == null ? "" : Values.text(Values.toJsonable(v));
+            j.add(quoteAll ? '"' + s.replace("\"", "\"\"") + '"' : quote(s, d));
+        }
+        return j + eol;
     }
 }

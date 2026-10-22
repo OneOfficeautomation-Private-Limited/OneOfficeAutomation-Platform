@@ -3,7 +3,6 @@ package com.oneofficeautomation.packages.pdf;
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
 import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.multipdf.Splitter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
@@ -36,29 +35,103 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.INVALID", "Cannot read PDF " + p + ": " + e.getMessage(), "Check it is a valid PDF file."); }
     }
 
-    private static void save(ActionContext ctx, PDDocument doc, String target) {
+    private static void save(ActionContext ctx, PDDocument doc, String target) { save(ctx, doc, target, true); }
+
+    private static void save(ActionContext ctx, PDDocument doc, String target, boolean overwrite) {
         Path out = ctx.resolvePath(target);
+        if (!overwrite && Files.exists(out))
+            throw new ActionException("PDF.EXISTS", "A file already exists at " + out, "Set overwrite to true or choose another name.");
         try {
             if (out.getParent() != null) Files.createDirectories(out.getParent());
             doc.save(out.toFile());
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot save " + out + ": " + e.getMessage(), "Close the file if it is open.", true); }
     }
 
+    /**
+     * Parses a page list such as "1,3,5-7" (1-based, order kept, "-" ranges inclusive, an open end like "4-" runs to the
+     * last page) into page numbers; every page when the text is empty.
+     */
+    static List<Integer> pages(String spec, int pageCount) {
+        List<Integer> out = new ArrayList<>();
+        if (spec == null || spec.isBlank()) { for (int i = 1; i <= pageCount; i++) out.add(i); return out; }
+        for (String part : spec.split(",")) {
+            String p = part.trim();
+            if (p.isEmpty()) continue;
+            if (!p.matches("\\d+(\\s*-\\s*\\d*)?"))
+                throw new ActionException("PDF.BAD_PAGES", "'" + p + "' is not a page or page range", "Use page numbers and ranges such as 1,3,5-7.");
+            String[] ab = p.split("-", -1);
+            int a = Integer.parseInt(ab[0].trim());
+            int b = ab.length == 1 ? a : ab[1].isBlank() ? pageCount : Integer.parseInt(ab[1].trim());
+            if (a < 1 || b < a || b > pageCount)
+                throw new ActionException("PDF.BAD_PAGES", "Pages '" + p + "' are outside 1-" + pageCount, "The document has " + pageCount + " pages.");
+            for (int i = a; i <= b; i++) out.add(i);
+        }
+        if (out.isEmpty()) throw new ActionException("PDF.BAD_PAGES", "No pages selected", "Use page numbers and ranges such as 1,3,5-7.");
+        return out;
+    }
+
+    public Map<String, Object> extractText(ActionContext ctx, String path, int from, Integer to, Object password) {
+        return extractText(ctx, path, from, to, password, "structured", null, null, true);
+    }
+
     @Action(id = "extract_text", name = "Extract text", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Extract the text of a PDF, or of a page range. Scanned PDFs (images) need OCR instead.")
+            description = "Extract the text of a PDF, of a page range or of chosen pages, as plain or layout-ordered text, optionally into a .txt file. Scanned PDFs (images) need OCR instead.")
     @Output(name = "text", type = OoaType.STRING, description = "Extracted text.")
     @Output(name = "page_count", type = OoaType.NUMBER, description = "Total pages in the document.")
     public Map<String, Object> extractText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "from_page", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "First page (1-based).") int from,
             @Input(name = "to_page", type = OoaType.NUMBER, required = false, description = "Last page; the end when empty.") Integer to,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"structured\"", enumValues = {"structured", "plain"},
+                    description = "structured orders text by its position on the page, keeping columns and tables readable; plain keeps the order stored in the file, like copy and paste.") String mode,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7",
+                    description = "Exact pages to read, e.g. 1,3,5-7, in that order; overrides from_page and to_page.") String pages,
+            @Input(name = "output_file", type = OoaType.FILE, required = false, description = "Also write the text to this .txt file (UTF-8).") String outputFile,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace output_file when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
         try (PDDocument d = load(ctx, path, password)) {
             PDFTextStripper s = new PDFTextStripper();
+            s.setSortByPosition(!"plain".equalsIgnoreCase(mode));
+            String text;
+            if (pages != null && !pages.isBlank()) {
+                StringBuilder sb = new StringBuilder();
+                for (int pg : pages(pages, d.getNumberOfPages())) { s.setStartPage(pg); s.setEndPage(pg); sb.append(s.getText(d)); }
+                text = sb.toString();
+            } else {
+                s.setStartPage(Math.max(1, from));
+                s.setEndPage(to == null ? d.getNumberOfPages() : Math.min(to, d.getNumberOfPages()));
+                text = s.getText(d);
+            }
+            if (outputFile != null && !outputFile.isBlank()) {
+                Path out = ctx.resolvePath(outputFile);
+                if (!overwrite && Files.exists(out)) throw new ActionException("PDF.EXISTS", "A file already exists at " + out, "Set overwrite to true or choose another name.");
+                if (out.getParent() != null) Files.createDirectories(out.getParent());
+                Files.writeString(out, text, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return Map.of("text", text, "page_count", BigDecimal.valueOf(d.getNumberOfPages()));
+        } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
+    }
+
+    @Action(id = "extract_area_text", name = "Extract text from area", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Read the text inside a rectangle of one page, e.g. an invoice number box that is not a form field.")
+    @Output(name = "text", type = OoaType.STRING, description = "Text found inside the rectangle, trimmed.")
+    public Map<String, Object> extractAreaText(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "1-based page number.") int page,
+            @Input(name = "x", type = OoaType.NUMBER, description = "Left edge of the area in points (72 per inch) from the left of the page.") double x,
+            @Input(name = "y", type = OoaType.NUMBER, description = "Top edge of the area in points from the top of the page.") double y,
+            @Input(name = "width", type = OoaType.NUMBER, description = "Width of the area in points.") double width,
+            @Input(name = "height", type = OoaType.NUMBER, description = "Height of the area in points.") double height,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+        if (width <= 0 || height <= 0) throw new ActionException("PDF.BAD_AREA", "Width and height must be greater than 0", "Measure the area in points from the top-left corner of the page.");
+        try (PDDocument d = load(ctx, path, password)) {
+            if (page < 1 || page > d.getNumberOfPages())
+                throw new ActionException("PDF.BAD_PAGES", "There is no page " + page, "The document has " + d.getNumberOfPages() + " pages.");
+            org.apache.pdfbox.text.PDFTextStripperByArea s = new org.apache.pdfbox.text.PDFTextStripperByArea();
             s.setSortByPosition(true);
-            s.setStartPage(Math.max(1, from));
-            s.setEndPage(to == null ? d.getNumberOfPages() : Math.min(to, d.getNumberOfPages()));
-            return Map.of("text", s.getText(d), "page_count", BigDecimal.valueOf(d.getNumberOfPages()));
+            s.addRegion("area", new java.awt.geom.Rectangle2D.Double(x, y, width, height));
+            s.extractRegions(d.getPage(page - 1));
+            return Map.of("text", s.getTextForRegion("area").strip());
         } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
     }
 
@@ -71,18 +144,32 @@ public final class PdfPackage {
         catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
     }
 
-    @Action(id = "merge", name = "Merge PDFs", category = "Document", timeoutSeconds = 600, capabilities = "filesystem", description = "Combine several PDFs, in order, into one file.")
+    public Map<String, Object> merge(ActionContext ctx, List<Object> files, String target) { return merge(ctx, files, target, true, null, null); }
+
+    @Action(id = "merge", name = "Merge PDFs", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
+            description = "Combine several PDFs, or chosen pages of each, in order, into one file; protected sources can be opened with passwords.")
     @Output(name = "page_count", type = OoaType.NUMBER, description = "Pages in the merged file.")
     public Map<String, Object> merge(ActionContext ctx,
             @Input(name = "files", type = OoaType.LIST, description = "PDF paths in the order to merge.") List<Object> files,
-            @Input(name = "target", type = OoaType.FILE, description = "Merged PDF to create.") String target) {
+            @Input(name = "target", type = OoaType.FILE, description = "Merged PDF to create.") String target,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite,
+            @Input(name = "pages", type = OoaType.LIST, required = false,
+                    description = "Pages to take from each file, in the same order as files, e.g. [\"1-3\", \"\", \"5,2\"]; an empty entry takes every page.") List<Object> pages,
+            @Input(name = "passwords", type = OoaType.LIST, required = false,
+                    description = "Passwords (Credentials) for protected files, in the same order as files; empty entries for unprotected ones.") List<Object> passwords) {
         if (files.size() < 2) throw new ActionException("PDF.NEED_FILES", "Give at least two PDFs to merge");
+        if (pages != null && !pages.isEmpty() && pages.size() != files.size())
+            throw new ActionException("PDF.BAD_PAGES", "pages has " + pages.size() + " entries for " + files.size() + " files", "Give one entry per file, empty for all pages.");
+        if (!overwrite && Files.exists(ctx.resolvePath(target)))
+            throw new ActionException("PDF.EXISTS", "A file already exists at " + ctx.resolvePath(target), "Set overwrite to true or choose another name.");
         List<PDDocument> sources = new ArrayList<>();
         try (PDDocument out = new PDDocument()) {
-            for (Object f : files) {
-                PDDocument src = load(ctx, Values.text(f), null);
+            for (int i = 0; i < files.size(); i++) {
+                Object pw = passwords != null && i < passwords.size() ? passwords.get(i) : null;
+                PDDocument src = load(ctx, Values.text(files.get(i)), pw instanceof String str && str.isEmpty() ? null : pw);
                 sources.add(src);
-                for (PDPage page : src.getPages()) out.importPage(page);
+                String spec = pages == null || pages.isEmpty() || pages.get(i) == null ? null : Values.text(pages.get(i));
+                for (int pg : pages(spec, src.getNumberOfPages())) out.importPage(src.getPage(pg - 1));
             }
             save(ctx, out, target);
             return Map.of("page_count", BigDecimal.valueOf(out.getNumberOfPages()));
@@ -90,23 +177,51 @@ public final class PdfPackage {
         } finally { for (PDDocument d : sources) try { d.close(); } catch (IOException ignored) { } }
     }
 
+    public Map<String, Object> split(ActionContext ctx, String path, String folder, int n) { return split(ctx, path, folder, n, "pages_per_file", null, null, true, null); }
+
     @Action(id = "split", name = "Split PDF", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Split a PDF into files of N pages each (1 = one file per page).")
+            description = "Split a PDF into files of N pages each, into one file per page range, or into one file holding chosen pages.")
     @Output(name = "files", type = OoaType.LIST, description = "Created files.")
     public Map<String, Object> split(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder for the parts.") String folder,
-            @Input(name = "pages_per_file", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Pages in each part.") int n) {
+            @Input(name = "pages_per_file", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Pages in each part, for mode pages_per_file.") int n,
+            @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"pages_per_file\"", enumValues = {"pages_per_file", "ranges", "selected_pages"},
+                    description = "pages_per_file cuts every N pages; ranges makes one file per comma-separated range in pages; selected_pages puts all pages listed in pages into one file.") String mode,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1-3,4,5-9", description = "Page ranges for modes ranges and selected_pages.") String pages,
+            @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each part's file name, followed by _part1, _part2 and so on; the source file name when empty.") String prefix,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace parts that already exist; false stops with PDF.EXISTS.") boolean overwrite,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
         List<Object> created = new ArrayList<>();
-        try (PDDocument d = load(ctx, path, null)) {
-            Splitter sp = new Splitter();
-            sp.setSplitAtPage(Math.max(1, n));
-            List<PDDocument> parts = sp.split(d);
-            String base = Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
-            for (int i = 0; i < parts.size(); i++) {
-                try (PDDocument part = parts.get(i)) {
+        String m = mode == null ? "pages_per_file" : mode.toLowerCase(Locale.ROOT);
+        try (PDDocument d = load(ctx, path, password)) {
+            String base = prefix != null && !prefix.isBlank() ? prefix : Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
+            List<List<Integer>> groups = new ArrayList<>();
+            switch (m) {
+                case "pages_per_file" -> {
+                    int k = Math.max(1, n);
+                    for (int a = 1; a <= d.getNumberOfPages(); a += k) {
+                        List<Integer> g = new ArrayList<>();
+                        for (int pg = a; pg < a + k && pg <= d.getNumberOfPages(); pg++) g.add(pg);
+                        groups.add(g);
+                    }
+                }
+                case "ranges" -> {
+                    if (pages == null || pages.isBlank()) throw new ActionException("PDF.BAD_PAGES", "Mode ranges needs pages, e.g. 1-3,4-6", "Set pages.");
+                    for (String r : pages.split(",")) if (!r.isBlank()) groups.add(pages(r, d.getNumberOfPages()));
+                }
+                case "selected_pages" -> {
+                    if (pages == null || pages.isBlank()) throw new ActionException("PDF.BAD_PAGES", "Mode selected_pages needs pages, e.g. 1,3,5-7", "Set pages.");
+                    groups.add(pages(pages, d.getNumberOfPages()));
+                }
+                default -> throw new ActionException("PDF.BAD_MODE", "Unknown split mode '" + mode + "'", "Use pages_per_file, ranges or selected_pages.");
+            }
+            for (int i = 0; i < groups.size(); i++) {
+                ctx.checkCancelled();
+                try (PDDocument part = new PDDocument()) {
+                    for (int pg : groups.get(i)) part.importPage(d.getPage(pg - 1));
                     String rel = Path.of(folder, base + "_part" + (i + 1) + ".pdf").toString();
-                    save(ctx, part, rel);
+                    save(ctx, part, rel, overwrite);
                     created.add(ctx.resolvePath(rel).toString());
                 }
             }
@@ -127,6 +242,10 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
     }
 
+    public Map<String, Object> fillForm(ActionContext ctx, String path, Map<String, Object> values, String target, boolean flatten) {
+        return fillForm(ctx, path, values, target, flatten, null);
+    }
+
     @Action(id = "fill_form", name = "Fill form fields", category = "Forms", capabilities = "filesystem",
             description = "Fill form fields by name and save a new PDF; optionally flatten so values can no longer be edited.")
     @Output(name = "filled", type = OoaType.NUMBER, description = "Number of fields filled.")
@@ -134,8 +253,10 @@ public final class PdfPackage {
             @Input(name = "path", type = OoaType.FILE, description = "PDF form.") String path,
             @Input(name = "values", type = OoaType.DICTIONARY, description = "Field name to value.") Map<String, Object> values,
             @Input(name = "target", type = OoaType.FILE, description = "Filled PDF to create.") String target,
-            @Input(name = "flatten", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Make the form read-only.") boolean flatten) {
-        try (PDDocument d = load(ctx, path, null)) {
+            @Input(name = "flatten", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Make the form read-only.") boolean flatten,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs; the filled copy is saved without protection.") Object password) {
+        try (PDDocument d = load(ctx, path, password)) {
+            if (d.isEncrypted()) d.setAllSecurityToBeRemoved(true);
             PDAcroForm form = d.getDocumentCatalog().getAcroForm();
             if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields");
             int n = 0;
@@ -153,85 +274,163 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.FORM_FAILED", e.getMessage()); }
     }
 
-    @Action(id = "encrypt", name = "Encrypt PDF", category = "Security", capabilities = "filesystem", description = "Protect a PDF with AES-256 passwords.")
+    public Map<String, Object> encrypt(ActionContext ctx, String path, String target, SecureString user, SecureString owner, boolean print) {
+        return encrypt(ctx, path, target, user, owner, print, true, true, true, true, true, true, 256, true);
+    }
+
+    @Action(id = "encrypt", name = "Encrypt PDF", category = "Security", capabilities = "filesystem",
+            description = "Protect a PDF with an open password and an owner password, choosing the AES key length and what readers may do (print, copy, edit, annotate, fill forms, assemble).")
     public Map<String, Object> encrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted PDF to create.") String target,
             @Input(name = "user_password", type = OoaType.CREDENTIAL, description = "Password needed to open the PDF.") SecureString user,
             @Input(name = "owner_password", type = OoaType.CREDENTIAL, description = "Password needed to change permissions.") SecureString owner,
-            @Input(name = "allow_printing", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow printing.") boolean print) {
+            @Input(name = "allow_printing", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow printing.") boolean print,
+            @Input(name = "allow_copy", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow copying text and images.") boolean copy,
+            @Input(name = "allow_modify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow changing the content.") boolean modify,
+            @Input(name = "allow_annotations", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow adding comments and annotations.") boolean annotate,
+            @Input(name = "allow_fill_forms", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow filling in form fields.") boolean fillForms,
+            @Input(name = "allow_assembly", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow inserting, rotating and deleting pages.") boolean assemble,
+            @Input(name = "allow_accessibility", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Allow screen readers to extract the text.") boolean accessibility,
+            @Input(name = "key_length", type = OoaType.NUMBER, required = false, defaultValue = "256", enumValues = {"128", "256"},
+                    description = "AES key length in bits: 256 (recommended) or 128 for older readers.") int keyLength,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
+        if (keyLength != 128 && keyLength != 256) throw new ActionException("PDF.BAD_KEY_LENGTH", "Key length must be 128 or 256, not " + keyLength, "Use 256, or 128 for older readers.");
         try (PDDocument d = load(ctx, path, null)) {
             AccessPermission ap = new AccessPermission();
             ap.setCanPrint(print);
+            ap.setCanPrintFaithful(print);
+            ap.setCanExtractContent(copy);
+            ap.setCanModify(modify);
+            ap.setCanModifyAnnotations(annotate);
+            ap.setCanFillInForm(fillForms);
+            ap.setCanAssembleDocument(assemble);
+            ap.setCanExtractForAccessibility(accessibility);
             StandardProtectionPolicy spp = new StandardProtectionPolicy(owner.reveal(), user.reveal(), ap);
-            spp.setEncryptionKeyLength(256);
+            spp.setEncryptionKeyLength(keyLength);
+            spp.setPreferAES(true);
             d.protect(spp);
-            save(ctx, d, target);
+            save(ctx, d, target, overwrite);
         } catch (IOException e) { throw new ActionException("PDF.ENCRYPT_FAILED", e.getMessage()); }
         return Map.of();
     }
 
-    @Action(id = "decrypt", name = "Decrypt PDF", category = "Security", capabilities = "filesystem", description = "Remove password protection (needs the password).")
+    public Map<String, Object> decrypt(ActionContext ctx, String path, SecureString password, String target) { return decrypt(ctx, path, password, target, true); }
+
+    @Action(id = "decrypt", name = "Decrypt PDF", category = "Security", capabilities = "filesystem", description = "Remove password protection (needs the open or owner password).")
     public Map<String, Object> decrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Protected PDF.") String path,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,
-            @Input(name = "target", type = OoaType.FILE, description = "Unprotected PDF to create.") String target) {
+            @Input(name = "target", type = OoaType.FILE, description = "Unprotected PDF to create.") String target,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite) {
         try (PDDocument d = load(ctx, path, password)) {
             d.setAllSecurityToBeRemoved(true);
-            save(ctx, d, target);
+            save(ctx, d, target, overwrite);
         } catch (IOException e) { throw new ActionException("PDF.DECRYPT_FAILED", e.getMessage()); }
         return Map.of();
     }
 
+    /** Writes an image in a format ImageIO knows; JPEG and BMP get an RGB copy because they have no alpha channel. */
+    private static void writeImage(java.awt.image.BufferedImage img, String format, File f) throws IOException {
+        java.awt.image.BufferedImage out = img;
+        if ((format.equals("jpg") || format.equals("bmp")) && img.getType() != java.awt.image.BufferedImage.TYPE_INT_RGB
+                && img.getType() != java.awt.image.BufferedImage.TYPE_BYTE_GRAY && img.getType() != java.awt.image.BufferedImage.TYPE_BYTE_BINARY) {
+            out = new java.awt.image.BufferedImage(img.getWidth(), img.getHeight(), java.awt.image.BufferedImage.TYPE_INT_RGB);
+            var g = out.createGraphics();
+            g.setColor(java.awt.Color.WHITE);
+            g.fillRect(0, 0, img.getWidth(), img.getHeight());
+            g.drawImage(img, 0, 0, null);
+            g.dispose();
+        }
+        if (!ImageIO.write(out, format.equals("jpg") ? "jpeg" : format, f)) throw new IOException("No " + format + " writer available");
+    }
+
+    private static String imageFormat(String format) {
+        String f = format == null || format.isBlank() ? "png" : format.toLowerCase(Locale.ROOT);
+        if (f.equals("jpeg")) f = "jpg";
+        if (f.equals("tif")) f = "tiff";
+        if (!List.of("png", "jpg", "bmp", "gif", "tiff").contains(f))
+            throw new ActionException("PDF.BAD_FORMAT", "Unsupported image format '" + format + "'", "Use png, jpg, bmp, gif or tiff.");
+        return f;
+    }
+
+    public Map<String, Object> toImages(ActionContext ctx, String path, String folder, int dpi) { return toImages(ctx, path, folder, dpi, "png", "color", null, null, null); }
+
     @Action(id = "to_images", name = "Convert to images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Save each page as a PNG image (for OCR or previews).")
+            description = "Save each page, or chosen pages, as an image (PNG, JPEG, BMP, GIF or TIFF) in colour, grey or black and white, for OCR or previews.")
     @Output(name = "files", type = OoaType.LIST, description = "Created images.")
     public Map<String, Object> toImages(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder for the images.") String folder,
-            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "150", description = "Resolution; 300 for OCR.") int dpi) {
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "150", description = "Resolution; 300 for OCR.") int dpi,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp", "gif", "tiff"}, description = "Image file format.") String format,
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray", "black_white"},
+                    description = "color keeps the colours; gray gives greyscale; black_white gives 1-bit images, often best for OCR.") String colour,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Pages to convert, e.g. 1,3,5-7; every page when empty.") String pages,
+            @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1 and so on; the PDF's name when empty.") String prefix,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
         List<Object> out = new ArrayList<>();
-        try (PDDocument d = load(ctx, path, null)) {
+        String fmt = imageFormat(format);
+        org.apache.pdfbox.rendering.ImageType type = switch (colour == null ? "color" : colour.toLowerCase(Locale.ROOT)) {
+            case "gray", "grey" -> org.apache.pdfbox.rendering.ImageType.GRAY;
+            case "black_white" -> org.apache.pdfbox.rendering.ImageType.BINARY;
+            case "color", "colour" -> org.apache.pdfbox.rendering.ImageType.RGB;
+            default -> throw new ActionException("PDF.BAD_COLOR", "Colour must be color, gray or black_white", "Use color, gray or black_white.");
+        };
+        try (PDDocument d = load(ctx, path, password)) {
             PDFRenderer r = new PDFRenderer(d);
             Path dir = ctx.resolvePath(folder);
             Files.createDirectories(dir);
-            String base = Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
-            for (int i = 0; i < d.getNumberOfPages(); i++) {
+            String base = prefix != null && !prefix.isBlank() ? prefix : Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
+            for (int pg : pages(pages, d.getNumberOfPages())) {
                 ctx.checkCancelled();
-                File f = dir.resolve(base + "_page" + (i + 1) + ".png").toFile();
-                ImageIO.write(r.renderImageWithDPI(i, Math.max(36, Math.min(600, dpi))), "png", f);
+                File f = dir.resolve(base + "_page" + pg + "." + fmt).toFile();
+                writeImage(r.renderImageWithDPI(pg - 1, Math.max(36, Math.min(600, dpi)), type), fmt, f);
                 out.add(f.getPath());
             }
         } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
         return Map.of("files", out);
     }
 
+    public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password) {
+        return extractImages(ctx, path, folder, minSize, password, null, "png", null, "color");
+    }
+
     @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Save the pictures embedded in a PDF (photos, logos, scanned pages) as PNG files in a folder.")
+            description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.")
     @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
     public Map<String, Object> extractImages(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder for the images.") String folder,
             @Input(name = "min_size", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Skip images narrower or lower than this many pixels (e.g. 32 to skip icons).") int minSize,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Only pages listed here, e.g. 1,3,5-7; every page when empty.") String pages,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp", "gif", "tiff"}, description = "Image file format.") String format,
+            @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty.") String prefix,
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour) {
         List<Object> out = new ArrayList<>();
+        String fmt = imageFormat(format);
+        boolean gray = colour != null && (colour.equalsIgnoreCase("gray") || colour.equalsIgnoreCase("grey"));
         try (PDDocument d = load(ctx, path, password)) {
             Path dir = ctx.resolvePath(folder);
             Files.createDirectories(dir);
-            String base = Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
+            String base = prefix != null && !prefix.isBlank() ? prefix : Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
             Set<org.apache.pdfbox.cos.COSBase> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-            int page = 0;
-            for (PDPage p : d.getPages()) {
-                page++;
+            for (int pageNo : pages(pages, d.getNumberOfPages())) {
+                PDPage p = d.getPage(pageNo - 1);
                 ctx.checkCancelled();
                 int[] n = {0};
-                final int pageNo = page;
                 collectImages(p.getResources(), seen, 0, img -> {
                     java.awt.image.BufferedImage bi = img.getImage();
                     if (bi == null || bi.getWidth() < minSize || bi.getHeight() < minSize) return;
-                    File f = dir.resolve(base + "_page" + pageNo + "_img" + (++n[0]) + ".png").toFile();
-                    if (!ImageIO.write(bi, "png", f)) throw new IOException("No PNG writer available");
+                    if (gray) {
+                        java.awt.image.BufferedImage g = new java.awt.image.BufferedImage(bi.getWidth(), bi.getHeight(), java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
+                        var gr = g.createGraphics(); gr.drawImage(bi, 0, 0, null); gr.dispose();
+                        bi = g;
+                    }
+                    File f = dir.resolve(base + "_page" + pageNo + "_img" + (++n[0]) + "." + fmt).toFile();
+                    writeImage(bi, fmt, f);
                     out.add(f.getPath());
                 });
             }
@@ -253,13 +452,17 @@ public final class PdfPackage {
         }
     }
 
+    public Map<String, Object> getProperties(ActionContext ctx, String path, Object password) { return getProperties(ctx, path, password, false); }
+
     @Action(id = "get_properties", name = "Get document properties", category = "Document", idempotent = true, capabilities = "filesystem",
             description = "Return the title, author, subject, keywords, creator, producer, dates, page count, PDF version and encryption of a PDF.")
     @Output(name = "properties", type = OoaType.DICTIONARY,
-            description = "title, author, subject, keywords, creator, producer, created, modified, page_count, pdf_version, encrypted.")
+            description = "title, author, subject, keywords, creator, producer, created, modified, page_count, pdf_version, encrypted, and with include_custom also file_name and custom.")
     public Map<String, Object> getProperties(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "include_custom", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Also return custom document properties (any other keys in the document information) under custom, plus file_name.") boolean includeCustom) {
         try (PDDocument d = load(ctx, path, password)) {
             org.apache.pdfbox.pdmodel.PDDocumentInformation info = d.getDocumentInformation();
             Map<String, Object> m = new LinkedHashMap<>();
@@ -274,6 +477,13 @@ public final class PdfPackage {
             m.put("page_count", BigDecimal.valueOf(d.getNumberOfPages()));
             m.put("pdf_version", String.valueOf(d.getVersion()));
             m.put("encrypted", d.isEncrypted());
+            if (includeCustom) {
+                m.put("file_name", Path.of(path).getFileName().toString());
+                Set<String> standard = Set.of("Title", "Author", "Subject", "Keywords", "Creator", "Producer", "CreationDate", "ModDate", "Trapped");
+                Map<String, Object> custom = new LinkedHashMap<>();
+                for (String k : info.getMetadataKeys()) if (!standard.contains(k)) custom.put(k, nz(info.getCustomMetadataValue(k)));
+                m.put("custom", custom);
+            }
             return Map.of("properties", m);
         } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
     }

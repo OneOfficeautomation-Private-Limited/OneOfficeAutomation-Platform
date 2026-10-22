@@ -102,6 +102,11 @@ public final class FlowValidator {
                 for (String k : List.of("as", "index"))
                     if (args.get(k) instanceof String v && !declared.containsKey(v)) p.add(sid, "args/" + k, "Loop variable '" + v + "' is not declared", null);
             }
+            if (act.equals("core/run_bot") && args.get("output_map") instanceof Map<?, ?> om)
+                om.forEach((o, var) -> {
+                    if (var instanceof String v && !declared.containsKey(v) && !v.contains("$"))
+                        p.add(sid, "args/output_map/" + o, "Output target '" + v + "' is not declared", "Declare variable '" + v + "'.");
+                });
             if (act.equals("core/set") && args.get("variable") instanceof String v && !declared.containsKey(v))
                 p.add(sid, "args/variable", "Variable '" + v + "' is not declared", null);
             for (Object c : (List<Object>) step.getOrDefault("catch", List.of()))

@@ -25,36 +25,91 @@ public final class JiraPackage {
     @Action(id = "create_issue", name = "Create issue", category = "Issues", capabilities = "network", description = "Create an issue and return its key.")
     @Output(name = "key", type = OoaType.STRING, description = "Issue key, e.g. OPS-123.")
     @Output(name = "id", type = OoaType.STRING, description = "Issue id.")
+    @Output(name = "url", type = OoaType.STRING, description = "Link to the issue in the browser.")
     public Map<String, Object> create(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "project", type = OoaType.STRING, example = "OPS", description = "Project key.") String project,
             @Input(name = "issue_type", type = OoaType.STRING, required = false, defaultValue = "\"Task\"", description = "Issue type name, e.g. Task, Bug, Story.") String type,
             @Input(name = "summary", type = OoaType.STRING, description = "Summary.") String summary,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description.") String description,
-            @Input(name = "extra_fields", type = OoaType.DICTIONARY, required = false, description = "More fields, e.g. {\"priority\": {\"name\": \"High\"}, \"labels\": [\"bot\"]}.") Map<String, Object> extra,
+            @Input(name = "extra_fields", type = OoaType.DICTIONARY, required = false, description = "More fields, e.g. {\"priority\": {\"name\": \"High\"}, \"customfield_10010\": \"Gold\"}.") Map<String, Object> extra,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "priority", type = OoaType.STRING, required = false, example = "High", description = "Priority name, e.g. Highest, High, Medium, Low, Lowest.") String priority,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, description = "Assignee: an email address (looked up), a Cloud account id, or a Data Center user name; the project default when empty.") String assignee,
+            @Input(name = "labels", type = OoaType.LIST, required = false, description = "Labels, e.g. [\"invoice\", \"urgent\"].") List<Object> labels,
+            @Input(name = "components", type = OoaType.LIST, required = false, description = "Names of existing project components.") List<Object> components,
+            @Input(name = "due_date", type = OoaType.STRING, required = false, example = "2026-12-31", description = "Due date, yyyy-MM-dd.") String due,
+            @Input(name = "parent_key", type = OoaType.STRING, required = false, example = "OPS-12", description = "Parent issue key, for a sub-task.") String parent) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("project", Map.of("key", project));
         fields.put("issuetype", Map.of("name", type));
         fields.put("summary", summary);
         if (description != null) fields.put("description", description);
+        common(ctx, site, fields, priority, assignee, labels, components, due, email, apiToken, pat);
+        if (parent != null && !parent.isBlank()) fields.put("parent", Map.of("key", key(parent.strip())));
         if (extra != null) fields.putAll(extra);
         Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/issue"), email, apiToken, pat).json(Map.of("fields", fields)).send(ctx).map();
-        return Out.of("key", r.get("key"), "id", r.get("id"));
+        return Out.of("key", r.get("key"), "id", r.get("id"), "url", r.get("key") == null ? null : site.replaceAll("/+$", "") + "/browse/" + r.get("key"));
     }
 
-    @Action(id = "get_issue", name = "Get issue", category = "Issues", idempotent = true, capabilities = "network", description = "Read an issue's main fields.")
-    @Output(name = "issue", type = OoaType.DICTIONARY, description = "key, summary, status, assignee, reporter, priority, created, updated, description.")
+    /** Earlier signature, kept for callers written before the named issue fields. */
+    public Map<String, Object> create(ActionContext ctx, String site, String project, String type, String summary, String description, Map<String, Object> extra,
+                                      String email, Object apiToken, Object pat) {
+        return create(ctx, site, project, type, summary, description, extra, email, apiToken, pat, null, null, null, null, null, null);
+    }
+
+    /** Fills the named issue fields shared by Create and Update issue; empty inputs are left out. */
+    private static void common(ActionContext ctx, String site, Map<String, Object> fields, String priority, String assignee, List<Object> labels, List<Object> components,
+                               String due, String email, Object apiToken, Object pat) {
+        if (priority != null && !priority.isBlank()) fields.put("priority", Map.of("name", priority.strip()));
+        if (assignee != null && !assignee.isBlank()) fields.put("assignee", user(ctx, site, assignee.strip(), email, apiToken, pat));
+        if (labels != null) { List<Object> l = new ArrayList<>(); for (Object o : labels) { String s = Values.text(o).strip(); if (s.contains(" ")) throw new ActionException(P + ".BAD_LABEL", "Labels cannot contain spaces: '" + s + "'"); if (!s.isEmpty()) l.add(s); } fields.put("labels", l); }
+        if (components != null) { List<Object> l = new ArrayList<>(); for (Object o : components) l.add(Map.of("name", Values.text(o).strip())); fields.put("components", l); }
+        if (due != null && !due.isBlank()) {
+            try { java.time.LocalDate.parse(due.strip()); } catch (java.time.format.DateTimeParseException e) { throw new ActionException(P + ".BAD_DATE", "Invalid due date '" + due + "'", "Use yyyy-MM-dd."); }
+            fields.put("duedate", due.strip());
+        }
+    }
+
+    /** A user reference: an email is looked up (accountId on Cloud, name on Data Center); otherwise the value is used as is. */
+    static Map<String, Object> user(ActionContext ctx, String site, String who, String email, Object apiToken, Object pat) {
+        boolean dc = pat instanceof SecureString;
+        if (!who.contains("@")) return Map.of(dc ? "name" : "accountId", who);
+        String url = api(site) + "/user/search?" + (dc ? "username=" : "query=") + HttpJson.enc(who);
+        Object j = auth(HttpJson.req(P, "GET", url), email, apiToken, pat).send(ctx).json();
+        if (j instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> u) {
+            Object id = dc ? u.get("name") : u.get("accountId");
+            if (id != null) return Map.of(dc ? "name" : "accountId", String.valueOf(id));
+        }
+        throw new ActionException(P + ".USER_NOT_FOUND", "No Jira user with email " + who, "Check the address, or give the account id.");
+    }
+
+    @Action(id = "get_issue", name = "Get issue", category = "Issues", idempotent = true, capabilities = "network", description = "Read an issue's main fields, and optionally more fields by name.")
+    @Output(name = "issue", type = OoaType.DICTIONARY, description = "key, summary, status, assignee, reporter, priority, created, updated, description, plus the extra fields asked for.")
+    @Output(name = "raw", type = OoaType.DICTIONARY, description = "The full issue as Jira returned it.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "extra_fields", type = OoaType.LIST, required = false, description = "More fields to return in issue, e.g. [\"labels\", \"duedate\", \"customfield_10010\"].") List<Object> extraFields) {
         Map<String, Object> r = auth(HttpJson.req(P, "GET", api(site) + "/issue/" + key(k)), email, apiToken, pat).send(ctx).map();
-        return Map.of("issue", summarize(r));
+        Map<String, Object> s = summarize(r);
+        if (extraFields != null) for (Object f : extraFields) { String n = Values.text(f).strip(); s.put(n, simple(HttpJson.path(r.get("fields"), n))); }
+        return Map.of("issue", s, "raw", r);
+    }
+
+    /** Earlier signature, kept for callers written before extra_fields. */
+    public Map<String, Object> get(ActionContext ctx, String site, String k, String email, Object apiToken, Object pat) { return get(ctx, site, k, email, apiToken, pat, null); }
+
+    /** Objects like {"name": "High"} or {"displayName": "Ann"} become their readable text; lists of them become lists. */
+    static Object simple(Object v) {
+        if (v instanceof Map<?, ?> m) for (String n : List.of("displayName", "name", "value", "key")) if (m.get(n) != null) return m.get(n);
+        if (v instanceof List<?> l) { List<Object> o = new ArrayList<>(); for (Object x : l) o.add(simple(x)); return o; }
+        return v;
     }
 
     static Map<String, Object> summarize(Map<?, ?> issue) {
@@ -81,46 +136,72 @@ public final class JiraPackage {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum issues.") int max,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "extra_fields", type = OoaType.LIST, required = false, description = "More fields to add as columns, e.g. [\"labels\", \"duedate\", \"reporter\"].") List<Object> extraFields) {
+        List<String> more = new ArrayList<>();
+        if (extraFields != null) for (Object f : extraFields) { String n = Values.text(f).strip(); if (!n.matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid field name '" + n + "'"); more.add(n); }
+        List<Object> want = new ArrayList<>(List.of("summary", "status", "assignee", "priority", "updated"));
+        for (String m : more) if (!want.contains(m.split("\\.")[0])) want.add(m.split("\\.")[0]);
         List<Object> rows = new ArrayList<>();
         int start = 0;
         while (rows.size() < max) {
-            Map<String, Object> body = Map.of("jql", jql, "startAt", start, "maxResults", Math.min(100, max - rows.size()),
-                    "fields", List.of("summary", "status", "assignee", "priority", "updated"));
+            Map<String, Object> body = Map.of("jql", jql, "startAt", start, "maxResults", Math.min(100, max - rows.size()), "fields", want);
             Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/search"), email, apiToken, pat).json(body).timeout(120).send(ctx).map();
             List<?> issues = (List<?>) r.getOrDefault("issues", List.of());
             for (Object o : issues) {
                 Map<String, Object> s = summarize((Map<?, ?>) o);
-                rows.add(new ArrayList<>(Arrays.asList(s.get("key"), s.get("summary"), s.get("status"), s.get("assignee"), s.get("priority"), s.get("updated"))));
+                List<Object> row = new ArrayList<>(Arrays.asList(s.get("key"), s.get("summary"), s.get("status"), s.get("assignee"), s.get("priority"), s.get("updated")));
+                for (String m : more) row.add(simple(HttpJson.path(((Map<?, ?>) o).get("fields"), m)));
+                rows.add(row);
             }
             int total = r.get("total") instanceof BigDecimal t ? t.intValue() : 0;
             start += issues.size();
             if (issues.isEmpty() || start >= total) break;
         }
-        return Map.of("table", Values.table(List.of("key", "summary", "status", "assignee", "priority", "updated"), rows), "count", BigDecimal.valueOf(rows.size()));
+        List<String> cols = new ArrayList<>(List.of("key", "summary", "status", "assignee", "priority", "updated"));
+        cols.addAll(more);
+        return Map.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "add_comment", name = "Add comment", category = "Issues", capabilities = "network", description = "Add a comment to an issue.")
+    /** Earlier signature, kept for callers written before extra_fields. */
+    public Map<String, Object> search(ActionContext ctx, String site, String jql, int max, String email, Object apiToken, Object pat) { return search(ctx, site, jql, max, email, apiToken, pat, null); }
+
+    @Action(id = "add_comment", name = "Add comment", category = "Issues", capabilities = "network", description = "Add a comment to an issue, optionally visible only to a project role or group.")
+    @Output(name = "comment_id", type = OoaType.STRING, description = "Id of the new comment.")
+    @Output(name = "author", type = OoaType.STRING, description = "Display name of the author.")
+    @Output(name = "created", type = OoaType.STRING, description = "When it was created (ISO 8601).")
     public Map<String, Object> comment(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
             @Input(name = "text", type = OoaType.STRING, description = "Comment text.") String text,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
-        auth(HttpJson.req(P, "POST", api(site) + "/issue/" + key(k) + "/comment"), email, apiToken, pat).json(Map.of("body", text)).send(ctx);
-        return Map.of();
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "visible_to_role", type = OoaType.STRING, required = false, example = "Administrators", description = "Only members of this project role can see the comment.") String role,
+            @Input(name = "visible_to_group", type = OoaType.STRING, required = false, example = "jira-servicedesk-users", description = "Only members of this group can see the comment (instead of a role).") String group) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("body", text);
+        if (role != null && !role.isBlank() && group != null && !group.isBlank()) throw new ActionException(P + ".BAD_VISIBILITY", "Give a role or a group, not both");
+        if (role != null && !role.isBlank()) body.put("visibility", Map.of("type", "role", "value", role.strip()));
+        if (group != null && !group.isBlank()) body.put("visibility", Map.of("type", "group", "value", group.strip()));
+        Map<String, Object> r = auth(HttpJson.req(P, "POST", api(site) + "/issue/" + key(k) + "/comment"), email, apiToken, pat).json(body).send(ctx).map();
+        return Out.of("comment_id", r.get("id") == null ? null : Values.text(r.get("id")), "author", name(r.get("author")), "created", r.get("created"));
     }
 
+    /** Earlier signature, kept for callers written before the visibility options. */
+    public Map<String, Object> comment(ActionContext ctx, String site, String k, String text, String email, Object apiToken, Object pat) { return comment(ctx, site, k, text, email, apiToken, pat, null, null); }
+
     @Action(id = "transition", name = "Move issue (transition)", category = "Issues", capabilities = "network",
-            description = "Move an issue through its workflow by transition name, e.g. In Progress or Done.")
+            description = "Move an issue through its workflow by transition name, e.g. In Progress or Done, optionally with a comment and field values.")
     public Map<String, Object> transition(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
             @Input(name = "transition", type = OoaType.STRING, example = "Done", description = "Transition or target status name.") String name,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "comment", type = OoaType.STRING, required = false, description = "Comment to add with the move.") String comment,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Fields the transition screen asks for, e.g. {\"resolution\": {\"name\": \"Fixed\"}}.") Map<String, Object> fields) {
         String url = api(site) + "/issue/" + key(k) + "/transitions";
         List<?> ts = (List<?>) auth(HttpJson.req(P, "GET", url), email, apiToken, pat).send(ctx).map().getOrDefault("transitions", List.of());
         List<String> names = new ArrayList<>();
@@ -130,12 +211,19 @@ public final class JiraPackage {
             String to = t.get("to") instanceof Map<?, ?> m ? String.valueOf(m.get("name")) : "";
             names.add(tn);
             if (tn.equalsIgnoreCase(name) || to.equalsIgnoreCase(name)) {
-                auth(HttpJson.req(P, "POST", url), email, apiToken, pat).json(Map.of("transition", Map.of("id", t.get("id")))).send(ctx);
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("transition", Map.of("id", t.get("id")));
+                if (fields != null && !fields.isEmpty()) body.put("fields", fields);
+                if (comment != null && !comment.isBlank()) body.put("update", Map.of("comment", List.of(Map.of("add", Map.of("body", comment)))));
+                auth(HttpJson.req(P, "POST", url), email, apiToken, pat).json(body).send(ctx);
                 return Map.of();
             }
         }
         throw new ActionException(P + ".NO_TRANSITION", "Transition '" + name + "' is not available for " + k, "Available now: " + names + ".");
     }
+
+    /** Earlier signature, kept for callers written before comment and fields. */
+    public Map<String, Object> transition(ActionContext ctx, String site, String k, String name, String email, Object apiToken, Object pat) { return transition(ctx, site, k, name, email, apiToken, pat, null, null); }
 
     @Action(id = "attach_file", name = "Attach file", category = "Issues", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to an issue.")
     public Map<String, Object> attach(ActionContext ctx,
@@ -218,14 +306,30 @@ public final class JiraPackage {
     public Map<String, Object> updateIssue(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
-            @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to new value, e.g. {\"summary\": \"Disk full on db01\", \"priority\": {\"name\": \"High\"}}.") Map<String, Object> fields,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Field name to new value, e.g. {\"summary\": \"Disk full on db01\", \"priority\": {\"name\": \"High\"}}.") Map<String, Object> fields,
             @Input(name = "notify_users", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Send the usual change notifications to watchers.") boolean notify,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
-        if (fields == null || fields.isEmpty()) throw new ActionException(P + ".NO_FIELDS", "No fields to change", "Give at least one field, e.g. {\"summary\": \"New title\"}.");
-        auth(HttpJson.req(P, "PUT", api(site) + "/issue/" + key(k) + (notify ? "" : "?notifyUsers=false")), email, apiToken, pat).json(Map.of("fields", fields)).send(ctx);
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "summary", type = OoaType.STRING, required = false, description = "New summary; unchanged when empty.") String summary,
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "New description; unchanged when empty.") String description,
+            @Input(name = "priority", type = OoaType.STRING, required = false, description = "New priority name; unchanged when empty.") String priority,
+            @Input(name = "assignee", type = OoaType.STRING, required = false, description = "New assignee: an email address (looked up), a Cloud account id or a Data Center user name; unchanged when empty.") String assignee,
+            @Input(name = "labels", type = OoaType.LIST, required = false, description = "Replace the labels with these; unchanged when empty.") List<Object> labels,
+            @Input(name = "due_date", type = OoaType.STRING, required = false, description = "New due date, yyyy-MM-dd; unchanged when empty.") String due) {
+        Map<String, Object> all = new LinkedHashMap<>();
+        if (summary != null && !summary.isBlank()) all.put("summary", summary);
+        if (description != null && !description.isBlank()) all.put("description", description);
+        common(ctx, site, all, priority, assignee, labels == null || labels.isEmpty() ? null : labels, null, due, email, apiToken, pat);
+        if (fields != null) all.putAll(fields);
+        if (all.isEmpty()) throw new ActionException(P + ".NO_FIELDS", "No fields to change", "Give at least one field, e.g. {\"summary\": \"New title\"}.");
+        auth(HttpJson.req(P, "PUT", api(site) + "/issue/" + key(k) + (notify ? "" : "?notifyUsers=false")), email, apiToken, pat).json(Map.of("fields", all)).send(ctx);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the named fields. */
+    public Map<String, Object> updateIssue(ActionContext ctx, String site, String k, Map<String, Object> fields, boolean notify, String email, Object apiToken, Object pat) {
+        return updateIssue(ctx, site, k, fields, notify, email, apiToken, pat, null, null, null, null, null, null);
     }
 
     @Action(id = "delete_issue", name = "Delete issue", category = "Issues", capabilities = "network", description = "Permanently delete an issue, optionally with its sub-tasks.")
@@ -275,27 +379,63 @@ public final class JiraPackage {
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
-        Object j = auth(HttpJson.req(P, "GET", api(site) + "/project?expand=lead"), email, apiToken, pat).timeout(120).send(ctx).json();
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "query", type = OoaType.STRING, required = false, description = "Only projects whose key or name contains this text.") String query,
+            @Input(name = "project_type", type = OoaType.STRING, required = false, enumValues = {"software", "business", "service_desk"}, description = "Only projects of this type.") String type,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Maximum projects.") int max,
+            @Input(name = "start_at", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Skip this many projects first (for paging).") int startAt) {
+        Object j = auth(HttpJson.req(P, "GET", api(site) + "/project?expand=lead,description"), email, apiToken, pat).timeout(120).send(ctx).json();
         List<Object> rows = new ArrayList<>();
+        String q = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
+        int skipped = 0;
         if (j instanceof List<?> l) for (Object o : l) {
             Map<?, ?> p = (Map<?, ?>) o;
+            if (!q.isEmpty() && !String.valueOf(p.get("key")).toLowerCase(Locale.ROOT).contains(q) && !String.valueOf(p.get("name")).toLowerCase(Locale.ROOT).contains(q)) continue;
+            if (type != null && !type.isBlank() && !type.equals(p.get("projectTypeKey"))) continue;
+            if (skipped++ < Math.max(0, startAt)) continue;
+            if (rows.size() >= Math.max(0, max)) break;
             rows.add(new ArrayList<>(Arrays.asList(p.get("id"), p.get("key"), p.get("name"), p.get("projectTypeKey"), name(p.get("lead")))));
         }
         return Map.of("table", Values.table(List.of("id", "key", "name", "project_type", "lead"), rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "update_project", name = "Update project", category = "Projects", idempotent = true, capabilities = "network", description = "Change project details such as its name, lead or description.")
+    /** Earlier signature, kept for callers written before the filters. */
+    public Map<String, Object> getProjects(ActionContext ctx, String site, String email, Object apiToken, Object pat) { return getProjects(ctx, site, email, apiToken, pat, null, null, 1000, 0); }
+
+    @Action(id = "update_project", name = "Update project", category = "Projects", idempotent = true, capabilities = "network", description = "Change project details such as its name, lead, description, default assignee or category.")
     public Map<String, Object> updateProject(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "project_key", type = OoaType.STRING, description = "Project key.") String pk,
-            @Input(name = "fields", type = OoaType.DICTIONARY, description = "Project field to new value, e.g. {\"name\": \"Operations\", \"description\": \"...\"}.") Map<String, Object> fields,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Project field to new value, e.g. {\"name\": \"Operations\", \"description\": \"...\"}.") Map<String, Object> fields,
             @Input(name = "email", type = OoaType.STRING, required = false, description = "Account email (Cloud).") String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = "API token from the vault (Cloud).") Object apiToken,
-            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat) {
-        if (fields == null || fields.isEmpty()) throw new ActionException(P + ".NO_FIELDS", "No fields to change", "Give at least one field, e.g. {\"name\": \"Operations\"}.");
-        auth(HttpJson.req(P, "PUT", api(site) + "/project/" + projectKey(pk)), email, apiToken, pat).json(fields).send(ctx);
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, required = false, description = "Personal access token (Data Center).") Object pat,
+            @Input(name = "project_name", type = OoaType.STRING, required = false, description = "New name; unchanged when empty.") String newName,
+            @Input(name = "project_description", type = OoaType.STRING, required = false, description = "New description; unchanged when empty.") String description,
+            @Input(name = "lead", type = OoaType.STRING, required = false, description = "New lead: an email address (looked up), a Cloud account id or a Data Center user name.") String lead,
+            @Input(name = "assignee_type", type = OoaType.STRING, required = false, enumValues = {"PROJECT_LEAD", "UNASSIGNED"}, description = "Who new issues go to by default.") String assigneeType,
+            @Input(name = "category_id", type = OoaType.STRING, required = false, description = "Id of the project category.") String categoryId) {
+        Map<String, Object> all = new LinkedHashMap<>();
+        if (newName != null && !newName.isBlank()) all.put("name", newName.strip());
+        if (description != null && !description.isBlank()) all.put("description", description);
+        if (lead != null && !lead.isBlank()) {
+            Map<String, Object> u = user(ctx, site, lead.strip(), email, apiToken, pat);
+            if (u.containsKey("accountId")) all.put("leadAccountId", u.get("accountId")); else all.put("lead", u.get("name"));
+        }
+        if (assigneeType != null && !assigneeType.isBlank()) all.put("assigneeType", assigneeType);
+        if (categoryId != null && !categoryId.isBlank()) {
+            if (!categoryId.matches("^\\d{1,19}$")) throw new ActionException(P + ".BAD_ID", "Invalid category id '" + categoryId + "'");
+            all.put("categoryId", new BigDecimal(categoryId));
+        }
+        if (fields != null) all.putAll(fields);
+        if (all.isEmpty()) throw new ActionException(P + ".NO_FIELDS", "No fields to change", "Give at least one field, e.g. {\"name\": \"Operations\"}.");
+        auth(HttpJson.req(P, "PUT", api(site) + "/project/" + projectKey(pk)), email, apiToken, pat).json(all).send(ctx);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the named fields. */
+    public Map<String, Object> updateProject(ActionContext ctx, String site, String pk, Map<String, Object> fields, String email, Object apiToken, Object pat) {
+        return updateProject(ctx, site, pk, fields, email, apiToken, pat, null, null, null, null, null);
     }
 
     @Action(id = "delete_project", name = "Delete project", category = "Projects", capabilities = "network", description = "Delete a project and the issues in it (Cloud keeps it in the trash for a while).")

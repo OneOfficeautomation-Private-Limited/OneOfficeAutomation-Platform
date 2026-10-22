@@ -67,31 +67,111 @@ public final class WorkdayPackage {
             description = "Run a custom report exposed as a web service and return its rows as a table.")
     @Output(name = "table", type = OoaType.TABLE, description = "Report rows; columns are the report's field aliases.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
+    @Output(name = "path", type = OoaType.FILE, description = "The saved file, when save_to_file was given.")
     public Map<String, Object> getReport(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
             @Input(name = "report_path", type = OoaType.STRING, example = "/ccx/service/customreport2/acme/isu_reports/Active_Workers", description = "Report path starting with /ccx/service/customreport2/.") String path,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Report prompts, e.g. {\"Effective_as_of_Date\": \"2026-10-01\"}.") Map<String, Object> params,
-            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"json\"", enumValues = {"json", "csv"}, description = "Format to request from Workday.") String format,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"json\"", enumValues = {"json", "csv", "simple_xml", "workday_xml"},
+                    description = "Format to request from Workday: json, csv, simple_xml, or workday_xml (which adds reference ids such as WIDs as extra columns).") String format,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user (basic sign-in), e.g. isu_reports@acme.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
+            @Input(name = "save_to_file", type = OoaType.FILE, required = false, description = "Also save Workday's answer, unchanged, to this file; nothing is saved when empty.") String saveTo) {
         String p = path == null ? "" : path.trim();
         if (!p.startsWith("/ccx/service/customreport2/") || p.contains("..") || p.contains("?"))
             throw new ActionException(P + ".BAD_PATH", "The report path must start with /ccx/service/customreport2/ and have no query", "Example: /ccx/service/customreport2/acme/isu_reports/Active_Workers; put prompts in parameters.");
+        String f = format == null || format.isBlank() ? "json" : format;
+        if (!Set.of("json", "csv", "simple_xml", "workday_xml").contains(f)) throw new ActionException(P + ".BAD_FORMAT", "Unknown format '" + format + "'", "Use json, csv, simple_xml or workday_xml.");
         Map<String, Object> q = new LinkedHashMap<>();
         if (params != null) q.putAll(params);
-        q.put("format", "csv".equals(format) ? "csv" : "json");
-        HttpJson.Response r = auth(HttpJson.req(P, "GET", host.replaceAll("/+$", "") + p + "?" + HttpJson.query(q)), user, password, token).timeout(600).send(ctx);
-        if ("csv".equals(format)) {
+        q.put("format", f);
+        HttpJson.Req req = auth(HttpJson.req(P, "GET", host.replaceAll("/+$", "") + p + "?" + HttpJson.query(q)), user, password, token).timeout(600);
+        if (f.endsWith("xml")) req.header("Accept", "application/xml");
+        HttpJson.Response r = req.send(ctx);
+        String saved = null;
+        if (saveTo != null && !saveTo.isBlank()) { java.nio.file.Path out = ctx.resolvePath(saveTo); HttpJson.writeFile(out, r.bytes()); saved = out.toString(); }
+        if (f.equals("csv")) {
             List<List<String>> lines = CsvPackage.parse(r.text(), ',');
-            if (lines.isEmpty()) return Map.of("table", Values.table(List.of(), new ArrayList<>()), "count", BigDecimal.ZERO);
+            if (lines.isEmpty()) return Out.of("table", Values.table(List.of(), new ArrayList<>()), "count", BigDecimal.ZERO, "path", saved);
             List<Object> rows = new ArrayList<>();
             for (List<String> l : lines.subList(1, lines.size())) if (!(l.size() == 1 && l.get(0).isEmpty())) rows.add(new ArrayList<Object>(l));
-            return Map.of("table", Values.table(lines.get(0), rows), "count", BigDecimal.valueOf(rows.size()));
+            return Out.of("table", Values.table(lines.get(0), rows), "count", BigDecimal.valueOf(rows.size()), "path", saved);
         }
         List<Map<String, Object>> recs = new ArrayList<>();
-        for (Object o : (List<?>) r.map().getOrDefault("Report_Entry", List.of())) if (o instanceof Map<?, ?> m) recs.add(flat("", m));
-        return Map.of("table", Values.coerce(recs, "Table", "report"), "count", BigDecimal.valueOf(recs.size()));
+        if (f.endsWith("xml")) recs = xmlEntries(new String(r.bytes(), java.nio.charset.StandardCharsets.UTF_8));
+        else for (Object o : (List<?>) r.map().getOrDefault("Report_Entry", List.of())) if (o instanceof Map<?, ?> m) recs.add(flat("", m));
+        return Out.of("table", recs.isEmpty() ? Values.table(List.of(), new ArrayList<>()) : Values.coerce(recs, "Table", "report"), "count", BigDecimal.valueOf(recs.size()), "path", saved);
+    }
+
+    /** Earlier signature, kept for callers written before save_to_file. */
+    public Map<String, Object> getReport(ActionContext ctx, String host, String path, Map<String, Object> params, String format, String user, Object password, Object token) {
+        return getReport(ctx, host, path, params, format, user, password, token, null);
+    }
+
+    /**
+     * Rows of a RaaS XML answer: one per Report_Entry. Leaf elements become columns (nested groups as Group.Field,
+     * repeated values joined with "; "); in Workday XML, reference ids become Field.ID_type columns.
+     */
+    static List<Map<String, Object>> xmlEntries(String xml) {
+        org.w3c.dom.Document d;
+        try { d = XmlSupport.parse(xml, true); }
+        catch (Exception e) { throw new ActionException(P + ".BAD_RESPONSE", "Workday sent a report that is not valid XML", null); }
+        List<Map<String, Object>> out = new ArrayList<>();
+        org.w3c.dom.NodeList entries = d.getElementsByTagNameNS("*", "Report_Entry");
+        for (int i = 0; i < entries.getLength(); i++) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            xmlLeaves((org.w3c.dom.Element) entries.item(i), "", row);
+            out.add(row);
+        }
+        return out;
+    }
+
+    private static void xmlLeaves(org.w3c.dom.Element e, String prefix, Map<String, Object> row) {
+        for (org.w3c.dom.Node n = e.getFirstChild(); n != null; n = n.getNextSibling()) {
+            if (!(n instanceof org.w3c.dom.Element c)) continue;
+            String name = c.getLocalName() == null ? c.getNodeName() : c.getLocalName();
+            boolean hasChildren = false;
+            for (org.w3c.dom.Node k = c.getFirstChild(); k != null; k = k.getNextSibling()) if (k instanceof org.w3c.dom.Element) { hasChildren = true; break; }
+            if (name.equals("ID") && c.hasAttributes()) {
+                String type = null;
+                for (int a = 0; a < c.getAttributes().getLength(); a++) { org.w3c.dom.Node at = c.getAttributes().item(a); if ("type".equals(at.getLocalName())) type = at.getNodeValue(); }
+                put(row, prefix + "ID" + (type == null ? "" : "_" + type), c.getTextContent().trim());
+                continue;
+            }
+            if (hasChildren) { xmlLeaves(c, prefix + name + ".", row); continue; }
+            String key = prefix + name;
+            String text = c.getTextContent().trim();
+            String descriptor = null;
+            for (int a = 0; a < c.getAttributes().getLength(); a++) { org.w3c.dom.Node at = c.getAttributes().item(a); if ("Descriptor".equals(at.getLocalName())) descriptor = at.getNodeValue(); }
+            put(row, key, text.isEmpty() && descriptor != null ? descriptor : text);
+        }
+    }
+
+    private static void put(Map<String, Object> row, String key, String value) {
+        Object old = row.get(key);
+        row.put(key, old == null ? value : old + "; " + value);
+    }
+
+    @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
+            description = "Get an OAuth access token for a registered API client from its refresh token, for the other Workday actions.")
+    @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
+    @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires, when Workday says.")
+    public Map<String, Object> authenticate(ActionContext ctx,
+            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
+            @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the API client registered in Workday.") String clientId,
+            @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
+            @Input(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token issued to the API client, from the vault.") Object refreshToken) {
+        if (tenant == null || !TENANT.matcher(tenant).matches()) throw new ActionException(P + ".BAD_TENANT", "Invalid tenant name '" + tenant + "'");
+        if (clientId == null || clientId.isBlank()) throw new ActionException(P + ".NO_CLIENT", "The client id is required");
+        EnterpriseAuth.secret(clientSecret, P, "client secret");
+        EnterpriseAuth.secret(refreshToken, P, "refresh token");
+        Map<String, Object> form = new LinkedHashMap<>();
+        form.put("grant_type", "refresh_token");
+        form.put("refresh_token", refreshToken);
+        Map<String, Object> r = EnterpriseAuth.token(ctx, P, host.replaceAll("/+$", "") + "/ccx/oauth2/" + tenant + "/token", form, clientId.strip(), clientSecret);
+        return Out.of("access_token", EnterpriseAuth.credential(r, "workday/session"), "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in")));
     }
 
     /** Nested groups become Group.Field columns; repeated values are joined with "; ". */
@@ -178,15 +258,24 @@ public final class WorkdayPackage {
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant, e.g. isu_int@acme (basic sign-in).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
+            @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"integration_system_id\"", enumValues = {"integration_system_id", "wid"},
+                    description = "Whether integration_system_id holds the Integration System ID or the integration's Workday ID (WID).") String idType) {
         if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'");
+        boolean wid = "wid".equals(idType);
+        if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
         String body = "<bsvc:Launch_Integration_Request bsvc:version=\"" + version + "\"><bsvc:Integration_System_Reference>"
-                + "<bsvc:ID bsvc:type=\"Integration_System_ID\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference></bsvc:Launch_Integration_Request>";
+                + "<bsvc:ID bsvc:type=\"" + (wid ? "WID" : "Integration_System_ID") + "\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference></bsvc:Launch_Integration_Request>";
         org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
         String event = refId(d, "Integration_Event_Reference", "WID");
         if (event == null) event = refId(d, null, "WID");
         if (event == null) throw new ActionException(P + ".BAD_RESPONSE", "Workday did not return an integration event id", "Check the integration can be launched by this user.");
         return Out.of("event_id", event);
+    }
+
+    /** Earlier signature, kept for callers written before id_type. */
+    public Map<String, Object> launchIntegration(ActionContext ctx, String host, String tenant, String integrationId, String version, String user, Object password, Object token) {
+        return launchIntegration(ctx, host, tenant, integrationId, version, user, password, token, "integration_system_id");
     }
 
     @Action(id = "get_integration_event", name = "Get integration event", category = "Integrations", idempotent = true, timeoutSeconds = 120, capabilities = "network",

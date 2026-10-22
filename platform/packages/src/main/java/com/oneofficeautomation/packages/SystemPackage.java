@@ -94,6 +94,23 @@ public final class SystemPackage {
         return Map.of("info", m);
     }
 
+    /** shutdown command line for restart (/r, -r) or shut down (/s, -h); the message is one argument, never parsed by a shell. */
+    static List<String> powerCommand(String flag, int delay, boolean force, String message, boolean windows) {
+        int d = Math.max(0, Math.min(600, delay));
+        List<String> cmd = new ArrayList<>();
+        String m = message == null ? "" : message.replaceAll("[\\r\\n]+", " ").strip();
+        if (m.length() > 512) m = m.substring(0, 512);
+        if (windows) {
+            cmd.addAll(List.of("shutdown.exe", flag, "/t", String.valueOf(d)));
+            if (force) cmd.add("/f");
+            if (!m.isEmpty()) { cmd.add("/c"); cmd.add(m); }
+        } else {
+            cmd.addAll(List.of("shutdown", flag, "+" + Math.max(1, d / 60)));
+            if (!m.isEmpty()) cmd.add(m);
+        }
+        return cmd;
+    }
+
     private static Map<String, Object> power(ActionContext ctx, boolean confirm, String what, List<String> windowsCmd, List<String> unixCmd) {
         if (!confirm) throw new ActionException("SYSTEM.CONFIRM_REQUIRED", what + " was not performed because confirm is false",
                 "Set confirm to true to allow this agent to " + what.toLowerCase(Locale.ROOT) + " the runner.");
@@ -112,23 +129,26 @@ public final class SystemPackage {
     }
 
     @Action(id = "log_off", name = "Sign out", category = "Power", capabilities = "desktop", description = "Sign out the current Windows user (open programs are closed).")
-    public Map<String, Object> logOff(ActionContext ctx, @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to sign out.") boolean confirm) {
-        return power(ctx, confirm, "Sign out", List.of("shutdown.exe", "/l"), null);
+    public Map<String, Object> logOff(ActionContext ctx, @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to sign out.") boolean confirm,
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Close programs without asking them to save (unsaved work is lost).") boolean force) {
+        return power(ctx, confirm, "Sign out", force ? List.of("shutdown.exe", "/l", "/f") : List.of("shutdown.exe", "/l"), null);
     }
 
     @Action(id = "restart", name = "Restart computer", category = "Power", description = "Restart the runner after a delay.")
     public Map<String, Object> restart(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to restart.") boolean confirm,
-            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before restarting.") int delay) {
-        int d = Math.max(0, Math.min(600, delay));
-        return power(ctx, confirm, "Restart", List.of("shutdown.exe", "/r", "/t", String.valueOf(d)), List.of("shutdown", "-r", "+" + Math.max(1, d / 60)));
+            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before restarting.") int delay,
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Close programs without asking them to save (unsaved work is lost).") boolean force,
+            @Input(name = "message", type = OoaType.STRING, required = false, description = "Reason shown to signed-in users and written to the Windows event log.") String message) {
+        return power(ctx, confirm, "Restart", powerCommand("/r", delay, force, message, true), powerCommand("-r", delay, force, message, false));
     }
 
     @Action(id = "shut_down", name = "Shut down computer", category = "Power", description = "Shut the runner down after a delay.")
     public Map<String, Object> shutDown(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to shut down.") boolean confirm,
-            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before shutting down.") int delay) {
-        int d = Math.max(0, Math.min(600, delay));
-        return power(ctx, confirm, "Shut down", List.of("shutdown.exe", "/s", "/t", String.valueOf(d)), List.of("shutdown", "-h", "+" + Math.max(1, d / 60)));
+            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before shutting down.") int delay,
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Close programs without asking them to save (unsaved work is lost).") boolean force,
+            @Input(name = "message", type = OoaType.STRING, required = false, description = "Reason shown to signed-in users and written to the Windows event log.") String message) {
+        return power(ctx, confirm, "Shut down", powerCommand("/s", delay, force, message, true), powerCommand("-h", delay, force, message, false));
     }
 }

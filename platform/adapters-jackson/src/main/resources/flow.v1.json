@@ -120,7 +120,10 @@
             "type": "object", "required": ["children"], "additionalProperties": false,
             "properties": {
               "codes": {"type": "array", "items": {"type": "string"}, "description": "Error codes or prefixes ending in '*'. Empty = catch all."},
-              "as": {"type": "string", "description": "Variable that receives the error as a Dictionary (code, message, suggestedFix, stepId)."},
+              "as": {"type": "string", "description": "Variable that receives the error as a Dictionary (code, message, suggestedFix, stepId, line, action and, with screenshot, the picture's path)."},
+              "screenshot": {"type": ["boolean", "string"], "description": "Take a screenshot when this block catches an error: true saves it under screenshots/ in the workspace, a text value is the file path to use. Never fails the Catch."},
+              "continueOnError": {"type": "boolean", "default": false, "description": "Errors raised by steps inside this Catch block are logged and skipped."},
+              "rethrow": {"type": "boolean", "default": false, "description": "After running this Catch block, raise the original error again so an outer Try or the run sees it."},
               "children": {"$ref": "#/$defs/stepList"}
             }
           }

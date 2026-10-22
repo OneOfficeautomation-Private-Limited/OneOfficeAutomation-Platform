@@ -20,6 +20,7 @@ public final class SoapPackage {
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "response", type = OoaType.STRING, description = "Response XML.")
     @Output(name = "body", description = "The first element inside the SOAP Body, as a dictionary.")
+    @Output(name = "values", type = OoaType.LIST, description = "Text of the nodes selected by xpath; empty without xpath.")
     public Map<String, Object> send(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, pattern = "^https?://", description = "Service endpoint URL.") String url,
             @Input(name = "body", type = OoaType.STRING, description = "Full SOAP envelope, or only the body XML (it is wrapped automatically).") String body,
@@ -28,7 +29,17 @@ public final class SoapPackage {
             @Input(name = "headers", type = OoaType.DICTIONARY, required = false, description = "Extra HTTP headers.") Map<String, Object> headers,
             @Input(name = "basic_user", type = OoaType.STRING, required = false, description = "Basic auth user name.") String user,
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object password,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Response timeout.") int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Response timeout.") int timeout,
+            @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
+            @Input(name = "proxy", type = OoaType.STRING, required = false, example = "proxy.example.com:8080", description = "Proxy server as host:port; the runner's settings when empty.") String proxy,
+            @Input(name = "proxy_user", type = OoaType.STRING, required = false, description = "Proxy user name, when the proxy needs a sign-in.") String proxyUser,
+            @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, description = "Proxy password from the vault.") Object proxyPassword,
+            @Input(name = "client_certificate", type = OoaType.FILE, required = false, description = "Client certificate (.p12 or .pfx) for servers that require mutual TLS.") String clientCert,
+            @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword,
+            @Input(name = "xpath", type = OoaType.STRING, required = false, example = "//*[local-name()='Price']", description = "Also return the text of the response nodes this XPath selects, in values.") String xpath,
+            @Input(name = "output_file", type = OoaType.FILE, required = false, description = "Also save the response XML to this file.") String outputFile,
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step on a SOAP fault or HTTP error; when false the status and response are returned.") boolean failOnError) {
+        HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, false, true);
         boolean v12 = "1.2".equals(version);
         String ns = v12 ? "http://www.w3.org/2003/05/soap-envelope" : "http://schemas.xmlsoap.org/soap/envelope/";
         String envelope = body.contains("Envelope") ? body
@@ -44,15 +55,24 @@ public final class SoapPackage {
         if (user != null && password instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
         HttpResponse<String> resp;
-        try { resp = CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
+        try { resp = opts.client(ctx, CLIENT).send(b.build(), HttpResponse.BodyHandlers.ofString()); }
         catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + url + ": " + e.getMessage(), "Check the URL and network access.", true); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
         Object bodyValue = null;
+        List<Object> values = new ArrayList<>();
+        if (outputFile != null && !outputFile.isBlank()) {
+            java.nio.file.Path out = ctx.resolvePath(outputFile);
+            try {
+                if (out.getParent() != null) java.nio.file.Files.createDirectories(out.getParent());
+                java.nio.file.Files.writeString(out, resp.body(), StandardCharsets.UTF_8);
+            } catch (IOException e) { throw new ActionException("SOAP.FILE_ERROR", "Cannot save the response to " + out + ": " + e.getMessage(), "Check the folder is writable.", true); }
+        }
         if (!resp.body().isBlank()) {
             Document doc = XmlSupport.parse(resp.body(), true);
+            if (xpath != null && !xpath.isBlank()) values.addAll(xpathTexts(doc, xpath));
             Element bodyEl = firstChild(doc.getDocumentElement(), "Body");
             Element first = bodyEl == null ? null : firstElement(bodyEl);
-            if (first != null && "Fault".equals(first.getLocalName())) {
+            if (first != null && "Fault".equals(first.getLocalName()) && failOnError) {
                 Element fs = firstChild(first, "faultstring");
                 if (fs == null) { Element reason = firstChild(first, "Reason"); fs = reason == null ? null : firstChild(reason, "Text"); }
                 throw new ActionException("SOAP.FAULT", "SOAP fault: " + (fs != null ? fs.getTextContent().trim() : "unknown"),
@@ -60,8 +80,21 @@ public final class SoapPackage {
             }
             if (first != null) bodyValue = XmlSupport.toValue(first);
         }
-        if (resp.statusCode() >= 400) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode(), null, resp.statusCode() >= 500);
-        return Out.of("status", BigDecimal.valueOf(resp.statusCode()), "response", resp.body(), "body", bodyValue);
+        if (resp.statusCode() >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode(), null, resp.statusCode() >= 500);
+        return Out.of("status", BigDecimal.valueOf(resp.statusCode()), "response", resp.body(), "body", bodyValue, "values", values);
+    }
+
+    /** Text of every node the XPath selects (namespaces are ignored by using local-name() in the expression). */
+    static List<Object> xpathTexts(Document doc, String expression) {
+        try {
+            javax.xml.xpath.XPath xp = javax.xml.xpath.XPathFactory.newInstance().newXPath();
+            NodeList nodes = (NodeList) xp.evaluate(expression, doc, javax.xml.xpath.XPathConstants.NODESET);
+            List<Object> out = new ArrayList<>();
+            for (int i = 0; i < nodes.getLength(); i++) out.add(nodes.item(i).getTextContent().strip());
+            return out;
+        } catch (javax.xml.xpath.XPathExpressionException e) {
+            throw new ActionException("SOAP.BAD_XPATH", "Invalid XPath '" + expression + "': " + e.getMessage(), "Use e.g. //*[local-name()='Price'].");
+        }
     }
 
     private static Element firstChild(Element parent, String localName) {

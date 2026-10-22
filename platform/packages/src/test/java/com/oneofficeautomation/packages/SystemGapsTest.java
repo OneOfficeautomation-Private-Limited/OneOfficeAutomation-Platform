@@ -70,8 +70,8 @@ class SystemGapsTest {
         assertTrue(FilePackage.LNK_SCRIPT.contains("$env:OOA_LNK_TARGET"), "values travel in environment variables, never inside the script");
         assertEquals(w.resolve("a b").toString(), FilePackage.lnkEnv(w.resolve("x.lnk"), w.resolve("a b"), null, null, null).get("OOA_LNK_TARGET"));
 
-        assertEquals("FILE.NO_FILES", code(() -> f.printFiles(c, List.of(), null, 1)));
-        assertEquals("FILE.NOT_FOUND", code(() -> f.printFiles(c, List.of("data.txt", "missing.pdf"), "No Such Printer", 1)));
+        assertEquals("FILE.NO_FILES", code(() -> f.printFiles(c, List.of(), null, 1, null, "*", false, null)));
+        assertEquals("FILE.NOT_FOUND", code(() -> f.printFiles(c, List.of("data.txt", "missing.pdf"), "No Such Printer", 1, null, "*", false, null)));
     }
 
     @Test void renameAndOpenFolder() throws Exception {
@@ -112,11 +112,11 @@ class SystemGapsTest {
             assertEquals("PRINTER.NOT_FOUND", code(() -> p.setDefault(c, missing)));
             assertEquals("PRINTER.NOT_FOUND", code(() -> p.removePrinter(c, missing, true)));
             assertEquals("PRINTER.BAD_NAME", code(() -> p.setDefault(c, "bad\nname")));
-            assertEquals("SERVICES.NOT_FOUND", code(() -> new ServicesPackage().pause(c, "OoaNoSuchService123", 5)));
-            assertEquals("SERVICES.NOT_FOUND", code(() -> new ServicesPackage().resume(c, "OoaNoSuchService123", 5)));
+            assertEquals("SERVICES.NOT_FOUND", code(() -> new ServicesPackage().pause(c, "OoaNoSuchService123", 5, true)));
+            assertEquals("SERVICES.NOT_FOUND", code(() -> new ServicesPackage().resume(c, "OoaNoSuchService123", 5, true)));
         } else {
             assertEquals("PRINTER.WINDOWS_ONLY", code(() -> p.setDefault(c, missing)));
-            assertEquals("SYSTEM.WINDOWS_ONLY", code(() -> new ServicesPackage().pause(c, "cron", 5)));
+            assertEquals("SYSTEM.WINDOWS_ONLY", code(() -> new ServicesPackage().pause(c, "cron", 5, true)));
         }
     }
 
@@ -243,32 +243,32 @@ class SystemGapsTest {
         try (FakeAgent agent = new FakeAgent()) {
             String host = "127.0.0.1";
             int port = agent.port();
-            Map<String, Object> got = n.snmpGet(c, host, "1.3.6.1.2.1.1.5.0, 1.3.6.1.2.1.1.3.0, 1.3.6.1.2.1.99.0", "public", port, 2000, 0);
+            Map<String, Object> got = n.snmpGet(c, host, "1.3.6.1.2.1.1.5.0, 1.3.6.1.2.1.1.3.0, 1.3.6.1.2.1.99.0", "public", port, 2000, 0, "v2c");
             Map<String, Object> values = (Map<String, Object>) got.get("values");
             assertEquals("switch-01", values.get("1.3.6.1.2.1.1.5.0"));
             eqNum("123456", values.get("1.3.6.1.2.1.1.3.0"));
             assertNull(values.get("1.3.6.1.2.1.99.0"));
             assertEquals("no_such_object", rows(got.get("table")).get(2).get(1));
 
-            Map<String, Object> next = n.snmpGetNext(c, host, "1.3.6.1.2.1.1.1.0", new SecureString("public", "test/snmp"), port, 2000, 0);
+            Map<String, Object> next = n.snmpGetNext(c, host, "1.3.6.1.2.1.1.1.0", new SecureString("public", "test/snmp"), port, 2000, 0, "v2c");
             assertEquals("1.3.6.1.2.1.1.3.0", next.get("oid"));
             assertEquals("timeticks", next.get("type"));
 
-            Map<String, Object> walk = n.snmpWalk(c, host, "1.3.6.1.2.1.2.2", "public", port, 100, 2000, 0);
+            Map<String, Object> walk = n.snmpWalk(c, host, "1.3.6.1.2.1.2.2", "public", port, 100, 2000, 0, "v2c");
             eqNum("3", walk.get("row_count"));
             assertEquals("eth1", rows(walk.get("table")).get(1).get(2));
             eqNum("4000000000", rows(walk.get("table")).get(2).get(2));
 
-            Map<String, Object> set = n.snmpSet(c, host, "1.3.6.1.2.1.1.6.0", "Server room B", "string", "private", port, 2000, 0);
+            Map<String, Object> set = n.snmpSet(c, host, "1.3.6.1.2.1.1.6.0", "Server room B", "string", "private", port, 2000, 0, "v2c");
             assertEquals("Server room B", set.get("value"));
-            assertEquals("Server room B", ((Map<String, Object>) n.snmpGet(c, host, List.of("1.3.6.1.2.1.1.6.0"), "public", port, 2000, 0).get("values")).get("1.3.6.1.2.1.1.6.0"));
-            n.snmpSet(c, host, "1.3.6.1.2.1.4.1.0", BigDecimal.ONE, "integer", "private", port, 2000, 0);
-            eqNum("1", ((Map<String, Object>) n.snmpGet(c, host, "1.3.6.1.2.1.4.1.0", "public", port, 2000, 0).get("values")).get("1.3.6.1.2.1.4.1.0"));
-            ActionException ro = assertThrows(ActionException.class, () -> n.snmpSet(c, host, "1.3.6.1.2.1.1.1.0", "x", "string", "private", port, 2000, 0));
+            assertEquals("Server room B", ((Map<String, Object>) n.snmpGet(c, host, List.of("1.3.6.1.2.1.1.6.0"), "public", port, 2000, 0, "v2c").get("values")).get("1.3.6.1.2.1.1.6.0"));
+            n.snmpSet(c, host, "1.3.6.1.2.1.4.1.0", BigDecimal.ONE, "integer", "private", port, 2000, 0, "v2c");
+            eqNum("1", ((Map<String, Object>) n.snmpGet(c, host, "1.3.6.1.2.1.4.1.0", "public", port, 2000, 0, "v2c").get("values")).get("1.3.6.1.2.1.4.1.0"));
+            ActionException ro = assertThrows(ActionException.class, () -> n.snmpSet(c, host, "1.3.6.1.2.1.1.1.0", "x", "string", "private", port, 2000, 0, "v2c"));
             assertEquals("SNMP.ERROR", ro.code());
             assertTrue(ro.getMessage().contains("notWritable"), ro.getMessage());
-            assertEquals("SNMP.BAD_VALUE", code(() -> n.snmpSet(c, host, "1.3.6.1.2.1.1.6.0", "300.1.1.1", "ip_address", "private", port, 2000, 0)));
-            assertEquals("SNMP.TIMEOUT", code(() -> n.snmpGet(c, host, "1.3.6.1.2.1.1.5.0", "wrong-community", port, 300, 1)));
+            assertEquals("SNMP.BAD_VALUE", code(() -> n.snmpSet(c, host, "1.3.6.1.2.1.1.6.0", "300.1.1.1", "ip_address", "private", port, 2000, 0, "v2c")));
+            assertEquals("SNMP.TIMEOUT", code(() -> n.snmpGet(c, host, "1.3.6.1.2.1.1.5.0", "wrong-community", port, 300, 1, "v2c")));
 
             n.snmpSendTrap(c, host, "1.3.6.1.4.1.99999.0.1", new LinkedHashMap<>(Map.of("1.3.6.1.4.1.99999.1.1", "Invoice batch failed", "1.3.6.1.4.1.99999.1.2", BigDecimal.valueOf(42))), "public", port);
             long end = System.currentTimeMillis() + 3000;
@@ -298,7 +298,7 @@ class SystemGapsTest {
         vars.put("items", List.of("a", "b"));
         vars.put("password", new SecureString("hunter2", "test/x"));
         vars.put("note", "line1\nline2 hunter2");
-        eqNum("5", log.logVariables(c, "logs/state.log", vars, "After posting", true, false).get("lines"));
+        eqNum("5", log.logVariables(c, "logs/state.log", vars, "After posting", true, false, "utf-8", null).get("lines"));
         String text = Files.readString(w.resolve("logs/state.log"));
         assertTrue(text.contains("After posting"));
         assertTrue(text.contains("invoice=INV-7"));
@@ -335,8 +335,8 @@ class SystemGapsTest {
             assertTrue(Files.readString(w.resolve("out/public.asc")).contains("BEGIN PGP PUBLIC KEY BLOCK"));
             assertTrue(Files.readString(w.resolve("out/private.asc")).contains("BEGIN PGP PRIVATE KEY BLOCK"));
             Files.writeString(w.resolve("pay.csv"), "Ann,5000\n");
-            pgp.encrypt(c, "pay.csv", "out/pay.csv.pgp", "finance-agent@ooa.test", false, "keys");
-            pgp.decrypt(c, "out/pay.csv.pgp", "out/back.csv", pass, "keys");
+            pgp.encrypt(c, "pay.csv", "out/pay.csv.pgp", "finance-agent@ooa.test", false, "keys", null, true);
+            pgp.decrypt(c, "out/pay.csv.pgp", "out/back.csv", pass, "keys", null, true);
             assertEquals("Ann,5000\n", Files.readString(w.resolve("out/back.csv")));
             // the exported public key imports into a separate keyring
             assertFalse(((List<?>) pgp.importKey(c, "out/public.asc", null, "partner").get("fingerprints")).isEmpty());
@@ -368,18 +368,18 @@ class SystemGapsTest {
         ActionContext c = ctx(w);
         ScriptPackage s = new ScriptPackage();
         Map<String, Object> r = s.runPythonFunction(c, "calc.py", "total",
-                List.of(List.of(Map.of("amount", new BigDecimal("100")), Map.of("amount", new BigDecimal("50")))), Map.of("tax", new BigDecimal("0.1")), 60);
+                List.of(List.of(Map.of("amount", new BigDecimal("100")), Map.of("amount", new BigDecimal("50")))), Map.of("tax", new BigDecimal("0.1")), 60, true, null, null);
         @SuppressWarnings("unchecked") Map<String, Object> res = (Map<String, Object>) r.get("result");
         eqNum("165", res.get("total"));
         eqNum("2", res.get("count"));
         assertTrue(String.valueOf(r.get("output")).contains("computing 2"));
-        assertEquals("HELLO", s.runPythonFunction(c, "calc.py", "Tools.shout", List.of("hello"), null, 60).get("result"));
-        ActionException e = assertThrows(ActionException.class, () -> s.runPythonFunction(c, "calc.py", "broken", null, null, 60));
+        assertEquals("HELLO", s.runPythonFunction(c, "calc.py", "Tools.shout", List.of("hello"), null, 60, true, null, null).get("result"));
+        ActionException e = assertThrows(ActionException.class, () -> s.runPythonFunction(c, "calc.py", "broken", null, null, 60, true, null, null));
         assertEquals("SCRIPT.PYTHON_ERROR", e.code());
         assertTrue(e.getMessage().contains("ValueError: no data"));
-        assertEquals("SCRIPT.PYTHON_ERROR", code(() -> s.runPythonFunction(c, "calc.py", "missing", null, null, 60)));
-        assertEquals("SCRIPT.BAD_FUNCTION", code(() -> s.runPythonFunction(c, "calc.py", "__import__('os').system('x')", null, null, 60)));
-        assertEquals("FILE.NOT_FOUND", code(() -> s.runPythonFunction(c, "none.py", "total", null, null, 60)));
+        assertEquals("SCRIPT.PYTHON_ERROR", code(() -> s.runPythonFunction(c, "calc.py", "missing", null, null, 60, true, null, null)));
+        assertEquals("SCRIPT.BAD_FUNCTION", code(() -> s.runPythonFunction(c, "calc.py", "__import__('os').system('x')", null, null, 60, true, null, null)));
+        assertEquals("FILE.NOT_FOUND", code(() -> s.runPythonFunction(c, "none.py", "total", null, null, 60, true, null, null)));
     }
 
     // ---------- Database ----------
@@ -389,30 +389,30 @@ class SystemGapsTest {
         Path w = tmp();
         ActionContext c = ctx(w);
         DatabasePackage db = new DatabasePackage();
-        db.connect(c, "jdbc:h2:mem:gaps" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1", null, null, "db");
+        db.connect(c, "jdbc:h2:mem:gaps" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1", null, null, "db", null, 0, null, false, true);
         try {
-            db.execute(c, "CREATE TABLE invoices(id VARCHAR(20) NOT NULL, vendor VARCHAR(100), amount DECIMAL(12,2))", null, "db");
-            db.execute(c, "CREATE VIEW big_invoices AS SELECT * FROM invoices WHERE amount > 1000", null, "db");
+            db.execute(c, "CREATE TABLE invoices(id VARCHAR(20) NOT NULL, vendor VARCHAR(100), amount DECIMAL(12,2))", null, "db", 0);
+            db.execute(c, "CREATE VIEW big_invoices AS SELECT * FROM invoices WHERE amount > 1000", null, "db", 0);
             List<Object> data = new ArrayList<>();
             for (int i = 1; i <= 7; i++) data.add(new ArrayList<>(Arrays.asList("INV-" + i, i == 2 ? "Acme, \"Ltd\"" : "Vendor " + i, new BigDecimal(i * 500))));
             Map<String, Object> table = com.oneofficeautomation.runner.Values.table(List.of("Invoice", "Supplier", "Total"), data);
             eqNum("7", db.bulkInsert(c, "invoices", table, List.of("id", "vendor", "amount"), 3, "db").get("rows_inserted"));
-            eqNum("7", rows(db.query(c, "SELECT COUNT(*) FROM invoices", null, 10, "db").get("table")).get(0).get(0));
+            eqNum("7", rows(db.query(c, "SELECT COUNT(*) FROM invoices", null, 10, "db", 0).get("table")).get(0).get(0));
             assertEquals("DB.COLUMN_MISMATCH", code(() -> db.bulkInsert(c, "invoices", table, List.of("id"), 3, "db")));
             assertEquals("DB.BAD_NAME", code(() -> db.bulkInsert(c, "invoices; DROP TABLE invoices", table, null, 3, "db")));
             // a failing row rolls back the whole insert
             List<Object> bad = new ArrayList<>(List.of(new ArrayList<>(Arrays.asList("OK-1", "x", BigDecimal.ONE)), new ArrayList<>(Arrays.asList(null, "x", BigDecimal.ONE))));
             assertEquals("DB.SQL_ERROR", code(() -> db.bulkInsert(c, "invoices", com.oneofficeautomation.runner.Values.table(List.of("id", "vendor", "amount"), bad), null, 1, "db")));
-            assertEquals(7, rows(db.query(c, "SELECT * FROM invoices", null, 100, "db").get("table")).size());
+            assertEquals(7, rows(db.query(c, "SELECT * FROM invoices", null, 100, "db", 0).get("table")).size());
 
-            db.execute(c, "CREATE ALIAS OOA_MAX FOR \"java.lang.Math.max(int,int)\"", null, "db");
-            Map<String, Object> call = db.callProcedure(c, "OOA_MAX", List.of(new BigDecimal(3), new BigDecimal(9)), 100, "db");
+            db.execute(c, "CREATE ALIAS OOA_MAX FOR \"java.lang.Math.max(int,int)\"", null, "db", 0);
+            Map<String, Object> call = db.callProcedure(c, "OOA_MAX", List.of(new BigDecimal(3), new BigDecimal(9)), 100, "db", 0);
             eqNum("1", call.get("row_count"));
             eqNum("9", rows(call.get("table")).get(0).get(0));
-            assertEquals("DB.BAD_NAME", code(() -> db.callProcedure(c, "x(1); --", null, 100, "db")));
+            assertEquals("DB.BAD_NAME", code(() -> db.callProcedure(c, "x(1); --", null, 100, "db", 0)));
 
             Map<String, Object> exp = db.exportToFile(c, "SELECT id, vendor, amount FROM invoices WHERE amount >= ? ORDER BY id", "out/inv.csv",
-                    List.of(new BigDecimal(1000)), ";", true, "utf-8", "db");
+                    List.of(new BigDecimal(1000)), ";", true, "utf-8", "db", 0, true);
             eqNum("6", exp.get("row_count"));
             List<String> csv = Files.readAllLines(w.resolve("out/inv.csv"));
             assertEquals("ID;VENDOR;AMOUNT", csv.get(0));
@@ -445,24 +445,24 @@ class SystemGapsTest {
                 .on("GET /files/missing", call -> new Object[]{404, "{\"message\":\"gone\"}"})
                 .on("POST /upload", call -> new Object[]{201, "{\"id\":\"F-1\"}"})) {
             Map<String, Object> d = rest.downloadFile(c, f.url() + "/files/report.bin", "in/report.bin", Map.of("v", "1"), Map.of("X-Trace", "t1"),
-                    null, null, new SecureString("tok-1", "test/api"), true, 30);
+                    null, null, new SecureString("tok-1", "test/api"), true, 30, false, null, null, null, null, null);
             assertArrayEquals(binary, Files.readAllBytes(w.resolve("in/report.bin")), "binary-safe");
             eqNum("70000", d.get("size_bytes"));
             eqNum("200", d.get("status"));
             assertEquals("Bearer tok-1", f.last("GET", "/files/report.bin").auth());
             assertEquals("v=1", f.last("GET", "/files/report.bin").query());
             Files.createDirectories(w.resolve("dl"));
-            String intoFolder = (String) rest.downloadFile(c, f.url() + "/files/report.bin", "dl", null, null, null, null, null, true, 30).get("path");
+            String intoFolder = (String) rest.downloadFile(c, f.url() + "/files/report.bin", "dl", null, null, null, null, null, true, 30, false, null, null, null, null, null).get("path");
             assertEquals(w.resolve("dl/report.bin").toString(), intoFolder);
-            assertEquals("REST.FILE_EXISTS", code(() -> rest.downloadFile(c, f.url() + "/files/report.bin", "in/report.bin", null, null, null, null, null, false, 30)));
-            ActionException e = assertThrows(ActionException.class, () -> rest.downloadFile(c, f.url() + "/files/missing", "in/missing.bin", null, null, null, null, null, true, 30));
+            assertEquals("REST.FILE_EXISTS", code(() -> rest.downloadFile(c, f.url() + "/files/report.bin", "in/report.bin", null, null, null, null, null, false, 30, false, null, null, null, null, null)));
+            ActionException e = assertThrows(ActionException.class, () -> rest.downloadFile(c, f.url() + "/files/missing", "in/missing.bin", null, null, null, null, null, true, 30, false, null, null, null, null, null));
             assertEquals("REST.HTTP_ERROR", e.code());
             assertFalse(Files.exists(w.resolve("in/missing.bin")));
             try (var s = Files.list(w.resolve("in"))) { assertTrue(s.noneMatch(p -> p.getFileName().toString().endsWith(".part")), "temporary files are removed"); }
 
             Files.writeString(w.resolve("invoice.pdf"), "%PDF-1.4 test");
             Map<String, Object> up = rest.uploadFile(c, f.url() + "/upload", "invoice.pdf", "document", Map.of("folder", "AP"), "POST", null, null,
-                    "svc", new SecureString("pw", "test/basic"), null, 30, true);
+                    "svc", new SecureString("pw", "test/basic"), null, 30, true, false, null, null, null, null, null);
             eqNum("201", up.get("status"));
             assertEquals("F-1", ((Map<?, ?>) up.get("json")).get("id"));
             ConnectorsTest.Call call = f.last("POST", "/upload");
@@ -472,7 +472,7 @@ class SystemGapsTest {
             assertTrue(body.contains("name=\"document\"; filename=\"invoice.pdf\""));
             assertTrue(body.contains("%PDF-1.4 test"));
             assertTrue(body.contains("name=\"folder\"\r\n\r\nAP"));
-            assertEquals("REST.FILE_NOT_FOUND", code(() -> rest.uploadFile(c, f.url() + "/upload", "none.pdf", null, null, null, null, null, null, null, null, 30, true)));
+            assertEquals("REST.FILE_NOT_FOUND", code(() -> rest.uploadFile(c, f.url() + "/upload", "none.pdf", null, null, null, null, null, null, null, null, 30, true, false, null, null, null, null, null)));
         }
         assertEquals("report.pdf", RestPackage.dispositionName("attachment; filename=\"report.pdf\""));
         assertEquals("r%C3%A9sum%C3%A9.pdf", RestPackage.dispositionName("attachment; filename=\"x.pdf\"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf"));

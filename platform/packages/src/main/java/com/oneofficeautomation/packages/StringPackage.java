@@ -15,11 +15,44 @@ public final class StringPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "before", type = OoaType.STRING, required = false, description = "Return text before this marker.") String before,
             @Input(name = "after", type = OoaType.STRING, required = false, description = "Return text after this marker.") String after,
-            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Trim whitespace from the result.") boolean trim) {
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Trim whitespace from the result.") boolean trim,
+            @Input(name = "after_occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which occurrence of the 'after' marker to start from (1 = first).") int afterOccurrence,
+            @Input(name = "before_occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which occurrence of the 'before' marker to stop at (1 = first).") int beforeOccurrence,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Find the markers without regard to upper/lower case.") boolean ignoreCase,
+            @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"empty\"", enumValues = {"empty", "source"},
+                    description = "Result when a marker is missing: empty text, or the whole source text.") String ifNotFound,
+            @Input(name = "max_length", type = OoaType.NUMBER, required = false, description = "Keep at most this many characters of the result.") Integer maxLength,
+            @Input(name = "remove_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove line breaks from the result.") boolean removeLineBreaks) {
+        if (afterOccurrence < 1 || beforeOccurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1", "Use 1 for the first match.");
         String out = text;
-        if (after != null) { int i = out.indexOf(after); out = i >= 0 ? out.substring(i + after.length()) : ""; }
-        if (before != null) { int i = out.indexOf(before); out = i >= 0 ? out.substring(0, i) : (after == null ? "" : out); }
-        return Map.of("result", trim ? out.strip() : out);
+        boolean missing = false;
+        if (after != null) { int i = nth(out, after, afterOccurrence, ignoreCase); if (i >= 0) out = out.substring(i + after.length()); else { out = ""; missing = true; } }
+        if (before != null && !missing) {
+            int i = nth(out, before, beforeOccurrence, ignoreCase);
+            if (i >= 0) out = out.substring(0, i);
+            else if (after == null) { out = ""; missing = true; }
+        }
+        if (missing && "source".equals(ifNotFound)) out = text;
+        if (removeLineBreaks) out = out.replace("\r", "").replace("\n", "");
+        if (trim) out = out.strip();
+        if (maxLength != null) {
+            if (maxLength < 0) throw new ActionException("STRING.BAD_LENGTH", "max_length cannot be negative", "Use 0 or more.");
+            if (out.length() > maxLength) out = out.substring(0, maxLength);
+        }
+        return Map.of("result", out);
+    }
+
+    /** Position of the n-th (1-based) occurrence of a marker, or -1. */
+    static int nth(String text, String marker, int n, boolean ignoreCase) {
+        if (marker.isEmpty()) return 0;
+        String t = ignoreCase ? text.toLowerCase(Locale.ROOT) : text, m = ignoreCase ? marker.toLowerCase(Locale.ROOT) : marker;
+        int from = 0, i = -1;
+        for (int k = 0; k < n; k++) {
+            i = t.indexOf(m, from);
+            if (i < 0) return -1;
+            from = i + m.length();
+        }
+        return i;
     }
 
     @Action(id = "replace", name = "Replace", category = "Text", idempotent = true, description = "Replace text, optionally using a regular expression.")
@@ -28,9 +61,27 @@ public final class StringPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "find", type = OoaType.STRING, description = "Text or regex to find.") String find,
             @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Replacement text.") String with,
-            @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat 'find' as a regular expression.") boolean regex) {
+            @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat 'find' as a regular expression.") boolean regex,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Match without regard to upper/lower case.") boolean ignoreCase,
+            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Zero-based position to start replacing from; text before it is kept as is.") int start,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "-1", description = "Replace at most this many matches; -1 replaces all.") int count) {
+        if (start < 0 || start > text.length())
+            throw new ActionException("STRING.BAD_POSITION", "Start position " + start + " is outside the text (length " + text.length() + ")", "Use a position from 0 to the text length.");
         try {
-            return Map.of("result", regex ? text.replaceAll(find, with) : text.replace(find, with));
+            if (!ignoreCase && start == 0 && count < 0) return Map.of("result", regex ? text.replaceAll(find, with) : text.replace(find, with));
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex ? find : java.util.regex.Pattern.quote(find),
+                    ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0).matcher(text);
+            String repl = regex ? with : java.util.regex.Matcher.quoteReplacement(with);
+            StringBuilder sb = new StringBuilder();
+            int done = 0;
+            boolean found = m.find(start);
+            while (found && (count < 0 || done < count)) {
+                m.appendReplacement(sb, repl);
+                done++;
+                found = m.find();
+            }
+            m.appendTail(sb);
+            return Map.of("result", sb.toString());
         } catch (PatternSyntaxException e) {
             throw new ActionException("STRING.BAD_REGEX", "Invalid regular expression: " + e.getDescription(), "Escape special characters such as ( ) [ ] . *");
         }
@@ -41,9 +92,24 @@ public final class StringPackage {
     public Map<String, Object> split(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "delimiter", type = OoaType.STRING, description = "Delimiter, e.g. ','.") String delimiter,
-            @Input(name = "trim_items", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Trim each item.") boolean trimItems) {
+            @Input(name = "trim_items", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Trim each item.") boolean trimItems,
+            @Input(name = "max_parts", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Split into at most this many parts; the last part keeps the rest. 0 splits at every delimiter.") int maxParts,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Match a letter delimiter without regard to upper/lower case.") boolean ignoreCase,
+            @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat the delimiter as a regular expression, e.g. \\R for any line break.") boolean regex,
+            @Input(name = "remove_empty", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out empty parts.") boolean removeEmpty) {
+        if (maxParts < 0) throw new ActionException("STRING.BAD_COUNT", "max_parts cannot be negative", "Use 0 for all parts.");
+        java.util.regex.Pattern p;
+        try {
+            p = java.util.regex.Pattern.compile(regex ? delimiter : java.util.regex.Pattern.quote(delimiter),
+                    ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0);
+        } catch (PatternSyntaxException e) {
+            throw new ActionException("STRING.BAD_REGEX", "Invalid regular expression: " + e.getDescription(), "Escape special characters such as ( ) [ ] . *");
+        }
         List<Object> items = new ArrayList<>();
-        for (String p : text.split(java.util.regex.Pattern.quote(delimiter), -1)) items.add(trimItems ? p.strip() : p);
+        for (String part : p.split(text, maxParts == 0 ? -1 : maxParts)) {
+            String v = trimItems ? part.strip() : part;
+            if (!(removeEmpty && v.isEmpty())) items.add(v);
+        }
         return Map.of("items", items);
     }
 
@@ -122,20 +188,25 @@ public final class StringPackage {
     @Output(name = "index", type = OoaType.NUMBER, description = "Zero-based position of the match, or -1 when not found.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a match was found.")
     @Output(name = "match", type = OoaType.STRING, description = "The matched text, empty when not found.")
+    @Output(name = "position", type = OoaType.NUMBER, description = "One-based position of the match, or 0 when not found.")
     public Map<String, Object> find(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to search in.") String text,
             @Input(name = "find", type = OoaType.STRING, description = "Text or regular expression to look for.") String find,
             @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat 'find' as a regular expression.") boolean regex,
             @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Zero-based position to start searching from.") int start,
-            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ignore upper/lower case.") boolean ignoreCase) {
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ignore upper/lower case.") boolean ignoreCase,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which match to return (1 = first, 2 = second ...).") int occurrence) {
         if (start < 0 || start > text.length())
             throw new ActionException("STRING.BAD_POSITION", "Start position " + start + " is outside the text (length " + text.length() + ")", "Use a position from 0 to the text length.");
+        if (occurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1, got " + occurrence, "Use 1 for the first match.");
         try {
             java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex ? find : java.util.regex.Pattern.quote(find),
                     ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0);
             java.util.regex.Matcher m = p.matcher(text);
-            if (m.find(start)) return Out.of("index", java.math.BigDecimal.valueOf(m.start()), "found", true, "match", m.group());
-            return Out.of("index", java.math.BigDecimal.valueOf(-1), "found", false, "match", "");
+            boolean hit = m.find(start);
+            for (int k = 1; hit && k < occurrence; k++) hit = m.find();
+            if (hit) return Out.of("index", java.math.BigDecimal.valueOf(m.start()), "found", true, "match", m.group(), "position", java.math.BigDecimal.valueOf(m.start() + 1L));
+            return Out.of("index", java.math.BigDecimal.valueOf(-1), "found", false, "match", "", "position", java.math.BigDecimal.ZERO);
         } catch (PatternSyntaxException e) {
             throw new ActionException("STRING.BAD_REGEX", "Invalid regular expression: " + e.getDescription(), "Escape special characters such as ( ) [ ] . *");
         }
@@ -154,7 +225,10 @@ public final class StringPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Zero-based start position.") int start,
             @Input(name = "length", type = OoaType.NUMBER, required = false, description = "Number of characters to take; to the end when empty.") Integer length,
-            @Input(name = "end", type = OoaType.NUMBER, required = false, description = "Zero-based end position (not included); used when length is empty.") Integer end) {
+            @Input(name = "end", type = OoaType.NUMBER, required = false, description = "Zero-based end position (not included); used when length is empty.") Integer end,
+            @Input(name = "if_out_of_range", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "empty"},
+                    description = "When the start is past the end of the text: fail with STRING.BAD_POSITION, or return empty text.") String ifOutOfRange) {
+        if (start > text.length() && "empty".equals(ifOutOfRange)) return Out.of("result", "");
         if (start < 0 || start > text.length())
             throw new ActionException("STRING.BAD_POSITION", "Start position " + start + " is outside the text (length " + text.length() + ")", "Use a position from 0 to the text length.");
         int stop = text.length();
@@ -199,9 +273,15 @@ public final class StringPackage {
             @Input(name = "length", type = OoaType.NUMBER, required = false, defaultValue = "12", description = "Number of characters.") int length,
             @Input(name = "letters", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include letters A-Z and a-z.") boolean letters,
             @Input(name = "digits", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include digits 0-9.") boolean digits,
-            @Input(name = "symbols", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Include symbols such as ! # $ %.") boolean symbols) {
+            @Input(name = "symbols", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Include symbols such as ! # $ %.") boolean symbols,
+            @Input(name = "letter_case", type = OoaType.STRING, required = false, defaultValue = "\"mixed\"", enumValues = {"mixed", "upper", "lower"},
+                    description = "Letters in mixed, upper or lower case.") String letterCase,
+            @Input(name = "exclude_characters", type = OoaType.STRING, required = false, description = "Characters never to use, e.g. 0O1l to avoid look-alikes.") String exclude) {
         if (length < 0 || length > 100_000) throw new ActionException("STRING.BAD_LENGTH", "Length must be between 0 and 100000, got " + length, "Choose a smaller positive length.");
-        String pool = (letters ? "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" : "") + (digits ? "0123456789" : "") + (symbols ? "!#$%&*+-=?@^_~" : "");
+        String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", lower = "abcdefghijklmnopqrstuvwxyz";
+        String abc = "upper".equals(letterCase) ? upper : "lower".equals(letterCase) ? lower : upper + lower;
+        String pool = (letters ? abc : "") + (digits ? "0123456789" : "") + (symbols ? "!#$%&*+-=?@^_~" : "");
+        if (exclude != null && !exclude.isEmpty()) { StringBuilder kept = new StringBuilder(); for (char c : pool.toCharArray()) if (exclude.indexOf(c) < 0) kept.append(c); pool = kept.toString(); }
         if (pool.isEmpty()) throw new ActionException("STRING.NO_CHARACTER_SET", "No character set selected", "Turn on letters, digits or symbols.");
         StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) sb.append(pool.charAt(RANDOM.nextInt(pool.length())));

@@ -13,7 +13,20 @@ import java.util.Map;
 /** DateTime values are UTC on the platform; time zones apply when reading or formatting. */
 @OoaPackage(id = "ooa.datetime", name = "Date and time", version = "1.0.0", description = "Current time, add, difference, format and time zone conversion.")
 public final class DateTimePackage {
-    private static final String[] UNITS = {"seconds", "minutes", "hours", "days", "weeks", "months", "years"};
+    private static final String[] UNITS = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"};
+    private static final String[] STANDARD = {"ISO_LOCAL_DATE", "ISO_LOCAL_TIME", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
+            "ISO_DATE", "ISO_DATE_TIME", "ISO_ORDINAL_DATE", "ISO_WEEK_DATE", "BASIC_ISO_DATE", "RFC_1123_DATE_TIME"};
+
+    private static Locale locale(String tag) { return tag == null || tag.isBlank() ? Locale.ENGLISH : Locale.forLanguageTag(tag); }
+
+    /** One of Java's predefined ISO/RFC formats by name, or null. */
+    private static DateTimeFormatter standard(String name) {
+        if (name == null || name.isBlank()) return null;
+        try { return (DateTimeFormatter) DateTimeFormatter.class.getField(name.trim().toUpperCase(Locale.ROOT)).get(null); }
+        catch (ReflectiveOperationException | ClassCastException e) {
+            throw new ActionException("DATETIME.BAD_PATTERN", "Unknown standard format '" + name + "'", "Use one of " + String.join(", ", STANDARD) + ".");
+        }
+    }
 
     private static ZoneId zone(String z) {
         try { return ZoneId.of(z); }
@@ -31,9 +44,10 @@ public final class DateTimePackage {
     public Map<String, Object> add(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
             @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to add; negative to subtract.") long amount,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"seconds", "minutes", "hours", "days", "weeks", "months", "years"},
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"},
                     description = "Unit of the amount.") String unit) {
         LocalDateTime r = switch (unit) {
+            case "milliseconds" -> value.plus(amount, ChronoUnit.MILLIS);
             case "seconds" -> value.plusSeconds(amount); case "minutes" -> value.plusMinutes(amount); case "hours" -> value.plusHours(amount);
             case "weeks" -> value.plusWeeks(amount); case "months" -> value.plusMonths(amount); case "years" -> value.plusYears(amount);
             default -> value.plusDays(amount);
@@ -47,8 +61,15 @@ public final class DateTimePackage {
     public Map<String, Object> difference(ActionContext ctx,
             @Input(name = "start", type = OoaType.DATETIME, description = "Earlier date.") LocalDateTime start,
             @Input(name = "end", type = OoaType.DATETIME, description = "Later date.") LocalDateTime end,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"seconds", "minutes", "hours", "days", "weeks", "months", "years"},
-                    description = "Result unit.") String unit) {
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"},
+                    description = "Result unit.") String unit,
+            @Input(name = "absolute", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the size of the difference without a minus sign when end is before start.") boolean absolute) {
+        Map<String, Object> r = difference(start, end, unit);
+        return absolute ? Out.of("result", ((BigDecimal) r.get("result")).abs()) : r;
+    }
+
+    private static Map<String, Object> difference(LocalDateTime start, LocalDateTime end, String unit) {
+        if (unit.equals("milliseconds")) return Out.of("result", BigDecimal.valueOf(Duration.between(start, end).toMillis()));
         if (unit.equals("months")) return Out.of("result", BigDecimal.valueOf(ChronoUnit.MONTHS.between(start, end)));
         if (unit.equals("years")) return Out.of("result", BigDecimal.valueOf(ChronoUnit.YEARS.between(start, end)));
         long per = switch (unit) { case "seconds" -> 1; case "minutes" -> 60; case "hours" -> 3600; case "weeks" -> 604800; default -> 86400; };
@@ -62,10 +83,15 @@ public final class DateTimePackage {
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to format (UTC).") LocalDateTime value,
             @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"yyyy-MM-dd\"", description = "Pattern, e.g. dd/MM/yyyy, yyyy-MM-dd HH:mm, MMM d, yyyy.") String pattern,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "IANA time zone for display, e.g. Asia/Kolkata.") String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "IANA time zone for display, e.g. Asia/Kolkata.") String tz,
+            @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language for month and day names, e.g. en, de-DE, fr-FR.") String locale,
+            @Input(name = "standard", type = OoaType.STRING, required = false, enumValues = {"ISO_LOCAL_DATE", "ISO_LOCAL_TIME", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
+                    "ISO_DATE", "ISO_DATE_TIME", "ISO_ORDINAL_DATE", "ISO_WEEK_DATE", "BASIC_ISO_DATE", "RFC_1123_DATE_TIME"},
+                    description = "A predefined ISO or RFC format to use instead of the pattern.") String standard) {
         try {
             ZonedDateTime z = value.atOffset(ZoneOffset.UTC).atZoneSameInstant(zone(tz));
-            return Out.of("text", z.format(DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)));
+            DateTimeFormatter std = standard(standard);
+            return Out.of("text", z.format(std != null ? std : DateTimeFormatter.ofPattern(pattern, locale(locale))));
         } catch (IllegalArgumentException e) {
             throw new ActionException("DATETIME.BAD_PATTERN", "Invalid date pattern '" + pattern + "': " + e.getMessage(), "Use letters like yyyy, MM, dd, HH, mm, ss.");
         }
@@ -76,10 +102,28 @@ public final class DateTimePackage {
     @Output(name = "value", type = OoaType.DATETIME, description = "Parsed date (UTC).")
     public Map<String, Object> parse(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text such as 18/10/2026.") String text,
-            @Input(name = "pattern", type = OoaType.STRING, description = "Pattern of the text, e.g. dd/MM/yyyy.") String pattern,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the text is in.") String tz) {
+            @Input(name = "pattern", type = OoaType.STRING, required = false, description = "Pattern of the text, e.g. dd/MM/yyyy; needed unless a standard format is chosen.") String pattern,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the text is in.") String tz,
+            @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language of month and day names in the text, e.g. en, de-DE.") String locale,
+            @Input(name = "standard", type = OoaType.STRING, required = false, enumValues = {"ISO_LOCAL_DATE", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
+                    "ISO_DATE", "ISO_DATE_TIME", "BASIC_ISO_DATE", "RFC_1123_DATE_TIME"},
+                    description = "A predefined ISO or RFC format to read instead of the pattern; an offset in the text wins over time_zone.") String standard) {
+        DateTimeFormatter std = standard(standard);
+        if (std != null) {
+            try {
+                java.time.temporal.TemporalAccessor ta = std.parse(text.trim());
+                ZonedDateTime z;
+                if (ta.isSupported(java.time.temporal.ChronoField.INSTANT_SECONDS)) z = Instant.from(ta).atZone(ZoneOffset.UTC);
+                else if (ta.isSupported(java.time.temporal.ChronoField.HOUR_OF_DAY)) z = LocalDateTime.from(ta).atZone(zone(tz));
+                else z = LocalDate.from(ta).atStartOfDay(zone(tz));
+                return Out.of("value", z.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
+            } catch (DateTimeException e) {
+                throw new ActionException("DATETIME.PARSE_FAILED", "Cannot read '" + text + "' as " + standard, "Check the text matches the chosen standard format.");
+            }
+        }
+        if (pattern == null || pattern.isBlank()) throw new ActionException("DATETIME.BAD_PATTERN", "Give a pattern or a standard format", "Fill in 'pattern', e.g. dd/MM/yyyy.");
         try {
-            DateTimeFormatter f = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
+            DateTimeFormatter f = DateTimeFormatter.ofPattern(pattern, locale(locale));
             LocalDateTime local = pattern.contains("H") || pattern.contains("h") ? LocalDateTime.parse(text.trim(), f) : LocalDate.parse(text.trim(), f).atStartOfDay();
             return Out.of("value", local.atZone(zone(tz)).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
         } catch (DateTimeException | IllegalArgumentException e) {
@@ -127,25 +171,52 @@ public final class DateTimePackage {
 
     // ---- Comparison ----
 
+    private static final String INCLUDE_TIME = "Compare the time of day too; when off only the calendar dates (in time_zone) are compared.";
+    private static final String CMP_ZONE = "Time zone whose calendar dates are compared when include_time is off.";
+
+    /** -1, 0 or 1; with include_time off, only the local calendar dates in the zone are compared. */
+    private static int cmp(LocalDateTime a, LocalDateTime b, boolean includeTime, String tz) {
+        need(a, "value"); need(b, "other");
+        if (includeTime) return a.compareTo(b);
+        ZoneId z = zone(tz == null || tz.isBlank() ? "UTC" : tz);
+        return a.atOffset(ZoneOffset.UTC).atZoneSameInstant(z).toLocalDate().compareTo(b.atOffset(ZoneOffset.UTC).atZoneSameInstant(z).toLocalDate());
+    }
+
     @Condition(id = "is_after", name = "Date is after", description = "True when the first date is later than the second.")
     public boolean isAfter(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
-        return need(value, "value").isAfter(need(other, "other"));
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return cmp(value, other, includeTime, tz) > 0;
     }
 
     @Condition(id = "is_before", name = "Date is before", description = "True when the first date is earlier than the second.")
     public boolean isBefore(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
-        return need(value, "value").isBefore(need(other, "other"));
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return cmp(value, other, includeTime, tz) < 0;
     }
 
-    @Condition(id = "is_equal", name = "Dates are equal", description = "True when both dates are the same moment.")
+    @Condition(id = "is_equal", name = "Dates are equal", description = "True when both dates are the same moment, or the same day when the time is not included.")
     public boolean isEqual(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
-        return need(value, "value").isEqual(need(other, "other"));
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return cmp(value, other, includeTime, tz) == 0;
+    }
+
+    @Condition(id = "is_between", name = "Date is between", description = "True when the date lies between two dates, both included.")
+    public boolean isBetween(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
+            @Input(name = "from", type = OoaType.DATETIME, description = "Earliest date.") LocalDateTime from,
+            @Input(name = "to", type = OoaType.DATETIME, description = "Latest date.") LocalDateTime to,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return cmp(value, from, includeTime, tz) >= 0 && cmp(value, to, includeTime, tz) <= 0;
     }
 
     private static LocalDateTime need(LocalDateTime v, String name) {
@@ -157,24 +228,30 @@ public final class DateTimePackage {
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the first date is later.")
     public Map<String, Object> isAfterAction(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
-        return Out.of("result", isAfter(ctx, value, other));
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return Out.of("result", isAfter(ctx, value, other, includeTime, tz));
     }
 
     @Action(id = "is_before", name = "Is before", category = "Date and time", idempotent = true, description = "Check whether the first date is earlier than the second.")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the first date is earlier.")
     public Map<String, Object> isBeforeAction(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
-        return Out.of("result", isBefore(ctx, value, other));
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return Out.of("result", isBefore(ctx, value, other, includeTime, tz));
     }
 
     @Action(id = "is_equal", name = "Is equal", category = "Date and time", idempotent = true, description = "Check whether two dates are the same moment.")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the dates are equal.")
     public Map<String, Object> isEqualAction(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
-            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other) {
-        return Out.of("result", isEqual(ctx, value, other));
+            @Input(name = "other", type = OoaType.DATETIME, description = "Date to compare with.") LocalDateTime other,
+            @Input(name = "include_time", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = INCLUDE_TIME) boolean includeTime,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = CMP_ZONE) String tz) {
+        return Out.of("result", isEqual(ctx, value, other, includeTime, tz));
     }
 
     @Action(id = "is_leap_year", name = "Is leap year", category = "Date and time", idempotent = true,
@@ -192,11 +269,38 @@ public final class DateTimePackage {
     public Map<String, Object> subtract(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
             @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to subtract.") long amount,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"seconds", "minutes", "hours", "days", "weeks", "months", "years"},
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"},
                     description = "Unit of the amount.") String unit) {
         if (unit != null && !java.util.Arrays.asList(UNITS).contains(unit))
             throw new ActionException("DATETIME.BAD_UNIT", "Unknown unit '" + unit + "'", "Use one of " + String.join(", ", UNITS) + ".");
         return add(ctx, value, Math.negateExact(amount), unit == null ? "days" : unit);
+    }
+
+    @Action(id = "get_part", name = "Get part of date", category = "Date and time", idempotent = true,
+            description = "Return one part of a date, such as the year, month, day of week, week of year or quarter, in a time zone.")
+    @Output(name = "result", description = "The part: a Number, or text for day_name and month_name.")
+    public Map<String, Object> getPart(ActionContext ctx,
+            @Input(name = "value", type = OoaType.DATETIME, description = "Date (UTC).") LocalDateTime value,
+            @Input(name = "part", type = OoaType.STRING, enumValues = {"year", "month", "day", "hour", "minute", "second", "millisecond", "day_of_week", "day_name",
+                    "month_name", "day_of_year", "week_of_year", "quarter", "days_in_month", "days_in_year"},
+                    description = "Which part to return; day_of_week is 1 for Monday to 7 for Sunday, week_of_year follows ISO 8601.") String part,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the part is read in.") String tz,
+            @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language for day_name and month_name.") String locale) {
+        ZonedDateTime z = need(value, "value").atOffset(ZoneOffset.UTC).atZoneSameInstant(zone(tz == null ? "UTC" : tz));
+        Object r = switch (part == null ? "" : part) {
+            case "year" -> z.getYear(); case "month" -> z.getMonthValue(); case "day" -> z.getDayOfMonth();
+            case "hour" -> z.getHour(); case "minute" -> z.getMinute(); case "second" -> z.getSecond(); case "millisecond" -> z.getNano() / 1_000_000;
+            case "day_of_week" -> z.getDayOfWeek().getValue();
+            case "day_name" -> z.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, locale(locale));
+            case "month_name" -> z.getMonth().getDisplayName(java.time.format.TextStyle.FULL, locale(locale));
+            case "day_of_year" -> z.getDayOfYear();
+            case "week_of_year" -> z.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+            case "quarter" -> z.get(java.time.temporal.IsoFields.QUARTER_OF_YEAR);
+            case "days_in_month" -> z.toLocalDate().lengthOfMonth();
+            case "days_in_year" -> z.toLocalDate().lengthOfYear();
+            default -> throw new ActionException("DATETIME.BAD_PART", "Unknown date part '" + part + "'", "Use year, month, day, hour, minute, second, day_of_week, week_of_year, quarter ...");
+        };
+        return Out.of("result", r instanceof Integer i ? BigDecimal.valueOf(i) : r);
     }
 
     private static LocalDateTime startOf(LocalDateTime v, String unit) {

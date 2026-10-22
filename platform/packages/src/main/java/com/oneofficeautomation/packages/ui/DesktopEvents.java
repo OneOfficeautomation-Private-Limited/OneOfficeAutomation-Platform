@@ -18,6 +18,12 @@ public interface DesktopEvents {
     boolean activateWindow(String titlePattern);
 
     /**
+     * Screen rectangle {x, y, width, height} of the first matching window, used by mouse, keyboard and screen actions
+     * that work relative to a window. Empty when no window matches or the implementation cannot tell.
+     */
+    default Optional<int[]> windowBounds(String titlePattern) { return Optional.empty(); }
+
+    /**
      * Calls back on every press of a global hotkey such as "CTRL+ALT+F9" while the returned handle is open.
      * Throws IllegalArgumentException for an unknown key and IllegalStateException when another program owns the combination.
      */

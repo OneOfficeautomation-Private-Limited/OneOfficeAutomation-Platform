@@ -109,12 +109,27 @@ public final class GooglePackage {
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
             @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Target folder id; My Drive root when empty.") String folder,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Name in Drive; the local name when empty.") String name,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the content of a file with the same name in the folder (keeping its id and links) instead of adding a second file.") boolean overwrite,
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "Description stored with the file.") String description,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Path p = ctx.resolvePath(local);
         byte[] data;
         try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+        String fileName = name == null || name.isBlank() ? p.getFileName().toString() : name;
+        if (overwrite) {
+            List<String> q = new ArrayList<>(List.of("trashed = false", "name = " + quoted(fileName), quoted(blank(folder) ? "root" : folder) + " in parents"));
+            List<Object> same = list(call(ctx, token, "GET", DRIVE + "?" + HttpJson.query(Map.of("q", String.join(" and ", q), "fields", "files(id)", "supportsAllDrives", true, "includeItemsFromAllDrives", true)), ep, null).get("files"));
+            if (!same.isEmpty()) {
+                String fid = str(obj(same.get(0)).get("id"));
+                Map<String, Object> r = HttpJson.req(P, "PATCH", url("https://www.googleapis.com/upload/drive/v3/files/" + HttpJson.enc(fid) + "?uploadType=media&fields=id&supportsAllDrives=true", ep))
+                        .bearer(token).bytes(data, "application/octet-stream").timeout(600).send(ctx).map();
+                if (!blank(description)) call(ctx, token, "PATCH", DRIVE + "/" + HttpJson.enc(fid) + "?supportsAllDrives=true", ep, Map.of("description", description));
+                return Out.of("file_id", r.get("id"));
+            }
+        }
         Map<String, Object> meta = new LinkedHashMap<>();
-        meta.put("name", name == null || name.isBlank() ? p.getFileName().toString() : name);
+        meta.put("name", fileName);
+        if (!blank(description)) meta.put("description", description);
         if (folder != null && !folder.isBlank()) meta.put("parents", List.of(folder));
         Object[] mp = HttpJson.multipart("related", List.of(
                 new Object[]{"Content-Type: application/json; charset=UTF-8", JsonLite.write(meta).getBytes(StandardCharsets.UTF_8)},
@@ -131,6 +146,7 @@ public final class GooglePackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "file_id", type = OoaType.STRING, description = "File id.") String id,
             @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Map<String, Object> meta = HttpJson.req(P, "GET", url("https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "?fields=mimeType,name", ep)).bearer(token).send(ctx).map();
         String mime = String.valueOf(meta.get("mimeType"));
@@ -143,7 +159,7 @@ public final class GooglePackage {
         String u = export != null ? "https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "/export?mimeType=" + HttpJson.enc(export)
                 : "https://www.googleapis.com/drive/v3/files/" + HttpJson.enc(id) + "?alt=media";
         byte[] data = HttpJson.req(P, "GET", url(u, ep)).bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
-        Path p = ctx.resolvePath(local);
+        Path p = freeName(ctx.resolvePath(local), overwrite);
         try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
         catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
         return Map.of("path", p.toString());
@@ -152,6 +168,7 @@ public final class GooglePackage {
     @Action(id = "calendar_create_event", name = "Create Google Calendar event", category = "Calendar", capabilities = "network", description = "Create an event, optionally inviting attendees.")
     @Output(name = "event_id", type = OoaType.STRING, description = "Event id.")
     @Output(name = "link", type = OoaType.STRING, description = "Link to the event.")
+    @Output(name = "meet_link", type = OoaType.STRING, description = "Google Meet link, when add_meet_link is true.")
     public Map<String, Object> createEvent(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "subject", type = OoaType.STRING, description = "Title.") String subject,
@@ -161,19 +178,61 @@ public final class GooglePackage {
             @Input(name = "attendees", required = false, description = "Attendee address(es).") Object attendees,
             @Input(name = "description", type = OoaType.STRING, required = false, description = "Description.") String description,
             @Input(name = "calendar_id", type = OoaType.STRING, required = false, defaultValue = "\"primary\"", description = "Calendar id.") String cal,
+            @Input(name = "location", type = OoaType.STRING, required = false, description = "Location.") String location,
+            @Input(name = "all_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "All-day event: only the dates count; the end date may equal the start date.") boolean allDay,
+            @Input(name = "optional_attendees", required = false, description = "Address(es) invited as optional.") Object optional,
+            @Input(name = "notify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Email the invitation to the attendees.") boolean notify,
+            @Input(name = "add_meet_link", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Add a Google Meet video link.") boolean meet,
+            @Input(name = "reminder_minutes", type = OoaType.NUMBER, required = false, description = "Popup reminder this many minutes before; the calendar's default reminders when empty.") Integer reminder,
+            @Input(name = "visibility", type = OoaType.STRING, required = false, defaultValue = "\"default\"", enumValues = {"default", "public", "private"}, description = "Who can see the event's details.") String visibility,
+            @Input(name = "show_as", type = OoaType.STRING, required = false, defaultValue = "\"busy\"", enumValues = {"busy", "free"}, description = "Whether the time shows as busy.") String showAs,
+            @Input(name = "recurrence", type = OoaType.STRING, required = false, example = "RRULE:FREQ=WEEKLY;COUNT=10", description = "Repeat rule (RFC 5545), or simply daily, weekly, monthly or yearly.") String recurrence,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Map<String, Object> ev = new LinkedHashMap<>();
         ev.put("summary", subject);
-        ev.put("start", Map.of("dateTime", start.toString(), "timeZone", tz));
-        ev.put("end", Map.of("dateTime", end.toString(), "timeZone", tz));
+        if (allDay) {
+            java.time.LocalDate d1 = start.toLocalDate(), d2 = end.toLocalDate();
+            ev.put("start", Map.of("date", d1.toString()));
+            ev.put("end", Map.of("date", (d2.isAfter(d1) ? d2 : d1.plusDays(1)).toString()));
+        } else {
+            ev.put("start", Map.of("dateTime", start.toString(), "timeZone", tz));
+            ev.put("end", Map.of("dateTime", end.toString(), "timeZone", tz));
+        }
         if (description != null) ev.put("description", description);
-        if (attendees != null) { List<Object> at = new ArrayList<>(); for (String a : HttpJson.addressList(attendees)) at.add(Map.of("email", a)); ev.put("attendees", at); }
-        Map<String, Object> r = HttpJson.req(P, "POST", url("https://www.googleapis.com/calendar/v3/calendars/" + HttpJson.enc(cal) + "/events", ep)).bearer(token).json(ev).send(ctx).map();
-        return Out.of("event_id", r.get("id"), "link", r.get("htmlLink"));
+        if (!blank(location)) ev.put("location", location);
+        if (attendees != null || optional != null) {
+            List<Object> at = new ArrayList<>();
+            for (String a : HttpJson.addressList(attendees)) at.add(Map.of("email", a));
+            for (String a : HttpJson.addressList(optional)) at.add(Map.of("email", a, "optional", true));
+            ev.put("attendees", at);
+        }
+        if (reminder != null) ev.put("reminders", Map.of("useDefault", false, "overrides", List.of(Map.of("method", "popup", "minutes", Math.max(0, reminder)))));
+        String vis = blank(visibility) ? "default" : visibility.trim().toLowerCase(Locale.ROOT);
+        if (!List.of("default", "public", "private").contains(vis)) throw bad("visibility must be default, public or private", null);
+        if (!vis.equals("default")) ev.put("visibility", vis);
+        if ("free".equalsIgnoreCase(showAs == null ? "" : showAs.trim())) ev.put("transparency", "transparent");
+        String rule = rrule(recurrence);
+        if (rule != null) ev.put("recurrence", List.of(rule));
+        if (meet) ev.put("conferenceData", Map.of("createRequest", Map.of("requestId", UUID.randomUUID().toString(), "conferenceSolutionKey", Map.of("type", "hangoutsMeet"))));
+        String q = "?sendUpdates=" + (notify ? "all" : "none") + (meet ? "&conferenceDataVersion=1" : "");
+        Map<String, Object> r = HttpJson.req(P, "POST", url("https://www.googleapis.com/calendar/v3/calendars/" + HttpJson.enc(cal) + "/events" + q, ep)).bearer(token).json(ev).send(ctx).map();
+        return Out.of("event_id", r.get("id"), "link", r.get("htmlLink"), "meet_link", r.get("hangoutLink"));
+    }
+
+    /** RFC 5545 rule from a full RRULE or a simple word. Null for none. */
+    static String rrule(String v) {
+        if (blank(v) || v.trim().equalsIgnoreCase("none")) return null;
+        String t = v.trim(), u = t.toUpperCase(Locale.ROOT);
+        if (u.startsWith("RRULE:")) return t;
+        if (u.startsWith("FREQ=")) return "RRULE:" + t;
+        return switch (t.toLowerCase(Locale.ROOT)) {
+            case "daily" -> "RRULE:FREQ=DAILY"; case "weekly" -> "RRULE:FREQ=WEEKLY"; case "monthly" -> "RRULE:FREQ=MONTHLY"; case "yearly" -> "RRULE:FREQ=YEARLY";
+            default -> throw bad("Unknown recurrence '" + v + "'", "Use daily, weekly, monthly, yearly or a rule such as RRULE:FREQ=WEEKLY;COUNT=10.");
+        };
     }
 
     @Action(id = "gmail_send", name = "Send Gmail", category = "Gmail", capabilities = "network",
-            description = "Send a plain-text or HTML email from Gmail (for attachments use Email > Send with an OAuth token).")
+            description = "Send a plain-text or HTML email from Gmail with optional CC, BCC, attachments, reply-to and send-as alias.")
     @Output(name = "message_id", type = OoaType.STRING, description = "Gmail message id.")
     public Map<String, Object> gmailSend(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -181,10 +240,26 @@ public final class GooglePackage {
             @Input(name = "subject", type = OoaType.STRING, description = "Subject.") String subject,
             @Input(name = "body", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Body.") String body,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
+            @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach (the whole email up to 25 MB).") List<Object> attachments,
+            @Input(name = "from", type = OoaType.STRING, required = false, description = "Send from this address, which must be one of the account's Gmail send-as aliases.") String from,
+            @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         List<String> rcpt = HttpJson.addressList(to);
         for (String a : rcpt) if (a.contains("\r") || a.contains("\n")) throw new ActionException(P + ".BAD_ADDRESS", "Invalid address");
         if (subject.contains("\r") || subject.contains("\n")) throw new ActionException(P + ".BAD_SUBJECT", "The subject cannot contain line breaks");
+        if (cc != null || bcc != null || (attachments != null && !attachments.isEmpty()) || !blank(from) || replyTo != null) {
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("From", from);
+            headers.put("To", String.join(", ", rcpt));
+            headers.put("Cc", String.join(", ", HttpJson.addressList(cc)));
+            headers.put("Bcc", String.join(", ", HttpJson.addressList(bcc)));
+            headers.put("Reply-To", String.join(", ", HttpJson.addressList(replyTo)));
+            headers.put("Subject", subject);
+            byte[] mime = buildMime(headers, body, html, localAttachments(ctx, attachments));
+            return Out.of("message_id", call(ctx, token, "POST", GMAIL + "messages/send", ep, Map.of("raw", rawOf(mime))).get("id"));
+        }
         String encodedSubject = "=?UTF-8?B?" + Base64.getEncoder().encodeToString(subject.getBytes(StandardCharsets.UTF_8)) + "?=";
         String mime = "To: " + String.join(", ", rcpt) + "\r\nSubject: " + encodedSubject + "\r\nMIME-Version: 1.0\r\nContent-Type: text/" + (html ? "html" : "plain")
                 + "; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" + Base64.getMimeEncoder().encodeToString(body.getBytes(StandardCharsets.UTF_8));
@@ -364,6 +439,7 @@ public final class GooglePackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "title", type = OoaType.STRING, description = "Spreadsheet title.") String title,
             @Input(name = "sheet_names", type = OoaType.LIST, required = false, description = "Names of the sheets to create; one default sheet when empty.") List<Object> names,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Drive folder to put the spreadsheet in; My Drive when empty.") String folder,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("properties", Map.of("title", title));
@@ -373,6 +449,7 @@ public final class GooglePackage {
             body.put("sheets", sheets);
         }
         Map<String, Object> r = call(ctx, token, "POST", "https://sheets.googleapis.com/v4/spreadsheets", ep, body);
+        if (!blank(folder)) driveMove(ctx, token, str(r.get("spreadsheetId")), folder, ep);
         return Out.of("spreadsheet_id", r.get("spreadsheetId"), "url", r.get("spreadsheetUrl"));
     }
 
@@ -380,18 +457,21 @@ public final class GooglePackage {
             description = "List the sheets (tabs) of a spreadsheet with their size and visibility.")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: sheet_id, name, index, hidden, rows, columns.")
     @Output(name = "names", type = OoaType.LIST, description = "Sheet names in tab order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of sheets listed.")
     public Map<String, Object> sheetsList(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
+            @Input(name = "exclude_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave hidden sheets out.") boolean noHidden,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         List<Object> rows = new ArrayList<>(), names = new ArrayList<>();
         for (Map<String, Object> p : sheetList(ctx, token, id, ep)) {
+            if (noHidden && Boolean.TRUE.equals(p.get("hidden"))) continue;
             Map<String, Object> g = obj(p.get("gridProperties"));
             rows.add(new ArrayList<>(Arrays.asList(num(sheetId(p)), p.get("title"), p.get("index") == null ? num(0) : p.get("index"),
                     Boolean.TRUE.equals(p.get("hidden")), g.get("rowCount"), g.get("columnCount"))));
             names.add(p.get("title"));
         }
-        return Map.of("table", Values.table(List.of("sheet_id", "name", "index", "hidden", "rows", "columns"), rows), "names", names);
+        return Map.of("table", Values.table(List.of("sheet_id", "name", "index", "hidden", "rows", "columns"), rows), "names", names, "count", num(names.size()));
     }
 
     @Action(id = "sheets_add_sheet", name = "Add sheet", category = "Sheets", capabilities = "network", description = "Add a new empty sheet (tab) to a spreadsheet.")
@@ -631,9 +711,11 @@ public final class GooglePackage {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = D_SHEET) String sheet,
+            @Input(name = "non_empty_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Count only rows that hold a value, instead of the number of the last filled row.") boolean nonEmpty,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         List<Object> rows = list(getValues(ctx, token, id, a1(sheetTitle(ctx, token, id, sheet, ep), ""), "UNFORMATTED_VALUE", "ROWS", ep).get("values"));
-        return Map.of("rows", num(rows.size()), "columns", num(rows.stream().mapToInt(r -> list(r).size()).max().orElse(0)));
+        long filled = rows.stream().filter(r -> list(r).stream().anyMatch(v -> v != null && !Values.text(v).isEmpty())).count();
+        return Map.of("rows", num(nonEmpty ? filled : rows.size()), "columns", num(rows.stream().mapToInt(r -> list(r).size()).max().orElse(0)));
     }
 
     @Action(id = "sheets_set_formula", name = "Set formula", category = "Sheets", idempotent = true, capabilities = "network", description = "Put a formula into one cell.")
@@ -676,9 +758,49 @@ public final class GooglePackage {
             @Input(name = "number_format", type = OoaType.STRING, required = false, example = "#,##0.00", description = "Number format pattern such as #,##0.00, 0% or yyyy-mm-dd; unchanged when empty.") String pattern,
             @Input(name = "number_format_type", type = OoaType.STRING, required = false, defaultValue = "\"NUMBER\"",
                     enumValues = {"NUMBER", "CURRENCY", "PERCENT", "DATE", "TIME", "DATE_TIME", "SCIENTIFIC", "TEXT"}, description = "Kind of number format the pattern describes.") String patternType,
+            @Input(name = "underline", type = OoaType.BOOLEAN, required = false, description = "Underline on or off; unchanged when empty.") Boolean underline,
+            @Input(name = "strikethrough", type = OoaType.BOOLEAN, required = false, description = "Strikethrough on or off; unchanged when empty.") Boolean strike,
+            @Input(name = "font_family", type = OoaType.STRING, required = false, example = "Roboto", description = "Font name; unchanged when empty.") String family,
+            @Input(name = "vertical_alignment", type = OoaType.STRING, required = false, enumValues = {"top", "middle", "bottom"}, description = "Vertical alignment; unchanged when empty.") String vAlign,
+            @Input(name = "wrap", type = OoaType.STRING, required = false, enumValues = {"overflow", "clip", "wrap"}, description = "How long text is shown; unchanged when empty.") String wrap,
+            @Input(name = "merge", type = OoaType.STRING, required = false, enumValues = {"all", "rows", "columns", "unmerge"}, description = "Merge the range (all, each row or each column) or unmerge it; unchanged when empty.") String merge,
+            @Input(name = "border_style", type = OoaType.STRING, required = false, enumValues = {"none", "solid", "solid_medium", "solid_thick", "dashed", "dotted", "double"}, description = "Style of every border of the range, inside and out; unchanged when empty.") String borderStyle,
+            @Input(name = "border_color", type = OoaType.STRING, required = false, example = "#000000", description = "Border colour as #RRGGBB; black when empty.") String borderColor,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Map<String, Object> fmt = new LinkedHashMap<>(), text = new LinkedHashMap<>();
         List<String> fields = new ArrayList<>();
+        List<Map<String, Object>> extra = new ArrayList<>();
+        if (underline != null) { text.put("underline", underline); fields.add("userEnteredFormat.textFormat.underline"); }
+        if (strike != null) { text.put("strikethrough", strike); fields.add("userEnteredFormat.textFormat.strikethrough"); }
+        if (!blank(family)) { text.put("fontFamily", family.trim()); fields.add("userEnteredFormat.textFormat.fontFamily"); }
+        if (!blank(vAlign)) {
+            String v = vAlign.trim().toUpperCase(Locale.ROOT);
+            if (!List.of("TOP", "MIDDLE", "BOTTOM").contains(v)) throw bad("vertical_alignment must be top, middle or bottom", null);
+            fmt.put("verticalAlignment", v); fields.add("userEnteredFormat.verticalAlignment");
+        }
+        if (!blank(wrap)) {
+            String v = switch (wrap.trim().toLowerCase(Locale.ROOT)) { case "overflow" -> "OVERFLOW_CELL"; case "clip" -> "CLIP"; case "wrap" -> "WRAP"; default -> throw bad("wrap must be overflow, clip or wrap", null); };
+            fmt.put("wrapStrategy", v); fields.add("userEnteredFormat.wrapStrategy");
+        }
+        if (!blank(merge) || !blank(borderStyle)) {
+            Map<String, Object> g = grid(ctx, token, id, range, ep);
+            if (!blank(merge)) extra.add(switch (merge.trim().toLowerCase(Locale.ROOT)) {
+                case "all" -> Map.of("mergeCells", Map.of("range", g, "mergeType", "MERGE_ALL"));
+                case "rows" -> Map.of("mergeCells", Map.of("range", g, "mergeType", "MERGE_ROWS"));
+                case "columns" -> Map.of("mergeCells", Map.of("range", g, "mergeType", "MERGE_COLUMNS"));
+                case "unmerge" -> Map.of("unmergeCells", Map.of("range", g));
+                default -> throw bad("merge must be all, rows, columns or unmerge", null);
+            });
+            if (!blank(borderStyle)) {
+                String st = borderStyle.trim().toUpperCase(Locale.ROOT);
+                if (!List.of("NONE", "SOLID", "SOLID_MEDIUM", "SOLID_THICK", "DASHED", "DOTTED", "DOUBLE").contains(st)) throw bad("Unknown border_style '" + borderStyle + "'", null);
+                Map<String, Object> line = new LinkedHashMap<>(Map.of("style", st));
+                line.put("color", color(blank(borderColor) ? "#000000" : borderColor, "border_color"));
+                Map<String, Object> b = new LinkedHashMap<>(Map.of("range", g));
+                for (String side : List.of("top", "bottom", "left", "right", "innerHorizontal", "innerVertical")) b.put(side, line);
+                extra.add(Map.of("updateBorders", b));
+            }
+        }
         if (bold != null) { text.put("bold", bold); fields.add("userEnteredFormat.textFormat.bold"); }
         if (italic != null) { text.put("italic", italic); fields.add("userEnteredFormat.textFormat.italic"); }
         if (fontSize != null) { text.put("fontSize", fontSize); fields.add("userEnteredFormat.textFormat.fontSize"); }
@@ -694,8 +816,11 @@ public final class GooglePackage {
             fmt.put("numberFormat", Map.of("type", blank(patternType) ? "NUMBER" : patternType.toUpperCase(Locale.ROOT), "pattern", pattern));
             fields.add("userEnteredFormat.numberFormat");
         }
-        if (fields.isEmpty()) throw new ActionException(P + ".NOTHING_TO_FORMAT", "No formatting was given", "Fill in at least one format input such as bold or background_color.");
-        batch(ctx, token, id, ep, List.of(Map.of("repeatCell", Map.of("range", grid(ctx, token, id, range, ep), "cell", Map.of("userEnteredFormat", fmt), "fields", String.join(",", fields)))));
+        if (fields.isEmpty() && extra.isEmpty()) throw new ActionException(P + ".NOTHING_TO_FORMAT", "No formatting was given", "Fill in at least one format input such as bold or background_color.");
+        List<Map<String, Object>> requests = new ArrayList<>();
+        if (!fields.isEmpty()) requests.add(Map.of("repeatCell", Map.of("range", grid(ctx, token, id, range, ep), "cell", Map.of("userEnteredFormat", fmt), "fields", String.join(",", fields))));
+        requests.addAll(extra);
+        batch(ctx, token, id, ep, requests);
         return Map.of();
     }
 
@@ -774,6 +899,25 @@ public final class GooglePackage {
         if (clear) call(ctx, token, "POST", SHEETS + HttpJson.enc(id) + "/values/" + HttpJson.enc(a1(title, "")) + ":clear", ep, Map.of());
         Map<String, Object> r = putValues(ctx, token, id, a1(title, cell), grid(table, header), ep);
         return Out.of("updated_range", r.get("updatedRange"), "updated_cells", r.get("updatedCells"));
+    }
+
+    @Action(id = "sheets_copy_range", name = "Copy range", category = "Sheets", capabilities = "network",
+            description = "Copy a range to another place, in the same or another sheet of the spreadsheet: values, formats, formulas or everything.")
+    public Map<String, Object> sheetsCopyRange(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
+            @Input(name = "source", type = OoaType.STRING, example = "Sheet1!A1:C10", description = "Range to copy. " + D_RANGE) String source,
+            @Input(name = "destination", type = OoaType.STRING, example = "Sheet2!E1", description = "Top-left cell (or range) to paste into, optionally with the sheet name.") String destination,
+            @Input(name = "paste", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "values", "formats", "formulas", "no_borders"}, description = "What to paste.") String paste,
+            @Input(name = "transpose", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Turn rows into columns.") boolean transpose,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String type = switch (blank(paste) ? "all" : paste.trim().toLowerCase(Locale.ROOT)) {
+            case "all" -> "PASTE_NORMAL"; case "values" -> "PASTE_VALUES"; case "formats" -> "PASTE_FORMAT"; case "formulas" -> "PASTE_FORMULA"; case "no_borders" -> "PASTE_NO_BORDERS";
+            default -> throw bad("paste must be all, values, formats, formulas or no_borders", null);
+        };
+        batch(ctx, token, id, ep, List.of(Map.of("copyPaste", Map.of("source", grid(ctx, token, id, source, ep), "destination", grid(ctx, token, id, destination, ep),
+                "pasteType", type, "pasteOrientation", transpose ? "TRANSPOSE" : "NORMAL"))));
+        return Map.of();
     }
 
     @Action(id = "sheets_find_cells", name = "Find cells", category = "Sheets", idempotent = true, capabilities = "network",
@@ -998,9 +1142,11 @@ public final class GooglePackage {
             @Input(name = "domain", type = OoaType.STRING, required = false, description = "Domain such as example.com (for domain).") String domain,
             @Input(name = "notify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Send a notification email (user and group only).") boolean notify,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Text added to the notification email.") String message,
+            @Input(name = "expires", type = OoaType.DATETIME, required = false, description = "When the access ends (UTC; users and groups only, Google Workspace accounts).") LocalDateTime expires,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         String t = blank(type) ? "user" : type.toLowerCase(Locale.ROOT);
         Map<String, Object> perm = new LinkedHashMap<>(Map.of("type", t, "role", blank(role) ? "reader" : role));
+        if (expires != null) perm.put("expirationTime", expires.toString() + (expires.getSecond() == 0 && expires.getNano() == 0 ? ":00" : "") + "Z");
         switch (t) {
             case "user", "group" -> { if (blank(email)) throw bad("An email address is needed to share with a " + t, "Fill in email."); perm.put("emailAddress", email.trim()); }
             case "domain" -> { if (blank(domain)) throw bad("A domain is needed to share with a domain", "Fill in domain."); perm.put("domain", domain.trim()); }
@@ -1026,6 +1172,97 @@ public final class GooglePackage {
             @Input(name = "permission_id", type = OoaType.STRING, description = "Permission id from List Drive permissions.") String perm,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         call(ctx, token, "DELETE", DRIVE + "/" + HttpJson.enc(id) + "/permissions/" + HttpJson.enc(perm) + "?supportsAllDrives=true", ep, null);
+        return Map.of();
+    }
+
+    @Action(id = "drive_copy_folder", name = "Copy Drive folder", category = "Drive", timeoutSeconds = 1800, capabilities = "network",
+            description = "Copy a folder with all its files and subfolders into another folder.")
+    @Output(name = "folder_id", type = OoaType.STRING, description = "Id of the new folder.")
+    @Output(name = "file_count", type = OoaType.NUMBER, description = "Number of files copied.")
+    public Map<String, Object> driveCopyFolder(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "folder_id", type = OoaType.STRING, description = "Folder to copy.") String id,
+            @Input(name = "destination_id", type = OoaType.STRING, required = false, description = "Folder that receives the copy; next to the original when empty.") String dest,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "Name of the copy; the original name when empty.") String name,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        Map<String, Object> src = call(ctx, token, "GET", DRIVE + "/" + HttpJson.enc(id) + "?fields=id,name,mimeType,parents&supportsAllDrives=true", ep, null);
+        if (!FOLDER_MIME.equals(src.get("mimeType"))) throw bad("The item is not a folder", "Use Copy Drive file for files.");
+        String parent = !blank(dest) ? dest : list(src.get("parents")).isEmpty() ? null : str(list(src.get("parents")).get(0));
+        int[] files = {0};
+        String copy = copyTree(ctx, token, id, blank(name) ? str(src.get("name")) : name, parent, files, ep);
+        return Map.of("folder_id", copy, "file_count", num(files[0]));
+    }
+
+    private String copyTree(ActionContext ctx, Object token, String id, String name, String parent, int[] files, String ep) {
+        Map<String, Object> meta = new LinkedHashMap<>(Map.of("name", name, "mimeType", FOLDER_MIME));
+        if (parent != null) meta.put("parents", List.of(parent));
+        String copy = str(call(ctx, token, "POST", DRIVE + "?fields=id&supportsAllDrives=true", ep, meta).get("id"));
+        String page = null;
+        do {
+            Map<String, Object> q = new LinkedHashMap<>();
+            q.put("q", quoted(id) + " in parents and trashed = false");
+            q.put("fields", "nextPageToken,files(id,name,mimeType)");
+            q.put("pageSize", 1000);
+            q.put("supportsAllDrives", true);
+            q.put("includeItemsFromAllDrives", true);
+            if (page != null) q.put("pageToken", page);
+            Map<String, Object> r = call(ctx, token, "GET", DRIVE + "?" + HttpJson.query(q), ep, null);
+            for (Object o : list(r.get("files"))) {
+                Map<String, Object> f = obj(o);
+                if (FOLDER_MIME.equals(f.get("mimeType"))) copyTree(ctx, token, str(f.get("id")), str(f.get("name")), copy, files, ep);
+                else {
+                    call(ctx, token, "POST", DRIVE + "/" + HttpJson.enc(str(f.get("id"))) + "/copy?fields=id&supportsAllDrives=true", ep, Map.of("name", str(f.get("name")), "parents", List.of(copy)));
+                    files[0]++;
+                }
+            }
+            page = str(r.get("nextPageToken"));
+        } while (page != null);
+        return copy;
+    }
+
+    private static final List<String> ROLE_ORDER = List.of("reader", "commenter", "writer", "fileOrganizer", "organizer", "owner");
+
+    @Action(id = "drive_check_permission", name = "Check Drive permission", category = "Drive", idempotent = true, capabilities = "network",
+            description = "Check whether a person (or their domain, or anyone with the link) can read, comment on or edit a file or folder.")
+    @Output(name = "has_access", type = OoaType.BOOLEAN, description = "True when the person has at least the asked access.")
+    @Output(name = "role", type = OoaType.STRING, description = "The highest role found, empty when none.")
+    public Map<String, Object> driveCheckPermission(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "email", type = OoaType.STRING, description = "The person's email address.") String email,
+            @Input(name = "access", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "comment", "write"}, description = "The access to check.") String access,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String need = switch (blank(access) ? "read" : access.trim().toLowerCase(Locale.ROOT)) {
+            case "read" -> "reader"; case "comment" -> "commenter"; case "write" -> "writer";
+            default -> throw bad("access must be read, comment or write", null);
+        };
+        String mail = email.trim().toLowerCase(Locale.ROOT), dom = mail.substring(mail.indexOf('@') + 1);
+        int best = -1;
+        String page = null;
+        do {
+            Map<String, Object> r = call(ctx, token, "GET", DRIVE + "/" + HttpJson.enc(id) + "/permissions?fields="
+                    + HttpJson.enc("nextPageToken,permissions(type,role,emailAddress,domain)") + "&supportsAllDrives=true" + (page == null ? "" : "&pageToken=" + HttpJson.enc(page)), ep, null);
+            for (Object o : list(r.get("permissions"))) {
+                Map<String, Object> pm = obj(o);
+                String t = str(pm.get("type"));
+                boolean match = "anyone".equals(t) || ("domain".equals(t) && dom.equalsIgnoreCase(str(pm.get("domain"))))
+                        || (("user".equals(t) || "group".equals(t)) && mail.equalsIgnoreCase(Objects.toString(pm.get("emailAddress"), "")));
+                if (match) best = Math.max(best, ROLE_ORDER.indexOf(str(pm.get("role"))));
+            }
+            page = str(r.get("nextPageToken"));
+        } while (page != null);
+        return Map.of("has_access", best >= ROLE_ORDER.indexOf(need), "role", best < 0 ? "" : ROLE_ORDER.get(best));
+    }
+
+    @Action(id = "drive_update_permission", name = "Change Drive permission", category = "Drive", idempotent = true, capabilities = "network",
+            description = "Change the role of an existing permission on a file or folder, e.g. from reader to writer.")
+    public Map<String, Object> driveUpdatePermission(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "item_id", type = OoaType.STRING, description = "File or folder id.") String id,
+            @Input(name = "permission_id", type = OoaType.STRING, description = "Permission id from List Drive permissions or Share Drive item.") String perm,
+            @Input(name = "role", type = OoaType.STRING, enumValues = {"reader", "commenter", "writer", "fileOrganizer", "organizer"}, description = "New access level.") String role,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        call(ctx, token, "PATCH", DRIVE + "/" + HttpJson.enc(id) + "/permissions/" + HttpJson.enc(perm) + "?supportsAllDrives=true", ep, Map.of("role", role));
         return Map.of();
     }
 
@@ -1219,6 +1456,31 @@ public final class GooglePackage {
         return ids;
     }
 
+    private static String term(String v) { return v.contains(" ") || v.contains("\"") ? "\"" + v.replace("\"", "") + "\"" : v; }
+
+    /** A Gmail search from the free query plus the structured filters (dates as seconds since 1970, so times count, not just days). */
+    static String gmailQuery(String query, String from, String subject, LocalDateTime since, LocalDateTime before, String status, String label, boolean withAtts) {
+        List<String> q = new ArrayList<>();
+        if (!blank(query)) q.add(query.trim());
+        for (String[] f : new String[][]{{"from", from}, {"subject", subject}}) {
+            if (blank(f[1])) continue;
+            List<String> any = new ArrayList<>();
+            for (String v : f[1].split(";")) if (!v.isBlank()) any.add(f[0] + ":" + term(v.trim()));
+            if (!any.isEmpty()) q.add(any.size() == 1 ? any.get(0) : "{" + String.join(" ", any) + "}");
+        }
+        if (since != null) q.add("after:" + since.toEpochSecond(java.time.ZoneOffset.UTC));
+        if (before != null) q.add("before:" + before.toEpochSecond(java.time.ZoneOffset.UTC));
+        switch (blank(status) ? "any" : status.trim().toLowerCase(Locale.ROOT)) {
+            case "unread" -> q.add("is:unread");
+            case "read" -> q.add("is:read");
+            case "any" -> { }
+            default -> throw bad("status must be any, unread or read", null);
+        }
+        if (!blank(label)) q.add("label:" + term(label.trim().replace(' ', '-')));
+        if (withAtts) q.add("has:attachment");
+        return String.join(" ", q);
+    }
+
     // ------------------------------------------------------------------ Gmail actions
 
     @Action(id = "gmail_list_messages", name = "List Gmail messages", category = "Gmail", idempotent = true, timeoutSeconds = 300, capabilities = "network",
@@ -1230,9 +1492,16 @@ public final class GooglePackage {
             @Input(name = "query", type = OoaType.STRING, required = false, example = "from:billing@acme.com has:attachment newer_than:7d", description = "Gmail search text; all messages when empty.") String query,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum messages returned.") int max,
             @Input(name = "include_spam_trash", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also search Spam and Trash.") boolean spamTrash,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains these words; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
+            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only messages with attachments.") boolean withAtts,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         List<Object> rows = new ArrayList<>();
-        for (String id : searchIds(ctx, token, query, max, spamTrash, ep)) {
+        for (String id : searchIds(ctx, token, gmailQuery(query, from, subject, since, before, status, label, withAtts), max, spamTrash, ep)) {
             Map<String, Object> m = call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id)
                     + "?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date", ep, null);
             Map<String, Object> payload = obj(m.get("payload"));
@@ -1303,10 +1572,61 @@ public final class GooglePackage {
             @Input(name = "message_id", type = OoaType.STRING, description = D_MSG) String id,
             @Input(name = "add_labels", required = false, description = "Label name(s) or id(s) to add: text separated by , or a List.") Object add,
             @Input(name = "remove_labels", required = false, defaultValue = "\"INBOX\"", description = "Label name(s) or id(s) to remove; INBOX by default, which archives the message.") Object remove,
+            @Input(name = "keep_other_labels", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "When false, every label except the added ones and the read, starred and important marks is removed.") boolean keep,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        List<String> a = labelIds(ctx, token, add, ep), r = labelIds(ctx, token, remove, ep);
+        List<String> a = labelIds(ctx, token, add, ep), r = new ArrayList<>(labelIds(ctx, token, remove, ep));
+        if (!keep) for (Object l : list(call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id) + "?format=minimal", ep, null).get("labelIds")))
+            if (!a.contains(str(l)) && !STATUS_LABELS.contains(str(l)) && !r.contains(str(l))) r.add(str(l));
         if (a.isEmpty() && r.isEmpty()) throw bad("Give labels to add or remove", null);
         return Map.of("labels", new ArrayList<>(list(modify(ctx, token, id, a, r, ep).get("labelIds"))));
+    }
+
+    private static final Set<String> STATUS_LABELS = Set.of("UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT");
+
+    @Action(id = "gmail_move_all", name = "Move all matching Gmail messages", category = "Gmail", timeoutSeconds = 600, capabilities = "network",
+            description = "Add and remove labels on every Gmail message that matches a search or the filters, e.g. move them from INBOX to Processed.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages changed.")
+    public Map<String, Object> gmailMoveAll(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "add_labels", required = false, description = "Label name(s) or id(s) to add.") Object add,
+            @Input(name = "remove_labels", required = false, defaultValue = "\"INBOX\"", description = "Label name(s) or id(s) to remove; INBOX by default.") Object remove,
+            @Input(name = "query", type = OoaType.STRING, required = false, example = "from:billing@acme.com", description = "Gmail search selecting the messages.") String query,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains these words; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
+            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
+            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Upper limit of messages handled in one run.") int max,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        String q = gmailQuery(query, from, subject, since, before, status, label, false);
+        if (blank(q)) throw bad("Give a search query or at least one filter", "This keeps a whole mailbox from being changed by accident.");
+        List<String> a = labelIds(ctx, token, add, ep), r = labelIds(ctx, token, remove, ep);
+        if (a.isEmpty() && r.isEmpty()) throw bad("Give labels to add or remove", null);
+        List<String> ids = searchIds(ctx, token, q, max, false, ep);
+        for (int i = 0; i < ids.size(); i += 1000) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("ids", ids.subList(i, Math.min(ids.size(), i + 1000)));
+            if (!a.isEmpty()) body.put("addLabelIds", a);
+            if (!r.isEmpty()) body.put("removeLabelIds", r);
+            call(ctx, token, "POST", GMAIL + "messages/batchModify", ep, body);
+        }
+        return Map.of("count", num(ids.size()));
+    }
+
+    @Action(id = "gmail_label_exists", name = "Check Gmail label exists", category = "Gmail", idempotent = true, capabilities = "network",
+            description = "Check whether a Gmail label exists, by name (not case-sensitive) or id, and return its id.")
+    @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the label exists.")
+    @Output(name = "label_id", type = OoaType.STRING, description = "Label id, empty when it does not exist.")
+    public Map<String, Object> gmailLabelExists(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "label", type = OoaType.STRING, description = "Label name or id.") String label,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        for (Object o : list(call(ctx, token, "GET", GMAIL + "labels", ep, null).get("labels"))) {
+            Map<String, Object> l = obj(o);
+            if (label.trim().equals(l.get("id")) || label.trim().equalsIgnoreCase(str(l.get("name")))) return Map.of("exists", true, "label_id", str(l.get("id")));
+        }
+        return Map.of("exists", false, "label_id", "");
     }
 
     @Action(id = "gmail_delete_message", name = "Delete Gmail message", category = "Gmail", capabilities = "network",
@@ -1326,12 +1646,19 @@ public final class GooglePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages deleted.")
     public Map<String, Object> gmailDeleteAll(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "query", type = OoaType.STRING, example = "from:alerts@acme.com older_than:30d", description = "Gmail search selecting the messages; required so a mailbox is never emptied by accident.") String query,
+            @Input(name = "query", type = OoaType.STRING, required = false, example = "from:alerts@acme.com older_than:30d", description = "Gmail search selecting the messages; a search or at least one filter is required so a mailbox is never emptied by accident.") String query,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete for good instead of moving to the trash.") boolean permanent,
             @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Upper limit of messages handled in one run.") int max,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains these words; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
+            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        if (blank(query)) throw bad("A search query is required", "Give a Gmail search such as from:x@y.com older_than:30d.");
-        List<String> ids = searchIds(ctx, token, query, max, false, ep);
+        String q = gmailQuery(query, from, subject, since, before, status, label, false);
+        if (blank(q)) throw bad("A search query is required", "Give a Gmail search such as from:x@y.com older_than:30d, or fill in a filter.");
+        List<String> ids = searchIds(ctx, token, q, max, false, ep);
         if (permanent) {
             for (int i = 0; i < ids.size(); i += 1000)
                 call(ctx, token, "POST", GMAIL + "messages/batchDelete", ep, Map.of("ids", ids.subList(i, Math.min(ids.size(), i + 1000))));
@@ -1351,6 +1678,8 @@ public final class GooglePackage {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Note is HTML.") boolean html,
             @Input(name = "as_attachment", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Attach the original as an .eml file instead of quoting it.") boolean asAttachment,
             @Input(name = "include_attachments", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Inline mode: also forward the original attachments.") boolean withAtts,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = "More file paths to attach.") List<Object> files,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         List<String> rcpt = HttpJson.addressList(to);
         if (rcpt.isEmpty()) throw new ActionException(P + ".NO_RECIPIENT", "Give at least one recipient", "Fill in to.");
@@ -1360,6 +1689,7 @@ public final class GooglePackage {
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("To", String.join(", ", rcpt));
         headers.put("Cc", String.join(", ", HttpJson.addressList(cc)));
+        headers.put("Bcc", String.join(", ", HttpJson.addressList(bcc)));
         headers.put("Subject", subject.matches("(?i)^(fwd?|fw):.*") ? subject : "Fwd: " + subject);
         String body = note == null ? "" : note;
         List<Object[]> atts = new ArrayList<>();
@@ -1384,12 +1714,13 @@ public final class GooglePackage {
             }
             if (withAtts) atts.addAll(gmailAttachmentData(ctx, token, id, parts, ep));
         }
+        atts.addAll(localAttachments(ctx, files));
         Map<String, Object> r = call(ctx, token, "POST", GMAIL + "messages/send", ep, Map.of("raw", rawOf(buildMime(headers, body, html, atts))));
         return Out.of("message_id", r.get("id"));
     }
 
     private Map<String, Object> gmailReplyImpl(ActionContext ctx, Object token, String id, String body, boolean html, boolean all, boolean includeOriginal,
-                                                List<Object> attachments, String ep) {
+                                                List<Object> attachments, Object extraCc, Object bcc, boolean excludeSender, String newSubject, String ep) {
         Map<String, Object> m = gmailFull(ctx, token, id, ep);
         Map<String, Object> payload = obj(m.get("payload"));
         String from = hdr(payload, "From"), replyTo = hdr(payload, "Reply-To"), msgId = hdr(payload, "Message-ID"), refs = hdr(payload, "References");
@@ -1402,12 +1733,16 @@ public final class GooglePackage {
             for (String a : splitAddresses(hdr(payload, "Cc"))) if (!to.containsKey(addr(a))) cc.putIfAbsent(addr(a), a);
             if (to.size() > 1) to.remove(me);
             cc.remove(me);
+            if (excludeSender) for (String a : splitAddresses(from)) { to.remove(addr(a)); cc.remove(addr(a)); }
+            if (to.isEmpty() && !cc.isEmpty()) { to.putAll(cc); cc.clear(); }
         }
+        for (String a : HttpJson.addressList(extraCc)) if (!to.containsKey(addr(a))) cc.putIfAbsent(addr(a), a);
         if (to.isEmpty()) throw new ActionException(P + ".NO_RECIPIENT", "The original message has no sender to reply to", null);
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("To", String.join(", ", to.values()));
         headers.put("Cc", String.join(", ", cc.values()));
-        headers.put("Subject", subject.matches("(?i)^re:.*") ? subject : "Re: " + subject);
+        headers.put("Bcc", String.join(", ", HttpJson.addressList(bcc)));
+        headers.put("Subject", !blank(newSubject) ? newSubject : subject.matches("(?i)^re:.*") ? subject : "Re: " + subject);
         if (msgId != null) {
             headers.put("In-Reply-To", msgId);
             headers.put("References", blank(refs) ? msgId : refs.trim() + " " + msgId);
@@ -1436,8 +1771,10 @@ public final class GooglePackage {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
             @Input(name = "include_original", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Quote the original message below the reply.") boolean include,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
+            @Input(name = "cc", required = false, description = "More CC address(es).") Object cc,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        return gmailReplyImpl(ctx, token, id, body, html, false, include, attachments, ep);
+        return gmailReplyImpl(ctx, token, id, body, html, false, include, attachments, cc, bcc, false, null, ep);
     }
 
     @Action(id = "gmail_reply_all", name = "Reply all to Gmail message", category = "Gmail", capabilities = "network",
@@ -1451,8 +1788,12 @@ public final class GooglePackage {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
             @Input(name = "include_original", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Quote the original message below the reply.") boolean include,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
+            @Input(name = "cc", required = false, description = "More CC address(es).") Object cc,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
+            @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave the original sender out and reply to the other recipients.") boolean excludeSender,
+            @Input(name = "subject", type = OoaType.STRING, required = false, description = "New subject; Re: and the original subject when empty.") String newSubject,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        return gmailReplyImpl(ctx, token, id, body, html, true, include, attachments, ep);
+        return gmailReplyImpl(ctx, token, id, body, html, true, include, attachments, cc, bcc, excludeSender, newSubject, ep);
     }
 
     @Action(id = "gmail_save_attachments", name = "Save Gmail attachments", category = "Gmail", capabilities = {"network", "filesystem"},
@@ -1463,23 +1804,61 @@ public final class GooglePackage {
             @Input(name = "message_id", type = OoaType.STRING, description = D_MSG) String id,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        return Map.of("files", saveGmailAtts(ctx, token, id, ctx.resolvePath(target), pattern, overwrite, ep));
+    }
+
+    private static Path freeName(Path out, boolean overwrite) {
+        if (overwrite) return out;
+        String name = out.getFileName().toString();
+        for (int i = 2; Files.exists(out); i++) out = out.resolveSibling(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
+        return out;
+    }
+
+    private static List<Object> saveGmailAtts(ActionContext ctx, Object token, String id, Path dir, String pattern, boolean overwrite, String ep) {
         Map<String, Object> m = gmailFull(ctx, token, id, ep);
         List<Map<String, Object>> parts = new ArrayList<>();
         walk(obj(m.get("payload")), new StringBuilder(), new StringBuilder(), parts);
         PathMatcher pm = FileSystems.getDefault().getPathMatcher("glob:" + (blank(pattern) ? "*" : pattern).toLowerCase(Locale.ROOT));
         List<Map<String, Object>> chosen = new ArrayList<>();
         for (Map<String, Object> p : parts) if (pm.matches(Path.of(HttpJson.safeName(str(p.get("filename"))).toLowerCase(Locale.ROOT)))) chosen.add(p);
-        Path dir = ctx.resolvePath(target);
         List<Object> saved = new ArrayList<>();
         for (Object[] a : gmailAttachmentData(ctx, token, id, chosen, ep)) {
-            String name = HttpJson.safeName((String) a[0]);
-            Path out = dir.resolve(name);
-            for (int i = 2; Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
+            Path out = freeName(dir.resolve(HttpJson.safeName((String) a[0])), overwrite);
             writeFile(out, (byte[]) a[2]);
             saved.add(out.toString());
         }
-        return Map.of("files", saved);
+        return saved;
+    }
+
+    @Action(id = "gmail_save_all_attachments", name = "Save attachments of all matching Gmail messages", category = "Gmail", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Save the attachments of every Gmail message that matches a search or the filters, optionally marking them as read.")
+    @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
+    @Output(name = "message_count", type = OoaType.NUMBER, description = "Number of messages that matched.")
+    public Map<String, Object> gmailSaveAllAttachments(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
+            @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
+            @Input(name = "query", type = OoaType.STRING, required = false, example = "from:billing@acme.com", description = "Gmail search selecting the messages; all messages with attachments when empty.") String query,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains these words; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "unread", "read"}, description = "Only unread or only read messages.") String status,
+            @Input(name = "label", type = OoaType.STRING, required = false, description = "Only messages with this label, e.g. INBOX or Invoices.") String label,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
+            @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark each matching message as read afterwards.") boolean markRead,
+            @Input(name = "max_messages", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Upper limit of messages handled in one run.") int max,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+        Path dir = ctx.resolvePath(target);
+        List<String> ids = searchIds(ctx, token, gmailQuery(query, from, subject, since, before, status, label, true), max, false, ep);
+        List<Object> saved = new ArrayList<>();
+        for (String id : ids) {
+            saved.addAll(saveGmailAtts(ctx, token, id, dir, pattern, overwrite, ep));
+            if (markRead) modify(ctx, token, id, List.of(), List.of("UNREAD"), ep);
+        }
+        return Map.of("files", saved, "message_count", num(ids.size()));
     }
 
     @Action(id = "gmail_save_message_as_eml", name = "Save Gmail message as .eml", category = "Gmail", capabilities = {"network", "filesystem"},
@@ -1488,11 +1867,17 @@ public final class GooglePackage {
     public Map<String, Object> gmailSaveEml(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "message_id", type = OoaType.STRING, description = D_MSG) String id,
-            @Input(name = "local_path", type = OoaType.FILE, example = "mail/message.eml", description = "Where to save the .eml file.") String local,
+            @Input(name = "local_path", type = OoaType.FILE, example = "mail/message.eml", description = "Where to save the .eml file; a path ending in / or an existing folder gets a file named after the subject.") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         Map<String, Object> r = call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id) + "?format=raw", ep, null);
         if (r.get("raw") == null) throw new ActionException(P + ".NO_CONTENT", "Gmail returned no raw content for message " + id, null);
         Path p = ctx.resolvePath(local);
+        if (local.endsWith("/") || local.endsWith("\\") || Files.isDirectory(p)) {
+            String subj = Objects.toString(hdr(obj(call(ctx, token, "GET", GMAIL + "messages/" + HttpJson.enc(id) + "?format=metadata&metadataHeaders=Subject", ep, null).get("payload")), "Subject"), "");
+            p = p.resolve(HttpJson.safeName((subj.isBlank() ? "email" : subj.replaceAll("[/\\\\]", "_")) + ".eml"));
+        }
+        p = freeName(p, overwrite);
         writeFile(p, b64url(r.get("raw")));
         return Map.of("path", p.toString());
     }
@@ -1566,9 +1951,13 @@ public final class GooglePackage {
             @Input(name = "attendees", required = false, description = "Replaces the attendee list: address(es) as text or a List.") Object attendees,
             @Input(name = "notify", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Email the attendees about the change.") boolean notify,
             @Input(name = "calendar_id", type = OoaType.STRING, required = false, defaultValue = "\"primary\"", description = "Calendar id.") String cal,
+            @Input(name = "visibility", type = OoaType.STRING, required = false, enumValues = {"default", "public", "private"}, description = "Who can see the event's details; unchanged when empty.") String visibility,
+            @Input(name = "reminder_minutes", type = OoaType.NUMBER, required = false, description = "Popup reminder this many minutes before; unchanged when empty.") Integer reminder,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
         String z = zone(tz).getId();
         Map<String, Object> ev = new LinkedHashMap<>();
+        if (!blank(visibility)) ev.put("visibility", visibility.trim().toLowerCase(Locale.ROOT));
+        if (reminder != null) ev.put("reminders", Map.of("useDefault", false, "overrides", List.of(Map.of("method", "popup", "minutes", Math.max(0, reminder)))));
         if (!blank(subject)) ev.put("summary", subject);
         if (start != null) ev.put("start", Map.of("dateTime", start.toString(), "timeZone", z));
         if (end != null) ev.put("end", Map.of("dateTime", end.toString(), "timeZone", z));

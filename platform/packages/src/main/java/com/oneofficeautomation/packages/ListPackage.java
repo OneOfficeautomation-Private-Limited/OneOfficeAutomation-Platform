@@ -20,10 +20,19 @@ public final class ListPackage {
     @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
     public Map<String, Object> addItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
-            @Input(name = "item", description = "Item to add.") Object item,
-            @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Zero-based position; end of list when empty.") Integer pos) {
+            @Input(name = "item", required = false, description = "Item to add.") Object item,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Zero-based position; end of list when empty.") Integer pos,
+            @Input(name = "items", type = OoaType.LIST, required = false, description = "Several items to add in one go, after 'item' when both are given.") List<Object> items,
+            @Input(name = "skip_existing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Do not add an item that is already in the list.") boolean skipExisting) {
         List<Object> out = new ArrayList<>(list);
-        if (pos == null) out.add(item); else out.add(index(out, pos, true), item);
+        List<Object> adding = new ArrayList<>();
+        if (item != null || items == null) adding.add(item);
+        if (items != null) adding.addAll(items);
+        int at = pos == null ? -1 : index(out, pos, true);
+        for (Object x : adding) {
+            if (skipExisting && out.stream().anyMatch(y -> Values.looseEquals(y, x))) continue;
+            if (at < 0) out.add(x); else out.add(at++, x);
+        }
         return Out.of("list", out);
     }
 
@@ -31,20 +40,60 @@ public final class ListPackage {
     @Output(name = "item", description = "The item.")
     public Map<String, Object> getItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
-            @Input(name = "position", type = OoaType.NUMBER, description = "Zero-based position.") int pos) {
-        return Out.of("item", list.get(index(list, pos, false)));
+            @Input(name = "position", type = OoaType.NUMBER, description = "Zero-based position; negative counts from the end (-1 = last).") int pos,
+            @Input(name = "if_out_of_range", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "default"},
+                    description = "When the position is outside the list: fail with LIST.INDEX, or return the default.") String ifOutOfRange,
+            @Input(name = "default", required = false, description = "Value returned for a position outside the list when if_out_of_range is default.") Object def) {
+        int p = pos < 0 ? list.size() + pos : pos;
+        if ((p < 0 || p >= list.size()) && "default".equals(ifOutOfRange)) return Out.of("item", def);
+        return Out.of("item", list.get(index(list, p, false)));
     }
 
     @Action(id = "remove_item", name = "Remove item", category = "List", idempotent = true, description = "Remove the item at a position, or every item equal to a value.")
     @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
+    @Output(name = "removed", description = "The removed item (by position), or a list of the removed items (by value).")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of items removed.")
     public Map<String, Object> removeItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
             @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Position to remove.") Integer pos,
-            @Input(name = "value", required = false, description = "Remove every item equal to this value.") Object value) {
+            @Input(name = "value", required = false, description = "Remove every item equal to this value.") Object value,
+            @Input(name = "all_occurrences", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "With a value: remove every equal item; when off, only the first.") boolean all) {
         List<Object> out = new ArrayList<>(list);
-        if (pos != null) out.remove(index(out, pos, false));
-        else if (value != null) out.removeIf(x -> Values.looseEquals(x, value));
-        else throw new ActionException("LIST.NOTHING_TO_REMOVE", "Give a position or a value to remove");
+        if (pos != null) {
+            Object r = out.remove(index(out, pos, false));
+            return Out.of("list", out, "removed", r, "count", BigDecimal.ONE);
+        }
+        if (value == null) throw new ActionException("LIST.NOTHING_TO_REMOVE", "Give a position or a value to remove");
+        List<Object> removed = new ArrayList<>();
+        for (Iterator<Object> it = out.iterator(); it.hasNext(); ) {
+            Object x = it.next();
+            if (Values.looseEquals(x, value)) { it.remove(); removed.add(x); if (!all) break; }
+        }
+        return Out.of("list", out, "removed", removed, "count", BigDecimal.valueOf(removed.size()));
+    }
+
+    @Action(id = "index_of", name = "Find item", category = "List", idempotent = true, description = "Return the zero-based position of the first (or last) item equal to a value.")
+    @Output(name = "index", type = OoaType.NUMBER, description = "Zero-based position, or -1 when the value is not in the list.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the value is in the list.")
+    public Map<String, Object> indexOf(ActionContext ctx,
+            @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
+            @Input(name = "value", description = "Value to look for.") Object value,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Compare text without regard to upper/lower case.") boolean ignoreCase,
+            @Input(name = "last", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the last matching position instead of the first.") boolean last) {
+        int hit = -1;
+        for (int i = 0; i < list.size(); i++) {
+            Object x = list.get(i);
+            boolean eq = ignoreCase && x instanceof String a && value instanceof String b ? a.equalsIgnoreCase(b) : Values.looseEquals(x, value);
+            if (eq) { hit = i; if (!last) break; }
+        }
+        return Out.of("index", BigDecimal.valueOf(hit), "found", hit >= 0);
+    }
+
+    @Action(id = "reverse", name = "Reverse", category = "List", idempotent = true, description = "Return the items in reverse order.")
+    @Output(name = "list", type = OoaType.LIST, description = "Reversed list.")
+    public Map<String, Object> reverse(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list) {
+        List<Object> out = new ArrayList<>(list);
+        Collections.reverse(out);
         return Out.of("list", out);
     }
 
@@ -71,9 +120,13 @@ public final class ListPackage {
     @Output(name = "text", type = OoaType.STRING, description = "Joined text.")
     public Map<String, Object> join(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
-            @Input(name = "separator", type = OoaType.STRING, required = false, defaultValue = "\", \"", description = "Separator.") String sep) {
-        StringJoiner j = new StringJoiner(sep);
-        for (Object o : list) j.add(Values.text(o));
+            @Input(name = "separator", type = OoaType.STRING, required = false, defaultValue = "\", \"", description = "Separator; \\n and \\t stand for a line break and a tab.") String sep,
+            @Input(name = "skip_empty", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out empty items.") boolean skipEmpty,
+            @Input(name = "escape_sequences", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Turn \\n, \\r and \\t in the separator into a line break, carriage return and tab.") boolean escapes) {
+        String s = sep == null ? "" : sep;
+        if (escapes) s = s.replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t");
+        StringJoiner j = new StringJoiner(s);
+        for (Object o : list) { String t = Values.text(o); if (!(skipEmpty && t.isEmpty())) j.add(t); }
         return Out.of("text", j.toString());
     }
 

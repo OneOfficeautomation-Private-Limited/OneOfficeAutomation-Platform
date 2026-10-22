@@ -25,13 +25,22 @@ public final class NumberPackage {
         return Out.of("result", value.setScale(decimals, rm));
     }
 
-    @Action(id = "random", name = "Random number", category = "Number", description = "Generate a random whole number between min and max (inclusive).")
+    @Action(id = "random", name = "Random number", category = "Number", description = "Generate a random number between min and max (inclusive), whole or with decimals.")
     @Output(name = "result", type = OoaType.NUMBER, description = "Random number.")
     public Map<String, Object> random(ActionContext ctx,
-            @Input(name = "min", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Smallest value.") long min,
-            @Input(name = "max", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Largest value.") long max) {
-        if (max < min) throw new ActionException("NUMBER.BAD_RANGE", "max (" + max + ") is smaller than min (" + min + ")", "Swap min and max.");
-        return Out.of("result", BigDecimal.valueOf(min + (long) (RANDOM.nextDouble() * (max - min + 1))));
+            @Input(name = "min", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Smallest value.") BigDecimal min,
+            @Input(name = "max", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Largest value.") BigDecimal max,
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Decimal places of the result; 0 gives a whole number.") int decimals) {
+        BigDecimal lo = min == null ? BigDecimal.ZERO : min, hi = max == null ? BigDecimal.valueOf(100) : max;
+        if (hi.compareTo(lo) < 0) throw new ActionException("NUMBER.BAD_RANGE", "max (" + hi.toPlainString() + ") is smaller than min (" + lo.toPlainString() + ")", "Swap min and max.");
+        if (decimals < 0 || decimals > 15) throw new ActionException("NUMBER.BAD_DECIMALS", "Decimals must be between 0 and 15, got " + decimals, "Use 0 for whole numbers.");
+        BigDecimal scale = BigDecimal.TEN.pow(decimals);
+        java.math.BigInteger a = lo.multiply(scale).setScale(0, RoundingMode.CEILING).toBigIntegerExact();
+        java.math.BigInteger b = hi.multiply(scale).setScale(0, RoundingMode.FLOOR).toBigIntegerExact();
+        if (b.compareTo(a) < 0) throw new ActionException("NUMBER.BAD_RANGE", "No number with " + decimals + " decimals lies between min and max", "Widen the range or allow more decimals.");
+        java.math.BigInteger span = b.subtract(a).add(java.math.BigInteger.ONE), pick;
+        do { pick = new java.math.BigInteger(span.bitLength(), RANDOM); } while (pick.compareTo(span) >= 0);
+        return Out.of("result", new BigDecimal(a.add(pick)).divide(scale).setScale(decimals, RoundingMode.UNNECESSARY));
     }
 
     @Action(id = "format", name = "Format number", category = "Number", idempotent = true,
@@ -70,11 +79,14 @@ public final class NumberPackage {
     public Map<String, Object> toText(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to write.") BigDecimal value,
             @Input(name = "decimals", type = OoaType.NUMBER, required = false, description = "Fixed decimal places (rounded half up).") Integer decimals,
-            @Input(name = "pattern", type = OoaType.STRING, required = false, description = "Pattern with 0 for required digits and # for optional ones, e.g. 00000 or #,##0.00.") String pattern) {
+            @Input(name = "pattern", type = OoaType.STRING, required = false, description = "Pattern with 0 for required digits and # for optional ones, e.g. 00000 or #,##0.00.") String pattern,
+            @Input(name = "rounding", type = OoaType.STRING, required = false, defaultValue = "\"half_up\"", enumValues = {"half_up", "truncate"},
+                    description = "How extra decimals are dropped: rounded half up, or cut off (truncated).") String rounding) {
+        RoundingMode rm = "truncate".equals(rounding) ? RoundingMode.DOWN : RoundingMode.HALF_UP;
         if (pattern != null && !pattern.isBlank()) {
             try {
                 DecimalFormat f = new DecimalFormat(pattern, DecimalFormatSymbols.getInstance(Locale.ROOT));
-                f.setRoundingMode(RoundingMode.HALF_UP);
+                f.setRoundingMode(rm);
                 return Out.of("text", f.format(value));
             } catch (IllegalArgumentException e) {
                 throw new ActionException("NUMBER.BAD_PATTERN", "Invalid number pattern '" + pattern + "': " + e.getMessage(), "Use 0, #, comma and dot, e.g. #,##0.00.");
@@ -82,7 +94,7 @@ public final class NumberPackage {
         }
         if (decimals != null) {
             if (decimals < 0) throw new ActionException("NUMBER.BAD_DECIMALS", "Decimals cannot be negative (" + decimals + ")", "Use 0 or more.");
-            return Out.of("text", value.setScale(decimals, RoundingMode.HALF_UP).toPlainString());
+            return Out.of("text", value.setScale(decimals, rm).toPlainString());
         }
         return Out.of("text", com.oneofficeautomation.runner.Values.text(value));
     }

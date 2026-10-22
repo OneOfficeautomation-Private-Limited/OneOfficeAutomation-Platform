@@ -54,20 +54,20 @@ class DataGapsTest {
     @Test
     void stringFindLengthSubstring() {
         StringPackage s = new StringPackage();
-        Map<String, Object> r = s.find(ctx(), "Invoice INV-204 and INV-305", "INV-\\d+", true, 10, false);
+        Map<String, Object> r = s.find(ctx(), "Invoice INV-204 and INV-305", "INV-\\d+", true, 10, false, 1);
         num(20, r.get("index"));
         assertEquals("INV-305", r.get("match"));
-        num(-1, s.find(ctx(), "abc", "z", false, 0, false).get("index"));
-        num(0, s.find(ctx(), "Hello", "hel", false, 0, true).get("index"));
-        assertEquals("STRING.BAD_REGEX", code(() -> s.find(ctx(), "abc", "(", true, 0, false)));
-        assertEquals("STRING.BAD_POSITION", code(() -> s.find(ctx(), "abc", "a", false, 9, false)));
+        num(-1, s.find(ctx(), "abc", "z", false, 0, false, 1).get("index"));
+        num(0, s.find(ctx(), "Hello", "hel", false, 0, true, 1).get("index"));
+        assertEquals("STRING.BAD_REGEX", code(() -> s.find(ctx(), "abc", "(", true, 0, false, 1)));
+        assertEquals("STRING.BAD_POSITION", code(() -> s.find(ctx(), "abc", "a", false, 9, false, 1)));
         num(5, s.length(ctx(), "hello").get("length"));
-        assertEquals("ell", s.substring(ctx(), "hello", 1, 3, null).get("result"));
-        assertEquals("el", s.substring(ctx(), "hello", 1, null, 3).get("result"));
-        assertEquals("llo", s.substring(ctx(), "hello", 2, null, null).get("result"));
-        assertEquals("lo", s.substring(ctx(), "hello", 3, 99, null).get("result"));
-        assertEquals("STRING.BAD_POSITION", code(() -> s.substring(ctx(), "hello", 9, null, null)));
-        assertEquals("STRING.BAD_LENGTH", code(() -> s.substring(ctx(), "hello", 0, -1, null)));
+        assertEquals("ell", s.substring(ctx(), "hello", 1, 3, null, "error").get("result"));
+        assertEquals("el", s.substring(ctx(), "hello", 1, null, 3, "error").get("result"));
+        assertEquals("llo", s.substring(ctx(), "hello", 2, null, null, "error").get("result"));
+        assertEquals("lo", s.substring(ctx(), "hello", 3, 99, null, "error").get("result"));
+        assertEquals("STRING.BAD_POSITION", code(() -> s.substring(ctx(), "hello", 9, null, null, "error")));
+        assertEquals("STRING.BAD_LENGTH", code(() -> s.substring(ctx(), "hello", 0, -1, null, "error")));
     }
 
     @Test
@@ -78,11 +78,11 @@ class DataGapsTest {
         assertEquals("00120", s.trim(ctx(), "**00120--", "both", "*-").get("result"));
         assertEquals("120", s.trim(ctx(), "00120", "left", "0").get("result"));
         assertEquals("cba", s.reverse(ctx(), "abc").get("result"));
-        String r = (String) s.randomString(ctx(), 20, false, true, false).get("result");
+        String r = (String) s.randomString(ctx(), 20, false, true, false, "mixed", null).get("result");
         assertEquals(20, r.length());
         assertTrue(r.matches("\\d{20}"));
-        assertEquals("STRING.NO_CHARACTER_SET", code(() -> s.randomString(ctx(), 5, false, false, false)));
-        assertEquals("STRING.BAD_LENGTH", code(() -> s.randomString(ctx(), -1, true, true, false)));
+        assertEquals("STRING.NO_CHARACTER_SET", code(() -> s.randomString(ctx(), 5, false, false, false, "mixed", null)));
+        assertEquals("STRING.BAD_LENGTH", code(() -> s.randomString(ctx(), -1, true, true, false, "mixed", null)));
     }
 
     @Test
@@ -115,12 +115,12 @@ class DataGapsTest {
         num(11, p.increment(ctx(), BigDecimal.TEN, null).get("result"));
         assertEquals(0, new BigDecimal("12.5").compareTo(n(p.increment(ctx(), BigDecimal.TEN, new BigDecimal("2.5")).get("result"))));
         num(7, p.decrement(ctx(), BigDecimal.TEN, new BigDecimal("3")).get("result"));
-        assertEquals("00042", p.toText(ctx(), new BigDecimal("42"), null, "00000").get("text"));
-        assertEquals("1,234.57", p.toText(ctx(), new BigDecimal("1234.567"), null, "#,##0.00").get("text"));
-        assertEquals("3.10", p.toText(ctx(), new BigDecimal("3.1"), 2, null).get("text"));
-        assertEquals("7", p.toText(ctx(), new BigDecimal("7.000"), null, null).get("text"));
-        assertEquals("NUMBER.BAD_PATTERN", code(() -> p.toText(ctx(), BigDecimal.ONE, null, "#.#.#")));
-        assertEquals("NUMBER.BAD_DECIMALS", code(() -> p.toText(ctx(), BigDecimal.ONE, -1, null)));
+        assertEquals("00042", p.toText(ctx(), new BigDecimal("42"), null, "00000", "half_up").get("text"));
+        assertEquals("1,234.57", p.toText(ctx(), new BigDecimal("1234.567"), null, "#,##0.00", "half_up").get("text"));
+        assertEquals("3.10", p.toText(ctx(), new BigDecimal("3.1"), 2, null, "half_up").get("text"));
+        assertEquals("7", p.toText(ctx(), new BigDecimal("7.000"), null, null, "half_up").get("text"));
+        assertEquals("NUMBER.BAD_PATTERN", code(() -> p.toText(ctx(), BigDecimal.ONE, null, "#.#.#", "half_up")));
+        assertEquals("NUMBER.BAD_DECIMALS", code(() -> p.toText(ctx(), BigDecimal.ONE, -1, null, "half_up")));
     }
 
     // ---- List, Dictionary ----
@@ -175,10 +175,10 @@ class DataGapsTest {
         assertEquals("TABLE.COLUMN_EXISTS", code(() -> t.insertColumn(ctx(), p, "name", null, null)));
         assertEquals("TABLE.BAD_POSITION", code(() -> t.insertColumn(ctx(), p, "q", null, 9)));
 
-        Map<String, Object> dc = (Map<String, Object>) t.deleteColumn(ctx(), p, "name").get("table");
+        Map<String, Object> dc = (Map<String, Object>) t.deleteColumn(ctx(), p, "name", null).get("table");
         assertEquals(List.of("id", "amount"), DataTablePackage.cols(dc));
         assertEquals(Arrays.asList(new BigDecimal("2"), "7"), DataTablePackage.rows(dc).get(1));
-        num(3, t.columnCount(ctx(), p).get("count"));
+        num(3, t.columnCount(ctx(), p, false).get("count"));
         assertEquals(List.of("id", "name", "amount"), t.columnNames(ctx(), p).get("names"));
 
         Map<String, Object> cl = (Map<String, Object>) t.clear(ctx(), p).get("table");
@@ -191,19 +191,19 @@ class DataGapsTest {
     void tableChangeColumnType() {
         DataTablePackage t = new DataTablePackage();
         Map<String, Object> p = table(PEOPLE);
-        Map<String, Object> asNum = (Map<String, Object>) t.changeColumnType(ctx(), p, "amount", "Number").get("table");
+        Map<String, Object> asNum = (Map<String, Object>) t.changeColumnType(ctx(), p, "amount", "Number", null, null).get("table");
         assertEquals(0, new BigDecimal("10.5").compareTo(n(DataTablePackage.rows(asNum).get(0).get(2))));
         assertNull(DataTablePackage.rows(asNum).get(2).get(2), "blank cells become empty");
-        Map<String, Object> asText = (Map<String, Object>) t.changeColumnType(ctx(), p, "id", "String").get("table");
+        Map<String, Object> asText = (Map<String, Object>) t.changeColumnType(ctx(), p, "id", "String", null, null).get("table");
         assertEquals("1", DataTablePackage.rows(asText).get(0).get(0));
 
         Map<String, Object> dates = table("{\"columns\":[\"d\",\"ok\"],\"rows\":[[\"2026-10-18\",\"yes\"],[\"oops\",\"maybe\"]]}");
-        assertEquals("TABLE.CONVERT_FAILED", code(() -> t.changeColumnType(ctx(), dates, "d", "DateTime")));
-        assertEquals("TABLE.CONVERT_FAILED", code(() -> t.changeColumnType(ctx(), dates, "ok", "Boolean")));
-        assertEquals("TABLE.CONVERT_FAILED", code(() -> t.changeColumnType(ctx(), p, "name", "Number")));
-        assertEquals("TABLE.BAD_TYPE", code(() -> t.changeColumnType(ctx(), p, "name", "Money")));
+        assertEquals("TABLE.CONVERT_FAILED", code(() -> t.changeColumnType(ctx(), dates, "d", "DateTime", null, null)));
+        assertEquals("TABLE.CONVERT_FAILED", code(() -> t.changeColumnType(ctx(), dates, "ok", "Boolean", null, null)));
+        assertEquals("TABLE.CONVERT_FAILED", code(() -> t.changeColumnType(ctx(), p, "name", "Number", null, null)));
+        assertEquals("TABLE.BAD_TYPE", code(() -> t.changeColumnType(ctx(), p, "name", "Money", null, null)));
         Map<String, Object> one = table("{\"columns\":[\"d\"],\"rows\":[[\"2026-10-18\"]]}");
-        Map<String, Object> conv = (Map<String, Object>) t.changeColumnType(ctx(), one, "d", "DateTime").get("table");
+        Map<String, Object> conv = (Map<String, Object>) t.changeColumnType(ctx(), one, "d", "DateTime", null, null).get("table");
         assertEquals(LocalDateTime.of(2026, 10, 18, 0, 0), DataTablePackage.rows(conv).get(0).get(0));
     }
 
@@ -214,19 +214,19 @@ class DataGapsTest {
         Map<String, Object> people = table(PEOPLE);
         Map<String, Object> orders = table("{\"columns\":[\"id\",\"item\",\"name\"],\"rows\":[[1,\"pen\",\"x\"],[1,\"ink\",\"y\"],[3.0,\"cup\",\"z\"],[8,\"hat\",\"w\"]]}");
 
-        Map<String, Object> inner = t.join(ctx(), people, orders, List.of("id"), "inner");
+        Map<String, Object> inner = t.join(ctx(), people, orders, List.of("id"), "inner", null);
         Map<String, Object> it = (Map<String, Object>) inner.get("table");
         assertEquals(List.of("id", "name", "amount", "item", "name_2"), DataTablePackage.cols(it));
         num(3, inner.get("count"));
         assertEquals("ink", DataTablePackage.rows(it).get(1).get(3));
         assertEquals("cup", DataTablePackage.rows(it).get(2).get(3), "3 and 3.0 match");
 
-        Map<String, Object> left = (Map<String, Object>) t.join(ctx(), people, orders, List.of("id"), "left").get("table");
+        Map<String, Object> left = (Map<String, Object>) t.join(ctx(), people, orders, List.of("id"), "left", null).get("table");
         assertEquals(4, DataTablePackage.rows(left).size());
         assertEquals(Arrays.asList(new BigDecimal("2"), "Bob", "7", null, null), DataTablePackage.rows(left).get(2));
-        assertEquals("TABLE.NO_COLUMN", code(() -> t.join(ctx(), people, orders, List.of("amount"), "inner")));
-        assertEquals("TABLE.BAD_JOIN_TYPE", code(() -> t.join(ctx(), people, orders, List.of("id"), "outer")));
-        assertEquals("TABLE.NO_KEYS", code(() -> t.join(ctx(), people, orders, List.of(), "inner")));
+        assertEquals("TABLE.NO_COLUMN", code(() -> t.join(ctx(), people, orders, List.of("amount"), "inner", null)));
+        assertEquals("TABLE.BAD_JOIN_TYPE", code(() -> t.join(ctx(), people, orders, List.of("id"), "outer", null)));
+        assertEquals("TABLE.NO_KEYS", code(() -> t.join(ctx(), people, orders, List.of(), "inner", null)));
 
         Map<String, Object> extra = table("{\"columns\":[\"name\",\"city\"],\"rows\":[[\"Dee\",\"Pune\"]]}");
         Map<String, Object> merged = (Map<String, Object>) t.merge(ctx(), List.of(people, extra), "union").get("table");
@@ -236,24 +236,24 @@ class DataGapsTest {
         assertEquals(6, DataTablePackage.rows((Map<String, Object>) t.merge(ctx(), List.of(people, people), "same").get("table")).size());
         assertEquals("TABLE.NOT_A_TABLE", code(() -> t.merge(ctx(), List.of(people, "nope"), "union")));
 
-        Map<String, Object> f = t.find(ctx(), people, "bob", null, "contains");
+        Map<String, Object> f = t.find(ctx(), people, "bob", null, "contains", false);
         assertEquals(List.of(BigDecimal.ONE), f.get("rows"));
         assertEquals(true, f.get("found"));
-        Map<String, Object> f2 = t.find(ctx(), people, new BigDecimal("3"), "id", "equals");
+        Map<String, Object> f2 = t.find(ctx(), people, new BigDecimal("3"), "id", "equals", false);
         assertEquals(List.of(BigDecimal.valueOf(2)), f2.get("rows"));
-        assertEquals(false, t.find(ctx(), people, "Nobody", "name", "equals").get("found"));
+        assertEquals(false, t.find(ctx(), people, "Nobody", "name", "equals", false).get("found"));
     }
 
     @Test
     void tableWriteToFile() throws Exception {
         DataTablePackage t = new DataTablePackage();
         Map<String, Object> p = table("{\"columns\":[\"id\",\"note\"],\"rows\":[[1,\"a,b\"],[2,null]]}");
-        t.writeToFile(ctx(), p, "out/t.csv", "csv", ",", true);
+        t.writeToFile(ctx(), p, "out/t.csv", "csv", ",", true, "utf-8", false, "crlf");
         assertEquals("id,note\r\n1,\"a,b\"\r\n2,\r\n", Files.readString(tmp.resolve("out/t.csv")));
-        t.writeToFile(ctx(), p, "t.json", "json", null, true);
+        t.writeToFile(ctx(), p, "t.json", "json", null, true, "utf-8", false, "crlf");
         assertEquals("[{\"id\":1,\"note\":\"a,b\"},{\"id\":2,\"note\":null}]", Files.readString(tmp.resolve("t.json")));
-        assertEquals("TABLE.BAD_FORMAT", code(() -> t.writeToFile(ctx(), p, "t.xlsx", "xlsx", null, true)));
-        assertEquals("TABLE.BAD_DELIMITER", code(() -> t.writeToFile(ctx(), p, "t.csv", "csv", "::", true)));
+        assertEquals("TABLE.BAD_FORMAT", code(() -> t.writeToFile(ctx(), p, "t.xlsx", "xlsx", null, true, "utf-8", false, "crlf")));
+        assertEquals("TABLE.BAD_DELIMITER", code(() -> t.writeToFile(ctx(), p, "t.csv", "csv", "::", true, "utf-8", false, "crlf")));
     }
 
     // ---- Date and time ----
@@ -262,13 +262,13 @@ class DataGapsTest {
     void dateTime() {
         DateTimePackage d = new DateTimePackage();
         LocalDateTime a = LocalDateTime.of(2026, 10, 18, 14, 30), b = LocalDateTime.of(2026, 10, 19, 9, 0);
-        assertTrue(d.isBefore(ctx(), a, b));
-        assertFalse(d.isAfter(ctx(), a, b));
-        assertTrue(d.isEqual(ctx(), a, LocalDateTime.of(2026, 10, 18, 14, 30)));
-        assertEquals(true, d.isAfterAction(ctx(), b, a).get("result"));
-        assertEquals(true, d.isBeforeAction(ctx(), a, b).get("result"));
-        assertEquals(false, d.isEqualAction(ctx(), a, b).get("result"));
-        assertEquals("DATETIME.MISSING", code(() -> d.isAfter(ctx(), null, b)));
+        assertTrue(d.isBefore(ctx(), a, b, true, "UTC"));
+        assertFalse(d.isAfter(ctx(), a, b, true, "UTC"));
+        assertTrue(d.isEqual(ctx(), a, LocalDateTime.of(2026, 10, 18, 14, 30), true, "UTC"));
+        assertEquals(true, d.isAfterAction(ctx(), b, a, true, "UTC").get("result"));
+        assertEquals(true, d.isBeforeAction(ctx(), a, b, true, "UTC").get("result"));
+        assertEquals(false, d.isEqualAction(ctx(), a, b, true, "UTC").get("result"));
+        assertEquals("DATETIME.MISSING", code(() -> d.isAfter(ctx(), null, b, true, "UTC")));
 
         assertEquals(true, d.isLeapYear(ctx(), LocalDateTime.of(2024, 3, 1, 0, 0), null).get("result"));
         assertEquals(false, d.isLeapYear(ctx(), null, 1900).get("result"));
@@ -299,22 +299,22 @@ class DataGapsTest {
         JsonPackage j = new JsonPackage();
         Object doc = JsonLite.parse(ORDER);
 
-        Object withNote = j.insertNode(ctx(), doc, "order.note", "rush").get("value");
-        assertEquals("rush", j.getNode(ctx(), withNote, "order.note").get("result"));
-        assertNull(j.getNode(ctx(), doc, "order.note").get("result"), "input document must not change");
-        Object appended = j.insertNode(ctx(), ORDER, "/order/items/-", Map.of("sku", "C")).get("value");
-        assertEquals("C", j.getNode(ctx(), appended, "order.items[2].sku").get("result"));
-        Object first = j.insertNode(ctx(), doc, "$.order.items[0]", Map.of("sku", "Z")).get("value");
-        assertEquals("Z", j.getNode(ctx(), first, "order.items[0].sku").get("result"));
-        assertEquals("JSON.NODE_EXISTS", code(() -> j.insertNode(ctx(), doc, "order.id", 1)));
-        assertEquals("JSON.PATH_NOT_FOUND", code(() -> j.insertNode(ctx(), doc, "order.missing.x", 1)));
-        assertEquals("JSON.INVALID", code(() -> j.insertNode(ctx(), "{bad", "a", 1)));
+        Object withNote = j.insertNode(ctx(), doc, "order.note", "rush", "error", false).get("value");
+        assertEquals("rush", j.getNode(ctx(), withNote, "order.note", null, false).get("result"));
+        assertNull(j.getNode(ctx(), doc, "order.note", null, false).get("result"), "input document must not change");
+        Object appended = j.insertNode(ctx(), ORDER, "/order/items/-", Map.of("sku", "C"), "error", false).get("value");
+        assertEquals("C", j.getNode(ctx(), appended, "order.items[2].sku", null, false).get("result"));
+        Object first = j.insertNode(ctx(), doc, "$.order.items[0]", Map.of("sku", "Z"), "error", false).get("value");
+        assertEquals("Z", j.getNode(ctx(), first, "order.items[0].sku", null, false).get("result"));
+        assertEquals("JSON.NODE_EXISTS", code(() -> j.insertNode(ctx(), doc, "order.id", 1, "error", false)));
+        assertEquals("JSON.PATH_NOT_FOUND", code(() -> j.insertNode(ctx(), doc, "order.missing.x", 1, "error", false)));
+        assertEquals("JSON.INVALID", code(() -> j.insertNode(ctx(), "{bad", "a", 1, "error", false)));
 
-        Map<String, Object> up = j.updateNode(ctx(), doc, "order.items[1].qty", new BigDecimal("5"));
+        Map<String, Object> up = j.updateNode(ctx(), doc, "order.items[1].qty", new BigDecimal("5"), false);
         num(2, up.get("previous"));
-        num(5, j.getNode(ctx(), up.get("value"), "order.items[1].qty").get("result"));
-        assertEquals("JSON.PATH_NOT_FOUND", code(() -> j.updateNode(ctx(), doc, "order.nope", 1)));
-        assertEquals("JSON.PATH_NOT_FOUND", code(() -> j.updateNode(ctx(), doc, "order.items[9]", 1)));
+        num(5, j.getNode(ctx(), up.get("value"), "order.items[1].qty", null, false).get("result"));
+        assertEquals("JSON.PATH_NOT_FOUND", code(() -> j.updateNode(ctx(), doc, "order.nope", 1, false)));
+        assertEquals("JSON.PATH_NOT_FOUND", code(() -> j.updateNode(ctx(), doc, "order.items[9]", 1, false)));
 
         Map<String, Object> del = j.deleteNode(ctx(), doc, "order.items[0]");
         assertEquals("A", ((Map<String, Object>) del.get("removed")).get("sku"));
@@ -328,17 +328,17 @@ class DataGapsTest {
     @SuppressWarnings("unchecked")
     void jsonTableAndValidate() {
         JsonPackage j = new JsonPackage();
-        Map<String, Object> t = (Map<String, Object>) j.toTable(ctx(), ORDER, "order.items").get("table");
+        Map<String, Object> t = (Map<String, Object>) j.toTable(ctx(), ORDER, "order.items", false).get("table");
         assertEquals(List.of("sku", "qty"), DataTablePackage.cols(t));
         assertEquals(2, DataTablePackage.rows(t).size());
-        assertEquals("JSON.NOT_OBJECTS", code(() -> j.toTable(ctx(), "[1,2]", null)));
-        assertEquals("JSON.NOT_AN_ARRAY", code(() -> j.toTable(ctx(), ORDER, "order")));
+        assertEquals("JSON.NOT_OBJECTS", code(() -> j.toTable(ctx(), "[1,2]", null, false)));
+        assertEquals("JSON.NOT_AN_ARRAY", code(() -> j.toTable(ctx(), ORDER, "order", false)));
 
-        assertEquals(true, j.validate(ctx(), ORDER, List.of("order.id", "/order/items/0/sku")).get("valid"));
-        Map<String, Object> bad = j.validate(ctx(), ORDER, List.of("order.customer"));
+        assertEquals(true, j.validate(ctx(), ORDER, List.of("order.id", "/order/items/0/sku"), null, null).get("valid"));
+        Map<String, Object> bad = j.validate(ctx(), ORDER, List.of("order.customer"), null, null);
         assertEquals(false, bad.get("valid"));
         assertEquals(1, ((List<Object>) bad.get("errors")).size());
-        Map<String, Object> broken = j.validate(ctx(), "{\"a\":", null);
+        Map<String, Object> broken = j.validate(ctx(), "{\"a\":", null, null, null);
         assertEquals(false, broken.get("valid"));
         assertTrue(Values.text(broken.get("errors")).contains("Not valid JSON"));
     }

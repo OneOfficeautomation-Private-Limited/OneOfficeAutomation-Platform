@@ -19,24 +19,40 @@ import java.util.*;
 public final class CryptoPackage {
 
     private static String algo(String a) {
-        return switch (a) { case "SHA-1" -> "SHA-1"; case "SHA-512" -> "SHA-512"; case "MD5" -> "MD5"; default -> "SHA-256"; };
+        return switch (a == null ? "SHA-256" : a) { case "SHA-1" -> "SHA-1"; case "SHA-512" -> "SHA-512"; case "SHA-384" -> "SHA-384"; case "SHA3-256" -> "SHA3-256"; case "MD5" -> "MD5"; default -> "SHA-256"; };
     }
+
+    /** Digest as lower-case hex (default), upper-case HEX or Base64. */
+    static String format(byte[] digest, String outputFormat) {
+        return switch (outputFormat == null || outputFormat.isBlank() ? "hex" : outputFormat) {
+            case "hex" -> HexFormat.of().formatHex(digest);
+            case "hex_upper" -> HexFormat.of().withUpperCase().formatHex(digest);
+            case "base64" -> Base64.getEncoder().encodeToString(digest);
+            default -> throw new ActionException("CRYPTO.BAD_FORMAT", "Unknown output format '" + outputFormat + "'", "Use hex, hex_upper or base64.");
+        };
+    }
+
+    private static final String D_FORMAT = "How the result is written: hex (lower case), hex_upper or base64.";
+    private static final String D_ENC = "Character encoding used to turn the text into bytes, e.g. utf-8, utf-16le, windows-1252.";
 
     @Action(id = "hash_text", name = "Hash text", category = "Hash", idempotent = true, description = "Return the hex hash of a text (UTF-8).")
     @Output(name = "hash", type = OoaType.STRING, description = "Lower-case hex digest.")
     public Map<String, Object> hashText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to hash.") String text,
-            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"SHA-256\"", enumValues = {"SHA-256", "SHA-512", "SHA-1", "MD5"},
-                    description = "Hash algorithm; SHA-1 and MD5 only for legacy checks.") String a) throws NoSuchAlgorithmException {
-        return Map.of("hash", HexFormat.of().formatHex(MessageDigest.getInstance(algo(a)).digest(text.getBytes(StandardCharsets.UTF_8))));
+            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"SHA-256\"", enumValues = {"SHA-256", "SHA-384", "SHA-512", "SHA3-256", "SHA-1", "MD5"},
+                    description = "Hash algorithm; SHA-1 and MD5 only for legacy checks.") String a,
+            @Input(name = "output_format", type = OoaType.STRING, required = false, defaultValue = "\"hex\"", enumValues = {"hex", "hex_upper", "base64"}, description = D_FORMAT) String fmt,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = D_ENC) String enc) throws NoSuchAlgorithmException {
+        return Map.of("hash", format(MessageDigest.getInstance(algo(a)).digest(text.getBytes(FilePackage.charset(enc))), fmt));
     }
 
     @Action(id = "hash_file", name = "Hash file", category = "Hash", idempotent = true, capabilities = "filesystem", description = "Return the hex hash of a file, e.g. to verify a download.")
     @Output(name = "hash", type = OoaType.STRING, description = "Lower-case hex digest.")
     public Map<String, Object> hashFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
-            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"SHA-256\"", enumValues = {"SHA-256", "SHA-512", "SHA-1", "MD5"},
-                    description = "Hash algorithm.") String a) throws NoSuchAlgorithmException {
+            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"SHA-256\"", enumValues = {"SHA-256", "SHA-384", "SHA-512", "SHA3-256", "SHA-1", "MD5"},
+                    description = "Hash algorithm.") String a,
+            @Input(name = "output_format", type = OoaType.STRING, required = false, defaultValue = "\"hex\"", enumValues = {"hex", "hex_upper", "base64"}, description = D_FORMAT) String fmt) throws NoSuchAlgorithmException {
         Path p = ctx.resolvePath(path);
         MessageDigest md = MessageDigest.getInstance(algo(a));
         try (InputStream in = Files.newInputStream(p)) {
@@ -44,7 +60,7 @@ public final class CryptoPackage {
             for (int n; (n = in.read(buf)) > 0; ) md.update(buf, 0, n);
         } catch (NoSuchFileException e) { throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
-        return Map.of("hash", HexFormat.of().formatHex(md.digest()));
+        return Map.of("hash", format(md.digest(), fmt));
     }
 
     @Action(id = "hmac", name = "HMAC signature", category = "Hash", idempotent = true,
@@ -52,22 +68,37 @@ public final class CryptoPackage {
     @Output(name = "signature", type = OoaType.STRING, description = "Hex signature.")
     public Map<String, Object> hmac(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Message.") String text,
-            @Input(name = "key", type = OoaType.CREDENTIAL, description = "Secret key from the vault.") SecureString key) throws GeneralSecurityException {
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(key.reveal().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        return Map.of("signature", HexFormat.of().formatHex(mac.doFinal(text.getBytes(StandardCharsets.UTF_8))));
+            @Input(name = "key", type = OoaType.CREDENTIAL, description = "Secret key from the vault.") SecureString key,
+            @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"SHA-256\"", enumValues = {"SHA-256", "SHA-384", "SHA-512", "SHA-1"}, description = "Hash used inside the HMAC.") String a,
+            @Input(name = "output_format", type = OoaType.STRING, required = false, defaultValue = "\"hex\"", enumValues = {"hex", "hex_upper", "base64"}, description = D_FORMAT) String fmt,
+            @Input(name = "key_is_base64", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The key is Base64 text to decode into bytes (as some services issue it).") boolean keyBase64) throws GeneralSecurityException {
+        String alg = switch (a == null || a.isBlank() ? "SHA-256" : a) {
+            case "SHA-256" -> "HmacSHA256"; case "SHA-384" -> "HmacSHA384"; case "SHA-512" -> "HmacSHA512"; case "SHA-1" -> "HmacSHA1";
+            default -> throw new ActionException("CRYPTO.BAD_ALGORITHM", "Unknown HMAC algorithm '" + a + "'", "Use SHA-256, SHA-384, SHA-512 or SHA-1.");
+        };
+        byte[] k;
+        try { k = keyBase64 ? Base64.getDecoder().decode(key.reveal().strip()) : key.reveal().getBytes(StandardCharsets.UTF_8); }
+        catch (IllegalArgumentException e) { throw new ActionException("CRYPTO.BAD_KEY", "The key is not valid Base64", "Turn off key_is_base64 or check the key."); }
+        Mac mac = Mac.getInstance(alg);
+        mac.init(new SecretKeySpec(k, alg));
+        return Map.of("signature", format(mac.doFinal(text.getBytes(StandardCharsets.UTF_8)), fmt));
     }
 
     @Action(id = "base64_encode", name = "Base64 encode", category = "Encoding", idempotent = true, description = "Encode text as Base64.")
     @Output(name = "result", type = OoaType.STRING, description = "Base64 text.")
-    public Map<String, Object> encode(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to encode.") String text) {
-        return Map.of("result", Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8)));
+    public Map<String, Object> encode(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to encode.") String text,
+            @Input(name = "url_safe", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Use the URL-safe alphabet (- and _ instead of + and /) without padding.") boolean urlSafe,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = D_ENC) String enc) {
+        byte[] b = text.getBytes(FilePackage.charset(enc));
+        return Map.of("result", urlSafe ? Base64.getUrlEncoder().withoutPadding().encodeToString(b) : Base64.getEncoder().encodeToString(b));
     }
 
     @Action(id = "base64_decode", name = "Base64 decode", category = "Encoding", idempotent = true, description = "Decode Base64 into text.")
     @Output(name = "result", type = OoaType.STRING, description = "Decoded text.")
-    public Map<String, Object> decode(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Base64 text.") String text) {
-        try { return Map.of("result", new String(Base64.getDecoder().decode(text.trim()), StandardCharsets.UTF_8)); }
+    public Map<String, Object> decode(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Base64 text (standard or URL-safe).") String text,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Character encoding of the decoded text.") String enc) {
+        String t = text.trim().replaceAll("\\s", "");
+        try { return Map.of("result", new String(t.contains("-") || t.contains("_") ? Base64.getUrlDecoder().decode(t) : Base64.getDecoder().decode(t), FilePackage.charset(enc))); }
         catch (IllegalArgumentException e) { throw new ActionException("ENCODING.INVALID", "Not valid Base64: " + e.getMessage(), "Check the input is Base64 text."); }
     }
 
@@ -120,20 +151,23 @@ public final class CryptoPackage {
     public Map<String, Object> encryptFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to encrypt.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted file to create.") String target,
-            @Input(name = "passphrase", type = OoaType.CREDENTIAL, description = "Passphrase from the vault.") SecureString key) throws GeneralSecurityException {
-        return fileOp(ctx, true, path, target, key);
+            @Input(name = "passphrase", type = OoaType.CREDENTIAL, description = "Passphrase from the vault.") SecureString key,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) throws GeneralSecurityException {
+        return fileOp(ctx, true, path, target, key, overwrite);
     }
 
     @Action(id = "decrypt_file", name = "Decrypt file", category = "Encryption", capabilities = "filesystem", description = "Decrypt a file produced by Encrypt file.")
     public Map<String, Object> decryptFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Encrypted file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Decrypted file to create.") String target,
-            @Input(name = "passphrase", type = OoaType.CREDENTIAL, description = "Passphrase from the vault.") SecureString key) throws GeneralSecurityException {
-        return fileOp(ctx, false, path, target, key);
+            @Input(name = "passphrase", type = OoaType.CREDENTIAL, description = "Passphrase from the vault.") SecureString key,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) throws GeneralSecurityException {
+        return fileOp(ctx, false, path, target, key, overwrite);
     }
 
-    private Map<String, Object> fileOp(ActionContext ctx, boolean enc, String path, String target, SecureString key) throws GeneralSecurityException {
+    private Map<String, Object> fileOp(ActionContext ctx, boolean enc, String path, String target, SecureString key, boolean overwrite) throws GeneralSecurityException {
         Path in = ctx.resolvePath(path), out = ctx.resolvePath(target);
+        if (!overwrite && Files.exists(out)) throw new ActionException("FILE.EXISTS", "File already exists: " + out, "Set overwrite to true or choose another name.");
         try {
             byte[] r = aes(enc, Files.readAllBytes(in), key.reveal().toCharArray());
             if (out.getParent() != null) Files.createDirectories(out.getParent());

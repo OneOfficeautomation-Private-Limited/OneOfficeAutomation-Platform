@@ -11,3 +11,6 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .ooa/
+
+# Personal notes with passwords: never commit
+platform/scripts/PW reset.txt

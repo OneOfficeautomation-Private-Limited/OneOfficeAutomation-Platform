@@ -187,3 +187,32 @@ repository with check-in/check-out) gets its own report.
 - Desktop interrupt clicks use screen coordinates (no UI Automation element model yet); window and hotkey triggers need a signed-in desktop session.
 - SAP BAPI needs the customer's SAP JCo library and is not included.
 - The PGP tests need a native Windows gpg (Gpg4win); run the Java tests from PowerShell or cmd.
+
+
+# Validation report: Part 5 (advanced Capture and action-by-action property parity)
+
+## What was added
+
+| Item | Result |
+| --- | --- |
+| Web Capture | Capture records a captured object: every useful property (tag, id, name, class, type, text, label, ARIA label, placeholder, title, role, link and image targets, `data-*` attributes, value), CSS, relative and absolute XPath, iframe path, page, position and a screenshot. Studio shows it as an editable table: Use, Value (may contain `$variables`), Match (equals, not equals, contains, starts with, ends with, wildcard, regex), search by properties/CSS/XPath, index, ignore case, self-heal, page match, Recapture and Test (outlines every match in a real browser). |
+| Element actions | `ooa.browser/element_action` takes the captured object (or a selector): mouse or JavaScript clicks with modifiers and position, middle click, fill or key-by-key typing with delay, clear or append, force, wait after, switch to the captured page; new actions to read all properties, HTML, position, a table or child items, wait to appear/disappear, highlight, drag, upload files and take an element screenshot. Design-time `test_object`. |
+| Desktop Capture | New `ooa.desktop_ui` toolkit (Windows UI Automation): Capture desktop (hover, Ctrl+Shift+C) records Name, AutomationId, ClassName, ControlType and more with match rules, window title/process and index; actions click, type or set text, read properties, select, expand/collapse, toggle, check, invoke, list items, read a grid as a table, wait, coordinates; self-healing across recorded properties. |
+| Property parity with AA (public documentation, own wording) | Five audits compared each action's properties with AA's and added the missing ones as optional inputs (defaults keep existing agents unchanged): data toolkits and core (If, Loop, error handler, child agents), email/Microsoft 365/Google/Slack, system/files/desktop/FTP/window/DLL, enterprise apps and AI, Office/PDF/OCR/image. About 940 new options and 63 new actions; 945 actions in 73 toolkits. Comparison tables: `docs/research/property-gaps/`. |
+
+## Automated results
+
+| Suite | Result |
+| --- | --- |
+| All Java tests (PowerShell, headless) | 452 tests, 0 failed, 1 skipped |
+| Capture in a real browser (`CaptureObjectTest`) | match rules, index, iframes, CSS/XPath search, self-healing, JavaScript click on a covered element, key-by-key typing, tables, upload, element screenshot |
+| Desktop Capture (`DesktopUiLiveTest`) | real Windows Character Map: find by ControlType, set and read text, capture and find again |
+| Studio browser tests | 135 passed (new: captured-object editor) |
+| Command Center console | 58 passed |
+
+## Known limitations (tracked)
+
+- Rows in the comparison tables marked as based on package overviews could not be read in full from AA's public pages; spot-check them.
+- Not tested against the real products here: Tesseract OCR, Excel desktop, SAP GUI, mainframe terminals, live cloud tenants (simulated services are used).
+- Desktop Capture cannot see inside Java Swing, SAP GUI, Citrix/RDP sessions or canvas-drawn apps (UI Automation limits); the Ctrl+Shift+C capture key also reaches the app under the pointer.
+- Left out on purpose (reasons in the tables): EWS, .msg export, password-protected zip, NTLM, SNMP v3, ODBC, MP3, terminal types other than 3270, weak PDF encryption.

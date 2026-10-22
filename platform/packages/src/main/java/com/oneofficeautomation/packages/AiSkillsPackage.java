@@ -34,6 +34,10 @@ public final class AiSkillsPackage {
             description = "Fill a saved prompt template with your values and run it; returns text, or a Dictionary for JSON skills.")
     @Output(name = "text", type = OoaType.STRING, description = "The answer as text.")
     @Output(name = "json", description = "The answer parsed as JSON, for skills with output json.")
+    @Output(name = "success", type = OoaType.BOOLEAN, description = "True when the skill ran; false only when fail_on_error is off and it failed.")
+    @Output(name = "error", type = OoaType.STRING, description = "What went wrong, when success is false.")
+    @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request.")
+    @Output(name = "output_tokens", type = OoaType.NUMBER, description = "Tokens in the answer.")
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "skill", type = OoaType.STRING, example = "summarise_complaint", description = "Skill name (file name in ai-skills without .json).") String name,
             @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the skill's ${...} placeholders.") Map<String, Object> values,
@@ -42,23 +46,45 @@ public final class AiSkillsPackage {
             @Input(name = "model", type = OoaType.STRING, required = false, description = "Override the skill's model.") String model,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_AWS_KEY_ID) Object awsKeyId,
-            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = GenAiPackage.D_AWS_REGION + " Overrides the skill's \"region\".") String awsRegion) {
-        Map<String, Object> s = load(ctx, name);
-        String prompt = LlmClient.interpolate((String) s.get("prompt"), values);
-        String system = s.get("system") instanceof String x ? LlmClient.interpolate(x, values) : null;
-        String conn = connection != null && !connection.isBlank() ? connection : (String) s.get("connection");
-        String mdl = model != null && !model.isBlank() ? model : conn != null ? null : (String) s.get("model");
-        if (mdl == null && conn == null) throw new ActionException("AI.NO_MODEL", "Skill '" + name + "' names no model", "Add \"model\" or \"connection\" to the skill, or set the model input.");
-        double temp = s.get("temperature") instanceof java.math.BigDecimal d ? d.doubleValue() : 0;
-        boolean json = "json".equals(s.get("output"));
-        LlmClient.Config c = ModelConnections.config(ctx, conn, String.valueOf(s.getOrDefault("provider", "openai")), mdl, key,
-                base != null ? base : (String) s.get("base_url"), temp, 2000, !Boolean.FALSE.equals(s.get("mask_pii")),
-                awsKeyId, awsRegion != null && !awsRegion.isBlank() ? awsRegion : (String) s.get("region"));
-        List<Map<String, Object>> m = new ArrayList<>();
-        if (system != null) m.add(Map.of("role", "system", "content", system));
-        m.add(Map.of("role", "user", "content", prompt));
-        String text = LlmClient.chat(ctx, c, m, null, json, "skill:" + name).text();
-        return Out.of("text", text == null ? "" : text, "json", json ? LlmClient.parseJson(text) : null);
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = GenAiPackage.D_AWS_REGION + " Overrides the skill's \"region\".") String awsRegion,
+            @Input(name = "temperature", type = OoaType.NUMBER, required = false, description = "Override the skill's temperature; the skill's own (or 0) when empty.") Double temperature,
+            @Input(name = "max_tokens", type = OoaType.NUMBER, required = false, description = "Override the skill's maximum answer length; the skill's own (or 2000) when empty.") Integer maxTokens,
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop the agent when the skill fails; when off, success is false and error says why.") boolean failOnError,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = GenAiPackage.D_TIMEOUT) int timeout) {
+        try {
+            Map<String, Object> s = load(ctx, name);
+            String prompt = LlmClient.interpolate((String) s.get("prompt"), values);
+            String system = s.get("system") instanceof String x ? LlmClient.interpolate(x, values) : null;
+            String conn = connection != null && !connection.isBlank() ? connection : (String) s.get("connection");
+            String mdl = model != null && !model.isBlank() ? model : conn != null ? null : (String) s.get("model");
+            if (mdl == null && conn == null) throw new ActionException("AI.NO_MODEL", "Skill '" + name + "' names no model", "Add \"model\" or \"connection\" to the skill, or set the model input.");
+            double temp = temperature != null ? temperature : s.get("temperature") instanceof java.math.BigDecimal d ? d.doubleValue() : 0;
+            int max = maxTokens != null ? maxTokens : s.get("max_tokens") instanceof java.math.BigDecimal d ? d.intValue() : 2000;
+            if (max < 1 || max > 200_000) throw new ActionException("AI.BAD_OPTION", "max_tokens must be between 1 and 200000");
+            Double topP = s.get("top_p") instanceof java.math.BigDecimal d ? d.doubleValue() : null;
+            boolean json = "json".equals(s.get("output"));
+            LlmClient.Config c = ModelConnections.config(ctx, conn, String.valueOf(s.getOrDefault("provider", "openai")), mdl, key,
+                    base != null ? base : (String) s.get("base_url"), temp, max, !Boolean.FALSE.equals(s.get("mask_pii")),
+                    awsKeyId, awsRegion != null && !awsRegion.isBlank() ? awsRegion : (String) s.get("region"))
+                    .with(LlmClient.Options.of(topP, null, null, null, null, null, null, null, timeout));
+            List<Map<String, Object>> m = new ArrayList<>();
+            if (system != null) m.add(Map.of("role", "system", "content", system));
+            m.add(Map.of("role", "user", "content", prompt));
+            LlmClient.Reply r = LlmClient.chat(ctx, c, m, null, json, "skill:" + name);
+            String text = r.text();
+            return Out.of("text", text == null ? "" : text, "json", json ? LlmClient.parseJson(text) : null, "success", true, "error", "",
+                    "input_tokens", java.math.BigDecimal.valueOf(r.inTokens()), "output_tokens", java.math.BigDecimal.valueOf(r.outTokens()));
+        } catch (ActionException e) {
+            if (failOnError) throw e;
+            ctx.warn("Prompt Skill " + name + " failed: " + e.getMessage());
+            return Out.of("text", "", "json", null, "success", false, "error", e.code() + ": " + e.getMessage(),
+                    "input_tokens", java.math.BigDecimal.ZERO, "output_tokens", java.math.BigDecimal.ZERO);
+        }
+    }
+
+    /** Earlier signature, kept for callers written before the override and error options. */
+    public Map<String, Object> run(ActionContext ctx, String name, Map<String, Object> values, String connection, Object key, String model, String base, Object awsKeyId, String awsRegion) {
+        return run(ctx, name, values, connection, key, model, base, awsKeyId, awsRegion, null, null, true, 0);
     }
 
     @Action(id = "list", name = "List Prompt Skills", category = "Prompt Skills", idempotent = true, description = "List the Prompt Skills saved in the workspace with their descriptions.")

@@ -11,8 +11,10 @@ import java.util.stream.Stream;
 public final class FolderPackage {
 
     @Action(id = "create", name = "Create folder", category = "Folders", idempotent = true, capabilities = "filesystem", description = "Create a folder and any missing parents.")
-    public Map<String, Object> create(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path) {
+    public Map<String, Object> create(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path,
+            @Input(name = "fail_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop when the folder already exists instead of continuing.") boolean failIfExists) {
         Path p = ctx.resolvePath(path);
+        if (failIfExists && Files.exists(p)) throw new ActionException("FOLDER.EXISTS", "Folder already exists: " + p, "Choose another name or turn off fail_if_exists.");
         try { Files.createDirectories(p); } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot create " + p + ": " + e.getMessage()); }
         return Map.of();
     }
@@ -49,19 +51,33 @@ public final class FolderPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
     }
 
-    @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents.")
+    @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files.")
+    @Output(name = "copied", type = OoaType.NUMBER, description = "Number of files copied.")
     public Map<String, Object> copy(ActionContext ctx,
             @Input(name = "source", type = OoaType.FILE, description = "Source folder.") String source,
-            @Input(name = "target", type = OoaType.FILE, description = "Target folder.") String target) {
+            @Input(name = "target", type = OoaType.FILE, description = "Target folder.") String target,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist in the target; when false they are kept.") boolean overwrite,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.pdf", description = "Only copy files whose names match this glob pattern; all files when empty.") String pattern,
+            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
         if (!Files.isDirectory(s)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + s, "Check the source path.");
+        PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
+        int n = 0;
         try (Stream<Path> w = Files.walk(s)) {
             for (Path x : w.toList()) {
                 Path dst = t.resolve(s.relativize(x).toString());
-                if (Files.isDirectory(x)) Files.createDirectories(dst); else Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING);
+                if (Files.isDirectory(x)) { Files.createDirectories(dst); continue; }
+                if (!m.matches(x.getFileName())) continue;
+                if (Files.exists(dst)) {
+                    if (!overwrite) continue;
+                    if (onlyNewer && Files.getLastModifiedTime(x).compareTo(Files.getLastModifiedTime(dst)) <= 0) continue;
+                }
+                if (onlyNewer) Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);  // keep times so later runs compare correctly
+                else Files.copy(x, dst, StandardCopyOption.REPLACE_EXISTING);
+                n++;
             }
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot copy " + s + ": " + e.getMessage(), null, true); }
-        return Map.of();
+        return Map.of("copied", java.math.BigDecimal.valueOf(n));
     }
 
     @Action(id = "rename_folder", name = "Rename folder", category = "Folders", capabilities = "filesystem",

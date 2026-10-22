@@ -1,7 +1,7 @@
 # ONEOFFICEAUTOMATION: technical architecture
 
 How the product is built, configured and managed, and how to build new parts of it. Status as of 20 Oct 2026
-(commit `dd9fab5`). Paths are relative to the repository root `C:\OOA\oneofficeautomation`.
+(updated 22 Oct 2026). Paths are relative to the repository root `C:\OOA\oneofficeautomation`.
 
 ---
 
@@ -205,7 +205,28 @@ public final class CrmPackage {
   - the word "bot" is not used in user-facing text
   - inputs that are secrets are `OoaType.CREDENTIAL`
 
-Today there are **72 toolkits and 875 actions**. The full list is in `docs/COMMAND_CATALOG.md`.
+Today there are **73 toolkits and 945 actions**. The full list is in `docs/COMMAND_CATALOG.md`.
+
+### 5.2a Captured objects (web and desktop Capture)
+
+UI actions find elements by a **captured object** instead of a single selector:
+
+```json
+{"technology": "web",                        // or "desktop"
+ "page": {"url": "...", "url_match": "starts_with", "title": "..."},     // desktop: "window": {"title", "title_match", "process"}
+ "frames": ["iframe#main"],                    // web only: iframe path
+ "search_by": "properties",                    // or "css" / "xpath" (web)
+ "index": 0, "ignore_case": false, "self_heal": true,
+ "properties": [{"name": "id", "value": "save", "match": "equals", "use": true}, ...],
+ "screenshot": "base64 PNG"}
+```
+
+- Only properties with `use: true` are matched; `match` is equals, not_equals, contains, starts_with, ends_with,
+  wildcard or regex.
+- Web matching: `packages-browser/.../WebObjects.java`. Desktop matching: `packages-windows/.../DesktopObject.java` with
+  the UI Automation helper `UiaBridge` (PowerShell + .NET UIAutomationClient).
+- Studio edits the object in `captureEditor` (`studio.js`). It uses `POST /studio/api/capture`, `capture/test` and
+  `capture-desktop`.
 
 ### 5.3 Runner engine
 

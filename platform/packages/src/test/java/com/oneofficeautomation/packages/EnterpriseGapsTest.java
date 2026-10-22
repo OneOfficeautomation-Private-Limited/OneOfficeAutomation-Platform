@@ -100,21 +100,21 @@ class EnterpriseGapsTest {
             var sl = new SlackPackage();
             var ctx = ctx();
             String base = f.url() + "/api";
-            Map<String, Object> dm = sl.sendDirect(ctx, TOK, "ann@example.com", "Your report is ready", base);
+            Map<String, Object> dm = sl.sendDirect(ctx, TOK, "ann@example.com", "Your report is ready", null, null, null, null, true, null, base);
             assertEquals("1700.5", dm.get("ts"));
             assertEquals("D999", dm.get("channel"));
             assertEquals("{\"users\":\"U111\"}", f.last("POST", "/api/conversations.open").text());
             assertTrue(f.last("POST", "/api/chat.postMessage").text().contains("\"channel\":\"D999\""));
             assertTrue(f.last("POST", "/api/users.lookupByEmail").contentType().startsWith("application/x-www-form-urlencoded"));
-            assertEquals("SLACK.USERS_NOT_FOUND", assertThrows(ActionException.class, () -> sl.sendDirect(ctx, TOK, "nobody@example.com", "x", base)).code());
-            assertEquals("SLACK.BAD_USER", assertThrows(ActionException.class, () -> sl.sendDirect(ctx, TOK, "bob smith", "x", base)).code());
+            assertEquals("SLACK.USERS_NOT_FOUND", assertThrows(ActionException.class, () -> sl.sendDirect(ctx, TOK, "nobody@example.com", "x", null, null, null, null, true, null, base)).code());
+            assertEquals("SLACK.BAD_USER", assertThrows(ActionException.class, () -> sl.sendDirect(ctx, TOK, "bob smith", "x", null, null, null, null, true, null, base)).code());
             assertEquals("C42", sl.channelId(ctx, TOK, "#ops-alerts", true, false, base).get("channel_id"));
             assertTrue(form(f.last("POST", "/api/conversations.list")).contains("types=public_channel,private_channel"));
             assertEquals("SLACK.CHANNEL_NOT_FOUND", assertThrows(ActionException.class, () -> sl.channelId(ctx, TOK, "missing", true, false, base)).code());
             @SuppressWarnings("unchecked") Map<String, Object> ch = (Map<String, Object>) sl.channelDetails(ctx, TOK, "C42", base).get("channel");
             assertEquals("Pager", ch.get("topic"));
             assertEquals(new BigDecimal(7), ch.get("num_members"));
-            Map<String, Object> h = sl.history(ctx, TOK, "C42", "1.0", null, 10, base);
+            Map<String, Object> h = sl.history(ctx, TOK, "C42", "1.0", null, 10, null, false, base);
             assertEquals(new BigDecimal(3), h.get("count"));
             assertEquals(List.of("ts", "user", "text", "thread_ts", "reply_count", "subtype"), cols(h.get("table")));
             assertEquals("five", rows(h.get("table")).get(0).get(2));
@@ -125,7 +125,7 @@ class EnterpriseGapsTest {
             assertTrue(form(f.last("POST", "/api/users.info")).contains("user=U222"));
             @SuppressWarnings("unchecked") Map<String, Object> byMail = (Map<String, Object>) sl.userDetails(ctx, TOK, "ann@example.com", base).get("user");
             assertEquals("Ops", byMail.get("title"));
-            @SuppressWarnings("unchecked") Map<String, Object> ws = (Map<String, Object>) sl.workspace(ctx, TOK, base).get("workspace");
+            @SuppressWarnings("unchecked") Map<String, Object> ws = (Map<String, Object>) sl.workspace(ctx, TOK, null, base).get("workspace");
             assertEquals("acme.com", ws.get("email_domain"));
         }
     }
@@ -370,7 +370,7 @@ class EnterpriseGapsTest {
 
             sap.clickMenu(ctx, "System > User Profile > Own Data", 0, 0, 0);
             s = last(seen);
-            assertEquals(List.of("0", "0", "0"), s.args());
+            assertEquals(List.of("0", "0", "0", "text"), s.args());
             assertEquals("System > User Profile > Own Data\r\n", s.stdin());
             assertTrue(s.body().contains("Split(p, \">\")") && s.body().contains("Fail \"Menu entry not found: \""));
             assertEquals("SAP.BAD_MENU", assertThrows(ActionException.class, () -> sap.clickMenu(ctx, " ", 0, 0, 0)).code());

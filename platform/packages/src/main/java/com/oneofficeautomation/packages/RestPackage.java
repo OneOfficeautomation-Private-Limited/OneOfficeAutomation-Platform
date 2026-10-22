@@ -34,7 +34,17 @@ public final class RestPackage {
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object basicPassword,
             @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Response timeout.") int timeout,
-            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Raise REST.HTTP_ERROR on 4xx/5xx.") boolean failOnError) {
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Raise REST.HTTP_ERROR on 4xx/5xx.") boolean failOnError,
+            @Input(name = "content_type", type = OoaType.STRING, required = false, example = "application/xml", description = "Content-Type of a raw body, e.g. application/xml or text/plain.") String contentType,
+            @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
+            @Input(name = "proxy", type = OoaType.STRING, required = false, example = "proxy.example.com:8080", description = "Proxy server as host:port; the runner's settings when empty.") String proxy,
+            @Input(name = "proxy_user", type = OoaType.STRING, required = false, description = "Proxy user name, when the proxy needs a sign-in.") String proxyUser,
+            @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, description = "Proxy password from the vault.") Object proxyPassword,
+            @Input(name = "client_certificate", type = OoaType.FILE, required = false, description = "Client certificate (.p12 or .pfx) for servers that require mutual TLS.") String clientCert,
+            @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword,
+            @Input(name = "accept_cookies", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep cookies the server sets and send them back on later requests of this run.") boolean cookies,
+            @Input(name = "follow_redirects", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Follow redirects (3xx) automatically.") boolean redirects) {
+        HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects);
         StringBuilder u = new StringBuilder(url);
         if (query != null && !query.isEmpty()) u.append(url.contains("?") ? "&" : "?").append(encode(query));
         HttpRequest.Builder b;
@@ -44,14 +54,20 @@ public final class RestPackage {
         HttpRequest.BodyPublisher pub = HttpRequest.BodyPublishers.noBody();
         if (json != null) { pub = HttpRequest.BodyPublishers.ofString(JsonLite.write(json)); b.header("Content-Type", "application/json"); }
         else if (form != null) { pub = HttpRequest.BodyPublishers.ofString(encode(form)); b.header("Content-Type", "application/x-www-form-urlencoded"); }
-        else if (body != null) pub = HttpRequest.BodyPublishers.ofString(body);
+        else if (body != null) {
+            pub = HttpRequest.BodyPublishers.ofString(body);
+            if (contentType != null && !contentType.isBlank()) {
+                if (contentType.matches(".*[\\r\\n].*")) throw new ActionException("REST.BAD_HEADER", "content_type may not contain line breaks");
+                b.header("Content-Type", contentType.strip());
+            }
+        }
         if (basicUser != null && basicPassword instanceof SecureString pw)
             b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((basicUser + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
         if (bearer instanceof SecureString t) b.header("Authorization", "Bearer " + t.reveal());
         b.method(method, pub);
         ctx.info(method + " " + url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"));
         HttpResponse<String> resp;
-        try { resp = CLIENT.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
+        try { resp = opts.client(ctx, CLIENT).send(b.build(), HttpResponse.BodyHandlers.ofString()); }
         catch (HttpTimeoutException e) { throw new ActionException("REST.TIMEOUT", "No response from " + url + " within " + timeout + " s", "Raise timeout_seconds or check the service.", true); }
         catch (IOException e) { throw new ActionException("REST.UNREACHABLE", "Cannot reach " + url + ": " + e.getMessage(), "Check the URL, proxy settings and network access.", true); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted"); }
@@ -83,8 +99,8 @@ public final class RestPackage {
 
     private static String masked(String url) { return url.replaceAll("(?i)([?&][^=]*(token|key|secret|password)[^=]*=)[^&]+", "$1****"); }
 
-    private static <T> HttpResponse<T> send(HttpRequest req, HttpResponse.BodyHandler<T> handler, String url, int timeout) {
-        try { return CLIENT.send(req, handler); }
+    private static <T> HttpResponse<T> send(HttpClient client, HttpRequest req, HttpResponse.BodyHandler<T> handler, String url, int timeout) {
+        try { return client.send(req, handler); }
         catch (HttpTimeoutException e) { throw new ActionException("REST.TIMEOUT", "No response from " + url + " within " + timeout + " s", "Raise timeout_seconds or check the service.", true); }
         catch (IOException e) { throw new ActionException("REST.UNREACHABLE", "Cannot reach " + url + ": " + e.getMessage(), "Check the URL, proxy settings and network access.", true); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Request interrupted"); }
@@ -111,7 +127,14 @@ public final class RestPackage {
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object basicPassword,
             @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file.") boolean overwrite,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "Time allowed for the whole download.") int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "Time allowed for the whole download.") int timeout,
+            @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
+            @Input(name = "proxy", type = OoaType.STRING, required = false, example = "proxy.example.com:8080", description = "Proxy server as host:port; the runner's settings when empty.") String proxy,
+            @Input(name = "proxy_user", type = OoaType.STRING, required = false, description = "Proxy user name, when the proxy needs a sign-in.") String proxyUser,
+            @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, description = "Proxy password from the vault.") Object proxyPassword,
+            @Input(name = "client_certificate", type = OoaType.FILE, required = false, description = "Client certificate (.p12 or .pfx) for servers that require mutual TLS.") String clientCert,
+            @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword) {
+        HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, false, true);
         HttpRequest req = builder(url, query, headers, basicUser, basicPassword, bearer, timeout).GET().build();
         ctx.info("GET " + masked(url) + " (download)");
         java.nio.file.Path target = ctx.resolvePath(path);
@@ -122,7 +145,7 @@ public final class RestPackage {
             temp = java.nio.file.Files.createTempFile(folder == null ? java.nio.file.Path.of(".") : folder, ".ooa-download-", ".part");
         } catch (IOException e) { throw new ActionException("REST.FILE_ERROR", "Cannot write into " + folder + ": " + e.getMessage(), "Check the folder exists and is writable."); }
         try {
-            HttpResponse<java.nio.file.Path> resp = send(req, HttpResponse.BodyHandlers.ofFile(temp), url, timeout);
+            HttpResponse<java.nio.file.Path> resp = send(opts.client(ctx, CLIENT), req, HttpResponse.BodyHandlers.ofFile(temp), url, timeout);
             int status = resp.statusCode();
             if (status >= 400) {
                 String body;
@@ -170,7 +193,14 @@ public final class RestPackage {
             @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object basicPassword,
             @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "600", description = "Response timeout.") int timeout,
-            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Raise REST.HTTP_ERROR on 4xx/5xx.") boolean failOnError) {
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Raise REST.HTTP_ERROR on 4xx/5xx.") boolean failOnError,
+            @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
+            @Input(name = "proxy", type = OoaType.STRING, required = false, example = "proxy.example.com:8080", description = "Proxy server as host:port; the runner's settings when empty.") String proxy,
+            @Input(name = "proxy_user", type = OoaType.STRING, required = false, description = "Proxy user name, when the proxy needs a sign-in.") String proxyUser,
+            @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, description = "Proxy password from the vault.") Object proxyPassword,
+            @Input(name = "client_certificate", type = OoaType.FILE, required = false, description = "Client certificate (.p12 or .pfx) for servers that require mutual TLS.") String clientCert,
+            @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, description = "Password of the client certificate file.") Object clientCertPassword) {
+        HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, false, true);
         java.nio.file.Path f = ctx.resolvePath(path);
         if (!java.nio.file.Files.isRegularFile(f)) throw new ActionException("REST.FILE_NOT_FOUND", "File not found: " + f, "Check the path.");
         String fieldName = field == null || field.isBlank() ? "file" : field.replaceAll("[\"\\r\\n]", "_");
@@ -192,7 +222,7 @@ public final class RestPackage {
         String m = "PUT".equalsIgnoreCase(method) ? "PUT" : "POST";
         b.method(m, HttpRequest.BodyPublishers.ofByteArray((byte[]) mp[0]));
         ctx.info(m + " " + masked(url) + " (upload " + fileName + ", " + data.length + " bytes)");
-        HttpResponse<String> resp = send(b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
+        HttpResponse<String> resp = send(opts.client(ctx, CLIENT), b.build(), HttpResponse.BodyHandlers.ofString(), url, timeout);
         int status = resp.statusCode();
         if (failOnError && status >= 400) throw httpError(m, url, status, resp.body());
         Object parsed = null;

@@ -85,13 +85,14 @@ public final class AiAgentPackage {
     @Action(id = "run", name = "Run AI agent", category = "AI Agents", timeoutSeconds = 1800, capabilities = {"network", "ai"},
             description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.")
     @Output(name = "answer", type = OoaType.STRING, description = "The agent's final answer.")
-    @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached or stopped.")
+    @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached or stopped; with output fields also failed or cancelled, as the agent decided.")
+    @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The output fields asked for (empty when none were).")
     @Output(name = "trace", type = OoaType.LIST, description = "Each model turn and tool call, for review and audit.")
     @Output(name = "tokens", type = OoaType.NUMBER, description = "Total tokens used.")
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "goal", type = OoaType.STRING, description = "What the agent should achieve, e.g. the customer email to handle.") String goal,
             @Input(name = "instructions", type = OoaType.STRING, required = false, defaultValue = "\"You are a careful business assistant. Use the tools to act; never invent results.\"", description = "Role, policy and rules for the agent.") String instructions,
-            @Input(name = "tools", type = OoaType.LIST, description = "Bot ids the agent may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
+            @Input(name = "tools", type = OoaType.LIST, description = "Ids of the agents it may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
             @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
             @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = GenAiPackage.D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
@@ -102,7 +103,40 @@ public final class AiAgentPackage {
             @Input(name = "max_tokens_total", type = OoaType.NUMBER, required = false, defaultValue = "60000", description = "Stop when this many tokens have been used.") int maxTotal,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = GenAiPackage.D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_AWS_KEY_ID) Object awsKeyId,
-            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = GenAiPackage.D_AWS_REGION) String awsRegion) {
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = GenAiPackage.D_AWS_REGION) String awsRegion,
+            @Input(name = "role", type = OoaType.STRING, required = false, example = "Accounts payable clerk", description = "Who the agent acts as; added in front of the instructions.") String role,
+            @Input(name = "action_plan", type = OoaType.STRING, required = false, description = "The order in which to use the tools and when to stop or ask a person, in plain words.") String plan,
+            @Input(name = "output_fields", type = OoaType.DICTIONARY, required = false, example = "{\"refund_amount\": \"amount refunded as a number\"}",
+                    description = "Values the agent must return, name to description; they come back in outputs. Plain text answer when empty.") Map<String, Object> outputFields,
+            @Input(name = "allow_cancel", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Let the agent end with status cancelled when the goal should not be pursued (with output fields only).") boolean allowCancel,
+            @Input(name = "max_duration_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Stop with limit_reached after this many seconds; no time limit when 0.") int maxSeconds,
+            @Input(name = "temperature", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "0 = consistent, higher = more creative.") double temperature) {
+        return runAgent(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion,
+                role, plan, outputFields, allowCancel, maxSeconds, temperature);
+    }
+
+    /** Earlier signature, kept for callers written before role, plan, outputs and limits. */
+    public Map<String, Object> run(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
+                                   String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion) {
+        return run(ctx, goal, instructions, toolIds, sensitiveIds, provider, connection, model, key, base, maxSteps, maxTotal, mask, awsKeyId, awsRegion, null, null, null, false, 0, 0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> runAgent(ActionContext ctx, String goal, String instructions, List<Object> toolIds, List<Object> sensitiveIds, String provider, String connection,
+                                         String model, Object key, String base, int maxSteps, int maxTotal, boolean mask, Object awsKeyId, String awsRegion,
+                                         String role, String plan, Map<String, Object> outputFields, boolean allowCancel, int maxSeconds, double temperature) {
+        if (maxSeconds < 0) throw new ActionException("AGENT.BAD_OPTION", "max_duration_seconds cannot be negative");
+        long deadline = maxSeconds > 0 ? System.nanoTime() + maxSeconds * 1_000_000_000L : Long.MAX_VALUE;
+        boolean structured = outputFields != null && !outputFields.isEmpty();
+        StringBuilder extra = new StringBuilder();
+        if (role != null && !role.isBlank()) extra.append("Your role: ").append(role.strip()).append("\n");
+        if (plan != null && !plan.isBlank()) extra.append("Action plan: ").append(plan.strip()).append("\n");
+        if (structured) {
+            List<String> states = new ArrayList<>(List.of("completed", "failed"));
+            if (allowCancel) states.add("cancelled");
+            extra.append("When finished, reply with one JSON object and no tool calls, with keys \"status\" (one of ").append(String.join(", ", states))
+                 .append("), \"answer\" (a short summary), and \"outputs\" holding exactly these keys: ").append(JsonLite.write(outputFields)).append(". Use null for values you could not find.\n");
+        }
         AutomationRepository repo = ctx.service("repository", AutomationRepository.class);
         BotInvoker invoker = ctx.service("bot_invoker", BotInvoker.class);
         Set<String> sensitive = new HashSet<>();
@@ -113,9 +147,9 @@ public final class AiAgentPackage {
         List<Map<String, Object>> toolSpecs = new ArrayList<>();
         for (Tool t : tools.values())
             toolSpecs.add(Map.of("name", t.name(), "description", t.flow().get("description") + (t.sensitive() ? " (Needs human approval; may be denied.)" : ""), "input_schema", t.schema()));
-        LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2048, mask, awsKeyId, awsRegion);
+        LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, temperature, 2048, mask, awsKeyId, awsRegion);
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", instructions + "\nRules: act only through the tools; use only facts from the goal and tool results; "
+        messages.add(Map.of("role", "system", "content", (instructions == null ? "" : instructions) + "\n" + extra + "Rules: act only through the tools; use only facts from the goal and tool results; "
                 + "if a tool is denied, do not retry it; when finished, reply with the final answer and no tool calls."));
         messages.add(Map.of("role", "user", "content", goal));
         List<Object> trace = new ArrayList<>();
@@ -123,6 +157,7 @@ public final class AiAgentPackage {
         for (int step = 1; step <= maxSteps; step++) {
             ctx.checkCancelled();
             if (tokens >= maxTotal) return result("limit_reached", "Stopped: token limit of " + maxTotal + " reached.", trace, tokens);
+            if (System.nanoTime() > deadline) return result("limit_reached", "Stopped: time limit of " + maxSeconds + " s reached.", trace, tokens);
             LlmClient.Reply r = LlmClient.chat(ctx, cfg, messages, toolSpecs, false, "agent");
             tokens += r.inTokens() + r.outTokens();
             List<Object> calls = new ArrayList<>();
@@ -133,7 +168,10 @@ public final class AiAgentPackage {
             asst.put("tool_calls", calls);
             messages.add(asst);
             trace.add(Out.of("type", "model", "step", step, "text", r.text(), "tool_calls", r.toolCalls().stream().map(LlmClient.ToolCall::name).toList()));
-            if (r.toolCalls().isEmpty()) return result("completed", r.text() == null ? "" : r.text(), trace, tokens);
+            if (r.toolCalls().isEmpty()) {
+                if (!structured) return result("completed", r.text() == null ? "" : r.text(), trace, tokens);
+                return structuredResult(r.text(), outputFields, allowCancel, trace, tokens);
+            }
             for (LlmClient.ToolCall tc : r.toolCalls()) {
                 Tool t = tools.get(tc.name());
                 String content;
@@ -163,6 +201,24 @@ public final class AiAgentPackage {
     }
 
     private static Map<String, Object> result(String status, String answer, List<Object> trace, int tokens) {
-        return Out.of("answer", answer, "status", status, "trace", trace, "tokens", BigDecimal.valueOf(tokens));
+        return Out.of("answer", answer, "status", status, "trace", trace, "tokens", BigDecimal.valueOf(tokens), "outputs", new LinkedHashMap<>());
+    }
+
+    /** Reads the final JSON answer: status (an allowed end state), answer, and exactly the requested output fields. */
+    static Map<String, Object> structuredResult(String text, Map<String, Object> fields, boolean allowCancel, List<Object> trace, int tokens) {
+        Map<String, Object> outputs = new LinkedHashMap<>();
+        for (String f : fields.keySet()) outputs.put(f, null);
+        Object j;
+        try { j = LlmClient.parseJson(text); }
+        catch (ActionException e) {
+            trace.add(Map.of("type", "guardrail", "message", "final answer was not the requested JSON"));
+            return Out.of("answer", text == null ? "" : text, "status", "failed", "trace", trace, "tokens", BigDecimal.valueOf(tokens), "outputs", outputs);
+        }
+        Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
+        String status = String.valueOf(m.get("status")).toLowerCase(Locale.ROOT);
+        if (!(status.equals("completed") || status.equals("failed") || (allowCancel && status.equals("cancelled")))) status = "failed";
+        if (m.get("outputs") instanceof Map<?, ?> o) for (String f : fields.keySet()) outputs.put(f, o.get(f));
+        Object answer = m.get("answer");
+        return Out.of("answer", answer == null ? "" : Values.text(answer), "status", status, "trace", trace, "tokens", BigDecimal.valueOf(tokens), "outputs", outputs);
     }
 }

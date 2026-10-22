@@ -62,84 +62,243 @@ public final class TerminalPackage {
 
     private static Session s(ActionContext ctx, String name) { return ctx.session(name, Session.class); }
 
+    /** Test hook: when set, Connect uses it (with the engine command line) instead of starting s3270. */
+    interface EngineStarter { Session start(List<String> command) throws IOException; }
+    static volatile EngineStarter testStarter;
+
+    private static final String D_SESSION = "Session name.";
+    private static final String D_WAIT = "Seconds to wait for the host to unlock the keyboard after the key.";
+
     @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 host and wait for the first screen.")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Mainframe host name or address.") String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "23", description = "Port (992 is common for TLS).") int port,
             @Input(name = "tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Use a TLS-encrypted connection.") boolean tls,
-            @Input(name = "model", type = OoaType.STRING, required = false, defaultValue = "\"3279-2\"", enumValues = {"3279-2", "3279-3", "3279-4", "3279-5"}, description = "Screen model (2 = 24x80).") String model,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
-        if (!host.matches("^[A-Za-z0-9.-]{1,253}$")) throw new ActionException("TERMINAL.BAD_HOST", "Invalid host '" + host + "'");
-        Process p;
-        try { p = new ProcessBuilder(exe(), "-model", model).redirectError(ProcessBuilder.Redirect.DISCARD).start(); }
-        catch (IOException e) { throw new ActionException("TERMINAL.NOT_INSTALLED", "The x3270 terminal engine is not installed", "Install wc3270 (Windows) or s3270, or set OOA_S3270 to its path."); }
-        Session t = new Session(p);
+            @Input(name = "model", type = OoaType.STRING, required = false, defaultValue = "\"3279-2\"", enumValues = {"3279-2", "3279-3", "3279-4", "3279-5", "3278-2", "3278-3", "3278-4", "3278-5"}, description = "Screen model (2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome).") String model,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "terminal_type", type = OoaType.STRING, required = false, defaultValue = "\"tn3270e\"", enumValues = {"tn3270e", "tn3270"}, description = "Protocol: tn3270e (extended, the usual choice) or plain tn3270 for hosts that refuse the extensions.") String terminalType,
+            @Input(name = "connect_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds to wait for the connection and the first screen.") int connectTimeout,
+            @Input(name = "lu_name", type = OoaType.STRING, required = false, description = "Logical unit (device) name to request from the host; any free one when empty.") String luName,
+            @Input(name = "code_page", type = OoaType.STRING, required = false, example = "cp037", description = "Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default when empty.") String codePage,
+            @Input(name = "wait_for_input_field", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the first screen has a field to type into; turn off for hosts that show a read-only banner first.") boolean waitForInput,
+            @Input(name = "wait_for_text", type = OoaType.STRING, required = false, example = "USERID", description = "Text the first screen must show (e.g. a logon prompt) before the agent continues; no check when empty.") String waitText) {
+        if (host == null || !host.matches("^[A-Za-z0-9.-]{1,253}$")) throw new ActionException("TERMINAL.BAD_HOST", "Invalid host '" + host + "'");
+        if (port < 1 || port > 65535) throw new ActionException("TERMINAL.BAD_PORT", "Invalid port " + port, "Use 23 for telnet or 992 for TLS.");
+        String type = terminalType == null || terminalType.isBlank() ? "tn3270e" : terminalType.trim().toLowerCase(Locale.ROOT);
+        if (!type.equals("tn3270e") && !type.equals("tn3270"))
+            throw new ActionException("TERMINAL.UNSUPPORTED_TYPE", "Terminal type '" + terminalType + "' is not supported", "This toolkit drives IBM 3270 hosts (tn3270e or tn3270).");
+        if (luName != null && !luName.isBlank() && !luName.matches("^[A-Za-z0-9#@$._-]{1,16}$")) throw new ActionException("TERMINAL.BAD_LU", "Invalid LU name '" + luName + "'");
+        if (codePage != null && !codePage.isBlank() && !codePage.matches("^[A-Za-z0-9_-]{1,32}$")) throw new ActionException("TERMINAL.BAD_CODE_PAGE", "Invalid code page '" + codePage + "'", "Example: cp037.");
+        int wait = Math.max(1, connectTimeout <= 0 ? 30 : connectTimeout);
+        List<String> command = new ArrayList<>(List.of(exe(), "-model", model == null || model.isBlank() ? "3279-2" : model));
+        if (codePage != null && !codePage.isBlank()) { command.add("-codepage"); command.add(codePage.trim()); }
+        Session t;
         try {
-            t.cmd("Connect(" + (tls ? "L:" : "") + host + ":" + port + ")");
-            t.cmd("Wait(30,InputField)");
+            EngineStarter hook = testStarter;
+            t = hook != null ? hook.start(command) : new Session(new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start());
+        } catch (IOException e) { throw new ActionException("TERMINAL.NOT_INSTALLED", "The x3270 terminal engine is not installed", "Install wc3270 (Windows) or s3270, or set OOA_S3270 to its path."); }
+        String target = (tls ? "L:" : "") + (type.equals("tn3270") ? "N:" : "") + (luName == null || luName.isBlank() ? "" : luName.trim() + "@") + host + ":" + port;
+        try {
+            t.cmd("Connect(" + target + ")");
+            t.cmd("Wait(" + wait + "," + (waitForInput ? "InputField" : "3270Mode") + ")");
         } catch (RuntimeException e) { t.close(); throw e; }
         ctx.sessions().put(session, t);
+        if (waitText != null && !waitText.isEmpty()) {
+            try { waitForText(ctx, waitText, wait, session, null, null, true, false, true, 500); }
+            catch (RuntimeException e) { ctx.sessions().remove(session); t.close(); throw e; }
+        }
         return Map.of();
     }
 
-    @Action(id = "send_text", name = "Type text", category = "Terminal", description = "Type text at a row and column, or at the cursor; Credentials are typed without being logged.")
+    /** Earlier signature, kept for callers written before the extra connect options. */
+    public Map<String, Object> connect(ActionContext ctx, String host, int port, boolean tls, String model, String session) {
+        return connect(ctx, host, port, tls, model, session, "tn3270e", 30, null, null, true, null);
+    }
+
+    /** Presses a key (alias, Enter, PF3...) and, for keys that go to the host, waits for the keyboard to unlock. */
+    private static void press(Session t, String key, boolean waitForHost, int timeout) {
+        String action = keyAction(t.keyAliases.getOrDefault(key.trim().toUpperCase(Locale.ROOT), key));
+        t.cmd(action);
+        if (waitForHost && !LOCAL_KEYS.contains(action)) t.cmd("Wait(" + Math.max(1, timeout) + ",InputField)");
+    }
+
+    @Action(id = "send_text", name = "Type text", category = "Terminal", timeoutSeconds = 120, description = "Type text at a row and column, or at the cursor; Credentials are typed without being logged.")
     public Map<String, Object> sendText(ActionContext ctx,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row (1-based); the cursor position when empty.") Integer row,
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column (1-based).") Integer col,
             @Input(name = "clear_field", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Erase the rest of the field first.") boolean clear,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "press_key", type = OoaType.STRING, required = false, example = "Enter", description = "Key to press after typing, e.g. Enter or PF8; none when empty.") String pressKey,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout,
+            @Input(name = "delay_after_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Extra pause after typing (and the key), in milliseconds.") int delay,
+            @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen afterwards (waits up to timeout_seconds); no check when empty.") String waitText) {
         Session t = s(ctx, session);
-        if (row != null && col != null) t.cmd("MoveCursor(" + (row - 1) + "," + (col - 1) + ")");
+        if (row != null && col != null) {
+            if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1");
+            t.cmd("MoveCursor(" + (row - 1) + "," + (col - 1) + ")");
+        }
         if (clear) t.cmd("EraseEOF");
         String v = text instanceof SecureString ss ? ss.reveal() : com.oneofficeautomation.runner.Values.text(text);
         t.cmd("String(" + quote(v) + ")");
+        if (pressKey != null && !pressKey.isBlank()) press(t, pressKey, true, timeout);
+        after(ctx, session, delay, waitText, timeout);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before press_key and timeout_seconds. */
+    public Map<String, Object> sendText(ActionContext ctx, Object text, Integer row, Integer col, boolean clear, String session) {
+        return sendText(ctx, text, row, col, clear, session, null, 30, 0, null);
     }
 
     @Action(id = "send_key", name = "Press key", category = "Terminal", timeoutSeconds = 120, description = "Press Enter, Tab, Clear, a PF or PA key, and wait for the host to answer.")
     public Map<String, Object> sendKey(ActionContext ctx,
-            @Input(name = "key", type = OoaType.STRING, example = "Enter", description = "Enter, Tab, BackTab, Clear, Reset, EraseEOF, Home, PF1 to PF24 or PA1 to PA3.") String key,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
+            @Input(name = "key", type = OoaType.STRING, example = "Enter", description = "Enter, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Newline, Up, Down, Left, Right, BackSpace, Delete, Insert, FieldEnd, Dup, FieldMark, Attn, SysReq, PF1 to PF24 or PA1 to PA3.") String key,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "wait_for_host", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "After keys that go to the host (Enter, PF, PA, Clear...), wait until it unlocks the keyboard.") boolean waitForHost,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout,
+            @Input(name = "repeat", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many times to press the key, e.g. 3 x Tab.") int repeat,
+            @Input(name = "delay_after_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Extra pause after the key, in milliseconds.") int delay,
+            @Input(name = "wait_for_text", type = OoaType.STRING, required = false, description = "Text that must appear on the screen after the key (waits up to timeout_seconds); no check when empty.") String waitText) {
         Session t = s(ctx, session);
-        String action = keyAction(t.keyAliases.getOrDefault(key.trim().toUpperCase(Locale.ROOT), key));
-        t.cmd(action);
-        if (!Set.of("Tab", "BackTab", "Home", "EraseEOF").contains(action)) t.cmd("Wait(30,InputField)");
+        if (repeat < 1 || repeat > 200) throw new ActionException("TERMINAL.BAD_REPEAT", "Repeat must be between 1 and 200");
+        for (int i = 0; i < repeat; i++) press(t, key, waitForHost, timeout);
+        after(ctx, session, delay, waitText, timeout);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the wait options. */
+    public Map<String, Object> sendKey(ActionContext ctx, String key, String session) { return sendKey(ctx, key, session, true, 30, 1, 0, null); }
+
+    private void after(ActionContext ctx, String session, int delayMs, String waitText, int timeout) {
+        if (delayMs < 0 || delayMs > 600_000) throw new ActionException("TERMINAL.BAD_DELAY", "The delay must be between 0 and 600000 ms");
+        if (delayMs > 0) HttpJson.pause(ctx, delayMs);
+        if (waitText != null && !waitText.isEmpty()) waitForText(ctx, waitText, Math.max(1, timeout), session, null, null, true, false, true, 500);
     }
 
     @Action(id = "get_screen", name = "Get screen text", category = "Terminal", idempotent = true, description = "Read the whole screen as text, one line per row.")
     @Output(name = "text", type = OoaType.STRING, description = "Screen text.")
     @Output(name = "lines", type = OoaType.LIST, description = "One item per row.")
-    public Map<String, Object> getScreen(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
-        List<String> rows = s(ctx, session).cmd("Ascii()");
+    public Map<String, Object> getScreen(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "trim_lines", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove trailing spaces from each row.") boolean trim,
+            @Input(name = "from_row", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "First row to return (1-based).") int fromRow,
+            @Input(name = "to_row", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Last row to return; 0 for the bottom of the screen.") int toRow) {
+        List<String> all = s(ctx, session).cmd("Ascii()");
+        int from = Math.max(1, fromRow), to = toRow <= 0 ? all.size() : Math.min(toRow, all.size());
+        List<String> rows = new ArrayList<>();
+        for (int i = from - 1; i < to; i++) rows.add(trim ? all.get(i).stripTrailing() : all.get(i));
         return Map.of("text", String.join("\n", rows), "lines", new ArrayList<Object>(rows));
     }
 
+    /** Earlier signature, kept for callers written before the row range options. */
+    public Map<String, Object> getScreen(ActionContext ctx, String session) { return getScreen(ctx, session, false, 1, 0); }
+
     @Action(id = "get_text", name = "Get text at position", category = "Terminal", idempotent = true, description = "Read text from a row and column for a given length.")
-    @Output(name = "text", type = OoaType.STRING, description = "Text (trimmed).")
+    @Output(name = "text", type = OoaType.STRING, description = "Text (trimmed unless trim is off).")
     public Map<String, Object> getText(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, description = "Row (1-based).") int row,
             @Input(name = "column", type = OoaType.NUMBER, description = "Column (1-based).") int col,
             @Input(name = "length", type = OoaType.NUMBER, description = "Number of characters.") int len,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove leading and trailing spaces.") boolean trim) {
+        if (row < 1 || col < 1 || len < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row, column and length start at 1");
         List<String> d = s(ctx, session).cmd("Ascii(" + (row - 1) + "," + (col - 1) + "," + len + ")");
-        return Map.of("text", String.join("", d).strip());
+        String v = String.join("", d);
+        return Map.of("text", trim ? v.strip() : v);
     }
 
-    @Action(id = "wait_for_text", name = "Wait for text", category = "Terminal", timeoutSeconds = 600, description = "Wait until text appears anywhere on the screen.")
+    /** Earlier signature, kept for callers written before the trim option. */
+    public Map<String, Object> getText(ActionContext ctx, int row, int col, int len, String session) { return getText(ctx, row, col, len, session, true); }
+
+    @Action(id = "wait_for_text", name = "Wait for text", category = "Terminal", timeoutSeconds = 600, description = "Wait until text appears (or disappears) on the screen or at a position.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the condition was met in time (false only when fail_on_timeout is off).")
     public Map<String, Object> waitForText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to wait for.") String text,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait.") double timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Only look at text starting at this row (1-based); anywhere when empty.") Integer row,
+            @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column (1-based) of that position.") Integer col,
+            @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Match upper and lower case exactly.") boolean cs,
+            @Input(name = "wait_until_gone", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait until the text is no longer shown, e.g. a PLEASE WAIT message.") boolean gone,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop with an error on timeout; when off, found is false instead.") boolean failOnTimeout,
+            @Input(name = "poll_interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "How often to look at the screen.") int poll) {
         Session t = s(ctx, session);
+        if (row != null && (row < 1 || col == null || col < 1)) throw new ActionException("TERMINAL.BAD_POSITION", "Give both row and column, starting at 1");
+        String want = cs ? text : text.toLowerCase(Locale.ROOT);
         long end = System.nanoTime() + (long) (timeout * 1e9);
-        while (!String.join("\n", t.cmd("Ascii()")).contains(text)) {
-            if (System.nanoTime() > end) throw new ActionException("TERMINAL.TEXT_NOT_FOUND", "'" + text + "' did not appear within " + timeout + " s", "Check the previous step reached the expected screen.", true);
-            ctx.checkCancelled();
-            try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        while (true) {
+            String shown = row != null ? String.join("", t.cmd("Ascii(" + (row - 1) + "," + (col - 1) + "," + Math.max(1, text.length()) + ")")) : String.join("\n", t.cmd("Ascii()"));
+            if (!cs) shown = shown.toLowerCase(Locale.ROOT);
+            boolean present = row != null ? shown.startsWith(want) : shown.contains(want);
+            if (present != gone) return Map.of("found", true);
+            if (System.nanoTime() > end) {
+                if (!failOnTimeout) return Map.of("found", false);
+                throw new ActionException("TERMINAL.TEXT_NOT_FOUND", "'" + text + "' did not " + (gone ? "disappear" : "appear") + " within " + timeout + " s", "Check the previous step reached the expected screen.", true);
+            }
+            HttpJson.pause(ctx, Math.max(50, Math.min(poll, 10_000)));
         }
-        return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the position and timeout options. */
+    public Map<String, Object> waitForText(ActionContext ctx, String text, double timeout, String session) {
+        return waitForText(ctx, text, timeout, session, null, null, true, false, true, 500);
+    }
+
+    @Action(id = "wait", name = "Wait for screen", category = "Terminal", timeoutSeconds = 600,
+            description = "Wait until the host unlocks the keyboard, shows an input field, changes the screen, or a number of seconds passes.")
+    @Output(name = "met", type = OoaType.BOOLEAN, description = "True when the condition was met in time (false only when fail_on_timeout is off).")
+    public Map<String, Object> waitFor(ActionContext ctx,
+            @Input(name = "condition", type = OoaType.STRING, required = false, defaultValue = "\"input_field\"",
+                    enumValues = {"input_field", "unlock", "screen_change", "screen_blank", "cursor_at", "cursor_leaves", "seconds"},
+                    description = "input_field: a typeable field is shown; unlock: keyboard unlocked (terminal ready); screen_change: the host sends new output; "
+                            + "screen_blank: the screen is empty; cursor_at / cursor_leaves: the cursor reaches or leaves row and column; seconds: just pause.") String condition,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait (the pause length for seconds).") int timeout,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop with an error on timeout; when off, met is false instead.") boolean failOnTimeout,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row (1-based) for cursor_at and cursor_leaves.") Integer row,
+            @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column (1-based) for cursor_at and cursor_leaves.") Integer col) {
+        Session t = s(ctx, session);
+        String c = condition == null ? "input_field" : condition;
+        if (timeout < 1 || timeout > 3600) throw new ActionException("TERMINAL.BAD_TIMEOUT", "The timeout must be between 1 and 3600 seconds");
+        if (Set.of("screen_blank", "cursor_at", "cursor_leaves").contains(c)) {
+            if (!c.equals("screen_blank") && (row == null || col == null || row < 1 || col < 1))
+                throw new ActionException("TERMINAL.NO_POSITION", "Give the row and column for " + c, "Rows and columns start at 1.");
+            long end = System.nanoTime() + timeout * 1_000_000_000L;
+            while (true) {
+                boolean met;
+                if (c.equals("screen_blank")) met = String.join("", t.cmd("Ascii()")).isBlank();
+                else {
+                    int[] cur = cursor(t);
+                    boolean at = cur[0] == row && cur[1] == col;
+                    met = c.equals("cursor_at") == at;
+                }
+                if (met) return Map.of("met", true);
+                if (System.nanoTime() > end) {
+                    if (!failOnTimeout) return Map.of("met", false);
+                    throw new ActionException("TERMINAL.WAIT_TIMEOUT", "The condition " + c + " was not met within " + timeout + " s", "Check the previous step reached the expected screen.", true);
+                }
+                HttpJson.pause(ctx, 250);
+            }
+        }
+        String what = switch (c) {
+            case "input_field" -> "InputField"; case "unlock" -> "Unlock"; case "screen_change" -> "Output"; case "seconds" -> "Seconds";
+            default -> throw new ActionException("TERMINAL.BAD_CONDITION", "Unknown condition '" + condition + "'", "Use input_field, unlock, screen_change, screen_blank, cursor_at, cursor_leaves or seconds.");
+        };
+        try { t.cmd("Wait(" + timeout + "," + what + ")"); }
+        catch (ActionException e) {
+            if (failOnTimeout || !"TERMINAL.COMMAND_FAILED".equals(e.code())) throw e;
+            return Map.of("met", false);
+        }
+        return Map.of("met", true);
+    }
+
+    /** Cursor position, 1-based {row, column}, from the engine's Query(Cursor). */
+    static int[] cursor(Session t) {
+        List<String> d = t.cmd("Query(Cursor)");
+        String[] p = String.join(" ", d).trim().split("\\s+");
+        try { return new int[]{Integer.parseInt(p[0]) + 1, Integer.parseInt(p[1]) + 1}; }
+        catch (RuntimeException e) { throw new ActionException("TERMINAL.NO_CURSOR", "The engine did not report a cursor position: " + String.join(" ", d), "Check the session is connected."); }
     }
 
     @Action(id = "disconnect", name = "Disconnect", category = "Terminal", description = "Disconnect and close the terminal.")
@@ -160,9 +319,17 @@ public final class TerminalPackage {
         return switch (k) {
             case "ENTER" -> "Enter"; case "TAB" -> "Tab"; case "BACKTAB" -> "BackTab"; case "CLEAR" -> "Clear";
             case "RESET" -> "Reset"; case "ERASEEOF" -> "EraseEOF"; case "HOME" -> "Home";
+            case "ERASEINPUT" -> "EraseInput"; case "NEWLINE" -> "Newline"; case "UP" -> "Up"; case "DOWN" -> "Down";
+            case "LEFT" -> "Left"; case "RIGHT" -> "Right"; case "BACKSPACE" -> "BackSpace"; case "DELETE" -> "Delete";
+            case "INSERT" -> "Insert"; case "FIELDEND" -> "FieldEnd"; case "DUP" -> "Dup"; case "FIELDMARK" -> "FieldMark";
+            case "ATTN" -> "Attn"; case "SYSREQ" -> "SysReq";
             default -> throw new ActionException("TERMINAL.BAD_KEY", "Unknown key '" + key + "'", "Use Enter, Tab, Clear, PF1-PF24 or PA1-PA3, or a name set with Set key mapping.");
         };
     }
+
+    /** Keys handled by the terminal itself; nothing is sent to the host, so there is nothing to wait for. */
+    static final Set<String> LOCAL_KEYS = Set.of("Tab", "BackTab", "Home", "EraseEOF", "EraseInput", "Newline", "Up", "Down", "Left", "Right",
+            "BackSpace", "Delete", "Insert", "FieldEnd", "Dup", "FieldMark");
 
     /** One 3270 field: position of its first character (1-based), length and attribute flags. */
     record Field(int index, int row, int column, int length, boolean isProtected, boolean numeric, boolean hidden, String text) {
@@ -274,51 +441,93 @@ public final class TerminalPackage {
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row of any position in the field (1-based).") Integer row,
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column of that position (1-based).") Integer col,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Label text shown before the field; used instead of row and column.") String label,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields (1-based); used instead of position or label.") Integer index) {
         List<String> buf = buffer(s(ctx, session));
-        Field f = locate(parseFields(buf), columns(buf), buf.size(), row, col, label, false);
+        Field f = index != null ? byIndex(parseFields(buf), index) : locate(parseFields(buf), columns(buf), buf.size(), row, col, label, false);
         Map<String, Object> m = f.asMap(false);
         return Map.of("text", m.get("text"), "field", m);
     }
 
-    @Action(id = "set_field", name = "Set field", category = "Fields", description = "Replace the contents of an input field, found by position or by its label; Credentials are typed without being logged.")
+    /** Earlier signature, kept for callers written before the index option. */
+    public Map<String, Object> getField(ActionContext ctx, Integer row, Integer col, String label, String session) { return getField(ctx, row, col, label, session, null); }
+
+    static Field byIndex(List<Field> fields, int index) {
+        if (index < 1 || index > fields.size()) throw new ActionException("TERMINAL.FIELD_NOT_FOUND", "There is no field number " + index + " (the screen has " + fields.size() + ")", "Use Get all fields to see the field numbers.");
+        return fields.get(index - 1);
+    }
+
+    @Action(id = "set_field", name = "Set field", category = "Fields", timeoutSeconds = 120, description = "Replace the contents of an input field, found by position, label or field number; Credentials are typed without being logged.")
     public Map<String, Object> setField(ActionContext ctx,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row of any position in the field (1-based).") Integer row,
             @Input(name = "column", type = OoaType.NUMBER, required = false, description = "Column of that position (1-based).") Integer col,
             @Input(name = "label", type = OoaType.STRING, required = false, description = "Label text shown before the field; the next input field after it is used.") String label,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Field number as listed by Get all fields (1-based); used instead of position or label.") Integer index,
+            @Input(name = "press_key", type = OoaType.STRING, required = false, example = "Enter", description = "Key to press after filling the field; none when empty.") String pressKey,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = D_WAIT) int timeout) {
         Session t = s(ctx, session);
         List<String> buf = buffer(t);
-        Field f = locate(parseFields(buf), columns(buf), buf.size(), row, col, label, true);
+        Field f = index != null ? byIndex(parseFields(buf), index) : locate(parseFields(buf), columns(buf), buf.size(), row, col, label, true);
         if (f.isProtected()) throw new ActionException("TERMINAL.PROTECTED_FIELD", "The field at row " + f.row() + ", column " + f.column() + " cannot be typed into", "Pick an input field; Get all fields shows which are protected.");
         String v = text instanceof SecureString ss ? ss.reveal() : com.oneofficeautomation.runner.Values.text(text);
         if (v.length() > f.length()) throw new ActionException("TERMINAL.TOO_LONG", "The value has " + v.length() + " characters but the field holds " + f.length(), "Shorten the value.");
         t.cmd("MoveCursor(" + (f.row() - 1) + "," + (f.column() - 1) + ")");
         t.cmd("EraseEOF");
         if (!v.isEmpty()) t.cmd("String(" + quote(v) + ")");
+        if (pressKey != null && !pressKey.isBlank()) press(t, pressKey, true, timeout);
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before the index and press_key options. */
+    public Map<String, Object> setField(ActionContext ctx, Object text, Integer row, Integer col, String label, String session) {
+        return setField(ctx, text, row, col, label, session, null, null, 30);
     }
 
     @Action(id = "search_field", name = "Find text on screen", category = "Fields", idempotent = true, description = "Find where a piece of text appears on the screen.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the text was found.")
     @Output(name = "row", type = OoaType.NUMBER, description = "Row of the first character (0 when not found).")
     @Output(name = "column", type = OoaType.NUMBER, description = "Column of the first character (0 when not found).")
+    @Output(name = "field_index", type = OoaType.NUMBER, description = "Number of the field holding the match, as in Get all fields (0 when not found or the screen has no fields).")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many times the text appears on the screen.")
     public Map<String, Object> searchField(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to look for.") String text,
             @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which match to return when the text appears more than once.") int occurrence,
             @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Match upper and lower case exactly.") boolean cs,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
-        List<String> lines = s(ctx, session).cmd("Ascii()");
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
+            @Input(name = "whole_field", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only match a field whose whole (trimmed) text equals the search text.") boolean wholeField) {
+        Session t = s(ctx, session);
+        java.math.BigDecimal zero = java.math.BigDecimal.ZERO;
+        if (wholeField) {
+            List<String> buf = buffer(t);
+            int seen = 0, total = 0; Field hit = null;
+            for (Field f : parseFields(buf)) {
+                String v = f.hidden() ? "" : f.text().strip();
+                if (cs ? v.equals(text) : v.equalsIgnoreCase(text)) { total++; if (++seen == Math.max(1, occurrence)) hit = f; }
+            }
+            if (hit == null) return Map.of("found", false, "row", zero, "column", zero, "field_index", zero, "count", java.math.BigDecimal.valueOf(total));
+            int lead = hit.text().length() - hit.text().stripLeading().length();
+            return Map.of("found", true, "row", java.math.BigDecimal.valueOf(hit.row()), "column", java.math.BigDecimal.valueOf(hit.column() + lead),
+                    "field_index", java.math.BigDecimal.valueOf(hit.index()), "count", java.math.BigDecimal.valueOf(total));
+        }
+        List<String> lines = t.cmd("Ascii()");
         String want = cs ? text : text.toLowerCase(Locale.ROOT);
-        int seen = 0;
+        int seen = 0, hr = 0, hc = 0;
         for (int r = 0; r < lines.size(); r++) {
             String line = cs ? lines.get(r) : lines.get(r).toLowerCase(Locale.ROOT);
             for (int i = line.indexOf(want); i >= 0 && !want.isEmpty(); i = line.indexOf(want, i + 1))
-                if (++seen == Math.max(1, occurrence)) return Map.of("found", true, "row", java.math.BigDecimal.valueOf(r + 1), "column", java.math.BigDecimal.valueOf(i + 1));
+                if (++seen == Math.max(1, occurrence)) { hr = r + 1; hc = i + 1; }
         }
-        return Map.of("found", false, "row", java.math.BigDecimal.ZERO, "column", java.math.BigDecimal.ZERO);
+        if (hr == 0) return Map.of("found", false, "row", zero, "column", zero, "field_index", zero, "count", java.math.BigDecimal.valueOf(seen));
+        int idx = 0;
+        try { List<String> buf = buffer(t); idx = locate(parseFields(buf), columns(buf), buf.size(), hr, hc, null, false).index(); }
+        catch (ActionException ignored) { /* unformatted screen: no field number */ }
+        return Map.of("found", true, "row", java.math.BigDecimal.valueOf(hr), "column", java.math.BigDecimal.valueOf(hc), "field_index", java.math.BigDecimal.valueOf(idx), "count", java.math.BigDecimal.valueOf(seen));
     }
+
+    /** Earlier signature, kept for callers written before the whole_field option. */
+    public Map<String, Object> searchField(ActionContext ctx, String text, int occurrence, boolean cs, String session) { return searchField(ctx, text, occurrence, cs, session, false); }
 
     @Action(id = "set_cursor", name = "Set cursor", category = "Terminal", description = "Move the cursor to a row and column.")
     public Map<String, Object> setCursor(ActionContext ctx,
@@ -328,6 +537,15 @@ public final class TerminalPackage {
         if (row < 1 || col < 1) throw new ActionException("TERMINAL.BAD_POSITION", "Row and column start at 1");
         s(ctx, session).cmd("MoveCursor(" + (row - 1) + "," + (col - 1) + ")");
         return Map.of();
+    }
+
+    @Action(id = "get_cursor", name = "Get cursor position", category = "Terminal", idempotent = true, description = "Read the row and column where the cursor is.")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Cursor row (1-based).")
+    @Output(name = "column", type = OoaType.NUMBER, description = "Cursor column (1-based).")
+    public Map<String, Object> getCursor(ActionContext ctx,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session) {
+        int[] c = cursor(s(ctx, session));
+        return Map.of("row", java.math.BigDecimal.valueOf(c[0]), "column", java.math.BigDecimal.valueOf(c[1]));
     }
 
     @Action(id = "clear_screen", name = "Clear screen", category = "Terminal", timeoutSeconds = 120, description = "Erase all input fields locally, or send the Clear key to the host.")

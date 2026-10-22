@@ -14,16 +14,29 @@ public final class NetworkPackage {
 
     @Action(id = "ping", name = "Ping", category = "Network", idempotent = true, capabilities = "network", description = "Check whether a host answers, and how fast.")
     @Output(name = "reachable", type = OoaType.BOOLEAN, description = "True when the host answered.")
-    @Output(name = "response_ms", type = OoaType.NUMBER, description = "Round-trip time in milliseconds.")
+    @Output(name = "response_ms", type = OoaType.NUMBER, description = "Round-trip time in milliseconds (the average of the answered attempts).")
+    @Output(name = "replies", type = OoaType.NUMBER, description = "How many attempts were answered.")
+    @Output(name = "lost", type = OoaType.NUMBER, description = "How many attempts got no answer.")
     public Map<String, Object> ping(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "Timeout in milliseconds.") int timeout) {
-        long t0 = System.nanoTime();
-        boolean ok;
-        try { ok = InetAddress.getByName(host).isReachable(timeout); }
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "Timeout in milliseconds.") int timeout,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Number of attempts (1 to 100); reachable is true when any is answered.") int count,
+            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Pause between attempts.") int interval) {
+        InetAddress addr;
+        try { addr = InetAddress.getByName(host); }
         catch (UnknownHostException e) { throw new ActionException("NETWORK.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
-        catch (IOException e) { ok = false; }
-        return Out.of("reachable", ok, "response_ms", BigDecimal.valueOf((System.nanoTime() - t0) / 1_000_000));
+        int n = Math.max(1, Math.min(100, count)), replies = 0;
+        long total = 0, last = 0;
+        for (int i = 0; i < n; i++) {
+            if (i > 0) { ctx.checkCancelled(); try { Thread.sleep(Math.max(0, Math.min(60_000, interval))); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; } }
+            long t0 = System.nanoTime();
+            boolean ok;
+            try { ok = addr.isReachable(timeout); } catch (IOException e) { ok = false; }
+            last = (System.nanoTime() - t0) / 1_000_000;
+            if (ok) { replies++; total += last; }
+        }
+        return Out.of("reachable", replies > 0, "response_ms", BigDecimal.valueOf(replies > 0 ? total / replies : last),
+                "replies", BigDecimal.valueOf(replies), "lost", BigDecimal.valueOf(n - replies));
     }
 
     @Action(id = "check_port", name = "Check port", category = "Network", idempotent = true, capabilities = "network",
@@ -263,9 +276,25 @@ public final class NetworkPackage {
         private static final java.security.SecureRandom IDS = new java.security.SecureRandom();
 
         /** Sends one request and waits for the matching response, retrying on timeout. */
+        static final int VERSION_1 = 0;
+
+        static int version(String v) {
+            return switch (v == null || v.isBlank() ? "v2c" : v.strip().toLowerCase(Locale.ROOT)) {
+                case "v1", "1" -> VERSION_1;
+                case "v2c", "2c", "2" -> VERSION_2C;
+                default -> throw new ActionException("SNMP.BAD_VERSION", "Unsupported SNMP version '" + v + "'", "Use v1 or v2c; SNMP v3 is not supported yet.");
+            };
+        }
+
         static Message request(ActionContext ctx, String host, int port, String community, int pduType, List<VarBind> vars, int timeoutMs, int retries) {
+            return request(ctx, host, port, community, pduType, vars, timeoutMs, retries, VERSION_2C);
+        }
+
+        static Message request(ActionContext ctx, String host, int port, String community, int pduType, List<VarBind> vars, int timeoutMs, int retries, int version) {
+            if (version == VERSION_1) for (VarBind vb : vars) if (vb.type() == COUNTER64)
+                throw new ActionException("SNMP.BAD_TYPE", "counter64 values need SNMP v2c", "Use version v2c.");
             int reqId = IDS.nextInt(Integer.MAX_VALUE);
-            byte[] out = encode(new Message(VERSION_2C, community, pduType, reqId, 0, 0, vars));
+            byte[] out = encode(new Message(version, community, pduType, reqId, 0, 0, vars));
             InetAddress addr;
             try { addr = InetAddress.getByName(host); }
             catch (UnknownHostException e) { throw new ActionException("SNMP.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
@@ -341,12 +370,13 @@ public final class NetworkPackage {
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries) {
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         List<String> list = HttpJson.addressList(oids);
         if (list.isEmpty()) throw new ActionException("SNMP.BAD_OID", "Give at least one OID", "For example 1.3.6.1.2.1.1.5.0 (device name).");
         List<Snmp.VarBind> vars = new ArrayList<>();
         for (String o : list) { Snmp.parseOid(o); vars.add(new Snmp.VarBind(o.startsWith(".") ? o.substring(1) : o, Snmp.NULL, null)); }
-        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GET, vars, timeout, retries);
+        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GET, vars, timeout, retries, Snmp.version(version));
         Map<String, Object> values = new LinkedHashMap<>();
         List<Object> rows = new ArrayList<>();
         for (Snmp.VarBind vb : m.vars()) { values.put(vb.oid(), vb.value()); rows.add(new ArrayList<>(row(vb).values())); }
@@ -364,9 +394,10 @@ public final class NetworkPackage {
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries) {
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         Snmp.parseOid(oid);
-        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GETNEXT, List.of(new Snmp.VarBind(oid, Snmp.NULL, null)), timeout, retries);
+        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GETNEXT, List.of(new Snmp.VarBind(oid, Snmp.NULL, null)), timeout, retries, Snmp.version(version));
         if (m.vars().isEmpty()) throw Snmp.bad("the answer has no values");
         return row(m.vars().get(0));
     }
@@ -382,15 +413,22 @@ public final class NetworkPackage {
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "10000", description = "Safety limit on objects read.") int maxRows,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries) {
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         Snmp.parseOid(oid);
         String root = oid.strip().startsWith(".") ? oid.strip().substring(1) : oid.strip();
         String c = community(community);
+        int ver = Snmp.version(version);
         List<Object> rows = new ArrayList<>();
         String current = root;
         while (rows.size() < Math.max(1, maxRows)) {
             ctx.checkCancelled();
-            Snmp.Message m = Snmp.request(ctx, host, port, c, Snmp.GETNEXT, List.of(new Snmp.VarBind(current, Snmp.NULL, null)), timeout, retries);
+            Snmp.Message m;
+            try { m = Snmp.request(ctx, host, port, c, Snmp.GETNEXT, List.of(new Snmp.VarBind(current, Snmp.NULL, null)), timeout, retries, ver); }
+            catch (ActionException e) {
+                if (ver == Snmp.VERSION_1 && "SNMP.ERROR".equals(e.code()) && e.getMessage().contains("noSuchName")) break;  // v1 ends a walk this way
+                throw e;
+            }
             if (m.vars().isEmpty()) break;
             Snmp.VarBind vb = m.vars().get(0);
             if (vb.type() == Snmp.END_OF_MIB || !(vb.oid().equals(root) || vb.oid().startsWith(root + ".")) || vb.oid().equals(current)) break;
@@ -412,12 +450,13 @@ public final class NetworkPackage {
             @Input(name = "community", required = false, defaultValue = "\"private\"", description = "SNMP v2c community with write access (text or a Credential).") Object community,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries) {
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         Snmp.parseOid(oid);
         int t = Snmp.typeCode(type);
         Object v = value instanceof SecureString s ? s.reveal() : com.oneofficeautomation.runner.Values.text(value);
         Snmp.value(t, v);  // validates before anything is sent
-        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.SET, List.of(new Snmp.VarBind(oid, t, v)), timeout, retries);
+        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.SET, List.of(new Snmp.VarBind(oid, t, v)), timeout, retries, Snmp.version(version));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("value", m.vars().isEmpty() ? null : m.vars().get(0).value());
         return out;

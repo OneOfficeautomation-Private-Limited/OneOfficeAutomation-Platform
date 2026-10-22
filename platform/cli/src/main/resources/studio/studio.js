@@ -958,7 +958,9 @@ function acc(title, nodes, open) {
 // ---------- condition builder (If, Else if, Wait until, Loop while) ----------
 const OPS = [["eq", "equals"], ["ne", "does not equal"], ["gt", "is greater than"], ["ge", "is greater than or equal to"], ["lt", "is less than"],
   ["le", "is less than or equal to"], ["contains", "contains"], ["notContains", "does not contain"], ["startsWith", "starts with"],
-  ["endsWith", "ends with"], ["matches", "matches pattern (regex)"], ["empty", "is empty"], ["notEmpty", "is not empty"], ["in", "is one of (list)"]];
+  ["notStartsWith", "does not start with"], ["endsWith", "ends with"], ["notEndsWith", "does not end with"], ["matches", "matches pattern (regex)"],
+  ["notMatches", "does not match pattern"], ["empty", "is empty"], ["notEmpty", "is not empty"], ["in", "is one of (list)"], ["notIn", "is not one of (list)"],
+  ["between", "is between [low, high]"], ["notBetween", "is not between [low, high]"]];
 
 function conditionCatalog() {
   const out = [];

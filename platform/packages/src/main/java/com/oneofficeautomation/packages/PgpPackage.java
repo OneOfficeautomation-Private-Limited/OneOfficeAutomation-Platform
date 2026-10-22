@@ -72,12 +72,63 @@ public final class PgpPackage {
     public Map<String, Object> encrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to encrypt.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted file to create, e.g. report.csv.pgp.") String target,
-            @Input(name = "recipients", description = "Recipient key ids, fingerprints or email addresses (text or List).") Object recipients,
+            @Input(name = "recipients", required = false, description = "Recipient key ids, fingerprints or email addresses (text or List); may be empty when public_key_file is given.") Object recipients,
             @Input(name = "armor", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "ASCII-armored output (text) instead of binary.") boolean armor,
-            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home,
+            @Input(name = "public_key_file", type = OoaType.FILE, required = false, description = "Recipient's public key file (.asc or .gpg) to encrypt for, without importing it into a keyring first.") String publicKeyFile,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) {
+        if (!overwrite && Files.exists(ctx.resolvePath(target))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(target), "Set overwrite to true or choose another name.");
+        KeyHome kh = keyHome(ctx, home, publicKeyFile, null);
+        try {
+            return encryptWith(ctx, path, target, recipients, armor, kh);
+        } finally { kh.close(ctx); }
+    }
+
+    /** A keyring for one step: the given home, or a temporary one when a key file is used without a home. */
+    record KeyHome(String home, List<String> fingerprints, Path temp) {
+        void close(ActionContext ctx) {
+            if (temp == null) return;
+            try { ProcessRunner.run(ctx, List.of(gpgconf(), "--homedir", temp.toString(), "--kill", "gpg-agent"), null, null, 20); } catch (RuntimeException ignored) { }
+            try (java.util.stream.Stream<Path> w = Files.walk(temp)) { for (Path x : w.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(x); }
+            catch (java.io.IOException ignored) { }
+        }
+    }
+
+    static String gpgconf() {
+        String gpg = exe();
+        Path p = Path.of(gpg);
+        if (p.getParent() != null) {
+            Path c = p.resolveSibling(ProcessRunner.WINDOWS ? "gpgconf.exe" : "gpgconf");
+            if (Files.isRegularFile(c)) return c.toString();
+        }
+        return "gpgconf";
+    }
+
+    private KeyHome keyHome(ActionContext ctx, String home, String keyFile, Object pass) {
+        if (keyFile == null || keyFile.isBlank()) return new KeyHome(home, List.of(), null);
+        Path temp = null;
+        String h = home;
+        if (h == null || h.isBlank()) {
+            try { temp = Files.createTempDirectory("ooa-gpg-"); } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+            h = temp.toString();
+        }
+        try {
+            @SuppressWarnings("unchecked") List<Object> f = (List<Object>) importKey(ctx, keyFile, pass, h).get("fingerprints");
+            List<String> fprs = new ArrayList<>();
+            for (Object o : f) fprs.add(String.valueOf(o));
+            return new KeyHome(h, fprs, temp);
+        } catch (RuntimeException e) {
+            new KeyHome(h, List.of(), temp).close(ctx);
+            throw e;
+        }
+    }
+
+    private Map<String, Object> encryptWith(ActionContext ctx, String path, String target, Object recipients, boolean armor, KeyHome kh) {
+        String home = kh.home();
         List<String> args = new ArrayList<>(List.of("--trust-model", "always"));
-        List<String> rc = HttpJson.addressList(recipients);
-        if (rc.isEmpty()) throw new ActionException("PGP.NO_RECIPIENT", "Give at least one recipient");
+        List<String> rc = new ArrayList<>(recipients == null ? List.of() : HttpJson.addressList(recipients));
+        rc.addAll(kh.fingerprints());
+        if (rc.isEmpty()) throw new ActionException("PGP.NO_RECIPIENT", "Give at least one recipient", "Fill in recipients or public_key_file.");
         for (String r : rc) { if (r.startsWith("-")) throw new ActionException("PGP.BAD_RECIPIENT", "Invalid recipient '" + r + "'"); args.addAll(List.of("-r", r)); }
         if (armor) args.add("--armor");
         args.addAll(List.of("-o", out(ctx, target), "-e", file(ctx, path)));
@@ -91,7 +142,15 @@ public final class PgpPackage {
             @Input(name = "path", type = OoaType.FILE, description = "Encrypted file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Decrypted file to create.") String target,
             @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false, description = "Private key passphrase from the vault.") Object pass,
-            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home) {
+            @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home,
+            @Input(name = "private_key_file", type = OoaType.FILE, required = false, description = "Private key file (.asc or .gpg) to decrypt with, without importing it into a keyring first.") String privateKeyFile,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) {
+        if (!overwrite && Files.exists(ctx.resolvePath(target))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(target), "Set overwrite to true or choose another name.");
+        KeyHome kh = keyHome(ctx, home, privateKeyFile, pass);
+        try { return decryptWith(ctx, path, target, pass, kh.home()); } finally { kh.close(ctx); }
+    }
+
+    private Map<String, Object> decryptWith(ActionContext ctx, String path, String target, Object pass, String home) {
         List<String> args = new ArrayList<>(List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0", "-o", out(ctx, target), "-d", file(ctx, path)));
         ProcessRunner.Result r = gpg(ctx, home, args, pass instanceof SecureString s ? s.reveal() + "\n" : "\n");
         if (r.exitCode() != 0) {

@@ -155,6 +155,50 @@ public final class WorkloadPackage {
         return Map.of();
     }
 
+    /** "On hold" without an end date: deferred until far in the future, so only Update work item brings it back. */
+    static final String HOLD_FOREVER = "9999-12-31T23:59:59";
+
+    @Action(id = "update_item", name = "Update work item", category = "Item",
+            description = "Change the fields of a work item and optionally send it back for processing or put it on hold (until a time or indefinitely).")
+    @Output(name = "status", type = OoaType.STRING, description = "The item's status after the change.")
+    public Map<String, Object> updateItem(ActionContext ctx,
+            @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
+            @Input(name = "data", type = OoaType.DICTIONARY, required = false, description = "Fields to change; other fields keep their values unless replace_data is on.") Map<String, Object> data,
+            @Input(name = "replace_data", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace all fields with data instead of merging.") boolean replace,
+            @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"unchanged\"", enumValues = {"unchanged", "reprocess", "on_hold"},
+                    description = "reprocess: back to new so it is taken again (attempts restart); on_hold: put aside until on_hold_until, or until changed again.") String status,
+            @Input(name = "on_hold_until", type = OoaType.DATETIME, required = false, description = "When an on-hold item becomes available again (UTC); held indefinitely when empty.") LocalDateTime until,
+            @Input(name = "result", type = OoaType.DICTIONARY, required = false, description = "Result fields to keep with the item.") Map<String, Object> result) {
+        String st = status == null || status.isBlank() ? "unchanged" : status;
+        if (!Set.of("unchanged", "reprocess", "on_hold").contains(st)) throw new ActionException("QUEUE.BAD_STATUS", "Unknown status '" + status + "'", "Use unchanged, reprocess or on_hold.");
+        if (until != null && !st.equals("on_hold")) throw new ActionException("QUEUE.BAD_STATUS", "on_hold_until needs status on_hold");
+        if (until != null && until.isBefore(LocalDateTime.now(ZoneOffset.UTC))) throw new ActionException("QUEUE.BAD_TIME", "on_hold_until is in the past", "Give a future time (UTC).");
+        @SuppressWarnings("unchecked")
+        String after = update(ctx, queue, true, items -> {
+            Map<String, Object> it = find(items, id);
+            if (data != null) {
+                Map<String, Object> d = replace || !(it.get("data") instanceof Map) ? new LinkedHashMap<>() : new LinkedHashMap<>((Map<String, Object>) it.get("data"));
+                d.putAll((Map<String, Object>) Values.toJsonable(data));
+                it.put("data", d);
+            }
+            if (result != null) it.put("result", Values.toJsonable(result));
+            if (st.equals("reprocess")) { it.put("status", "new"); it.put("attempts", BigDecimal.ZERO); it.remove("defer_until"); it.remove("error"); }
+            if (st.equals("on_hold")) { it.put("status", "deferred"); it.put("defer_until", until == null ? HOLD_FOREVER : until.withNano(0).toString()); }
+            it.put("updated", now());
+            return String.valueOf(it.get("status"));
+        });
+        return Map.of("status", after);
+    }
+
+    @Action(id = "get_item", name = "Get work item", category = "Item", idempotent = true, description = "Read one work item's fields, status, attempts and result.")
+    @Output(name = "item", type = OoaType.DICTIONARY, description = "id, status, attempts, data, result, error, created, updated, defer_until.")
+    public Map<String, Object> getItem(ActionContext ctx,
+            @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
+            @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id) {
+        return Map.of("item", update(ctx, queue, false, items -> new LinkedHashMap<>(find(items, id))));
+    }
+
     @Action(id = "counts", name = "Get queue counts", category = "Queue", idempotent = true, description = "Count items by status.")
     @Output(name = "counts", type = OoaType.DICTIONARY, description = "new, in_progress, completed, failed, deferred, total.")
     public Map<String, Object> counts(ActionContext ctx, @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue) {

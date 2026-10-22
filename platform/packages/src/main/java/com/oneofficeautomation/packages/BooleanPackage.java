@@ -16,9 +16,14 @@ public final class BooleanPackage {
 
     @Action(id = "from_text", name = "Text to Boolean", category = "Boolean", idempotent = true, description = "Read true/false, yes/no, 1/0 (any case) from text.")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "Parsed value.")
-    public Map<String, Object> fromText(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text such as Yes or false.") String text) {
+    public Map<String, Object> fromText(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text such as Yes or false.") String text,
+            @Input(name = "strict", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Fail on text that is not a yes/no value; when off, such text (and empty text) gives false.") boolean strict) {
         try { return Map.of("result", Values.coerce(text, "Boolean", "text")); }
-        catch (OoaException e) { throw new ActionException("BOOLEAN.INVALID", "'" + text + "' is not a yes/no value", "Use true/false, yes/no or 1/0."); }
+        catch (OoaException e) {
+            if (!strict) return Map.of("result", false);
+            throw new ActionException("BOOLEAN.INVALID", "'" + text + "' is not a yes/no value", "Use true/false, yes/no or 1/0.");
+        }
     }
 
     @Action(id = "to_text", name = "Boolean to text", category = "Boolean", idempotent = true, description = "Turn a Boolean into custom text, e.g. Approved/Rejected.")
@@ -32,6 +37,7 @@ public final class BooleanPackage {
 
     @Action(id = "compare", name = "Compare", category = "Boolean", idempotent = true, description = "Check whether two true/false values are equal or not equal.")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "Result of the comparison.")
+    @Output(name = "order", type = OoaType.NUMBER, description = "Ordering of the two values: 1 when only the first is true, -1 when only the second is, 0 when equal.")
     public Map<String, Object> compare(ActionContext ctx,
             @Input(name = "value", type = OoaType.BOOLEAN, description = "First value.") boolean a,
             @Input(name = "other", type = OoaType.BOOLEAN, description = "Second value.") boolean b,
@@ -39,7 +45,7 @@ public final class BooleanPackage {
                     description = "equal or not_equal.") String op) {
         if (op != null && !op.equals("equal") && !op.equals("not_equal"))
             throw new ActionException("BOOLEAN.BAD_OPERATOR", "Unknown operator '" + op + "'", "Use equal or not_equal.");
-        return Map.of("result", "not_equal".equals(op) ? a != b : a == b);
+        return Map.of("result", "not_equal".equals(op) ? a != b : a == b, "order", java.math.BigDecimal.valueOf(Boolean.compare(a, b)));
     }
 
     @Action(id = "to_number", name = "Boolean to number", category = "Boolean", idempotent = true, description = "Turn true into 1 and false into 0.")

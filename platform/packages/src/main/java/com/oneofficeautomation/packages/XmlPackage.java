@@ -47,15 +47,50 @@ public final class XmlPackage {
         return path;
     }
 
+    /** Edits XML text (returned, and saved only to save_to) or a file (saved in place or to save_to); returns the new XML text. */
+    private static String edit(ActionContext ctx, String xml, String path, String saveTo, java.util.function.Consumer<Document> change) {
+        boolean text = xml != null && !xml.isBlank();
+        Document doc = XmlSupport.parse(text ? xml : source(ctx, null, needFile(path)), false);
+        change.accept(doc);
+        if (!text) save(ctx, doc, path, saveTo);
+        else if (saveTo != null && !saveTo.isBlank()) save(ctx, doc, null, saveTo);
+        return XmlSupport.write(doc, false);
+    }
+
+    /** Text, outer XML, an attribute or the XPath of a matched node. */
+    private static String describe(Node n, String attribute, String returnValue) {
+        if (attribute != null && !attribute.isBlank()) return n instanceof Element e && e.hasAttribute(attribute) ? e.getAttribute(attribute) : "";
+        return switch (returnValue == null ? "text" : returnValue) {
+            case "xml" -> XmlSupport.write(n, false);
+            case "xpath" -> xpathOf(n);
+            case "text" -> n.getTextContent();
+            default -> throw new ActionException("XML.BAD_OPTION", "Unknown return_value '" + returnValue + "'", "Use text, xml or xpath.");
+        };
+    }
+
+    static String xpathOf(Node n) {
+        if (n instanceof Attr a) return xpathOf(a.getOwnerElement()) + "/@" + a.getName();
+        StringBuilder sb = new StringBuilder();
+        for (Node cur = n; cur != null && cur.getNodeType() == Node.ELEMENT_NODE; cur = cur.getParentNode()) {
+            int i = 1;
+            for (Node s = cur.getPreviousSibling(); s != null; s = s.getPreviousSibling()) if (s.getNodeType() == Node.ELEMENT_NODE && s.getNodeName().equals(cur.getNodeName())) i++;
+            sb.insert(0, "/" + cur.getNodeName() + "[" + i + "]");
+        }
+        return sb.toString();
+    }
+
     @Action(id = "get_value", name = "Get single node", category = "XML", idempotent = true, description = "Return the text of the first node matching an XPath.")
     @Output(name = "value", type = OoaType.STRING, description = "Node text, empty when nothing matches.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a node matched.")
     public Map<String, Object> getValue(ActionContext ctx,
             @Input(name = "xpath", type = OoaType.STRING, example = "/invoice/total", description = "XPath expression.") String xpath,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
-            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path) {
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
+            @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Return this attribute of the node instead of its text.") String attribute,
+            @Input(name = "return_value", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "xml", "xpath"},
+                    description = "What to return: the node's text, its XML, or its exact XPath.") String returnValue) {
         NodeList n = select(XmlSupport.parse(source(ctx, xml, path), false), xpath);
-        return Out.of("value", n.getLength() > 0 ? n.item(0).getTextContent() : "", "found", n.getLength() > 0);
+        return Out.of("value", n.getLength() > 0 ? describe(n.item(0), attribute, returnValue) : "", "found", n.getLength() > 0);
     }
 
     @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true, description = "Return the text of every node matching an XPath.")
@@ -64,11 +99,26 @@ public final class XmlPackage {
     public Map<String, Object> getNodes(ActionContext ctx,
             @Input(name = "xpath", type = OoaType.STRING, example = "//line/sku", description = "XPath expression.") String xpath,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
-            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path) {
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
+            @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Return this attribute of each node instead of its text.") String attribute,
+            @Input(name = "return_value", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "xml", "xpath"},
+                    description = "What to return for each node: its text, its XML, or its exact XPath.") String returnValue) {
         NodeList n = select(XmlSupport.parse(source(ctx, xml, path), false), xpath);
         List<Object> out = new ArrayList<>();
-        for (int i = 0; i < n.getLength(); i++) out.add(n.item(i).getTextContent());
+        for (int i = 0; i < n.getLength(); i++) out.add(describe(n.item(i), attribute, returnValue));
         return Out.of("values", out, "count", BigDecimal.valueOf(out.size()));
+    }
+
+    @LoopIterator(id = "nodes", name = "Each node in XML", description = "Yield each node matching an XPath: its text, XML, XPath or an attribute.")
+    public Iterable<Object> nodes(ActionContext ctx,
+            @Input(name = "xpath", type = OoaType.STRING, example = "//line", description = "XPath expression.") String xpath,
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
+            @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Yield this attribute of each node instead of its text.") String attribute,
+            @Input(name = "return_value", type = OoaType.STRING, required = false, defaultValue = "\"text\"", enumValues = {"text", "xml", "xpath"},
+                    description = "What to yield for each node: its text, its XML, or its exact XPath.") String returnValue) {
+        @SuppressWarnings("unchecked") List<Object> values = (List<Object>) getNodes(ctx, xpath, xml, path, attribute, returnValue).get("values");
+        return values;
     }
 
     @Action(id = "to_dictionary", name = "Convert to dictionary", category = "XML", idempotent = true,
@@ -88,69 +138,115 @@ public final class XmlPackage {
         return Out.of("value", XmlSupport.toValue(e));
     }
 
-    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Set the text of every node matching an XPath and save the file.")
+    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Set the text (or an attribute) of every node matching an XPath, in a file or in XML text.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes changed.")
+    @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> setValue(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "XML file.") String path,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
             @Input(name = "xpath", type = OoaType.STRING, description = "XPath of the nodes to change.") String xpath,
             @Input(name = "value", type = OoaType.STRING, description = "New text.") String value,
-            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo) {
-        Document doc = XmlSupport.parse(source(ctx, null, needFile(path)), false);
-        NodeList n = select(doc, xpath);
-        for (int i = 0; i < n.getLength(); i++) n.item(i).setTextContent(value);
-        save(ctx, doc, path, saveTo);
-        return Out.of("count", BigDecimal.valueOf(n.getLength()));
+            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo,
+            @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Set this attribute (created when missing) instead of the node text.") String attribute,
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml) {
+        int[] count = {0};
+        String out = edit(ctx, xml, path, saveTo, doc -> {
+            NodeList n = select(doc, xpath);
+            count[0] = n.getLength();
+            try {
+                for (int i = 0; i < n.getLength(); i++) {
+                    if (attribute != null && !attribute.isBlank()) { if (n.item(i) instanceof Element e) e.setAttribute(attribute, value); }
+                    else n.item(i).setTextContent(value);
+                }
+            } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid attribute name: " + e.getMessage()); }
+        });
+        return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
 
-    @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add a child element (with text and attributes) under every node matching an XPath.")
+    @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element (with text and attributes) under, before or after every node matching an XPath.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Elements inserted.")
+    @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> insertNode(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "XML file.") String path,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
             @Input(name = "parent_xpath", type = OoaType.STRING, description = "XPath of the parent node(s).") String parentXpath,
             @Input(name = "name", type = OoaType.STRING, description = "Element name.") String name,
             @Input(name = "text", type = OoaType.STRING, required = false, description = "Element text.") String text,
             @Input(name = "attributes", type = OoaType.DICTIONARY, required = false, description = "Attributes to set.") Map<String, Object> attrs,
-            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo) {
-        Document doc = XmlSupport.parse(source(ctx, null, needFile(path)), false);
-        NodeList n = select(doc, parentXpath);
-        try {
-            for (int i = 0; i < n.getLength(); i++) {
-                Element el = doc.createElement(name);
-                if (text != null) el.setTextContent(text);
-                if (attrs != null) attrs.forEach((k, v) -> el.setAttribute(k, String.valueOf(v)));
-                n.item(i).appendChild(el);
-            }
-        } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid element or attribute name: " + e.getMessage()); }
-        save(ctx, doc, path, saveTo);
-        return Out.of("count", BigDecimal.valueOf(n.getLength()));
+            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo,
+            @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"end\"", enumValues = {"end", "start", "before", "after"},
+                    description = "end or start: last or first child of the matched node; before or after: next to the matched node, as its sibling.") String position,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"insert\"", enumValues = {"insert", "skip", "overwrite"},
+                    description = "When the parent already has a child with this name (end/start only): add another, skip, or replace the first one.") String ifExists,
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml) {
+        String pos = position == null ? "end" : position;
+        if (!List.of("end", "start", "before", "after").contains(pos)) throw new ActionException("XML.BAD_OPTION", "Unknown position '" + pos + "'", "Use end, start, before or after.");
+        int[] count = {0};
+        String out = edit(ctx, xml, path, saveTo, doc -> {
+            NodeList n = select(doc, parentXpath);
+            try {
+                for (int i = 0; i < n.getLength(); i++) {
+                    Node target = n.item(i);
+                    Element el = doc.createElement(name);
+                    if (text != null) el.setTextContent(text);
+                    if (attrs != null) attrs.forEach((k, v) -> el.setAttribute(k, String.valueOf(v)));
+                    if (pos.equals("before") || pos.equals("after")) {
+                        Node parent = target.getParentNode();
+                        if (parent == null || parent.getNodeType() == Node.DOCUMENT_NODE)
+                            throw new ActionException("XML.BAD_POSITION", "Cannot insert next to the root element", "Use position end or start, or point the XPath at a child node.");
+                        parent.insertBefore(el, pos.equals("before") ? target : target.getNextSibling());
+                        count[0]++;
+                        continue;
+                    }
+                    Element existing = null;
+                    for (Node c = target.getFirstChild(); c != null; c = c.getNextSibling()) if (c instanceof Element e && e.getNodeName().equals(name)) { existing = e; break; }
+                    if (existing != null && "skip".equals(ifExists)) continue;
+                    if (existing != null && "overwrite".equals(ifExists)) { target.replaceChild(el, existing); count[0]++; continue; }
+                    if (pos.equals("start")) target.insertBefore(el, target.getFirstChild()); else target.appendChild(el);
+                    count[0]++;
+                }
+            } catch (DOMException e) { throw new ActionException("XML.BAD_NAME", "Invalid element or attribute name: " + e.getMessage()); }
+        });
+        return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
 
-    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every node matching an XPath and save the file.")
-    @Output(name = "count", type = OoaType.NUMBER, description = "Nodes removed.")
+    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every node (or one attribute of every node) matching an XPath, in a file or in XML text.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Nodes (or attributes) removed.")
+    @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> deleteNodes(ActionContext ctx,
-            @Input(name = "path", type = OoaType.FILE, description = "XML file.") String path,
+            @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path,
             @Input(name = "xpath", type = OoaType.STRING, description = "XPath of the nodes to remove.") String xpath,
-            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo) {
-        Document doc = XmlSupport.parse(source(ctx, null, needFile(path)), false);
-        NodeList n = select(doc, xpath);
-        int count = n.getLength();
-        for (int i = 0; i < count; i++) {
-            Node node = n.item(i);
-            if (node instanceof Attr a) a.getOwnerElement().removeAttributeNode(a);
-            else if (node.getParentNode() != null) node.getParentNode().removeChild(node);
-        }
-        save(ctx, doc, path, saveTo);
-        return Out.of("count", BigDecimal.valueOf(count));
+            @Input(name = "save_to", type = OoaType.FILE, required = false, description = "Save to another file instead of overwriting.") String saveTo,
+            @Input(name = "attribute", type = OoaType.STRING, required = false, description = "Remove only this attribute from the matched elements, keeping the elements.") String attribute,
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml) {
+        int[] count = {0};
+        String out = edit(ctx, xml, path, saveTo, doc -> {
+            NodeList n = select(doc, xpath);
+            for (int i = 0; i < n.getLength(); i++) {
+                Node node = n.item(i);
+                if (attribute != null && !attribute.isBlank()) {
+                    if (node instanceof Element e && e.hasAttribute(attribute)) { e.removeAttribute(attribute); count[0]++; }
+                } else if (node instanceof Attr a) { a.getOwnerElement().removeAttributeNode(a); count[0]++; }
+                else if (node.getParentNode() != null) { node.getParentNode().removeChild(node); count[0]++; }
+            }
+        });
+        return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
 
-    @Action(id = "validate", name = "Validate against XSD", category = "XML", idempotent = true, description = "Check an XML document against an XSD schema; returns the result instead of failing.")
+    @Action(id = "validate", name = "Validate XML", category = "XML", idempotent = true,
+            description = "Check that an XML document is well-formed and, when an XSD schema is given, valid against it; returns the result instead of failing.")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the document is valid.")
     @Output(name = "errors", type = OoaType.LIST, description = "Validation errors with line numbers.")
     public Map<String, Object> validate(ActionContext ctx,
-            @Input(name = "xsd_path", type = OoaType.FILE, description = "XSD schema file.") String xsdPath,
+            @Input(name = "xsd_path", type = OoaType.FILE, required = false, description = "XSD schema file; without it only well-formedness is checked.") String xsdPath,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "XML file (or use xml).") String path) {
         String text = source(ctx, xml, path);
+        if (xsdPath == null || xsdPath.isBlank()) {
+            try { XmlSupport.parse(text, true); return Out.of("valid", true, "errors", new ArrayList<>()); }
+            catch (ActionException e) {
+                if ("XML.DTD_NOT_ALLOWED".equals(e.code())) throw e;
+                return Out.of("valid", false, "errors", new ArrayList<Object>(List.of(e.getMessage())));
+            }
+        }
         XmlSupport.parse(text, true);  // refuses DTDs/XXE before schema validation
         List<Object> errors = new ArrayList<>();
         try {

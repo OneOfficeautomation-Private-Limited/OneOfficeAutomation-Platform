@@ -38,6 +38,10 @@ public final class JnaDesktopEvents implements DesktopEvents {
         return first(pattern).map(w -> { User32.INSTANCE.ShowWindow(w.hwnd(), SW_RESTORE); User32.INSTANCE.SetForegroundWindow(w.hwnd()); return true; }).orElse(false);
     }
 
+    @Override public Optional<int[]> windowBounds(String pattern) {
+        return first(pattern).map(w -> { WinDef.RECT r = new WinDef.RECT(); User32.INSTANCE.GetWindowRect(w.hwnd(), r); return new int[]{r.left, r.top, r.right - r.left, r.bottom - r.top}; });
+    }
+
     /** Registers the hotkey on its own thread, which then runs the Win32 message loop that receives WM_HOTKEY. */
     @Override public AutoCloseable onHotkey(String combination, Runnable onPress) {
         HotkeyCombo hk = HotkeyCombo.parse(combination);

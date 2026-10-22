@@ -43,6 +43,11 @@ public final class Microsoft365Package {
             @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
             @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
+            @Input(name = "from", type = OoaType.STRING, required = false, example = "invoices@acme.com", description = "Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty.") String sendAs,
+            @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"low", "normal", "high"}, description = "Importance shown to the recipients.") String importance,
+            @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
+            @Input(name = "save_to_sent_items", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Keep a copy in Sent Items.") boolean saveSent,
+            @Input(name = "read_receipt", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ask for a receipt when the email is read.") boolean receipt,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
         Map<String, Object> msg = new LinkedHashMap<>();
@@ -64,7 +69,9 @@ public final class Microsoft365Package {
             }
             msg.put("attachments", atts);
         }
-        HttpJson.req(P, "POST", root(base, mailbox) + "/sendMail").bearer(token).json(Map.of("message", msg, "saveToSentItems", true)).send(ctx);
+        mailOptions(msg, importance, replyTo, sendAs);
+        if (receipt) msg.put("isReadReceiptRequested", true);
+        HttpJson.req(P, "POST", root(base, mailbox) + "/sendMail").bearer(token).json(Map.of("message", msg, "saveToSentItems", saveSent)).send(ctx);
         return Map.of();
     }
 
@@ -76,26 +83,31 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Folder id or well-known name: inbox, archive, sentitems, deleteditems.") String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
-            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text.") String subject,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Maximum emails.") int max,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the oldest emails first instead of the newest.") boolean oldestFirst,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("$top", Math.min(1000, Math.max(1, max * (from != null || subject != null ? 4 : 1))));
         q.put("$select", "id,subject,from,receivedDateTime,isRead,hasAttachments");
-        q.put("$orderby", "receivedDateTime desc");
-        if (unread) q.put("$filter", "isRead eq false");
+        q.put("$orderby", "receivedDateTime " + (oldestFirst ? "asc" : "desc"));
+        String filter = mailFilter(unread, readOnly, since, before, withAtts);
+        if (filter != null) q.put("$filter", filter);
         List<Object> rows = new ArrayList<>();
-        String url = root(base, mailbox) + "/mailFolders/" + HttpJson.enc(folder) + "/messages?" + HttpJson.query(q);
+        String url = root(base, mailbox) + "/mailFolders/" + HttpJson.enc(mailFolder(ctx, token, root(base, mailbox), folder)) + "/messages?" + HttpJson.query(q);
         while (url != null && rows.size() < max) {
             Map<String, Object> page = HttpJson.req(P, "GET", url).bearer(token).send(ctx).map();
             for (Object o : (List<?>) page.getOrDefault("value", List.of())) {
                 Map<?, ?> m = (Map<?, ?>) o;
                 String sender = m.get("from") instanceof Map<?, ?> f && f.get("emailAddress") instanceof Map<?, ?> ea ? String.valueOf(ea.get("address")) : "";
                 String subj = String.valueOf(m.get("subject") == null ? "" : m.get("subject"));
-                if (from != null && !sender.toLowerCase(Locale.ROOT).contains(from.toLowerCase(Locale.ROOT))) continue;
-                if (subject != null && !subj.toLowerCase(Locale.ROOT).contains(subject.toLowerCase(Locale.ROOT))) continue;
+                if (!anyContains(sender, from) || !anyContains(subj, subject)) continue;
                 rows.add(new ArrayList<>(Arrays.asList(m.get("id"), sender, subj, m.get("receivedDateTime"), !Boolean.TRUE.equals(m.get("isRead")), Boolean.TRUE.equals(m.get("hasAttachments")))));
                 if (rows.size() >= max) break;
             }
@@ -105,15 +117,18 @@ public final class Microsoft365Package {
     }
 
     @Action(id = "get_mail", name = "Read email (Outlook)", category = "Mail", capabilities = "network", description = "Read one email's details and body; optionally mark it read.")
-    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments.")
+    @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, subject, received, body, body_type, has_attachments, cc, bcc, reply_to, sent, importance, flag_status, categories, conversation_id, internet_message_id.")
     public Map<String, Object> getMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id from Find emails.") String id,
             @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Mark as read.") boolean markRead,
+            @Input(name = "body_as_text", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the body as plain text even when the email is HTML.") boolean asText,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
         String url = root(base, mailbox) + "/messages/" + HttpJson.enc(id);
-        Map<String, Object> m = HttpJson.req(P, "GET", url).bearer(token).send(ctx).map();
+        HttpJson.Req rq = HttpJson.req(P, "GET", url).bearer(token);
+        if (asText) rq.header("Prefer", "outlook.body-content-type=\"text\"");
+        Map<String, Object> m = rq.send(ctx).map();
         Map<String, Object> e = new LinkedHashMap<>();
         e.put("id", m.get("id"));
         e.put("from", m.get("from") instanceof Map<?, ?> f && f.get("emailAddress") instanceof Map<?, ?> ea ? ea.get("address") : "");
@@ -126,6 +141,15 @@ public final class Microsoft365Package {
         e.put("body", body.get("content"));
         e.put("body_type", body.get("contentType"));
         e.put("has_attachments", m.get("hasAttachments"));
+        e.put("cc", addressesOf(m.get("ccRecipients")));
+        e.put("bcc", addressesOf(m.get("bccRecipients")));
+        e.put("reply_to", addressesOf(m.get("replyTo")));
+        e.put("sent", m.get("sentDateTime"));
+        e.put("importance", m.get("importance"));
+        e.put("flag_status", at(m, "flag", "flagStatus"));
+        e.put("categories", new ArrayList<>(list(m.get("categories"))));
+        e.put("conversation_id", m.get("conversationId"));
+        e.put("internet_message_id", m.get("internetMessageId"));
         if (markRead && !Boolean.TRUE.equals(m.get("isRead"))) HttpJson.req(P, "PATCH", url).bearer(token).json(Map.of("isRead", true)).send(ctx);
         return Map.of("email", e);
     }
@@ -138,26 +162,65 @@ public final class Microsoft365Package {
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
             @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern.") String pattern,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
+            @Input(name = "include_inline", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also save images embedded in the body, such as signature logos.") boolean inline,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        Map<String, Object> page = HttpJson.req(P, "GET", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + "/attachments").bearer(token).send(ctx).map();
-        Path dir = ctx.resolvePath(target);
-        PathMatcher pm = FileSystems.getDefault().getPathMatcher("glob:" + pattern.toLowerCase(Locale.ROOT));
+        return Map.of("files", saveAtts(ctx, token, root(base, mailbox), id, ctx.resolvePath(target), pattern, overwrite, inline));
+    }
+
+    /** Saves the file attachments of one email whose names match the pattern. */
+    private static List<Object> saveAtts(ActionContext ctx, Object token, String mbRoot, String id, Path dir, String pattern, boolean overwrite, boolean inline) {
+        Map<String, Object> page = HttpJson.req(P, "GET", mbRoot + "/messages/" + HttpJson.enc(id) + "/attachments").bearer(token).send(ctx).map();
+        PathMatcher pm = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern).toLowerCase(Locale.ROOT));
         List<Object> saved = new ArrayList<>();
         try {
             Files.createDirectories(dir);
             for (Object o : (List<?>) page.getOrDefault("value", List.of())) {
                 Map<?, ?> a = (Map<?, ?>) o;
                 if (a.get("contentBytes") == null) continue;  // item or reference attachments are not files
+                if (!inline && Boolean.TRUE.equals(a.get("isInline"))) continue;
                 String name = HttpJson.safeName(String.valueOf(a.get("name")));
                 if (!pm.matches(Path.of(name.toLowerCase(Locale.ROOT)))) continue;
                 Path out = dir.resolve(name);
-                for (int i = 2; Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
+                if (!overwrite) for (int i = 2; Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
                 Files.write(out, Base64.getDecoder().decode(String.valueOf(a.get("contentBytes"))));
                 saved.add(out.toString());
             }
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
-        return Map.of("files", saved);
+        return saved;
+    }
+
+    @Action(id = "save_all_mail_attachments", name = "Save attachments of all matching emails (Outlook)", category = "Mail", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Save the attachments of every email in a folder that matches the filters, optionally marking those emails as read.")
+    @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
+    @Output(name = "email_count", type = OoaType.NUMBER, description = "Number of emails that matched.")
+    public Map<String, Object> saveAllAttachments(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "target_folder", type = OoaType.FILE, description = "Folder to save into.") String target,
+            @Input(name = "name_pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Only names matching this pattern, e.g. *.pdf.") String pattern,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER_FILTERS) String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace files of the same name instead of adding a number such as (2).") boolean overwrite,
+            @Input(name = "mark_read", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark each matching email as read afterwards.") boolean markRead,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most emails handled in one run.") int max,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        String r = root(base, mailbox);
+        Path dir = ctx.resolvePath(target);
+        List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, readOnly, from, subject, since, before, true, Math.max(1, max));
+        List<Object> saved = new ArrayList<>();
+        for (Map<String, Object> m : found) {
+            saved.addAll(saveAtts(ctx, token, r, s(m.get("id")), dir, pattern, overwrite, true));
+            if (markRead && !Boolean.TRUE.equals(m.get("isRead")))
+                HttpJson.req(P, "PATCH", r + "/messages/" + HttpJson.enc(s(m.get("id")))).bearer(token).json(Map.of("isRead", true)).send(ctx);
+        }
+        return Map.of("files", saved, "email_count", num(found.size()));
     }
 
     @Action(id = "move_mail", name = "Move email (Outlook)", category = "Mail", capabilities = "network", description = "Move an email to another folder (id or well-known name such as archive).")
@@ -165,16 +228,18 @@ public final class Microsoft365Package {
     public Map<String, Object> moveMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
-            @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder id or well-known name.") String to,
+            @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder id, well-known name, or a path such as Inbox/Invoices/2026.") String to,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        Map<String, Object> r = HttpJson.req(P, "POST", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + "/move").bearer(token).json(Map.of("destinationId", to)).send(ctx).map();
+        String dest = mailFolder(ctx, token, root(base, mailbox), to);
+        Map<String, Object> r = HttpJson.req(P, "POST", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + "/move").bearer(token).json(Map.of("destinationId", dest)).send(ctx).map();
         return Out.of("new_id", r.get("id"));
     }
 
     @Action(id = "create_event", name = "Create calendar event", category = "Calendar", capabilities = "network", description = "Create a meeting or appointment, optionally inviting attendees.")
     @Output(name = "event_id", type = OoaType.STRING, description = "Event id.")
     @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
+    @Output(name = "online_meeting_url", type = OoaType.STRING, description = "Teams join link, when online_meeting is true.")
     public Map<String, Object> createEvent(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "subject", type = OoaType.STRING, description = "Title.") String subject,
@@ -184,22 +249,89 @@ public final class Microsoft365Package {
             @Input(name = "attendees", required = false, description = "Attendee address(es).") Object attendees,
             @Input(name = "body", type = OoaType.STRING, required = false, description = "Description.") String body,
             @Input(name = "location", type = OoaType.STRING, required = false, description = "Location.") String location,
+            @Input(name = "optional_attendees", required = false, description = "Address(es) invited as optional.") Object optional,
+            @Input(name = "all_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "All-day event: only the dates of start and end count; the end date may equal the start date.") boolean allDay,
+            @Input(name = "online_meeting", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Add a Teams meeting link.") boolean online,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The description is HTML.") boolean html,
+            @Input(name = "importance", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high"}, description = "Importance; Outlook's default when empty.") String importance,
+            @Input(name = "show_as", type = OoaType.STRING, required = false, enumValues = {"free", "tentative", "busy", "oof", "workingElsewhere"}, description = "How the time shows in the calendar (oof = out of office); busy when empty.") String showAs,
+            @Input(name = "sensitivity", type = OoaType.STRING, required = false, enumValues = {"normal", "personal", "private", "confidential"}, description = "Privacy of the event; normal when empty.") String sensitivity,
+            @Input(name = "reminder_minutes", type = OoaType.NUMBER, required = false, description = "Reminder this many minutes before the start; 0 turns the reminder off; Outlook's default when empty.") Integer reminder,
+            @Input(name = "categories", type = OoaType.LIST, required = false, description = "Outlook category names, e.g. [\"Finance\"].") List<Object> categories,
+            @Input(name = "recurrence", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "daily", "weekly", "monthly", "yearly"},
+                    description = "Repeat the event; weekly repeats on the start's weekday, monthly on its day of the month.") String recurrence,
+            @Input(name = "recurrence_interval", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Repeat every this many days, weeks, months or years.") int interval,
+            @Input(name = "recurrence_end", type = OoaType.DATETIME, required = false, description = "Last date of the series; it has no end when empty and no count is given.") LocalDateTime recurrenceEnd,
+            @Input(name = "recurrence_count", type = OoaType.NUMBER, required = false, description = "Number of occurrences, instead of an end date.") Integer count,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
+        if (allDay) {
+            start = start.toLocalDate().atStartOfDay();
+            end = end.toLocalDate().atStartOfDay();
+            if (!end.isAfter(start)) end = start.plusDays(1);
+        }
         if (!end.isAfter(start)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start");
         Map<String, Object> ev = new LinkedHashMap<>();
         ev.put("subject", subject);
         ev.put("start", Map.of("dateTime", start.toString(), "timeZone", tz));
         ev.put("end", Map.of("dateTime", end.toString(), "timeZone", tz));
-        if (body != null) ev.put("body", Map.of("contentType", "Text", "content", body));
+        if (body != null) ev.put("body", Map.of("contentType", html ? "HTML" : "Text", "content", body));
         if (location != null) ev.put("location", Map.of("displayName", location));
-        if (attendees != null) {
+        if (attendees != null || optional != null) {
             List<Object> at = new ArrayList<>();
             for (String a : HttpJson.addressList(attendees)) at.add(Map.of("emailAddress", Map.of("address", a), "type", "required"));
+            for (String a : HttpJson.addressList(optional)) at.add(Map.of("emailAddress", Map.of("address", a), "type", "optional"));
             ev.put("attendees", at);
         }
+        if (allDay) ev.put("isAllDay", true);
+        if (online) { ev.put("isOnlineMeeting", true); ev.put("onlineMeetingProvider", "teamsForBusiness"); }
+        eventOptions(ev, importance, showAs, sensitivity, reminder, categories);
+        Map<String, Object> rec = recurrence(recurrence, interval, start, recurrenceEnd, count);
+        if (rec != null) ev.put("recurrence", rec);
         Map<String, Object> r = HttpJson.req(P, "POST", root(base, mailbox) + "/events").bearer(token).json(ev).send(ctx).map();
-        return Out.of("event_id", r.get("id"), "web_link", r.get("webLink"));
+        return Out.of("event_id", r.get("id"), "web_link", r.get("webLink"), "online_meeting_url", at(r, "onlineMeeting", "joinUrl"));
+    }
+
+    private static String choice(String v, String input, Set<String> allowed) {
+        if (v == null || v.isBlank()) return null;
+        for (String a : allowed) if (a.equalsIgnoreCase(v.trim())) return a;
+        throw new ActionException(P + ".BAD_OPTION", "Unknown " + input + " '" + v + "'", "Use " + String.join(", ", allowed) + ".");
+    }
+
+    /** Importance, free/busy, privacy, reminder and categories of an event; empty values are left out. */
+    static void eventOptions(Map<String, Object> ev, String importance, String showAs, String sensitivity, Integer reminder, List<Object> categories) {
+        String imp = choice(importance, "importance", new LinkedHashSet<>(List.of("low", "normal", "high")));
+        if (imp != null) ev.put("importance", imp);
+        String sa = choice(showAs, "show_as", new LinkedHashSet<>(List.of("free", "tentative", "busy", "oof", "workingElsewhere")));
+        if (sa != null) ev.put("showAs", sa);
+        String se = choice(sensitivity, "sensitivity", new LinkedHashSet<>(List.of("normal", "personal", "private", "confidential")));
+        if (se != null) ev.put("sensitivity", se);
+        if (reminder != null) {
+            ev.put("isReminderOn", reminder > 0);
+            if (reminder > 0) ev.put("reminderMinutesBeforeStart", reminder);
+        }
+        if (categories != null && !categories.isEmpty()) ev.put("categories", categories.stream().map(Values::text).toList());
+    }
+
+    /** Graph recurrence for a simple repeat, or null for none. */
+    static Map<String, Object> recurrence(String kind, int interval, LocalDateTime start, LocalDateTime end, Integer count) {
+        String k = kind == null || kind.isBlank() ? "none" : kind.trim().toLowerCase(Locale.ROOT);
+        if (k.equals("none")) return null;
+        Map<String, Object> pattern = new LinkedHashMap<>();
+        pattern.put("interval", Math.max(1, interval));
+        switch (k) {
+            case "daily" -> pattern.put("type", "daily");
+            case "weekly" -> { pattern.put("type", "weekly"); pattern.put("daysOfWeek", List.of(start.getDayOfWeek().name().toLowerCase(Locale.ROOT))); }
+            case "monthly" -> { pattern.put("type", "absoluteMonthly"); pattern.put("dayOfMonth", start.getDayOfMonth()); }
+            case "yearly" -> { pattern.put("type", "absoluteYearly"); pattern.put("dayOfMonth", start.getDayOfMonth()); pattern.put("month", start.getMonthValue()); }
+            default -> throw new ActionException(P + ".BAD_OPTION", "Unknown recurrence '" + kind + "'", "Use none, daily, weekly, monthly or yearly.");
+        }
+        Map<String, Object> range = new LinkedHashMap<>();
+        range.put("startDate", start.toLocalDate().toString());
+        if (count != null && count > 0) { range.put("type", "numbered"); range.put("numberOfOccurrences", count); }
+        else if (end != null) { range.put("type", "endDate"); range.put("endDate", end.toLocalDate().toString()); }
+        else range.put("type", "noEnd");
+        return Map.of("pattern", pattern, "range", range);
     }
 
     @Action(id = "list_events", name = "Get calendar events", category = "Calendar", idempotent = true, capabilities = "network", description = "List events between two dates.")
@@ -208,12 +340,18 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "from", type = OoaType.DATETIME, description = "Start of the period (UTC).") LocalDateTime from,
             @Input(name = "to", type = OoaType.DATETIME, description = "End of the period (UTC).") LocalDateTime to,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Only events whose title contains this text.") String subject,
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of the returned start and end times, e.g. Europe/London.") String tz,
+            @Input(name = "calendar_id", type = OoaType.STRING, required = false, description = "Read this calendar instead of the default one.") String calendar,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        String url = root(base, mailbox) + "/calendarView?" + HttpJson.query(Map.of("startDateTime", from + "Z", "endDateTime", to + "Z", "$top", 500, "$orderby", "start/dateTime"));
+        String cal = calendar == null || calendar.isBlank() ? "" : "/calendars/" + HttpJson.enc(calendar);
+        String url = root(base, mailbox) + cal + "/calendarView?" + HttpJson.query(Map.of("startDateTime", from + "Z", "endDateTime", to + "Z", "$top", 500, "$orderby", "start/dateTime"));
+        String zone = tz == null || tz.isBlank() ? "UTC" : tz.replace("\"", "");
         List<Object> rows = new ArrayList<>();
-        for (Object o : (List<?>) HttpJson.req(P, "GET", url).bearer(token).header("Prefer", "outlook.timezone=\"UTC\"").send(ctx).map().getOrDefault("value", List.of())) {
+        for (Object o : (List<?>) HttpJson.req(P, "GET", url).bearer(token).header("Prefer", "outlook.timezone=\"" + zone + "\"").send(ctx).map().getOrDefault("value", List.of())) {
             Map<?, ?> e = (Map<?, ?>) o;
+            if (!anyContains(s(e.get("subject")), subject)) continue;
             rows.add(new ArrayList<>(Arrays.asList(e.get("id"), e.get("subject"),
                     e.get("start") instanceof Map<?, ?> s ? s.get("dateTime") : null, e.get("end") instanceof Map<?, ?> en ? en.get("dateTime") : null,
                     e.get("location") instanceof Map<?, ?> l ? l.get("displayName") : null,
@@ -227,6 +365,13 @@ public final class Microsoft365Package {
         return base.replaceAll("/+$", "") + "/" + d;
     }
 
+    /** Query part setting Graph's conflict behaviour, empty for the given default. */
+    static String conflict(String ifExists, String dflt) {
+        String v = ifExists == null || ifExists.isBlank() ? dflt : ifExists.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("fail", "rename", "replace").contains(v)) throw new ActionException(P + ".BAD_OPTION", "Unknown if_exists '" + ifExists + "'", "Use fail, rename or replace.");
+        return v.equals(dflt) ? "" : "?@microsoft.graph.conflictBehavior=" + v;
+    }
+
     private static final String D_DRIVE = "me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}.";
 
     @Action(id = "upload_file", name = "Upload file (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -237,13 +382,14 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
             @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/summary.xlsx", description = "Target path in the drive, including the file name.") String remote,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
         Path p = ctx.resolvePath(local);
         byte[] data;
         try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
         if (data.length > 250L * 1024 * 1024) throw new ActionException(P + ".FILE_TOO_LARGE", "Files over 250 MB need an upload session", "Split the file or contact support.");
-        Map<String, Object> r = HttpJson.req(P, "PUT", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token)
+        Map<String, Object> r = HttpJson.req(P, "PUT", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content" + conflict(ifExists, "replace")).bearer(token)
                 .bytes(data, "application/octet-stream").timeout(600).send(ctx).map();
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
@@ -255,10 +401,12 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = "Path of the file in the drive.") String remote,
             @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
         byte[] data = HttpJson.req(P, "GET", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content").bearer(token).binaryResponse().timeout(600).send(ctx).bytes();
         Path p = ctx.resolvePath(local);
+        if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
         try { if (p.getParent() != null) Files.createDirectories(p.getParent()); Files.write(p, data); }
         catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
         return Map.of("path", p.toString());
@@ -292,10 +440,26 @@ public final class Microsoft365Package {
             @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
             @Input(name = "message", type = OoaType.STRING, description = "Message text (HTML allowed when html is true).") String message,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Message is HTML.") boolean html,
+            @Input(name = "subject", type = OoaType.STRING, required = false, description = "Title shown above the message.") String subject,
+            @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "urgent"}, description = "Importance of the message.") String importance,
+            @Input(name = "reply_to_message_id", type = OoaType.STRING, required = false, description = "Post as a reply in the thread of this message instead of a new post.") String replyTo,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"", description = D_BASE) String base) {
-        Map<String, Object> r = HttpJson.req(P, "POST", base.replaceAll("/+$", "") + "/teams/" + HttpJson.enc(team) + "/channels/" + HttpJson.enc(channel) + "/messages")
-                .bearer(token).json(Map.of("body", Map.of("contentType", html ? "html" : "text", "content", message))).send(ctx).map();
+        Map<String, Object> msg = chatBody(message, html, importance);
+        if (subject != null && !subject.isBlank() && (replyTo == null || replyTo.isBlank())) msg.put("subject", subject);
+        String url = base.replaceAll("/+$", "") + "/teams/" + HttpJson.enc(team) + "/channels/" + HttpJson.enc(channel) + "/messages"
+                + (replyTo == null || replyTo.isBlank() ? "" : "/" + HttpJson.enc(replyTo.trim()) + "/replies");
+        Map<String, Object> r = HttpJson.req(P, "POST", url).bearer(token).json(msg).send(ctx).map();
         return Out.of("message_id", r.get("id"));
+    }
+
+    /** Body of a Teams message with an importance other than normal. */
+    static Map<String, Object> chatBody(String message, boolean html, String importance) {
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("body", Map.of("contentType", html ? "html" : "text", "content", message));
+        String imp = importance == null || importance.isBlank() ? "normal" : importance.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("normal", "high", "urgent").contains(imp)) throw new ActionException(P + ".BAD_OPTION", "Unknown importance '" + importance + "'", "Use normal, high or urgent.");
+        if (!imp.equals("normal")) msg.put("importance", imp);
+        return msg;
     }
 
     private static String sheetRange(String sheet, String range) {
@@ -419,20 +583,107 @@ public final class Microsoft365Package {
 
     /** Emails in a folder that match the filters; ids are collected before any change so paging is not disturbed. */
     private static List<Map<String, Object>> findMail(ActionContext ctx, Object token, String mbRoot, String folder, boolean unread, String from, String subject, int max) {
+        return findMail(ctx, token, mbRoot, folder, unread, false, from, subject, null, null, false, max);
+    }
+
+    private static List<Map<String, Object>> findMail(ActionContext ctx, Object token, String mbRoot, String folder, boolean unread, boolean read, String from, String subject,
+                                                      LocalDateTime since, LocalDateTime before, boolean withAtts, int max) {
         Map<String, Object> q = new LinkedHashMap<>();
         q.put("$top", 100);
         q.put("$select", "id,subject,from,receivedDateTime,isRead");
-        if (unread) q.put("$filter", "isRead eq false");
+        String filter = mailFilter(unread, read, since, before, withAtts);
+        if (filter != null) q.put("$filter", filter);
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> m : pages(ctx, token, mbRoot + "/mailFolders/" + HttpJson.enc(folder) + "/messages?" + HttpJson.query(q), 0, null)) {
-            String sender = s(at(m, "from", "emailAddress", "address")).toLowerCase(Locale.ROOT);
-            String subj = s(m.get("subject")).toLowerCase(Locale.ROOT);
-            if (from != null && !from.isEmpty() && !sender.contains(from.toLowerCase(Locale.ROOT))) continue;
-            if (subject != null && !subject.isEmpty() && !subj.contains(subject.toLowerCase(Locale.ROOT))) continue;
+        for (Map<String, Object> m : pages(ctx, token, mbRoot + "/mailFolders/" + HttpJson.enc(mailFolder(ctx, token, mbRoot, folder)) + "/messages?" + HttpJson.query(q), 0, null)) {
+            if (!anyContains(s(at(m, "from", "emailAddress", "address")), from) || !anyContains(s(m.get("subject")), subject)) continue;
             out.add(m);
             if (out.size() >= max) break;
         }
         return out;
+    }
+
+    private static final String D_FROM = "Sender contains this text; separate several with ; to match any of them.";
+    private static final String D_SUBJECT = "Subject contains this text; separate several with ; to match any of them.";
+    private static final java.time.format.DateTimeFormatter UTC = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+    static final Set<String> WELL_KNOWN = Set.of("inbox", "archive", "sentitems", "deleteditems", "drafts", "junkemail", "outbox", "clutter",
+            "conversationhistory", "msgfolderroot", "recoverableitemsdeletions", "scheduled", "searchfolders", "syncissues");
+
+    /** True when the text contains any of the ;-separated values (not case-sensitive), or when there are none. */
+    static boolean anyContains(String text, String values) {
+        if (values == null || values.isBlank()) return true;
+        String t = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        for (String v : values.split(";")) if (!v.isBlank() && t.contains(v.trim().toLowerCase(Locale.ROOT))) return true;
+        return false;
+    }
+
+    /** OData filter for read status, received dates and attachments; the date comes first so Graph can sort by it. Null when there is no filter. */
+    static String mailFilter(boolean unread, boolean read, LocalDateTime since, LocalDateTime before, boolean withAtts) {
+        if (unread && read) throw new ActionException(P + ".BAD_OPTION", "unread_only and read_only cannot both be true", "Choose one of them.");
+        List<String> f = new ArrayList<>();
+        if (since != null) f.add("receivedDateTime ge " + UTC.format(since));
+        if (before != null) f.add("receivedDateTime lt " + UTC.format(before));
+        if (f.isEmpty() && withAtts) f.add("receivedDateTime ge 1900-01-01T00:00:00Z");
+        if (unread) f.add("isRead eq false");
+        if (read) f.add("isRead eq true");
+        if (withAtts) f.add("hasAttachments eq true");
+        return f.isEmpty() ? null : String.join(" and ", f);
+    }
+
+    /** Folder id for a path such as Inbox/Invoices/2026 (or with \\); ids and well-known names pass unchanged. Null when a part is missing. */
+    static String folderPath(ActionContext ctx, Object token, String mbRoot, String folder) {
+        if (folder == null || !(folder.contains("/") || folder.contains("\\"))) return folder;
+        String id = null;
+        for (String part : folder.trim().split("[/\\\\]+")) {
+            if (part.isBlank()) continue;
+            if (id == null && WELL_KNOWN.contains(part.trim().toLowerCase(Locale.ROOT))) { id = part.trim().toLowerCase(Locale.ROOT); continue; }
+            String url = (id == null ? mbRoot + "/mailFolders" : mbRoot + "/mailFolders/" + HttpJson.enc(id) + "/childFolders") + "?"
+                    + HttpJson.query(Map.of("$filter", "displayName eq " + odataText(part.trim()), "$select", "id,displayName"));
+            List<Map<String, Object>> found = pages(ctx, token, url, 1, null);
+            if (found.isEmpty()) return null;
+            id = s(found.get(0).get("id"));
+        }
+        return id;
+    }
+
+    private static String mailFolder(ActionContext ctx, Object token, String mbRoot, String folder) {
+        String id = folderPath(ctx, token, mbRoot, folder);
+        if (id == null) throw new ActionException(P + ".NO_FOLDER", "Mail folder '" + folder + "' not found", "Check the path, e.g. Inbox/Invoices; names are not case-sensitive.");
+        return id;
+    }
+
+    private static List<Object> addressesOf(Object recipients) {
+        List<Object> out = new ArrayList<>();
+        for (Object r : list(recipients)) { Object a = at(r, "emailAddress", "address"); if (a != null) out.add(a); }
+        return out;
+    }
+
+    /** Importance, reply-to and send-as address of a Graph message. */
+    static void mailOptions(Map<String, Object> msg, String importance, Object replyTo, String sendAs) {
+        String imp = importance == null || importance.isBlank() ? "normal" : importance.trim().toLowerCase(Locale.ROOT);
+        if (!Set.of("low", "normal", "high").contains(imp)) throw new ActionException(P + ".BAD_OPTION", "Unknown importance '" + importance + "'", "Use low, normal or high.");
+        if (!imp.equals("normal")) msg.put("importance", imp);
+        if (replyTo != null && !HttpJson.addressList(replyTo).isEmpty()) msg.put("replyTo", recipients(replyTo));
+        if (sendAs != null && !sendAs.isBlank()) msg.put("from", Map.of("emailAddress", Map.of("address", sendAs.trim())));
+    }
+
+    /** Message properties for forward and reply: CC, BCC, send-as, importance. Empty when nothing is set. */
+    private static Map<String, Object> extra(Object cc, Object bcc, String sendAs, String importance) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        if (cc != null && !HttpJson.addressList(cc).isEmpty()) m.put("ccRecipients", recipients(cc));
+        if (bcc != null && !HttpJson.addressList(bcc).isEmpty()) m.put("bccRecipients", recipients(bcc));
+        mailOptions(m, importance, null, sendAs);
+        return m;
+    }
+
+    /** Forward or reply. With attachments it goes through a draft (create, attach, send), since the direct call cannot carry files. */
+    private static void respond(ActionContext ctx, Object token, String mbRoot, String id, String op, Map<String, Object> body, List<Object> attachments) {
+        String url = mbRoot + "/messages/" + HttpJson.enc(id);
+        if (attachments == null || attachments.isEmpty()) { HttpJson.req(P, "POST", url + "/" + op).bearer(token).json(body).send(ctx); return; }
+        String create = "create" + Character.toUpperCase(op.charAt(0)) + op.substring(1);
+        String draft = s(HttpJson.req(P, "POST", url + "/" + create).bearer(token).json(body).send(ctx).map().get("id"));
+        for (Object a : attachments)
+            HttpJson.req(P, "POST", mbRoot + "/messages/" + HttpJson.enc(draft) + "/attachments").bearer(token).json(fileAttachment(ctx, Values.text(a))).send(ctx);
+        HttpJson.req(P, "POST", mbRoot + "/messages/" + HttpJson.enc(draft) + "/send").bearer(token).send(ctx);
     }
 
     @Action(id = "mark_mail", name = "Change email status (Outlook)", category = "Mail", idempotent = true, capabilities = "network",
@@ -480,14 +731,17 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = D_FOLDER_FILTERS) String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
-            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text.") String subject,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove permanently instead of moving to Deleted Items.") boolean permanent,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most emails to delete in one run.") int max,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         String r = root(base, mailbox);
-        List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, from, subject, Math.max(1, max));
+        List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, readOnly, from, subject, since, before, false, Math.max(1, max));
         for (Map<String, Object> m : found) removeMail(ctx, token, r, s(m.get("id")), permanent);
         return Map.of("count", num(found.size()));
     }
@@ -497,18 +751,22 @@ public final class Microsoft365Package {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails moved.")
     public Map<String, Object> moveAllMail(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder id or well-known name.") String to,
+            @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder id, well-known name, or a path such as Inbox/Invoices/2026.") String to,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"inbox\"", description = "Source " + D_FOLDER_FILTERS) String folder,
             @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
-            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text.") String from,
-            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text.") String subject,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = D_FROM) String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = D_SUBJECT) String subject,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most emails to move in one run.") int max,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this time (UTC).") LocalDateTime since,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this time (UTC).") LocalDateTime before,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         String r = root(base, mailbox);
-        List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, from, subject, Math.max(1, max));
+        String dest = mailFolder(ctx, token, r, to);
+        List<Map<String, Object>> found = findMail(ctx, token, r, folder, unread, readOnly, from, subject, since, before, false, Math.max(1, max));
         for (Map<String, Object> m : found)
-            HttpJson.req(P, "POST", r + "/messages/" + HttpJson.enc(s(m.get("id"))) + "/move").bearer(token).json(Map.of("destinationId", to)).send(ctx);
+            HttpJson.req(P, "POST", r + "/messages/" + HttpJson.enc(s(m.get("id"))) + "/move").bearer(token).json(Map.of("destinationId", dest)).send(ctx);
         return Map.of("count", num(found.size()));
     }
 
@@ -519,11 +777,20 @@ public final class Microsoft365Package {
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "to", description = "Recipient address(es).") Object to,
             @Input(name = "comment", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Note added above the forwarded message.") String comment,
+            @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach (up to 3 MB each).") List<Object> attachments,
+            @Input(name = "from", type = OoaType.STRING, required = false, example = "invoices@acme.com", description = "Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty.") String sendAs,
+            @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"low", "normal", "high"}, description = "Importance shown to the recipients.") String importance,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         if (HttpJson.addressList(to).isEmpty()) throw new ActionException(P + ".NO_RECIPIENTS", "No recipients to forward to", "Give at least one address.");
-        HttpJson.req(P, "POST", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + "/forward").bearer(token)
-                .json(Map.of("toRecipients", recipients(to), "comment", comment == null ? "" : comment)).send(ctx);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("toRecipients", recipients(to));
+        body.put("comment", comment == null ? "" : comment);
+        Map<String, Object> more = extra(cc, bcc, sendAs, importance);
+        if (!more.isEmpty()) body.put("message", more);
+        respond(ctx, token, root(base, mailbox), id, "forward", body, attachments);
         return Map.of();
     }
 
@@ -534,10 +801,32 @@ public final class Microsoft365Package {
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "comment", type = OoaType.STRING, description = "Reply text.") String comment,
             @Input(name = "reply_all", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Reply to the sender and every other recipient.") boolean all,
+            @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach (up to 3 MB each).") List<Object> attachments,
+            @Input(name = "from", type = OoaType.STRING, required = false, example = "invoices@acme.com", description = "Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty.") String sendAs,
+            @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"low", "normal", "high"}, description = "Importance shown to the recipients.") String importance,
+            @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Reply all only: leave the original sender out and reply to the other recipients.") boolean excludeSender,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        HttpJson.req(P, "POST", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + (all ? "/replyAll" : "/reply")).bearer(token)
-                .json(Map.of("comment", comment == null ? "" : comment)).send(ctx);
+        String r = root(base, mailbox);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("comment", comment == null ? "" : comment);
+        Map<String, Object> more = extra(cc, bcc, sendAs, importance);
+        if (all && excludeSender) {
+            Map<String, Object> orig = HttpJson.req(P, "GET", r + "/messages/" + HttpJson.enc(id) + "?$select=from,toRecipients,ccRecipients").bearer(token).send(ctx).map();
+            String sender = s(at(orig, "from", "emailAddress", "address"));
+            String me = mailbox == null || mailbox.isBlank() || mailbox.equals("me")
+                    ? s(HttpJson.req(P, "GET", g(base) + "/me?$select=mail").bearer(token).send(ctx).map().get("mail")) : mailbox;
+            List<Object> toList = new ArrayList<>(), ccList = new ArrayList<>(list(more.get("ccRecipients")));
+            for (Object a : addressesOf(orig.get("toRecipients"))) if (!s(a).equalsIgnoreCase(sender) && !s(a).equalsIgnoreCase(me)) toList.add(a);
+            for (Object a : addressesOf(orig.get("ccRecipients"))) if (!s(a).equalsIgnoreCase(sender) && !s(a).equalsIgnoreCase(me)) ccList.add(Map.of("emailAddress", Map.of("address", a)));
+            if (toList.isEmpty() && ccList.isEmpty()) throw new ActionException(P + ".NO_RECIPIENTS", "Without the sender there is nobody left to reply to", "Turn off exclude_sender.");
+            more.put("toRecipients", recipients(toList));
+            more.put("ccRecipients", ccList);
+        }
+        if (!more.isEmpty()) body.put("message", more);
+        respond(ctx, token, r, id, all ? "replyAll" : "reply", body, attachments);
         return Map.of();
     }
 
@@ -547,20 +836,30 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
             @Input(name = "comment", type = OoaType.STRING, description = "Reply text.") String comment,
+            @Input(name = "cc", required = false, description = "CC address(es).") Object cc,
+            @Input(name = "bcc", required = false, description = "BCC address(es).") Object bcc,
+            @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach (up to 3 MB each).") List<Object> attachments,
+            @Input(name = "from", type = OoaType.STRING, required = false, example = "invoices@acme.com", description = "Send as this address, e.g. a shared mailbox; the account needs Send As rights. The mailbox itself when empty.") String sendAs,
+            @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"low", "normal", "high"}, description = "Importance shown to the recipients.") String importance,
+            @Input(name = "exclude_sender", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave the original sender out and reply to the other recipients.") boolean excludeSender,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        return replyMail(ctx, token, id, comment, true, mailbox, base);
+        return replyMail(ctx, token, id, comment, true, cc, bcc, attachments, sendAs, importance, excludeSender, mailbox, base);
     }
 
     @Action(id = "mail_folder_exists", name = "Check mail folder exists (Outlook)", category = "Mail", idempotent = true, capabilities = "network",
-            description = "Check whether a top-level mail folder with the given display name exists and return its id.")
+            description = "Check whether a mail folder exists, by top-level display name or by a path such as Inbox/Invoices, and return its id.")
     @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the folder exists.")
     @Output(name = "folder_id", type = OoaType.STRING, description = "Folder id, empty when it does not exist.")
     public Map<String, Object> folderExists(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "name", type = OoaType.STRING, description = "Folder display name, e.g. Invoices.") String name,
+            @Input(name = "name", type = OoaType.STRING, description = "Folder display name, e.g. Invoices, or a path such as Inbox/Invoices/2026 (/ or \\ between levels).") String name,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        if (name.contains("/") || name.contains("\\")) {
+            String id = folderPath(ctx, token, root(base, mailbox), name);
+            return Map.of("exists", id != null, "folder_id", id == null ? "" : id);
+        }
         String url = root(base, mailbox) + "/mailFolders?" + HttpJson.query(Map.of("$filter", "displayName eq " + odataText(name), "$select", "id,displayName"));
         List<Map<String, Object>> found = pages(ctx, token, url, 1, null);
         return Map.of("exists", !found.isEmpty(), "folder_id", found.isEmpty() ? "" : s(found.get(0).get("id")));
@@ -572,11 +871,20 @@ public final class Microsoft365Package {
     public Map<String, Object> saveEml(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "id", type = OoaType.STRING, description = "Email id.") String id,
-            @Input(name = "local_path", type = OoaType.FILE, example = "mail/order-123.eml", description = "Where to save the .eml file.") String local,
+            @Input(name = "local_path", type = OoaType.FILE, example = "mail/order-123.eml", description = "Where to save the .eml file; a path ending in / or an existing folder gets a file named after the subject.") String local,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false a number such as (2) is added to the name.") boolean overwrite,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        byte[] data = HttpJson.req(P, "GET", root(base, mailbox) + "/messages/" + HttpJson.enc(id) + "/$value").bearer(token).binaryResponse().timeout(300).send(ctx).bytes();
-        return Map.of("path", writeLocal(ctx, local, data).toString());
+        String url = root(base, mailbox) + "/messages/" + HttpJson.enc(id);
+        Path p = ctx.resolvePath(local);
+        if (local.endsWith("/") || local.endsWith("\\") || Files.isDirectory(p)) {
+            String subj = s(HttpJson.req(P, "GET", url + "?$select=subject").bearer(token).send(ctx).map().get("subject"));
+            p = p.resolve(HttpJson.safeName((subj.isBlank() ? "email" : subj.replaceAll("[/\\\\]", "_")) + ".eml"));
+        }
+        if (!overwrite) { String n = p.getFileName().toString(); for (int i = 2; Files.exists(p); i++) p = p.resolveSibling(n.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1")); }
+        byte[] data = HttpJson.req(P, "GET", url + "/$value").bearer(token).binaryResponse().timeout(300).send(ctx).bytes();
+        HttpJson.writeFile(p, data);
+        return Map.of("path", p.toString());
     }
 
     // ------------------------------------ OneDrive / SharePoint files ----------------------------
@@ -613,6 +921,7 @@ public final class Microsoft365Package {
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "Name for the copy; the original name when empty.") String newName,
             @Input(name = "to_drive", type = OoaType.STRING, required = false, description = "Destination drive when different from the source drive.") String toDrive,
             @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "120", description = "How long to wait for the copy; 0 returns at once.") int wait,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         String[] dest = folderRef(ctx, token, toDrive == null || toDrive.isBlank() ? drive : toDrive, base, to);
@@ -622,7 +931,7 @@ public final class Microsoft365Package {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("parentReference", parent);
         if (newName != null && !newName.isBlank()) body.put("name", newName);
-        HttpJson.Response r = HttpJson.req(P, "POST", item(drive, base, ref, "/copy")).bearer(token).json(body).send(ctx);
+        HttpJson.Response r = HttpJson.req(P, "POST", item(drive, base, ref, "/copy") + conflict(ifExists, "fail")).bearer(token).json(body).send(ctx);
         String monitor = r.header("Location");
         if (monitor == null || wait <= 0) return Out.of("item_id", null, "status", "inProgress", "monitor_url", monitor);
         long deadline = System.currentTimeMillis() + wait * 1000L;
@@ -646,13 +955,14 @@ public final class Microsoft365Package {
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder path (empty for the root), or id:{item-id}.") String to,
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "New name; unchanged when empty.") String newName,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When the name is taken at the destination: fail, rename (add a number) or replace.") String ifExists,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         String[] dest = folderRef(ctx, token, drive, base, to);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("parentReference", Map.of("id", dest[1]));
         if (newName != null && !newName.isBlank()) body.put("name", newName);
-        Map<String, Object> r = HttpJson.req(P, "PATCH", item(drive, base, ref, "")).bearer(token).json(body).send(ctx).map();
+        Map<String, Object> r = HttpJson.req(P, "PATCH", item(drive, base, ref, "") + conflict(ifExists, "fail")).bearer(token).json(body).send(ctx).map();
         return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
     }
 
@@ -671,14 +981,16 @@ public final class Microsoft365Package {
     }
 
     @Action(id = "delete_item", name = "Delete file or folder (OneDrive/SharePoint)", category = "Files", capabilities = "network",
-            description = "Delete a file or folder; it goes to the drive's recycle bin.")
+            description = "Delete a file or folder; it goes to the drive's recycle bin unless deleted permanently.")
     public Map<String, Object> deleteItem(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
+            @Input(name = "permanent", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete for good, skipping the recycle bin (OneDrive for work or school and SharePoint).") boolean permanent,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         if (ref == null || ref.isBlank()) throw new ActionException(P + ".BAD_ITEM", "No item given", "Give a path or id:{item-id}; the drive root cannot be deleted.");
-        HttpJson.req(P, "DELETE", item(drive, base, ref, "")).bearer(token).send(ctx);
+        if (permanent) HttpJson.req(P, "POST", item(drive, base, ref, "/permanentDelete")).bearer(token).send(ctx);
+        else HttpJson.req(P, "DELETE", item(drive, base, ref, "")).bearer(token).send(ctx);
         return Map.of();
     }
 
@@ -709,12 +1021,24 @@ public final class Microsoft365Package {
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "text", type = OoaType.STRING, description = "Text to look for.") String text,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Maximum items.") int max,
+            @Input(name = "item_type", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "file", "folder"}, description = "Files, folders or both.") String type,
+            @Input(name = "in_folder", type = OoaType.STRING, required = false, description = "Search only inside this folder (path or id:{item-id}); the whole drive when empty.") String inFolder,
+            @Input(name = "exact_name", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep only items whose name equals the text (not case-sensitive).") boolean exact,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
-        String url = drive(drive, base) + "/root/search(q=" + HttpJson.enc(odataText(text)) + ")?" + HttpJson.query(Map.of("$top", Math.min(200, Math.max(1, max))));
+        String t = choice(type, "item_type", new LinkedHashSet<>(List.of("any", "file", "folder")));
+        String scope = inFolder == null || inFolder.isBlank() ? drive(drive, base) + "/root" : item(drive, base, inFolder, "");
+        if (scope.endsWith(":")) scope = scope.substring(0, scope.length() - 1);
+        String url = scope + (scope.contains("/root:/") ? ":" : "") + "/search(q=" + HttpJson.enc(odataText(text)) + ")?" + HttpJson.query(Map.of("$top", Math.min(200, Math.max(1, max))));
+        boolean filtered = !"any".equals(t) || exact;
         List<Object> rows = new ArrayList<>();
-        for (Map<String, Object> i : pages(ctx, token, url, Math.max(1, max), null))
+        for (Map<String, Object> i : pages(ctx, token, url, filtered ? 0 : Math.max(1, max), null)) {
+            if (rows.size() >= Math.max(1, max)) break;
+            boolean folder = i.containsKey("folder");
+            if ("file".equals(t) && folder || "folder".equals(t) && !folder) continue;
+            if (exact && !s(i.get("name")).equalsIgnoreCase(text.trim())) continue;
             rows.add(new ArrayList<>(Arrays.asList(i.get("id"), i.get("name"), i.containsKey("folder") ? "folder" : "file", i.get("size"), i.get("lastModifiedDateTime"), i.get("webUrl"))));
+        }
         return Map.of("table", Values.table(List.of("id", "name", "type", "size", "modified", "web_url"), rows), "count", num(rows.size()));
     }
 
@@ -772,6 +1096,53 @@ public final class Microsoft365Package {
         for (Map<String, Object> p : pages(ctx, token, item(drive, base, ref, "/permissions"), 0, null))
             if (permissionEmails(p).stream().anyMatch(e -> e.equalsIgnoreCase(email.trim()))) { found = true; roles.addAll(list(p.get("roles"))); }
         return Map.of("has_access", found, "roles", new ArrayList<>(roles));
+    }
+
+    @Action(id = "share_item", name = "Share file or folder (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+            description = "Give people read or edit access to a file or folder, optionally emailing them an invitation.")
+    @Output(name = "permission_ids", type = OoaType.LIST, description = "Ids of the new permissions.")
+    public Map<String, Object> shareItem(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
+            @Input(name = "recipients", description = "Email address(es) of the people to share with.") Object recipients,
+            @Input(name = "role", type = OoaType.STRING, required = false, defaultValue = "\"read\"", enumValues = {"read", "write"}, description = "read to view, write to edit.") String role,
+            @Input(name = "send_invitation", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Email the people a sharing invitation.") boolean invite,
+            @Input(name = "message", type = OoaType.STRING, required = false, description = "Text added to the invitation.") String message,
+            @Input(name = "require_sign_in", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "People must sign in to open the item.") boolean signIn,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        List<Object> who = new ArrayList<>();
+        for (String a : HttpJson.addressList(recipients)) who.add(Map.of("email", a));
+        if (who.isEmpty()) throw new ActionException(P + ".NO_RECIPIENTS", "Nobody to share with", "Give at least one email address.");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("recipients", who);
+        body.put("roles", List.of(choice(role == null || role.isBlank() ? "read" : role, "role", new LinkedHashSet<>(List.of("read", "write")))));
+        body.put("requireSignIn", signIn);
+        body.put("sendInvitation", invite);
+        if (message != null && !message.isBlank()) body.put("message", message);
+        List<Object> ids = new ArrayList<>();
+        for (Object o : list(HttpJson.req(P, "POST", item(drive, base, ref, "/invite")).bearer(token).json(body).send(ctx).map().get("value"))) ids.add(map(o).get("id"));
+        return Map.of("permission_ids", ids);
+    }
+
+    @Action(id = "create_sharing_link", name = "Create sharing link (OneDrive/SharePoint)", category = "Files", capabilities = "network",
+            description = "Create a link that opens a file or folder for viewing or editing, for anyone or only people in the organisation.")
+    @Output(name = "link", type = OoaType.STRING, description = "The sharing link.")
+    @Output(name = "permission_id", type = OoaType.STRING, description = "Id of the link's permission.")
+    public Map<String, Object> sharingLink(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "item", type = OoaType.STRING, description = D_ITEM) String ref,
+            @Input(name = "type", type = OoaType.STRING, required = false, defaultValue = "\"view\"", enumValues = {"view", "edit"}, description = "view or edit.") String type,
+            @Input(name = "scope", type = OoaType.STRING, required = false, defaultValue = "\"organization\"", enumValues = {"organization", "anonymous"}, description = "organization: people in your organisation; anonymous: anyone with the link.") String scope,
+            @Input(name = "expires", type = OoaType.DATETIME, required = false, description = "When the link stops working (UTC); never when empty.") LocalDateTime expires,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("type", choice(type == null || type.isBlank() ? "view" : type, "type", new LinkedHashSet<>(List.of("view", "edit"))));
+        body.put("scope", choice(scope == null || scope.isBlank() ? "organization" : scope, "scope", new LinkedHashSet<>(List.of("organization", "anonymous"))));
+        if (expires != null) body.put("expirationDateTime", UTC.format(expires));
+        Map<String, Object> r = HttpJson.req(P, "POST", item(drive, base, ref, "/createLink")).bearer(token).json(body).send(ctx).map();
+        return Out.of("link", at(r, "link", "webUrl"), "permission_id", r.get("id"));
     }
 
     @Action(id = "export_to_pdf", name = "Export file to PDF (OneDrive/SharePoint)", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
@@ -1136,7 +1507,7 @@ public final class Microsoft365Package {
     }
 
     @Action(id = "excel_format_range", name = "Format range (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
-            description = "Set the fill colour, bold text, font colour and number format of a range; empty settings are left as they are.")
+            description = "Set fill, font, alignment, wrapping, size, borders, merging and number format of a range; empty settings are left as they are.")
     public Map<String, Object> excelFormat(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
@@ -1146,6 +1517,19 @@ public final class Microsoft365Package {
             @Input(name = "bold", type = OoaType.BOOLEAN, required = false, description = "Make the text bold (true) or normal (false).") Boolean bold,
             @Input(name = "font_color", type = OoaType.STRING, required = false, example = "#C00000", description = "Text colour as #RRGGBB or a colour name.") String fontColor,
             @Input(name = "number_format", type = OoaType.STRING, required = false, example = "#,##0.00", description = "Excel number format code for every cell.") String numberFormat,
+            @Input(name = "italic", type = OoaType.BOOLEAN, required = false, description = "Italic on or off; unchanged when empty.") Boolean italic,
+            @Input(name = "underline", type = OoaType.BOOLEAN, required = false, description = "Single underline on or off; unchanged when empty.") Boolean underline,
+            @Input(name = "strikethrough", type = OoaType.BOOLEAN, required = false, description = "Strikethrough on or off; unchanged when empty.") Boolean strike,
+            @Input(name = "font_name", type = OoaType.STRING, required = false, example = "Calibri", description = "Font name; unchanged when empty.") String fontName,
+            @Input(name = "font_size", type = OoaType.NUMBER, required = false, description = "Font size in points; unchanged when empty.") Double fontSize,
+            @Input(name = "horizontal_alignment", type = OoaType.STRING, required = false, enumValues = {"General", "Left", "Center", "Right", "Fill", "Justify", "CenterAcrossSelection", "Distributed"}, description = "Horizontal alignment; unchanged when empty.") String hAlign,
+            @Input(name = "vertical_alignment", type = OoaType.STRING, required = false, enumValues = {"Top", "Center", "Bottom", "Justify", "Distributed"}, description = "Vertical alignment; unchanged when empty.") String vAlign,
+            @Input(name = "wrap_text", type = OoaType.BOOLEAN, required = false, description = "Wrap text in the cells on or off; unchanged when empty.") Boolean wrap,
+            @Input(name = "column_width", type = OoaType.NUMBER, required = false, description = "Column width in points; unchanged when empty.") Double colWidth,
+            @Input(name = "row_height", type = OoaType.NUMBER, required = false, description = "Row height in points; unchanged when empty.") Double rowHeight,
+            @Input(name = "border_style", type = OoaType.STRING, required = false, enumValues = {"None", "Continuous", "Dash", "DashDot", "DashDotDot", "Dot", "Double", "SlantDashDot"}, description = "Line style of every border of the range, inside and out; unchanged when empty.") String borderStyle,
+            @Input(name = "border_color", type = OoaType.STRING, required = false, example = "#000000", description = "Colour of those borders.") String borderColor,
+            @Input(name = "merge", type = OoaType.BOOLEAN, required = false, description = "Merge the cells (true) or unmerge them (false); unchanged when empty.") Boolean merge,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         String r = book(drive, base, remote, ws(sheet) + rangePath(range));
@@ -1154,6 +1538,26 @@ public final class Microsoft365Package {
         Map<String, Object> font = new LinkedHashMap<>();
         if (bold != null) font.put("bold", bold);
         if (fontColor != null && !fontColor.isBlank()) font.put("color", fontColor);
+        if (italic != null) font.put("italic", italic);
+        if (underline != null) font.put("underline", underline ? "Single" : "None");
+        if (strike != null) font.put("strikethrough", strike);
+        if (fontName != null && !fontName.isBlank()) font.put("name", fontName);
+        if (fontSize != null) font.put("size", fontSize);
+        Map<String, Object> fmt = new LinkedHashMap<>();
+        if (hAlign != null && !hAlign.isBlank()) fmt.put("horizontalAlignment", hAlign);
+        if (vAlign != null && !vAlign.isBlank()) fmt.put("verticalAlignment", vAlign);
+        if (wrap != null) fmt.put("wrapText", wrap);
+        if (colWidth != null) fmt.put("columnWidth", colWidth);
+        if (rowHeight != null) fmt.put("rowHeight", rowHeight);
+        if (!fmt.isEmpty()) { HttpJson.req(P, "PATCH", r + "/format").bearer(token).json(fmt).send(ctx); any = true; }
+        if (borderStyle != null && !borderStyle.isBlank()) {
+            Map<String, Object> b = new LinkedHashMap<>(Map.of("style", borderStyle));
+            if (borderColor != null && !borderColor.isBlank()) b.put("color", borderColor);
+            for (String side : List.of("EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight", "InsideVertical", "InsideHorizontal"))
+                HttpJson.req(P, "PATCH", r + "/format/borders/" + side).bearer(token).json(b).send(ctx);
+            any = true;
+        }
+        if (merge != null) { HttpJson.req(P, "POST", r + (merge ? "/merge" : "/unmerge")).bearer(token).json(merge ? Map.of("across", false) : Map.of()).send(ctx); any = true; }
         if (!font.isEmpty()) { HttpJson.req(P, "PATCH", r + "/format/font").bearer(token).json(font).send(ctx); any = true; }
         if (numberFormat != null && !numberFormat.isBlank()) {
             int[][] b = bounds(range);
@@ -1162,8 +1566,159 @@ public final class Microsoft365Package {
             HttpJson.req(P, "PATCH", r).bearer(token).json(Map.of("numberFormat", grid)).send(ctx);
             any = true;
         }
-        if (!any) throw new ActionException(P + ".NOTHING_TO_DO", "No formatting was given", "Set at least one of fill_color, bold, font_color or number_format.");
+        if (!any) throw new ActionException(P + ".NOTHING_TO_DO", "No formatting was given", "Set at least one formatting input, such as fill_color, bold or font_name.");
         return Map.of();
+    }
+
+    private Map<String, Object> visibility(ActionContext ctx, Object token, String remote, String sheet, String v, String drive, String base) {
+        HttpJson.req(P, "PATCH", book(drive, base, remote, ws(sheet))).bearer(token).json(Map.of("visibility", v)).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "excel_hide_worksheet", name = "Hide worksheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+            description = "Hide a worksheet tab without deleting it; very hidden sheets can only be shown again by an agent or code.")
+    public Map<String, Object> excelHideSheet(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "very_hidden", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Hide it so that it cannot be shown from Excel's menu.") boolean very,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        return visibility(ctx, token, remote, sheet, very ? "VeryHidden" : "Hidden", drive, base);
+    }
+
+    @Action(id = "excel_show_worksheet", name = "Show worksheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+            description = "Make a hidden worksheet tab visible again.")
+    public Map<String, Object> excelShowSheet(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        return visibility(ctx, token, remote, sheet, "Visible", drive, base);
+    }
+
+    @Action(id = "excel_find", name = "Find in sheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+            description = "Search the used cells of a sheet, or a range, for text and return the addresses of the matching cells.")
+    @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in reading order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
+    public Map<String, Object> excelFind(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to look for in the displayed cell text.") String text,
+            @Input(name = "range", type = OoaType.STRING, required = false, example = "A1:F200", description = "Range to search; the used cells when empty.") String range,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case must match.") boolean matchCase,
+            @Input(name = "whole_cell", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The whole cell must equal the text.") boolean whole,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        if (text == null || text.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Give the text to find");
+        String addr = range == null || range.isBlank() ? used(ctx, token, drive, base, remote, sheet) : range.trim();
+        if (addr == null) return Map.of("cells", List.of(), "count", num(0));
+        Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + rangePath(addr)) + "?$select=address,text").bearer(token).send(ctx).map();
+        int[] origin = bounds(addr)[0];
+        String needle = matchCase ? text : text.toLowerCase(Locale.ROOT);
+        List<Object> found = new ArrayList<>();
+        List<List<Object>> grid = matrix(r.get("text"));
+        for (int i = 0; i < grid.size(); i++) for (int j = 0; j < grid.get(i).size(); j++) {
+            String v = matchCase ? s(grid.get(i).get(j)) : s(grid.get(i).get(j)).toLowerCase(Locale.ROOT);
+            if (whole ? v.equals(needle) : v.contains(needle)) found.add(colName(origin[0] + j) + (origin[1] + i));
+        }
+        return Map.of("cells", found, "count", num(found.size()));
+    }
+
+    @Action(id = "excel_get_cell_format", name = "Read cell format (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+            description = "Read one cell's fill colour, font (name, size, colour, bold, italic, underline), alignment, wrapping and number format.")
+    @Output(name = "format", type = OoaType.DICTIONARY, description = "fill_color, font_name, font_size, font_color, bold, italic, underline, horizontal_alignment, vertical_alignment, wrap_text, number_format.")
+    public Map<String, Object> excelCellFormat(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "cell", type = OoaType.STRING, example = "C7", description = "Cell address.") String cell,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        cell(cell);
+        String r = book(drive, base, remote, ws(sheet) + rangePath(cell));
+        Map<String, Object> f = HttpJson.req(P, "GET", r + "/format").bearer(token).send(ctx).map();
+        Map<String, Object> font = HttpJson.req(P, "GET", r + "/format/font").bearer(token).send(ctx).map();
+        Map<String, Object> fill = HttpJson.req(P, "GET", r + "/format/fill").bearer(token).send(ctx).map();
+        Map<String, Object> nf = HttpJson.req(P, "GET", r + "?$select=numberFormat").bearer(token).send(ctx).map();
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("fill_color", fill.get("color"));
+        e.put("font_name", font.get("name"));
+        e.put("font_size", font.get("size"));
+        e.put("font_color", font.get("color"));
+        e.put("bold", font.get("bold"));
+        e.put("italic", font.get("italic"));
+        e.put("underline", font.get("underline"));
+        e.put("horizontal_alignment", f.get("horizontalAlignment"));
+        e.put("vertical_alignment", f.get("verticalAlignment"));
+        e.put("wrap_text", f.get("wrapText"));
+        e.put("number_format", first(nf.get("numberFormat")));
+        return Map.of("format", e);
+    }
+
+    @Action(id = "excel_rename_table", name = "Rename table (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+            description = "Give an Excel table a new name.")
+    public Map<String, Object> excelRenameTable(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "table", type = OoaType.STRING, description = "Table name or id.") String table,
+            @Input(name = "new_name", type = OoaType.STRING, description = "New table name (no spaces).") String newName,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        HttpJson.req(P, "PATCH", book(drive, base, remote, table(table))).bearer(token).json(Map.of("name", newName)).send(ctx);
+        return Map.of();
+    }
+
+    @Action(id = "excel_create_workbook", name = "Create workbook (Excel online)", category = "Excel online", capabilities = "network",
+            description = "Create a new, empty Excel workbook in OneDrive or SharePoint, optionally with named sheets.")
+    @Output(name = "item_id", type = OoaType.STRING, description = "Drive item id of the workbook.")
+    @Output(name = "web_url", type = OoaType.STRING, description = "Link to open the workbook.")
+    public Map<String, Object> excelCreateWorkbook(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, example = "Reports/2026/new.xlsx", description = "Path of the new workbook, ending in .xlsx.") String remote,
+            @Input(name = "sheet_names", type = OoaType.LIST, required = false, description = "Names of the sheets; one sheet called Sheet1 when empty.") List<Object> names,
+            @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"fail\"", enumValues = {"fail", "rename", "replace"}, description = "When a file of that name exists: fail, rename (add a number) or replace it.") String ifExists,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        if (!remote.toLowerCase(Locale.ROOT).endsWith(".xlsx")) throw new ActionException(P + ".BAD_INPUT", "The workbook name must end in .xlsx", null);
+        List<String> sheets = new ArrayList<>();
+        if (names != null) for (Object n : names) if (!Values.text(n).isBlank()) sheets.add(Values.text(n).trim());
+        if (sheets.isEmpty()) sheets.add("Sheet1");
+        String q = conflict(ifExists == null || ifExists.isBlank() ? "fail" : ifExists, "replace");
+        Map<String, Object> r = HttpJson.req(P, "PUT", drive(drive, base) + "/root:/" + HttpJson.encPath(remote) + ":/content" + q).bearer(token)
+                .bytes(emptyXlsx(sheets), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").send(ctx).map();
+        return Out.of("item_id", r.get("id"), "web_url", r.get("webUrl"));
+    }
+
+    private static String xmlEsc(String v) { return v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
+
+    /** A minimal valid .xlsx with empty sheets of the given names. */
+    static byte[] emptyXlsx(List<String> sheets) {
+        Map<String, String> parts = new LinkedHashMap<>();
+        StringBuilder types = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+                + "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+                + "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>");
+        StringBuilder wb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" "
+                + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets>");
+        StringBuilder rels = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+        for (int i = 1; i <= sheets.size(); i++) {
+            types.append("<Override PartName=\"/xl/worksheets/sheet").append(i).append(".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>");
+            wb.append("<sheet name=\"").append(xmlEsc(sheets.get(i - 1))).append("\" sheetId=\"").append(i).append("\" r:id=\"rId").append(i).append("\"/>");
+            rels.append("<Relationship Id=\"rId").append(i).append("\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet").append(i).append(".xml\"/>");
+            parts.put("xl/worksheets/sheet" + i + ".xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData/></worksheet>");
+        }
+        parts.put("[Content_Types].xml", types.append("</Types>").toString());
+        parts.put("_rels/.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+                + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>");
+        parts.put("xl/workbook.xml", wb.append("</sheets></workbook>").toString());
+        parts.put("xl/_rels/workbook.xml.rels", rels.append("</Relationships>").toString());
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(out)) {
+            for (var e : parts.entrySet()) { z.putNextEntry(new java.util.zip.ZipEntry(e.getKey())); z.write(e.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8)); z.closeEntry(); }
+        } catch (IOException e) { throw new IllegalStateException(e); }
+        return out.toByteArray();
     }
 
     /** Address of the used range, e.g. Sheet1!A1:F42, or null when the sheet is empty. */
@@ -1360,6 +1915,12 @@ public final class Microsoft365Package {
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone of start and end.") String tz,
             @Input(name = "body", type = OoaType.STRING, required = false, description = "New description.") String body,
             @Input(name = "location", type = OoaType.STRING, required = false, description = "New location.") String location,
+            @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The description is HTML.") boolean html,
+            @Input(name = "importance", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high"}, description = "Importance; Outlook's default when empty.") String importance,
+            @Input(name = "show_as", type = OoaType.STRING, required = false, enumValues = {"free", "tentative", "busy", "oof", "workingElsewhere"}, description = "How the time shows in the calendar (oof = out of office); busy when empty.") String showAs,
+            @Input(name = "sensitivity", type = OoaType.STRING, required = false, enumValues = {"normal", "personal", "private", "confidential"}, description = "Privacy of the event; normal when empty.") String sensitivity,
+            @Input(name = "reminder_minutes", type = OoaType.NUMBER, required = false, description = "Reminder this many minutes before the start; 0 turns the reminder off; Outlook's default when empty.") Integer reminder,
+            @Input(name = "categories", type = OoaType.LIST, required = false, description = "Outlook category names, e.g. [\"Finance\"].") List<Object> categories,
             @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         if (start != null && end != null && !end.isAfter(start)) throw new ActionException(P + ".BAD_TIMES", "The end must be after the start");
@@ -1367,8 +1928,9 @@ public final class Microsoft365Package {
         if (subject != null) ev.put("subject", subject);
         if (start != null) ev.put("start", Map.of("dateTime", start.toString(), "timeZone", tz));
         if (end != null) ev.put("end", Map.of("dateTime", end.toString(), "timeZone", tz));
-        if (body != null) ev.put("body", Map.of("contentType", "Text", "content", body));
+        if (body != null) ev.put("body", Map.of("contentType", html ? "HTML" : "Text", "content", body));
         if (location != null) ev.put("location", Map.of("displayName", location));
+        eventOptions(ev, importance, showAs, sensitivity, reminder, categories);
         if (ev.isEmpty()) throw new ActionException(P + ".NOTHING_TO_DO", "No changes were given", "Set at least one of subject, start, end, body or location.");
         Map<String, Object> r = HttpJson.req(P, "PATCH", event(base, mailbox, id)).bearer(token).json(ev).send(ctx).map();
         return Out.of("web_link", r.get("webLink"));
@@ -1592,6 +2154,26 @@ public final class Microsoft365Package {
         return Map.of("team", e);
     }
 
+    @Action(id = "get_channel_details", name = "Get channel details (Teams)", category = "Teams", idempotent = true, capabilities = "network",
+            description = "Read a channel's name, description, membership type, email address, creation date and link.")
+    @Output(name = "channel", type = OoaType.DICTIONARY, description = "id, name, description, membership_type, email, created, web_url.")
+    public Map<String, Object> channelDetails(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "channel_id", type = OoaType.STRING, description = "Channel id.") String channel,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        Map<String, Object> c = HttpJson.req(P, "GET", g(base) + "/teams/" + HttpJson.enc(team) + "/channels/" + HttpJson.enc(channel)).bearer(token).send(ctx).map();
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("id", c.get("id"));
+        e.put("name", c.get("displayName"));
+        e.put("description", c.get("description"));
+        e.put("membership_type", c.get("membershipType"));
+        e.put("email", c.get("email"));
+        e.put("created", c.get("createdDateTime"));
+        e.put("web_url", c.get("webUrl"));
+        return Map.of("channel", e);
+    }
+
     @Action(id = "get_user", name = "Get user (Microsoft 365)", category = "Teams", idempotent = true, capabilities = "network",
             description = "Read a person's directory profile: name, email, job title, department, office and phone.")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, email, user_principal_name, job_title, department, office, mobile_phone.")
@@ -1621,9 +2203,10 @@ public final class Microsoft365Package {
             @Input(name = "chat_id", type = OoaType.STRING, description = "Chat id, e.g. from Create chat.") String chat,
             @Input(name = "message", type = OoaType.STRING, description = "Message text (HTML allowed when html is true).") String message,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Message is HTML.") boolean html,
+            @Input(name = "importance", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "high", "urgent"}, description = "Importance of the message.") String importance,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
         Map<String, Object> r = HttpJson.req(P, "POST", g(base) + "/chats/" + HttpJson.enc(chat) + "/messages").bearer(token)
-                .json(Map.of("body", Map.of("contentType", html ? "html" : "text", "content", message))).send(ctx).map();
+                .json(chatBody(message, html, importance)).send(ctx).map();
         return Out.of("message_id", r.get("id"));
     }
 
