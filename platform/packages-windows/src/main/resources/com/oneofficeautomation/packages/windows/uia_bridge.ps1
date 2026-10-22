@@ -46,6 +46,7 @@ public static class Native {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
     [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hgt, bool repaint);
 
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
     [StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
@@ -198,6 +199,7 @@ public static class Bridge {
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
+            case "resize": return Resize(Int(req, "handle", 0), Int(req, "width", 0), Int(req, "height", 0));
             default: throw new BridgeError("BAD_REQUEST", "Unknown operation '" + op + "'");
         }
     }
@@ -337,9 +339,11 @@ public static class Bridge {
             AutomationElementCollection col;
             try { using (Cache().Activate()) col = root.FindAll(TreeScope.Subtree, cond); }
             catch (ElementNotAvailableException) { continue; }
+            bool detail = Bool(req, "detail", false);
             foreach (AutomationElement e in col) {
                 if (list.Count >= max) return list;
                 Dictionary<string, object> d = Cached(e);
+                if (detail && list.Count < 500) { try { foreach (KeyValuePair<string, object> kv in Detail(e, false)) if (!d.ContainsKey(kv.Key)) d[kv.Key] = kv.Value; } catch (ElementNotAvailableException) { continue; } }
                 d["ref"] = Remember(e);
                 list.Add(d);
             }
@@ -563,7 +567,7 @@ public static class Bridge {
                 return "type";
             }
             case "get_text": return Text(e);
-            case "properties": return Live(e, true);
+            case "properties": return Detail(e, true);
             case "focus": e.SetFocus(); return true;
             case "invoke": Pattern<InvokePattern>(e, InvokePattern.Pattern, "invoked").Invoke(); return true;
             case "expand": Pattern<ExpandCollapsePattern>(e, ExpandCollapsePattern.Pattern, "expanded").Expand(); return true;
@@ -621,9 +625,94 @@ public static class Bridge {
         }
     }
 
+    /** The top-level window an element belongs to (the element itself for a window). */
+    static AutomationElement TopOf(AutomationElement e) {
+        TreeWalker w = TreeWalker.ControlViewWalker;
+        AutomationElement root = AutomationElement.RootElement, cur = e, parent;
+        while ((parent = w.GetParent(cur)) != null && !Automation.Compare(parent, root)) cur = parent;
+        return cur;
+    }
+
+    static string Quote(string v) { return v.IndexOf('\'') < 0 ? "'" + v + "'" : "\"" + v.Replace("\"", "") + "\""; }
+
+    /**
+     * Every property: the UI Automation ones, states, the text, and where the control sits in its window: Path (child
+     * positions from the window, 1 = first), XPath (ControlType[n] steps, the last one with its AutomationId or Name),
+     * Index (position among its siblings), Parent, and Left/Top/Width/Height relative to the window.
+     */
+    static Dictionary<string, object> Detail(AutomationElement e, bool fullText) {
+        Dictionary<string, object> d = Live(e, true);
+        TreeWalker w = TreeWalker.ControlViewWalker;
+        AutomationElement root = AutomationElement.RootElement, cur = e, parent, top = e;
+        List<string> idx = new List<string>(), steps = new List<string>();
+        bool first = true;
+        while ((parent = w.GetParent(cur)) != null && !Automation.Compare(parent, root)) {
+            string ct = Fmt(cur.Current.ControlType);
+            int n = 0, same = 0, pos = 0, samePos = 0;
+            for (AutomationElement c = w.GetFirstChild(parent); c != null; c = w.GetNextSibling(c)) {
+                n++;
+                if (Fmt(c.Current.ControlType) == ct) same++;
+                if (Automation.Compare(c, cur)) { pos = n; samePos = same; break; }
+            }
+            string step = ct + "[" + samePos + "]";
+            if (first) {
+                d["Index"] = pos.ToString(CultureInfo.InvariantCulture);
+                string pn = parent.Current.Name;
+                d["Parent"] = Fmt(parent.Current.ControlType) + (string.IsNullOrEmpty(pn) ? "" : " " + Quote(pn.Length > 60 ? pn.Substring(0, 60) : pn));
+                if (!string.IsNullOrEmpty(cur.Current.AutomationId)) step = ct + "[@AutomationId=" + Quote(cur.Current.AutomationId) + "]";
+                else if (!string.IsNullOrEmpty(cur.Current.Name) && cur.Current.Name.Length <= 80) step += "[@Name=" + Quote(cur.Current.Name) + "]";
+                first = false;
+            }
+            idx.Insert(0, pos.ToString(CultureInfo.InvariantCulture));
+            steps.Insert(0, step);
+            cur = parent;
+        }
+        top = cur;
+        d["Path"] = string.Join("/", idx.ToArray());
+        d["XPath"] = "/" + string.Join("/", steps.ToArray());
+        if (!d.ContainsKey("Index")) { d["Index"] = ""; d["Parent"] = ""; }
+        System.Windows.Rect r = e.Current.BoundingRectangle, wr = top.Current.BoundingRectangle;
+        if (!r.IsEmpty && !double.IsInfinity(r.X)) {
+            double ox = wr.IsEmpty || Automation.Compare(top, e) ? 0 : wr.X, oy = wr.IsEmpty || Automation.Compare(top, e) ? 0 : wr.Y;
+            d["Left"] = ((int)(r.X - ox)).ToString(CultureInfo.InvariantCulture); d["Top"] = ((int)(r.Y - oy)).ToString(CultureInfo.InvariantCulture);
+            d["Width"] = ((int)r.Width).ToString(CultureInfo.InvariantCulture); d["Height"] = ((int)r.Height).ToString(CultureInfo.InvariantCulture);
+        }
+        List<string> st = new List<string>();
+        if (Convert.ToString(d["IsEnabled"]) == "false") st.Add("Disabled");
+        if (Convert.ToString(d["IsKeyboardFocusable"]) == "true") st.Add("Focusable");
+        if (Convert.ToString(d["HasKeyboardFocus"]) == "true") st.Add("Focused");
+        if (Convert.ToString(d["IsOffscreen"]) == "true") st.Add("Offscreen");
+        if (Convert.ToString(d["IsPassword"]) == "true") st.Add("Password");
+        object v;
+        if (d.TryGetValue("IsReadOnly", out v) && Convert.ToString(v) == "true") st.Add("ReadOnly");
+        if (d.TryGetValue("ToggleState", out v) && Convert.ToString(v) == "On") st.Add("Checked");
+        if (d.TryGetValue("IsSelected", out v) && Convert.ToString(v) == "true") st.Add("Selected");
+        if (d.TryGetValue("ExpandCollapseState", out v) && Convert.ToString(v) == "Expanded") st.Add("Expanded");
+        d["States"] = string.Join(",", st.ToArray());
+        string t = "";
+        if (Convert.ToString(d["IsPassword"]) != "true") { try { t = Text(e); } catch (Exception) { t = ""; } }
+        int maxText = fullText ? 100000 : 1000;
+        d["Text"] = t.Length > maxText ? t.Substring(0, maxText) : t;
+        return d;
+    }
+
+    static object Resize(int handle, int width, int height) {
+        if (handle == 0 || width <= 0 || height <= 0) throw new BridgeError("BAD_REQUEST", "resize needs a window handle, width and height");
+        IntPtr h = new IntPtr(handle);
+        System.Windows.Rect r = AutomationElement.FromHandle(h).Current.BoundingRectangle;
+        if (Native.IsIconic(h)) Native.ShowWindow(h, 9);
+        Native.ShowWindow(h, 1);   // restore from maximized so the size applies
+        Native.MoveWindow(h, r.IsEmpty ? 0 : (int)r.X, r.IsEmpty ? 0 : (int)r.Y, width, height, true);
+        return true;
+    }
+
+    static string ProcessPath(int pid) {
+        try { return Process.GetProcessById(pid).MainModule.FileName; } catch (Exception) { return ""; }
+    }
+
     static Dictionary<string, object> CaptureAt(int x, int y, bool shot) {
         AutomationElement e = AutomationElement.FromPoint(new System.Windows.Point(x, y));
-        Dictionary<string, object> props = Live(e, false);
+        Dictionary<string, object> props = Detail(e, false);
         TreeWalker walker = TreeWalker.ControlViewWalker;
         AutomationElement root = AutomationElement.RootElement;
         List<AutomationElement> ancestors = new List<AutomationElement>();
@@ -635,6 +724,9 @@ public static class Bridge {
         win["class_name"] = top.Current.ClassName ?? "";
         win["process"] = ProcessName(top.Current.ProcessId);
         win["handle"] = top.Current.NativeWindowHandle;
+        win["path"] = ProcessPath(top.Current.ProcessId);
+        System.Windows.Rect tr = top.Current.BoundingRectangle;
+        if (!tr.IsEmpty) { win["width"] = (int)tr.Width; win["height"] = (int)tr.Height; }
         List<object> path = new List<object>();
         foreach (AutomationElement a in ancestors) path.Add(Summary(a));
         Dictionary<string, object> d = new Dictionary<string, object>();

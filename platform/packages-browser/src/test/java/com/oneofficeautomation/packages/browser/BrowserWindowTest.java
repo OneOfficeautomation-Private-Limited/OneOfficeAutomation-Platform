@@ -85,7 +85,7 @@ class BrowserWindowTest {
             assertEquals("Page B", text(b, c, win("source", "application", "title", "Orders - Shop - Microsoft​ Edge")));
             // the element action and conditions take the same choice
             assertEquals("Page A", b.elementAction(c, null, "#h", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null,
-                    win("title", "Invoice*")).get("result"));
+                    win("title", "Invoice*"), 0, "error").get("result"));
             assertTrue(b.exists(c, null, "#h", "browser", win("url", "/b")));
             assertFalse(b.elementVisible(c, null, "#h", "browser", win("title", "No such tab")), "a condition is false when the window is missing");
 

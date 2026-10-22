@@ -33,12 +33,14 @@ class CaptureObjectTest {
               <table id="orders"><tr><th>Id</th><th>Amount</th></tr><tr><td>1</td><td>10</td></tr><tr><td>2</td><td>20</td></tr></table>
               <div id="spinner">Loading</div>
               <input type="file" id="upload">
+              <div id="rows"><p id="row-a">Row A</p><button class="go">Go</button><p id="row-b">Row B</p><button class="go">Go</button></div>
               <div style="position:relative"><button id="covered" onclick="document.body.dataset.clicked = 'yes'">Covered</button>
                 <div style="position:absolute;inset:0;background:white"></div></div>
               <iframe id="inner" srcdoc="<input id='code' name='code'><button>Inner</button>"></iframe>
               <script>
                 setTimeout(() => document.getElementById('spinner').remove(), 600);
                 document.querySelectorAll('.del').forEach((b, i) => b.onclick = () => { document.body.dataset.deleted = String(i); });
+                document.querySelectorAll('.go').forEach((b, i) => b.onclick = () => { document.body.dataset.go = String(i); });
               </script>
             </body></html>""";
 
@@ -55,7 +57,7 @@ class CaptureObjectTest {
     }
 
     Map<String, Object> act(BrowserPackage b, ActionContext c, Map<String, Object> object, String action, Object value) {
-        return b.elementAction(c, object, null, action, value, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null);
+        return b.elementAction(c, object, null, action, value, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error");
     }
 
     @Test void capturedObjectDefaultsPickStableProperties() {
@@ -100,8 +102,8 @@ class CaptureObjectTest {
 
             // equals on several properties; keystroke typing with append
             Map<String, Object> user = obj(prop("tag", "input", "equals", true), prop("name", "user", "equals", true), prop("label", "User name", "equals", true));
-            b.elementAction(c, user, null, "set_text", "Ann", 3000, "mouse", null, null, null, "keystrokes", 5, true, false, 0, false, "browser", null, null);
-            b.elementAction(c, user, null, "set_text", "-B", 3000, "mouse", null, null, null, "fill", 0, false, false, 0, false, "browser", null, null);
+            b.elementAction(c, user, null, "set_text", "Ann", 3000, "mouse", null, null, null, "keystrokes", 5, true, false, 0, false, "browser", null, null, 0, "error");
+            b.elementAction(c, user, null, "set_text", "-B", 3000, "mouse", null, null, null, "fill", 0, false, false, 0, false, "browser", null, null, 0, "error");
             assertEquals("Ann-B", act(b, c, user, "get_value", null).get("result"), "clear_first false appends");
 
             // contains / starts_with / data-* / ignore case
@@ -122,7 +124,7 @@ class CaptureObjectTest {
             assertEquals("2", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-deleted").get("result"));
             assertEquals(new BigDecimal(1), act(b, c, obj(prop("tag", "button", "equals", true), prop("class", "btn del", "not_equals", true), prop("class", "btn", "starts_with", true)), "count", null).get("result"));
             del.put("index", 7);
-            assertEquals("BROWSER.INDEX_OUT_OF_RANGE", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null)).code());
+            assertEquals("BROWSER.INDEX_OUT_OF_RANGE", assertThrows(ActionException.class, () -> b.elementAction(c, del, null, "click", null, 600, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error")).code());
 
             // search by CSS and XPath; self-healing to CSS when the properties no longer match
             Map<String, Object> status = obj(prop("id", "status-old", "equals", true), prop("css", "#status", "equals", false), prop("xpath", "/html/body/select", "equals", false));
@@ -148,13 +150,47 @@ class CaptureObjectTest {
             assertEquals(2, ((List<Object>) table.get("rows")).size());
             assertEquals(List.of("Delete", "Delete", "Delete"), act(b, c, obj(prop("tag", "ul", "equals", true)), "get_children_text", null).get("result"));
 
+            // the full property set: DOM XPath, path, CSS, parent and position, the same names Capture records
+            assertEquals("//input[@id='user']", all.get("dom_xpath"));
+            assertEquals("input#user", all.get("css"));
+            assertEquals("body", String.valueOf(all.get("parent")).replaceAll("[#.].*", ""));
+            assertTrue(String.valueOf(all.get("path")).matches("\\d+(/\\d+)+"), "path: " + all.get("path"));
+            assertEquals("User name", all.get("label"));
+            // a ticked DOM XPath or CSS property means "the element it finds"; search by XPath uses the DOM XPath first
+            assertEquals("Ann-B", act(b, c, obj(prop("dom_xpath", "//input[@id='user']", "equals", true)), "get_value", null).get("result"));
+            assertEquals(new BigDecimal(1), act(b, c, obj(prop("tag", "input", "equals", true), prop("css", "input#user", "equals", true)), "count", null).get("result"));
+            Map<String, Object> byX = obj(prop("dom_xpath", "//select[@id='status']", "equals", false), prop("xpath", "/html/body/nothing", "equals", false));
+            byX.put("search_by", "xpath");
+            assertEquals(true, act(b, c, byX, "is_present", null).get("result"));
+            assertEquals(new BigDecimal(1), act(b, c, obj(prop("tag", "button", "equals", true), prop("parent", "li", "starts_with", true), prop("tag_index", "1", "equals", true)), "count", null).get("result"));
+
+            // the anchor picks between several matches, and finds the element when its own properties no longer match
+            Map<String, Object> go = obj(prop("tag", "button", "equals", true), prop("text", "Go", "equals", true));
+            Map<String, Object> anchor = obj(prop("id", "row-b", "equals", true));
+            anchor.put("offset", Map.of("dx", 0, "dy", 30));
+            go.put("anchor", anchor);
+            act(b, c, go, "click", null);
+            assertEquals("1", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-go").get("result"), "the Go button below Row B");
+            Map<String, Object> goGone = obj(prop("tag", "button", "equals", true), prop("id", "go-renamed", "equals", true));
+            anchor.put("offset", Map.of("dx", 0, "dy", -30));
+            goGone.put("anchor", anchor);
+            act(b, c, goGone, "click", null);
+            assertEquals("0", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-go").get("result"), "the Go button above Row B");
+            assertTrue(LOG.stream().anyMatch(l -> l.contains("next to its anchor")), "anchor fallback is logged");
+
+            // if the element is not there in time: continue skips the step instead of failing
+            Map<String, Object> skipped = b.elementAction(c, obj(prop("id", "never", "equals", true)), null, "click", null, 400, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "continue");
+            assertEquals(false, skipped.get("found"));
+            assertNull(skipped.get("result"));
+            assertEquals("BROWSER.OBJECT_NOT_FOUND", assertThrows(ActionException.class, () -> b.elementAction(c, obj(prop("id", "never", "equals", true)), null, "click", null, 400, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 2000, "error")).code());
+
             // waiting for something to disappear
-            assertEquals(true, b.elementAction(c, obj(prop("id", "spinner", "equals", true)), null, "wait_to_disappear", null, 5000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null).get("result"));
+            assertEquals(true, b.elementAction(c, obj(prop("id", "spinner", "equals", true)), null, "wait_to_disappear", null, 5000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error").get("result"));
 
             // a covered button: a mouse click is refused, a JavaScript click works
             Map<String, Object> covered = obj(prop("id", "covered", "equals", true));
-            assertThrows(ActionException.class, () -> b.elementAction(c, covered, null, "click", null, 800, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null));
-            b.elementAction(c, covered, null, "click", null, 3000, "javascript", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null);
+            assertThrows(ActionException.class, () -> b.elementAction(c, covered, null, "click", null, 800, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error"));
+            b.elementAction(c, covered, null, "click", null, 3000, "javascript", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error");
             assertEquals("yes", act(b, c, obj(prop("tag", "body", "equals", true)), "get_attribute", "data-clicked").get("result"));
 
             // upload and element screenshot
@@ -186,7 +222,7 @@ class CaptureObjectTest {
             assertEquals("BROWSER.NO_ELEMENT", assertThrows(ActionException.class, () -> b.click(c, null, null, false, 1000, "browser", null, null)).code());
 
             // the selector still works for older steps, and one of the two is required
-            assertEquals("Save item", b.elementAction(c, null, "#save-123456", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null).get("result"));
+            assertEquals("Save item", b.elementAction(c, null, "#save-123456", "get_text", null, 3000, "mouse", null, null, null, "fill", 0, true, false, 0, false, "browser", null, null, 0, "error").get("result"));
             assertEquals("BROWSER.NO_ELEMENT", assertThrows(ActionException.class, () -> act(b, c, null, "click", null)).code());
         } finally {
             try { b.close(c, "browser"); } catch (RuntimeException ignored) { }

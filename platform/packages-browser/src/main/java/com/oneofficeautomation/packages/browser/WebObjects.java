@@ -26,29 +26,141 @@ public final class WebObjects {
     /** Attributes CSS can pre-filter on with [name="value"] when the match is "equals". */
     private static final Set<String> CSS_ATTRS = Set.of("id", "name", "type", "aria-label", "placeholder", "title", "role", "alt", "for");
 
-    /** The same property reader and match rules used by the picker and by the run-time search. */
-    static final String MATCH_JS = """
-        (els, q) => {
-          const norm = (s) => s == null ? null : String(s).replace(/\\s+/g, ' ').trim();
-          const labelOf = (el) => {
-            if (el.labels && el.labels.length) return norm(el.labels[0].innerText);
+    /**
+     * Property readers shared by Capture, the recorder and the run-time search, so a property means the same thing
+     * everywhere. Plain function declarations: paste inside any script (the picker and recorder use the OOA_LIB marker).
+     *
+     * Property names: tag, id, name, type, class, text (inner text), value, label, placeholder, title, aria-label,
+     * role, href, src, alt, for, data-*, dom_xpath (short XPath), xpath (full XPath), css, path (child positions from
+     * the page root), parent, inner_html, outer_html, tag_index, source_index, left, top, width, height, visible,
+     * enabled, checked, selected, child_count, in_frame, frame_url; any other name reads that attribute.
+     */
+    static final String LIB_JS = """
+          const __norm = (s) => s == null ? null : String(s).replace(/\\s+/g, ' ').trim();
+          const __generated = (v) => /\\d{3,}|^\\d/.test(v);
+          const __xq = (v) => v.indexOf("'") < 0 ? "'" + v + "'" : (v.indexOf('"') < 0 ? '"' + v + '"' : "'" + v.split("'").join('') + "'");
+          const __cssq = (v) => String(v).replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
+          const __absXpath = (el) => {
+            const parts = []; let e = el;
+            while (e && e.nodeType === 1) {
+              const sib = e.parentNode ? Array.from(e.parentNode.children).filter(c => c.tagName === e.tagName) : [];
+              parts.unshift(e.tagName.toLowerCase() + (sib.length > 1 ? '[' + (sib.indexOf(e) + 1) + ']' : ''));
+              e = e.parentElement;
+            }
+            return '/' + parts.join('/');
+          };
+          const __domXpath = (el) => {
+            const tag = el.tagName.toLowerCase();
+            for (const a of ['id', 'name', 'data-testid', 'aria-label', 'placeholder', 'title']) {
+              const v = el.getAttribute(a); if (v && !(a === 'id' && __generated(v))) return '//' + tag + '[@' + a + '=' + __xq(v) + ']';
+            }
+            const tx = (el.innerText || '').trim();
+            if (tx && tx.length < 60 && tx.indexOf(String.fromCharCode(10)) < 0) return '//' + tag + '[normalize-space()=' + __xq(tx) + ']';
+            let e = el.parentElement, depth = 0;
+            while (e && depth < 6) {
+              if (e.id && !__generated(e.id)) return '//*[@id=' + __xq(e.id) + ']' + __absXpath(el).slice(__absXpath(e).length);
+              e = e.parentElement; depth++;
+            }
+            return __absXpath(el);
+          };
+          const __cssPath = (el) => {
+            const tag = el.tagName.toLowerCase();
+            const tid = el.getAttribute('data-testid'); if (tid) return tag + '[data-testid="' + __cssq(tid) + '"]';
+            if (el.id && !__generated(el.id)) return tag + '#' + CSS.escape(el.id);
+            const nm = el.getAttribute('name'); if (nm && /^(INPUT|SELECT|TEXTAREA|FORM|BUTTON)$/.test(el.tagName)) return tag + '[name="' + __cssq(nm) + '"]';
+            const parts = []; let e = el;
+            while (e && e.nodeType === 1 && parts.length < 6) {
+              if (e !== el && e.id && !__generated(e.id)) { parts.unshift('#' + CSS.escape(e.id)); break; }
+              let p = e.tagName.toLowerCase();
+              const sib = e.parentElement ? Array.from(e.parentElement.children).filter(c => c.tagName === e.tagName) : [];
+              if (sib.length > 1) p += ':nth-of-type(' + (sib.indexOf(e) + 1) + ')';
+              parts.unshift(p); e = e.parentElement;
+            }
+            return parts.join(' > ');
+          };
+          const __path = (el) => {
+            const parts = []; let e = el;
+            while (e && e.parentElement) { parts.unshift(Array.from(e.parentElement.children).indexOf(e) + 1); e = e.parentElement; }
+            return parts.join('/');
+          };
+          const __describe = (el) => {
+            if (!el || el.nodeType !== 1) return null;
+            let d = el.tagName.toLowerCase();
+            if (el.id) d += '#' + el.id;
+            else { const c = (el.getAttribute('class') || '').trim().split(/\\s+/).filter(Boolean).slice(0, 2); if (c.length) d += '.' + c.join('.'); }
+            return d;
+          };
+          const __labelOf = (el) => {
+            if (el.labels && el.labels.length) return __norm(el.labels[0].innerText);
             const by = el.getAttribute && el.getAttribute('aria-labelledby');
-            if (by) { const t = by.split(' ').map(i => document.getElementById(i)).filter(Boolean).map(n => n.innerText).join(' '); if (t) return norm(t); }
+            if (by) { const t = by.split(' ').map(i => document.getElementById(i)).filter(Boolean).map(n => n.innerText).join(' '); if (t) return __norm(t); }
             return null;
           };
-          const prop = (el, n) => {
+          const __rect = (el) => {
+            const r = el.getBoundingClientRect();
+            return { left: Math.round(r.left + window.scrollX), top: Math.round(r.top + window.scrollY), width: Math.round(r.width), height: Math.round(r.height) };
+          };
+          const __one = (el, n) => {
             switch (n) {
               case 'tag': return el.tagName.toLowerCase();
-              case 'text': return norm(el.innerText !== undefined ? el.innerText : el.textContent);
-              case 'class': return norm(el.getAttribute('class'));
-              case 'label': return labelOf(el);
+              case 'text': return __norm(el.innerText !== undefined ? el.innerText : el.textContent);
+              case 'class': return __norm(el.getAttribute('class'));
+              case 'label': return __labelOf(el);
               case 'value': return el.value !== undefined ? String(el.value) : el.getAttribute('value');
-              case 'visible': { const r = el.getBoundingClientRect(); return String(r.width > 0 && r.height > 0); }
+              case 'visible': { const r = el.getBoundingClientRect(); return String(r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'); }
+              case 'enabled': return String(!el.disabled);
+              case 'checked': return el.checked === undefined ? null : String(el.checked);
+              case 'selected': return el.tagName === 'SELECT' && el.selectedIndex >= 0 ? __norm(el.options[el.selectedIndex].text) : null;
+              case 'dom_xpath': case 'relative_xpath': return __domXpath(el);
+              case 'xpath': return __absXpath(el);
+              case 'css': return __cssPath(el);
+              case 'path': return __path(el);
+              case 'parent': return __describe(el.parentElement);
+              case 'inner_html': return el.innerHTML;
+              case 'outer_html': return el.outerHTML;
+              case 'tag_index': return String(Array.from(document.getElementsByTagName(el.tagName)).indexOf(el));
+              case 'source_index': return String(Array.from(document.getElementsByTagName('*')).indexOf(el));
+              case 'child_count': return String(el.children.length);
+              case 'left': case 'top': case 'width': case 'height': return String(__rect(el)[n]);
+              case 'in_frame': return String(window !== window.top);
+              case 'frame_url': return location.href;
               default: { const a = el.getAttribute(n); return a !== null ? a : (n in el && typeof el[n] !== 'object' && typeof el[n] !== 'function' ? String(el[n]) : null); }
             }
           };
+          const __props = (el) => {
+            const p = {};
+            const put = (k, v, max) => { if (v !== null && v !== undefined && String(v).trim() !== '') p[k] = String(v).trim().slice(0, max || 500); };
+            put('tag', __one(el, 'tag'));
+            for (const a of ['id', 'name', 'type', 'class', 'aria-label', 'placeholder', 'title', 'role', 'href', 'src', 'alt', 'for']) put(a, el.getAttribute(a));
+            for (const a of el.attributes) if (!(a.name in p) && a.name !== 'style' && !a.name.startsWith('on')) put(a.name, a.value);
+            put('text', __one(el, 'text'), 1000);
+            if (el.value !== undefined && el.getAttribute('type') !== 'password') put('value', el.value);
+            put('label', __labelOf(el));
+            for (const k of ['dom_xpath', 'css', 'xpath', 'path', 'parent', 'tag_index', 'source_index', 'child_count', 'left', 'top', 'width', 'height',
+                             'visible', 'enabled', 'checked', 'selected', 'in_frame', 'frame_url']) put(k, __one(el, k));
+            put('inner_html', __one(el, 'inner_html'));
+            put('outer_html', __one(el, 'outer_html'));
+            return p;
+          };
+        """;
+
+    /** The run-time search: which of the candidate elements satisfy every ticked property. */
+    static final String MATCH_JS = "(els, q) => {\n" + LIB_JS + """
           const wild = (p) => new RegExp('^' + p.replace(/[.+^${}()|[\\]\\\\]/g, '\\\\$&').replace(/\\*/g, '.*').replace(/\\?/g, '.') + '$', q.ignoreCase ? 'is' : 's');
-          const test = (actual, r) => {
+          const xpathHits = {};
+          const inXpath = (el, x) => {
+            if (!(x in xpathHits)) {
+              const set = new Set();
+              try { const r = document.evaluate(x, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null); for (let i = 0; i < r.snapshotLength; i++) set.add(r.snapshotItem(i)); } catch (e) { }
+              xpathHits[x] = set;
+            }
+            return xpathHits[x].has(el);
+          };
+          const test = (el, r) => {
+            // A CSS selector or XPath that equals the captured one means "the element it finds", not the same text.
+            if (r.match === 'equals' && r.name === 'css') { try { return el.matches(r.value); } catch (e) { } }
+            if (r.match === 'equals' && (r.name === 'xpath' || r.name === 'dom_xpath' || r.name === 'relative_xpath')) return inXpath(el, r.value);
+            const actual = __one(el, r.name);
             if (actual == null) return r.match === 'not_equals';
             let a = String(actual), v = String(r.value == null ? '' : r.value);
             if (q.ignoreCase && r.match !== 'regex' && r.match !== 'wildcard') { a = a.toLowerCase(); v = v.toLowerCase(); }
@@ -63,16 +175,15 @@ public final class WebObjects {
             }
           };
           const out = [];
-          els.forEach((el, i) => { if (q.rules.every(r => test(prop(el, r.name), r))) out.push(i); });
+          els.forEach((el, i) => { if (q.rules.every(r => test(el, r))) out.push(i); });
           return out;
         }
         """;
 
-    /** Reads every property of a matched element (for the get_all_properties action). */
-    static final String ALL_PROPS_JS = """
-        (el) => {
-          const o = { tag: el.tagName.toLowerCase(), text: (el.innerText || '').trim().slice(0, 1000) };
-          for (const a of el.attributes) o[a.name] = a.value;
+    /** Reads every property of a matched element (get_all_properties and Test): the capture names plus x, y and booleans. */
+    static final String ALL_PROPS_JS = "(el) => {\n" + LIB_JS + """
+          const o = __props(el);
+          o.text = (el.innerText || '').trim().slice(0, 1000);
           if (el.value !== undefined) o.value = String(el.value);
           if (el.checked !== undefined) o.checked = el.checked;
           if (el.disabled !== undefined) o.disabled = el.disabled;
@@ -80,6 +191,20 @@ public final class WebObjects {
           o.x = Math.round(r.left); o.y = Math.round(r.top); o.width = Math.round(r.width); o.height = Math.round(r.height);
           o.visible = r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
           return o;
+        }
+        """;
+
+    /** Index of the element nearest to a point (page coordinates), or -1 when none is within max pixels. */
+    static final String NEAREST_JS = """
+        (els, q) => {
+          let best = -1, bd = Infinity;
+          els.forEach((e, i) => {
+            const r = e.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) return;
+            const d = Math.hypot(r.left + window.scrollX - q.x, r.top + window.scrollY - q.y);
+            if (d < bd) { bd = d; best = i; }
+          });
+          return bd <= q.max ? best : -1;
         }
         """;
 
@@ -92,7 +217,7 @@ public final class WebObjects {
             if (!(o instanceof Map<?, ?> m) || !Boolean.TRUE.equals(m.get("use"))) continue;
             Map<String, Object> p = (Map<String, Object>) m;
             String name = String.valueOf(p.get("name"));
-            if (name.equals("css") || name.equals("xpath") || name.equals("relative_xpath")) continue; // used by search_by, not as a rule
+            if (name.isBlank()) continue;
             String match = String.valueOf(p.getOrDefault("match", "equals"));
             if (!MATCHES.contains(match)) throw new ActionException("BROWSER.BAD_MATCH", "Property " + name + " has an unknown match rule '" + match + "'", "Use one of " + MATCHES);
             out.add(Map.of("name", name, "value", p.get("value") == null ? "" : String.valueOf(p.get("value")), "match", match));
@@ -165,13 +290,26 @@ public final class WebObjects {
         Object root = root(page, object);
         String by = String.valueOf(object.getOrDefault("search_by", "properties"));
         if (by.equals("css") || by.equals("xpath")) {
-            String q = by.equals("css") ? property(object, "css") : property(object, "relative_xpath") != null && Boolean.TRUE.equals(object.get("prefer_relative_xpath")) ? property(object, "relative_xpath") : property(object, "xpath");
-            if (q == null || q.isBlank()) throw new ActionException("BROWSER.BAD_OBJECT", "The captured object has no " + by, "Capture the element again, or search by properties.");
-            Locator all = locator(root, by.equals("xpath") ? "xpath=" + q : q);
-            int n = all.count();
-            Locator[] out = new Locator[n];
-            for (int i = 0; i < n; i++) out[i] = all.nth(i);
-            return out;
+            // XPath: the short DOM XPath first, then the full one (older objects: the relative one only when preferred).
+            List<String> queries = new ArrayList<>();
+            if (by.equals("css")) queries.add(property(object, "css"));
+            else {
+                queries.add(property(object, "dom_xpath"));
+                if (Boolean.TRUE.equals(object.get("prefer_relative_xpath"))) queries.add(property(object, "relative_xpath"));
+                queries.add(property(object, "xpath"));
+                if (queries.stream().allMatch(Objects::isNull)) queries.add(property(object, "relative_xpath"));
+            }
+            queries.removeIf(q -> q == null || q.isBlank());
+            if (queries.isEmpty()) throw new ActionException("BROWSER.BAD_OBJECT", "The captured object has no " + by, "Capture the element again, or search by properties.");
+            for (String q : queries) {
+                Locator all = locator(root, by.equals("xpath") ? "xpath=" + q : q);
+                int n = all.count();
+                if (n == 0 && q != queries.get(queries.size() - 1)) continue;
+                Locator[] out = new Locator[n];
+                for (int i = 0; i < n; i++) out[i] = all.nth(i);
+                return out;
+            }
+            return new Locator[0];
         }
         List<Map<String, Object>> rules = rules(object);
         if (rules.isEmpty()) throw new ActionException("BROWSER.BAD_OBJECT", "No property is selected for the search", "Tick at least one property in the captured object, or search by CSS or XPath.");
@@ -192,7 +330,13 @@ public final class WebObjects {
         long end = System.currentTimeMillis() + (long) timeoutMs;
         String primary = String.valueOf(object.getOrDefault("search_by", "properties"));
         List<String> order = new ArrayList<>(List.of(primary));
-        for (String f : List.of("css", "xpath")) if (!order.contains(f) && property(object, f) != null && !Boolean.FALSE.equals(object.get("self_heal"))) order.add(f);
+        boolean heal = !Boolean.FALSE.equals(object.get("self_heal"));
+        if (heal) {
+            if (!order.contains("css") && property(object, "css") != null) order.add("css");
+            if (!order.contains("xpath") && (property(object, "dom_xpath") != null || property(object, "xpath") != null)) order.add("xpath");
+        }
+        Map<String, Object> anchor = object.get("anchor") instanceof Map<?, ?> am ? object(am) : null;
+        boolean explicitIndex = object.get("index") instanceof Number n && n.intValue() > 0;
         while (true) {
             UiGuard.before(ctx);
             ctx.checkCancelled();
@@ -202,6 +346,11 @@ public final class WebObjects {
                 o.put("search_by", by);
                 Locator[] found;
                 try { found = findAll(page, o); } catch (PlaywrightException e) { found = new Locator[0]; }
+                if (found.length > 1 && anchor != null && !explicitIndex) {
+                    // Several match: the anchor decides (the one nearest to where the element sat next to it).
+                    Locator near = nearAnchor(page, object, anchor, found);
+                    if (near != null) return near;
+                }
                 if (found.length > index) {
                     if (!by.equals(primary)) ctx.warn("Captured object found by its " + by + " instead of its " + primary + " (self-healing)");
                     return found[index];
@@ -209,11 +358,49 @@ public final class WebObjects {
                 if (found.length > 0 && by.equals(primary) && index > 0 && System.currentTimeMillis() >= end)
                     throw new ActionException("BROWSER.INDEX_OUT_OF_RANGE", found.length + " element(s) match, so index " + index + " does not exist", "Lower the index or loosen the properties.");
             }
+            if (anchor != null) {
+                Locator near;
+                try { near = nearAnchor(page, object, anchor, null); } catch (PlaywrightException e) { near = null; }
+                if (near != null) { ctx.warn("Captured object found next to its anchor " + describe(anchor)); return near; }
+            }
             if (System.currentTimeMillis() >= end)
                 throw new ActionException("BROWSER.OBJECT_NOT_FOUND", "No element matches the captured object " + describe(object) + " within " + (long) timeoutMs + " ms",
                         "Open the step's captured object and loosen the properties (contains, wildcard), use Test to check it, or recapture.", true);
             try { page.waitForTimeout(250); } catch (PlaywrightException e) { throw BrowserPackage.pwPublic(e, "Waiting for the element"); }
         }
+    }
+
+    /**
+     * The element next to the anchor: the anchor is found by its own properties, and the element is the candidate
+     * nearest to where it sat relative to the anchor at capture (anchor.offset, in pixels). Without candidates, every
+     * element with the object's tag within 250 pixels of that spot is considered.
+     */
+    @SuppressWarnings("unchecked")
+    static Locator nearAnchor(Page page, Map<String, Object> object, Map<String, Object> anchor, Locator[] candidates) {
+        Locator[] anchors = findAll(page, anchor);
+        int ai = anchor.get("index") instanceof Number n ? n.intValue() : 0;
+        if (anchors.length <= ai) return null;
+        Map<String, Object> at = (Map<String, Object>) anchors[ai].evaluate("e => { const r = e.getBoundingClientRect(); return { x: r.left + window.scrollX, y: r.top + window.scrollY }; }");
+        Map<String, Object> off = anchor.get("offset") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+        double x = ((Number) at.get("x")).doubleValue() + (off.get("dx") instanceof Number d ? d.doubleValue() : 0);
+        double y = ((Number) at.get("y")).doubleValue() + (off.get("dy") instanceof Number d ? d.doubleValue() : 0);
+        if (candidates != null) {
+            int best = -1; double bd = Double.MAX_VALUE;
+            for (int i = 0; i < candidates.length && i < 200; i++) {
+                Map<String, Object> r = (Map<String, Object>) candidates[i].evaluate("e => { const r = e.getBoundingClientRect(); return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width }; }");
+                if (((Number) r.get("w")).doubleValue() == 0) continue;
+                double d = Math.hypot(((Number) r.get("x")).doubleValue() - x, ((Number) r.get("y")).doubleValue() - y);
+                if (d < bd) { bd = d; best = i; }
+            }
+            return best < 0 ? null : candidates[best];
+        }
+        String tag = null;
+        for (Map<String, Object> r : rules(object)) if ("tag".equals(r.get("name")) && "equals".equals(r.get("match"))) tag = (String) r.get("value");
+        if (tag == null) tag = property(object, "tag");
+        if (tag == null || !tag.matches("^[a-zA-Z][a-zA-Z0-9-]*$")) return null;
+        Locator all = locator(root(page, object), tag.toLowerCase(Locale.ROOT));
+        int i = ((Number) all.evaluateAll(NEAREST_JS, Map.of("x", x, "y", y, "max", 250))).intValue();
+        return i < 0 ? null : all.nth(i);
     }
 
     static String describe(Map<String, Object> object) {

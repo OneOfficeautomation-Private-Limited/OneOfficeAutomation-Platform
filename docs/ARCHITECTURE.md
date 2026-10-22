@@ -218,11 +218,32 @@ UI actions find elements by a **captured object** instead of a single selector:
  "search_by": "properties",                    // or "css" / "xpath" (web)
  "index": 0, "ignore_case": false, "self_heal": true,
  "properties": [{"name": "id", "value": "save", "match": "equals", "use": true}, ...],
+ "rect": {"left": 355, "top": 517, "width": 586, "height": 41},   // web: page position at capture
+ "anchor": {...another captured object..., "offset": {"dx": 0, "dy": 26}},   // optional
  "screenshot": "base64 PNG"}
 ```
 
 - Only properties with `use: true` are matched; `match` is equals, not_equals, contains, starts_with, ends_with,
   wildcard or regex.
+- Web properties come from one shared reader (`WebObjects.LIB_JS`), used by Capture, the Recorder, the run-time
+  search and `get_all_properties`, so a name means the same thing everywhere. It reads the attributes (`tag`, `id`,
+  `name`, `type`, `class`, `href`, `data-*` …), `text` (inner text), `value`, `label`, `dom_xpath` (short XPath),
+  `xpath` (full), `css`, `path` (child positions), `parent`, `tag_index`, `source_index`, position and size,
+  `visible`, `enabled`, `checked`, `selected`, `in_frame`, `frame_url`, `inner_html` and `outer_html`. A ticked `css`
+  or XPath property with `equals` means "the element that selector finds".
+- `anchor`: when the element is not found, or several match, the anchor is found by its own properties and the
+  candidate nearest to `anchor position + offset` is used (within 250 px when the element's own properties no longer
+  match). Studio's Anchor tab records the offset from both captures.
+- `element_action` also has `wait_for_page_ms` (wait for the page to load first) and `if_not_found`
+  (`error`, or `continue`: skip the step, `found` = false).
+- The Recorder (`ooa.browser/record`) gives each recorded click, typing and selection the full captured object,
+  including the iframe path.
+- Desktop capture records the UI Automation properties plus `Text`, `Path` (child positions from the window),
+  `XPath` (`ControlType[n]` steps, the last with its AutomationId or Name), `Index`, `Parent`, `Left`/`Top`/`Width`/
+  `Height` (relative to the window), `States`, the patterns and states, and the window's program `path` and `size`.
+  The search reads these details only when a ticked rule needs them (`DesktopObject.needsDetail`). Desktop objects
+  also take `anchor` (nearest control of the same type to anchor + offset, from the screen rectangles),
+  `window.resize` {width, height} (set before the search) and `object_action`'s `if_not_found`.
 - Web matching: `packages-browser/.../WebObjects.java`. Desktop matching: `packages-windows/.../DesktopObject.java` with
   the UI Automation helper `UiaBridge` (PowerShell + .NET UIAutomationClient).
 - Studio edits the object in `captureEditor` (`studio.js`). It uses `POST /studio/api/capture`, `capture/test` and

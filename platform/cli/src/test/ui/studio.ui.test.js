@@ -472,8 +472,14 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     check("the captured object editor lists every property with Use and Match", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 3 && d.querySelectorAll(".cap-table select").length === 3),
       "selected=" + JSON.stringify(w.eval("state.selected")) + " spec=" + w.eval("!!state.specs.get('ooa.browser/element_action')") + " props=" + (d.getElementById("props") ? d.getElementById("props").textContent.slice(0, 300) : "none"));
     if (!d.querySelector(".cap-table")) throw new Error("capture editor not shown");
-    const idUse = d.querySelector('.cap-table input[aria-label="Use id"]'); idUse.checked = true; idUse.dispatchEvent(new w.Event("change"));
-    const idMatch = d.querySelector('.cap-table select[aria-label="Match for id"]'); idMatch.value = "regex"; idMatch.dispatchEvent(new w.Event("change"));
+    check("properties show readable names (stored name on hover) and a ticked count", [...d.querySelectorAll(".cap-table .cap-name")].map((x) => x.textContent).join() === "HTML tag,HTML ID,Inner text"
+      && d.querySelector(".cap-table .cap-name").title === "tag" && d.querySelector(".cap-count").textContent === "2 ticked of 3");
+    click([...d.querySelectorAll(".cap-view button")].find((b) => b.textContent === "Ticked"));
+    check("Ticked shows only the properties used for the search", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 2));
+    click([...d.querySelectorAll(".cap-view button")].find((b) => b.textContent === "All"));
+    await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 3);
+    const idUse = d.querySelector('.cap-table input[aria-label="Search by HTML ID"]'); idUse.checked = true; idUse.dispatchEvent(new w.Event("change"));
+    const idMatch = d.querySelector('.cap-table select[aria-label="Match for HTML ID"]'); idMatch.value = "regex"; idMatch.dispatchEvent(new w.Event("change"));
     const capProp = () => JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.object.properties[1]"));
     check("ticking a property and choosing its match rule updates the step", capProp().includes('"use":true') && capProp().includes('"match":"regex"'), capProp());
     check("search by offers properties, CSS and XPath; Recapture and Test are offered",
@@ -481,6 +487,28 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
       && [...d.querySelectorAll(".cap-head button")].map((b) => b.textContent).join() === "Recapture,Test");
     click([...d.querySelectorAll(".cap-editor .link-btn")].find((b) => b.textContent.includes("Add property")));
     check("a custom property can be added", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 4 && d.querySelector('.cap-table input[aria-label="Property name"]')));
+    click([...d.querySelectorAll(".cap-tabs button")].find((b) => b.textContent.startsWith("Anchor")));
+    check("the Anchor tab explains anchors and offers Capture anchor", await until(() => d.querySelector(".cap-anchor")
+      && [...d.querySelectorAll(".cap-anchor button")].some((b) => b.textContent === "Capture anchor")));
+    w.eval(`(() => { const o = state.flow.steps[state.flow.steps.length - 1].args.object; o.anchor = { technology: "web", search_by: "properties", index: 0, offset: { dx: 0, dy: 24 },
+      properties: [{ name: "text", value: "Order", match: "equals", use: true }] }; renderProps(); })()`);
+    click([...d.querySelectorAll(".cap-tabs button")].find((b) => b.textContent.startsWith("Anchor")));
+    check("a captured anchor shows its offset and its own properties", await until(() => d.querySelector(".cap-anchor .cap-nested .cap-table")
+      && d.querySelector(".cap-anchor").textContent.includes("24 px down") && [...d.querySelectorAll(".cap-anchor button")].some((b) => b.textContent === "Remove anchor")));
+    w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // Desktop objects: readable names, the window with program path and resize, and an anchor
+    w.eval(`state.flow.steps.push({ id: "dcap_ui", action: "ooa.desktop_ui/object_action", args: { action: "click", object: { technology: "desktop", index: 0,
+      window: { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad", path: "C:\\\\Apps\\\\notepad.exe", size: { width: 1440, height: 740 } },
+      properties: [{ name: "ControlType", value: "Document", match: "equals", use: true }, { name: "Path", value: "1/1", match: "equals", use: false },
+        { name: "XPath", value: "/Pane[1]/Document[@Name='Text editor']", match: "equals", use: false }, { name: "BoundingRectangle", value: "10,100,600,400", match: "equals", use: false }] } } });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    check("a desktop object shows readable names, Main and Anchor, and the program path", await until(() => [...d.querySelectorAll(".cap-table .cap-name")].map((x) => x.textContent).join() === "Control type,Path,XPath,Screen rectangle"
+      && d.querySelector(".cap-tabs") && d.querySelector(".cap-page") && d.querySelector(".cap-page").textContent.includes("C:\\Apps\\notepad.exe")));
+    const rz = d.querySelector('.cap-page input[aria-label="Resize window"]'); rz.checked = true; rz.dispatchEvent(new w.Event("change"));
+    check("Resize window records the captured size", JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.object.window.resize")) === '{"width":1440,"height":740}'
+      && !!(await until(() => d.querySelector('.cap-page input[aria-label="Window width"]'))));
+    click([...d.querySelectorAll(".cap-tabs button")].find((b) => b.textContent.startsWith("Anchor")));
+    check("the desktop Anchor tab offers Capture anchor", await until(() => [...d.querySelectorAll(".cap-anchor button")].some((b) => b.textContent === "Capture anchor")));
     w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
     // Every web action (not only the element action) offers the captured object and a Capture button by its selector.
     w.eval(`state.flow.steps.push({ id: "click_ui", action: "ooa.browser/click", args: {} }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);

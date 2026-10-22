@@ -19,16 +19,33 @@ import java.util.regex.PatternSyntaxException;
  *  "properties": [{"name": "ControlType", "value": "Edit", "match": "equals", "use": true}, ...],
  *  "path": [{"ControlType": "Window", "Name": "..."}, ...],
  *  "index": 0,
+ *  "anchor": {...another desktop object..., "offset": {"dx": 0, "dy": 30}},    (optional)
  *  "screenshot": "base64 PNG"}</pre>
+ *
+ * <p>window may also carry "path" (the program, for information) and "resize": {"width", "height"}, which sets the
+ * window's size before the object is looked for, so positions match the capture.
  *
  * <p>Text matching ignores case for every mode except regex, which is used as written (add (?i) to ignore case) and
  * may match anywhere in the value. Wildcards (* and ?) must match the whole value. This class has no native code, so
  * the matching and self-healing order are unit-tested.
  */
 public final class DesktopObject {
-    /** Properties recorded at capture, in the order Studio lists them. */
-    public static final List<String> PROPERTIES = List.of("Name", "AutomationId", "ClassName", "ControlType", "FrameworkId",
-            "LocalizedControlType", "HelpText", "AccessKey", "IsEnabled", "IsOffscreen", "Value", "BoundingRectangle");
+    /** Properties recorded at capture, in the order Studio lists them (those the control has). */
+    public static final List<String> PROPERTIES = List.of("Name", "AutomationId", "ClassName", "ControlType", "LocalizedControlType", "FrameworkId",
+            "Text", "Value", "HelpText", "AccessKey", "AcceleratorKey", "ItemType", "ItemStatus",
+            "Path", "XPath", "Index", "Parent", "Left", "Top", "Width", "Height", "States",
+            "IsEnabled", "IsOffscreen", "IsKeyboardFocusable", "HasKeyboardFocus", "IsPassword", "IsReadOnly", "ToggleState", "IsSelected",
+            "ExpandCollapseState", "RangeValue", "IsContentElement", "IsControlElement", "Orientation", "SupportedPatterns", "ProcessName", "BoundingRectangle");
+
+    /** Properties the helper returns for every control while searching; any other ticked property makes it read the details too. */
+    static final Set<String> QUICK = Set.of("name", "automationid", "classname", "controltype", "frameworkid", "localizedcontroltype", "helptext",
+            "accesskey", "isenabled", "isoffscreen", "value", "boundingrectangle", "runtimeid", "processid");
+
+    /** True when a rule reads a property that the quick search does not return (path, XPath, states, text and so on). */
+    public static boolean needsDetail(List<Rule> rules) {
+        for (Rule r : rules) if (!QUICK.contains(r.name().toLowerCase(Locale.ROOT))) return true;
+        return false;
+    }
     public static final List<String> MATCHES = List.of("equals", "contains", "starts_with", "ends_with", "regex", "wildcard", "not_equals");
 
     /** One property test. */
@@ -68,6 +85,9 @@ public final class DesktopObject {
     final List<Property> properties;
     final List<Object> path;
     final int index;
+    DesktopObject anchor;
+    double anchorDx, anchorDy;
+    int resizeWidth, resizeHeight;
 
     private DesktopObject(WindowSpec window, List<Property> properties, List<Object> path, int index) {
         this.window = window; this.properties = properties; this.path = path; this.index = index;
@@ -138,13 +158,55 @@ public final class DesktopObject {
             if (index < 0) throw bad("index must be 0 or more");
         }
         List<Object> path = o.get("path") instanceof List<?> l ? new ArrayList<>(l) : List.of();
-        return new DesktopObject(w, List.copyOf(props), path, index);
+        DesktopObject d = new DesktopObject(w, List.copyOf(props), path, index);
+        if (o.get("window") instanceof Map<?, ?> wm && wm.get("resize") instanceof Map<?, ?> rz) {
+            d.resizeWidth = whole(rz.get("width"), "window.resize.width");
+            d.resizeHeight = whole(rz.get("height"), "window.resize.height");
+            if (d.resizeWidth <= 0 || d.resizeHeight <= 0) throw bad("window.resize needs a width and height above 0");
+        }
+        if (o.get("anchor") instanceof Map<?, ?> am) {
+            Map<String, Object> a = new LinkedHashMap<>((Map<String, Object>) am);
+            if (a.get("window") == null && o.get("window") != null) a.put("window", o.get("window"));   // the anchor is in the same window
+            if (a.get("window") instanceof Map<?, ?> aw && aw.get("resize") != null) { Map<String, Object> c = new LinkedHashMap<>((Map<String, Object>) aw); c.remove("resize"); a.put("window", c); }
+            d.anchor = parse(a);
+            if (a.get("offset") instanceof Map<?, ?> off) {
+                d.anchorDx = off.get("dx") == null ? 0 : new BigDecimal(String.valueOf(off.get("dx"))).doubleValue();
+                d.anchorDy = off.get("dy") == null ? 0 : new BigDecimal(String.valueOf(off.get("dy"))).doubleValue();
+            }
+        } else if (o.get("anchor") != null) throw bad("anchor must be a captured desktop object");
+        return d;
+    }
+
+    static int whole(Object v, String what) {
+        try { return new BigDecimal(String.valueOf(v)).intValueExact(); }
+        catch (ArithmeticException | NumberFormatException e) { throw bad(what + " must be a whole number"); }
+    }
+
+    /** Left, top of a "x,y,w,h" BoundingRectangle; null when there is none. */
+    static double[] topLeft(Object rect) {
+        if (rect == null) return null;
+        String[] p = String.valueOf(rect).split(",");
+        if (p.length < 2) return null;
+        try { return new double[]{Double.parseDouble(p[0].trim()), Double.parseDouble(p[1].trim())}; } catch (NumberFormatException e) { return null; }
+    }
+
+    /** Index of the candidate whose top-left corner is nearest to (x, y), or -1 when none is within max pixels. */
+    static int nearest(List<Map<String, ?>> candidates, double x, double y, double max) {
+        int best = -1; double bd = Double.MAX_VALUE;
+        for (int i = 0; i < candidates.size(); i++) {
+            double[] tl = topLeft(candidates.get(i).get("BoundingRectangle"));
+            if (tl == null) continue;
+            double d = Math.hypot(tl[0] - x, tl[1] - y);
+            if (d < bd) { bd = d; best = i; }
+        }
+        return bd <= max ? best : -1;
     }
 
     static String str(Object o) { return o == null ? null : String.valueOf(o); }
 
     public WindowSpec window() { return window; }
     public int index() { return index; }
+    public DesktopObject anchor() { return anchor; }
 
     /** The rules marked use: true. */
     public List<Rule> primary() { return properties.stream().filter(Property::use).map(Property::rule).toList(); }
@@ -211,6 +273,10 @@ public final class DesktopObject {
     }
 
     // ---------- capture ----------
+    /** Always listed, even when empty, so a capture always shows them. */
+    static final Set<String> CORE = Set.of("Name", "AutomationId", "ClassName", "ControlType", "LocalizedControlType", "FrameworkId", "HelpText",
+            "AccessKey", "IsEnabled", "IsOffscreen", "Value", "BoundingRectangle");
+
     static final Pattern GENERATED_ID = Pattern.compile("^(\\d{6,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-.*|.*\\d{5,}.*)$");
 
     /**
@@ -227,6 +293,7 @@ public final class DesktopObject {
         boolean useName = !useAid && !name.isBlank() && name.length() <= 120 && name.indexOf('\n') < 0;
         List<Object> props = new ArrayList<>();
         for (String p : PROPERTIES) {
+            if (!el.containsKey(p) && !CORE.contains(p)) continue;
             String v = el.get(p) == null ? "" : String.valueOf(el.get(p));
             boolean use = switch (p) {
                 case "ControlType" -> true;
@@ -243,6 +310,8 @@ public final class DesktopObject {
         w.put("title", String.valueOf(win.getOrDefault("title", "")));
         w.put("title_match", "wildcard");
         w.put("process", String.valueOf(win.getOrDefault("process", "")));
+        if (win.get("path") != null && !String.valueOf(win.get("path")).isBlank()) w.put("path", String.valueOf(win.get("path")));
+        if (win.get("width") != null && win.get("height") != null) w.put("size", Map.of("width", win.get("width"), "height", win.get("height")));
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("technology", "desktop");
         o.put("window", w);

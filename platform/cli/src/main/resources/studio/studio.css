@@ -621,27 +621,43 @@ pre.explain { white-space: pre-wrap; font-family: "Segoe UI", system-ui, sans-se
 .cap-opts input[type=number] { width: 56px; }
 .cap-opts input[type=text] { min-width: 160px; }
 .cap-frames { font-size: 12px; }
-.cap-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.cap-table th { text-align: left; font-weight: 600; padding: 3px 4px; border-bottom: 1px solid var(--line, #d0d7e2); }
-.cap-table td { padding: 2px 4px; vertical-align: middle; }
-.cap-table td input[type=text] { width: 100%; min-width: 90px; box-sizing: border-box; }
-.cap-table tr.on .cap-name { font-weight: 600; color: var(--accent, #6d28d9); }
-.cap-table select { max-width: 120px; }
-.cap-name { font-family: Consolas, monospace; word-break: break-all; }
 .cap-empty { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted, #64748b); }
 .cap-page summary { cursor: pointer; font-size: 12px; }
 
-/* capture properties: one block per property, value on its own full-width line (fits a narrow settings panel) */
-.cap-table { display: grid; gap: 4px; }
-.cap-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 96px 24px; grid-template-areas: "use prop match del" "val val val val"; gap: 2px 6px; align-items: center;
-  padding: 4px 6px; border: 1px solid var(--line, #d0d7e2); border-radius: 6px; }
-.cap-row.on { border-color: color-mix(in srgb, var(--accent, #6d28d9) 55%, transparent); background: color-mix(in srgb, var(--accent, #6d28d9) 6%, transparent); }
-.cap-row .cap-use { grid-area: use; } .cap-row .cap-prop { grid-area: prop; min-width: 0; } .cap-row select { grid-area: match; width: 100%; min-width: 0; font-size: 11px; }
-.cap-row .mini { grid-area: del; padding: 0 4px; min-width: 0; } .cap-row .cap-val { grid-area: val; }
-.cap-row .cap-val input, .cap-row .cap-prop input { width: 100%; box-sizing: border-box; min-width: 0; font-family: Consolas, monospace; font-size: 12px; }
-.cap-headrow { border: 0; padding: 0 6px; font-size: 11px; font-weight: 600; color: var(--muted, #64748b); grid-template-areas: "use prop match del"; }
+/* capture properties: a Name / Value table like a property sheet; tick a row to search by it, the match rule sits at the end */
+.cap-props { display: grid; gap: 6px; }
+.cap-props-head { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.cap-count { color: var(--muted, #64748b); }
+.cap-view > button { padding: 2px 10px; font-size: 12px; }
+.cap-tabs { justify-self: start; } .cap-tabs > button { padding: 3px 14px; font-size: 12px; }
+.cap-filter { width: 100%; box-sizing: border-box; font-size: 12px; }
+.cap-table { display: grid; gap: 0; border: 1px solid var(--line, #d0d7e2); border-radius: 6px; overflow: hidden; max-height: 420px; overflow-y: auto; }
+.cap-row { display: grid; grid-template-columns: 22px minmax(70px, 34%) minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid var(--line, #e2e8f0); }
+.cap-row:last-child { border-bottom: 0; }
+.cap-row.on { background: color-mix(in srgb, var(--accent, #6d28d9) 7%, transparent); }
+.cap-row .cap-prop { min-width: 0; } .cap-row .cap-val { min-width: 0; }
+.cap-row .cap-match { display: flex; gap: 2px; align-items: center; }
+.cap-row .cap-match select { width: 92px; font-size: 11px; padding: 1px 2px; }
+.cap-row:not(.on) .cap-match select { opacity: .55; }
+.cap-row .mini { padding: 0 4px; min-width: 0; }
+.cap-row .cap-val input, .cap-row .cap-prop input { width: 100%; box-sizing: border-box; min-width: 0; font-family: Consolas, monospace; font-size: 12px; padding: 2px 5px; }
+.cap-row:not(.on) .cap-val input { background: var(--bg, #f8fafc); color: var(--muted, #475569); }
+.cap-headrow { position: sticky; top: 0; z-index: 1; background: var(--panel, #fff); font-size: 11px; font-weight: 600; color: var(--muted, #64748b); }
 .cap-row.on .cap-name { font-weight: 600; color: var(--accent, #6d28d9); }
-.cap-name { font-family: Consolas, monospace; font-size: 12px; word-break: break-all; }
+.cap-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.cap-none { padding: 8px; font-size: 12px; color: var(--muted, #64748b); }
+.cap-preview { margin: 0; display: grid; gap: 2px; } .cap-preview figcaption { font-size: 11px; color: var(--muted, #64748b); }
+.cap-anchor { display: grid; gap: 6px; } .cap-anchor .help { margin: 0; font-size: 12px; }
+.cap-nested { border-style: dashed; }
+.cap-editor { container-type: inline-size; }
+.cap-row { grid-template-areas: "use prop val match"; } .cap-row .cap-use { grid-area: use; } .cap-row .cap-prop { grid-area: prop; } .cap-row .cap-val { grid-area: val; } .cap-row .cap-match { grid-area: match; }
+.cap-props-head { flex-wrap: wrap; row-gap: 4px; }
+/* a narrow settings panel: name and match on the first line, the value under the name */
+@container (max-width: 460px) {
+  .cap-row { grid-template-columns: 22px minmax(0, 1fr) auto; grid-template-areas: "use prop match" "use val val"; row-gap: 2px; }
+  .cap-headrow { grid-template-areas: "use prop match"; } .cap-headrow .cap-val { display: none; }
+  .cap-headrow .cap-prop::after { content: " and value"; }
+}
 
 /* ===================== Layout: the panels never overlap ===================== */
 /* The workbench is one flex row: rail | Explorer/Actions | canvas | Action settings. Every column has a minimum width; the side

@@ -3771,13 +3771,39 @@ async function pickSelector(done, askUrl) {
 
 const CAPTURE_MATCHES = [["equals", "equals"], ["not_equals", "not equals"], ["contains", "contains"], ["starts_with", "starts with"], ["ends_with", "ends with"], ["wildcard", "wildcard (* ?)"], ["regex", "regular expression"]];
 
-/** Editor for a captured object: page or window, iframes, search mode, index and the property table. */
-function captureEditor(step, value, set) {
-  const wrap = h("div", { class: "cap-editor" });
+/** Readable names for captured web properties; the stored name is shown on hover. Unknown names (data-*, other attributes) show as they are. */
+const CAPTURE_LABELS = {
+  tag: "HTML tag", id: "HTML ID", name: "HTML name", type: "HTML type", class: "HTML class", text: "Inner text", value: "Value", label: "Field label",
+  placeholder: "Placeholder", title: "Tooltip (title)", "aria-label": "Accessible name", role: "Role", href: "Link (href)", src: "Source (src)", alt: "Alt text",
+  for: "Label for", "data-testid": "Test ID", dom_xpath: "DOM XPath", relative_xpath: "Relative XPath", xpath: "Full XPath", css: "CSS selector", path: "Element path",
+  parent: "Parent", tag_index: "Tag index", source_index: "Source index", child_count: "Children", left: "Left", top: "Top", width: "Width", height: "Height",
+  visible: "Is visible", enabled: "Is enabled", checked: "Is checked", selected: "Selected item", in_frame: "Inside a frame", frame_url: "Frame address",
+  inner_html: "Inner HTML", outer_html: "Outer HTML",
+};
+/** Readable names for captured desktop (UI Automation) properties. */
+const DESKTOP_LABELS = {
+  Name: "Name", AutomationId: "Automation ID", ClassName: "Class name", ControlType: "Control type", LocalizedControlType: "Role", FrameworkId: "Framework",
+  Text: "Text", Value: "Value", HelpText: "Help text", AccessKey: "Access key", AcceleratorKey: "Shortcut key", ItemType: "Item type", ItemStatus: "Item status",
+  Path: "Path", XPath: "XPath", Index: "Index", Parent: "Parent", Left: "Left", Top: "Top", Width: "Width", Height: "Height", States: "States",
+  IsEnabled: "Is enabled", IsOffscreen: "Is off screen", IsKeyboardFocusable: "Can take focus", HasKeyboardFocus: "Has focus", IsPassword: "Is password",
+  IsReadOnly: "Is read-only", ToggleState: "Checked state", IsSelected: "Is selected", ExpandCollapseState: "Expanded state", RangeValue: "Range value",
+  IsContentElement: "Is content", IsControlElement: "Is control", Orientation: "Orientation", SupportedPatterns: "Supported patterns", ProcessName: "Process",
+  BoundingRectangle: "Screen rectangle",
+};
+const CAPTURE_VIEW_KEY = "ooa.studio.captureView";
+
+/** Editor for a captured object: preview, Main and Anchor, the property table (name and value, tick to search by), search options and page or window. */
+function captureEditor(step, value, set, nested) {
+  const wrap = h("div", { class: "cap-editor" + (nested ? " cap-nested" : "") });
   let obj = value && typeof value === "object" && !Array.isArray(value) ? value : null;
   const desktop = step.action.startsWith("ooa.desktop_ui/") || (obj && obj.technology === "desktop");
   const save = () => set(obj);
+  let tab = "main", filter = "";
+  let view = "all";
+  try { view = localStorage.getItem(CAPTURE_VIEW_KEY) || "all"; } catch (_) { /* storage unavailable */ }
   const sel = (opts, v, on, label) => { const e = h("select", { "aria-label": label, onchange: (ev) => on(ev.target.value) }, opts.map(([k, t]) => h("option", { value: k, text: t }))); e.value = v; return e; };
+  const LABELS = desktop ? DESKTOP_LABELS : CAPTURE_LABELS;
+  const pageUrl = () => (obj && obj.page && obj.page.url) || (nested && nested.page && nested.page.url) || null;
   async function recapture() {
     if (desktop) {
       toast("Point at the control in the application, then click it (or press Ctrl+Shift+C, as the capture window says).");
@@ -3785,16 +3811,90 @@ function captureEditor(step, value, set) {
       catch (e) { toast(e.message, true); }
       return;
     }
-    await pickSelector((sel2, el, o) => { if (o) { obj = o; save(); render(); } }, obj && obj.page && obj.page.url ? obj.page.url : null);
+    await pickSelector((sel2, el, o) => {
+      if (!o) return;
+      const anchor = obj && obj.anchor;
+      obj = o;
+      if (anchor) { obj.anchor = anchor; anchorOffset(); }
+      save(); render();
+    }, pageUrl());
+  }
+  /** Where the element sits relative to its anchor, in page pixels, so the run can look next to the anchor. */
+  function anchorOffset() {
+    const a = obj && obj.anchor;
+    if (!a) return;
+    if (obj.rect && a.rect) { a.offset = { dx: Math.round(obj.rect.left - a.rect.left), dy: Math.round(obj.rect.top - a.rect.top) }; return; }
+    // desktop: from the screen rectangles recorded at capture ("x,y,width,height")
+    const at = (o) => { const p = (o.properties || []).find((x) => x.name === "BoundingRectangle"); const v = p && String(p.value || "").split(",").map(Number); return v && v.length >= 2 && !v.some(isNaN) ? v : null; };
+    const m = at(obj), n = at(a);
+    if (m && n) a.offset = { dx: m[0] - n[0], dy: m[1] - n[1] };
+  }
+  async function captureAnchor() {
+    if (desktop) {
+      toast("Hover over the anchor (a nearby control that is easy to find, such as the field's label), then press Ctrl+Shift+C.");
+      try {
+        const r = await api("POST", "capture-desktop", { timeout_seconds: 60, screenshot: false, highlight: true });
+        const o = r.object || r; delete o.screenshot; delete o.window;   // the anchor is looked for in the same window
+        obj.anchor = o; anchorOffset(); save(); render();
+        toast("Anchor captured" + (obj.anchor.offset ? " (" + obj.anchor.offset.dx + ", " + obj.anchor.offset.dy + " px from the control)" : ""));
+      } catch (e) { toast(e.message, true); }
+      return;
+    }
+    toast("Click the anchor: a nearby element that is easy to find, such as the field's label or a heading.");
+    await pickSelector((sel2, el, o) => {
+      if (!o) return;
+      delete o.screenshot;
+      obj.anchor = o; anchorOffset(); save(); render();
+      toast("Anchor captured" + (obj.anchor.offset ? " (" + obj.anchor.offset.dx + ", " + obj.anchor.offset.dy + " px from the element)" : ""));
+    }, pageUrl());
   }
   async function test() {
     if (!obj) return;
-    const url = (obj.page && obj.page.url) || prompt("Open which page to test on?", defaultUrl());
+    const url = pageUrl() || prompt("Open which page to test on?", defaultUrl());
     if (!url) return;
     toast("Opening the page: matches are outlined (green = the one the step uses).");
     try { const r = await api("POST", "capture/test", { url, object: obj, browser: "edge" }); const n = Number(r.count || 0);
-      toast(n === 0 ? "Nothing matches: loosen a property (contains, wildcard) or recapture." : n + " element" + (n === 1 ? "" : "s") + " match" + (n === 1 ? "es" : "") + "." + (n > 1 ? " Use the index to choose one, or tick another property." : ""), n === 0); }
+      toast(n === 0 ? "Nothing matches: loosen a property (contains, wildcard) or recapture." : n + " element" + (n === 1 ? "" : "s") + " match" + (n === 1 ? "es" : "") + "." + (n > 1 ? " Use the index or an anchor to choose one, or tick another property." : ""), n === 0); }
     catch (e) { toast(e.message, true); }
+  }
+  function propertyTable(props) {
+    const used = props.filter((p) => p.use).length;
+    const shown = props.map((p, i) => [p, i]).filter(([p]) => (view === "all" || p.use || p.custom)
+      && (!filter || (String(p.name) + " " + (LABELS[p.name] || "") + " " + String(p.value == null ? "" : p.value)).toLowerCase().includes(filter)));
+    const rows = shown.map(([p, i]) => {
+      const use = h("input", { type: "checkbox", checked: !!p.use, "aria-label": "Search by " + (LABELS[p.name] || p.name), onchange: (e) => { p.use = e.target.checked; save(); render(); } });
+      const nm = p.custom ? h("input", { type: "text", value: p.name || "", placeholder: "attribute", "aria-label": "Property name", onchange: (e) => { p.name = e.target.value.trim(); save(); } })
+        : h("span", { class: "cap-name", title: p.name, text: LABELS[p.name] || p.name });
+      const val = h("input", { type: "text", value: p.value == null ? "" : String(p.value), title: p.value == null ? "" : String(p.value), "aria-label": "Value of " + (LABELS[p.name] || p.name),
+        onchange: (e) => { p.value = e.target.value; e.target.title = e.target.value; save(); } });
+      const m = sel(CAPTURE_MATCHES, p.match || "equals", (v) => { p.match = v; save(); }, "Match for " + (LABELS[p.name] || p.name));
+      const del = p.custom ? h("button", { type: "button", class: "mini danger", title: "Remove this property", onclick: () => { props.splice(i, 1); save(); render(); } }, "✕") : null;
+      return h("div", { class: "cap-row" + (p.use ? " on" : "") }, h("span", { class: "cap-use" }, use), h("span", { class: "cap-prop" }, nm), h("span", { class: "cap-val" }, val), h("span", { class: "cap-match" }, m, del));
+    });
+    const toggle = h("div", { class: "seg cap-view", role: "group", "aria-label": "Which properties to show" },
+      [["all", "All"], ["used", "Ticked"]].map(([k, t]) => h("button", { type: "button", class: view === k ? "on" : "", "aria-pressed": String(view === k),
+        onclick: () => { view = k; try { localStorage.setItem(CAPTURE_VIEW_KEY, k); } catch (_) { /* storage unavailable */ } render(); } }, t)));
+    const find = h("input", { type: "search", class: "cap-filter", placeholder: "Find a property", value: filter, "aria-label": "Find a property",
+      oninput: (e) => { filter = e.target.value.toLowerCase(); const at = e.target.selectionStart; render(); const f = wrap.querySelector(".cap-filter"); if (f) { f.focus(); f.setSelectionRange(at, at); } } });
+    return h("div", { class: "cap-props" },
+      h("div", { class: "cap-props-head" }, h("strong", { text: "Object properties" }), h("span", { class: "cap-count", text: used + " ticked of " + props.length }), h("span", { class: "spacer" }), toggle),
+      props.length > 8 ? find : null,
+      h("div", { class: "cap-table", role: "group", "aria-label": "Captured properties" },
+        h("div", { class: "cap-row cap-headrow" }, h("span", { class: "cap-use", title: "Ticked properties are used to find the element", text: "✓" }), h("span", { class: "cap-prop", text: "Name" }),
+          h("span", { class: "cap-val", text: "Value" }), h("span", { class: "cap-match", text: "Match" })),
+        rows.length ? rows : h("div", { class: "cap-none", text: filter ? "No property matches “" + filter + "”." : "No property is ticked: show All and tick the ones to search by." })),
+      h("button", { type: "button", class: "link-btn", onclick: () => { props.push({ name: "", value: "", match: "equals", use: true, custom: true }); save(); render(); } }, "+ Add property"));
+  }
+  function anchorPane() {
+    const help = h("p", { class: "help", text: "If the element can't be found when the agent runs, or several elements match, a nearby anchor (such as its label or a heading) helps find the right one." });
+    if (!obj.anchor) return h("div", { class: "cap-anchor" }, help, h("button", { type: "button", class: "btn", onclick: captureAnchor }, "Capture anchor"));
+    const a = obj.anchor;
+    const off = a.offset ? "The element is " + a.offset.dx + " px across and " + a.offset.dy + " px down from the anchor." : "No position recorded: the nearest match to the anchor is used.";
+    return h("div", { class: "cap-anchor" }, help,
+      h("div", { class: "cap-head" }, h("span", { class: "help", text: off }), h("span", { class: "spacer" }),
+        h("button", { type: "button", class: "btn", onclick: captureAnchor }, "Recapture anchor"),
+        h("button", { type: "button", class: "btn danger", onclick: () => { delete obj.anchor; save(); render(); } }, "Remove anchor")),
+      captureEditor(step, a, (v) => { if (v) obj.anchor = v; else delete obj.anchor; save(); }, obj));
   }
   function render() {
     if (!obj) {
@@ -3803,53 +3903,50 @@ function captureEditor(step, value, set) {
       return;
     }
     const props = Array.isArray(obj.properties) ? obj.properties : (obj.properties = []);
-    const head = h("div", { class: "cap-head" },
+    const head = nested ? null : h("div", { class: "cap-head" },
       h("span", { class: "chip", text: desktop ? "Desktop" : "Web" }),
-      h("span", { class: "cap-where", text: desktop ? ((obj.window && obj.window.title) || "") + (obj.window && obj.window.process ? " (" + obj.window.process + ")" : "")
+      h("span", { class: "cap-where", title: desktop ? "" : (obj.page && obj.page.url) || "", text: desktop ? ((obj.window && obj.window.title) || "") + (obj.window && obj.window.process ? " (" + obj.window.process + ")" : "")
         : ((obj.page && (obj.page.title || obj.page.url)) || "") }),
       h("span", { class: "spacer" }),
       h("button", { type: "button", class: "btn", onclick: recapture }, "Recapture"),
       desktop ? null : h("button", { type: "button", class: "btn", onclick: test }, "Test"));
-    const shot = obj.screenshot ? h("img", { class: "cap-shot", alt: "Captured element", src: "data:image/png;base64," + obj.screenshot }) : null;
-    const by = sel(desktop ? [["properties", "Properties"]] : [["properties", "Properties (ticked below)"], ["css", "CSS selector"], ["xpath", "XPath"]], obj.search_by || "properties", (v) => { obj.search_by = v; save(); render(); }, "Search by");
+    const tabs = nested ? null : h("div", { class: "seg cap-tabs", role: "tablist", "aria-label": "Element or anchor" },
+      [["main", "Main"], ["anchor", "Anchor" + (obj.anchor ? " ✓" : "")]].map(([k, t]) => h("button", { type: "button", role: "tab", class: tab === k ? "on" : "", "aria-selected": String(tab === k),
+        onclick: () => { tab = k; render(); } }, t)));
+    if (tabs && tab === "anchor") { wrap.replaceChildren(head, tabs, anchorPane()); return; }
+    const shot = obj.screenshot ? h("figure", { class: "cap-preview" }, h("figcaption", { text: "Preview" }), h("img", { class: "cap-shot", alt: "Captured element", src: "data:image/png;base64," + obj.screenshot })) : null;
+    const by = sel(desktop ? [["properties", "Properties"]] : [["properties", "Ticked properties"], ["css", "CSS selector"], ["xpath", "XPath (DOM, then full)"]], obj.search_by || "properties", (v) => { obj.search_by = v; save(); render(); }, "Search by");
     const idx = h("input", { type: "number", min: "0", value: String(obj.index || 0), "aria-label": "Index", onchange: (e) => { obj.index = Math.max(0, parseInt(e.target.value || "0", 10) || 0); save(); } });
     const ic = h("input", { type: "checkbox", checked: !!obj.ignore_case, onchange: (e) => { obj.ignore_case = e.target.checked; save(); } });
     const heal = h("input", { type: "checkbox", checked: obj.self_heal !== false, onchange: (e) => { obj.self_heal = e.target.checked; save(); } });
     const opts = h("div", { class: "cap-opts" },
       h("label", {}, "Search by ", by), h("label", { title: "When several elements match: 0 is the first" }, "Index ", idx),
-      h("label", { class: "check" }, ic, "Ignore case"), desktop ? null : h("label", { class: "check", title: "Try the captured CSS and XPath when the search finds nothing" }, heal, "Self-heal"));
-    const frames = !desktop && Array.isArray(obj.frames) && obj.frames.length ? h("div", { class: "cap-frames" }, "Inside iframe: ", h("code", { text: obj.frames.join("  \u203A  ") })) : null;
-    const rows = props.map((p, i) => {
-      const use = h("input", { type: "checkbox", checked: !!p.use, "aria-label": "Use " + p.name, onchange: (e) => { p.use = e.target.checked; save(); } });
-      const nm = p.custom ? h("input", { type: "text", value: p.name || "", placeholder: "attribute", "aria-label": "Property name", onchange: (e) => { p.name = e.target.value.trim(); save(); } })
-        : h("span", { class: "cap-name", text: p.name });
-      const val = h("input", { type: "text", value: p.value == null ? "" : String(p.value), "aria-label": "Value of " + p.name, onchange: (e) => { p.value = e.target.value; save(); } });
-      const m = sel(CAPTURE_MATCHES, p.match || "equals", (v) => { p.match = v; save(); }, "Match for " + p.name);
-      const del = h("button", { type: "button", class: "mini danger", title: "Remove this property", onclick: () => { props.splice(i, 1); save(); render(); } }, "\u2715");
-      // One block per property: Use, name, match and remove on the first line; the value full width below it.
-      const row = h("div", { class: "cap-row" + (p.use ? " on" : "") }, h("span", { class: "cap-use" }, use), h("span", { class: "cap-prop" }, nm), m, del, h("span", { class: "cap-val" }, val));
-      use.addEventListener("change", () => row.classList.toggle("on", use.checked));
-      return row;
-    });
-    const table = h("div", { class: "cap-table", role: "group", "aria-label": "Captured properties" },
-      h("div", { class: "cap-row cap-headrow" }, h("span", { text: "Use" }), h("span", { text: "Property and value" }), h("span", { text: "Match" }), h("span")), rows);
-    const add = h("button", { type: "button", class: "link-btn", onclick: () => { props.push({ name: "", value: "", match: "equals", use: true, custom: true }); save(); render(); } }, "+ Add property");
+      h("label", { class: "check" }, ic, "Ignore case"), desktop ? null : h("label", { class: "check", title: "Try the captured CSS selector and XPath when the search finds nothing" }, heal, "Self-heal"));
+    const frames = !desktop && Array.isArray(obj.frames) && obj.frames.length ? h("div", { class: "cap-frames" }, "Inside iframe: ", h("code", { text: obj.frames.join("  ›  ") })) : null;
     let place = null;
-    if (!desktop) {
+    if (!desktop && !nested) {
       const pg = obj.page || (obj.page = {});
       place = h("details", { class: "cap-page" }, h("summary", { text: "Page (used when the step switches to the captured page)" }),
         h("div", { class: "cap-opts" }, h("label", {}, "Address ", h("input", { type: "text", value: pg.url || "", onchange: (e) => { pg.url = e.target.value; save(); } })),
           sel(CAPTURE_MATCHES, pg.url_match || "starts_with", (v) => { pg.url_match = v; save(); }, "Address match")),
         h("div", { class: "cap-opts" }, h("label", {}, "Title ", h("input", { type: "text", value: pg.title || "", onchange: (e) => { pg.title = e.target.value; save(); } })),
           sel([["", "(ignore the title)"]].concat(CAPTURE_MATCHES), pg.title_match || "", (v) => { if (v) pg.title_match = v; else delete pg.title_match; save(); }, "Title match")));
-    } else if (obj.window) {
+    } else if (desktop && obj.window) {
       const w = obj.window;
-      place = h("details", { class: "cap-page" }, h("summary", { text: "Window" }),
+      const size = w.resize || w.size || {};
+      const num = (k) => h("input", { type: "number", min: "1", value: String(size[k] || ""), "aria-label": "Window " + k, onchange: (e) => {
+        const v = parseInt(e.target.value || "0", 10); if (w.resize && v > 0) { w.resize[k] = v; save(); } } });
+      const rz = h("input", { type: "checkbox", checked: !!w.resize, "aria-label": "Resize window", onchange: (e) => {
+        if (e.target.checked) w.resize = { width: Number(size.width) || 1280, height: Number(size.height) || 800 }; else delete w.resize; save(); render(); } });
+      place = h("details", { class: "cap-page", open: !!nested ? null : "" }, h("summary", { text: "Window" }),
         h("div", { class: "cap-opts" }, h("label", {}, "Title ", h("input", { type: "text", value: w.title || "", onchange: (e) => { w.title = e.target.value; save(); } })),
           sel(CAPTURE_MATCHES, w.title_match || "wildcard", (v) => { w.title_match = v; save(); }, "Window title match")),
-        h("div", { class: "cap-opts" }, h("label", {}, "Process ", h("input", { type: "text", value: w.process || "", onchange: (e) => { w.process = e.target.value; save(); } }))));
+        h("div", { class: "cap-opts" }, h("label", {}, "Process ", h("input", { type: "text", value: w.process || "", onchange: (e) => { w.process = e.target.value; save(); } }))),
+        w.path ? h("div", { class: "cap-opts" }, h("span", { class: "help", title: w.path, text: "Program: " + w.path })) : null,
+        h("div", { class: "cap-opts" }, h("label", { class: "check", title: "Set the window to this size before looking for the control, so positions match the capture" }, rz, "Resize window"),
+          w.resize ? h("label", {}, "Width ", num("width")) : null, w.resize ? h("label", {}, "Height ", num("height")) : null));
     }
-    wrap.replaceChildren(head, shot, opts, frames, table, add, place);
+    wrap.replaceChildren(head, tabs, shot, propertyTable(props), opts, frames, place);
   }
   render();
   return wrap;

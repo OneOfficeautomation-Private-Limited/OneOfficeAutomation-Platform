@@ -669,6 +669,9 @@ public final class BrowserPackage {
     private static final String RECORDER_JS = """
         (() => {
           if (window.__ooaRec) return; window.__ooaRec = true;
+          /*OOA_LIB*/
+          const cap = (t) => ({ props: __props(t), css: __cssPath(t), xpath: __absXpath(t), dom_xpath: __domXpath(t), page_rect: __rect(t),
+                                page: { url: location.href, title: document.title } });
           const esc = (s) => String(s).replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
           const sel = (el) => {
             if (!el || el.nodeType !== 1) return null;
@@ -695,12 +698,13 @@ public final class BrowserPackage {
             if (e.target.closest && e.target.closest('#__ooa_bar')) return;
             const t = (e.target.closest && e.target.closest('button,a,input,select,textarea,[role=button],[onclick],label')) || e.target;
             if (textInput(t) || t.tagName === 'SELECT') return;
-            window.__ooaRecord({ kind: 'click', selector: sel(t), label: (t.innerText || t.value || '').trim().slice(0, 40) });
+            window.__ooaRecord(Object.assign({ kind: 'click', selector: sel(t), label: (t.innerText || t.value || '').trim().slice(0, 40) }, cap(t)));
           }, true);
           document.addEventListener('change', (e) => {
             const t = e.target;
-            if (t.tagName === 'SELECT') window.__ooaRecord({ kind: 'select', selector: sel(t), value: t.value });
-            else if (textInput(t)) window.__ooaRecord({ kind: 'type', selector: sel(t), value: t.type === 'password' ? null : t.value, password: t.type === 'password' });
+            if (t.tagName === 'SELECT') window.__ooaRecord(Object.assign({ kind: 'select', selector: sel(t), value: t.value,
+              option: t.selectedIndex >= 0 ? (t.options[t.selectedIndex].text || '').trim() : null }, cap(t)));
+            else if (textInput(t)) window.__ooaRecord(Object.assign({ kind: 'type', selector: sel(t), value: t.type === 'password' ? null : t.value, password: t.type === 'password' }, cap(t)));
           }, true);
           const bar = () => {
             if (document.getElementById('__ooa_bar') || !document.body) return;
@@ -736,9 +740,12 @@ public final class BrowserPackage {
             if (which.equals("chrome")) lo.setChannel("chrome");
             com.microsoft.playwright.Browser b = pw.chromium().launch(lo);
             BrowserContext c = b.newContext();
-            c.exposeBinding("__ooaRecord", (source, args) -> { if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) events.add((Map<String, Object>) m); return null; });
+            List<Frame> eventFrames = Collections.synchronizedList(new ArrayList<>());
+            c.exposeBinding("__ooaRecord", (source, args) -> {
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add((Map<String, Object>) m); eventFrames.add(source.frame()); }
+                return null; });
             c.exposeBinding("__ooaStop", (source, args) -> { stopped[0] = true; return null; });
-            c.addInitScript(RECORDER_JS);
+            c.addInitScript(RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS));
             Page p = c.newPage();
             p.navigate(url);
             long end = System.currentTimeMillis() + minutes * 60_000L;
@@ -746,6 +753,15 @@ public final class BrowserPackage {
                 ctx.checkCancelled();
                 if (c.pages().isEmpty()) break;
                 try { c.pages().get(0).waitForTimeout(250); } catch (PlaywrightException e) { break; }
+            }
+            // The iframe chain of each recorded element, while the frames are still there.
+            for (int i = 0; i < events.size() && i < eventFrames.size(); i++) {
+                List<String> frames = new ArrayList<>();
+                try {
+                    for (Frame f = eventFrames.get(i); f != null && f.parentFrame() != null; f = f.parentFrame())
+                        frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
+                } catch (PlaywrightException ignored) { /* the frame is gone; the object still searches the page */ }
+                events.get(i).put("frames", frames);
             }
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Recording"); }
@@ -755,22 +771,43 @@ public final class BrowserPackage {
         boolean password = false;
         for (Map<String, Object> e : events) {
             String kind = String.valueOf(e.get("kind")), sel = String.valueOf(e.get("selector"));
+            // Each step gets the full captured object (every property, editable in Studio); typed text is not a property to match.
+            Map<String, Object> target = new LinkedHashMap<>();
+            if (e.get("props") instanceof Map<?, ?> pm) {
+                Map<String, Object> picked = new LinkedHashMap<>(e);
+                Map<String, Object> props = new LinkedHashMap<>((Map<String, Object>) pm);
+                if (!kind.equals("click")) { props.remove("value"); props.remove("selected"); }
+                picked.put("props", props);
+                target.put("object", capturedObject(picked));
+            } else target.put("selector", sel);
             if (kind.equals("type")) {
                 boolean pwd = Boolean.TRUE.equals(e.get("password"));
                 password |= pwd;
                 Object text = pwd ? "$password" : String.valueOf(e.getOrDefault("value", ""));
-                if (lastType != null && sel.equals(((Map<String, Object>) lastType.get("args")).get("selector"))) { ((Map<String, Object>) lastType.get("args")).put("text", text); continue; }
-                lastType = stepMap("ooa.browser/type_text", new LinkedHashMap<>(Map.of("selector", sel, "text", text)), pwd ? "Recorded password field: map a Credential variable named password" : "Recorded typing");
-                steps.add(lastType);
+                if (lastType != null && sel.equals(lastType.get("selector"))) { ((Map<String, Object>) lastType.get("args")).put("text", text); continue; }
+                Map<String, Object> args = new LinkedHashMap<>(target);
+                args.put("text", text);
+                Map<String, Object> step = stepMap("ooa.browser/type_text", args, pwd ? "Recorded password field: map a Credential variable named password" : "Recorded typing" + label(e));
+                steps.add(step);
+                lastType = Map.of("selector", sel, "args", step.get("args"));
             } else {
                 lastType = null;
-                if (kind.equals("select")) steps.add(stepMap("ooa.browser/select_option", Map.of("selector", sel, "option", String.valueOf(e.get("value"))), "Recorded selection"));
-                else steps.add(stepMap("ooa.browser/click", Map.of("selector", sel), "Recorded click" + (e.get("label") != null && !String.valueOf(e.get("label")).isBlank() ? ": " + e.get("label") : "")));
+                Map<String, Object> args = new LinkedHashMap<>(target);
+                if (kind.equals("select")) {
+                    args.put("option", String.valueOf(e.get("option") != null ? e.get("option") : e.get("value")));
+                    steps.add(stepMap("ooa.browser/select_option", args, "Recorded selection"));
+                } else steps.add(stepMap("ooa.browser/click", args, "Recorded click" + label(e)));
             }
         }
         steps.add(stepMap("ooa.browser/close", Map.of(), "Recorded: close browser"));
         ctx.info("Recorded " + (steps.size() - 2) + " action(s)" + (password ? "; password fields use the variable $password" : ""));
         return Map.of("steps", steps, "count", BigDecimal.valueOf(steps.size()));
+    }
+
+    private static String label(Map<String, Object> e) {
+        Object l = e.get("label");
+        if ((l == null || String.valueOf(l).isBlank()) && e.get("props") instanceof Map<?, ?> p) l = p.get("label") != null ? p.get("label") : p.get("name");
+        return l == null || String.valueOf(l).isBlank() ? "" : ": " + String.valueOf(l).strip();
     }
 
     private static Map<String, Object> stepMap(String action, Map<String, Object> args, String note) {
@@ -786,6 +823,7 @@ public final class BrowserPackage {
             description = "Do one action on a captured element: click, type, read text, attributes or all properties, select, check, hover, drag, upload, wait and more. "
                     + "The element is the captured object (properties you choose, each with its own match rule) or a selector.")
     @Output(name = "result", description = "Value returned by get, is, count, wait and coordinate actions.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the element was not found (if_not_found = continue).")
     public Map<String, Object> elementAction(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "The captured object from Capture in Agent Studio: the properties to match "
                     + "(each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard, regex), search_by (properties, css or xpath), "
@@ -814,9 +852,28 @@ public final class BrowserPackage {
                     description = "Switch to the open tab whose address (and title, when its match rule is set) matches the page recorded with the captured object.") boolean useCapturedPage,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "wait_for_page_ms", type = OoaType.NUMBER, required = false, defaultValue = "0",
+                    description = "First wait up to this long for the page to finish loading (0: don't wait). Counts as not found when it runs out.") double waitForPage,
+            @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"},
+                    description = "When the page or the element is not there in time: error stops with an error; continue skips this step (result is empty) and carries on.") String ifNotFound) {
+        if ("continue".equals(ifNotFound)) {
+            try { return elementAction(ctx, objectArg, sel, action, value, timeout, clickMethod, modifiers, offsetX, offsetY, typing, keyDelay, clearFirst, force, waitAfter,
+                    useCapturedPage, session, alternatives, window, waitForPage, "error"); }
+            catch (ActionException e) {
+                if (!NOT_THERE.contains(e.code())) throw e;
+                ctx.warn("Skipped '" + action + "': " + e.getMessage());
+                Map<String, Object> out = single(null);
+                out.put("found", false);
+                return out;
+            }
+        }
         session = BrowserWindows.use(ctx, session, window, timeout);
         BrowserSession bs = s(ctx, session);
+        if (waitForPage > 0) {
+            try { bs.page.waitForLoadState(com.microsoft.playwright.options.LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(waitForPage)); }
+            catch (PlaywrightException e) { throw new ActionException("BROWSER.PAGE_TIMEOUT", "The page did not finish loading within " + (long) waitForPage + " ms", "Raise wait_for_page_ms, or set if_not_found to continue.", true); }
+        }
         Map<String, Object> object = objectArg == null ? null : WebObjects.object(objectArg);
         if (object == null && (sel == null || sel.isBlank()))
             throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in Agent Studio, or type a selector.");
@@ -947,6 +1004,10 @@ public final class BrowserPackage {
         return single(result);
     }
 
+    /** Errors that mean "the page or element was not there in time", which if_not_found = continue skips. */
+    static final Set<String> NOT_THERE = Set.of("BROWSER.OBJECT_NOT_FOUND", "BROWSER.INDEX_OUT_OF_RANGE", "BROWSER.PAGE_TIMEOUT", "BROWSER.TIMEOUT",
+            "BROWSER.WINDOW_NOT_FOUND", "UI.ELEMENT_NOT_FOUND", "BROWSER.ELEMENT_NOT_FOUND");
+
     private static Map<String, Object> single(Object result) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("result", result instanceof Boolean || result == null || result instanceof BigDecimal || result instanceof String || result instanceof Map || result instanceof List ? result : Values.toJsonable(result));
@@ -1038,38 +1099,7 @@ public final class BrowserPackage {
             const r = t.getBoundingClientRect();
             Object.assign(box.style, { display: 'block', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
           }, true);
-          const xq = (v) => v.indexOf("'") < 0 ? "'" + v + "'" : (v.indexOf('"') < 0 ? '"' + v + '"' : "'" + v.split("'").join('') + "'");
-          const absXpath = (el) => {
-            const parts = []; let e = el;
-            while (e && e.nodeType === 1) {
-              const sib = e.parentNode ? Array.from(e.parentNode.children).filter(c => c.tagName === e.tagName) : [];
-              parts.unshift(e.tagName.toLowerCase() + (sib.length > 1 ? '[' + (sib.indexOf(e) + 1) + ']' : ''));
-              e = e.parentElement;
-            }
-            return '/' + parts.join('/');
-          };
-          const relXpath = (el) => {
-            const tag = el.tagName.toLowerCase();
-            for (const a of ['id', 'name', 'data-testid', 'aria-label', 'placeholder', 'title']) {
-              const v = el.getAttribute(a); if (v && !(a === 'id' && /\\d{3,}/.test(v))) return '//' + tag + '[@' + a + '=' + xq(v) + ']';
-            }
-            const tx = (el.innerText || '').trim();
-            if (tx && tx.length < 60 && tx.indexOf(String.fromCharCode(10)) < 0) return '//' + tag + '[normalize-space()=' + xq(tx) + ']';
-            let e = el.parentElement, depth = 0;
-            while (e && depth < 6) { if (e.id && !/\\d{3,}/.test(e.id)) { const rest = absXpath(el).slice(absXpath(e).length); return '//*[@id=' + xq(e.id) + ']' + rest; } e = e.parentElement; depth++; }
-            return absXpath(el);
-          };
-          const props = (el) => {
-            const p = {};
-            const put = (k, v) => { if (v !== null && v !== undefined && String(v).trim() !== '') p[k] = String(v).trim().slice(0, 500); };
-            put('tag', el.tagName.toLowerCase());
-            for (const a of ['id', 'name', 'type', 'class', 'aria-label', 'placeholder', 'title', 'role', 'href', 'src', 'alt', 'for']) put(a, el.getAttribute(a));
-            for (const a of el.attributes) if (a.name.startsWith('data-')) put(a.name, a.value);
-            const tx = (el.innerText || '').replace(/\\s+/g, ' ').trim(); if (tx && tx.length <= 200) put('text', tx);
-            if (el.value !== undefined && el.getAttribute('type') !== 'password') put('value', el.value);
-            if (el.labels && el.labels.length) put('label', (el.labels[0].innerText || '').replace(/\\s+/g, ' ').trim());
-            return p;
-          };
+          /*OOA_LIB*/
           document.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
             const t = e.target;
@@ -1077,8 +1107,8 @@ public final class BrowserPackage {
             box.style.display = 'none'; tip.style.display = 'none';
             window.__ooaPicked({ selector: sel(t), tag: t.tagName.toLowerCase(), text: (t.innerText || t.value || '').trim().slice(0, 80),
               type: t.getAttribute('type') || '', name: t.getAttribute('name') || '', id: t.id || '', alternatives: alt(t),
-              props: props(t), css: sel(t), xpath: absXpath(t), relative_xpath: relXpath(t),
-              rect: { x: r.left, y: r.top, width: r.width, height: r.height }, page: { url: location.href, title: document.title } });
+              props: __props(t), css: __cssPath(t), xpath: __absXpath(t), dom_xpath: __domXpath(t),
+              rect: { x: r.left, y: r.top, width: r.width, height: r.height }, page_rect: __rect(t), page: { url: location.href, title: document.title } });
           }, true);
         })();
         """;
@@ -1105,7 +1135,7 @@ public final class BrowserPackage {
             BrowserContext c = b.newContext();
             final Frame[] pickedFrame = new Frame[1];
             c.exposeBinding("__ooaPicked", (source, args) -> { if (args.length > 0 && args[0] instanceof Map<?, ?> m) { picked[0] = (Map<String, Object>) m; pickedFrame[0] = source.frame(); } return null; });
-            c.addInitScript(PICKER_JS);
+            c.addInitScript(PICKER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS));
             Page p = c.newPage();
             p.navigate(url);
             long end = System.currentTimeMillis() + minutes * 60_000L;
@@ -1170,7 +1200,8 @@ public final class BrowserPackage {
         else if (p.get("title") != null) use.add("title");
         if (field && p.get("type") != null && !use.contains("id")) use.add("type");
         List<String> order = new ArrayList<>(List.of("tag", "id", "name", "data-testid", "type", "aria-label", "label", "placeholder", "text", "title", "role", "class", "value", "href", "src", "alt", "for"));
-        for (String k : p.keySet()) if (!order.contains(k)) order.add(k);
+        for (String k : p.keySet()) if (!order.contains(k) && !TECHNICAL.contains(k)) order.add(k);
+        order.addAll(TECHNICAL);
         List<Map<String, Object>> props = new ArrayList<>();
         for (String k : order) {
             if (!p.containsKey(k)) continue;
@@ -1178,8 +1209,8 @@ public final class BrowserPackage {
             e.put("name", k); e.put("value", p.get(k)); e.put("match", "equals"); e.put("use", use.contains(k));
             props.add(e);
         }
-        for (String k : List.of("css", "relative_xpath", "xpath"))
-            if (picked.get(k) instanceof String v && !v.isBlank()) props.add(new LinkedHashMap<>(Map.of("name", k, "value", v, "match", "equals", "use", false)));
+        for (String k : List.of("dom_xpath", "css", "relative_xpath", "xpath"))
+            if (!p.containsKey(k) && picked.get(k) instanceof String v && !v.isBlank()) props.add(new LinkedHashMap<>(Map.of("name", k, "value", v, "match", "equals", "use", false)));
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("technology", "web");
         Map<String, Object> page = picked.get("page") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
@@ -1190,9 +1221,14 @@ public final class BrowserPackage {
         o.put("index", 0);
         o.put("ignore_case", false);
         o.put("properties", props);
+        if (picked.get("page_rect") instanceof Map<?, ?> r) o.put("rect", r);
         if (picked.get("screenshot") != null) o.put("screenshot", picked.get("screenshot"));
         return o;
     }
+
+    /** Properties computed from the element's place in the page, listed after its attributes and text. */
+    static final List<String> TECHNICAL = List.of("dom_xpath", "css", "xpath", "path", "parent", "tag_index", "source_index", "child_count",
+            "left", "top", "width", "height", "visible", "enabled", "checked", "selected", "in_frame", "frame_url", "inner_html", "outer_html");
 
     @Action(id = "test_object", name = "Test captured object (design time)", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
             description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by Agent Studio's Test button.")

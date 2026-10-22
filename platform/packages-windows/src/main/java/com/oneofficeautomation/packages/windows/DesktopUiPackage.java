@@ -77,6 +77,7 @@ public final class DesktopUiPackage {
         for (DesktopObject.Rule r : rules)
             if (r.match().equals("equals") && (r.name().equals("ControlType") || r.name().equals("AutomationId")) && !r.value().isEmpty()) pre.put(r.name(), r.value());
         if (!pre.isEmpty()) args.put("prefilter", pre);
+        if (DesktopObject.needsDetail(rules)) args.put("detail", true);
         List<Element> out = new ArrayList<>();
         for (Object o : (List<Object>) call(ctx, "find", args)) {
             Map<String, Object> p = (Map<String, Object>) o;
@@ -87,16 +88,56 @@ public final class DesktopUiPackage {
 
     /** Resolves one candidate of the healing chain once, without waiting. */
     static Optional<Element> resolve(ActionContext ctx, DesktopObject o, SelfHealing.Candidate c) {
+        if (c.strategy().equals("anchor")) return nearAnchor(ctx, o, null);
         List<Element> found = findAll(ctx, o.window(), DesktopObject.decode(c.query()));
         if (c.strategy().equals("control_type")) return found.size() == 1 ? Optional.of(found.get(0)) : Optional.empty();
+        if (c.strategy().equals("properties") && found.size() > 1 && o.anchor() != null && o.index() == 0) {
+            // Several match: the anchor decides (the one nearest to where the object sat next to it).
+            Optional<Element> near = nearAnchor(ctx, o, found);
+            if (near.isPresent()) return near;
+        }
         return DesktopObject.pick(found, o.index(), !c.strategy().equals("properties"));
+    }
+
+    /**
+     * The control next to the object's anchor: the anchor is found by its own properties, then the candidate whose
+     * top-left corner is nearest to anchor + offset. Without candidates, controls of the recorded ControlType within
+     * 250 pixels are considered.
+     */
+    static Optional<Element> nearAnchor(ActionContext ctx, DesktopObject o, List<Element> candidates) {
+        DesktopObject a = o.anchor();
+        if (a == null) return Optional.empty();
+        Optional<Element> anchor = DesktopObject.pick(findAll(ctx, a.window(), a.primary()), a.index(), false);
+        if (anchor.isEmpty()) return Optional.empty();
+        double[] at = DesktopObject.topLeft(anchor.get().props().get("BoundingRectangle"));
+        if (at == null) return Optional.empty();
+        double max = 250;
+        if (candidates == null) {
+            String ct = o.recorded("ControlType");
+            if (ct == null || ct.isBlank()) return Optional.empty();
+            candidates = findAll(ctx, o.window(), List.of(new DesktopObject.Rule("ControlType", ct, "equals")));
+        } else max = Double.MAX_VALUE;
+        List<Map<String, ?>> props = new ArrayList<>();
+        for (Element e : candidates) props.add(e.props());
+        int i = DesktopObject.nearest(props, at[0] + o.anchorDx, at[1] + o.anchorDy, max);
+        return i < 0 ? Optional.empty() : Optional.of(candidates.get(i));
+    }
+
+    /** Sets the window size recorded in the object (window.resize) on every matching window. */
+    static void resizeWindows(ActionContext ctx, DesktopObject o) {
+        if (o.resizeWidth <= 0 || o.window().isEmpty()) return;
+        for (Object h : windowHandles(ctx, o.window()))
+            call(ctx, "resize", Map.of("handle", h, "width", BigDecimal.valueOf(o.resizeWidth), "height", BigDecimal.valueOf(o.resizeHeight)));
     }
 
     /** Checks interrupt rules, then finds the object (healing if needed), waiting up to the timeout. */
     static SelfHealing.Found<Element> locate(ActionContext ctx, DesktopObject o, double timeoutSeconds) {
         UiGuard.before(ctx);
+        try { resizeWindows(ctx, o); } catch (ActionException e) { ctx.warn("Could not resize the window: " + e.getMessage()); }
+        List<SelfHealing.Candidate> chain = new ArrayList<>(o.chain());
+        if (o.anchor() != null) chain.add(new SelfHealing.Candidate("anchor", "anchor"));
         try {
-            return SelfHealing.locate(o.chain(), c -> resolve(ctx, o, c), (long) (Math.max(0, timeoutSeconds) * 1000), SelfHealing.SYSTEM, 400,
+            return SelfHealing.locate(chain, c -> resolve(ctx, o, c), (long) (Math.max(0, timeoutSeconds) * 1000), SelfHealing.SYSTEM, 400,
                     () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled);
         } catch (ActionException e) {
             if (!"UI.ELEMENT_NOT_FOUND".equals(e.code())) throw e;
@@ -128,6 +169,7 @@ public final class DesktopUiPackage {
             description = "Find a captured control in a Windows application and act on it: click, set or read text, read properties, select, expand, toggle, check, list items, read a grid, wait for it or get its position.")
     @Output(name = "result", type = OoaType.ANY, description = "What the action returns: text for get_text, a value for get_property, a dictionary for get_all_properties and get_coordinates, a list for get_children and get_list_items, a table for get_table, true/false for the wait actions.")
     @Output(name = "healed_by", type = OoaType.STRING, description = "Empty when the object was found by its used properties; otherwise the recorded property that found it (update the object).")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the object was not found (if_not_found = continue).")
     public Map<String, Object> objectAction(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
             @Input(name = "action", type = OoaType.STRING, required = false, defaultValue = "\"click\"", enumValues = {"click", "set_text", "get_text", "get_property", "get_all_properties",
@@ -147,7 +189,19 @@ public final class DesktopUiPackage {
             @Input(name = "property", type = OoaType.STRING, required = false, example = "Value", description = "get_property: the property to read, e.g. Name, Value, IsEnabled, ToggleState, IsSelected, ExpandCollapseState.") String property,
             @Input(name = "item", type = OoaType.STRING, required = false, description = "select_item: the text of the item to select in a list, combo box, tree or tab control.") String item,
             @Input(name = "item_index", type = OoaType.NUMBER, required = false, description = "select_item: the position of the item to select (0 is the first), used when item is empty.") Integer itemIndex,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = D_TIMEOUT + " For wait_disappear, how long to wait for it to go.") double timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", description = D_TIMEOUT + " For wait_disappear, how long to wait for it to go.") double timeout,
+            @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"},
+                    description = "When the object is not there in time: error stops with an error; continue skips this step (result is empty, found is false) and carries on.") String ifNotFound) {
+        if ("continue".equals(ifNotFound)) {
+            try { return objectAction(ctx, object, action, clickType, clickMethod, offsetX, offsetY, text, clearFirst, textMethod, typeDelay, property, item, itemIndex, timeout, "error"); }
+            catch (ActionException e) {
+                if (!Set.of("DESKTOP_UI.OBJECT_NOT_FOUND", "DESKTOP_UI.WAIT_TIMEOUT").contains(e.code())) throw e;
+                ctx.warn("Skipped '" + action + "': " + e.getMessage());
+                Map<String, Object> m = out(null, "");
+                m.put("found", false);
+                return m;
+            }
+        }
         DesktopObject o = DesktopObject.parse(object);
         String a = action == null || action.isBlank() ? "click" : action;
         if (!Arrays.asList(ACTIONS).contains(a))

@@ -120,7 +120,8 @@ class DesktopObjectTest {
         assertEquals("desktop", obj.get("technology"));
         assertEquals(Map.of("title", "Untitled - Notepad", "title_match", "wildcard", "process", "notepad"), obj.get("window"));
         List<Map<String, Object>> props = (List<Map<String, Object>>) obj.get("properties");
-        assertEquals(DesktopObject.PROPERTIES, props.stream().map(p -> p.get("name")).toList());
+        assertEquals(DesktopObject.PROPERTIES.stream().filter(n -> DesktopObject.CORE.contains(n)).toList(), props.stream().map(p -> p.get("name")).toList(),
+                "only the core properties when the capture has no details");
         Map<String, Boolean> use = new LinkedHashMap<>();
         for (Map<String, Object> p : props) { use.put((String) p.get("name"), (Boolean) p.get("use")); assertEquals("equals", p.get("match")); }
         assertTrue(use.get("ControlType"));
@@ -134,6 +135,34 @@ class DesktopObjectTest {
         List<Map<String, Object>> p2 = (List<Map<String, Object>>) DesktopObject.fromCapture(raw).get("properties");
         assertTrue(p2.stream().anyMatch(p -> p.get("name").equals("Name") && Boolean.TRUE.equals(p.get("use"))));
         assertTrue(p2.stream().anyMatch(p -> p.get("name").equals("AutomationId") && Boolean.FALSE.equals(p.get("use"))));
+
+        // detailed captures list path, XPath, states and text after the identity properties; the program path and size are kept
+        el.put("Path", "1/1"); el.put("XPath", "/Pane[1]/Document[@Name='Text editor']"); el.put("States", "Focusable,Focused"); el.put("Text", "hello");
+        Map<String, Object> raw2 = Map.of("element", el, "window", Map.of("title", "Untitled - Notepad", "process", "notepad", "path", "C:\\Apps\\notepad.exe", "width", 1440, "height", 740));
+        Map<String, Object> o2 = DesktopObject.fromCapture(raw2);
+        List<Object> names = ((List<Map<String, Object>>) o2.get("properties")).stream().map(p -> p.get("name")).toList();
+        assertTrue(names.indexOf("Text") > names.indexOf("ControlType") && names.indexOf("XPath") > names.indexOf("Path"), names.toString());
+        assertEquals("C:\\Apps\\notepad.exe", ((Map<String, Object>) o2.get("window")).get("path"));
+        assertEquals(Map.of("width", 1440, "height", 740), ((Map<String, Object>) o2.get("window")).get("size"));
+    }
+
+    @Test void detailAnchorAndResize() {
+        assertFalse(DesktopObject.needsDetail(List.of(new DesktopObject.Rule("ControlType", "Edit", "equals"), new DesktopObject.Rule("automationid", "x", "equals"))));
+        assertTrue(DesktopObject.needsDetail(List.of(new DesktopObject.Rule("XPath", "/Pane[1]", "equals"))));
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("technology", "desktop");
+        o.put("window", Map.of("title", "App*", "resize", Map.of("width", 1200, "height", 800)));
+        o.put("properties", List.of(prop("ControlType", "Edit", "equals", true)));
+        o.put("anchor", Map.of("properties", List.of(prop("Name", "User name", "equals", true)), "offset", Map.of("dx", 120, "dy", 0)));
+        DesktopObject d = DesktopObject.parse(o);
+        assertEquals(1200, d.resizeWidth);
+        assertEquals("App*", d.anchor().window().title(), "the anchor is looked for in the same window");
+        assertEquals(120.0, d.anchorDx);
+        List<Map<String, ?>> cands = List.of(Map.of("BoundingRectangle", "10,10,50,20"), Map.of("BoundingRectangle", "130,12,50,20"), Map.of());
+        assertEquals(1, DesktopObject.nearest(cands, 125, 10, 250));
+        assertEquals(-1, DesktopObject.nearest(cands, 900, 900, 250));
+        o.put("window", Map.of("resize", Map.of("width", 0, "height", 5)));
+        assertThrows(com.oneofficeautomation.sdk.ActionException.class, () -> DesktopObject.parse(o));
     }
 
     @Test void tableColumnsAreUniqueAndNamed() {

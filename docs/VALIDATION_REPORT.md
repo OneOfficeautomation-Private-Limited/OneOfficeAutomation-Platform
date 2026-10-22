@@ -257,3 +257,64 @@ repository with check-in/check-out) gets its own report.
 | Command Center menu | Home plus three collapsible groups: Build, Run & Monitor, Govern; Settings, Roles, Toolkits and One Model Connections are their own pages |
 | Window choice for web actions | `window` input on every element action: Browser (tab by title/address, wildcards and variables), Application (browser window by desktop title), Variable (session); `open_for_automation`, `attach`, `list_windows`; Studio `GET windows` and the window editor |
 | Final results (merged) | Java 465 tests, 0 failed (1 skipped); Studio UI 205; console UI 61; checked by eye in a real Studio and Command Center |
+
+
+# Validation report: Part 7 (web Capture properties, anchor, recorder objects)
+
+The Capture action of the reference product was inspected again on a sample page (the-internet.herokuapp.com/login in
+Edge), using a test agent that was never saved. It shows a preview, Main and Anchor tabs, the actions for the
+element, and a Name / Value property sheet: the ticked properties first ("11 of 50"), and all 50 when expanded (HTML
+tag, DOMXPath, Path, CSS selector, HTML ID, name, class, type, inner text, inner and outer HTML, frame source, has frame,
+tag index, source index, position and size, visible and others). Values are text with `*` wildcards. Its system
+time-out has a Basic and an Advanced view (wait for the browser, wait for the object, and "stop with an error" or
+"skip and carry on" when the time runs out). The same ideas are implemented here in our own words and code.
+
+## What was added
+
+| Item | Result |
+| --- | --- |
+| Property set | One shared reader (`WebObjects.LIB_JS`) for Capture, the Recorder, the search and `get_all_properties`: attributes, inner text, value, field label, DOM XPath, full XPath, CSS selector, element path, parent, tag and source index, child count, left/top/width/height, visible, enabled, checked, selected item, inside a frame, frame address, inner and outer HTML (about 40 per element). |
+| Search by a selector property | A ticked CSS selector or XPath with `equals` matches the element the selector finds; Search by XPath tries the DOM XPath first, then the full XPath. Self-heal tries the CSS selector, then the XPaths. |
+| Anchor | `anchor` with an offset: picks the right element when several match, and finds it next to the anchor when its own properties no longer match (logged). Studio: Anchor tab with Capture anchor, Recapture, Remove, and the anchor's own property table. |
+| Time-out options | `element_action`: `wait_for_page_ms` and `if_not_found` (error / continue, with output `found`). |
+| Recorder | Every recorded click, typing and selection carries the full captured object (with iframe path); selections use the option's visible text; typed text is not kept as a property. |
+| Studio editor | Preview, Main / Anchor tabs, "Object properties: N ticked of M" with All / Ticked, a search box, readable names (stored name on hover), Name / Value / Match on one line in a wide panel and the value under the name in a narrow one. |
+
+## Automated results
+
+| Suite | Result |
+| --- | --- |
+| `CaptureObjectTest`, `BrowserWindowTest` (Edge, headless) | 5 tests, 0 failed. New checks: DOM XPath, CSS, path, parent and label read back; ticked DOM XPath and CSS rules; XPath order; parent and tag index rules; anchor choosing between two matches and finding a renamed element; `if_not_found` continue and error |
+| Studio browser tests (jsdom) | 209 passed, 0 failed (new: readable names and ticked count, Ticked view, Anchor tab, anchor offset and properties) |
+| Checked by eye | The new editor in a real Studio at 800 px and 1500 px wide |
+
+## Desktop Capture (Windows applications)
+
+The same check was made for a Windows application (Notepad, test agent never saved). The reference product lists
+the window by title (text or pattern, wildcards, case-sensitive) with its program path and an optional resize to a
+width and height, offers presets (active window, desktop, taskbar), and captures with automatic detection, Active
+Accessibility or UI Automation. A Notepad text box showed 27 properties with Active Accessibility and 52 with UI
+Automation (Path and XPath ticked by default; index, parent, position, states, role, class, text attributes and
+more), the actions Get property, Set text, Append text and the clicks, and the same Main / Anchor tabs and time-out.
+
+| Item | Result |
+| --- | --- |
+| Properties | Text, Path, XPath, Index, Parent, Left/Top/Width/Height (relative to the window), States, access and shortcut keys, item type and status, focus, password, read-only, checked, selected, expanded, range value, patterns and process, besides the UI Automation identity properties |
+| Search | Any of these can be ticked; the helper reads the details only when a ticked property needs them |
+| Window | Program path and size recorded; Resize window (width, height) applied before the search |
+| Anchor | Desktop Anchor tab; nearest control of the same type to anchor + offset (screen rectangles) |
+| Skip | `object_action` `if_not_found` = continue, output `found` |
+| Studio | Readable desktop names, Main / Anchor tabs, window section with program and resize |
+
+| Suite | Result |
+| --- | --- |
+| `:packages-windows:test` (live, Character Map) | 26 tests, 0 failed, 1 skipped (unrelated). New live checks: Path, XPath, Index, Parent, Text, States, position, program path; search by Path + XPath only; anchor fallback (`healed_by` = anchor); continue when not found. New unit test: details needed, anchor and resize parsing, nearest control |
+| Studio browser tests (jsdom) | 212 passed, 0 failed (new: desktop names, program path, Resize window, desktop Anchor tab) |
+
+## Known limitations
+
+- Active Accessibility (MSAA) capture is not offered: UI Automation reads the same controls on current Windows.
+- Text formatting attributes (font, colours) are not recorded.
+- The anchor offset assumes the page layout is about the same as at capture; on a very different layout use more
+  properties or the index instead.
+- The Recorder does not take element screenshots (Capture does).
