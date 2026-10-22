@@ -110,7 +110,8 @@ public final class FlowValidator {
             if (act.equals("core/set") && args.get("variable") instanceof String v && !declared.containsKey(v))
                 p.add(sid, "args/variable", "Variable '" + v + "' is not declared", null);
             for (Object c : (List<Object>) step.getOrDefault("catch", List.of()))
-                if (((Map<String, Object>) c).get("as") instanceof String v && !declared.containsKey(v)) p.add(sid, "catch/as", "Catch variable '" + v + "' is not declared", null);
+                for (String k : List.of("as", "message_to", "line_to"))
+                    if (((Map<String, Object>) c).get(k) instanceof String v && !declared.containsKey(v)) p.add(sid, "catch/" + k, "Catch variable '" + v + "' is not declared", null);
 
             // manifest checks
             PackageRegistry.LoadedPackage pkg;

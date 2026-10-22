@@ -77,7 +77,7 @@ final class McpServer {
             Map<String, Object> props = new LinkedHashMap<>();
             List<String> required = new ArrayList<>();
             for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
-                if (!(o instanceof Map<?, ?> v) || !"input".equals(v.get("direction"))) continue;
+                if (!(o instanceof Map<?, ?> v) || !java.util.Arrays.asList("input", "in_out").contains(v.get("direction"))) continue;
                 String type = String.valueOf(v.get("type"));
                 if (type.equals("Credential")) continue; // secrets never come from an assistant
                 Map<String, Object> s = new LinkedHashMap<>();

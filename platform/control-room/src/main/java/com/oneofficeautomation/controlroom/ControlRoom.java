@@ -504,7 +504,7 @@ public final class ControlRoom {
         Map<String, Map<String, Object>> declared = new HashMap<>();
         for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) {
             Map<String, Object> m = (Map<String, Object>) v;
-            if ("input".equals(m.get("direction"))) declared.put(String.valueOf(m.get("name")), m);
+            if (java.util.Arrays.asList("input", "in_out").contains(m.get("direction"))) declared.put(String.valueOf(m.get("name")), m);
         }
         for (var e : (inputs == null ? Map.<String, Object>of() : inputs).entrySet()) {
             Map<String, Object> var = declared.get(e.getKey());
@@ -943,7 +943,7 @@ public final class ControlRoom {
         try {
             Map<String, Object> flow = (Map<String, Object>) content((String) t.get("bot_path"), "production").get("flow");
             Set<String> declared = new HashSet<>();
-            for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) if ("input".equals(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
+            for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) if (java.util.Arrays.asList("input", "in_out").contains(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
             Map<String, Object> in = new LinkedHashMap<>();
             event.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
             Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", t.get("created_by"));

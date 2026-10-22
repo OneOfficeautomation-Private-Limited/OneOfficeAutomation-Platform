@@ -15,11 +15,15 @@ public final class Steps {
             if (!(o instanceof Map)) continue;
             Map<String, Object> s = (Map<String, Object>) o;
             out.add(s);
-            for (String k : List.of("children", "else", "finally"))
-                if (s.get(k) instanceof List<?> l) out.addAll(walk((List<Object>) l));
-            for (String k : List.of("elseIf", "catch"))
-                if (s.get(k) instanceof List<?> l)
-                    for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
+            // in the order Agent Studio shows them, so a step's place in this list is its line number:
+            // children, else-if branches, else, catch blocks, finally
+            if (s.get("children") instanceof List<?> l) out.addAll(walk((List<Object>) l));
+            if (s.get("elseIf") instanceof List<?> l)
+                for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
+            if (s.get("else") instanceof List<?> l) out.addAll(walk((List<Object>) l));
+            if (s.get("catch") instanceof List<?> l)
+                for (Object b : l) if (b instanceof Map<?, ?> bm && bm.get("children") instanceof List<?> c) out.addAll(walk((List<Object>) c));
+            if (s.get("finally") instanceof List<?> l) out.addAll(walk((List<Object>) l));
         }
         return out;
     }

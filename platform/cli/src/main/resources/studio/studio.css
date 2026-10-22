@@ -825,3 +825,30 @@ details.more-opts > summary .n { background: var(--code); border-radius: 10px; p
 .timeout-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-size: 12px; }
 .timeout-head .seg > button { padding: 2px 10px; font-size: 12px; }
 .text-source { display: grid; gap: 4px; } .text-source .seg > button { padding: 2px 10px; font-size: 12px; }
+
+/* flow view: lines take drops while something is dragged */
+.fslot { position: relative; }
+body.dnd .fslot.fline { height: 26px; width: 6px; border-radius: 3px; background: var(--tint); }
+.fslot.over, body.dnd .fslot.fline.over { background: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
+.fempty.fslot { border: 1px dashed transparent; border-radius: 8px; }
+body.dnd .fempty.fslot { border-color: var(--line-2); }
+.fempty.fslot.over { border-color: var(--accent); background: var(--tint); color: var(--ink); }
+.fnode.dragging-source { opacity: .45; }
+
+/* variable use: input and/or output */
+.var-use { display: flex; flex-direction: column; gap: 4px; }
+.var-use .help { display: inline; }
+
+/* Run Agent: inputs and outputs of the agent that runs */
+.map-list { display: flex; flex-direction: column; gap: 6px; }
+.map-row { display: grid; grid-template-columns: minmax(90px, 38%) 1fr; gap: 6px; align-items: center; }
+.map-row .map-name { display: flex; gap: 4px; align-items: center; font-weight: 600; overflow-wrap: anywhere; }
+.map-row .map-help { grid-column: 1 / -1; margin-top: -2px; }
+.map-row .var-field, .map-row select, .map-row input { min-width: 0; width: 100%; }
+
+/* Try: catch blocks */
+.catch-block { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.catch-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+
+/* captured object: only selected properties, the rest on demand */
+.cap-more { font-size: 12px; }

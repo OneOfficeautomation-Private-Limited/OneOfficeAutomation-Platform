@@ -1057,7 +1057,9 @@ public final class BrowserPackage {
     // ---------- Web recorder ----------
     private static final String RECORDER_JS = """
         (() => {
-          if (window.__ooaRec) return; window.__ooaRec = true;
+          // a page recorded before (and left open) starts reporting again and gets its bar back
+          if (window.__ooaRec) { window.__ooaRecOff = false; if (window.__ooaBar) window.__ooaBar(); return; }
+          window.__ooaRec = true;
           /*OOA_LIB*/
           const cap = (t) => ({ props: __props(t), css: __cssPath(t), xpath: __absXpath(t), dom_xpath: __domXpath(t), page_rect: __rect(t),
                                 page: { url: location.href, title: document.title } });
@@ -1084,12 +1086,14 @@ public final class BrowserPackage {
           };
           const textInput = (t) => (t.tagName === 'TEXTAREA') || (t.tagName === 'INPUT' && !/^(checkbox|radio|submit|button|file|image|reset)$/.test(t.type));
           document.addEventListener('click', (e) => {
+            if (window.__ooaRecOff) return;
             if (e.target.closest && e.target.closest('#__ooa_bar')) return;
             const t = (e.target.closest && e.target.closest('button,a,input,select,textarea,[role=button],[onclick],label')) || e.target;
             if (textInput(t) || t.tagName === 'SELECT') return;
             window.__ooaRecord(Object.assign({ kind: 'click', selector: sel(t), label: (t.innerText || t.value || '').trim().slice(0, 40) }, cap(t)));
           }, true);
           document.addEventListener('change', (e) => {
+            if (window.__ooaRecOff) return;
             const t = e.target;
             if (t.tagName === 'SELECT') window.__ooaRecord(Object.assign({ kind: 'select', selector: sel(t), value: t.value,
               option: t.selectedIndex >= 0 ? (t.options[t.selectedIndex].text || '').trim() : null }, cap(t)));
@@ -1106,13 +1110,15 @@ public final class BrowserPackage {
             stop.onclick = () => window.__ooaStop();
             b.append(dot, label, stop); document.body.appendChild(b);
           };
+          window.__ooaBar = bar;
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bar); else bar();
         })();
         """;
 
     @SuppressWarnings("unchecked")
     @Action(id = "record", name = "Record web actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "browser",
-            description = "Open a browser, record your clicks, typing and selections as steps, and return them when you press Stop recording or close the browser. Passwords are never recorded.")
+            description = "Open a browser, record your clicks, typing and selections as steps, and return them when you press Stop recording or close the browser. "
+                    + "Edge and Chrome stay open afterwards (on the agents' debugging port), so the page can be captured again. Passwords are never recorded.")
     @Output(name = "steps", type = OoaType.LIST, description = "Recorded steps, ready to insert into an agent.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of steps.")
     public Map<String, Object> record(ActionContext ctx,
@@ -1122,6 +1128,7 @@ public final class BrowserPackage {
             @Input(name = "tab_id", type = OoaType.NUMBER, required = false,
                     description = "Record in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list) instead of a new browser.") Long tabId) {
         if (tabId != null) return recordInTab(ctx, which, tabId, minutes);
+        if (!which.equals("chromium")) return recordKeptOpen(ctx, url, which, minutes);
         List<Map<String, Object>> events = Collections.synchronizedList(new ArrayList<>());
         final boolean[] stopped = {false};
         Map<String, String> env = new HashMap<>();
@@ -1158,6 +1165,57 @@ public final class BrowserPackage {
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Recording"); }
         return stepsFromEvents(ctx, events, url, which, false);
+    }
+
+    /**
+     * Records in a window of the Edge or Chrome that agents keep open (debugging port 9222 / 9223, started with its own
+     * profile when needed). Stop recording, closing the window, or the time running out ends the recording; the browser
+     * and the page stay open, so the objects can be captured again or the agent run against the same page.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> recordKeptOpen(ActionContext ctx, String url, String which, int minutes) {
+        List<Map<String, Object>> events = Collections.synchronizedList(new ArrayList<>());
+        final boolean[] stopped = {false};
+        String session = "__recorder";
+        BrowserSession bs = BrowserWindows.openWindow(ctx, which, url, session, 60_000);
+        Page page = bs.page;
+        try {
+            BrowserContext c = bs.context;
+            List<Frame> eventFrames = Collections.synchronizedList(new ArrayList<>());
+            String js = RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS);
+            c.exposeBinding("__ooaRecord", (source, args) -> {
+                if (source.page() != page) return null;   // only the recording window
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add((Map<String, Object>) m); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
+                return null; });
+            c.exposeBinding("__ooaStop", (source, args) -> { if (source.page() == page) stopped[0] = true; return null; });
+            page.addInitScript(js);
+            for (Frame f : page.frames()) { try { f.evaluate("() => { " + js + " }"); } catch (PlaywrightException ignored) { /* a frame that is still loading gets it from the init script */ } }
+            page.bringToFront();
+            long end = System.currentTimeMillis() + minutes * 60_000L;
+            while (!stopped[0] && System.currentTimeMillis() < end && !page.isClosed()) {
+                ctx.checkCancelled();
+                try { page.waitForTimeout(250); } catch (PlaywrightException e) { break; }
+            }
+            for (int i = 0; i < events.size() && i < eventFrames.size(); i++) {
+                List<String> frames = new ArrayList<>();
+                try {
+                    for (Frame f = eventFrames.get(i); f != null && f.parentFrame() != null; f = f.parentFrame())
+                        frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
+                } catch (PlaywrightException ignored) { /* the frame is gone; the object still searches the page */ }
+                events.get(i).put("frames", frames);
+            }
+            // the page stays as it is: the recording bar goes and the page stops reporting
+            if (!page.isClosed()) for (Frame f : page.frames()) {
+                try { f.evaluate("() => { window.__ooaRecOff = true; const b = document.getElementById('__ooa_bar'); if (b) b.remove(); }"); } catch (PlaywrightException ignored) { }
+            }
+        } catch (PlaywrightException e) { throw pw(e, "Recording"); }
+        finally {
+            // disconnect only: the window stays open (the session never closes pages it did not open itself)
+            Object sess = ctx.sessions().remove(session);
+            if (sess instanceof BrowserSession b) { b.ownPages.clear(); try { b.close(); } catch (RuntimeException ignored) { } }
+        }
+        ctx.info("Recording ended; the browser window stays open");
+        return stepsFromEvents(ctx, events, url, which, true);
     }
 
     /** Recorded events (click, type, select with the element's properties) as steps; open/close steps when a URL is given. */
@@ -1206,8 +1264,7 @@ public final class BrowserPackage {
                 } else steps.add(stepMap("ooa.browser/click", args, "Recorded click" + label(e)));
             }
         }
-        if (url != null) steps.add(stepMap("ooa.browser/close", Map.of(), "Recorded: close browser"));
-        ctx.info("Recorded " + (steps.size() - (url != null ? 2 : 0)) + " action(s)" + (password ? "; password fields use the variable $password" : ""));
+        ctx.info("Recorded " + (steps.size() - (url != null ? 1 : 0)) + " action(s)" + (password ? "; password fields use the variable $password" : ""));
         return Map.of("steps", steps, "count", BigDecimal.valueOf(steps.size()));
     }
 

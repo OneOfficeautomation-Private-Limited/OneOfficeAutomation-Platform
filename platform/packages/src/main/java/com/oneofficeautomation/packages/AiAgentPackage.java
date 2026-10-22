@@ -28,7 +28,7 @@ public final class AiAgentPackage {
         List<Object> required = new ArrayList<>();
         for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
             Map<String, Object> v = (Map<String, Object>) o;
-            if (!"input".equals(v.get("direction"))) continue;
+            if (!java.util.Arrays.asList("input", "in_out").contains(v.get("direction"))) continue;
             if ("Credential".equals(v.get("type"))) {
                 if (Boolean.TRUE.equals(v.get("required"))) throw new ActionException("AGENT.TOOL_NEEDS_SECRET", "Agent '" + botId + "' needs a Credential input, which a model must never supply",
                         "Read the credential inside the agent instead of taking it as an input.");

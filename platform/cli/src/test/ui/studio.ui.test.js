@@ -471,14 +471,23 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
       page: { url: "https://example.com/", title: "Example" }, properties: [{ name: "tag", value: "button", match: "equals", use: true },
       { name: "id", value: "save-123", match: "equals", use: false }, { name: "text", value: "Save", match: "equals", use: true }] } } });
       state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    // only the selected properties show at first, as in the reference product; Show all properties lists the rest
+    check("the captured object editor shows only the selected properties at first", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 2
+      && d.querySelector(".cap-more") && d.querySelector(".cap-more").textContent === "Show all properties (1 more)"));
+    click(d.querySelector(".cap-more"));
     check("the captured object editor lists every property with Use and Match", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 3 && d.querySelectorAll(".cap-table select").length === 3),
       "selected=" + JSON.stringify(w.eval("state.selected")) + " spec=" + w.eval("!!state.specs.get('ooa.browser/element_action')") + " props=" + (d.getElementById("props") ? d.getElementById("props").textContent.slice(0, 300) : "none"));
     if (!d.querySelector(".cap-table")) throw new Error("capture editor not shown");
     check("properties show readable names (stored name on hover) and a ticked count", [...d.querySelectorAll(".cap-table .cap-name")].map((x) => x.textContent).join() === "HTML tag,HTML ID,Inner text"
-      && d.querySelector(".cap-table .cap-name").title === "tag" && d.querySelector(".cap-count").textContent === "2 ticked of 3");
-    click([...d.querySelectorAll(".cap-view button")].find((b) => b.textContent === "Ticked"));
-    check("Ticked shows only the properties used for the search", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 2));
-    click([...d.querySelectorAll(".cap-view button")].find((b) => b.textContent === "All"));
+      && d.querySelector(".cap-table .cap-name").title === "tag" && d.querySelector(".cap-count").textContent === "2 selected of 3");
+    click(d.querySelector(".cap-more"));
+    check("Show only selected hides the unticked properties", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 2 && d.querySelector(".cap-more").textContent.startsWith("Show all")));
+    // unticking while only the selected ones show keeps the row until the list is switched, so a slip can be undone
+    const textUse = d.querySelector('.cap-table input[aria-label="Search by Inner text"]'); textUse.checked = false; textUse.dispatchEvent(new w.Event("change"));
+    check("an unticked property stays in view until the list is switched", await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 2
+      && !d.querySelector('.cap-table input[aria-label="Search by Inner text"]').checked));
+    const textUse2 = d.querySelector('.cap-table input[aria-label="Search by Inner text"]'); textUse2.checked = true; textUse2.dispatchEvent(new w.Event("change"));
+    click(d.querySelector(".cap-more"));
     await until(() => d.querySelectorAll(".cap-table .cap-row:not(.cap-headrow)").length === 3);
     const idUse = d.querySelector('.cap-table input[aria-label="Search by HTML ID"]'); idUse.checked = true; idUse.dispatchEvent(new w.Event("change"));
     const idMatch = d.querySelector('.cap-table select[aria-label="Match for HTML ID"]'); idMatch.value = "regex"; idMatch.dispatchEvent(new w.Event("change"));
@@ -518,10 +527,17 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
       const f = [...d.querySelectorAll("#props .field[data-field]")].map((x) => x.dataset.field);
       return f.includes("window") && f.indexOf("window") < f.indexOf("object"); }), [...d.querySelectorAll("#props .field[data-field]")].map((x) => x.dataset.field).join());
     w.eval(`fillWindowFromCapture(state.flow.steps[state.flow.steps.length - 1], { page: { title: "The Internet", url: "https://the-internet.herokuapp.com/login" } }); renderProps();`);
-    check("Capture fills the browser title, the link of the web page and the browser",
-      JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.window")) === JSON.stringify({ source: "browser", title: "The Internet", title_match: "equals", link: "https://the-internet.herokuapp.com/login", browser: "edge" })
-      && !!(await until(() => d.querySelector(".win-link") && d.querySelector(".win-link").textContent === "https://the-internet.herokuapp.com/login")));
-    w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // as in the reference product, Capture makes a window variable (browser title, link, browser) and the step uses it
+    const capWin = JSON.parse(w.eval(`JSON.stringify({ win: state.flow.steps[state.flow.steps.length - 1].args.window,
+      v: state.flow.variables.find((x) => x.name === "window_the_internet") })`));
+    check("Capture makes a window variable with the browser title, link and browser, and the step uses it", capWin.win === "$window_the_internet" && capWin.v && capWin.v.type === "Dictionary"
+      && JSON.stringify(capWin.v.default) === JSON.stringify({ source: "browser", title: "The Internet", title_match: "equals", link: "https://the-internet.herokuapp.com/login", browser: "edge" })
+      && !!(await until(() => d.querySelector(".win-now") && d.querySelector(".win-now").textContent.includes("\u201CThe Internet\u201D (window variable $window_the_internet)"))), JSON.stringify(capWin));
+    w.eval(`fillWindowFromCapture((() => { state.flow.steps.push({ id: "win_ui2", action: "ooa.browser/click", args: {} }); return state.flow.steps[state.flow.steps.length - 1]; })(),
+      { page: { title: "The Internet", url: "https://the-internet.herokuapp.com/login" } })`);
+    check("a second capture in the same window uses the same window variable", w.eval("state.flow.steps[state.flow.steps.length - 1].args.window") === "$window_the_internet"
+      && w.eval("state.flow.variables.filter((x) => /^window_the_internet/.test(x.name)).length") === 1);
+    w.eval("state.flow.steps.pop(); state.flow.steps.pop(); state.flow.variables = state.flow.variables.filter((x) => x.name !== 'window_the_internet'); state.selected = null; renderProps(); renderVariables(); state.dirty = false");
     // Recorded typing and selections become input variables named after the field
     const recVars = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
       const steps = [{ action: "ooa.browser/type_text", args: { text: "tomsmith", object: { properties: [{ name: "label", value: "Username" }, { name: "name", value: "user" }] } } },
@@ -561,6 +577,77 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     check("the recorder offers a desktop application and a new page", !!recDlg && !!d.getElementById("rec-new-page")
       && d.getElementById("dialog-title").textContent === "Record in which window?", d.getElementById("dialog-title").textContent);
     w.eval("closeDialog()");
+    // Line numbers count every step from the top, nested steps included (as in the reference product)
+    const lineNos = JSON.parse(w.eval(`JSON.stringify([...stepNumbers({ steps: [{ id: "a", action: "core/comment" }, { id: "b", action: "core/if", children: [{ id: "c", action: "core/comment" }],
+      elseIf: [{ condition: {}, children: [{ id: "c2", action: "core/comment" }] }], else: [{ id: "d", action: "core/comment" }] },
+      { id: "t", action: "core/try", children: [{ id: "t1", action: "core/comment" }], catch: [{ codes: [], children: [{ id: "k1", action: "core/comment" }] }, { codes: ["FILE.*"], children: [{ id: "k2", action: "core/comment" }] }], finally: [{ id: "f1", action: "core/comment" }] },
+      { id: "e", action: "core/comment" }] }).entries()])`));
+    check("line numbers run 1, 2, 3 ... through blocks, catch blocks and finally", lineNos.map(([id, n]) => id + n).join() === "a1,b2,c3,c24,d5,t6,t17,k18,k29,f110,e11", JSON.stringify(lineNos));
+
+    // A variable can be an input, an output or both
+    w.eval("editVariable(null, { name: 'both_ways' })");
+    await until(() => d.querySelector('#dialog input[data-use="input"]'));
+    const useIn = d.querySelector('#dialog input[data-use="input"]'); useIn.checked = true; useIn.dispatchEvent(new w.Event("change"));
+    const useOut = d.querySelector('#dialog input[data-use="output"]'); useOut.checked = true; useOut.dispatchEvent(new w.Event("change"));
+    click([...d.querySelectorAll("#dialog-actions button, #dialog button")].find((x) => x.textContent === "Create variable"));
+    check("ticking Use as input and Use as output makes an input-and-output variable", await until(() => w.eval("(state.flow.variables.find((v) => v.name === 'both_ways') || {}).direction") === "in_out")
+      && w.eval("isInputVar(state.flow.variables.find((v) => v.name === 'both_ways')) && isOutputVar(state.flow.variables.find((v) => v.name === 'both_ways'))"));
+    check("the variables list has an Inputs and outputs group", await until(() => [...d.querySelectorAll(".var-group .gname")].some((g) => g.textContent === "Inputs and outputs")));
+    w.eval("state.flow.variables = state.flow.variables.filter((v) => v.name !== 'both_ways'); renderVariables(); state.dirty = false");
+
+    // Run Agent: choose the agent, give its inputs, save its outputs to variables of this agent
+    fs.writeFileSync(path.join(WS, "child_for_map.flow.json"), JSON.stringify({ schemaVersion: "1.0", kind: "TaskBot", id: "child_for_map", name: "Child for map",
+      variables: [{ name: "customer", type: "String", direction: "input", required: true }, { name: "count", type: "Number", direction: "in_out" }, { name: "total", type: "Number", direction: "output" }],
+      steps: [{ id: "s1", action: "core/comment", args: { text: "x" } }] }));
+    w.eval(`state.agents = null; loadAgents(true); state.flow.steps.push({ id: "rb_ui", action: "core/run_bot", args: { automation: "child_for_map" } }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    check("Run Agent lists the agent's inputs (input, and input-and-output) to fill in", await until(() => d.querySelector('#props [data-input="customer"]') && d.querySelector('#props [data-input="count"]') && !d.querySelector('#props [data-input="total"]'), 5000));
+    const custIn = d.querySelector('#props [data-input="customer"]'); custIn.value = "$name_here"; custIn.dispatchEvent(new w.Event("change"));
+    const cntIn = d.querySelector('#props [data-input="count"]'); cntIn.value = "3"; cntIn.dispatchEvent(new w.Event("change"));
+    check("input values are kept on the step, numbers as numbers", JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.inputs")) === JSON.stringify({ customer: "$name_here", count: 3 }));
+    await until(() => d.querySelector('#props select[data-output="total"]'));
+    const outSel = d.querySelector('#props select[data-output="total"]'); outSel.value = "__new"; outSel.dispatchEvent(new w.Event("change"));
+    check("an output can go to a new variable of this agent", await until(() => JSON.stringify(w.eval("state.flow.steps[state.flow.steps.length - 1].args.output_map")) === JSON.stringify({ total: "total" }))
+      && w.eval("state.flow.variables.some((v) => v.name === 'total' && v.type === 'Number')") && !!d.querySelector('#props select[data-output="count"]'));
+    w.eval("state.flow.steps.pop(); state.flow.variables = state.flow.variables.filter((v) => v.name !== 'total'); state.selected = null; renderProps(); renderVariables(); state.dirty = false");
+    fs.unlinkSync(path.join(WS, "child_for_map.flow.json"));
+
+    // Try: several Catch blocks, each with its own errors, message and line number variables
+    w.eval(`state.flow.steps.push({ id: "try_ui", action: "core/try", children: [], catch: [{ codes: ["FILE.*"], children: [] }, { codes: [], children: [] }], finally: [] });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderSteps(); renderProps();`);
+    check("each Catch block shows on the canvas with the errors it catches", await until(() => { const secs = [...d.querySelectorAll('#steps .section')].map((x) => x.textContent);
+      return secs.includes("Catch FILE.*") && secs.includes("Catch all errors") && secs.includes("Finally (always)"); }));
+    check("the Try settings show one box per Catch block, with message and line number variables", d.querySelectorAll("#props .catch-block").length === 2
+      && !!d.querySelector('#props select[aria-label="Error message variable"]') && !!d.querySelector('#props select[aria-label="Line number variable"]'));
+    click([...d.querySelectorAll("#props button")].find((x) => x.textContent === "+ Catch"));
+    check("+ Catch adds another Catch block", await until(() => d.querySelectorAll("#props .catch-block").length === 3 && w.eval("state.flow.steps[state.flow.steps.length - 1].catch.length") === 3));
+    const lineSel = d.querySelector('#props select[aria-label="Line number variable"]'); lineSel.value = "__new"; lineSel.dispatchEvent(new w.Event("change"));
+    check("the line number can go to a new Number variable", await until(() => w.eval("state.flow.steps[state.flow.steps.length - 1].catch[0].line_to") === "error_line"
+      && w.eval("(state.flow.variables.find((v) => v.name === 'error_line') || {}).type") === "Number"));
+    w.eval("state.flow.steps.pop(); state.flow.variables = state.flow.variables.filter((v) => v.name !== 'error_line'); state.selected = null; renderSteps(); renderProps(); renderVariables(); state.dirty = false");
+
+    // Keyboard: Down selects the next step, Shift+Down extends the selection
+    w.eval("state.canvasMode = 'list'; state.multi = new Set([state.flow.steps[0].id]); state.selected = ['steps', 0]; state.anchorId = state.flow.steps[0].id; renderSteps(); document.activeElement && document.activeElement.blur && document.activeElement.blur()");
+    const key = (k, shift) => d.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, shiftKey: !!shift, bubbles: true }));
+    key("ArrowDown", true); key("ArrowDown", true);
+    check("Shift+Down selects several steps", w.eval("state.multi.size") === 3, String(w.eval("state.multi.size")));
+    key("ArrowUp", true);
+    check("Shift+Up gives one back", w.eval("state.multi.size") === 2);
+    key("ArrowDown");
+    check("Down alone moves to a single step", w.eval("state.multi.size") === 1);
+    w.eval("clearSelection()");
+
+    // Flow view: actions can be dropped on the lines
+    click(d.querySelector('[data-canvas-mode="flow"]'));
+    await until(() => d.querySelector("#steps .flow-view .fslot"));
+    const before = w.eval("state.flow.steps.length");
+    const slot = d.querySelectorAll("#steps .flow-view > .fseq > .fslot")[1];
+    const drop = new w.Event("drop", { bubbles: true }); drop.dataTransfer = { getData: (t) => (t === "text/x-ooa-command" ? "core/comment" : "") };
+    slot.dispatchEvent(drop);
+    check("dropping an action on a line in the flow view adds it there", await until(() => w.eval("state.flow.steps.length") === before + 1 && w.eval("state.flow.steps[1].action") === "core/comment"));
+    w.eval("state.flow.steps.splice(1, 1); state.selected = null; state.multi = new Set(); renderSteps(); renderProps(); state.dirty = false");
+    click(d.querySelector('[data-canvas-mode="list"]'));
+    await until(() => d.querySelector("#steps .step"));
+
     // Element action: actions for the captured control type, only the fields the action uses, the outcome variable, the time-out box
     w.eval(`state.flow.steps.push({ id: "ea_ui", action: "ooa.browser/element_action", args: { action: "click", object: { technology: "web", search_by: "properties", index: 0,
       properties: [{ name: "tag", value: "select", match: "equals", use: true }, { name: "control_type", value: "Drop-down list", match: "equals", use: false }] } } });
@@ -789,7 +876,7 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   click(node("My Agents/slow_bot.flow.json"));
   await until(() => w.eval("state.file") === "My Agents/slow_bot.flow.json");
   click(d.getElementById("btn-run"));
-  check("the Run window appears during a run", await until(() => { const rw = d.getElementById("run-window"); return rw && rw.textContent.includes("slow") && rw.textContent.includes("of 4 steps") && /Step \d/.test(rw.textContent); }, 5000),
+  check("the Run window appears during a run", await until(() => { const rw = d.getElementById("run-window"); return rw && rw.textContent.includes("slow") && rw.textContent.includes("of 4 steps") && /Line \d/.test(rw.textContent); }, 5000),
     d.getElementById("run-window") && d.getElementById("run-window").textContent);
   check("it offers Pause and Stop, and the canvas highlights the running step", [...d.querySelectorAll("#run-window button")].some((b) => b.textContent === "Pause") && d.querySelector(".step.running"));
   click([...d.querySelectorAll("#run-window button")].find((b) => b.getAttribute("aria-label") === "Minimise the run window"));

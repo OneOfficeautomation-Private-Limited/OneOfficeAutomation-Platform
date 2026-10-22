@@ -328,7 +328,7 @@ public final class Runner {
             Map<String, Object> outputs = new LinkedHashMap<>();
             for (Object o : (List<Object>) flow.getOrDefault("variables", List.of())) {
                 Map<String, Object> v = (Map<String, Object>) o;
-                if ("output".equals(v.get("direction"))) outputs.put((String) v.get("name"), scope.values.get(v.get("name")));
+                if (java.util.Arrays.asList("output", "in_out").contains(v.get("direction"))) outputs.put((String) v.get("name"), scope.values.get(v.get("name")));
             }
             long dur = (System.nanoTime() - t0) / 1_000_000;
             emit("run.finished", null, data("status", status, "durationMs", dur, "error", error, "outputs", outputs));
@@ -344,13 +344,13 @@ public final class Runner {
                 declared.put((String) v.get("name"), v);
             }
             List<String> unknown = inputs.keySet().stream()
-                    .filter(k -> !declared.containsKey(k) || !"input".equals(declared.get(k).get("direction"))).toList();
+                    .filter(k -> !declared.containsKey(k) || !java.util.Arrays.asList("input", "in_out").contains(declared.get(k).get("direction"))).toList();
             if (!unknown.isEmpty()) throw new OoaException("RUN.INPUT_UNKNOWN", "Unknown input(s): " + String.join(", ", unknown),
                     "Only variables with direction 'input' can be supplied.");
             for (var e : declared.entrySet()) {
                 String name = e.getKey();
                 Map<String, Object> v = e.getValue();
-                boolean isInput = "input".equals(v.get("direction"));
+                boolean isInput = java.util.Arrays.asList("input", "in_out").contains(v.get("direction"));
                 if (isInput && inputs.containsKey(name)) {
                     Object val = inputs.get(name);
                     if (val instanceof Map<?, ?> m && m.size() == 1 && m.containsKey("$credential")) {
@@ -897,6 +897,8 @@ public final class Runner {
                         Map<String, Object> err = errorInfo(e);
                         if (c.get("screenshot") != null && !Boolean.FALSE.equals(c.get("screenshot"))) err.put("screenshot", screenshot(c.get("screenshot"), e.stepId() == null ? sid : e.stepId()));
                         if (c.get("as") instanceof String as) scope.set(as, err);
+                        if (c.get("message_to") instanceof String mt) scope.set(mt, e.getMessage());
+                        if (c.get("line_to") instanceof String lt) scope.set(lt, err.get("line"));
                         log("info", "Caught " + e.code(), sid);
                         List<Object> body = c.get("children") instanceof List<?> l ? (List<Object>) l : List.of();
                         if (Boolean.TRUE.equals(c.get("continueOnError"))) {

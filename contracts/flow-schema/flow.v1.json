@@ -75,7 +75,7 @@
       "properties": {
         "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$", "description": "Variable name, referenced in expressions as $name."},
         "type": {"$ref": "#/$defs/type"},
-        "direction": {"enum": ["input", "output", "local"], "default": "local", "description": "input = supplied by caller; output = returned to caller; local = internal."},
+        "direction": {"enum": ["input", "output", "in_out", "local"], "default": "local", "description": "input = supplied by caller; output = returned to caller; in_out = both; local = internal."},
         "required": {"type": "boolean", "default": false, "description": "For inputs: the run is rejected when the value is missing and no default exists."},
         "default": {"description": "Initial value. Not allowed for Credential variables."},
         "description": {"type": "string", "description": "Shown in Studio and given to agents as the tool parameter description."},
@@ -120,6 +120,8 @@
             "type": "object", "required": ["children"], "additionalProperties": false,
             "properties": {
               "codes": {"type": "array", "items": {"type": "string"}, "description": "Error codes or prefixes ending in '*'. Empty = catch all."},
+              "message_to": {"type": "string", "description": "Variable that receives the error message (String)."},
+              "line_to": {"type": "string", "description": "Variable that receives the line number of the step that failed (Number), as numbered in Agent Studio's list."},
               "as": {"type": "string", "description": "Variable that receives the error as a Dictionary (code, message, suggestedFix, stepId, line, action and, with screenshot, the picture's path)."},
               "screenshot": {"type": ["boolean", "string"], "description": "Take a screenshot when this block catches an error: true saves it under screenshots/ in the workspace, a text value is the file path to use. Never fails the Catch."},
               "continueOnError": {"type": "boolean", "default": false, "description": "Errors raised by steps inside this Catch block are logged and skipped."},

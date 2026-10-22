@@ -157,6 +157,24 @@ public final class StudioServer {
             sendJson(ex, 200, Map.of("packages", registry.allManifests()));
         } else if (method.equals("GET") && route.equals("tree")) {
             sendJson(ex, 200, Map.of("workspace", workspace.toString(), "tree", ws.tree()));
+        } else if (method.equals("GET") && route.equals("agents")) {
+            // every agent in the workspace with its id and variables, for Run Agent's agent choice and variable mapping
+            List<Object> agents = new ArrayList<>();
+            try (Stream<Path> s = Files.walk(workspace)) {
+                for (Path p : s.filter(f -> f.toString().endsWith(Workspace.BOT_SUFFIX))
+                        .filter(f -> !workspace.relativize(f).toString().startsWith(".")).sorted().toList()) {
+                    try {
+                        Map<String, Object> f = (Map<String, Object>) json.parse(Files.readString(p));
+                        Map<String, Object> a = new LinkedHashMap<>();
+                        a.put("path", workspace.relativize(p).toString().replace('\\', '/'));
+                        a.put("id", f.getOrDefault("id", ""));
+                        a.put("name", f.getOrDefault("name", ""));
+                        a.put("variables", f.getOrDefault("variables", List.of()));
+                        agents.add(a);
+                    } catch (RuntimeException | IOException ignored) { /* not a readable agent */ }
+                }
+            }
+            sendJson(ex, 200, Map.of("agents", agents));
         } else if (route.equals("bot")) {
             String rel = query(ex).getOrDefault("path", "");
             if (!rel.endsWith(Workspace.BOT_SUFFIX)) throw new OoaException("STUDIO.NOT_A_BOT", "Not an agent file: " + rel, "Agents end with .flow.json.");
@@ -276,6 +294,15 @@ public final class StudioServer {
             }, "ooa-studio-run-" + id);
             t.setDaemon(true);
             t.start();
+            // the run window on the desktop, on top of the applications the agent works in
+            if (Boolean.TRUE.equals(req.get("run_window")) && lr.debugger == null && RunWindow.available()) {
+                Map<String, String> names = new HashMap<>();
+                for (Map<String, Object> m : registry.allManifests())
+                    if (m.get("actions") instanceof List<?> acts) for (Object a : acts)
+                        if (a instanceof Map<?, ?> am) names.put(m.get("id") + "/" + am.get("id"), String.valueOf(am.get("name")));
+                RunWindow.open(String.valueOf(flow.getOrDefault("name", "Agent")), flow, lr.sink, lr.pause, lr.cancel, () -> lr.result != null,
+                        a -> names.getOrDefault(a, a));
+            }
             sendJson(ex, 202, Map.of("run_id", id));
         } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}")) {
             LiveRun lr = live.get(route.substring(5));
@@ -781,7 +808,7 @@ public final class StudioServer {
             Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(ws.resolve(botPath)));
             Set<String> declared = new HashSet<>();
             for (Object v : (List<Object>) flow.getOrDefault("variables", List.of()))
-                if ("input".equals(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
+                if (java.util.Arrays.asList("input", "in_out").contains(((Map<String, Object>) v).get("direction"))) declared.add(String.valueOf(((Map<String, Object>) v).get("name")));
             Map<String, Object> in = new LinkedHashMap<>();
             inputs.forEach((k, v) -> { if (declared.contains(k)) in.put(k, v); });
             return runner(new EventSink.ListSink()).run(flow, in, new Runner.RunOptions().maxRunSeconds(3600));

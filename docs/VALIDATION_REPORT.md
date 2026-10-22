@@ -428,3 +428,27 @@ Tests:
 - **CaptureObjectTest:** a covered button is pressed in the background even with the mouse method.
 - **Studio UI:** 232 checks. New ones cover desktop typing variables, the Run in background fields, and the recorder's choice dialog.
 - **Java suites:** all pass except `EnterpriseFeaturesTest.vaultsGovernanceMcpSsoAndWorkflows`, where the AI governance total reads 0 calls instead of 1. It fails the same way on the previous commit (49d8434), so it is not from this change and is tracked separately.
+
+
+# Validation report: reported defects (recorder, window variables, run window, canvas, variables, Run Agent, Try/Catch)
+
+| Reported | Fixed |
+| --- | --- |
+| The web page closed when recording stopped | Edge and Chrome recordings now use the browser agents keep open (debugging port 9222 / 9223). Stop recording removes the bar and leaves the page open, so its objects can be captured again. No Close step is added. Recording a page a second time works. |
+| Window titles missing in the web recorder and web actions | Every recorded step names its window (browser title, link, browser). As in the reference product, Capture and the recorder make a window variable (Dictionary, listed under Variables) and the steps use it. A second capture in the same window reuses the variable. "Working in" shows the title the variable holds. |
+| Run-time window hidden during a run | The Studio run opens a desktop run window that stays on top of the applications the agent brings forward, without taking the keyboard. It shows the agent, the status, "Line n: action", lines done and time, with Pause and Stop. It closes 3 s after the run (8 s after a failure). The in-page run window says "Line n" too. |
+| Line numbers | As in the reference product, lines are numbered 1, 2, 3 … straight down through blocks, else-if branches, catch blocks and finally. The canvas, both run windows and the error's line (`errorInfo.line`, Catch "Line number to") use the same numbers. |
+| Object properties: show only the selected ones | The captured object editor lists only the ticked properties, with "Show all properties (n more)" / "Show only selected". A property unticked while only the selected ones show stays in view until the list is switched, so a slip can be undone. |
+| Shift+Down did not select several steps | Up/Down select the step above or below (into and out of blocks). Shift+Up/Down extend the selection from the first step selected. Ctrl+Shift+Home/End select to the top or the end. |
+| The ⋮ menu opened at the far left | The menu's position is read from the button before the canvas re-renders (the button was replaced, so it measured 0). |
+| Flow view: drag and drop did not work | The connecting lines and empty branches take drops: an action from the list is added there, and a dragged step moves there. |
+| Variables: only input or output | "Use as input" and "Use as output" are two ticks; both make an input-and-output variable (`direction: "in_out"`). It is accepted as an input and returned as an output by the runner, Command Center, MCP tools and AI agent tools, and it has its own group in the Variables list. |
+| Run Agent: mapping variables | Choose the agent from the workspace (`GET agents`). Each of its inputs gets a value field (text, number or $variable). Each of its outputs goes to a variable of this agent, or a new one made on the spot. |
+| Try / Catch | Several Catch blocks, each catching all errors or the listed codes (with suggestions). Each can put the error message, the line number and the full error details into variables, take a screenshot, and raise the error again. Each Catch shows on the canvas with what it catches. |
+
+Tests:
+
+- **Studio UI:** 249 checks. New ones cover line numbers, input-and-output variables, Run Agent inputs and outputs, Catch blocks, Shift+Up/Down, dropping in the flow view, window variables from Capture, and the selected-only property list.
+- **Live web recorder (kept-open Edge, input sent as real browser events):** typing and a click became two steps, each with the window title. Stop removed the bar and the page stayed open.
+- **Live desktop run window:** checked on screen with Line, count, time, Pause and Stop, kept on top.
+- **⋮ menu:** checked in Studio; it opens at the button.

@@ -435,7 +435,7 @@ public final class Platform {
         Map<String, Object> flow = (Map<String, Object>) cr.content(botPath, "production").get("flow");
         Map<String, Object> out = new LinkedHashMap<>();
         for (Object v : (List<Object>) flow.getOrDefault("variables", List.of()))
-            if (v instanceof Map<?, ?> m && "input".equals(m.get("direction"))) out.put(String.valueOf(m.get("name")), m);
+            if (v instanceof Map<?, ?> m && java.util.Arrays.asList("input", "in_out").contains(m.get("direction"))) out.put(String.valueOf(m.get("name")), m);
         return out;
     }
 

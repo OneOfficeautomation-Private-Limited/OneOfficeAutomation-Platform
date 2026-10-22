@@ -237,6 +237,17 @@ async function api(method, path, body) {
 // ---------- path helpers ----------
 function getAt(obj, path) { return path.reduce((o, k) => (o == null ? undefined : o[k]), obj); }
 function sameList(a, b) { return a && b && a.length === b.length && a.every((x, i) => x === b[i]); }
+/** The step lists inside a block step, with their labels: Then / Else if / Else, Try / each Catch / Finally, Repeat ... */
+function sectionsOf(s) {
+  if (s.action === "core/if") return [["children", "Then"], ...(s.elseIf || []).map((_, k) => [["elseIf", k, "children"], "Else if #" + (k + 1)]), ["else", "Else"]];
+  if (s.action === "core/try") return [["children", "Try"], ...(s.catch || []).map((c, k) => [["catch", k, "children"], catchLabel(c)]), ["finally", "Finally (always)"]];
+  return SECTIONS[s.action] || [];
+}
+function catchLabel(c) {
+  const codes = (c && c.codes) || [];
+  return "Catch " + (codes.length ? codes.join(", ") : "all errors");
+}
+
 function allSteps(list, out = []) {
   for (const s of list || []) {
     out.push(s);
@@ -875,7 +886,10 @@ function summary(step) {
 /** Short name of a window choice: its title, variable or address; empty when the step uses the session's current tab. */
 function windowLabel(w) {
   if (!w) return "";
-  if (typeof w === "string") return w;
+  if (typeof w === "string") {
+    const v = state.flow && w.startsWith("$") ? state.flow.variables.find((x) => "$" + x.name === w.trim()) : null;
+    return v && v.default && v.default.title ? v.default.title : w;
+  }
   if (w.source === "variable") return w.variable || "";
   return w.title || w.url || "";
 }
@@ -972,6 +986,85 @@ function foldAll(collapse) {
   setCollapsed(collapse ? new Set(ids) : new Set());
 }
 
+// ---------- Run Agent ----------
+/** The workspace's agents with their variables (GET agents), loaded once per Studio session and on Refresh. */
+function loadAgents(force) {
+  if (!state.agentsPromise || force) state.agentsPromise = api("GET", "agents").then((r) => r.agents || []).catch(() => []);
+  return state.agentsPromise;
+}
+function childAgent(step) {
+  const id = step.args && step.args.automation;
+  return (state.agents || []).find((a) => a.id === id) || null;
+}
+function runAgentPicker(step, current, set) {
+  const sel = h("select", { "aria-label": "Agent to run", onchange: () => { set(sel.value || undefined); renderProps(); } }, h("option", { value: "", text: "Loading agents…" }));
+  const refresh = h("button", { type: "button", class: "icon-mini", title: "Refresh the list of agents", "aria-label": "Refresh agents", onclick: () => fill(true) }, "↻");
+  const fill = (force) => loadAgents(force).then((list) => {
+    state.agents = list;
+    const own = state.flow && state.flow.id;
+    const opts = list.filter((a) => a.id && a.id !== own).map((a) => h("option", { value: a.id, text: (a.name || a.id) + "  —  " + a.path }));
+    const known = list.some((a) => a.id === current);
+    sel.replaceChildren(h("option", { value: "", text: list.length ? "Choose an agent…" : "No other agents in this workspace" }), ...opts,
+      current && !known ? h("option", { value: current, text: current + " (not in this workspace)" }) : null);
+    sel.value = current || "";
+    if (force) renderProps();
+  });
+  fill(false);
+  return h("div", { class: "win-pick-row" }, sel, refresh);
+}
+function runAgentInputs(step, current, set) {
+  const box = h("div", { class: "map-list" });
+  const vals = current && typeof current === "object" && !Array.isArray(current) ? Object.assign({}, current) : {};
+  const draw = () => {
+    const child = childAgent(step);
+    if (!child) { box.replaceChildren(h("div", { class: "help", text: step.args && step.args.automation ? "Loading the agent's variables…" : "Choose the agent first." })); return; }
+    const ins = (child.variables || []).filter(isInputVar);
+    if (!ins.length) { box.replaceChildren(h("div", { class: "help", text: "The agent has no input variables." })); return; }
+    box.replaceChildren(...ins.map((v) => {
+      const val = vals[v.name];
+      const inp = h("input", { type: "text", value: val === undefined ? "" : typeof val === "string" ? val : JSON.stringify(val), "data-input": v.name,
+        placeholder: v.type === "Credential" ? "$credential variable" : v.default !== undefined ? "default: " + showValue(v.default) : v.required ? "required" : "(not set)",
+        onchange: (e) => {
+          const t = e.target.value;
+          if (t === "") delete vals[v.name];
+          else if (v.type === "Number" && t.trim() !== "" && Number.isFinite(Number(t))) vals[v.name] = Number(t);
+          else if (v.type === "Boolean" && /^(true|false)$/.test(t.trim())) vals[v.name] = t.trim() === "true";
+          else vals[v.name] = t;
+          set(Object.keys(vals).length ? Object.assign({}, vals) : undefined);
+        } });
+      return h("div", { class: "map-row" }, h("span", { class: "map-name" }, v.name, v.required ? h("span", { class: "req", text: " *" }) : null, typeChip(v.type)),
+        withPicker(inp, v.type), v.description ? h("div", { class: "help map-help", text: v.description }) : null);
+    }));
+  };
+  if (state.agents) draw(); else { draw(); loadAgents().then((l) => { state.agents = l; draw(); }); }
+  return box;
+}
+function runAgentOutputs(step, current, set) {
+  const box = h("div", { class: "map-list" });
+  const map = current && typeof current === "object" && !Array.isArray(current) ? Object.assign({}, current) : {};
+  const draw = () => {
+    const child = childAgent(step);
+    if (!child) { box.replaceChildren(h("div", { class: "help", text: step.args && step.args.automation ? "Loading the agent's variables…" : "Choose the agent first." })); return; }
+    const outs = (child.variables || []).filter(isOutputVar);
+    if (!outs.length) { box.replaceChildren(h("div", { class: "help", text: "The agent has no output variables." })); return; }
+    box.replaceChildren(...outs.map((v) => {
+      const sel = h("select", { "aria-label": "Variable for " + v.name, "data-output": v.name, onchange: () => {
+        if (sel.value === "__new") {
+          const n = uniqueVarName(v.name);
+          state.flow.variables.push({ name: n, type: v.type || "Any", description: "Output " + v.name + " of " + (child.name || child.id) + "." });
+          map[v.name] = n; renderVariables();
+        } else if (sel.value) map[v.name] = sel.value; else delete map[v.name];
+        set(Object.keys(map).length ? Object.assign({}, map) : undefined);
+        renderProps();
+      } }, h("option", { value: "", text: "(do not keep)" }), varNames().map((n) => h("option", { value: n, text: "$" + n })), h("option", { value: "__new", text: "+ New variable “" + v.name + "”" }));
+      sel.value = map[v.name] || "";
+      return h("div", { class: "map-row" }, h("span", { class: "map-name" }, v.name, typeChip(v.type)), sel);
+    }));
+  };
+  if (state.agents) draw(); else { draw(); loadAgents().then((l) => { state.agents = l; draw(); }); }
+  return box;
+}
+
 // ---------- multi-select, clipboard, context menu ----------
 function siblingsRange(p1, p2) {
   const a = p1.slice(0, -1), b = p2.slice(0, -1);
@@ -1003,6 +1096,30 @@ function clickStep(e, p, step) {
   }
   state.target = null;
   renderSteps(); renderProps(); updateEditButtons();
+}
+
+/**
+ * Up/Down select the step above or below, as shown on the canvas (into and out of blocks); Shift+Up/Down extends the
+ * selection from the step selected first, line by line, like Shift+click across lines.
+ */
+function arrowSelect(dir, extend) {
+  const rows = [...document.querySelectorAll("#steps [data-step-id]")].map((r) => r.dataset.stepId);
+  if (!rows.length) return;
+  const cur = state.selected ? (getAt(state.flow, state.selected) || {}).id : null;
+  let at = cur ? rows.indexOf(cur) : -1;
+  at = at < 0 ? (dir > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, at + dir));
+  const id = rows[at];
+  if (extend) {
+    const anchor = state.anchorId && rows.includes(state.anchorId) ? state.anchorId : cur || id;
+    const a = rows.indexOf(anchor);
+    state.multi = new Set(rows.slice(Math.min(a, at), Math.max(a, at) + 1));
+    state.anchorId = anchor;
+  } else { state.multi = new Set([id]); state.anchorId = id; }
+  state.selected = findPathById(id);
+  state.target = null;
+  renderSteps(); renderProps(); updateEditButtons();
+  const row = document.querySelector('#steps [data-step-id="' + CSS.escape(id) + '"]');
+  if (row) { row.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest" }); }
 }
 
 /** Path of the selected step that comes last in the agent: pasted and duplicated steps go after it. */
@@ -1190,7 +1307,7 @@ function openMenu(items, x, y, opener, label) {
     else if (e.key === "Tab") closeContextMenu();
     else if (e.key !== "Enter" && e.key !== " ") e.stopPropagation();   // menu keys never reach the canvas shortcuts
   });
-  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - 260)) + "px";
+  menu.style.left = Math.max(4, Math.min(x, window.innerWidth - 260)) + "px";   // kept on screen, next to where it was opened
   menu.style.top = Math.max(4, Math.min(y, window.innerHeight - (rows * 31 + 24))) + "px";
   document.body.appendChild(menu);
   state.menuOpener = opener || null;
@@ -1202,12 +1319,13 @@ function openMenu(items, x, y, opener, label) {
 /** The step menu, from the step's ⋮ button or a right-click. It acts on the selection, or on the clicked step if it is not selected. */
 function showContextMenu(e, p, step, opener) {
   e.preventDefault();
+  // where the menu opens is read now: selecting the step re-renders the canvas, and the old button is gone after that
+  let x = e.clientX, y = e.clientY;
+  if (opener && opener.getBoundingClientRect && (!x && !y || e.type !== "contextmenu")) { const r = opener.getBoundingClientRect(); x = r.left; y = r.bottom + 2; }
   if (!state.multi.has(step.id)) { state.multi = new Set([step.id]); state.selected = p; state.anchorId = step.id; state.target = null; renderSteps(); renderProps(); updateEditButtons(); }
   const n = selectedSteps().length;
   const many = n > 1 ? " " + n + " steps" : "";
   const anyOn = selectedSteps().some((x) => !x.disabled);
-  let x = e.clientX, y = e.clientY;
-  if (opener && opener.getBoundingClientRect && (!x && !y || e.type !== "contextmenu")) { const r = opener.getBoundingClientRect(); x = r.left; y = r.bottom + 2; }
   const row = () => document.querySelector('[data-step-id="' + CSS.escape(step.id) + '"]');
   openMenu([
     ["Run from here", "", () => runFrom(step.id, false), !state.running],
@@ -1250,6 +1368,7 @@ function renderSteps() {
   const problemsBy = new Map();
   for (const p of state.problems) if (p.stepId) problemsBy.set(p.stepId, (problemsBy.get(p.stepId) || 0) + 1);
   const collapsed = collapsedSet();
+  const lines = stepNumbers(state.flow);
 
   function list(steps, path, prefix) {
     const out = [makeSlot(path, 0)];
@@ -1257,7 +1376,7 @@ function renderSteps() {
       const p = path.concat(i);
       const spec = state.specs.get(s.action);
       const st = styleFor(s.action);
-      const num = prefix + (i + 1);
+      const num = lines.get(s.id) || prefix + (i + 1);
       const isSel = state.multi.has(s.id) || (state.multi.size === 0 && sameList(p, state.selected));
       const live = state.liveSteps;
       const liveClass = live.paused === s.id ? " paused" : live.running === s.id ? " running" : live.failed === s.id ? " failed-run" : live.done.has(s.id) ? " done" : "";
@@ -1297,8 +1416,7 @@ function renderSteps() {
         stepMenuButton(p, s));
       row.style.setProperty("--c", st.color);
       out.push(row);
-      let sections = SECTIONS[s.action] || [];
-      if (s.action === "core/if") sections = [["children", "Then"], ...(s.elseIf || []).map((_, k) => [["elseIf", k, "children"], "Else if #" + (k + 1)]), ["else", "Else"]];
+      const sections = sectionsOf(s);
       if (!folded && sections.length) {
         const blk = h("div", { class: "block" });
         blk.style.setProperty("--c", st.color);
@@ -1385,6 +1503,10 @@ function duplicateSelected() { duplicateSelection(); }
 
 // ---------- properties panel ----------
 function varNames() { return state.flow.variables.map((v) => v.name); }
+/** A variable given when the agent starts (input, or input and output). */
+function isInputVar(v) { return !!v && (v.direction === "input" || v.direction === "in_out"); }
+/** A variable returned when the agent ends (output, or input and output). */
+function isOutputVar(v) { return !!v && (v.direction === "output" || v.direction === "in_out"); }
 
 function addVariable(name, type) {
   let n = name, k = 2;
@@ -1403,6 +1525,18 @@ function inputControl(step, name, prop, required) {
     changed();
   };
   let control;
+  if (step.action === "core/run_bot" && name === "automation") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Agent to run", required ? h("span", { class: "req", text: " *" }) : null,
+      infoTip("An agent of this workspace (published to Command Center under the same agent id when it runs there).")), runAgentPicker(step, current, set));
+  }
+  if (step.action === "core/run_bot" && name === "inputs") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Input values", infoTip("A value for each input variable of the agent to run: text, a number, or a $variable of this agent.")),
+      runAgentInputs(step, current, set));
+  }
+  if (step.action === "core/run_bot" && name === "output_map") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Save outputs to", infoTip("Which variable of this agent receives each output of the agent that runs. All outputs are also in the outputs dictionary.")),
+      runAgentOutputs(step, current, set));
+  }
   if ((name === "condition" || name === "while") && step.action.startsWith("core/")) {
     return h("div", { class: "field", "data-field": name }, h("label", {}, name === "while" ? "Repeat while" : "Condition", required ? h("span", { class: "req", text: " *" }) : null, infoTip(prop.description)),
       conditionEditor(current, (v) => set(v)));
@@ -1544,7 +1678,9 @@ function windowEditor(value, set) {
     const seg = h("div", { class: "seg win-source", role: "radiogroup", "aria-label": "Window source" },
       [["browser", "Browser"], ["application", "Application"], ["variable", "Variable"]].map(([k, l]) =>
         h("button", { type: "button", role: "radio", "aria-checked": String(v.source === k), "data-source": k, onclick: () => { v.source = k; commit(); render(); } }, l)));
-    const working = v.source === "variable" ? (v.variable ? "the browser session in " + v.variable : "")
+    const held = v.source === "variable" && v.variable && state.flow ? state.flow.variables.find((x) => "$" + x.name === v.variable.trim()) : null;
+    const heldTitle = held && held.default && typeof held.default === "object" && held.default.title ? held.default.title : null;
+    const working = v.source === "variable" ? (v.variable ? (heldTitle ? "“" + heldTitle + "” (window variable " + v.variable + ")" : "the window or browser session in " + v.variable) : "")
       : v.title ? "\u201C" + v.title + "\u201D" + (v.title_match && v.title_match !== "equals" ? " (" + v.title_match + ")" : "") : "";
     const now = h("div", { class: "win-now" + (working ? "" : " none") }, h("span", { class: "win-now-lbl", text: "Working in" }),
       h("strong", { text: working || "the browser's current tab (no window chosen)" }));
@@ -1792,18 +1928,39 @@ function renderProps() {
     parts.push(acc("Else if branches", [...branches,
       h("button", { type: "button", onclick: () => { step.elseIf = step.elseIf || []; step.elseIf.push({ condition: { op: "eq", left: "", right: "" }, children: [] }); changed(); renderProps(); } }, "+ Else if")], (step.elseIf || []).length > 0));
   }
-  if (step.action === "core/try" && step.catch && step.catch[0]) {
-    const c = step.catch[0];
-    const asSel = h("select", { onchange: (e) => { if (e.target.value) c.as = e.target.value; else delete c.as; changed(); } },
-      h("option", { value: "", text: "(do not store)" }), varNames().map((n) => h("option", { value: n, text: n })));
-    asSel.value = c.as || "";
-    parts.push(acc("Catch", [
-      h("div", { class: "field" }, h("label", { text: "Error codes to catch" }),
-        h("input", { type: "text", value: (c.codes || []).join(", "), placeholder: "Empty = all errors, e.g. BUSINESS.*, FILE.NOT_FOUND",
-          onchange: (e) => { c.codes = e.target.value.split(",").map((x) => x.trim()).filter(Boolean); changed(); } })),
-      h("div", { class: "field" }, h("label", { text: "Store the error in" }), asSel,
-        h("div", { class: "help", text: "A Dictionary variable receives code, message and suggestedFix." })),
-    ], true));
+  if (step.action === "core/try") {
+    step.catch = step.catch || [];
+    const varSel = (cur, on, want, label) => {
+      const e = h("select", { "aria-label": label, onchange: (ev) => {
+        if (ev.target.value === "__new") { const n = uniqueVarName(want === "Number" ? "error_line" : want === "Dictionary" ? "error" : "error_message"); state.flow.variables.push({ name: n, type: want }); renderVariables(); on(n); renderProps(); return; }
+        on(ev.target.value || undefined);
+      } }, h("option", { value: "", text: "(do not keep)" }), varNames().map((n) => h("option", { value: n, text: "$" + n })), h("option", { value: "__new", text: "+ New " + want + " variable" }));
+      e.value = cur || ""; return e;
+    };
+    const blocks = step.catch.map((c, k) => {
+      const setKey = (key) => (v) => { if (v) c[key] = v; else delete c[key]; changed(); };
+      const codes = h("input", { type: "text", value: (c.codes || []).join(", "), placeholder: "All errors (or e.g. BROWSER.*, FILE.NOT_FOUND)", list: "error-codes",
+        onchange: (e) => { c.codes = e.target.value.split(",").map((x) => x.trim()).filter(Boolean); changed(); renderSteps(); } });
+      return h("div", { class: "catch-block" },
+        h("div", { class: "catch-head" }, h("strong", { text: catchLabel(c) }), h("span", { class: "spacer" }),
+          step.catch.length > 1 ? h("button", { type: "button", class: "link-btn", onclick: () => { step.catch.splice(k, 1); changed(); renderProps(); } }, "Remove") : null),
+        h("div", { class: "field" }, h("label", { text: "Errors to catch" }), codes,
+          h("div", { class: "help", text: "Empty catches every error. The first Catch that matches the error runs; put specific ones first." })),
+        h("div", { class: "field" }, h("label", { text: "Error message to" }), varSel(c.message_to, setKey("message_to"), "String", "Error message variable")),
+        h("div", { class: "field" }, h("label", { text: "Line number to" }), varSel(c.line_to, setKey("line_to"), "Number", "Line number variable")),
+        h("div", { class: "field" }, h("label", { text: "All error details to" }), varSel(c.as, setKey("as"), "Dictionary", "Error details variable"),
+          h("div", { class: "help", text: "A Dictionary with code, message, suggestedFix, line, action and stepId." })),
+        h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!c.screenshot, onchange: (e) => { if (e.target.checked) c.screenshot = true; else delete c.screenshot; changed(); } }),
+          "Take a screenshot when the error is caught (its path is in the error details)"),
+        h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!c.rethrow, onchange: (e) => { if (e.target.checked) c.rethrow = true; else delete c.rethrow; changed(); } }),
+          "Raise the error again after this Catch (the agent still fails)"));
+    });
+    const known = new Set(["RUN.TIMEOUT", "STEP.TIMEOUT", "BROWSER.*", "BROWSER.OBJECT_NOT_FOUND", "BROWSER.WINDOW_NOT_FOUND", "DESKTOP_UI.*", "DESKTOP_UI.OBJECT_NOT_FOUND",
+      "FILE.NOT_FOUND", "EXCEL.*", "EMAIL.*", "REST.*", "DATABASE.*", "CHILD.*", "BUSINESS.*"]);
+    parts.push(acc("Catch blocks", [...blocks,
+      h("datalist", { id: "error-codes" }, [...known].map((c) => h("option", { value: c }))),
+      h("button", { type: "button", onclick: () => { step.catch.push({ codes: [], children: [] }); changed(); renderProps(); } }, "+ Catch")], true));
+    if (!step.finally) step.finally = [];
   }
 
   const handling = [
@@ -2064,7 +2221,7 @@ function editVariable(existing, preset = {}) {
   if (isNew && preset.direction && preset.direction !== "local") v.direction = preset.direction;
   const name = h("input", { type: "text", value: v.name, spellcheck: "false", "aria-label": "Variable name" });
   const typeGrid = h("div", { class: "type-grid", role: "radiogroup", "aria-label": "Type" });
-  const dirSeg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Use" });
+  const dirSeg = h("div", { class: "var-use", role: "group", "aria-label": "Use" });
   const reqBox = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!v.required, onchange: (e) => { v.required = e.target.checked; } }), "Required: the agent cannot start without a value");
   const defBox = h("div"), enumBox = h("div");
   const desc = h("textarea", { rows: 2, value: v.description || "", placeholder: "What this variable holds. People running the agent and AI agents read this." });
@@ -2073,9 +2230,14 @@ function editVariable(existing, preset = {}) {
   const renderType = () => typeGrid.replaceChildren(...TYPES.map((t) => h("button", { type: "button", class: "type-opt", role: "radio", "aria-checked": String(v.type === t), title: (TYPE_STYLE[t] || {}).hint,
     onclick: () => { if (v.type !== t) { v.type = t; delete v.default; delete v.enum; renderType(); renderDefault(); } } }, typeBadge(t), h("span", { text: t }))));
   const renderDir = () => {
-    dirSeg.replaceChildren(...[["local", "Inside the agent"], ["input", "Input"], ["output", "Output"]].map(([d, l]) => h("button", { type: "button", role: "radio", "aria-checked": String((v.direction || "local") === d),
-      onclick: () => { keepDefault(); if (d === "local") delete v.direction; else v.direction = d; renderDir(); renderDefault(); } }, l)));
-    reqBox.hidden = v.direction !== "input";
+    // as in the reference product: two independent ticks, so a variable can be an input, an output or both
+    const setDir = (inp, out) => { keepDefault(); const d = inp && out ? "in_out" : inp ? "input" : out ? "output" : null; if (d) v.direction = d; else delete v.direction; renderDir(); renderDefault(); };
+    dirSeg.replaceChildren(
+      h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "input", checked: isInputVar(v), onchange: (e) => setDir(e.target.checked, isOutputVar(v)) }),
+        "Use as input", h("span", { class: "help", text: " given when the agent starts (by a person, a schedule or a parent agent)" })),
+      h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "output", checked: isOutputVar(v), onchange: (e) => setDir(isInputVar(v), e.target.checked) }),
+        "Use as output", h("span", { class: "help", text: " returned when the agent ends" })));
+    reqBox.hidden = !isInputVar(v);
   };
   const renderDefault = () => {
     if (v.type === "Credential") {
@@ -2085,8 +2247,8 @@ function editVariable(existing, preset = {}) {
       return;
     }
     defEditor = valueEditor(v.type, v.default, null, { label: "Default value", enum: v.enum });
-    defBox.replaceChildren(defEditor, h("div", { class: "help", text: v.direction === "input" ? "Used when the caller gives no value." : "The value the variable starts with. Leave empty for none." }));
-    if (v.direction === "input" && ["String", "Number"].includes(v.type)) {
+    defBox.replaceChildren(defEditor, h("div", { class: "help", text: isInputVar(v) ? "Used when the caller gives no value." : "The value the variable starts with. Leave empty for none." }));
+    if (isInputVar(v) && ["String", "Number"].includes(v.type)) {
       const en = h("input", { type: "text", value: (v.enum || []).join(", "), placeholder: "Optional: the only values allowed, separated by commas" });
       en.addEventListener("change", () => {
         const vals = en.value.split(",").map((x) => x.trim()).filter(Boolean).map((x) => (v.type === "Number" && Number.isFinite(Number(x)) ? Number(x) : x));
@@ -2105,7 +2267,7 @@ function editVariable(existing, preset = {}) {
     if (state.flow.variables.some((x) => x.name === n && x !== existing)) { toast("Another variable is already called " + n + ".", true); name.focus(); return; }
     keepDefault();
     if (desc.value.trim()) v.description = desc.value.trim(); else delete v.description;
-    if (v.direction !== "input") { delete v.required; delete v.enum; }
+    if (!isInputVar(v)) { delete v.required; delete v.enum; }
     if (!v.required) delete v.required;
     v.name = n;
     if (existing) {
@@ -2171,7 +2333,7 @@ function openVarPicker(target, wantType, typedDollar) {
     const sys = Object.entries((state.builtins || {}).sys || {}).filter(([k]) => m("sys." + k));
     const glob = Object.entries((state.builtins || {}).global || {}).filter(([k]) => m("global." + k));
     const parts = [];
-    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want ? "Variables that fit (" + want + ")" : "Agent variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? v.direction : "")));
+    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want ? "Variables that fit (" + want + ")" : "Agent variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? (v.direction === "in_out" ? "input and output" : v.direction) : "")));
     if (other.length) parts.push(h("div", { class: "var-pop-head", text: "Other variables" }), ...other.map((v) => item("$" + v.name, v.type, v.type)));
     if (sys.length) parts.push(h("div", { class: "var-pop-head", text: "System" }), ...sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val))));
     if (glob.length) parts.push(h("div", { class: "var-pop-head", text: "Shared values" }), ...glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val))));
@@ -2247,8 +2409,10 @@ function renderVariables() {
       parts.push(h("div", { class: "var-empty" }, h("strong", { text: "No variables yet" }),
         h("p", { text: "Variables hold values while the agent runs. Inputs are given when it starts; outputs are returned at the end." }),
         h("button", { type: "button", class: "primary", onclick: () => editVariable(null) }, "+ Create a variable")));
-    } else for (const [dir, label, hint] of [["input", "Inputs", "Given when the agent starts"], ["output", "Outputs", "Returned when the agent ends"], ["local", "Inside the agent", "Working values"]]) {
+    } else for (const [dir, label, hint] of [["input", "Inputs", "Given when the agent starts"], ["in_out", "Inputs and outputs", "Given at the start and returned at the end"],
+      ["output", "Outputs", "Returned when the agent ends"], ["local", "Inside the agent", "Working values"]]) {
       const group = vars.filter((v) => (v.direction || "local") === dir);
+      if (dir === "in_out" && !group.length) continue;
       parts.push(h("div", { class: "var-group" },
         h("div", { class: "var-group-head" }, h("span", { class: "gname", text: label }), h("span", { class: "n", text: group.length }), h("span", { class: "muted gh", text: hint }),
           h("button", { type: "button", class: "link-btn", title: "New " + label.toLowerCase() + " variable", onclick: () => editVariable(null, { direction: dir }) }, "+ Add")),
@@ -2315,7 +2479,7 @@ function renderRunPanel() {
     }
     return;
   }
-  const inputs = state.flow.variables.filter((v) => v.direction === "input");
+  const inputs = state.flow.variables.filter(isInputVar);
   const form = inputs.map((v) => {
     const ed = valueEditor(v.type, undefined, null, { enum: v.enum, label: v.name,
       placeholder: v.type === "Credential" ? "locker/credential/attribute" : v.default !== undefined ? "default: " + showValue(v.default) : "" });
@@ -2369,6 +2533,8 @@ async function runFlow(flow, inputs, opts = {}) {
   try {
     const body = Object.assign({ flow, inputs }, opts.debug ? { debug: true, breakpoints: [...breakpointSet()], stopAtStart: !!opts.stopAtStart } : {});
     if (opts.onlyStep) body.only_step = opts.onlyStep; else if (opts.startAt) body.start_at = opts.startAt;
+    // the run window on the desktop stays on top of the applications the agent brings forward
+    if (prefs().desktopRunWindow !== false) body.run_window = true;
     const start = await api("POST", "runs", body);
     state.live.id = start.run_id;
     while (true) {
@@ -2425,17 +2591,17 @@ function followRunningStep() {
   if (row) row.scrollIntoView({ block: "nearest" });
 }
 
-/** Display numbers of the steps, as on the canvas: 1, 2, 2.1 ... */
+/**
+ * Line numbers of the steps, as in the reference product: every step counted from the top (1, 2, 3 ...), the steps
+ * inside a block included, in the order the canvas shows them. Errors report the same line (Catch "Line number to").
+ */
 function stepNumbers(flow) {
   const out = new Map();
-  const walk = (steps, prefix) => (steps || []).forEach((s, i) => {
-    const num = prefix + (i + 1);
-    out.set(s.id, num);
-    const sections = s.action === "core/if" ? [["children"], ...(s.elseIf || []).map((_, k) => ["elseIf", k, "children"]), ["else"]]
-      : (SECTIONS[s.action] || []).map(([k]) => (Array.isArray(k) ? k : [k]));
-    for (const k of sections) walk(getAt(s, k), num + ".");
+  const walk = (steps) => (steps || []).forEach((s) => {
+    out.set(s.id, String(out.size + 1));
+    for (const [k] of sectionsOf(s)) walk(getAt(s, Array.isArray(k) ? k : [k]));
   });
-  walk(flow && flow.steps, "");
+  walk(flow && flow.steps);
   return out;
 }
 
@@ -2484,7 +2650,7 @@ function renderRunWindow() {
       onclick: () => { setPref("runWinMin", !prefs().runWinMin); renderRunWindow(); } }, p.runWinMin ? "▢" : "–"),
     done ? h("button", { type: "button", class: "icon-mini", "aria-label": "Close the run window", title: "Close", onclick: () => { state.live = null; renderRunWindow(); } }, "✕") : null);
   const now = cur ? h("div", { class: "rw-step" },
-    h("span", { class: "rw-num", text: nums.get(cur.id) ? "Step " + nums.get(cur.id) : "Step" }),
+    h("span", { class: "rw-num", text: nums.get(cur.id) ? "Line " + nums.get(cur.id) : "Line" }),
     h("a", { class: "link", text: spec ? spec.action.name : cur.action, title: "Show this step", onclick: () => { if (state.file === L.file) selectById(cur.id); } }),
     stepObj && stepObj.description ? h("div", { class: "rw-note", text: stepObj.description }) : null,
     stepObj && stepObj.args && windowLabel(stepObj.args.window) ? h("div", { class: "rw-note rw-window", text: "In window \u201C" + windowLabel(stepObj.args.window) + "\u201D" }) : null)
@@ -2763,18 +2929,13 @@ function recordedVariables(steps) {
       || val("Name") || val("AutomationId") || (st.action.endsWith("select_option") ? "choice" : "text");
   };
   // one window variable per window the recording used (as the reference recorder does); the steps point at it
-  const windows = new Map();
   for (const st of steps) {
     const w = st.args && st.args.window;
     if (!w || typeof w !== "object" || !w.title) continue;
-    const key = (w.browser || "") + "|" + w.title;
-    if (!windows.has(key)) {
-      const name = uniqueVarName("window_" + String(w.title).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40));
-      state.flow.variables.push({ name, type: "Dictionary", direction: "local", default: w, description: "Window the recording worked in (browser title " + w.title + ")." });
-      windows.set(key, name);
-      made.push(name);
-    }
-    st.args.window = "$" + windows.get(key);
+    const before = state.flow.variables.length;
+    const name = windowVariable(w);
+    if (state.flow.variables.length > before) { state.flow.variables[state.flow.variables.length - 1].description = "Window the recording worked in (browser title “" + w.title + "”)."; made.push(name); }
+    st.args.window = "$" + name;
   }
   for (const st of steps) {
     const key = st.action === "ooa.browser/type_text" || (st.action === "ooa.desktop_ui/object_action" && st.args && st.args.action === "set_text") ? "text"
@@ -3695,25 +3856,35 @@ function renderFlowView() {
     const isSel = state.multi.has(s.id) || (state.multi.size === 0 && sameList(p, state.selected));
     const cls = "fnode" + (isSel ? " selected" : "") + (s.disabled ? " disabled" : "") + (live.paused === s.id ? " paused" : live.running === s.id ? " running" : live.failed === s.id ? " failed-run" : live.done.has(s.id) ? " done" : "")
       + (breakpointSet().has(s.id) ? " bp" : "") + (s.action === "core/if" ? " decision" : "");
-    const el = h("div", { class: cls, tabindex: "0", "data-step-id": s.id, title: summary(s),
-      onclick: (e) => { e.stopPropagation(); clickStep(e, p, s); }, oncontextmenu: (e) => { e.stopPropagation(); showContextMenu(e, p, s); } },
+    const el = h("div", { class: cls, tabindex: "0", "data-step-id": s.id, title: summary(s), draggable: "true",
+      onclick: (e) => { e.stopPropagation(); clickStep(e, p, s); }, oncontextmenu: (e) => { e.stopPropagation(); showContextMenu(e, p, s); },
+      ondragstart: (e) => {
+        e.stopPropagation(); state.dragStep = p;
+        e.dataTransfer.setData("text/x-ooa-step", JSON.stringify(p)); e.dataTransfer.effectAllowed = "move";
+        el.classList.add("dragging-source"); document.body.classList.add("dnd");
+      },
+      ondragend: () => { el.classList.remove("dragging-source"); document.body.classList.remove("dnd"); state.dragStep = null; } },
       tile(st.icon, st.color, "ico"), h("div", { class: "fn-text" }, h("div", { class: "fn-title", text: spec ? spec.action.name : s.action }),
         h("div", { class: "fn-sum", text: s.description || summary(s) })),
       problemsBy.get(s.id) ? h("span", { class: "flag", text: "!" + problemsBy.get(s.id) }) : null, stepMenuButton(p, s));
     el.style.setProperty("--c", st.color);
     return el;
   };
+  // the connecting lines take drops: an action from the list is added there, a dragged step moves there
+  const fslot = (path, index, cls) => {
+    const el = h("div", { class: (cls || "fline") + " fslot", title: "Drop an action here" });
+    el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("over"); });
+    el.addEventListener("dragleave", () => el.classList.remove("over"));
+    el.addEventListener("drop", (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove("over"); dropAt(e, path, index); });
+    return el;
+  };
   const seq = (steps, path) => {
     const col = h("div", { class: "fseq" });
-    if (!steps.length) { col.append(h("div", { class: "fempty", text: "(empty)" })); return col; }
+    if (!steps.length) { const empty = fslot(path, 0, "fempty"); empty.textContent = "(empty: drop an action here)"; col.append(empty); return col; }
     steps.forEach((s, i) => {
       const p = path.concat(i);
-      col.append(h("div", { class: "fline" }), node(s, p));
-      let branches = [];
-      if (s.action === "core/if") branches = [["Then", ["children"]], ...(s.elseIf || []).map((_, k) => ["Else if #" + (k + 1), ["elseIf", k, "children"]]), ["Else", ["else"]]];
-      else if (s.action === "core/try") branches = [["Try", ["children"]], ["Catch", ["catch", 0, "children"]], ["Finally", ["finally"]]];
-      else if (s.action === "core/parallel") branches = [["At the same time", ["children"]]];
-      else if (SECTIONS[s.action]) branches = [[s.action === "core/loop" ? "Repeat" : "Steps", ["children"]]];
+      col.append(fslot(path, i), node(s, p));
+      let branches = sectionsOf(s).map(([k, label]) => [s.action === "core/parallel" ? "At the same time" : label.replace(" (always)", ""), Array.isArray(k) ? k : [k]]);
       branches = branches.filter(([, k]) => getAt(s, k) !== undefined);
       if (!branches.length || collapsedSet().has(s.id)) return;
       const row = h("div", { class: "fbranches" + (s.action === "core/loop" ? " loop" : "") });
@@ -3725,13 +3896,21 @@ function renderFlowView() {
       }
       col.append(row);
     });
+    if (path.length > 1) col.append(fslot(path, steps.length));
     return col;
   };
-  if (!state.flow.steps.length) { container.replaceChildren(h("div", { class: "canvas-empty", text: "This agent has no steps yet. Switch to List to drag actions in, or press Ctrl+K to quick add." })); return; }
-  container.replaceChildren(h("div", { class: "flow-view" }, h("div", { class: "fterm start", text: "Start" }), seq(state.flow.steps, ["steps"]), h("div", { class: "fline" }), h("div", { class: "fterm end", text: "End" })));
+  if (!state.flow.steps.length) {
+    const zone = h("div", { class: "canvas-empty", text: "This agent has no steps yet. Drag an action here, or press Ctrl+K to quick add." });
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); });
+    zone.addEventListener("drop", (e) => { e.preventDefault(); dropAt(e, ["steps"], 0); });
+    container.replaceChildren(zone);
+    return;
+  }
+  container.replaceChildren(h("div", { class: "flow-view" }, h("div", { class: "fterm start", text: "Start" }), seq(state.flow.steps, ["steps"]),
+    fslot(["steps"], state.flow.steps.length), h("div", { class: "fterm end", text: "End" })));
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
-  $("insert-hint").textContent = "Flow view: select steps here; drag and drop in List view.";
+  $("insert-hint").textContent = "Flow view: drag actions onto a line to add them there; drag a step to move it.";
   renderSelectionCount();
 }
 
@@ -3757,7 +3936,7 @@ function explainAgent(flow) {
     for (const c of s.catch || []) if ((c.children || []).length) { lines.push("  ".repeat(depth + 1) + "If an error happens" + (c.as ? " (kept in $" + c.as + ")" : "") + ":"); walk(c.children, depth + 2); }
     if ((s.finally || []).length) { lines.push("  ".repeat(depth + 1) + "Always, at the end:"); walk(s.finally, depth + 2); }
   });
-  const ins = (flow.variables || []).filter((v) => v.direction === "input"), outs = (flow.variables || []).filter((v) => v.direction === "output");
+  const ins = (flow.variables || []).filter(isInputVar), outs = (flow.variables || []).filter(isOutputVar);
   const head = [(flow.name || "This agent") + (flow.description ? ": " + flow.description : ""),
     ins.length ? "It needs: " + ins.map((v) => "$" + v.name + " (" + v.type + (v.required ? ", required" : "") + ")").join(", ") + "." : "It needs no inputs.",
     outs.length ? "It returns: " + outs.map((v) => "$" + v.name + " (" + v.type + ")").join(", ") + "." : "It returns no outputs.", "", "Steps:"];
@@ -3976,9 +4155,23 @@ function fillWindowFromCapture(step, obj) {
   const spec = state.specs.get(step.action);
   if (!obj || !obj.page || !spec || !spec.action.inputs.properties.window) return;
   const args = step.args || (step.args = {});
+  if (typeof args.window === "string" && args.window.trim()) return;
   if (args.window && (args.window.title || args.window.url || args.window.variable)) return;
-  args.window = { source: "browser", title: obj.page.title || "", title_match: "equals", link: obj.page.url || "", browser: "edge" };
-  if (!args.window.title) delete args.window.title;
+  const w = { source: "browser", title: obj.page.title || "", title_match: "equals", link: obj.page.url || "", browser: obj.page.browser || "edge" };
+  if (!w.title) { delete w.title; args.window = w; return; }
+  // as in the reference product, the captured window becomes a window variable (listed under Variables) that the step uses
+  args.window = "$" + windowVariable(w);
+}
+
+/** The window variable for a browser window (title and browser), made the first time a step needs it. */
+function windowVariable(w) {
+  const same = state.flow.variables.find((v) => v.type === "Dictionary" && v.default && typeof v.default === "object" && v.default.source === (w.source || "browser")
+    && v.default.title === w.title && (v.default.browser || "") === (w.browser || "") && /^window_/.test(v.name));
+  if (same) return same.name;
+  const name = uniqueVarName("window_" + String(w.title).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40));
+  state.flow.variables.push({ name, type: "Dictionary", direction: "local", default: w, description: "Window " + (w.source === "application" ? "" : "(browser title) ") + "“" + w.title + "”, made by Capture." });
+  renderVariables();
+  return name;
 }
 
 const CAPTURE_MATCHES = [["equals", "equals"], ["not_equals", "not equals"], ["contains", "contains"], ["starts_with", "starts with"], ["ends_with", "ends with"], ["wildcard", "wildcard (* ?)"], ["regex", "regular expression"]];
@@ -4180,7 +4373,7 @@ const DESKTOP_LABELS = {
   IsContentElement: "Is content", IsControlElement: "Is control", Orientation: "Orientation", SupportedPatterns: "Supported patterns", ProcessName: "Process",
   BoundingRectangle: "Screen rectangle",
 };
-const CAPTURE_VIEW_KEY = "ooa.studio.captureView";
+const CAPTURE_VIEW_KEY = "ooa.studio.captureView2";
 
 /** Editor for a captured object: preview, Main and Anchor, the property table (name and value, tick to search by), search options and page or window. */
 function captureEditor(step, value, set, nested) {
@@ -4190,7 +4383,8 @@ function captureEditor(step, value, set, nested) {
   const save = () => set(obj);
   let tab = "main", filter = "";
   let view = "all";
-  try { view = localStorage.getItem(CAPTURE_VIEW_KEY) || "all"; } catch (_) { /* storage unavailable */ }
+  try { view = localStorage.getItem(CAPTURE_VIEW_KEY) || "used"; } catch (_) { view = "used"; }
+  const keep = new Set();   // unticked while only the selected ones show: they stay until the list is switched, so a slip can be undone
   const sel = (opts, v, on, label) => { const e = h("select", { "aria-label": label, onchange: (ev) => on(ev.target.value) }, opts.map(([k, t]) => h("option", { value: k, text: t }))); e.value = v; return e; };
   const LABELS = desktop ? DESKTOP_LABELS : CAPTURE_LABELS;
   const pageUrl = () => (obj && obj.page && obj.page.url) || (nested && nested.page && nested.page.url) || null;
@@ -4250,10 +4444,10 @@ function captureEditor(step, value, set, nested) {
   }
   function propertyTable(props) {
     const used = props.filter((p) => p.use).length;
-    const shown = props.map((p, i) => [p, i]).filter(([p]) => (view === "all" || p.use || p.custom)
+    const shown = props.map((p, i) => [p, i]).filter(([p]) => (view === "all" || p.use || p.custom || keep.has(p) || !!filter)
       && (!filter || (String(p.name) + " " + (LABELS[p.name] || "") + " " + String(p.value == null ? "" : p.value)).toLowerCase().includes(filter)));
     const rows = shown.map(([p, i]) => {
-      const use = h("input", { type: "checkbox", checked: !!p.use, "aria-label": "Search by " + (LABELS[p.name] || p.name), onchange: (e) => { p.use = e.target.checked; save(); render(); } });
+      const use = h("input", { type: "checkbox", checked: !!p.use, "aria-label": "Search by " + (LABELS[p.name] || p.name), onchange: (e) => { p.use = e.target.checked; if (!p.use && view === "used") keep.add(p); save(); render(); } });
       const nm = p.custom ? h("input", { type: "text", value: p.name || "", placeholder: "attribute", "aria-label": "Property name", onchange: (e) => { p.name = e.target.value.trim(); save(); } })
         : h("span", { class: "cap-name", title: p.name, text: LABELS[p.name] || p.name });
       const val = h("input", { type: "text", value: p.value == null ? "" : String(p.value), title: p.value == null ? "" : String(p.value), "aria-label": "Value of " + (LABELS[p.name] || p.name),
@@ -4262,18 +4456,20 @@ function captureEditor(step, value, set, nested) {
       const del = p.custom ? h("button", { type: "button", class: "mini danger", title: "Remove this property", onclick: () => { props.splice(i, 1); save(); render(); } }, "✕") : null;
       return h("div", { class: "cap-row" + (p.use ? " on" : "") }, h("span", { class: "cap-use" }, use), h("span", { class: "cap-prop" }, nm), h("span", { class: "cap-val" }, val), h("span", { class: "cap-match" }, m, del));
     });
-    const toggle = h("div", { class: "seg cap-view", role: "group", "aria-label": "Which properties to show" },
-      [["all", "All"], ["used", "Ticked"]].map(([k, t]) => h("button", { type: "button", class: view === k ? "on" : "", "aria-pressed": String(view === k),
-        onclick: () => { view = k; try { localStorage.setItem(CAPTURE_VIEW_KEY, k); } catch (_) { /* storage unavailable */ } render(); } }, t)));
+    const hidden = props.length - shown.length;
+    const switchView = (k) => { view = k; keep.clear(); try { localStorage.setItem(CAPTURE_VIEW_KEY, k); } catch (_) { /* storage unavailable */ } render(); };
+    const toggle = view === "used"
+      ? h("button", { type: "button", class: "link-btn cap-more", "aria-expanded": "false", onclick: () => switchView("all") }, hidden > 0 ? "Show all properties (" + hidden + " more)" : "Show all properties")
+      : h("button", { type: "button", class: "link-btn cap-more", "aria-expanded": "true", onclick: () => switchView("used") }, "Show only selected");
     const find = h("input", { type: "search", class: "cap-filter", placeholder: "Find a property", value: filter, "aria-label": "Find a property",
       oninput: (e) => { filter = e.target.value.toLowerCase(); const at = e.target.selectionStart; render(); const f = wrap.querySelector(".cap-filter"); if (f) { f.focus(); f.setSelectionRange(at, at); } } });
     return h("div", { class: "cap-props" },
-      h("div", { class: "cap-props-head" }, h("strong", { text: "Object properties" }), h("span", { class: "cap-count", text: used + " ticked of " + props.length }), h("span", { class: "spacer" }), toggle),
-      props.length > 8 ? find : null,
+      h("div", { class: "cap-props-head" }, h("strong", { text: "Object properties" }), h("span", { class: "cap-count", text: used + " selected of " + props.length }), h("span", { class: "spacer" }), toggle),
+      props.length > 8 && view === "all" ? find : null,
       h("div", { class: "cap-table", role: "group", "aria-label": "Captured properties" },
         h("div", { class: "cap-row cap-headrow" }, h("span", { class: "cap-use", title: "Ticked properties are used to find the element", text: "✓" }), h("span", { class: "cap-prop", text: "Name" }),
           h("span", { class: "cap-val", text: "Value" }), h("span", { class: "cap-match", text: "Match" })),
-        rows.length ? rows : h("div", { class: "cap-none", text: filter ? "No property matches “" + filter + "”." : "No property is ticked: show All and tick the ones to search by." })),
+        rows.length ? rows : h("div", { class: "cap-none", text: filter ? "No property matches “" + filter + "”." : "No property is selected: Show all properties and tick the ones to search by." })),
       h("button", { type: "button", class: "link-btn", onclick: () => { props.push({ name: "", value: "", match: "equals", use: true, custom: true }); save(); render(); } }, "+ Add property"));
   }
   function anchorPane() {
@@ -4546,6 +4742,8 @@ function wire() {
     else if (mod && k === "a") { e.preventDefault(); selectAllSteps(); }
     else if (mod && e.key === "/") { e.preventDefault(); toggleDisabled(); }
     else if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && state.multi.size) { e.preventDefault(); moveSelection(e.key === "ArrowUp" ? -1 : 1); }
+    else if (!e.altKey && !mod && (e.key === "ArrowUp" || e.key === "ArrowDown") && (!active || active === document.body || active.closest("#tab-steps"))) { e.preventDefault(); arrowSelect(e.key === "ArrowUp" ? -1 : 1, e.shiftKey); }
+    else if (!e.altKey && mod && e.shiftKey && (e.key === "Home" || e.key === "End")) { e.preventDefault(); arrowSelect(e.key === "Home" ? -1e9 : 1e9, true); }
     else if (e.key === "Delete" && state.multi.size) { e.preventDefault(); deleteSelection(); }
   });
   document.addEventListener("dragend", () => document.body.classList.remove("dnd"));
