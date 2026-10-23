@@ -167,6 +167,17 @@ public final class BrowserPackage {
         }
     }
 
+    /**
+     * Environment for the Playwright driver and the browsers it starts. A Windows compatibility layer inherited from
+     * the program that started the runner (for example __COMPAT_LAYER=DetectorsAppHealth from a desktop app) makes
+     * Edge and Chrome quit right after they start, so it is cleared for them.
+     */
+    static Map<String, String> browserEnv(Map<String, String> extra) {
+        Map<String, String> env = new HashMap<>(extra);
+        if (System.getenv("__COMPAT_LAYER") != null) env.put("__COMPAT_LAYER", "");
+        return env;
+    }
+
     /** A local file (C:\reports\day.html, or a path in the workspace) becomes its file: address; web addresses stay as they are. */
     static String localPage(ActionContext ctx, String url) {
         if (url == null || url.isBlank()) return url;
@@ -237,7 +248,7 @@ public final class BrowserPackage {
         if (installed) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         Playwright pw = null;
         try {
-            pw = Playwright.create(new Playwright.CreateOptions().setEnv(env));
+            pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)));
             BrowserType type = which.equals("firefox") ? pw.firefox() : pw.chromium();
             BrowserType.LaunchOptions lo = new BrowserType.LaunchOptions().setHeadless(headless);
             if (which.equals("edge")) lo.setChannel("msedge");
@@ -261,6 +272,7 @@ public final class BrowserPackage {
     public Map<String, Object> navigate(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Address to open.") String url,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        url = localPage(ctx, url);   // a local file path works here too, as in Open browser
         if (tab(ctx, session) != null) { onTab(tab(ctx, session), "navigate", Map.of("url", url), 60000); return Map.of(); }
         try { s(ctx, session).page.navigate(url); } catch (PlaywrightException e) { throw pw(e, "Opening " + url); }
         return Map.of();
@@ -1151,7 +1163,7 @@ public final class BrowserPackage {
         final boolean[] stopped = {false};
         Map<String, String> env = new HashMap<>();
         if (!which.equals("chromium")) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
-        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(env))) {
+        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)))) {
             BrowserType.LaunchOptions lo = new BrowserType.LaunchOptions().setHeadless(false);
             if (which.equals("edge")) lo.setChannel("msedge");
             if (which.equals("chrome")) lo.setChannel("chrome");
@@ -1690,7 +1702,7 @@ public final class BrowserPackage {
         final Map<String, Object>[] picked = new Map[]{null};
         Map<String, String> env = new HashMap<>();
         if (!which.equals("chromium")) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
-        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(env))) {
+        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)))) {
             BrowserType.LaunchOptions lo = new BrowserType.LaunchOptions().setHeadless(false);
             if (which.equals("edge")) lo.setChannel("msedge");
             if (which.equals("chrome")) lo.setChannel("chrome");
@@ -1776,7 +1788,7 @@ public final class BrowserPackage {
         final Map<String, Object>[] picked = new Map[]{null};
         final Frame[] pickedFrame = new Frame[1];
         Map<String, String> env = Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
-        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(env))) {
+        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)))) {
             com.microsoft.playwright.Browser b = pw.chromium().connectOverCDP(ep);
             if (b.contexts().isEmpty()) throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "The browser at " + ep + " has no open window");
             BrowserContext c = b.contexts().get(0);
@@ -1897,7 +1909,7 @@ public final class BrowserPackage {
         Map<String, Object> object = WebObjects.object(objectArg);
         Map<String, String> env = new HashMap<>();
         if (!which.equals("chromium")) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
-        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(env))) {
+        try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)))) {
             BrowserType.LaunchOptions lo = new BrowserType.LaunchOptions().setHeadless(false);
             if (which.equals("edge")) lo.setChannel("msedge");
             if (which.equals("chrome")) lo.setChannel("chrome");

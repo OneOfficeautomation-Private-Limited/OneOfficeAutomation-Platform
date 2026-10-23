@@ -307,7 +307,7 @@ final class BrowserWindows {
                     "A browser started the usual way has no debugging port. Start it with open_for_automation, or start it yourself with --remote-debugging-port=9222 and a separate --user-data-dir.", true);
         Playwright pw = null;
         try {
-            pw = Playwright.create(new Playwright.CreateOptions().setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")));
+            pw = Playwright.create(new Playwright.CreateOptions().setEnv(BrowserPackage.browserEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"))));
             com.microsoft.playwright.Browser b = pw.chromium().connectOverCDP(ep, new BrowserType.ConnectOverCDPOptions().setTimeout(Math.max(1000, timeoutMs)));
             BrowserContext c = b.contexts().isEmpty() ? b.newContext() : b.contexts().get(0);
             Page page = null;
@@ -408,7 +408,9 @@ final class BrowserWindows {
         if (headless) cmd.add("--headless=new");
         cmd.add(url == null || url.isBlank() ? "about:blank" : url);
         try {
-            return new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            ProcessBuilder pb = new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD);
+            pb.environment().remove("__COMPAT_LAYER");   // an inherited Windows compatibility layer makes the browser quit (see BrowserPackage.browserEnv)
+            return pb.start();
         } catch (IOException e) { throw new ActionException("BROWSER.NOT_INSTALLED", "Cannot start " + exe + ": " + e.getMessage()); }
     }
 

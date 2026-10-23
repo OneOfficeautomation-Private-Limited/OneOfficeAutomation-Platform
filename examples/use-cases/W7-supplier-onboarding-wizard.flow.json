@@ -1,0 +1,438 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w7_supplier_onboarding",
+  "name": "W7 Supplier onboarding wizard",
+  "description": "Take each supplier from a CSV file through a three-step onboarding wizard; suppliers the portal refuses are logged with the reason; the results go to Excel.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "suppliers",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sup",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "msg",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "err",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sid",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Company",
+          "Supplier number",
+          "Result",
+          "Reason"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "onboarded",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Suppliers created."
+    },
+    {
+      "name": "failed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Suppliers refused by the portal."
+    },
+    {
+      "name": "last_id",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Last supplier number."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/suppliers.csv"
+      },
+      "out": {
+        "table": "suppliers"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/supplier-onboarding.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open supplier-onboarding.html"
+    },
+    {
+      "id": "s34",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$suppliers",
+        "as": "sup"
+      },
+      "description": "Each supplier",
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/try",
+          "description": "Onboard one supplier",
+          "children": [
+            {
+              "id": "s3",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#company",
+                "text": "$sup.Company"
+              }
+            },
+            {
+              "id": "s4",
+              "action": "ooa.browser/select_option",
+              "args": {
+                "selector": "#country",
+                "option": "$sup.Country"
+              }
+            },
+            {
+              "id": "s5",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#vat",
+                "text": "$sup.VAT"
+              }
+            },
+            {
+              "id": "s6",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#next1"
+              }
+            },
+            {
+              "id": "s7",
+              "action": "core/delay",
+              "args": {
+                "seconds": 300,
+                "unit": "milliseconds"
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.browser/element_visible",
+                  "args": {
+                    "selector": "#error1"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s8",
+                  "action": "ooa.browser/get_text",
+                  "args": {
+                    "selector": "#error1"
+                  },
+                  "out": {
+                    "text": "msg"
+                  }
+                },
+                {
+                  "id": "s9",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "BUSINESS.REFUSED",
+                    "message": "$msg"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "selector": "#step2",
+                "state": "visible"
+              }
+            },
+            {
+              "id": "s12",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#iban",
+                "text": "$sup.IBAN"
+              }
+            },
+            {
+              "id": "s13",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#bic",
+                "text": "$sup.BIC"
+              }
+            },
+            {
+              "id": "s14",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#next2"
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/delay",
+              "args": {
+                "seconds": 300,
+                "unit": "milliseconds"
+              }
+            },
+            {
+              "id": "s18",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.browser/element_visible",
+                  "args": {
+                    "selector": "#error2"
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "ooa.browser/get_text",
+                  "args": {
+                    "selector": "#error2"
+                  },
+                  "out": {
+                    "text": "msg"
+                  }
+                },
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "BUSINESS.REFUSED",
+                    "message": "$msg"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s19",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "selector": "#step3",
+                "state": "visible"
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#contact-name",
+                "text": "$sup.Contact"
+              }
+            },
+            {
+              "id": "s21",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#contact-email",
+                "text": "$sup.Email"
+              }
+            },
+            {
+              "id": "s22",
+              "action": "ooa.browser/element_action",
+              "args": {
+                "selector": "#terms",
+                "action": "check"
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#submit"
+              }
+            },
+            {
+              "id": "s24",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "selector": "#done",
+                "state": "visible"
+              }
+            },
+            {
+              "id": "s25",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": "#supplier-id"
+              },
+              "out": {
+                "text": "sid"
+              }
+            },
+            {
+              "id": "s26",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$results",
+                "values": [
+                  "$sup.Company",
+                  "$sid",
+                  "Onboarded",
+                  ""
+                ]
+              },
+              "out": {
+                "table": "results"
+              }
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "onboarded",
+                "value": {
+                  "expr": "$onboarded + 1"
+                }
+              }
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "last_id",
+                "value": "$sid"
+              }
+            },
+            {
+              "id": "s29",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#new"
+              }
+            }
+          ],
+          "catch": [
+            {
+              "codes": [
+                "BUSINESS.*"
+              ],
+              "message_to": "err",
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results",
+                    "values": [
+                      "$sup.Company",
+                      "",
+                      "Refused",
+                      "$err"
+                    ]
+                  },
+                  "out": {
+                    "table": "results"
+                  }
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed + 1"
+                    }
+                  }
+                },
+                {
+                  "id": "s32",
+                  "action": "ooa.browser/click",
+                  "args": {
+                    "selector": "#start-over"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s35",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s36",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "${folder}/output/supplier-onboarding.xlsx",
+        "sheet": "Onboarding",
+        "overwrite": true,
+        "session": "report"
+      }
+    },
+    {
+      "id": "s37",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$results",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s38",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "report",
+        "save": true
+      }
+    }
+  ]
+}

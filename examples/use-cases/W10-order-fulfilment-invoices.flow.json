@@ -1,0 +1,456 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w10_order_fulfilment",
+  "name": "W10 Order fulfilment with invoice check",
+  "description": "Create each order from a JSON file with its product lines, wait until the shop has processed it, download the invoice and check its total against the expected total.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "orders_json",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "orders",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "line",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "k",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "invoice_path",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "invoice_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "match",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "total_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "order_no",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "order_list",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "created",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders created."
+    },
+    {
+      "name": "verified",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Invoices whose total matches the expected total."
+    },
+    {
+      "name": "grand_total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Sum of the invoice totals."
+    },
+    {
+      "name": "ready_orders",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders shown as Ready in the order list."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.file/read_text",
+      "args": {
+        "path": "${folder}/data/orders-to-create.json"
+      },
+      "out": {
+        "text": "orders_json"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.json/parse",
+      "args": {
+        "text": "$orders_json"
+      },
+      "out": {
+        "value": "orders"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/order-admin.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open order-admin.html"
+    },
+    {
+      "id": "s31",
+      "action": "core/loop",
+      "args": {
+        "iterator": "list",
+        "over": "$orders",
+        "as": "o"
+      },
+      "description": "Each order",
+      "children": [
+        {
+          "id": "s4",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#new-order"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#order-form",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#customer",
+            "text": "$o.customer"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "k",
+            "value": 0
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$o.lines",
+            "as": "line"
+          },
+          "description": "Each product line",
+          "children": [
+            {
+              "id": "s8",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#add-line"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "k",
+                "value": {
+                  "expr": "$k + 1"
+                }
+              }
+            },
+            {
+              "id": "s10",
+              "action": "ooa.browser/select_option",
+              "args": {
+                "selector": "#lines .line:nth-child(${k}) select.product",
+                "option": "$line.product"
+              }
+            },
+            {
+              "id": "s11",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#lines .line:nth-child(${k}) input.qty",
+                "text": "${line.qty}"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s13",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#create"
+          }
+        },
+        {
+          "id": "s14",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#order-detail",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#o-number"
+          },
+          "out": {
+            "text": "order_no"
+          }
+        },
+        {
+          "id": "s16",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": ""
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/loop",
+          "args": {
+            "iterator": "while",
+            "condition": {
+              "op": "ne",
+              "left": "$status",
+              "right": "Ready"
+            },
+            "max_iterations": 60
+          },
+          "description": "Wait until the shop has processed it",
+          "children": [
+            {
+              "id": "s17",
+              "action": "core/delay",
+              "args": {
+                "seconds": 250,
+                "unit": "milliseconds"
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": "#o-status"
+              },
+              "out": {
+                "text": "status"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s20",
+          "action": "ooa.browser/download",
+          "args": {
+            "selector": "#invoice",
+            "folder": "${folder}/output/invoices",
+            "timeout_ms": 15000
+          },
+          "out": {
+            "path": "invoice_path"
+          }
+        },
+        {
+          "id": "s21",
+          "action": "ooa.file/read_text",
+          "args": {
+            "path": "$invoice_path"
+          },
+          "out": {
+            "text": "invoice_text"
+          }
+        },
+        {
+          "id": "s22",
+          "action": "ooa.string/find",
+          "args": {
+            "text": "$invoice_text",
+            "find": "Total:\\s*[0-9.]+",
+            "regex": true
+          },
+          "out": {
+            "match": "match"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$match",
+            "find": "^Total:\\s*",
+            "replace_with": "",
+            "regex": true
+          },
+          "out": {
+            "result": "total_text"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/set",
+          "args": {
+            "variable": "total",
+            "value": {
+              "expr": "toNumber($total_text)"
+            }
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$total",
+              "right": "$o.expected_total"
+            }
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "verified",
+                "value": {
+                  "expr": "$verified + 1"
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s26",
+              "action": "core/log",
+              "args": {
+                "message": "Invoice ${order_no}: total ${total} differs from the expected ${o.expected_total}",
+                "level": "warning"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s28",
+          "action": "core/set",
+          "args": {
+            "variable": "grand_total",
+            "value": {
+              "expr": "$grand_total + $total"
+            }
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/set",
+          "args": {
+            "variable": "created",
+            "value": {
+              "expr": "$created + 1"
+            }
+          }
+        },
+        {
+          "id": "s30",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#back-to-orders"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s32",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "#orders"
+      },
+      "out": {
+        "table": "order_list"
+      }
+    },
+    {
+      "id": "s33",
+      "action": "ooa.datatable/filter",
+      "args": {
+        "table": "$order_list",
+        "column": "Status",
+        "operator": "eq",
+        "value": "Ready"
+      },
+      "out": {
+        "count": "ready_orders"
+      }
+    },
+    {
+      "id": "s34",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s35",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$order_list",
+        "path": "${folder}/output/created-orders.csv"
+      }
+    }
+  ]
+}

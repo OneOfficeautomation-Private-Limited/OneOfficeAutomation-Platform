@@ -28,10 +28,10 @@
     },
     {
       "name": "portal_password",
-      "type": "Credential",
+      "type": "String",
       "direction": "input",
-      "required": true,
-      "description": "Portal password from the vault."
+      "default": "demo-pass",
+      "description": "Password of the demo portal (it accepts any). In a real process make this a Credential from the vault."
     },
     {
       "name": "customer",

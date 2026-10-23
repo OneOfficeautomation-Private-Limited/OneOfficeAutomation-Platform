@@ -1,14 +1,15 @@
 # Use cases: One Agent Studio compared with Automation Anywhere
 
-Fifteen everyday automations, built as real agents in `examples/use-cases/` (open them in Studio from the
+Twenty automations: fifteen everyday ones and five larger web processes (W6-W10), built as real agents in `examples/use-cases/` (open them in Studio from the
 **Use cases** folder of the workspace) and run as tests by `CommandSamplesTest`
-(`platform/cli/src/test/resources/command-samples/20-use-cases.json`, 16 runs: W3 is run with and without results).
+(`platform/cli/src/test/resources/command-samples/20-use-cases.json`, 16 runs: W3 is run with and without results;
+`21-big-web-processes.json` for W6-W10).
 
 How the comparison was made: each agent was built and run in One Agent Studio. The AA column describes how the same
 task is built from AA's actions (from the action-by-action comparison in `command-comparison.md`), in our own words.
 Nothing was built or saved in AA (AA access rule: open forms and cancel, never save).
 
-Status on 2026-10-23: **16 of 16 runs pass**. The desktop cases (D1-D5) run with `OOA_DESKTOP_SAMPLES=1` because they
+Status on 2026-10-24: **21 of 21 runs pass**. The desktop cases (D1-D5) run with `OOA_DESKTOP_SAMPLES=1` because they
 open a window on the screen.
 
 | # | Use case | Our steps | How AA does it | Result |
@@ -28,6 +29,30 @@ open a window on the screen.
 | O3 | Letters from PDF invoices and a Word template | 13 | PDF Extract text, String Find/Extract text, Word Open template, Replace text, Save as, Close | pass: 2 letters |
 | O4 | REST API users into a database, summary by SQL | 10 | REST Web Service Get, JSON parse/loop, Database Connect, Insert/Update, Read from (SQL), Disconnect | pass: 4 users, 3 cities |
 | O5 | Support tickets sorted by an AI model | 9 | Generative AI package (per provider) prompt or classify, Loop, If/Else if, Data table Insert row, Write to file | pass: 2 billing, 1 technical, 1 other |
+
+## Larger web processes
+
+Each one follows a whole business process through a demo web application with several screens (`site/`).
+
+| # | Process | Our steps | How AA does it | Result |
+| --- | --- | --- | --- | --- |
+| W6 | Invoice approval: sign in, work through a paged queue, open each invoice, apply rules (no PO: reject; above the limit: escalate; else approve), comment, report | 31 | Credential Vault, Recorder captures for sign-in, Loop While with a capture-based "object exists" condition, captures to read the detail fields, If / Else if rules, captures for comment and buttons, Data table Insert row, Write to file | pass: 7 decided (4 approved, 2 rejected, 1 escalated), the portal's own counters agree |
+| W7 | Supplier onboarding wizard: three steps per supplier from a CSV, the portal's validation messages turned into business errors, Excel report | 38 | Loop over CSV rows, Recorder captures per wizard step, If object exists for the error text, Throw, Error handler Catch with the error message, Excel Create workbook, Write from data table | pass: 2 onboarded, 2 refused with the portal's reason |
+| W8 | Price comparison: every product in three shops with different layouts (a table, product cards, a list with a data attribute), normalise prices, keep the cheapest, compare with last week | 47 | Nested loops, one set of captures per shop layout (three recordings), Get property for the price, String Replace (regex), Number from string, Data table Search, Write to file | pass: 3 products, 2 price changes, 203.29 total, chair cheapest in Shop C |
+| W9 | Leave requests: read balances on one tab, review each pending request in a pop-up, approve while days are left (balance updated) or decline with a note, check the dashboard | 34 | Captures for tabs, Extract table, Loop While a Review button exists, captures inside the modal dialog, Data table Search and Set value, If, captures for the dashboard counters | pass: 2 approved, 3 declined, Ann has 5 days left, dashboard matches |
+| W10 | Order fulfilment: create orders with a varying number of product lines, wait until the shop has processed each, download the invoice, read its total and check it | 35 | JSON parse, Loop over orders and over lines, Recorder captures with an index for the n-th line (or a variable in the XPath), Loop While with Wait/Delay for the status, Download the file, Read from file, String Extract text, If | pass: 2 orders, 2 invoices verified, 384.50 in total |
+
+What these show beyond the smaller cases:
+
+- **Selectors with variables** (`#lines .line:nth-child(${k}) select.product`, `#${decision}`) replace one recording per
+  element; AA needs a capture per line or an XPath built in a variable.
+- **Queue processing** ("while a Review button exists, open the first one") works without counting rows first.
+- **One agent, several page layouts**: an If per shop keeps three different extraction methods in one loop.
+- **Business errors from the page**: the portal's validation text becomes the message of a BUSINESS.REFUSED error that a
+  Catch writes into the report, so one bad record does not stop the batch.
+- **Waiting for back-end processing** with a short poll loop instead of a fixed long delay.
+
+Found while building them: **Navigate** did not accept a local file path the way Open browser now does; it does now.
 
 ## Differences found while building them
 
@@ -62,6 +87,6 @@ Defects and gaps the use cases found (all fixed and covered by these tests):
   demo application `apps/order-entry.ps1`; O2 needs a mailbox, O4 reads a public test API by default, O5 needs an AI
   connection or API key. Results go to `Use cases/output/`.
 - As tests: `OOA_SAMPLES=20-use-cases OOA_DESKTOP_SAMPLES=1 gradlew.bat :cli:test --tests *CommandSamplesTest`
-  (from PowerShell).
-- To change them: edit `examples/use-cases/tools/generate.py` and run it; `tools/make-office-files.flow.json`
+  (from PowerShell); `OOA_SAMPLES=21-big-web` runs W6-W10.
+- To change them: edit `examples/use-cases/tools/generate.py` (W6-W10: `generate_big_web.py`) and run it; `tools/make-office-files.flow.json`
   (`ooa run`) makes the Excel and Word data files.

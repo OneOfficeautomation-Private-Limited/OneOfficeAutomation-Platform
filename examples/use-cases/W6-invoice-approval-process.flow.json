@@ -1,0 +1,425 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w6_invoice_approval",
+  "name": "W6 Invoice approval process",
+  "description": "Sign in to the approval portal, work through the queue of pending invoices, apply the approval rules to each one and report the decisions.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "portal_user",
+      "type": "String",
+      "direction": "input",
+      "default": "ap.clerk",
+      "description": "Portal user."
+    },
+    {
+      "name": "portal_password",
+      "type": "String",
+      "direction": "input",
+      "default": "demo-pass",
+      "description": "Password of the demo portal (it accepts any). In a real process make this a Credential from the vault."
+    },
+    {
+      "name": "limit",
+      "type": "Number",
+      "direction": "input",
+      "default": 5000,
+      "description": "Invoices above this amount go to a manager (escalated)."
+    },
+    {
+      "name": "inv",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "supplier",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "po",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "amount_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "amount",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "decision",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "reason",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "decisions",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Invoice",
+          "Supplier",
+          "Amount",
+          "Decision",
+          "Reason"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Invoices decided by the agent."
+    },
+    {
+      "name": "approved",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Approved, as counted by the portal."
+    },
+    {
+      "name": "rejected",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Rejected, as counted by the portal."
+    },
+    {
+      "name": "escalated",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Escalated, as counted by the portal."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/invoice-approvals.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open invoice-approvals.html"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#user",
+        "text": "$portal_user"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#pass",
+        "text": "$portal_password"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#login"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#queue-view",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/select_option",
+      "args": {
+        "selector": "#status-filter",
+        "option": "Pending"
+      },
+      "description": "Show only pending invoices"
+    },
+    {
+      "id": "s26",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "condition": "ooa.browser/element_exists",
+          "args": {
+            "selector": "#queue tbody tr"
+          }
+        },
+        "max_iterations": 50
+      },
+      "description": "Until the queue is empty",
+      "children": [
+        {
+          "id": "s7",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#queue tbody tr:first-child button.open"
+          },
+          "description": "Open the next pending invoice"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#detail-view",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#d-invoice"
+          },
+          "out": {
+            "text": "inv"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#d-supplier"
+          },
+          "out": {
+            "text": "supplier"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#d-po"
+          },
+          "out": {
+            "text": "po"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "ooa.browser/get_attribute",
+          "args": {
+            "selector": "#d-amount",
+            "attribute": "data-value"
+          },
+          "out": {
+            "value": "amount_text"
+          }
+        },
+        {
+          "id": "s13",
+          "action": "core/set",
+          "args": {
+            "variable": "amount",
+            "value": {
+              "expr": "toNumber($amount_text)"
+            }
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$po"
+            }
+          },
+          "description": "Approval rules",
+          "children": [
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "decision",
+                "value": "reject"
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "reason",
+                "value": "Missing purchase order"
+              }
+            }
+          ],
+          "elseIf": [
+            {
+              "condition": {
+                "op": "gt",
+                "left": "$amount",
+                "right": "$limit"
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "decision",
+                    "value": "escalate"
+                  }
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "reason",
+                    "value": "Above the approval limit of ${limit}"
+                  }
+                }
+              ]
+            }
+          ],
+          "else": [
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "decision",
+                "value": "approve"
+              }
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "reason",
+                "value": "Within limit, matches ${po}"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#comment",
+            "text": "$reason"
+          }
+        },
+        {
+          "id": "s22",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#${decision}"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#queue-view",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$decisions",
+            "values": [
+              "$inv",
+              "$supplier",
+              "$amount",
+              "$decision",
+              "$reason"
+            ]
+          },
+          "out": {
+            "table": "decisions"
+          }
+        },
+        {
+          "id": "s25",
+          "action": "core/set",
+          "args": {
+            "variable": "processed",
+            "value": {
+              "expr": "$processed + 1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#count-approved"
+      },
+      "out": {
+        "text": "approved"
+      }
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#count-rejected"
+      },
+      "out": {
+        "text": "rejected"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#count-escalated"
+      },
+      "out": {
+        "text": "escalated"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s31",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$decisions",
+        "path": "${folder}/output/invoice-decisions.csv"
+      }
+    }
+  ]
+}

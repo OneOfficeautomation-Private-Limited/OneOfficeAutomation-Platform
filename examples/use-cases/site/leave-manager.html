@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Leave manager</title><style>
+body{font:15px system-ui,"Segoe UI",sans-serif;margin:0;color:#1b2230;background:#f4f6fa}header{background:#14325c;color:#fff;padding:12px 24px;display:flex;gap:16px;align-items:center}
+header h1{font-size:18px;margin:0;flex:1}main{padding:20px 24px;max-width:980px}.card{background:#fff;border:1px solid #d6dbe5;border-radius:10px;padding:16px 18px;margin-bottom:14px}
+label{display:block;margin:10px 0 4px;font-weight:600}input,select,textarea{padding:6px 8px;width:300px;font:inherit}textarea{height:60px}button{margin:10px 8px 0 0;padding:7px 14px;cursor:pointer}
+table{border-collapse:collapse;width:100%;background:#fff}td,th{border-bottom:1px solid #e3e6ee;padding:7px 10px;text-align:left}.hidden{display:none!important}
+.error{color:#b42318;font-weight:600}.ok{color:#067647;font-weight:700}#toast{position:fixed;right:20px;bottom:20px;background:#14325c;color:#fff;padding:8px 14px;border-radius:8px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:grid;place-items:center}.modal>div{background:#fff;padding:18px 20px;border-radius:12px;width:420px}
+nav button.on{background:#14325c;color:#fff}
+</style></head><body>
+<header><h1>Team leave</h1><nav><button id="tab-requests" class="on">Requests</button><button id="tab-balances">Balances</button><button id="tab-dashboard">Dashboard</button></nav></header>
+<main><section id="requests" class="card"><table id="requests-table"><thead><tr><th>Employee</th><th>Type</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></section>
+<section id="balances" class="card hidden"><table id="balances-table"><thead><tr><th>Employee</th><th>Remaining</th></tr></thead><tbody>
+<tr><td>Ann</td><td>10</td></tr><tr><td>Bo</td><td>2</td></tr><tr><td>Cy</td><td>15</td></tr><tr><td>Dee</td><td>0</td></tr><tr><td>Eve</td><td>8</td></tr></tbody></table></section>
+<section id="dashboard" class="card hidden">Approved: <b id="d-approved"></b> &middot; Declined: <b id="d-declined"></b> &middot; Pending: <b id="d-pending"></b></section></main>
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true"><div><h2>Review request</h2><p><b id="m-employee"></b>: <span id="m-type"></span>, <span id="m-days"></span> days</p>
+<label for="m-reason">Note to the employee</label><textarea id="m-reason"></textarea><br><button id="m-approve">Approve</button><button id="m-decline">Decline</button><button id="m-close">Close</button></div></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const reqs = [["Eve","Holiday",2,"Approved"],["Ann","Holiday",5,"Pending"],["Bo","Holiday",3,"Pending"],["Cy","Holiday",15,"Pending"],["Dee","Sick",1,"Pending"],["Ann","Holiday",6,"Pending"]]
+  .map(([e,t,d,s], i) => ({i, employee:e, type:t, days:d, status:s, note:""}));
+let open = null;
+function tab(name) { for (const t of ["requests","balances","dashboard"]) { $(t).classList.toggle("hidden", t !== name); $("tab-" + t).classList.toggle("on", t === name); } render(); }
+function render() {
+  $("requests-table").querySelector("tbody").innerHTML = reqs.map((r) => "<tr><td>" + r.employee + "</td><td>" + r.type + "</td><td>" + r.days + "</td><td>" + r.status + "</td><td>" +
+    (r.status === "Pending" ? "<button class='review' data-i='" + r.i + "'>Review</button>" : "") + "</td></tr>").join("");
+  for (const b of document.querySelectorAll("button.review")) b.onclick = () => review(+b.dataset.i);
+  for (const s of ["Approved","Declined","Pending"]) $("d-" + s.toLowerCase()).textContent = reqs.filter((r) => r.status === s).length;
+}
+function review(i) { open = reqs[i]; $("m-employee").textContent = open.employee; $("m-type").textContent = open.type; $("m-days").textContent = open.days; $("m-reason").value = "";
+  setTimeout(() => $("modal").classList.remove("hidden"), 250); }
+function decide(s) { open.status = s; open.note = $("m-reason").value; $("modal").classList.add("hidden"); setTimeout(render, 200); }
+$("m-approve").onclick = () => decide("Approved"); $("m-decline").onclick = () => decide("Declined"); $("m-close").onclick = () => $("modal").classList.add("hidden");
+for (const t of ["requests","balances","dashboard"]) $("tab-" + t).onclick = () => tab(t);
+render();
+</script></body></html>

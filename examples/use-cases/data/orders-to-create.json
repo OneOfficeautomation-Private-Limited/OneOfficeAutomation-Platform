@@ -1,0 +1,30 @@
+[
+  {
+    "customer": "Acme",
+    "expected_total": 198.0,
+    "lines": [
+      {
+        "product": "Desk lamp",
+        "qty": 2
+      },
+      {
+        "product": "Office chair",
+        "qty": 1
+      }
+    ]
+  },
+  {
+    "customer": "Globex",
+    "expected_total": 186.5,
+    "lines": [
+      {
+        "product": "Keyboard",
+        "qty": 3
+      },
+      {
+        "product": "Desk lamp",
+        "qty": 1
+      }
+    ]
+  }
+]
