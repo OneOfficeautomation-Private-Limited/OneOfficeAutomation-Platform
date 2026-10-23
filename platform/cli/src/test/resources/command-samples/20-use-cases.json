@@ -6,18 +6,12 @@
   "copy": "../../examples/use-cases",
   "inputs": {
    "folder": ".",
-   "headless": true,
-   "portal_password": {
-    "$credential": "test/portal/password"
-   }
+   "headless": true
   },
   "expect": {
    "confirmation": "CONF-ACME-250-EXPRESS"
   },
-  "requires": "browser",
-  "secrets": {
-   "test/portal/password": "demo-pass"
-  }
+  "requires": "browser"
  },
  {
   "command": "use-case/W2",

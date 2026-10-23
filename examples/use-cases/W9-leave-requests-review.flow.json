@@ -1,0 +1,439 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w9_leave_requests",
+  "name": "W9 Leave requests against remaining balances",
+  "description": "Read the remaining leave per employee, review each pending request in its pop-up, approve it when enough days are left (updating the balance) or decline it with a note, then check the dashboard.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "balances",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "who",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "days_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "days",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "left",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "at",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "d_approved",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "d_declined",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "d_pending",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "approved",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Requests approved by the agent."
+    },
+    {
+      "name": "declined",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Requests declined by the agent."
+    },
+    {
+      "name": "ann_left",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Days Ann has left after the approvals."
+    },
+    {
+      "name": "dashboard_matches",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The portal dashboard shows the same numbers."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/leave-manager.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open leave-manager.html"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#tab-balances"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "#balances-table"
+      },
+      "out": {
+        "table": "balances"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.datatable/change_column_type",
+      "args": {
+        "table": "$balances",
+        "column": "Remaining",
+        "type": "Number"
+      },
+      "out": {
+        "table": "balances"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#tab-requests"
+      }
+    },
+    {
+      "id": "s25",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "condition": "ooa.browser/element_exists",
+          "args": {
+            "selector": "#requests-table button.review"
+          }
+        },
+        "max_iterations": 50
+      },
+      "description": "Each pending request",
+      "children": [
+        {
+          "id": "s6",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#requests-table button.review"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#modal",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s8",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#m-employee"
+          },
+          "out": {
+            "text": "who"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#m-days"
+          },
+          "out": {
+            "text": "days_text"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "core/set",
+          "args": {
+            "variable": "days",
+            "value": {
+              "expr": "toNumber($days_text)"
+            }
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.datatable/find",
+          "args": {
+            "table": "$balances",
+            "value": "$who",
+            "column": "Employee"
+          },
+          "out": {
+            "found": "found",
+            "first_row": "at"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/set",
+          "args": {
+            "variable": "left",
+            "value": 0
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$found",
+              "right": true
+            }
+          },
+          "children": [
+            {
+              "id": "s13",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$balances",
+                "row": "$at",
+                "column": "Remaining"
+              },
+              "out": {
+                "value": "left"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "le",
+              "left": "$days",
+              "right": "$left"
+            }
+          },
+          "description": "Enough days left?",
+          "children": [
+            {
+              "id": "s15",
+              "action": "ooa.datatable/set_value",
+              "args": {
+                "table": "$balances",
+                "row": "$at",
+                "column": "Remaining",
+                "value": {
+                  "expr": "$left - $days"
+                }
+              },
+              "out": {
+                "table": "balances"
+              }
+            },
+            {
+              "id": "s16",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#m-reason",
+                "text": "Approved. ${days} days booked."
+              }
+            },
+            {
+              "id": "s17",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#m-approve"
+              }
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "approved",
+                "value": {
+                  "expr": "$approved + 1"
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s19",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#m-reason",
+                "text": "Not enough leave left (${left} days)."
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#m-decline"
+              }
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "declined",
+                "value": {
+                  "expr": "$declined + 1"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "s23",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#modal",
+            "state": "hidden"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/delay",
+          "args": {
+            "seconds": 300,
+            "unit": "milliseconds"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s26",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#tab-dashboard"
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#d-approved"
+      },
+      "out": {
+        "text": "d_approved"
+      }
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#d-declined"
+      },
+      "out": {
+        "text": "d_declined"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#d-pending"
+      },
+      "out": {
+        "text": "d_pending"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "core/set",
+      "args": {
+        "variable": "dashboard_matches",
+        "value": {
+          "expr": "$d_approved == $approved + 1 && $d_declined == $declined && $d_pending == 0"
+        }
+      },
+      "description": "Eve was approved before the agent started"
+    },
+    {
+      "id": "s31",
+      "action": "ooa.datatable/find",
+      "args": {
+        "table": "$balances",
+        "value": "Ann",
+        "column": "Employee"
+      },
+      "out": {
+        "first_row": "at"
+      }
+    },
+    {
+      "id": "s32",
+      "action": "ooa.datatable/get_value",
+      "args": {
+        "table": "$balances",
+        "row": "$at",
+        "column": "Remaining"
+      },
+      "out": {
+        "value": "ann_left"
+      }
+    },
+    {
+      "id": "s33",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s34",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$balances",
+        "path": "${folder}/output/leave-balances.csv"
+      }
+    }
+  ]
+}

@@ -86,7 +86,7 @@ f = Flow('uc_w1_portal_order', 'W1 Portal order entry',
          'Sign in to a web portal, fill in an order form and read the confirmation number.')
 f.var(*FOLDER).var(*HEADLESS)
 f.var('portal_user', 'String', 'input', 'demo.user', 'Portal user name.')
-f.var('portal_password', 'Credential', 'input', None, 'Portal password from the vault.', required=True)
+f.var('portal_password', 'String', 'input', 'demo-pass', 'Password of the demo portal (it accepts any). In a real process make this a Credential from the vault.')
 f.var('customer', 'String', 'input', 'Acme', 'Customer to order for.')
 f.var('amount', 'Number', 'input', 250, 'Order amount.')
 f.var('kind', 'String', 'input', 'Express', 'Delivery: Standard, Express or Return.')

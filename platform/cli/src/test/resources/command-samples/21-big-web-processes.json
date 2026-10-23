@@ -1,0 +1,102 @@
+[
+ {
+  "command": "use-case/W6",
+  "name": "seven invoices decided by the approval rules",
+  "flow": "../../examples/use-cases/W6-invoice-approval-process.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "processed": 7,
+   "approved": 4,
+   "rejected": 2,
+   "escalated": 1
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/invoice-decisions.csv": true
+  }
+ },
+ {
+  "command": "use-case/W7",
+  "name": "two suppliers onboarded, two refused with the reason",
+  "flow": "../../examples/use-cases/W7-supplier-onboarding-wizard.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "onboarded": 2,
+   "failed": 2,
+   "last_id": "SUP-1002"
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/supplier-onboarding.xlsx": true
+  }
+ },
+ {
+  "command": "use-case/W8",
+  "name": "cheapest offers across three shop layouts",
+  "flow": "../../examples/use-cases/W8-price-comparison-three-shops.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "compared": 3,
+   "changes": 2,
+   "total_best": 203.29,
+   "chair_shop": "Shop C"
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/price-report.csv": true
+  }
+ },
+ {
+  "command": "use-case/W9",
+  "name": "leave approved only while days are left",
+  "flow": "../../examples/use-cases/W9-leave-requests-review.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "approved": 2,
+   "declined": 3,
+   "ann_left": 5,
+   "dashboard_matches": true
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/leave-balances.csv": true
+  }
+ },
+ {
+  "command": "use-case/W10",
+  "name": "orders created, processed and their invoices checked",
+  "flow": "../../examples/use-cases/W10-order-fulfilment-invoices.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "created": 2,
+   "verified": 2,
+   "grand_total": 384.5,
+   "ready_orders": 2
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/invoices/ORD-5001.txt": true,
+   "output/invoices/ORD-5002.txt": true
+  }
+ }
+]
