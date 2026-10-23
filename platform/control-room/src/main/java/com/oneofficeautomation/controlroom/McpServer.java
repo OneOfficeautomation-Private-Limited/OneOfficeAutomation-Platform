@@ -65,7 +65,7 @@ final class McpServer {
 
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> tools(User u) {
-        if (!cr.allowed(u.role(), "runs.start")) return List.of();
+        if (!cr.can(u, "runs.start")) return List.of();
         List<String> allow = exposed();
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> b : cr.db.query("SELECT path, description FROM bots WHERE production_version IS NOT NULL ORDER BY path")) {

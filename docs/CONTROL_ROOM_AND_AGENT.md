@@ -49,6 +49,10 @@ People only see the pages their role allows.
 
 - **Custom roles** (Administration > Roles): tick the permissions a role needs, for example a "queue clerk" that may
   only see and add work items. Roles in use cannot be deleted.
+- **Several roles per person** (Users > Edit): besides the main role, a person can have **further roles**. They have every
+  permission of each of their roles, and rules that name a role (`role:bot_runner` in folder permissions, vault folders,
+  work queues, workflow tasks, model connections) apply to them for each role. Administrator is only ever a main role.
+  Edit also keeps a person's first name, last name and a description.
 - **New users** (Users > New user) get a one-time temporary password and must change it at first sign-in. Five wrong
   passwords lock an account for 15 minutes. Administration > Settings can disable accounts that have not signed in for
   a number of days.
@@ -98,6 +102,13 @@ The runner runs each agent in its own process, so a crashing agent never stops t
 **Runner pools** (Runners > Runner pools) group runners. A run, schedule or work queue sent to a pool goes to its least
 busy online runner.
 
+**Runner settings** (Runners > Update runners): tick runners, then change for all of them at once:
+
+- **Log level** (error, warning, info, debug) of the runner's own log. Runners pick it up with their next heartbeat, so
+  no one has to visit the machine.
+- **Runner type**. A single-user runner is the default runner of one person; a multi-user runner can be the default
+  runner of several people (runners nobody set are multi-user). The Runners list shows whose default runner each one is.
+
 ## 4. The agent repository: check-in and check-out
 
 - Your One Agent Studio workspace (My Workspace) is **private**. The Command Center's agent repository is **public** and
@@ -134,11 +145,27 @@ How permissions apply:
 
 - **Delete** removes an agent from the list and stops it running; its versions are kept, and **Deleted agents** brings it back.
 - An agent still used by a schedule, trigger or work queue is not deleted (they are listed).
-- An empty folder can be deleted.
-- **Rename folder** renames or moves a folder with everything in it: agents with all versions, labels and analysis
+- An empty folder can be deleted (no agents and no files).
+- **Move** (agent details) moves one agent to another folder with its versions, labels, analysis reports, the schedules,
+  triggers, queues and API tasks that run it, and its run history. It is refused while someone else has it checked out,
+  or while a workflow names it by path.
+- **Copy** (agent details) makes a new agent from the latest version: version 1, not live, with its own agent id (the old
+  id plus `_copy`). Schedules and history are not copied.
+- **Rename folder** renames or moves a folder with everything in it (its files too): agents with all versions, labels and analysis
   reports, the schedules, triggers, queues and API tasks that run them, their run history, sub-folders and folder
   permissions. It is refused while someone else has an agent in it checked out, or while a workflow names one of its
   agents or forms by path (change the workflow first).
+
+**Files in the repository.** Templates, workbooks, lists and pictures that agents use live next to the agents, in the
+same folders and under the same folder permissions.
+
+- **Upload file** (under the agents of a folder) adds a file of up to 25 MB; uploading again makes a new version. Download
+  and Delete are on each row. Agent files (`.flow.json`, `.process.json`, `.form.json`) are checked in from Studio instead.
+- An agent lists the files it needs in its contract, `requires.files` (for example `"Finance/Templates/invoice.xlsx"`).
+  Before the run, the runner places each file at the same path in its workspace, so the agent opens
+  `Finance/Templates/invoice.xlsx`. Up to 50 MB go with one run.
+- The person the run is for must be allowed to view each file's folder. A missing or forbidden file fails the run before
+  it starts, with the reason.
 
 **Labels and dependencies.**
 
@@ -312,6 +339,14 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 - **User-provided attributes** (Details): each person stores their own value (for example their own password) under
   **Your values**. A run reads the value of the person it runs as (the run-as user, or whoever started it). A shared
   value cannot be set for such an attribute.
+- **Credential requests** (top of the vault page, with a count): the user-provided attributes of folders you may use that
+  you have not filled in yet. Fill them in there.
+- **Attribute settings** (Details, one row per attribute):
+  - a **description**, shown to people filling in their own value;
+  - **Masked** (the default): the value is never shown. Clear it for values that are not secret, such as a user name;
+    owners and managers can then **Show** it, and each look is audited;
+  - **Password fields only**: agents may type the value into password fields only. The browser's Set text action and the
+    web goal agent check the field before typing; other uses are refused.
 - **Vault key** (administrators): shows whether the master key comes from the key file or `OOA_MASTER_KEY`, and its
   fingerprint. **Rotate key** makes a new key and encrypts every stored value again in one transaction:
   - shared values, people's own values and external-vault sign-in secrets are all included;
@@ -327,9 +362,28 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 
 ## 9. AI: One Model Connections, governance and assistants
 
-- **One Model Connections** (Administration): named AI model connections (OpenAI, Azure OpenAI, Anthropic, or an
-  OpenAI-compatible local or hosted model). Each stores its key as a vault reference. Agents choose a connection by name
-  in the One Prompt Skill, AI agent and generative AI actions.
+- **One Model Connections** (Administration): named AI model connections: OpenAI, Azure OpenAI, Anthropic, Amazon
+  Bedrock, Google Vertex AI, a model on an Amazon SageMaker endpoint, Hugging Face, or an OpenAI-compatible local or hosted
+  model. Each stores its key as a vault reference. Agents choose a connection by name in the Prompt Skill, AI agent,
+  generative AI and web goal agent actions.
+  - **Type**: standard or fine-tuned model.
+  - **Roles that may use it**: runs of people with none of these roles do not receive the connection. Empty means every role.
+  - **Test connection** sends one very small request ("Answer with OK") with the key from the vault and shows the answer
+    and the time. The key is used for that request only; the test is audited.
+  - Amazon Bedrock: the model or inference profile id, the endpoint `https://bedrock-runtime.REGION.amazonaws.com`, and
+    the key `ACCESS_KEY_ID:SECRET` in one credential. Google Vertex AI: the model (for example `gemini-2.5-flash`), the
+    endpoint `https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION`, and a service-account JSON
+    key (exchanged for an access token) or an access token.
+- **Prompt Skills** (Build > Prompt Skills): reviewed prompt templates agents run with the Prompt Skills toolkit
+  (`ooa.ai_skills/run`).
+  - A skill has instructions for the model, a prompt with `${name}` inputs, the answer type (text or JSON), a temperature
+    and optionally a connection.
+  - A new skill is **private** to its owner until **Shared**. Every save is a new version with a comment; earlier
+    versions stay readable.
+  - **From a template** starts a skill from a built-in template (summary, request routing, invoice fields) or a template
+    an administrator published.
+  - Runs receive the skills their agents name (shared ones, and the run's person's own private ones). A skill in the
+    Command Center wins over a skill file of the same name in the runner's workspace.
 - **AI governance** (for auditors) lists every AI call agents made over a period you choose:
   - the provider and model, tokens used and answer time
   - whether personal data was masked
@@ -343,6 +397,10 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
     and with that user's permissions.
   - Agent inputs become the tool's input schema; credential inputs are never offered.
   - Each call is a normal run (source "AI assistant (MCP)") in Agent Runs and the One Audit Trail.
+
+**Shared values people change for themselves.** In Shared values, Edit > **People may set their own value** lets each
+person keep their own value (**My value**). Their runs, and runs as them, read it instead of the shared one. Turning it
+off removes everyone's own values.
 
 ## 10. One Audit Trail
 

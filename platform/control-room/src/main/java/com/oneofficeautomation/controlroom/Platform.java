@@ -548,7 +548,7 @@ public final class Platform {
      * people with queues.all.
      */
     boolean queueAllows(User u, String qid, String need) {
-        if (cr.allowed(u.role(), "queues.all")) return true;
+        if (cr.can(u, "queues.all")) return true;
         if (cr.count("SELECT COUNT(*) AS n FROM queue_members WHERE queue_id = ?", qid) == 0) return true;
         List<String> mine = memberRoles(u, qid);
         if (mine.contains("owner")) return true;
@@ -593,7 +593,7 @@ public final class Platform {
         boolean hasOwner = clean.stream().anyMatch(c -> c[1].equals("owner"));
         if (!clean.isEmpty() && !hasOwner) throw new OoaException("CR.BAD_INPUT", "A queue with members needs at least one owner");
         List<String> mine = cr.teams.principalsOf(by.username(), by.role());
-        if (!clean.isEmpty() && !cr.allowed(by.role(), "queues.all") && clean.stream().noneMatch(c -> c[1].equals("owner") && mine.contains(c[0])))
+        if (!clean.isEmpty() && !cr.can(by, "queues.all") && clean.stream().noneMatch(c -> c[1].equals("owner") && mine.contains(c[0])))
             throw new OoaException("CR.BAD_INPUT", "Keep yourself (or your role) as an owner, or you could not change the queue any more");
         db.tx(() -> {
             db.update("DELETE FROM queue_members WHERE queue_id = ?", qid);
@@ -822,7 +822,7 @@ public final class Platform {
         if (!members.isEmpty()) {
             List<String> mine = cr.teams.principalsOf(by.username(), by.role());
             boolean iOwn = members.stream().anyMatch(x -> "owner".equals(((Map<String, Object>) x).get("role")) && mine.contains(String.valueOf(((Map<String, Object>) x).get("principal"))));
-            if (!iOwn && !cr.allowed(by.role(), "queues.all")) { members.add(Map.of("principal", "user:" + by.username(), "role", "owner")); notes.add("You were added as an owner"); }
+            if (!iOwn && !cr.can(by, "queues.all")) { members.add(Map.of("principal", "user:" + by.username(), "role", "owner")); notes.add("You were added as an owner"); }
             setQueueMembers(by, qid, members, ip);
         }
         int items = 0;
@@ -1048,10 +1048,18 @@ public final class Platform {
 
     // ===================== model connections =====================
 
-    static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker");
+    static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker",
+            "aws_bedrock", "google_vertex");
 
     public List<Map<String, Object>> modelConnections(User by) {
-        return db.query("SELECT name, provider, model, base_url, key_ref, description, updated, updated_by FROM model_connections ORDER BY name");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, updated, updated_by FROM model_connections ORDER BY name")) {
+            Map<String, Object> m = new LinkedHashMap<>(c);
+            m.put("allowed_roles", csv(c.get("allowed_roles")));
+            if (m.get("model_type") == null) m.put("model_type", "standard");
+            out.add(m);
+        }
+        return out;
     }
 
     public void saveModelConnection(User by, Map<String, Object> c, String ip) {
@@ -1062,11 +1070,37 @@ public final class Platform {
         if (!PROVIDERS.contains(provider)) throw new OoaException("CR.BAD_INPUT", "Provider must be one of " + PROVIDERS);
         String keyRef = (String) c.get("key_ref");
         if (keyRef != null && !keyRef.isBlank() && keyRef.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The key is a vault reference: vault folder/credential/attribute");
-        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, updated = ?, updated_by = ? WHERE name = ?",
-                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), now(), by.username(), name) == 0)
-            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, updated, updated_by) VALUES (?,?,?,?,?,?,?,?)",
-                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), now(), by.username());
-        cr.audit.record(by.username(), "connection.save", "connection", name, Map.of("provider", provider), "ok", ip);
+        String type = c.get("model_type") == null ? "standard" : String.valueOf(c.get("model_type"));
+        if (!type.equals("standard") && !type.equals("fine_tuned")) throw new OoaException("CR.BAD_INPUT", "The model type is standard or fine_tuned");
+        // roles that may use the connection; none listed means every role
+        List<String> roles = new ArrayList<>();
+        if (c.get("allowed_roles") instanceof List<?> l) for (Object o : l) {
+            String r = String.valueOf(o).trim();
+            if (r.isEmpty()) continue;
+            if (!cr.roleExists(r)) throw new OoaException("CR.BAD_INPUT", "There is no role named '" + r + "'");
+            roles.add(r);
+        }
+        String rolesCsv = roles.isEmpty() ? null : String.join(",", roles);
+        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, updated = ?, updated_by = ? WHERE name = ?",
+                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, now(), by.username(), name) == 0)
+            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, now(), by.username());
+        cr.audit.record(by.username(), "connection.save", "connection", name, Map.of("provider", provider, "allowed_roles", roles), "ok", ip);
+    }
+
+    /**
+     * Tries a connection (saved or as typed in the dialog) with one very small request. The key is read from the vault
+     * for this request only.
+     */
+    public Map<String, Object> testModelConnection(User by, Map<String, Object> c, String ip) {
+        cr.require(by, "connections.manage", "manage model connections");
+        String provider = String.valueOf(c.get("provider"));
+        if (!PROVIDERS.contains(provider)) throw new OoaException("CR.BAD_INPUT", "Provider must be one of " + PROVIDERS);
+        String keyRef = c.get("key_ref") instanceof String k && !k.isBlank() ? k.trim() : null;
+        String key = keyRef == null ? null : cr.credentialForUser(by, keyRef, "connection_test");
+        Map<String, Object> r = com.oneofficeautomation.packages.ModelProbe.test(provider, (String) c.get("model"), (String) c.get("base_url"), key);
+        cr.audit.record(by.username(), "connection.test", "connection", String.valueOf(c.getOrDefault("name", "")), Map.of("provider", provider, "ok", r.get("ok")), Boolean.TRUE.equals(r.get("ok")) ? "ok" : "failed", ip);
+        return r;
     }
 
     public void deleteModelConnection(User by, String name, String ip) {
@@ -1075,10 +1109,15 @@ public final class Platform {
         cr.audit.record(by.username(), "connection.delete", "connection", name, null, "ok", ip);
     }
 
-    /** The connections handed to runners with each job: keys stay vault references ({"$credential": ref}). */
-    Map<String, Object> connectionsForJob() {
+    /**
+     * The connections handed to runners with each job: keys stay vault references ({"$credential": ref}). Only the
+     * connections the run's role may use are sent.
+     */
+    Map<String, Object> connectionsForJob(List<String> runRoles) {
         List<Object> list = new ArrayList<>();
         for (Map<String, Object> c : db.query("SELECT * FROM model_connections ORDER BY name")) {
+            List<String> roles = csv(c.get("allowed_roles"));
+            if (!roles.isEmpty() && !runRoles.contains("admin") && runRoles.stream().noneMatch(roles::contains)) continue;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", c.get("name")); m.put("provider", c.get("provider"));
             if (c.get("model") != null) m.put("model", c.get("model"));

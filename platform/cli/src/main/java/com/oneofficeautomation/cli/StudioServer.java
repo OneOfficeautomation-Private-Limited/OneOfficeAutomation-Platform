@@ -590,7 +590,7 @@ public final class StudioServer {
         } else send(ex, 405, "text/plain", "Method not allowed");
     }
 
-    private static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker");
+    private static final Set<String> PROVIDERS = Set.of("openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker", "aws_bedrock", "google_vertex");
 
     /** Saves model-connections.json. API keys are only references (vault credential or environment variable), never values. */
     @SuppressWarnings("unchecked")

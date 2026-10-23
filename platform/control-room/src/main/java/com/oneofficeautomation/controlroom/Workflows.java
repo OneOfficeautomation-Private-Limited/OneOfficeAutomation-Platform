@@ -324,16 +324,17 @@ public final class Workflows {
 
     // ===================== task inbox =====================
 
-    static boolean assignedTo(String assignee, User u) {
+    boolean assignedTo(String assignee, User u) {
+        List<String> roles = cr.rolesOf(u.username(), u.role());
         for (String a : String.valueOf(assignee).split(",")) {
             String t = a.trim();
-            if (t.equals("user:" + u.username()) || t.equals("role:" + u.role()) || t.equals("role:*")) return true;
+            if (t.equals("user:" + u.username()) || t.equals("role:*") || (t.startsWith("role:") && roles.contains(t.substring(5)))) return true;
         }
         return false;
     }
 
     private boolean mayAct(User u, Map<String, Object> t) {
-        if (cr.allowed(u.role(), "users.manage")) return true;
+        if (cr.can(u, "users.manage")) return true;
         if ("claimed".equals(t.get("status"))) return u.username().equals(t.get("claimed_by"));
         return assignedTo((String) t.get("assignee"), u);
     }
@@ -345,7 +346,7 @@ public final class Workflows {
         List<Map<String, Object>> rows = st.equals("open")
                 ? db.query("SELECT * FROM human_tasks WHERE status IN ('open', 'claimed') ORDER BY COALESCE(due, created), created LIMIT 500")
                 : db.query("SELECT * FROM human_tasks WHERE status = ? ORDER BY completed DESC LIMIT 300", st);
-        boolean admin = cr.allowed(u.role(), "users.manage");
+        boolean admin = cr.can(u, "users.manage");
         for (Map<String, Object> t : rows) {
             boolean mine = assignedTo((String) t.get("assignee"), u) || u.username().equals(t.get("claimed_by")) || u.username().equals(t.get("completed_by"));
             if (!mine && !(admin && all)) continue;

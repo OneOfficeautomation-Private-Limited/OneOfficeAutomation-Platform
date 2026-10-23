@@ -32,6 +32,7 @@ public final class FirstPartyPackages {
             "com.oneofficeautomation.packages.email.EmailPackage",
             "com.oneofficeautomation.packages.pdf.PdfPackage",
             "com.oneofficeautomation.packages.browser.BrowserPackage",
+            "com.oneofficeautomation.packages.browser.WebAgentPackage",
             "com.oneofficeautomation.packages.transfer.FileTransferPackage",
             "com.oneofficeautomation.packages.windows.WindowPackage",
             "com.oneofficeautomation.packages.windows.DllPackage",

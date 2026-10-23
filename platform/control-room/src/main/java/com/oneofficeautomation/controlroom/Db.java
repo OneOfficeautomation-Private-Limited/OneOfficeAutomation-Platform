@@ -254,6 +254,31 @@ public final class Db implements AutoCloseable {
             "token_hash VARCHAR(64) NOT NULL, timeout_seconds INT NOT NULL, enabled BOOLEAN NOT NULL, created_by VARCHAR(80) NOT NULL, created TIMESTAMP NOT NULL, last_used TIMESTAMP, calls INT NOT NULL)",
     };
 
+    /**
+     * Version 7: repository files, credential attribute details (description, masked, password fields only), several
+     * roles per user and name details, shared values people may change for themselves, runner log level and type,
+     * roles allowed to use a model connection, and Prompt Skills kept in the Command Center.
+     */
+    private static final String[] SCHEMA_V7 = {
+        "CREATE TABLE repo_files (path VARCHAR(400) PRIMARY KEY, size BIGINT NOT NULL, sha256 VARCHAR(64) NOT NULL, content_type VARCHAR(120), created TIMESTAMP NOT NULL, " +
+            "updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), version INT NOT NULL)",
+        "ALTER TABLE credential_meta ADD COLUMN attributes_info VARCHAR(10000)",
+        "CREATE TABLE user_roles (username VARCHAR(80) NOT NULL, role VARCHAR(40) NOT NULL, PRIMARY KEY (username, role))",
+        "ALTER TABLE users ADD COLUMN first_name VARCHAR(100)",
+        "ALTER TABLE users ADD COLUMN last_name VARCHAR(100)",
+        "ALTER TABLE users ADD COLUMN description VARCHAR(500)",
+        "ALTER TABLE global_values ADD COLUMN changeable BOOLEAN",
+        "CREATE TABLE user_global_values (name VARCHAR(80) NOT NULL, username VARCHAR(80) NOT NULL, json_value VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL, PRIMARY KEY (name, username))",
+        "ALTER TABLE devices ADD COLUMN log_level VARCHAR(20)",
+        "ALTER TABLE devices ADD COLUMN device_type VARCHAR(20)",
+        "ALTER TABLE model_connections ADD COLUMN allowed_roles VARCHAR(1000)",
+        "ALTER TABLE model_connections ADD COLUMN model_type VARCHAR(20)",
+        "CREATE TABLE prompt_skills (name VARCHAR(80) PRIMARY KEY, description VARCHAR(500), definition VARCHAR(100000) NOT NULL, version INT NOT NULL, " +
+            "shared BOOLEAN NOT NULL, template BOOLEAN NOT NULL, created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80), owner VARCHAR(80))",
+        "CREATE TABLE prompt_skill_versions (name VARCHAR(80) NOT NULL, version INT NOT NULL, definition VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL, " +
+            "updated_by VARCHAR(80), comment VARCHAR(500), PRIMARY KEY (name, version))",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -283,6 +308,10 @@ public final class Db implements AutoCloseable {
             if (current < 6) {
                 for (String ddl : SCHEMA_V6) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (6)");
+            }
+            if (current < 7) {
+                for (String ddl : SCHEMA_V7) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (7)");
             }
             return null;
         });

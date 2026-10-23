@@ -49,6 +49,7 @@ final class Folders {
     /** As above with the user's principals (user:, role:, team:) worked out once by the caller. */
     String accessToFolder(List<String> principals, String role, String folder, Map<String, Map<String, String>> all) {
         if (cr.allowed(role, "repo.permissions")) return "manage";
+        for (String p : principals) if (p.startsWith("role:") && !p.equals("role:*") && cr.allowed(p.substring(5), "repo.permissions")) return "manage";
         for (String f = folder; ; f = parentOf(f)) {
             Map<String, String> here = all.get(f);
             if (here != null && !here.isEmpty()) {
@@ -96,6 +97,7 @@ final class Folders {
             add.accept(f);
             counts.merge(f, 1, Integer::sum);
         }
+        for (Map<String, Object> b : db.query("SELECT path FROM repo_files")) add.accept(folderOf((String) b.get("path")));
         List<Map<String, Object>> list = new ArrayList<>();
         for (Map<String, Object> f : out.values()) {
             String p = (String) f.get("path");
@@ -126,8 +128,8 @@ final class Folders {
         String p = normalize(path);
         require(by, p + "/x", "manage", "delete folders");
         String like = p.replace("%", "\\%").replace("_", "\\_") + "/%";
-        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", like) > 0)
-            throw new OoaException("CR.CONFLICT", "The folder '" + p + "' is not empty", "Move or delete its agents first (deleted agents stay recoverable and also keep the folder).");
+        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", like) + cr.count("SELECT COUNT(*) AS n FROM repo_files WHERE path LIKE ?", like) > 0)
+            throw new OoaException("CR.CONFLICT", "The folder '" + p + "' is not empty", "Move or delete its agents and files first (deleted agents stay recoverable and also keep the folder).");
         db.tx(() -> {
             db.update("DELETE FROM repo_folders WHERE path = ? OR path LIKE ?", p, like);
             db.update("DELETE FROM folder_permissions WHERE folder = ? OR folder LIKE ?", p, like);
@@ -150,8 +152,10 @@ final class Folders {
         require(by, f + "/x", "manage", "move this folder");
         require(by, t, "edit", "move folders here");
         String likeF = like(f), likeT = like(t);
-        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", likeF) == 0 && db.one("SELECT path FROM repo_folders WHERE path = ?", f) == null) throw notFound("Folder " + f);
-        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", likeT) > 0 || db.one("SELECT path FROM repo_folders WHERE path = ?", t) != null)
+        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", likeF) + cr.count("SELECT COUNT(*) AS n FROM repo_files WHERE path LIKE ?", likeF) == 0
+                && db.one("SELECT path FROM repo_folders WHERE path = ?", f) == null) throw notFound("Folder " + f);
+        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", likeT) + cr.count("SELECT COUNT(*) AS n FROM repo_files WHERE path LIKE ?", likeT) > 0
+                || db.one("SELECT path FROM repo_folders WHERE path = ?", t) != null)
             throw new OoaException("CR.CONFLICT", "There is already a folder " + t, "Choose another name.");
         for (Map<String, Object> b : db.query("SELECT path, locked_by FROM bots WHERE path LIKE ? AND locked_by IS NOT NULL", likeF))
             if (!by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", b.get("path") + " is checked out by " + b.get("locked_by"), "Ask them to check it in first.");
@@ -176,6 +180,7 @@ final class Folders {
             db.update("UPDATE repo_folders SET path = ? WHERE path = ?", t, f);
             db.update("UPDATE folder_permissions SET folder = CONCAT(?, SUBSTRING(folder, ?)) WHERE folder LIKE ?", t, start, likeF);
             db.update("UPDATE folder_permissions SET folder = ? WHERE folder = ?", t, f);
+            db.update("UPDATE repo_files SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
             return n;
         });
         cr.audit.record(by.username(), "repo.folder_rename", "folder", f, Map.of("to", t, "agents", moved), "ok", ip);

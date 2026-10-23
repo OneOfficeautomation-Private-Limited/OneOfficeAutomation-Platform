@@ -94,7 +94,7 @@ public final class AiAgentPackage {
             @Input(name = "instructions", type = OoaType.STRING, required = false, defaultValue = "\"You are a careful business assistant. Use the tools to act; never invent results.\"", description = "Role, policy and rules for the agent.") String instructions,
             @Input(name = "tools", type = OoaType.LIST, description = "Ids of the agents it may call, e.g. [\"lookup_order\", \"check_refund_policy\"].") List<Object> toolIds,
             @Input(name = "sensitive_tools", type = OoaType.LIST, required = false, description = "Agent ids that need a person's approval before each call (e.g. issue_refund).") List<Object> sensitiveIds,
-            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker"}, description = GenAiPackage.D_PROVIDER) String provider,
+            @Input(name = "provider", type = OoaType.STRING, required = false, defaultValue = "\"openai\"", enumValues = {"openai", "azure_openai", "anthropic", "openai_compatible", "huggingface", "aws_bedrock_sagemaker", "aws_bedrock", "google_vertex"}, description = GenAiPackage.D_PROVIDER) String provider,
             @Input(name = "connection", type = OoaType.STRING, required = false, description = ModelConnections.D_CONNECTION) String connection,
             @Input(name = "model", type = OoaType.STRING, required = false, description = GenAiPackage.D_MODEL) String model,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,

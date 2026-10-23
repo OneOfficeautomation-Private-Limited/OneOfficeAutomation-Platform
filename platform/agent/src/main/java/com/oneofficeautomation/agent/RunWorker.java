@@ -23,6 +23,20 @@ public final class RunWorker {
     private static final Map<Long, CompletableFuture<Map<String, Object>>> waiting = new ConcurrentHashMap<>();
     private static final AtomicLong ids = new AtomicLong();
 
+    /**
+     * Places the repository files the agent requires at the same path in the workspace (base64 contents). Paths come
+     * from Command Center, but are still kept inside the workspace.
+     */
+    static void writeFiles(Path workspace, Map<String, Object> files) throws IOException {
+        Path root = workspace.toAbsolutePath().normalize();
+        for (Map.Entry<String, Object> f : files.entrySet()) {
+            Path target = root.resolve(f.getKey()).normalize();
+            if (!target.startsWith(root) || target.equals(root)) throw new IOException("A repository file path leaves the workspace: " + f.getKey());
+            java.nio.file.Files.createDirectories(target.getParent());
+            java.nio.file.Files.write(target, java.util.Base64.getDecoder().decode(String.valueOf(f.getValue())));
+        }
+    }
+
     static synchronized void send(Object msg) { protocol.println(JsonLite.write(msg)); protocol.flush(); }
 
     @SuppressWarnings("unchecked")
@@ -68,9 +82,11 @@ public final class RunWorker {
             try { r = f.get(60, TimeUnit.SECONDS); }
             catch (Exception e) { throw new OoaException("VAULT.TIMEOUT", "No answer from Control Room for credential " + ref, null, true, null); }
             if (r.get("error") instanceof Map<?, ?> e) throw new OoaException(String.valueOf(e.get("code")), String.valueOf(e.get("message")));
-            return new SecureString(String.valueOf(r.get("value")), ref);
+            return new SecureString(String.valueOf(r.get("value")), ref, Boolean.TRUE.equals(r.get("password_only")));
         };
         Map<String, Object> globals = (Map<String, Object>) job.getOrDefault("global_values", Map.of());
+        writeFiles(workspace, (Map<String, Object>) job.getOrDefault("files", Map.of()));
+        Map<String, Object> skills = (Map<String, Object>) job.getOrDefault("skills", Map.of());
         PackageRegistry registry = FirstPartyPackages.registry();
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
         String principal = String.valueOf(job.getOrDefault("principal", "agent"));
@@ -80,6 +96,8 @@ public final class RunWorker {
                 .service("global_values", (java.util.function.Supplier<Object>) () -> globals).service("bot_invoker", invoker)
                 // One Model Connections from Command Center; their keys are vault references resolved through the vault above.
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
+                // Prompt Skills kept in Command Center; a skill file in the workspace is used when Command Center sends none
+                .service("prompt_skills", (java.util.function.Supplier<Object>) () -> skills)
                 .principal(principal).build();
         RunResult result;
         // AI calls are appended to ai-governance.jsonl in the workspace; remember where this run starts reading.

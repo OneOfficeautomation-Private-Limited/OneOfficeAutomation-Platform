@@ -168,9 +168,12 @@ Every agent is a JSON file (`*.flow.json`) that follows `contracts/flow-schema/f
   - forms `*.form.json`
   - workflows `*.process.json`
   - document intelligence `*.doc.json`
-  - Prompt Skills `ai-skills/*.json`
+  - Prompt Skills `ai-skills/*.json` (the Command Center also keeps shared, versioned skills and sends the ones an
+    agent names with its run; those win over a workspace file of the same name)
   - scripts `*.py`, `*.ps1`, `*.vbs`, `*.js`
   - custom connectors `connectors/*.connector.json`
+- In the Command Center, other files (templates, workbooks) live beside agents in the repository. An agent lists the
+  ones it needs in `requires.files`; the runner receives them with the job and places them at the same workspace path.
 
 ### 5.2 Toolkits (packages) and actions
 

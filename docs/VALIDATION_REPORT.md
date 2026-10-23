@@ -552,3 +552,38 @@ Tests:
   - retention by logs and runs, variable profile and licence.
 - **Command Center in the browser:** folder renamed from the page; retention and licence in Settings; toolkit Versions dialog.
 - **`EnterpriseFeaturesTest`, last cause:** its wait looked for `"status":"success"` anywhere in the run's details. A successful step's event matched before the run itself had finished, so the AI calls were not recorded yet. The test now waits for the run's own status, and it passed three more times on its own. **Java suites:** 487 tests, 0 failed, 1 skipped.
+
+
+# Validation report: Community Edition comparison (8 groups)
+
+The gaps from `docs/research/aa-community-edition-check.md`, built in our own words and design.
+
+| Group | Built |
+| --- | --- |
+| Repository | `RepoFiles`: files next to agents, under the same folder permissions; content-addressed store (`repo-files/<sha256>`), one version per upload, 25 MB a file. `requires.files` in the agent contract; `claimNext` sends them (base64, 50 MB a run) and `RunWorker.writeFiles` places them in the workspace, refusing paths that leave it. `moveBot` (with versions, labels, reports, schedules, triggers, queues, API tasks, runs; refused when checked out by someone else or named by a workflow) and `copyBot` (version 1, new agent id). Folder rename and delete count files. |
+| AI | `LlmClient`: content as text or parts with pictures (OpenAI-style `image_url`, Anthropic `image` blocks, Bedrock `image`, Vertex `inlineData`); Amazon Bedrock Converse (SigV4, service `bedrock`, tools, tool results); Google Vertex AI `generateContent` (service-account JWT signed with RS256, exchanged and kept 50 minutes, or an access token; function declarations without the schema keywords Vertex rejects); `generateImages` for OpenAI/compatible, Azure OpenAI, Vertex Imagen and Bedrock (Titan/Nova Canvas, Stability). New actions: Prompt with pictures, Chat with pictures, Generate picture, Detect language, Key phrases, Named entities. `ooa.web_agent` (Start session, Reach a goal, End session) through the public `AiBridge`. |
+| Model connections | Type (standard or fine-tuned), roles that may use it (runs of other roles do not receive it), Test connection (`ModelProbe`, the key read from the vault for that request only, audited). Studio and the console list Bedrock and Vertex AI. |
+| Vault | Attribute description, Masked (default; unmasked values can be shown to owners and managers, audited) and Password fields only (sent to the runner with the value; `SecureString.passwordOnly`, checked by the browser's Set text and the web goal agent). Credential requests: the user-provided values a person still has to fill in. |
+| People | Further roles (`user_roles`): permissions are the union, principals include `role:` for each role (folders, vault, queues, workflow tasks, connections); admin only as a main role. First name, last name, description. |
+| Shared values | `changeable`: people keep their own value (`user_global_values`); `claimNext` gives the run's person their value; turning it off removes them. |
+| Runners | Log level (sent with each heartbeat; the runner filters its own log), runner type (single-user: one person's default runner), default users listed; Update runners for several at once. |
+| Prompt Skills | `PromptSkills`: private until shared, every save a version with a comment, built-in and administrator templates, the console page; `claimNext` sends the skills an agent names (or all usable ones when the name is a variable); `ooa.ai_skills` reads them before workspace files. |
+
+Tests:
+
+- **CommunityEditionGapsTest** (8 tests): files reaching the runner, rename and delete rules, a forbidden folder and a
+  missing file failing a run before it starts; move with schedule and label, the workflow block, copies with new ids;
+  skills private, shared, versioned, from a template and sent with a run; connections by role and the test against a
+  local fake model with the key from the vault; attribute flags, unmasked values and requests; further roles; people's
+  own shared values reaching their runs; runner log level and single/multi-user rules.
+- **AiGapsTest** (6 tests): Bedrock request signed (signature recomputed from what the server received), pictures and
+  tools; Vertex AI with a generated service-account key (the JWT verified with its public key, the token reused) and with
+  an access token; pictures for OpenAI and Anthropic; picture generation for three providers; language actions; the probe.
+- **WebAgentTest** (headless Edge, scripted model): a sign-in reached in five steps, a site outside the allowed list
+  refused, the password typed through its placeholder and never sent to the model, a password-only secret refused for
+  an ordinary field, and the step limit.
+- **Real bug found by the tests:** agent steps keep their values in `args`, so the first version of the skill lookup
+  (which read `inputs`) sent no skills. Fixed in `PromptSkills.walk`.
+- **Upgrade safety:** the first version made every runner single-user, which refused existing setups where several
+  people share one runner (`TeamsVaultAuditAnalyticsTest` caught it). Runners nobody set are now multi-user; single-user
+  is a choice. **Java suites:** 502 tests, 0 failed, 1 skipped.

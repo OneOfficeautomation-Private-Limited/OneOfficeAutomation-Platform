@@ -30,7 +30,9 @@ public final class Teams {
 
     /** Every way a rule can name this user: user:x, role:r, role:* and team:t for each of their teams. */
     List<String> principalsOf(String username, String role) {
-        List<String> p = new ArrayList<>(List.of("user:" + username, "role:" + role, "role:*"));
+        List<String> p = new ArrayList<>(List.of("user:" + username));
+        for (String r : cr.rolesOf(username, role)) p.add("role:" + r);
+        p.add("role:*");
         for (String t : teamsOf(username)) p.add("team:" + t);
         return p;
     }
@@ -45,7 +47,7 @@ public final class Teams {
 
     /** Teams with their members; people without teams.manage see the teams they are in. */
     public List<Map<String, Object>> list(User by) {
-        boolean all = cr.allowed(by.role(), "teams.manage") || cr.allowed(by.role(), "users.manage");
+        boolean all = cr.can(by, "teams.manage") || cr.can(by, "users.manage");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> t : db.query("SELECT * FROM teams ORDER BY name")) {
             List<Map<String, Object>> members = db.query("SELECT username, team_role FROM team_members WHERE team_id = ? ORDER BY team_role DESC, username", t.get("id"));
@@ -93,7 +95,7 @@ public final class Teams {
     public void setMembers(User by, String teamId, List<Object> members, String ip) {
         Map<String, Object> t = db.one("SELECT name FROM teams WHERE id = ?", teamId);
         if (t == null) throw notFound("Team");
-        boolean admin = cr.allowed(by.role(), "teams.manage");
+        boolean admin = cr.can(by, "teams.manage");
         boolean lead = db.one("SELECT username FROM team_members WHERE team_id = ? AND username = ? AND team_role = 'lead'", teamId, by.username()) != null;
         if (!admin && !lead) throw denied("change this team's members");
         List<String[]> clean = new ArrayList<>();

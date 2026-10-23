@@ -3547,7 +3547,7 @@ function processDesigner(it) {
 
 // ---- document automation ----
 const DOC_TYPES = ["pdf", "txt", "csv", "xml", "json", "md", "html"];
-const AI_PROVIDERS = [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["openai_compatible", "OpenAI-compatible (local or other)"], ["huggingface", "Hugging Face"], ["aws_bedrock_sagemaker", "Amazon SageMaker endpoint"]];
+const AI_PROVIDERS = [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["openai_compatible", "OpenAI-compatible (local or other)"], ["huggingface", "Hugging Face"], ["aws_bedrock_sagemaker", "Amazon SageMaker endpoint"], ["aws_bedrock", "Amazon Bedrock"], ["google_vertex", "Google Vertex AI"]];
 function providerSelect(value, onSet) { const s = h("select", { onchange: (e) => onSet(e.target.value) }, AI_PROVIDERS.map(([v, t]) => h("option", { value: v, text: t }))); s.value = value || "openai"; return s; }
 function documentDesigner(it) {
   const d = it.data;

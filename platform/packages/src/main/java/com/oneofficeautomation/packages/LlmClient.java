@@ -14,8 +14,11 @@ import java.util.regex.Pattern;
 
 /**
  * Provider-neutral LLM client for the AI packages: OpenAI, Azure OpenAI, Anthropic, any OpenAI-compatible
- * endpoint (LiteLLM, vLLM, Ollama), Hugging Face (Inference Providers router or a self-hosted TGI server) and
- * models hosted on Amazon SageMaker endpoints (signed with AWS Signature V4). Every call masks personal data first (unless disabled), restores it in the
+ * endpoint (LiteLLM, vLLM, Ollama), Hugging Face (Inference Providers router or a self-hosted TGI server),
+ * models hosted on Amazon SageMaker endpoints (signed with AWS Signature V4), Amazon Bedrock (Converse API, also
+ * signed with Signature V4) and Google Vertex AI (Gemini models, with a service-account key or an access token).
+ * A message's content is text, or a list of parts for prompts with pictures:
+ * [{"type": "text", "text": ...}, {"type": "image", "media_type": "image/png", "data": base64}]. Every call masks personal data first (unless disabled), restores it in the
  * answer, and writes a governance record (who, which run, model, tokens, masking; never the prompt text) to
  * ai-governance.jsonl in the workspace.
  */
@@ -144,6 +147,15 @@ final class LlmClient {
         for (Map<String, Object> m : messages) {
             Map<String, Object> c = new LinkedHashMap<>(m);
             if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", mask(s, mapping, counts));
+            if (cfg.maskPii() && m.get("content") instanceof List<?> parts) {
+                List<Object> masked = new ArrayList<>();
+                for (Object p : parts) {
+                    Map<String, Object> part = new LinkedHashMap<>((Map<String, Object>) p);
+                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", mask(s, mapping, counts));
+                    masked.add(part);
+                }
+                c.put("content", masked);
+            }
             if (cfg.maskPii() && m.get("tool_calls") instanceof List<?> tcs) {
                 List<Object> masked = new ArrayList<>();
                 for (Object t : tcs) {
@@ -160,6 +172,8 @@ final class LlmClient {
         Reply r = switch (provider) {
             case "anthropic" -> anthropic(ctx, cfg, msgs, tools, jsonMode);
             case "aws_bedrock_sagemaker" -> sagemaker(ctx, cfg, msgs, tools, jsonMode);
+            case "aws_bedrock" -> bedrock(ctx, cfg, msgs, tools, jsonMode);
+            case "google_vertex" -> vertex(ctx, cfg, msgs, tools, jsonMode);
             default -> openai(ctx, cfg, provider, msgs, tools, jsonMode);
         };
         List<ToolCall> calls = new ArrayList<>();
@@ -171,7 +185,7 @@ final class LlmClient {
         return out;
     }
 
-    private static void govern(ActionContext ctx, Config cfg, String provider, String purpose, Reply r, long ms, List<Map<String, Object>> sent) {
+    static void govern(ActionContext ctx, Config cfg, String provider, String purpose, Reply r, long ms, List<Map<String, Object>> sent) {
         try {
             Map<String, Object> rec = new LinkedHashMap<>();
             rec.put("ts", Instant.now().toString());
@@ -203,7 +217,7 @@ final class LlmClient {
             o.put("role", role);
             if (role.equals("tool")) { o.put("tool_call_id", m.get("tool_call_id")); o.put("content", m.get("content")); }
             else {
-                o.put("content", m.get("content"));
+                o.put("content", openAiContent(m.get("content")));
                 if (m.get("tool_calls") instanceof List<?> tcs && !tcs.isEmpty()) {
                     List<Object> l = new ArrayList<>();
                     for (Object t : tcs) { Map<String, Object> tc = (Map<String, Object>) t;
@@ -316,11 +330,11 @@ final class LlmClient {
                 "Map aws_access_key_id to a Credential, or store the key as ACCESS_KEY_ID:SECRET in one Credential.");
     }
 
-    /** Region from the action, else from a runtime.sagemaker.REGION.amazonaws.com base_url, else the AWS_REGION variable. */
+    /** Region from the action, else from a runtime.sagemaker.REGION or bedrock-runtime.REGION base_url, else the AWS_REGION variable. */
     static String awsRegion(Config cfg) {
         if (cfg.region() != null && !cfg.region().isBlank()) return cfg.region().strip();
         if (cfg.baseUrl() != null) {
-            Matcher m = Pattern.compile("runtime\\.sagemaker\\.([a-z0-9-]+)\\.amazonaws\\.com").matcher(cfg.baseUrl());
+            Matcher m = Pattern.compile("(?:runtime\\.sagemaker|bedrock-runtime)\\.([a-z0-9-]+)\\.amazonaws\\.com").matcher(cfg.baseUrl());
             if (m.find()) return m.group(1);
         }
         String env = System.getenv("AWS_REGION");
@@ -334,7 +348,7 @@ final class LlmClient {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> m : msgs) {
             String role = String.valueOf(m.get("role"));
-            if (role.equals("system")) { system.append(m.get("content")).append("\n\n"); continue; }
+            if (role.equals("system")) { system.append(textOf(m.get("content"))).append("\n\n"); continue; }
             if (role.equals("tool")) {
                 Map<String, Object> block = Map.of("type", "tool_result", "tool_use_id", m.get("tool_call_id"), "content", String.valueOf(m.get("content")));
                 Map<String, Object> last = out.isEmpty() ? null : out.get(out.size() - 1);
@@ -347,7 +361,7 @@ final class LlmClient {
                 if (m.get("tool_calls") instanceof List<?> tcs) for (Object t : tcs) { Map<String, Object> tc = (Map<String, Object>) t;
                     blocks.add(Map.of("type", "tool_use", "id", tc.get("id"), "name", tc.get("name"), "input", tc.get("args"))); }
                 out.add(Map.of("role", "assistant", "content", blocks));
-            } else out.add(Map.of("role", "user", "content", String.valueOf(m.get("content"))));
+            } else out.add(Map.of("role", "user", "content", anthropicContent(m.get("content"))));
         }
         if (json && (tools == null || tools.isEmpty())) system.append("Respond with a single JSON object only, no other text.");
         Map<String, Object> body = new LinkedHashMap<>();
@@ -399,5 +413,361 @@ final class LlmClient {
     }
 
     static Path skillsDir(ActionContext ctx) { return ctx.workDir().resolve("ai-skills"); }
+
+    // ---------- content with pictures ----------
+
+    /** The text of a message content: the text itself, or the text parts of a list joined. */
+    static String textOf(Object content) {
+        if (content instanceof List<?> parts) {
+            StringBuilder sb = new StringBuilder();
+            for (Object p : parts) if (p instanceof Map<?, ?> m && "text".equals(m.get("type"))) sb.append(sb.length() == 0 ? "" : "\n").append(m.get("text"));
+            return sb.toString();
+        }
+        return content == null ? "" : String.valueOf(content);
+    }
+
+    /** Content as parts: text becomes one text part. */
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Object>> parts(Object content) {
+        if (content instanceof List<?> l) { List<Map<String, Object>> out = new ArrayList<>(); for (Object o : l) out.add((Map<String, Object>) o); return out; }
+        return List.of(Map.of("type", "text", "text", content == null ? "" : String.valueOf(content)));
+    }
+
+    static Object openAiContent(Object content) {
+        if (!(content instanceof List)) return content;
+        List<Object> out = new ArrayList<>();
+        for (Map<String, Object> p : parts(content))
+            if ("image".equals(p.get("type"))) out.add(Map.of("type", "image_url", "image_url", Map.of("url", "data:" + p.get("media_type") + ";base64," + p.get("data"))));
+            else out.add(Map.of("type", "text", "text", String.valueOf(p.get("text"))));
+        return out;
+    }
+
+    static Object anthropicContent(Object content) {
+        if (!(content instanceof List)) return String.valueOf(content);
+        List<Object> out = new ArrayList<>();
+        for (Map<String, Object> p : parts(content))
+            if ("image".equals(p.get("type"))) out.add(Map.of("type", "image", "source", Map.of("type", "base64", "media_type", p.get("media_type"), "data", p.get("data"))));
+            else out.add(Map.of("type", "text", "text", String.valueOf(p.get("text"))));
+        return out;
+    }
+
+    /** A picture file as an image part; png, jpeg, gif and webp up to 20 MB. */
+    static Map<String, Object> imagePart(Path file) {
+        String n = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        String type = n.endsWith(".png") ? "image/png" : n.endsWith(".jpg") || n.endsWith(".jpeg") ? "image/jpeg" : n.endsWith(".gif") ? "image/gif" : n.endsWith(".webp") ? "image/webp" : null;
+        if (type == null) throw new ActionException(P + ".BAD_IMAGE", "Pictures must be .png, .jpg, .gif or .webp: " + file.getFileName());
+        try {
+            if (!Files.isRegularFile(file)) throw new ActionException(P + ".IMAGE_NOT_FOUND", "Picture not found: " + file);
+            if (Files.size(file) > 20L * 1024 * 1024) throw new ActionException(P + ".IMAGE_TOO_LARGE", "Pictures are at most 20 MB: " + file.getFileName());
+            return Map.of("type", "image", "media_type", type, "data", Base64.getEncoder().encodeToString(Files.readAllBytes(file)));
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
+    }
+
+    // ---------- Amazon Bedrock (Converse API) ----------
+
+    /**
+     * A model on Amazon Bedrock through the Converse API (the same request for every model family), signed with AWS
+     * Signature V4 for the "bedrock" service. The model is a model id or an inference profile id.
+     */
+    @SuppressWarnings("unchecked")
+    private static Reply bedrock(ActionContext ctx, Config cfg, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
+        StringBuilder system = new StringBuilder();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> m : msgs) {
+            String role = String.valueOf(m.get("role"));
+            if (role.equals("system")) { system.append(textOf(m.get("content"))).append("\n\n"); continue; }
+            if (role.equals("tool")) {
+                Map<String, Object> block = Map.of("toolResult", Map.of("toolUseId", m.get("tool_call_id"), "content", List.of(Map.of("text", String.valueOf(m.get("content"))))));
+                Map<String, Object> last = out.isEmpty() ? null : out.get(out.size() - 1);
+                if (last != null && "user".equals(last.get("role")) && ((List<Map<String, Object>>) last.get("content")).get(0).containsKey("toolResult")) ((List<Object>) last.get("content")).add(block);
+                else out.add(new LinkedHashMap<>(Map.of("role", "user", "content", new ArrayList<>(List.of(block)))));
+            } else if (role.equals("assistant")) {
+                List<Object> blocks = new ArrayList<>();
+                if (m.get("content") instanceof String s && !s.isEmpty()) blocks.add(Map.of("text", s));
+                if (m.get("tool_calls") instanceof List<?> tcs) for (Object t : tcs) { Map<String, Object> tc = (Map<String, Object>) t;
+                    blocks.add(Map.of("toolUse", Map.of("toolUseId", tc.get("id"), "name", tc.get("name"), "input", tc.get("args")))); }
+                out.add(Map.of("role", "assistant", "content", blocks));
+            } else {
+                List<Object> blocks = new ArrayList<>();
+                for (Map<String, Object> p : parts(m.get("content")))
+                    if ("image".equals(p.get("type"))) blocks.add(Map.of("image", Map.of("format", String.valueOf(p.get("media_type")).replace("image/", ""), "source", Map.of("bytes", p.get("data")))));
+                    else blocks.add(Map.of("text", String.valueOf(p.get("text"))));
+                out.add(new LinkedHashMap<>(Map.of("role", "user", "content", blocks)));
+            }
+        }
+        if (json && (tools == null || tools.isEmpty())) system.append("Respond with a single JSON object only, no other text.");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("messages", out);
+        if (system.length() > 0) body.put("system", List.of(Map.of("text", system.toString().strip())));
+        Map<String, Object> inf = new LinkedHashMap<>();
+        inf.put("maxTokens", cfg.maxTokens());
+        inf.put("temperature", BigDecimal.valueOf(cfg.temperature()));
+        Options opt = cfg.opts();
+        if (opt.topP() != null) inf.put("topP", BigDecimal.valueOf(opt.topP()));
+        if (opt.stop() != null) inf.put("stopSequences", opt.stop());
+        body.put("inferenceConfig", inf);
+        if (tools != null && !tools.isEmpty()) {
+            List<Object> l = new ArrayList<>();
+            for (Map<String, Object> t : tools) l.add(Map.of("toolSpec", Map.of("name", t.get("name"), "description", t.get("description"), "inputSchema", Map.of("json", t.get("input_schema")))));
+            body.put("toolConfig", Map.of("tools", l));
+        }
+        Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/converse", body).map();
+        StringBuilder text = new StringBuilder();
+        List<ToolCall> calls = new ArrayList<>();
+        Map<String, Object> msg = r.get("output") instanceof Map<?, ?> o && o.get("message") instanceof Map<?, ?> mm ? (Map<String, Object>) mm : Map.of();
+        for (Object o : (List<?>) msg.getOrDefault("content", List.of())) {
+            Map<String, Object> b = (Map<String, Object>) o;
+            if (b.get("text") instanceof String s) text.append(s);
+            if (b.get("toolUse") instanceof Map<?, ?> tu)
+                calls.add(new ToolCall(String.valueOf(tu.get("toolUseId")), String.valueOf(tu.get("name")), tu.get("input") instanceof Map ? (Map<String, Object>) tu.get("input") : Map.of()));
+        }
+        Map<String, Object> u = r.get("usage") instanceof Map ? (Map<String, Object>) r.get("usage") : Map.of();
+        return new Reply(text.length() == 0 ? null : text.toString(), calls, num(u.get("inputTokens")), num(u.get("outputTokens")), Map.of());
+    }
+
+    /** A signed JSON POST to an AWS runtime endpoint (https://HOST.REGION.amazonaws.com, or base_url). */
+    static HttpJson.Response awsPost(ActionContext ctx, Config cfg, String host, String service, String path, Object body) {
+        String[] keys = awsKeys(cfg);
+        String region = awsRegion(cfg);
+        if (!region.matches("^[a-z0-9-]{4,30}$")) throw new ActionException(P + ".BAD_REGION", "'" + region + "' is not an AWS region name", "For example eu-west-1.");
+        String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://" + host + "." + region + ".amazonaws.com" : cfg.baseUrl().replaceAll("/+$", "");
+        String url = base + path;
+        byte[] payload = JsonLite.write(Values.toJsonable(body)).getBytes(StandardCharsets.UTF_8);
+        java.net.URI uri;
+        try { uri = java.net.URI.create(url); }
+        catch (IllegalArgumentException e) { throw new ActionException(P + ".BAD_URL", "Invalid AWS URL: " + url, "Check the region, model and base_url."); }
+        Map<String, String> signed = new LinkedHashMap<>();
+        signed.put("content-type", "application/json");
+        signed.put("accept", "application/json");
+        HttpJson.Req req = HttpJson.req(P, "POST", url).bytes(payload, "application/json").header("Accept", "application/json");
+        AwsSigV4.sign("POST", uri, signed, payload, keys[0], keys[1], region, service, Instant.now()).forEach(req::header);
+        return req.timeout(cfg.opts().timeout()).send(ctx);
+    }
+
+    // ---------- Google Vertex AI (Gemini) ----------
+
+    /**
+     * A Gemini model on Vertex AI. base_url is the location's API root,
+     * https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION; the key is a service-account JSON
+     * key (exchanged for an access token, kept for 50 minutes) or an access token.
+     */
+    @SuppressWarnings("unchecked")
+    private static Reply vertex(ActionContext ctx, Config cfg, List<Map<String, Object>> msgs, List<Map<String, Object>> tools, boolean json) {
+        StringBuilder system = new StringBuilder();
+        List<Map<String, Object>> contents = new ArrayList<>();
+        Map<String, String> toolNames = new HashMap<>();
+        for (Map<String, Object> m : msgs) {
+            String role = String.valueOf(m.get("role"));
+            if (role.equals("system")) { system.append(textOf(m.get("content"))).append("\n\n"); continue; }
+            if (role.equals("tool")) {
+                String name = toolNames.getOrDefault(String.valueOf(m.get("tool_call_id")), String.valueOf(m.get("name")));
+                Map<String, Object> part = Map.of("functionResponse", Map.of("name", name, "response", Map.of("content", String.valueOf(m.get("content")))));
+                Map<String, Object> last = contents.isEmpty() ? null : contents.get(contents.size() - 1);
+                if (last != null && "user".equals(last.get("role")) && ((List<Map<String, Object>>) last.get("parts")).get(0).containsKey("functionResponse")) ((List<Object>) last.get("parts")).add(part);
+                else contents.add(new LinkedHashMap<>(Map.of("role", "user", "parts", new ArrayList<>(List.of(part)))));
+            } else if (role.equals("assistant")) {
+                List<Object> ps = new ArrayList<>();
+                if (m.get("content") instanceof String s && !s.isEmpty()) ps.add(Map.of("text", s));
+                if (m.get("tool_calls") instanceof List<?> tcs) for (Object t : tcs) { Map<String, Object> tc = (Map<String, Object>) t;
+                    toolNames.put(String.valueOf(tc.get("id")), String.valueOf(tc.get("name")));
+                    ps.add(Map.of("functionCall", Map.of("name", tc.get("name"), "args", tc.get("args")))); }
+                contents.add(Map.of("role", "model", "parts", ps));
+            } else {
+                List<Object> ps = new ArrayList<>();
+                for (Map<String, Object> p : parts(m.get("content")))
+                    if ("image".equals(p.get("type"))) ps.add(Map.of("inlineData", Map.of("mimeType", p.get("media_type"), "data", p.get("data"))));
+                    else ps.add(Map.of("text", String.valueOf(p.get("text"))));
+                contents.add(Map.of("role", "user", "parts", ps));
+            }
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("contents", contents);
+        if (system.length() > 0) body.put("systemInstruction", Map.of("parts", List.of(Map.of("text", system.toString().strip()))));
+        Map<String, Object> gen = new LinkedHashMap<>();
+        gen.put("temperature", BigDecimal.valueOf(cfg.temperature()));
+        gen.put("maxOutputTokens", cfg.maxTokens());
+        Options opt = cfg.opts();
+        if (opt.topP() != null) gen.put("topP", BigDecimal.valueOf(opt.topP()));
+        if (opt.topK() != null) gen.put("topK", opt.topK());
+        if (opt.stop() != null) gen.put("stopSequences", opt.stop());
+        if (opt.seed() != null) gen.put("seed", opt.seed());
+        if (opt.n() != null) gen.put("candidateCount", opt.n());
+        if (json && (tools == null || tools.isEmpty())) gen.put("responseMimeType", "application/json");
+        body.put("generationConfig", gen);
+        if (tools != null && !tools.isEmpty()) {
+            List<Object> decl = new ArrayList<>();
+            for (Map<String, Object> t : tools) decl.add(Map.of("name", t.get("name"), "description", t.get("description"), "parameters", vertexSchema(t.get("input_schema"))));
+            body.put("tools", List.of(Map.of("functionDeclarations", decl)));
+        }
+        Map<String, Object> r = HttpJson.req(P, "POST", vertexBase(cfg) + "/publishers/google/models/" + HttpJson.enc(cfg.model()) + ":generateContent")
+                .header("Authorization", "Bearer " + vertexToken(ctx, cfg)).json(body).timeout(opt.timeout()).send(ctx).map();
+        List<?> cands = r.get("candidates") instanceof List<?> l ? l : List.of();
+        List<String> choices = new ArrayList<>();
+        List<ToolCall> calls = new ArrayList<>();
+        for (int c = 0; c < cands.size(); c++) {
+            StringBuilder text = new StringBuilder();
+            Map<String, Object> content = ((Map<String, Object>) cands.get(c)).get("content") instanceof Map<?, ?> cm ? (Map<String, Object>) cm : Map.of();
+            for (Object o : (List<?>) content.getOrDefault("parts", List.of())) {
+                Map<String, Object> p = (Map<String, Object>) o;
+                if (p.get("text") instanceof String s) text.append(s);
+                if (c == 0 && p.get("functionCall") instanceof Map<?, ?> fc)
+                    calls.add(new ToolCall("call_" + (calls.size() + 1), String.valueOf(fc.get("name")), fc.get("args") instanceof Map ? (Map<String, Object>) fc.get("args") : Map.of()));
+            }
+            choices.add(text.toString());
+        }
+        Map<String, Object> u = r.get("usageMetadata") instanceof Map ? (Map<String, Object>) r.get("usageMetadata") : Map.of();
+        String first = choices.isEmpty() || choices.get(0).isEmpty() ? null : choices.get(0);
+        return new Reply(first, calls, num(u.get("promptTokenCount")), num(u.get("candidatesTokenCount")), Map.of(), choices.size() > 1 ? choices : null);
+    }
+
+    static String vertexBase(Config cfg) {
+        if (cfg.baseUrl() == null || cfg.baseUrl().isBlank())
+            throw new ActionException(P + ".NO_ENDPOINT", "Vertex AI needs base_url: the location's API root",
+                    "For example https://europe-west4-aiplatform.googleapis.com/v1/projects/my-project/locations/europe-west4");
+        return cfg.baseUrl().replaceAll("/+$", "");
+    }
+
+    /** Vertex does not accept every JSON Schema keyword in function parameters; the ones it rejects are dropped. */
+    @SuppressWarnings("unchecked")
+    static Object vertexSchema(Object s) {
+        if (s instanceof Map<?, ?> m) {
+            Map<String, Object> out = new LinkedHashMap<>();
+            m.forEach((k, v) -> { if (!"additionalProperties".equals(k) && !"$schema".equals(k)) out.put(String.valueOf(k), vertexSchema(v)); });
+            return out;
+        }
+        if (s instanceof List<?> l) { List<Object> out = new ArrayList<>(); for (Object v : l) out.add(vertexSchema(v)); return out; }
+        return s;
+    }
+
+    private static final Map<String, Object[]> GOOGLE_TOKENS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** An access token: the key itself, or one obtained with a service-account key (signed JWT, OAuth 2.0 JWT bearer grant). */
+    static String vertexToken(ActionContext ctx, Config cfg) {
+        if (!(cfg.apiKey() instanceof SecureString k))
+            throw new ActionException(P + ".NO_KEY", "A Google service-account key or access token from the vault is required", "Map api_key to a Credential holding the service-account JSON key.");
+        String key = k.reveal().strip();
+        if (!key.startsWith("{")) return key;
+        Map<?, ?> sa;
+        try { sa = (Map<?, ?>) JsonLite.parse(key); }
+        catch (RuntimeException e) { throw new ActionException(P + ".BAD_KEY", "The service-account key is not valid JSON"); }
+        String email = String.valueOf(sa.get("client_email")), pem = String.valueOf(sa.get("private_key"));
+        String tokenUri = sa.get("token_uri") instanceof String t ? t : "https://oauth2.googleapis.com/token";
+        String cacheKey;
+        try { cacheKey = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8))); }
+        catch (Exception e) { throw new IllegalStateException(e); }
+        Object[] cached = GOOGLE_TOKENS.get(cacheKey);
+        long now = Instant.now().getEpochSecond();
+        if (cached != null && (long) cached[1] > now + 60) return (String) cached[0];
+        String jwt = signedJwt(email, pem, tokenUri, now);
+        String form = "grant_type=" + HttpJson.enc("urn:ietf:params:oauth:grant-type:jwt-bearer") + "&assertion=" + HttpJson.enc(jwt);
+        Map<String, Object> r = HttpJson.req(P, "POST", tokenUri).bytes(form.getBytes(StandardCharsets.UTF_8), "application/x-www-form-urlencoded").timeout(30).send(ctx).map();
+        if (!(r.get("access_token") instanceof String token)) throw new ActionException(P + ".AUTH_FAILED", "Google did not return an access token");
+        long expires = now + (r.get("expires_in") instanceof BigDecimal e ? e.longValue() : 3600);
+        GOOGLE_TOKENS.put(cacheKey, new Object[]{token, Math.min(expires, now + 3000)});
+        return token;
+    }
+
+    static String signedJwt(String email, String pem, String audience, long now) {
+        Base64.Encoder b64 = Base64.getUrlEncoder().withoutPadding();
+        String header = b64.encodeToString("{\"alg\":\"RS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
+        Map<String, Object> claims = new LinkedHashMap<>();
+        claims.put("iss", email);
+        claims.put("scope", "https://www.googleapis.com/auth/cloud-platform");
+        claims.put("aud", audience);
+        claims.put("iat", now);
+        claims.put("exp", now + 3600);
+        String body = b64.encodeToString(JsonLite.write(claims).getBytes(StandardCharsets.UTF_8));
+        try {
+            byte[] der = Base64.getMimeDecoder().decode(pem.replaceAll("-----(BEGIN|END) PRIVATE KEY-----", "").replace("\\n", "\n"));
+            java.security.PrivateKey pk = java.security.KeyFactory.getInstance("RSA").generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(der));
+            java.security.Signature sig = java.security.Signature.getInstance("SHA256withRSA");
+            sig.initSign(pk);
+            sig.update((header + "." + body).getBytes(StandardCharsets.UTF_8));
+            return header + "." + body + "." + b64.encodeToString(sig.sign());
+        } catch (Exception e) {
+            throw new ActionException(P + ".BAD_KEY", "The service-account private key cannot be used: " + e.getMessage(), "Use the JSON key file Google created for the service account.");
+        }
+    }
+
+    // ---------- image generation ----------
+
+    /**
+     * Pictures from a text description: OpenAI and OpenAI-compatible (images API), Azure OpenAI, Vertex AI (Imagen)
+     * and Amazon Bedrock (Titan Image Generator, Nova Canvas, Stability models). Returns the pictures' bytes.
+     */
+    @SuppressWarnings("unchecked")
+    static List<byte[]> generateImages(ActionContext ctx, Config cfg, String prompt, int n, int width, int height) {
+        String provider = cfg.provider() == null ? "openai" : cfg.provider();
+        Map<String, String> mapping = new LinkedHashMap<>();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        String text = cfg.maskPii() ? mask(prompt, mapping, counts) : prompt;
+        long t0 = System.currentTimeMillis();
+        List<String> b64 = new ArrayList<>();
+        Base64.Decoder dec = Base64.getDecoder();
+        int timeout = cfg.opts().timeout();
+        switch (provider) {
+            case "openai", "openai_compatible", "azure_openai" -> {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("prompt", text);
+                body.put("n", n);
+                body.put("size", width + "x" + height);
+                HttpJson.Req req;
+                if (provider.equals("azure_openai")) {
+                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)");
+                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    req = HttpJson.req(P, "POST", cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/images/generations?api-version=2024-10-21").header("api-key", k.reveal());
+                } else {
+                    body.put("model", cfg.model());
+                    if (String.valueOf(cfg.model()).startsWith("dall-e")) body.put("response_format", "b64_json");
+                    String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
+                    req = HttpJson.req(P, "POST", base + "/images/generations");
+                    if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
+                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                }
+                Map<String, Object> r = req.json(body).timeout(timeout).send(ctx).map();
+                for (Object o : (List<?>) r.getOrDefault("data", List.of())) {
+                    Map<String, Object> d = (Map<String, Object>) o;
+                    if (d.get("b64_json") instanceof String s) b64.add(s);
+                    else if (d.get("url") instanceof String u) b64.add(Base64.getEncoder().encodeToString(HttpJson.req(P, "GET", u).binaryResponse().timeout(timeout).send(ctx).bytes()));
+                }
+            }
+            case "google_vertex" -> {
+                Map<String, Object> params = new LinkedHashMap<>();
+                params.put("sampleCount", n);
+                params.put("aspectRatio", aspect(width, height));
+                Map<String, Object> r = HttpJson.req(P, "POST", vertexBase(cfg) + "/publishers/google/models/" + HttpJson.enc(cfg.model()) + ":predict")
+                        .header("Authorization", "Bearer " + vertexToken(ctx, cfg)).json(Map.of("instances", List.of(Map.of("prompt", text)), "parameters", params)).timeout(timeout).send(ctx).map();
+                for (Object o : (List<?>) r.getOrDefault("predictions", List.of()))
+                    if (o instanceof Map<?, ?> p && p.get("bytesBase64Encoded") instanceof String s) b64.add(s);
+            }
+            case "aws_bedrock" -> {
+                Map<String, Object> body = new LinkedHashMap<>();
+                if (String.valueOf(cfg.model()).startsWith("stability.")) { body.put("prompt", text); body.put("aspect_ratio", aspect(width, height)); body.put("output_format", "png"); }
+                else {
+                    body.put("taskType", "TEXT_IMAGE");
+                    body.put("textToImageParams", Map.of("text", text));
+                    body.put("imageGenerationConfig", Map.of("numberOfImages", n, "width", width, "height", height));
+                }
+                Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/invoke", body).map();
+                for (Object o : (List<?>) r.getOrDefault("images", List.of())) if (o instanceof String s) b64.add(s);
+            }
+            default -> throw new ActionException(P + ".NOT_SUPPORTED", "Picture generation is not available for " + provider,
+                    "Use openai, azure_openai, openai_compatible, google_vertex or aws_bedrock.");
+        }
+        if (b64.isEmpty()) throw new ActionException(P + ".NO_IMAGE", "The model returned no picture", "The provider may have refused the description; change it and retry.");
+        List<byte[]> out = new ArrayList<>();
+        for (String s : b64) out.add(dec.decode(s));
+        govern(ctx, cfg, provider, "generate_image", new Reply(null, List.of(), 0, 0, counts), System.currentTimeMillis() - t0, List.of(Map.of("role", "user", "content", text)));
+        return out;
+    }
+
+    static String aspect(int w, int h) {
+        double r = (double) w / h;
+        String[] names = {"1:1", "3:4", "4:3", "9:16", "16:9"};
+        double[] vals = {1, 0.75, 4.0 / 3, 9.0 / 16, 16.0 / 9};
+        int best = 0;
+        for (int i = 1; i < vals.length; i++) if (Math.abs(vals[i] - r) < Math.abs(vals[best] - r)) best = i;
+        return names[best];
+    }
 
 }

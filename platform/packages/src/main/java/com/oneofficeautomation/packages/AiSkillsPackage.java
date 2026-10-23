@@ -11,14 +11,29 @@ import java.util.stream.Stream;
  * AI Skills: reusable, reviewed prompt templates stored as JSON in the workspace's ai-skills folder, e.g.
  * ai-skills/summarise_complaint.json = {"description": "...", "system": "...", "prompt": "Summarise: ${text}",
  * "provider": "openai", "model": "gpt-4o-mini", "output": "text" | "json", "temperature": 0}. Providers: openai, azure_openai, anthropic,
- * openai_compatible, huggingface, aws_bedrock_sagemaker (add "region"). Keys never go in skill files.
+ * openai_compatible, huggingface, aws_bedrock_sagemaker or aws_bedrock (add "region"), google_vertex. Keys never go in skill files.
  */
 @OoaPackage(id = "ooa.ai_skills", name = "Prompt Skills", version = "1.0.0", description = "Run saved, reusable prompt templates (Prompt Skills) with your values.")
 public final class AiSkillsPackage {
 
+    /** Skills sent by Command Center with the run ({name: definition}); empty when running from Studio. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> central(ActionContext ctx) {
+        try {
+            java.util.function.Supplier<Object> svc = ctx.service("prompt_skills", java.util.function.Supplier.class);
+            if (svc != null && svc.get() instanceof Map<?, ?> m) return (Map<String, Object>) m;
+        } catch (RuntimeException ignored) { /* no service */ }
+        return Map.of();
+    }
+
     @SuppressWarnings("unchecked")
     static Map<String, Object> load(ActionContext ctx, String name) {
         if (!name.matches("^[A-Za-z0-9_-]{1,80}$")) throw new ActionException("AI.BAD_SKILL", "Invalid skill name '" + name + "'", "Use letters, digits, - and _.");
+        Map<String, Object> central = central(ctx);
+        if (central.get(name) instanceof Map<?, ?> m) {
+            if (!(m.get("prompt") instanceof String)) throw new ActionException("AI.BAD_SKILL", "Skill '" + name + "' needs at least a \"prompt\" text", null);
+            return (Map<String, Object>) m;
+        }
         Path p = LlmClient.skillsDir(ctx).resolve(name + ".json");
         if (!Files.isRegularFile(p)) throw new ActionException("AI.SKILL_NOT_FOUND", "Prompt Skill '" + name + "' not found", "Create ai-skills/" + name + ".json in the workspace.");
         try {
@@ -87,14 +102,20 @@ public final class AiSkillsPackage {
         return run(ctx, name, values, connection, key, model, base, awsKeyId, awsRegion, null, null, true, 0);
     }
 
-    @Action(id = "list", name = "List Prompt Skills", category = "Prompt Skills", idempotent = true, description = "List the Prompt Skills saved in the workspace with their descriptions.")
+    @Action(id = "list", name = "List Prompt Skills", category = "Prompt Skills", idempotent = true, description = "List the Prompt Skills this run can use (from Command Center and the workspace) with their descriptions.")
     @Output(name = "skills", type = OoaType.TABLE, description = "Columns: name, description, model, output.")
     public Map<String, Object> list(ActionContext ctx) {
         List<Object> rows = new ArrayList<>();
+        Map<String, Object> central = central(ctx);
+        for (String n : new TreeSet<>(central.keySet())) {
+            Map<?, ?> d = central.get(n) instanceof Map<?, ?> m ? m : Map.of();
+            rows.add(new ArrayList<>(Arrays.asList(n, d.get("description"), d.get("model"), d.get("output") == null ? "text" : d.get("output"))));
+        }
         Path dir = LlmClient.skillsDir(ctx);
         if (Files.isDirectory(dir)) try (Stream<Path> st = Files.list(dir)) {
             for (Path p : st.filter(f -> f.toString().endsWith(".json")).sorted().toList()) {
                 String n = p.getFileName().toString().replaceFirst("\\.json$", "");
+                if (central.containsKey(n)) continue;
                 try { Map<String, Object> s = load(ctx, n); rows.add(new ArrayList<>(Arrays.asList(n, s.get("description"), s.get("model"), s.getOrDefault("output", "text")))); }
                 catch (ActionException e) { rows.add(new ArrayList<>(Arrays.asList(n, "INVALID: " + e.getMessage(), null, null))); }
             }

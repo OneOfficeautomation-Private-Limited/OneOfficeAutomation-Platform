@@ -28,6 +28,7 @@
           "additionalProperties": {"type": "string"}
         },
         "runtime": {"type": "string", "description": "Runner version range."},
+        "files": {"type": "array", "items": {"type": "string"}, "description": "Files of the Command Center repository the agent uses (for example Templates/invoice.xlsx); they are placed at the same path in the runner's workspace before the run."},
         "capabilities": {
           "type": "array",
           "description": "Device capabilities needed. ApiTask flows must not require 'desktop'.",

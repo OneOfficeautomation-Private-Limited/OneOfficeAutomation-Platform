@@ -284,12 +284,16 @@ public final class BrowserPackage {
         session = BrowserWindows.use(ctx, session, window, timeout);
         String value = text instanceof SecureString ss ? ss.reveal() : Values.text(text);
         if (tab(ctx, session) != null) {
+            // the connector cannot tell field types: password-only values stay with Playwright sessions
+            SecureString.checkPasswordField(text, false, what(object, sel));
             onElement(ctx, tab(ctx, session), object, sel, "set_text", value, timeout, Map.of());
             if (enter) onElement(ctx, tab(ctx, session), object, sel, "press_key", "Enter", timeout, Map.of());
             return Map.of();
         }
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
+            if (text instanceof SecureString ss && ss.passwordOnly())
+                SecureString.checkPasswordField(text, "password".equals(l.evaluate("e => (e.getAttribute('type') || '').toLowerCase()")), what(object, sel));
             l.fill(value, new Locator.FillOptions().setTimeout(timeout));
             if (enter) l.press("Enter");
         } catch (PlaywrightException e) { throw pw(e, "Typing into " + what(object, sel)); }

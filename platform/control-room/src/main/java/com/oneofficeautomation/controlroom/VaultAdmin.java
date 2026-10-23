@@ -1,5 +1,6 @@
 package com.oneofficeautomation.controlroom;
 
+import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.io.IOException;
@@ -37,6 +38,71 @@ public final class VaultAdmin {
         return m != null && csv(m.get("user_attributes")).contains(attribute);
     }
 
+    /**
+     * Per attribute: description, masked (the value is never shown, the default) and password_only (agents may type it
+     * into password fields only).
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Map<String, Object>> attributesInfo(String locker, String name) {
+        Map<String, Object> m = db.one("SELECT attributes_info FROM credential_meta WHERE locker = ? AND name = ?", locker, name);
+        if (m == null || m.get("attributes_info") == null) return new LinkedHashMap<>();
+        Object v = JsonLite.parse((String) m.get("attributes_info"));
+        Map<String, Map<String, Object>> out = new LinkedHashMap<>();
+        if (v instanceof Map<?, ?> all) all.forEach((k, x) -> { if (x instanceof Map<?, ?> xm) out.put(String.valueOf(k), new LinkedHashMap<>((Map<String, Object>) xm)); });
+        return out;
+    }
+
+    boolean passwordOnly(String ref) {
+        String[] p = ref == null ? new String[0] : ref.split("/");
+        if (p.length != 3) return false;
+        Map<String, Object> a = attributesInfo(p[0], p[1]).get(p[2]);
+        return a != null && Boolean.TRUE.equals(a.get("password_only"));
+    }
+
+    /**
+     * Credential requests: user-provided attributes of vault folders the caller may use that they have not filled in
+     * yet. Agents that run as them need these values.
+     */
+    public List<Map<String, Object>> requests(User by) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> l : db.query("SELECT * FROM lockers ORDER BY name")) {
+            if (l.get("external") != null || cr.lockerRole(by, l) == null) continue;
+            String locker = (String) l.get("name");
+            for (Map<String, Object> m : db.query("SELECT name, description, user_attributes, owner FROM credential_meta WHERE locker = ? ORDER BY name", locker)) {
+                List<String> ua = csv(m.get("user_attributes"));
+                if (ua.isEmpty()) continue;
+                Set<String> mine = new HashSet<>();
+                for (Map<String, Object> v : db.query("SELECT attribute FROM credential_user_values WHERE locker = ? AND name = ? AND username = ?", locker, m.get("name"), by.username()))
+                    mine.add((String) v.get("attribute"));
+                Map<String, Map<String, Object>> info = attributesInfo(locker, (String) m.get("name"));
+                for (String a : ua) {
+                    if (mine.contains(a)) continue;
+                    Map<String, Object> r = new LinkedHashMap<>();
+                    r.put("locker", locker); r.put("name", m.get("name")); r.put("attribute", a);
+                    r.put("credential_description", m.get("description"));
+                    r.put("description", info.getOrDefault(a, Map.of()).get("description"));
+                    r.put("password_only", Boolean.TRUE.equals(info.getOrDefault(a, Map.of()).get("password_only")));
+                    r.put("owner", m.get("owner"));
+                    out.add(r);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** A shared value whose attribute is not masked, for the people who may change the credential. */
+    public Map<String, Object> unmaskedValue(User by, String locker, String name, String attribute, String ip) {
+        Map<String, Object> l = locker(locker);
+        if (!cr.canChangeCredential(by, l, name)) throw denied("see this credential's values");
+        Map<String, Object> a = attributesInfo(locker, name).get(attribute);
+        if (a == null || !Boolean.FALSE.equals(a.get("masked"))) throw new OoaException("CR.FORBIDDEN", "This value is masked: it is never shown", "Clear Masked on the attribute if it is not a secret (for example a user name).");
+        if (l.get("external") != null) throw new OoaException("CR.BAD_INPUT", "Values of an external vault are not shown here");
+        Map<String, Object> c = db.one("SELECT ciphertext FROM credentials WHERE locker = ? AND name = ? AND attribute = ?", locker, name, attribute);
+        if (c == null) throw notFound("Value of " + attribute);
+        cr.audit.record(by.username(), "credential.view", "credential", locker + "/" + name + "/" + attribute, null, "ok", ip);
+        return Map.of("value", cr.vault.decrypt((String) c.get("ciphertext"), locker + "/" + name + "/" + attribute));
+    }
+
     /** Credentials of a folder with owner, description, user-provided attributes and which of them the caller has a value for. */
     List<Map<String, Object>> credentialInfo(User by, String locker) {
         Map<String, Map<String, Object>> out = new LinkedHashMap<>();
@@ -67,7 +133,15 @@ public final class VaultAdmin {
         List<String> userAttrs = meta == null ? List.of() : csv(meta.get("user_attributes"));
         List<Object> list = new ArrayList<>();
         for (Map<String, Object> a : attrs) { Map<String, Object> m = new LinkedHashMap<>(a); m.put("user_provided", userAttrs.contains(a.get("attribute"))); list.add(m); }
-        for (String ua : userAttrs) if (attrs.stream().noneMatch(a -> ua.equals(a.get("attribute")))) list.add(Map.of("attribute", ua, "user_provided", true));
+        for (String ua : userAttrs) if (attrs.stream().noneMatch(a -> ua.equals(a.get("attribute")))) list.add(new LinkedHashMap<>(Map.of("attribute", ua, "user_provided", true)));
+        Map<String, Map<String, Object>> info = attributesInfo(locker, name);
+        for (Object o : list) {
+            @SuppressWarnings("unchecked") Map<String, Object> m = (Map<String, Object>) o;
+            Map<String, Object> i = info.getOrDefault((String) m.get("attribute"), Map.of());
+            m.put("description", i.get("description"));
+            m.put("masked", !Boolean.FALSE.equals(i.get("masked")));
+            m.put("password_only", Boolean.TRUE.equals(i.get("password_only")));
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("locker", locker); out.put("name", name);
         out.put("owner", meta == null ? null : meta.get("owner"));
@@ -103,6 +177,23 @@ public final class VaultAdmin {
             // values of attributes that are no longer user-provided are removed
             for (Map<String, Object> v : db.query("SELECT DISTINCT attribute FROM credential_user_values WHERE locker = ? AND name = ?", locker, name))
                 if (!ua.contains((String) v.get("attribute"))) db.update("DELETE FROM credential_user_values WHERE locker = ? AND name = ? AND attribute = ?", locker, name, v.get("attribute"));
+        }
+        if (b.get("attributes_info") instanceof Map<?, ?> ai) {
+            Map<String, Object> clean = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : ai.entrySet()) {
+                String a = String.valueOf(e.getKey());
+                if (!NAME.matcher(a).matches()) throw new OoaException("CR.BAD_INPUT", "Attribute names use letters, digits, . _ -");
+                if (!(e.getValue() instanceof Map<?, ?> v)) continue;
+                Map<String, Object> x = new LinkedHashMap<>();
+                if (v.get("description") instanceof String d && !d.isBlank()) {
+                    if (d.length() > 300) throw new OoaException("CR.BAD_INPUT", "An attribute description is at most 300 characters");
+                    x.put("description", d.strip());
+                }
+                x.put("masked", !Boolean.FALSE.equals(v.get("masked")));
+                x.put("password_only", Boolean.TRUE.equals(v.get("password_only")));
+                clean.put(a, x);
+            }
+            db.update("UPDATE credential_meta SET attributes_info = ? WHERE locker = ? AND name = ?", JsonLite.write(clean), locker, name);
         }
         if (b.get("owner") instanceof String o && !o.equals(meta.get("owner"))) {
             String role = cr.lockerRole(by, l);

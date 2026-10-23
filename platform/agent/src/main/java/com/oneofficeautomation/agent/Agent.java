@@ -65,7 +65,16 @@ public final class Agent {
         }, new LocalTriggers.SystemProbe(), LocalTriggers.systemHotkeys(), this::log);
     }
 
-    void log(String msg) { System.err.println(LocalDateTime.now().withNano(0) + "  " + msg); }
+    /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */
+    volatile String logLevel = "info";
+    static final List<String> LEVELS = List.of("error", "warning", "info", "debug");
+
+    void log(String msg) { log("info", msg); }
+
+    void log(String level, String msg) {
+        if (LEVELS.indexOf(level) > LEVELS.indexOf(logLevel)) return;
+        System.err.println(LocalDateTime.now().withNano(0) + "  " + (level.equals("info") ? "" : level.toUpperCase(Locale.ROOT) + "  ") + msg);
+    }
 
     // ---------------- main loop ----------------
     public void run() {
@@ -80,7 +89,7 @@ public final class Agent {
                     Map<String, Object> r = client.post("jobs/next", Map.of());
                     if (r.get("job") instanceof Map<?, ?> job) { @SuppressWarnings("unchecked") Map<String, Object> j = (Map<String, Object>) job; execute(j); continue; }
                 }
-            } catch (OoaException e) { log("Command Center: " + e.getMessage()); }
+            } catch (OoaException e) { log("warning", "Command Center: " + e.getMessage()); }
             try { Thread.sleep(pollMs); } catch (InterruptedException e) { break; }
         }
         hb.shutdownNow();
@@ -101,8 +110,9 @@ public final class Agent {
                 else if (((List<Object>) r.getOrDefault("resume", List.of())).contains(w.runId)) w.send(Map.of("type", "resume"));
             }
             localTriggers.update(r.get("local_triggers") instanceof List<?> l ? (List<Object>) l : (List<Object>) r.getOrDefault("file_triggers", List.of()));
-        } catch (OoaException e) { log("Heartbeat failed: " + e.getMessage()); }
-        catch (RuntimeException e) { log("Heartbeat error: " + e); }
+            if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by Command Center"); }
+        } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
+        catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }
 
     // ---------------- running one job ----------------
@@ -119,7 +129,7 @@ public final class Agent {
             if (cancelled) return;
             cancelled = true;
             send(Map.of("type", "cancel"));
-            io.submit(() -> { try { if (!proc.waitFor(15, TimeUnit.SECONDS)) { log("Run " + runId + " did not stop in time; ending its worker"); proc.descendants().forEach(ProcessHandle::destroyForcibly); proc.destroyForcibly(); } } catch (InterruptedException ignored) { } });
+            io.submit(() -> { try { if (!proc.waitFor(15, TimeUnit.SECONDS)) { log("warning", "Run " + runId + " did not stop in time; ending its worker"); proc.descendants().forEach(ProcessHandle::destroyForcibly); proc.destroyForcibly(); } } catch (InterruptedException ignored) { } });
         }
     }
 
@@ -173,7 +183,7 @@ public final class Agent {
         for (int attempt = 1; ; attempt++) {
             try { client.post("runs/" + runId + "/finish", Map.of("result", result)); return; }
             catch (OoaException e) {
-                if (!"AGENT.UNREACHABLE".equals(e.code()) || attempt >= 6) { log("Could not report the result of " + runId + ": " + e.getMessage()); return; }
+                if (!"AGENT.UNREACHABLE".equals(e.code()) || attempt >= 6) { log("error", "Could not report the result of " + runId + ": " + e.getMessage()); return; }
                 try { Thread.sleep(Math.min(30_000L, 1000L << (attempt - 1))); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
             }
         }
@@ -191,7 +201,7 @@ public final class Agent {
                     case "credential" -> io.submit(() -> {
                         try {
                             Map<String, Object> r = client.post("credential", Map.of("run_id", w.runId, "ref", msg.get("ref")));
-                            w.send(Map.of("type", "credential", "id", msg.get("id"), "value", r.get("value")));
+                            w.send(Map.of("type", "credential", "id", msg.get("id"), "value", r.get("value"), "password_only", Boolean.TRUE.equals(r.get("password_only"))));
                         } catch (OoaException e) {
                             w.send(Map.of("type", "credential", "id", msg.get("id"), "error", Map.of("code", e.code(), "message", e.getMessage())));
                         }

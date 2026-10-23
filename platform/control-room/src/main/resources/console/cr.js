@@ -144,12 +144,13 @@ const PAGES = [
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
+  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"]];
 
 /** The menu: Home, then three groups. Pages not listed here (admin) are reachable from inside other pages only. */
 const NAV_GROUPS = [
-  ["build", "Build", ["automation", "studio", "workflows", "queues", "apitasks"]],
+  ["build", "Build", ["automation", "studio", "workflows", "queues", "apitasks", "skills"]],
   ["run", "Run & Monitor", ["activity", "operations", "inbox", "schedules", "triggers", "devices"]],
   ["govern", "Govern", ["users", "teams", "roles", "credentials", "globals", "toolkits", "connections", "governance", "audit", "settings"]],
 ];
@@ -424,7 +425,21 @@ const VIEWS = {
             can("runs.start") && b.production_version && /\.process\.json$/.test(b.path) ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog(b.path) }, "Start") : null,
             b.locked_by && (b.locked_by === S.user.username || can("repo.production")) ? h("button", { type: "button", onclick: async () => {
               try { await api("POST", "repo/undo-checkout", { path: b.path }); toast("Agent check-out undone"); go("automation"); } catch (err) { toast(err.message, true); } } }, "Undo check-out") : null,
-            can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null) }]}));
+            can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null) }]}),
+      await repoFilesCard());
+  },
+
+  async skills(main) {
+    const r = await api("GET", "skills");
+    main.replaceChildren(...header("Prompt Skills", "Reviewed prompt templates agents run with the Prompt Skills toolkit. Private until shared; every save is a new version.",
+      can("skills.manage") ? h("button", { type: "button", onclick: () => skillTemplatesDialog() }, "From a template") : null,
+      can("skills.manage") ? h("button", { type: "button", class: "primary", onclick: () => skillDialog() }, "New skill") : null),
+      dataTable({ rows: r.skills, search: "Search skills", exportName: "prompt-skills", onRow: (s) => skillDialog(s.name), empty: "No Prompt Skills yet. Start from a template.",
+        columns: [
+          { label: "Skill", value: (s) => s.name, render: (s) => h("div", {}, h("strong", { text: s.name }), s.template ? h("span", { class: "tag", text: "Template" }) : null, h("div", { class: "muted small", text: s.description || "" })) },
+          { label: "Shared", value: (s) => s.shared ? "Shared" : "Private (" + s.owner + ")", render: (s) => s.shared ? h("span", { class: "pill success", text: "Shared" }) : h("span", { class: "pill", text: "Private to " + s.owner }) },
+          { label: "Version", value: (s) => s.version, render: (s) => "v" + s.version },
+          { label: "Updated", value: (s) => s.updated, render: (s) => h("span", { title: local(s.updated) }, ago(s.updated) + " by " + (s.updated_by || "")) }]}));
   },
 
   async activity(main) {
@@ -529,6 +544,7 @@ const VIEWS = {
       } catch (e) { toast(e.message, true); }
     } }, "Register a runner")] : [];
     const online = r.devices.filter((d) => d.status === "online").length;
+    if (can("devices.manage") && r.devices.length) actions.unshift(h("button", { type: "button", onclick: () => runnerSettingsDialog(r.devices) }, "Update runners"));
     main.replaceChildren(...header("Runners", "Machines running the One Runner. A runner is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
       tabStrip([["runners", "Runners"], ["pools", "Runner pools"]], "runners", (t) => { S.devTab = t; go("devices"); }),
       dataTable({ rows: r.devices, search: "Search runners", exportName: "devices", onRow: openDevice, empty: "No runners yet. Register one, or start ooa server on this computer.",
@@ -537,6 +553,9 @@ const VIEWS = {
           { label: "Status", value: (d) => d.status, render: (d) => pill(d.status) },
           { label: "Running", value: (d) => d.running, render: (d) => d.running ? h("span", { class: "pill running", text: d.running + " agent" }) : "\u2014" },
           { label: "Agent", value: (d) => d.agent_version || "" },
+          { label: "Type", value: (d) => d.device_type === "single_user" ? "Single-user" : "Multi-user" },
+          { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
+          { label: "Log level", value: (d) => d.log_level || "info" },
           { label: "Last seen", value: (d) => d.last_seen || "", render: (d) => h("span", { title: local(d.last_seen) }, ago(d.last_seen)) },
           { label: "Registered", value: (d) => d.registered, render: (d) => ago(d.registered) + " by " + (d.registered_by || "") },
           { label: "", sort: false, render: (d) => can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : "" }]}));
@@ -725,7 +744,8 @@ const VIEWS = {
         dataTable({ rows: r.connections, search: "Search connections", exportName: "model-connections", empty: "No model connections yet.",
           columns: [
             { label: "Name", value: (c) => c.name, render: (c) => h("div", {}, h("strong", { text: c.name }), h("div", { class: "muted small", text: c.description || "" })) },
-            { label: "Provider", value: (c) => c.provider }, { label: "Model", value: (c) => c.model || "" },
+            { label: "Provider", value: (c) => c.provider }, { label: "Model", value: (c) => c.model || "", render: (c) => h("span", {}, c.model || "", c.model_type === "fine_tuned" ? h("span", { class: "tag", text: "Fine-tuned" }) : null) },
+            { label: "Roles", value: (c) => (c.allowed_roles || []).join(", "), render: (c) => (c.allowed_roles || []).length ? h("div", { class: "chips" }, c.allowed_roles.map((x) => h("span", { class: "chip", text: roleLabel(x) }))) : h("span", { class: "muted", text: "every role" }) },
             { label: "Endpoint", value: (c) => c.base_url || "", render: (c) => h("span", { class: "mono small", text: c.base_url || "provider default" }) },
             { label: "Key", value: (c) => c.key_ref || "", render: (c) => c.key_ref ? h("span", {}, ic("lock", "#dc2626", "sm"), h("code", { text: c.key_ref })) : h("span", { class: "muted", text: "none" }) },
             { label: "Updated", value: (c) => c.updated || "", render: (c) => ago(c.updated) + " by " + (c.updated_by || "") },
@@ -814,7 +834,7 @@ const VIEWS = {
   },
 
   async credentials(main) {
-    const r = await api("GET", "lockers");
+    const [r, req] = await Promise.all([api("GET", "lockers"), api("GET", "vault/requests").catch(() => ({ requests: [] }))]);
     const q = h("input", { type: "search", placeholder: "Search vault folders and credentials", "aria-label": "Search vault folders" });
     const box = h("div", { class: "locker-grid" });
     const render = () => {
@@ -854,6 +874,7 @@ const VIEWS = {
     };
     q.addEventListener("input", render);
     main.replaceChildren(...header("One Agent Vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
+      h("button", { type: "button", onclick: credentialRequestsDialog }, "Credential requests", req.requests.length ? h("span", { class: "count", text: String(req.requests.length) }) : null),
       can("lockers.manage") ? h("button", { type: "button", onclick: vaultKeyDialog }, ic("key", "#475569", "sm"), "Vault key") : null,
       can("lockers.manage") || can("lockers.own") ? h("button", { type: "button", class: "primary", onclick: lockerDialog }, "New vault folder") : null), h("div", { class: "toolbar" }, q), box);
     render();
@@ -861,14 +882,18 @@ const VIEWS = {
 
   async globals(main) {
     const r = await api("GET", "globals");
-    main.replaceChildren(...header("Shared values", "Shared values every agent can read as $global.name.", can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => globalDialog() }, "New shared value") : null),
+    main.replaceChildren(...header("Shared values", "Shared values every agent can read as $global.name. Where people may change a value, their runs use their own value.", can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => globalDialog() }, "New shared value") : null),
       dataTable({ rows: r.globals, search: "Search shared values", exportName: "global-values", empty: "No shared values yet.",
         columns: [
           { label: "Name", value: (g) => "$global." + g.name, render: (g) => h("code", { text: "$global." + g.name }) },
           { label: "Value", value: (g) => JSON.stringify(g.value), render: (g) => h("code", { class: "val", text: JSON.stringify(g.value) }) },
+          { label: "People may change", value: (g) => g.changeable ? "Yes" : "No", render: (g) => g.changeable ? h("span", { class: "pill success", text: "Yes" }) : "No" },
+          { label: "Your value", value: (g) => g.my_value === undefined ? "" : JSON.stringify(g.my_value), render: (g) => !g.changeable ? "\u2014" : g.my_value === undefined ? h("span", { class: "muted", text: "(uses the shared one)" }) : h("code", { class: "val", text: JSON.stringify(g.my_value) }) },
           { label: "Updated", value: (g) => g.updated, render: (g) => h("span", { title: local(g.updated) }, ago(g.updated) + " by " + g.updated_by) },
-          { label: "", sort: false, render: (g) => can("globals.manage") ? h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => globalDialog(g) }, "Edit"),
-            h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete " + g.name + "?")) { await api("DELETE", "globals/" + g.name); go("globals"); } } }, "Delete")) : "" }]}));
+          { label: "", sort: false, render: (g) => h("div", { class: "row-actions tight" },
+            g.changeable ? h("button", { type: "button", onclick: () => myGlobalDialog(g) }, "My value") : null,
+            can("globals.manage") ? h("button", { type: "button", onclick: () => globalDialog(g) }, "Edit") : null,
+            can("globals.manage") ? h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete " + g.name + "? Everyone's own values of it go too.")) { await api("DELETE", "globals/" + g.name); go("globals"); } } }, "Delete") : null) }]}));
   },
 
   async users(main) {
@@ -883,8 +908,10 @@ const VIEWS = {
     main.replaceChildren(...header("Users", "People who can sign in, their roles, and the runner their runs go to as run-as users.", h("button", { type: "button", class: "primary", onclick: userDialog }, "New user")),
       dataTable({ rows: r.users, search: "Search users", exportName: "users", onRow: can("audit.view") ? openUser : null,
         columns: [
-          { label: "User", value: (u) => (u.display_name || "") + " " + u.username, render: (u) => h("div", { class: "name-cell" }, h("span", { class: "avatar sm", text: (u.display_name || u.username).charAt(0).toUpperCase() }), h("div", {}, h("strong", { text: u.display_name || u.username }), h("div", { class: "muted small", text: u.username }))) },
+          { label: "User", value: (u) => (u.display_name || "") + " " + u.username + " " + (u.first_name || "") + " " + (u.last_name || ""), render: (u) => h("div", { class: "name-cell" }, h("span", { class: "avatar sm", text: (u.display_name || u.username).charAt(0).toUpperCase() }), h("div", {}, h("strong", { text: u.display_name || u.username }),
+            h("div", { class: "muted small", text: u.username + ([u.first_name, u.last_name].filter(Boolean).length ? " \u00B7 " + [u.first_name, u.last_name].filter(Boolean).join(" ") : "") + (u.description ? " \u00B7 " + u.description : "") }))) },
           { label: "Role", value: (u) => u.role, render: roleSel },
+          { label: "Further roles", value: (u) => (u.roles || []).slice(1).join(", "), render: (u) => (u.roles || []).length > 1 ? h("div", { class: "chips" }, u.roles.slice(1).map((x) => h("span", { class: "chip", text: roleLabel(x) }))) : "\u2014" },
           { label: "Status", value: status, render: (u) => pill(u.enabled ? (u.must_change ? "pending" : "active") : "disabled") },
           { label: "Default runner", value: (u) => (runAs[u.username] || {}).device_name || "", render: (u) => {
             const sel = h("select", { "aria-label": "Default runner of " + u.username, onchange: async (e) => {
@@ -893,6 +920,7 @@ const VIEWS = {
             sel.value = (runAs[u.username] || {}).device_id || ""; return sel; } },
           { label: "Last sign-in", value: (u) => u.last_login || "", render: (u) => u.last_login ? h("span", { title: local(u.last_login) }, ago(u.last_login)) : "never" },
           { label: "", sort: false, render: (u) => h("div", { class: "row-actions tight" },
+            h("button", { type: "button", onclick: () => userEditDialog(u) }, "Edit"),
             h("button", { type: "button", onclick: async () => { try { await api("PATCH", "users/" + u.id, { enabled: !u.enabled }); go("users"); } catch (e) { toast(e.message, true); } } }, u.enabled ? "Disable" : "Enable"),
             h("button", { type: "button", onclick: async () => { if (!confirm("Reset the password of " + u.username + "?")) return; const p = await api("POST", "users/" + u.id + "/reset-password");
               modal("Temporary password", [secretBox(u.username, p.temporary_password, "Give it to the user securely. They must change it at first sign-in. Shown only once.")], []); } }, "Reset password"),
@@ -1134,6 +1162,8 @@ async function openBot(b) {
     h("button", { type: "button", onclick: () => versionsDialog(b) }, "Versions"),
     can("analytics.view") && isAgent(b.path) ? h("button", { type: "button", onclick: () => agentStatsDialog(b.path) }, "Statistics") : null,
     isAgent(b.path) ? h("button", { type: "button", onclick: () => analysisDialog(b.path) }, "Code analysis") : null,
+    can("repo.checkin") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", onclick: () => moveBotDialog(b) }, "Move") : null,
+    can("repo.checkin") ? h("button", { type: "button", onclick: () => copyBotDialog(b) }, "Copy") : null,
     can("repo.delete") && ["edit", "manage"].includes(b.access) ? h("button", { type: "button", class: "danger", onclick: () => deleteBotAsk(b) }, "Delete") : null]);
   try {
     const deps = await api("GET", "repo/dependencies?path=" + encodeURIComponent(b.path)).catch(() => null);
@@ -1175,6 +1205,7 @@ async function openDevice(d) {
     const [active, hist] = can("runs.view") ? await Promise.all([api("GET", "runs?filter=active&device=" + encodeURIComponent(d.id)), api("GET", "runs?filter=history&limit=15&device=" + encodeURIComponent(d.id))]) : [{ runs: [] }, { runs: [] }];
     body.replaceChildren(
       kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", d.agent_version], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
+        ["Type", d.device_type === "single_user" ? "Single-user" : "Multi-user"], ["Default runner of", (d.default_users || []).join(", ") || "nobody"], ["Log level", d.log_level || "info"],
         ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
       h("h3", { text: "Now" }), active.runs.length ? runTable(active.runs, (r) => openRun(r.id)) : h("p", { class: "muted", text: "Idle." }),
       h("h3", { text: "History" }), runTable(hist.runs, (r) => openRun(r.id)));
@@ -1186,7 +1217,8 @@ async function openUser(u) {
   openDrawer([h("span", { class: "avatar sm", text: (u.display_name || u.username).charAt(0).toUpperCase() }), h("span", { text: u.display_name || u.username })], body, []);
   try {
     const a = await api("GET", "audit?limit=30&actor=" + encodeURIComponent(u.username));
-    body.replaceChildren(kv([["User name", u.username], ["Role", roleLabel(u.role)], ["Status", u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled"], ["Last sign-in", local(u.last_login) || "never"]]),
+    body.replaceChildren(kv([["User name", u.username], ["Name", [u.first_name, u.last_name].filter(Boolean).join(" ")], ["Description", u.description], ["Role", roleLabel(u.role)],
+      ["Further roles", (u.roles || []).slice(1).map(roleLabel).join(", ")], ["Status", u.enabled ? (u.must_change ? "Must change password" : "Active") : "Disabled"], ["Last sign-in", local(u.last_login) || "never"]]),
       h("h3", { text: "Recent activity" }), table(["Time", "Action", "Object", "Result"], a.records.filter((x) => x.actor === u.username).map((x) => ({ data: x, cells: [local(x.ts), x.action, (x.object_type || "") + " " + (x.object_id || ""), x.result] }))));
   } catch (e) { body.replaceChildren(h("p", { class: "error", text: e.message })); }
 }
@@ -1506,15 +1538,27 @@ async function credentialDetails(l, name) {
       h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "vault/my-value", { locker: l.name, name, attribute: a, value: v.value }); v.value = ""; toast("Your " + a + " is saved"); credentialDetails(l, name); } catch (e) { toast(e.message, true); } } }, "Save mine"),
       c.my_values.includes(a) ? h("button", { type: "button", onclick: async () => { try { await api("DELETE", "vault/my-value?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(name) + "&attribute=" + encodeURIComponent(a)); credentialDetails(l, name); } catch (e) { toast(e.message, true); } } }, "Clear mine") : null));
   });
+  const flags = {};
+  const attrRows = c.attributes.map((a) => {
+    const f = flags[a.attribute] = { d: h("input", { value: a.description || "", disabled: !c.can_change, placeholder: "what it is for", "aria-label": "Description of " + a.attribute }),
+      m: h("input", { type: "checkbox", checked: a.masked !== false, disabled: !c.can_change, "aria-label": "Masked" }),
+      p: h("input", { type: "checkbox", checked: !!a.password_only, disabled: !c.can_change, "aria-label": "Password fields only" }) };
+    const shown = h("span");
+    return { data: a, cells: [h("code", { text: ref + "/" + a.attribute }), a.user_provided ? "each person's own" + (c.my_values.includes(a.attribute) ? " (yours is set)" : " (yours is not set)") : "shared, encrypted",
+      f.d, h("label", { class: "check" }, f.m, "Masked"), h("label", { class: "check" }, f.p, "Password fields only"),
+      h("div", {}, a.updated ? ago(a.updated) + " by " + a.updated_by : "", !a.user_provided && a.masked === false && c.can_change ? h("button", { type: "button", onclick: async () => {
+        try { const v = await api("GET", "vault/value?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(name) + "&attribute=" + encodeURIComponent(a.attribute)); shown.replaceChildren(h("code", { text: v.value })); } catch (e) { toast(e.message, true); } } }, "Show") : null, shown)] };
+  });
   modal("Credential " + ref, [
-    table(["Attribute", "Value", "Updated"], c.attributes.map((a) => ({ data: a, cells: [h("code", { text: ref + "/" + a.attribute }), a.user_provided ? "each person's own" + (c.my_values.includes(a.attribute) ? " (yours is set)" : " (yours is not set)") : "shared, encrypted",
-      a.updated ? ago(a.updated) + " by " + a.updated_by : ""] }))),
+    table(["Attribute", "Value", "Description", "", "", "Updated"], attrRows),
+    h("p", { class: "muted small", text: "Masked values are never shown (the default). Clear it for values that are not secret, such as a user name, so owners and managers can look them up. Password fields only: agents may type the value into password fields only." }),
     h("div", { class: "grid2" }, h("label", {}, "Description", desc), h("label", {}, "Owner", owner), h("label", {}, "User-provided attributes (each person stores their own)", ua)),
     userAttrs.length ? h("h3", { text: "Your values" }) : null, ...mine,
     h("p", { class: "muted", text: "A run reads a user-provided attribute from the person it runs as (the run-as user, or whoever started it)." })].filter(Boolean),
   c.can_change || ["owner", "manager"].includes(l.my_role) ? [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
-      const body = { description: desc.value, user_attributes: ua.value.split(",").map((x) => x.trim()).filter(Boolean) };
+      const body = { description: desc.value, user_attributes: ua.value.split(",").map((x) => x.trim()).filter(Boolean),
+        attributes_info: Object.fromEntries(Object.entries(flags).map(([k, f]) => [k, { description: f.d.value, masked: f.m.checked, password_only: f.p.checked }])) };
       if (owner.value.trim() && owner.value.trim() !== c.owner) body.owner = owner.value.trim();
       await api("PUT", "vault/credential?locker=" + encodeURIComponent(l.name) + "&name=" + encodeURIComponent(name), body); closeModal(); go("credentials");
     } catch (e) { toast(e.message, true); } } }, "Save details")] : []);
@@ -1644,10 +1688,64 @@ function consumersDialog(l) {
 
 function globalDialog(g) {
   const name = h("input", { value: g ? g.name : "", placeholder: "reports_folder" }), val = h("textarea", { value: g ? JSON.stringify(g.value) : "", placeholder: '"D:/Reports"  or  1000  or  {"a": 1}' });
+  const changeable = h("input", { type: "checkbox", checked: !!(g && g.changeable) });
   if (g) name.disabled = true;
-  modal(g ? "Edit " + g.name : "New shared value", [h("label", {}, "Name", name), h("label", {}, "Value (JSON)", val)],
+  modal(g ? "Edit " + g.name : "New shared value", [h("label", {}, "Name", name), h("label", {}, "Value (JSON)", val),
+    h("label", { class: "check" }, changeable, "People may set their own value (their runs use it instead)"),
+    h("p", { class: "muted", text: "Turning this off removes everyone's own values." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
-      try { await api("PUT", "globals/" + name.value, { value: parseJson(val.value, "") }); closeModal(); go("globals"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+      try { await api("PUT", "globals/" + name.value, { value: parseJson(val.value, ""), changeable: changeable.checked }); closeModal(); go("globals"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+function myGlobalDialog(g) {
+  const val = h("textarea", { value: g.my_value === undefined ? JSON.stringify(g.value) : JSON.stringify(g.my_value) });
+  modal("Your value of " + g.name, [h("p", { class: "muted", text: "Runs that run as you use this value instead of the shared one (" + JSON.stringify(g.value) + ")." }), h("label", {}, "Value (JSON)", val)],
+    [g.my_value !== undefined ? h("button", { type: "button", onclick: async () => { try { await api("DELETE", "globals/" + g.name + "/mine"); closeModal(); go("globals"); } catch (e) { toast(e.message, true); } } }, "Use the shared value") : null,
+    h("button", { type: "button", class: "primary", onclick: async () => {
+      try { await api("PUT", "globals/" + g.name + "/mine", { value: parseJson(val.value, "") }); closeModal(); toast("Your value of " + g.name + " is saved"); go("globals"); } catch (e) { toast(e.message, true); } } }, "Save mine")].filter(Boolean));
+}
+
+function userEditDialog(u) {
+  const first = h("input", { value: u.first_name || "" }), last = h("input", { value: u.last_name || "" }), disp = h("input", { value: u.display_name || "" });
+  const desc = h("input", { value: u.description || "", placeholder: "for example Accounts payable team lead" });
+  const extra = new Set((u.roles || []).slice(1));
+  const boxes = (S.roles || Object.keys(ROLE_LABELS)).filter((x) => x !== "admin" && x !== u.role).map((x) => {
+    const c = h("input", { type: "checkbox", checked: extra.has(x), onchange: (e) => { if (e.target.checked) extra.add(x); else extra.delete(x); } });
+    return h("label", { class: "check" }, c, roleLabel(x));
+  });
+  modal("Edit " + u.username, [h("div", { class: "grid2" }, h("label", {}, "First name", first), h("label", {}, "Last name", last), h("label", {}, "Display name", disp), h("label", {}, "Description", desc)),
+    h("h3", { text: "Further roles" }), h("p", { class: "muted", text: "Main role: " + roleLabel(u.role) + ". A person has every permission of each of their roles." }), h("div", { class: "pick-list" }, ...boxes)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api("PATCH", "users/" + u.id, { first_name: first.value, last_name: last.value, display_name: disp.value || u.username, description: desc.value, further_roles: Array.from(extra) });
+      closeModal(); toast("Saved " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+function runnerSettingsDialog(devices) {
+  const picked = new Set();
+  const level = h("select", {}, h("option", { value: "", text: "(keep)" }), ["error", "warning", "info", "debug"].map((x) => h("option", { value: x, text: x })));
+  const type = h("select", {}, h("option", { value: "", text: "(keep)" }), h("option", { value: "single_user", text: "Single-user" }), h("option", { value: "multi_user", text: "Multi-user" }));
+  modal("Update runners", [h("p", { class: "muted", text: "Choose runners, then the settings to change. Runners pick up a new log level with their next heartbeat." }),
+    h("div", { class: "pick-list" }, ...devices.map((d) => h("label", { class: "check" }, h("input", { type: "checkbox", onchange: (e) => { if (e.target.checked) picked.add(d.id); else picked.delete(d.id); } }),
+      d.name + " (" + (d.log_level || "info") + ", " + (d.device_type === "single_user" ? "single-user" : "multi-user") + ")"))),
+    h("div", { class: "grid2" }, h("label", {}, "Log level", level), h("label", {}, "Runner type", type)),
+    h("p", { class: "muted", text: "Single-user: the default runner of one person. Multi-user: the default runner of several people." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    const b = { ids: Array.from(picked) };
+    if (level.value) b.log_level = level.value;
+    if (type.value) b.device_type = type.value;
+    try { const r = await api("PATCH", "devices", b); closeModal(); toast("Updated " + r.updated + " runner(s)"); go("devices"); } catch (e) { toast(e.message, true); } } }, "Update checked runners")]);
+}
+
+/** User-provided vault values the signed-in person still has to fill in. */
+async function credentialRequestsDialog() {
+  const r = await api("GET", "vault/requests");
+  modal("Credential requests", [h("p", { class: "muted", text: "Agents that run as you read these values from the vault. Fill them in once; you can change them later in the credential's details." }),
+    r.requests.length ? table(["Credential", "Attribute", "", ""], r.requests.map((q) => {
+      const v = h("input", { type: "password", autocomplete: "new-password", placeholder: "your value", "aria-label": "Your " + q.attribute });
+      return { data: q, cells: [h("div", {}, h("code", { text: q.locker + "/" + q.name }), h("div", { class: "muted small", text: q.credential_description || "" })),
+        h("div", {}, h("strong", { text: q.attribute }), q.password_only ? h("span", { class: "tag", text: "Password fields only" }) : null, h("div", { class: "muted small", text: q.description || "" })), v,
+        h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "vault/my-value", { locker: q.locker, name: q.name, attribute: q.attribute, value: v.value }); v.value = ""; toast("Saved"); credentialRequestsDialog(); } catch (e) { toast(e.message, true); } } }, "Save")] };
+    })) : h("p", { text: "Nothing to fill in. \u2728" })], []);
 }
 
 function userDialog() {
@@ -2185,18 +2283,131 @@ function roleDialog(role, permissions) {
     catch (e) { toast(e.message, true); } } }, "Save role")]);
 }
 
+const PROVIDER_HELP = {
+  aws_bedrock: "Model id, for example anthropic.claude-sonnet-4-5 or amazon.nova-pro-v1:0. Endpoint: https://bedrock-runtime.REGION.amazonaws.com. Key: ACCESS_KEY_ID:SECRET in one credential.",
+  aws_bedrock_sagemaker: "Model: the SageMaker endpoint name. Endpoint: https://runtime.sagemaker.REGION.amazonaws.com. Key: ACCESS_KEY_ID:SECRET in one credential.",
+  google_vertex: "Model, for example gemini-2.5-flash. Endpoint: https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION. Key: a service-account JSON key or an access token.",
+  azure_openai: "Model: the deployment name. Endpoint: your resource, for example https://myresource.openai.azure.com.",
+  huggingface: "Model id on the Hugging Face router, or leave the endpoint set to your own TGI server.",
+};
+
 function connectionDialog(c) {
   const name = h("input", { value: c ? c.name : "", placeholder: "company-gpt", disabled: !!c });
-  const provider = h("select", {}, [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["openai_compatible", "OpenAI-compatible (local or hosted)"]].map(([v, l]) => h("option", { value: v, text: l })));
+  const provider = h("select", {}, [["openai", "OpenAI"], ["azure_openai", "Azure OpenAI"], ["anthropic", "Anthropic"], ["aws_bedrock", "Amazon Bedrock"], ["google_vertex", "Google Vertex AI"],
+    ["aws_bedrock_sagemaker", "Amazon SageMaker endpoint"], ["huggingface", "Hugging Face"], ["openai_compatible", "OpenAI-compatible (local or hosted)"]].map(([v, l]) => h("option", { value: v, text: l })));
+  const type = h("select", {}, h("option", { value: "standard", text: "Standard model" }), h("option", { value: "fine_tuned", text: "Fine-tuned model" }));
   const model = h("input", { value: c ? c.model || "" : "", placeholder: "model or deployment name" }), base = h("input", { value: c ? c.base_url || "" : "", placeholder: "https://... (optional)" });
   const key = h("input", { value: c ? c.key_ref || "" : "", placeholder: "vault folder/credential/attribute" }), desc = h("input", { value: c ? c.description || "" : "" });
-  if (c) provider.value = c.provider;
-  modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Endpoint", base)),
-    h("label", {}, "API key from the One Agent Vault", key), h("label", {}, "Description", desc),
-    h("p", { class: "muted", text: "Only the vault reference is stored here. Runners read the key from the vault while an agent runs, and only for agents whose owner may use that vault folder." })],
-  [h("button", { type: "button", class: "primary", onclick: async () => {
-    try { await api("PUT", "connections/" + encodeURIComponent(name.value.trim()), { provider: provider.value, model: model.value.trim() || null, base_url: base.value.trim() || null, key_ref: key.value.trim() || null, description: desc.value });
+  const roles = h("input", { value: c ? (c.allowed_roles || []).join(", ") : "", placeholder: "every role" });
+  const help = h("p", { class: "muted small" });
+  const result = h("div");
+  if (c) { provider.value = c.provider; type.value = c.model_type || "standard"; }
+  const showHelp = () => { help.textContent = PROVIDER_HELP[provider.value] || ""; };
+  provider.onchange = showHelp; showHelp();
+  const values = () => ({ provider: provider.value, model_type: type.value, model: model.value.trim() || null, base_url: base.value.trim() || null, key_ref: key.value.trim() || null, description: desc.value,
+    allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean) });
+  modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
+    help, h("label", {}, "Endpoint", base),
+    h("label", {}, "API key from the One Agent Vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
+    h("p", { class: "muted", text: "Only the vault reference is stored here. Runners read the key from the vault while an agent runs, and only for agents whose owner may use that vault folder. Runs of other roles do not receive the connection." }),
+    result],
+  [h("button", { type: "button", onclick: async () => {
+    result.replaceChildren(h("p", { class: "muted", text: "Testing..." }));
+    try { const r = await api("POST", "connections/test", Object.assign({ name: name.value.trim() }, values()));
+      result.replaceChildren(h("p", { class: r.ok ? "ok-text" : "error", text: r.ok ? "Connected in " + r.ms + " ms" + (r.answer ? ": " + r.answer : "") : r.message })); }
+    catch (e) { result.replaceChildren(h("p", { class: "error", text: e.message })); } } }, "Test connection"),
+  h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api("PUT", "connections/" + encodeURIComponent(name.value.trim()), values());
       closeModal(); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, "Save connection")]);
+}
+
+/** The files kept in the current folder of the repository (templates, workbooks, lists), with upload. */
+async function repoFilesCard() {
+  const r = await api("GET", "repo/files" + (S.repoFolder ? "?folder=" + encodeURIComponent(S.repoFolder) : "")).catch(() => ({ files: [] }));
+  const picker = h("input", { type: "file", hidden: true, onchange: async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const path = (S.repoFolder ? S.repoFolder + "/" : "") + f.name;
+    try {
+      const res = await fetch("/api/repo/files?path=" + encodeURIComponent(path), { method: "PUT", credentials: "same-origin", headers: { "X-OOA-Request": "1", "Content-Type": f.type || "application/octet-stream" }, body: f });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((d.error && d.error.message) || res.statusText);
+      toast("Uploaded " + path + " (version " + d.version + ")"); go("automation");
+    } catch (err) { toast(err.message, true); }
+  } });
+  const size = (n) => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : (n / 1048576).toFixed(1) + " MB";
+  return h("div", { class: "card" }, h("div", { class: "toolbar" }, h("h2", { text: "Files" + (S.repoFolder ? " in " + S.repoFolder : "") }), h("span", { class: "spacer" }),
+      can("repo.checkin") ? h("button", { type: "button", onclick: () => picker.click() }, "Upload file") : null, picker),
+    h("p", { class: "muted small", text: "Templates, workbooks and lists agents use. An agent lists the files it needs under requires.files; runners receive them at the same path before the run." }),
+    r.files.length ? table(["File", "Size", "Version", "Updated", ""], r.files.map((f) => ({ data: f, cells: [h("code", { text: f.path }), size(Number(f.size)), "v" + f.version, ago(f.updated) + " by " + (f.updated_by || ""),
+      h("div", { class: "row-actions tight" }, h("a", { class: "button-link", href: "/api/repo/files/content?path=" + encodeURIComponent(f.path) }, "Download"),
+        can("repo.delete") && ["edit", "manage"].includes(f.access) ? h("button", { type: "button", class: "danger", onclick: async () => {
+          if (!confirm("Delete " + f.path + "? Agents that need it will fail to start.")) return;
+          try { await api("DELETE", "repo/files?path=" + encodeURIComponent(f.path)); go("automation"); } catch (e) { toast(e.message, true); } } }, "Delete") : null)] })))
+      : h("p", { class: "muted", text: "No files here." }));
+}
+
+function moveBotDialog(b) {
+  const sel = h("select", {}, h("option", { value: "", text: "(root)" }), (S.folders || []).map((x) => h("option", { value: x.path, text: x.path })));
+  sel.value = b.folder || "";
+  modal("Move " + botName(b.path), [h("label", {}, "To folder", sel),
+    h("p", { class: "muted", text: "Versions, labels, schedules, triggers and run history move with it. A workflow that names it by path must be changed first." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const r = await api("POST", "repo/move", { path: b.path, folder: sel.value }); closeModal(); closeDrawer(); toast("Moved to " + r.path); go("automation"); } catch (e) { toast(e.message, true); } } }, "Move")]);
+}
+
+function copyBotDialog(b) {
+  const ext = b.path.slice(b.path.search(/\.(flow|process|form)\.json$/));
+  const to = h("input", { value: botName(b.path) + " (copy)" });
+  modal("Copy " + botName(b.path), [h("label", {}, "New name (with folder)", to),
+    h("p", { class: "muted", text: "The latest version is copied as version 1 of a new agent with its own id. Schedules and history are not copied." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const r = await api("POST", "repo/copy", { path: b.path, to: to.value.trim() + ext }); closeModal(); closeDrawer(); toast("Copied to " + botName(r.path || to.value)); go("automation"); } catch (e) { toast(e.message, true); } } }, "Copy")]);
+}
+
+async function skillDialog(name) {
+  const s = name ? await api("GET", "skills/" + encodeURIComponent(name)).catch((e) => { toast(e.message, true); return null; }) : null;
+  if (name && !s) return;
+  const d = s ? s.definition : { prompt: "", output: "text", temperature: 0.2, inputs: [] };
+  const mine = !s || s.owner === S.user.username || can("skills.all");
+  const nm = h("input", { value: s ? s.name : "", placeholder: "summarise_complaint", disabled: !!s });
+  const desc = h("input", { value: s ? s.description || "" : "" });
+  const conn = h("input", { value: d.connection || "", placeholder: "One Model Connection name (blank: the run's default)" });
+  const system = h("textarea", { rows: 3, text: d.system || "" });
+  const prompt = h("textarea", { rows: 6, text: d.prompt || "", placeholder: "Use ${name} for the values the agent passes in." });
+  const output = h("select", {}, h("option", { value: "text", text: "Text" }), h("option", { value: "json", text: "JSON" }));
+  output.value = d.output || "text";
+  const temp = h("input", { type: "number", step: "0.1", min: "0", max: "2", value: d.temperature === undefined ? "0.2" : String(d.temperature) });
+  const inputs = h("textarea", { rows: 3, text: (d.inputs || []).map((i) => i.name + (i.description ? " - " + i.description : "")).join("\n"), placeholder: "one per line: name - description" });
+  const shared = h("input", { type: "checkbox", checked: !!(s && s.shared) }), template = h("input", { type: "checkbox", checked: !!(s && s.template) });
+  const comment = h("input", { placeholder: "What changed (optional)" });
+  const found = () => Array.from(new Set((prompt.value.match(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g) || []).map((x) => x.slice(2, -1))));
+  modal(s ? s.name + " (v" + s.version + ")" : "New Prompt Skill", [h("div", { class: "grid2" }, h("label", {}, "Name", nm), h("label", {}, "Connection", conn)),
+    h("label", {}, "Description", desc), h("label", {}, "Instructions for the model (system)", system), h("label", {}, "Prompt", prompt),
+    h("div", { class: "grid2" }, h("label", {}, "Answer", output), h("label", {}, "Temperature", temp)),
+    h("label", {}, "Inputs", inputs),
+    h("label", { class: "check" }, shared, "Shared: every agent may use it"), can("skills.all") ? h("label", { class: "check" }, template, "Template: offered as a starting point") : null,
+    mine ? h("label", {}, "Comment", comment) : h("p", { class: "muted", text: "Owned by " + s.owner + ": read only." }),
+    s && s.versions && s.versions.length > 1 ? [h("h3", { text: "Versions" }), table(["Version", "By", "When", "Comment"], s.versions.map((v) => ({ data: v, cells: ["v" + v.version, v.updated_by || "", ago(v.updated), v.comment || ""] })))] : null],
+  [s && mine ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the skill " + s.name + " and its versions? Agents that run it will fail.")) return;
+    try { await api("DELETE", "skills/" + encodeURIComponent(s.name)); closeModal(); go("skills"); } catch (e) { toast(e.message, true); } } }, "Delete") : null,
+  mine && can("skills.manage") ? h("button", { type: "button", class: "primary", onclick: async () => {
+    const listed = inputs.value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const i = l.indexOf(" - "); return i > 0 ? { name: l.slice(0, i).trim(), description: l.slice(i + 3).trim() } : { name: l }; });
+    for (const n of found()) if (!listed.some((i) => i.name === n)) listed.push({ name: n });
+    const def = { prompt: prompt.value, output: output.value, temperature: Number(temp.value || 0), inputs: listed };
+    if (system.value.trim()) def.system = system.value;
+    if (conn.value.trim()) def.connection = conn.value.trim();
+    try { const r = await api("PUT", "skills/" + encodeURIComponent(nm.value.trim()), { description: desc.value, definition: def, shared: shared.checked, template: template.checked, comment: comment.value || null });
+      closeModal(); toast("Saved " + r.name + " v" + r.version); go("skills"); } catch (e) { toast(e.message, true); } } }, "Save") : null].filter(Boolean));
+}
+
+async function skillTemplatesDialog() {
+  const r = await api("GET", "skills/templates");
+  modal("Start from a template", [table(["Template", "What it does", ""], r.templates.map((t) => ({ data: t, cells: [h("strong", { text: t.name }), t.description || "",
+    h("button", { type: "button", class: "primary", onclick: async () => {
+      const n = prompt("Name of your new skill:", t.name.replace(/^template_/, ""));
+      if (!n) return;
+      try { const s = await api("POST", "skills/from-template", { template: t.name, name: n.trim() }); closeModal(); skillDialog(s.name); } catch (e) { toast(e.message, true); } } }, "Use")] })))], []);
 }
 
 async function apiKeysDialog() {
