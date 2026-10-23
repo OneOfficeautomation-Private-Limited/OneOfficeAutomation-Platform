@@ -136,6 +136,55 @@ final class Folders {
         cr.audit.record(by.username(), "repo.folder_delete", "folder", p, null, "ok", ip);
     }
 
+    /**
+     * Renames or moves a folder with everything in it: agents (every version, label and analysis report), the
+     * schedules, triggers, queues and API tasks that run them, their run history, sub-folders and folder permissions.
+     * Refused when an agent in it is checked out by someone else, or when a workflow names an agent or form in it by path
+     * (change the workflow first, so it never points at a missing path).
+     */
+    Map<String, Object> rename(User by, String from, String to, String ip) {
+        cr.require(by, "repo.checkin", "move folders");
+        String f = normalize(from), t = normalize(to);
+        if (f.equals(t)) return Map.of("path", t, "agents", 0);
+        if (t.startsWith(f + "/")) throw new OoaException("CR.BAD_INPUT", "A folder cannot move inside itself");
+        require(by, f + "/x", "manage", "move this folder");
+        require(by, t, "edit", "move folders here");
+        String likeF = like(f), likeT = like(t);
+        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", likeF) == 0 && db.one("SELECT path FROM repo_folders WHERE path = ?", f) == null) throw notFound("Folder " + f);
+        if (cr.count("SELECT COUNT(*) AS n FROM bots WHERE path LIKE ?", likeT) > 0 || db.one("SELECT path FROM repo_folders WHERE path = ?", t) != null)
+            throw new OoaException("CR.CONFLICT", "There is already a folder " + t, "Choose another name.");
+        for (Map<String, Object> b : db.query("SELECT path, locked_by FROM bots WHERE path LIKE ? AND locked_by IS NOT NULL", likeF))
+            if (!by.username().equals(b.get("locked_by"))) throw new OoaException("CR.LOCKED", b.get("path") + " is checked out by " + b.get("locked_by"), "Ask them to check it in first.");
+        List<String> refs = new ArrayList<>();
+        for (Map<String, Object> w : db.query("SELECT b.path, v.content FROM bots b JOIN bot_versions v ON v.path = b.path AND v.version = b.latest_version WHERE b.path LIKE ? AND b.deleted_at IS NULL", "%.process.json"))
+            if (!String.valueOf(w.get("path")).startsWith(f + "/") && String.valueOf(w.get("content")).contains("\"" + f + "/")) refs.add((String) w.get("path"));
+        if (!refs.isEmpty()) throw new OoaException("CR.IN_USE", "Workflows name agents or forms of this folder by path: " + String.join(", ", refs),
+                "Point those workflows at the new folder after moving, or move them along.", false, Map.of("used_by", refs));
+        int start = f.length() + 1;
+        int moved = db.tx(() -> {
+            int n = db.update("UPDATE bots SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
+            db.update("UPDATE bot_versions SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
+            db.update("UPDATE bot_labels SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
+            db.update("UPDATE code_analysis SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
+            db.update("UPDATE schedules SET bot_path = CONCAT(?, SUBSTRING(bot_path, ?)) WHERE bot_path LIKE ?", t, start, likeF);
+            db.update("UPDATE triggers SET bot_path = CONCAT(?, SUBSTRING(bot_path, ?)) WHERE bot_path LIKE ?", t, start, likeF);
+            db.update("UPDATE queues SET bot_path = CONCAT(?, SUBSTRING(bot_path, ?)) WHERE bot_path LIKE ?", t, start, likeF);
+            db.update("UPDATE api_tasks SET bot_path = CONCAT(?, SUBSTRING(bot_path, ?)) WHERE bot_path LIKE ?", t, start, likeF);
+            db.update("UPDATE runs SET bot_path = CONCAT(?, SUBSTRING(bot_path, ?)) WHERE bot_path LIKE ?", t, start, likeF);
+            db.update("UPDATE workflow_runs SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
+            db.update("UPDATE repo_folders SET path = CONCAT(?, SUBSTRING(path, ?)) WHERE path LIKE ?", t, start, likeF);
+            db.update("UPDATE repo_folders SET path = ? WHERE path = ?", t, f);
+            db.update("UPDATE folder_permissions SET folder = CONCAT(?, SUBSTRING(folder, ?)) WHERE folder LIKE ?", t, start, likeF);
+            db.update("UPDATE folder_permissions SET folder = ? WHERE folder = ?", t, f);
+            return n;
+        });
+        cr.audit.record(by.username(), "repo.folder_rename", "folder", f, Map.of("to", t, "agents", moved), "ok", ip);
+        return Map.of("path", t, "agents", moved);
+    }
+
+    /** LIKE pattern for everything below a folder, with % and _ in the name taken literally. */
+    static String like(String folder) { return folder.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "/%"; }
+
     List<Map<String, Object>> permissions(User by, String folder) {
         cr.require(by, "repo.view", "view the agent repository");
         String f = folder == null ? "" : folder.isEmpty() ? "" : normalize(folder);

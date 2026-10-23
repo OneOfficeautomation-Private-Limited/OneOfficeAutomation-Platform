@@ -527,3 +527,28 @@ Tests:
   - API tasks over HTTP: 200 with outputs from a simulated runner, 202 past the limit, wrong or foreign token, replaced token, switched off.
 - **Command Center in the browser:** API task created and listed with its address; an agent's code analysis report; schedule bulk buttons; the policy saved through its dialog.
 - **Intermittent `EnterpriseFeaturesTest` explained and fixed.** The runner sent a run's result once. When the connection was dropped (an IOException with no message), the result, with its AI calls, was lost, and in production the run would have stayed "running". `Agent.reportResult` now tries up to 6 times with backoff; repeating is harmless because the Command Center ignores a result for a run that is no longer running. The Command Center also records a run's AI calls before marking it finished. **Java suites:** 483 tests, 0 failed, 1 skipped.
+
+
+# Validation report: remaining platform items
+
+| Item | Built |
+| --- | --- |
+| Rename repository folders | `Folders.rename`: moves the agents with their versions, labels and reports. It also updates the schedules, triggers, queues, API tasks, run history, workflow runs, sub-folders and folder permissions that refer to them. Refused while someone else has an agent checked out, or while a workflow names a path inside the folder. |
+| Work items from Excel | `importXlsx` (Apache POI, already used by the Office toolkit). It reads a named or the first sheet; formulas are evaluated and dates come as ISO. Items are checked against the work item model. The console sends the workbook as Base64. |
+| Queue definition export and import | `exportQueue` (settings, model, members, optionally the waiting items; the pool by name) and `importQueue` (reuses a matching model, links the agent and pool when present, leaves out unknown members with a note, keeps the importer as owner). |
+| Toolkit version usage and bulk update | `toolkitVersions` (agents, required range, whether the installed version fits) and `updateToolkitRange` (a new version of each agent with the range, not made live, after checking that the installed version fits the range). |
+| Run log retention | Settings `run_log_retention_days` and `run_retention_days`, applied hourly by the server clock, plus `POST /api/runs/purge`. Queued and running runs are never removed. |
+| Variable profile | `GET /api/analytics/variables?path=`: per output, runs with a value, numeric range and average, most common values. |
+| Licence details | `GET /api/license`: the edition (self-hosted, no limits) and counts. Not a licensing system: there is nothing to enforce. |
+| Not built | Migration of bots from other products: their export formats are proprietary and not documented for others. Agents are moved between Command Centers with export and import instead. |
+
+Tests:
+
+- **PendingItemsTest** (4 tests):
+  - folder rename with every reference, plus conflicts, a refusing workflow and edit-only access;
+  - Excel import with a formatted date, a decimal and a priority, and a non-workbook and a missing sheet refused;
+  - queue definition round trip;
+  - toolkit range update (not live, unchanged on repeat, impossible range refused);
+  - retention by logs and runs, variable profile and licence.
+- **Command Center in the browser:** folder renamed from the page; retention and licence in Settings; toolkit Versions dialog.
+- **`EnterpriseFeaturesTest`, last cause:** its wait looked for `"status":"success"` anywhere in the run's details. A successful step's event matched before the run itself had finished, so the AI calls were not recorded yet. The test now waits for the run's own status, and it passed three more times on its own. **Java suites:** 487 tests, 0 failed, 1 skipped.

@@ -1180,6 +1180,7 @@ public final class ControlRoom {
 
     /** Fails running jobs whose device stopped reporting (2 minutes), and marks schedules due. Called by the server clock. */
     public void reap() {
+        try { platform.purgeIfDue(); } catch (RuntimeException ignored) { /* retention never stops the clock */ }
         Instant cutoff = now().minus(Duration.ofMinutes(2));
         for (Map<String, Object> r : db.query("SELECT r.id FROM runs r JOIN devices d ON d.id = r.device_id WHERE r.status = 'running' AND (d.last_seen IS NULL OR d.last_seen < ?)", cutoff)) {
             db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", now(),

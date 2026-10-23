@@ -42,6 +42,8 @@ public final class Platform {
         DEFAULTS.put("mcp_agents", "");
         DEFAULTS.put("mcp_runner", "");
         DEFAULTS.put("mcp_timeout_seconds", 120);
+        DEFAULTS.put("run_retention_days", 0);
+        DEFAULTS.put("run_log_retention_days", 0);
     }
 
     public Map<String, Object> settings() {
@@ -645,8 +647,51 @@ public final class Platform {
 
     /** Adds items from CSV text: the first row names the fields (reference and priority are kept apart), each other row is an item. */
     public Map<String, Object> importCsv(User by, String qid, String csv, String ip) {
-        List<List<String>> rows = Csv.parse(csv == null ? "" : csv);
-        if (rows.size() < 2) throw new OoaException("CR.BAD_INPUT", "The CSV needs a header row and at least one item");
+        return importRows(by, qid, Csv.parse(csv == null ? "" : csv), "CSV", ip);
+    }
+
+    /**
+     * Adds items from an Excel workbook (.xlsx, sent as Base64): a sheet by name (or the first one), its first row
+     * naming the fields like a CSV file. Cells are read as shown in Excel (dates as yyyy-mm-dd), then checked against
+     * the queue's work item model.
+     */
+    public Map<String, Object> importXlsx(User by, String qid, String base64, String sheet, String ip) {
+        byte[] bytes;
+        try { bytes = Base64.getDecoder().decode(base64 == null ? "" : base64.replaceFirst("^data:[^,]*,", "")); }
+        catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_INPUT", "The workbook is not valid Base64"); }
+        List<List<String>> rows = new ArrayList<>();
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook(new java.io.ByteArrayInputStream(bytes))) {
+            org.apache.poi.ss.usermodel.Sheet sh = sheet == null || sheet.isBlank() ? wb.getSheetAt(0) : wb.getSheet(sheet);
+            if (sh == null) throw new OoaException("CR.BAD_INPUT", "The workbook has no sheet '" + sheet + "'");
+            org.apache.poi.ss.usermodel.DataFormatter fmt = new org.apache.poi.ss.usermodel.DataFormatter();
+            org.apache.poi.ss.usermodel.FormulaEvaluator ev = wb.getCreationHelper().createFormulaEvaluator();
+            int width = 0;
+            for (org.apache.poi.ss.usermodel.Row r : sh) {
+                if (rows.size() > 10_001) break;
+                List<String> cells = new ArrayList<>();
+                int last = Math.max(r.getLastCellNum(), rows.isEmpty() ? 0 : width);
+                for (int c = 0; c < last; c++) {
+                    org.apache.poi.ss.usermodel.Cell cell = r.getCell(c);
+                    if (cell == null) { cells.add(""); continue; }
+                    org.apache.poi.ss.usermodel.CellType type = cell.getCellType() == org.apache.poi.ss.usermodel.CellType.FORMULA ? ev.evaluateFormulaCell(cell) : cell.getCellType();
+                    if (type == org.apache.poi.ss.usermodel.CellType.NUMERIC && org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell))
+                        cells.add(cell.getLocalDateTimeCellValue().toLocalDate().toString());
+                    else if (type == org.apache.poi.ss.usermodel.CellType.NUMERIC) {
+                        double d = cell.getNumericCellValue();
+                        cells.add(d == Math.rint(d) && Math.abs(d) < 1e15 ? String.valueOf((long) d) : java.math.BigDecimal.valueOf(d).toPlainString());
+                    } else cells.add(fmt.formatCellValue(cell, ev));
+                }
+                if (rows.isEmpty()) width = cells.size();
+                rows.add(cells);
+            }
+        } catch (java.io.IOException | org.apache.poi.EmptyFileException | org.apache.poi.openxml4j.exceptions.NotOfficeXmlFileException e) {
+            throw new OoaException("CR.BAD_INPUT", "This is not an Excel workbook (.xlsx): " + e.getMessage());
+        }
+        return importRows(by, qid, rows, "workbook", ip);
+    }
+
+    Map<String, Object> importRows(User by, String qid, List<List<String>> rows, String what, String ip) {
+        if (rows.size() < 2) throw new OoaException("CR.BAD_INPUT", "The " + what + " needs a header row and at least one item");
         List<String> head = rows.get(0).stream().map(String::trim).toList();
         List<Object> items = new ArrayList<>();
         for (int r = 1; r < rows.size(); r++) {
@@ -696,6 +741,205 @@ public final class Platform {
             sb.append(Csv.row(cells));
         }
         return sb.toString();
+    }
+
+    /**
+     * A queue's definition as a file: its settings, work item model and members, and optionally its waiting items
+     * (new, retry and deferred, which become new). The runner pool is named, not linked, since pools differ between
+     * Command Centers.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> exportQueue(User by, String qid, boolean withItems) {
+        Map<String, Object> q = queue(by, qid);
+        Map<String, Object> def = new LinkedHashMap<>();
+        def.put("format", "ooa.queue"); def.put("format_version", 1); def.put("exported_at", now().toString()); def.put("exported_by", by.username());
+        Map<String, Object> settings = new LinkedHashMap<>();
+        for (String k : List.of("name", "description", "bot_path", "sla_minutes", "max_attempts")) settings.put(k, q.get(k));
+        Map<String, Object> pool = q.get("pool_id") == null ? null : db.one("SELECT name FROM device_pools WHERE id = ?", q.get("pool_id"));
+        settings.put("pool_name", pool == null ? null : pool.get("name"));
+        def.put("queue", settings);
+        if (q.get("model_id") != null) {
+            Map<String, Object> m = db.one("SELECT name, description, fields FROM work_item_models WHERE id = ?", q.get("model_id"));
+            def.put("model", Map.of("name", m.get("name"), "description", m.get("description") == null ? "" : m.get("description"), "fields", JsonLite.parse((String) m.get("fields"))));
+        }
+        List<Object> members = new ArrayList<>();
+        for (Object o : (List<Object>) q.get("members")) { Map<String, Object> mm = (Map<String, Object>) o; members.add(Map.of("principal", mm.get("principal"), "role", mm.get("member_role"))); }
+        def.put("members", members);
+        if (withItems) {
+            List<Object> items = new ArrayList<>();
+            for (Map<String, Object> i : db.query("SELECT reference, priority, data FROM queue_items WHERE queue_id = ? AND status IN ('new', 'retry', 'deferred') ORDER BY created LIMIT 10000", qid)) {
+                Map<String, Object> it = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) i.get("data")));
+                if (i.get("reference") != null) it.put("_reference", i.get("reference"));
+                if (i.get("priority") instanceof Number n && n.intValue() != 0) it.put("_priority", n.intValue());
+                items.add(it);
+            }
+            def.put("items", items);
+        }
+        cr.audit.record(by.username(), "queue.export", "queue", qid, Map.of("items", withItems), "ok", null);
+        return def;
+    }
+
+    /**
+     * Makes a queue from an exported definition (optionally under another name). Its work item model is reused when one
+     * with the same name and fields exists, else made. The agent and runner pool are linked when they exist here; members
+     * whose users, roles or teams do not exist here are left out and reported.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> importQueue(User by, Map<String, Object> def, String newName, String ip) {
+        cr.require(by, "queues.manage", "manage work queues");
+        if (def == null || !"ooa.queue".equals(def.get("format")) || !(def.get("queue") instanceof Map<?, ?> qm)) throw new OoaException("CR.BAD_INPUT", "This is not a queue definition");
+        Map<String, Object> q = new LinkedHashMap<>((Map<String, Object>) qm);
+        String name = newName != null && !newName.isBlank() ? newName.trim() : String.valueOf(q.get("name"));
+        if (db.one("SELECT id FROM queues WHERE name = ?", name) != null) throw new OoaException("CR.CONFLICT", "There is already a queue called " + name, "Import it under another name.");
+        List<String> notes = new ArrayList<>();
+        String modelId = null;
+        if (def.get("model") instanceof Map<?, ?> mm) {
+            Map<String, Object> model = (Map<String, Object>) mm;
+            String fieldsJson = JsonLite.write(model.get("fields"));
+            Map<String, Object> same = db.one("SELECT id, fields FROM work_item_models WHERE name = ?", model.get("name"));
+            if (same != null && JsonLite.write(JsonLite.parse((String) same.get("fields"))).equals(fieldsJson)) modelId = (String) same.get("id");
+            else {
+                String mName = String.valueOf(model.get("name"));
+                for (int k = 2; db.one("SELECT id FROM work_item_models WHERE name = ?", mName) != null; k++) mName = model.get("name") + " (" + k + ")";
+                modelId = (String) saveWorkItemModel(by, null, Map.of("name", mName, "description", String.valueOf(model.getOrDefault("description", "")), "fields", model.get("fields")), ip).get("id");
+                if (!mName.equals(model.get("name"))) notes.add("The work item model was made as " + mName);
+            }
+        }
+        String bot = q.get("bot_path") instanceof String b && db.one("SELECT path FROM bots WHERE path = ? AND deleted_at IS NULL AND production_version IS NOT NULL", b) != null ? b : null;
+        if (q.get("bot_path") != null && bot == null) notes.add("The agent " + q.get("bot_path") + " is not here (or has no live version); choose one in the queue settings");
+        Map<String, Object> pool = q.get("pool_name") == null ? null : db.one("SELECT id FROM device_pools WHERE name = ?", q.get("pool_name"));
+        if (q.get("pool_name") != null && pool == null) notes.add("There is no runner pool called " + q.get("pool_name") + " here");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", name); body.put("description", q.get("description")); body.put("bot_path", bot); body.put("pool_id", pool == null ? null : pool.get("id"));
+        body.put("sla_minutes", q.get("sla_minutes")); body.put("max_attempts", q.get("max_attempts") instanceof Number n ? n : 1); body.put("model_id", modelId);
+        String qid = (String) saveQueue(by, null, body, ip).get("id");
+        List<Object> members = new ArrayList<>();
+        for (Object o : def.get("members") instanceof List<?> l ? l : List.of()) {
+            Map<String, Object> mm = (Map<String, Object>) o;
+            try { cr.teams.checkPrincipal(String.valueOf(mm.get("principal"))); members.add(mm); }
+            catch (OoaException e) { notes.add("Member " + mm.get("principal") + " is not here and was left out"); }
+        }
+        if (!members.isEmpty()) {
+            List<String> mine = cr.teams.principalsOf(by.username(), by.role());
+            boolean iOwn = members.stream().anyMatch(x -> "owner".equals(((Map<String, Object>) x).get("role")) && mine.contains(String.valueOf(((Map<String, Object>) x).get("principal"))));
+            if (!iOwn && !cr.allowed(by.role(), "queues.all")) { members.add(Map.of("principal", "user:" + by.username(), "role", "owner")); notes.add("You were added as an owner"); }
+            setQueueMembers(by, qid, members, ip);
+        }
+        int items = 0;
+        if (def.get("items") instanceof List<?> il && !il.isEmpty()) items = ((Number) addItems(by, qid, new ArrayList<>((List<Object>) il), ip).get("added")).intValue();
+        cr.audit.record(by.username(), "queue.import", "queue", qid, Map.of("name", name, "items", items), "ok", ip);
+        return Map.of("id", qid, "name", name, "items", items, "notes", notes);
+    }
+
+    // ----- toolkit versions -----
+
+    /** Which agents use a toolkit, at which required version range, and whether the installed version satisfies it. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> toolkitVersions(User by, String pid) {
+        cr.require(by, "repo.view", "view toolkits");
+        Map<String, Object> man = registry.allManifests().stream().filter(m -> pid.equals(m.get("id"))).findFirst().orElseThrow(() -> notFound("Toolkit " + pid));
+        String installed = String.valueOf(man.get("version"));
+        List<Object> agents = new ArrayList<>();
+        Map<String, Integer> byRange = new TreeMap<>();
+        for (Map<String, Object> b : cr.repoList(by, null)) {
+            String path = (String) b.get("path");
+            if (!path.endsWith(".flow.json")) continue;
+            Map<String, Object> flow = (Map<String, Object>) cr.content(path, "latest").get("flow");
+            Map<String, Object> req = flow.get("requires") instanceof Map<?, ?> r && r.get("packages") instanceof Map<?, ?> pk ? (Map<String, Object>) pk : Map.of();
+            boolean uses = com.oneofficeautomation.runner.Steps.walk((List<Object>) flow.getOrDefault("steps", List.of())).stream()
+                    .anyMatch(st -> String.valueOf(st.get("action")).startsWith(pid + "/"));
+            Object range = req.get(pid);
+            if (!uses && range == null) continue;
+            Map<String, Object> a = new LinkedHashMap<>();
+            a.put("path", path); a.put("version", b.get("latest_version")); a.put("required", range);
+            a.put("satisfied", range == null || com.oneofficeautomation.sdk.PackageRegistry.satisfies(installed, String.valueOf(range)));
+            agents.add(a);
+            byRange.merge(range == null ? "(any)" : String.valueOf(range), 1, Integer::sum);
+        }
+        return Map.of("toolkit", pid, "installed", installed, "agents", agents, "by_range", byRange);
+    }
+
+    /**
+     * Sets the version range of a toolkit that agents require (for example ^2.0.0 after an upgrade) by checking in a new
+     * version of each agent that uses it (latest version, not made live). Agents checked out by others or that fail
+     * validation are reported and left as they are.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateToolkitRange(User by, String pid, String range, List<Object> only, String ip) {
+        cr.require(by, "repo.checkin", "update agents");
+        Map<String, Object> v = toolkitVersions(by, pid);
+        if (range == null || range.isBlank()) throw new OoaException("CR.BAD_INPUT", "Give the version range, e.g. ^2.0.0");
+        if (!com.oneofficeautomation.sdk.PackageRegistry.satisfies(String.valueOf(v.get("installed")), range))
+            throw new OoaException("CR.BAD_INPUT", "The installed version " + v.get("installed") + " does not satisfy " + range, "Agents would not run; choose a range the installed version satisfies.");
+        Set<String> filter = only == null ? null : new HashSet<>(csv(only));
+        List<Object> results = new ArrayList<>();
+        for (Object o : (List<Object>) v.get("agents")) {
+            Map<String, Object> a = (Map<String, Object>) o;
+            String path = (String) a.get("path");
+            if (filter != null && !filter.contains(path)) continue;
+            Map<String, Object> r = new LinkedHashMap<>(Map.of("path", path));
+            if (range.equals(a.get("required"))) { r.put("status", "unchanged"); results.add(r); continue; }
+            try {
+                Map<String, Object> flow = new LinkedHashMap<>((Map<String, Object>) cr.content(path, "latest").get("flow"));
+                Map<String, Object> req = new LinkedHashMap<>(flow.get("requires") instanceof Map<?, ?> rq ? (Map<String, Object>) rq : Map.of());
+                Map<String, Object> pk = new LinkedHashMap<>(req.get("packages") instanceof Map<?, ?> p ? (Map<String, Object>) p : Map.of());
+                pk.put(pid, range); req.put("packages", pk); flow.put("requires", req);
+                Map<String, Object> s = cr.storeVersion(by, path, flow, "Toolkit " + pid + " required as " + range, false, false, ip);
+                r.put("status", "updated"); r.put("version", s.get("version"));
+            } catch (OoaException e) { r.put("status", "failed"); r.put("error", e.toMap()); }
+            results.add(r);
+        }
+        cr.audit.record(by.username(), "toolkit.update_agents", "toolkit", pid, Map.of("range", range, "agents", results.size()), "ok", ip);
+        return Map.of("toolkit", pid, "range", range, "results", results);
+    }
+
+    // ----- run history retention -----
+
+    private volatile Instant lastPurge = Instant.EPOCH;
+
+    /** Called by the server clock: applies the retention settings at most once an hour. */
+    void purgeIfDue() {
+        if (Duration.between(lastPurge, now()).toMinutes() < 60) return;
+        lastPurge = now();
+        int runDays = ((Number) setting("run_retention_days")).intValue(), logDays = ((Number) setting("run_log_retention_days")).intValue();
+        if (runDays > 0 || logDays > 0) purge(runDays, logDays, "system", null);
+    }
+
+    /**
+     * Removes the step logs of runs that finished more than logDays ago, and whole runs (with their logs) that finished
+     * more than runDays ago; 0 keeps them. Queued and running runs are never touched; work items keep their results.
+     */
+    public Map<String, Object> purge(int runDays, int logDays, String by, String ip) {
+        long events = 0, runs = 0;
+        if (logDays > 0) events += db.update("DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped'))", now().minus(Duration.ofDays(logDays)));
+        if (runDays > 0) {
+            Instant cut = now().minus(Duration.ofDays(runDays));
+            events += db.update("DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped'))", cut);
+            runs = db.update("DELETE FROM runs WHERE finished < ? AND status IN ('success', 'failed', 'stopped')", cut);
+        }
+        cr.audit.record(by, "runs.purge", "runs", null, Map.of("run_days", runDays, "log_days", logDays, "runs", runs, "log_lines", events), "ok", ip);
+        return Map.of("runs_removed", runs, "log_lines_removed", events);
+    }
+
+    public Map<String, Object> purgeNow(User by, Map<String, Object> b, String ip) {
+        cr.require(by, "settings.manage", "remove run history");
+        int runDays = b.get("run_days") instanceof Number n ? n.intValue() : 0, logDays = b.get("log_days") instanceof Number n2 ? n2.intValue() : 0;
+        if (runDays <= 0 && logDays <= 0) throw new OoaException("CR.BAD_INPUT", "Give run_days and/or log_days (more than 0)");
+        return purge(runDays, logDays, by.username(), ip);
+    }
+
+    /** What this Command Center is and holds. It is not licensed per seat: there are no limits on people, runners or agents. */
+    public Map<String, Object> license(User by) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("product", "ONEOFFICEAUTOMATION One Command Center");
+        m.put("edition", "Self-hosted");
+        m.put("limits", "none: no per-user, per-runner or per-agent limits");
+        m.put("users", cr.count("SELECT COUNT(*) AS n FROM users WHERE enabled = TRUE"));
+        m.put("runners", cr.count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE"));
+        m.put("agents", cr.count("SELECT COUNT(*) AS n FROM bots WHERE deleted_at IS NULL"));
+        m.put("toolkits", registry.allManifests().size());
+        m.put("toolkits_switched_off", cr.count("SELECT COUNT(*) AS n FROM toolkit_settings WHERE enabled = FALSE"));
+        return m;
     }
 
     /** Small RFC 4180 CSV reader and writer (quotes, doubled quotes, line breaks inside quotes). */

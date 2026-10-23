@@ -396,6 +396,10 @@ const VIEWS = {
     const inside = cur ? f.folders.filter((x) => x.path === cur.path || x.path.startsWith(cur.path + "/")).reduce((n, x) => n + x.agents, 0) : 0;
     const tools = [folderSel,
       S.repoFolder && can("repo.permissions") ? h("button", { type: "button", onclick: () => folderPermissionsDialog(S.repoFolder) }, ic("lock", "#dc2626", "sm"), "Folder permissions") : null,
+      S.repoFolder && can("repo.checkin") ? h("button", { type: "button", onclick: async () => {
+        const to = prompt("Rename or move the folder " + S.repoFolder + " (with everything in it) to:", S.repoFolder);
+        if (!to || to.trim() === S.repoFolder) return;
+        try { const r = await api("POST", "repo/folders/rename", { from: S.repoFolder, to: to.trim() }); toast("Moved " + r.agents + " agent(s) to " + r.path); S.repoFolder = r.path; go("automation"); } catch (e) { toast(e.message, true); } } }, "Rename folder") : null,
       S.repoFolder && can("repo.delete") && cur && inside === 0 ? h("button", { type: "button", class: "danger", onclick: async () => {
         if (!confirm("Delete the empty folder " + S.repoFolder + "?")) return;
         try { await api("DELETE", "repo/folders?path=" + encodeURIComponent(S.repoFolder)); S.repoFolder = ""; go("automation"); } catch (e) { toast(e.message, true); } } }, "Delete folder") : null].filter(Boolean);
@@ -564,6 +568,7 @@ const VIEWS = {
     try { S.models = (await api("GET", "queue-models")).models; } catch (_) { S.models = []; }
     main.replaceChildren(...header("Work queues", "Lists of work items (invoices, tickets, orders) that agents process one by one on a runner pool, with retries and service levels.",
       h("button", { type: "button", onclick: () => modelsDialog() }, "Work item models"),
+      can("queues.manage") ? h("button", { type: "button", onclick: () => importQueueDialog() }, "Import queue") : null,
       can("queues.manage") ? h("button", { type: "button", class: "primary", onclick: () => queueDialog() }, "New work queue") : null),
       dataTable({ rows: r.queues, search: "Search work queues", exportName: "work-queues", onRow: openQueue, empty: "No work queues yet. Create one, then add items by hand, from a CSV file or from an agent.",
         columns: [
@@ -668,6 +673,8 @@ const VIEWS = {
         ssoSecret = txt("sso_client_secret_ref", "sso/oidc/client_secret"), ssoRole = txt("sso_default_role", "viewer"), ssoLabel = txt("sso_label", "Sign in with your organisation account"),
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600);
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
+      const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
+      const lic = await api("GET", "license").catch(() => null);
       main.replaceChildren(...head, tabs, h("div", { class: "card form-card" },
         h("label", {}, "Announcement for all users (empty for none)", ann),
         h("div", { class: "grid2" }, h("label", {}, "Disable users inactive for (days, 0 = never)", inactive), h("label", {}, "Sign-in session length (hours)", session),
@@ -683,12 +690,22 @@ const VIEWS = {
         h("p", { class: "muted", text: "Assistants connect to " + location.origin + "/api/mcp with a user's API key and can run the agents listed here as tools, with that user's permissions." }),
         h("div", { class: "grid2" }, h("label", {}, "Agents offered as tools (paths, comma separated; * for all)", mcpAgents), h("label", {}, "Runner or runner pool id (empty = any online runner)", mcpRunner),
           h("label", {}, "Wait for a result (seconds)", mcpTimeout)),
+        h("h3", {}, ic("clock", "#475569", "sm"), "Run history"),
+        h("p", { class: "muted", text: "Old run history is removed once an hour: step logs after the first period, whole runs after the second (0 keeps them). Queued and running runs are never removed." }),
+        h("div", { class: "grid2" }, h("label", {}, "Keep step logs for (days, 0 = always)", keepLogs), h("label", {}, "Keep runs for (days, 0 = always)", keepRuns),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
+            const d = Number(keepRuns.value), l = Number(keepLogs.value);
+            if (!d && !l) { toast("Set a number of days first", true); return; }
+            if (!confirm("Remove run history older than these periods now?")) return;
+            try { const r = await api("POST", "runs/purge", { run_days: d, log_days: l }); toast("Removed " + r.runs_removed + " run(s) and " + r.log_lines_removed + " log line(s)"); } catch (e) { toast(e.message, true); } } }, "Remove now"))),
+        lic ? [h("h3", {}, ic("shield", "#475569", "sm"), "This Command Center"), kv([["Edition", lic.edition], ["Limits", lic.limits], ["Active users", String(lic.users)], ["Runners", String(lic.runners)],
+          ["Agents", String(lic.agents)], ["Toolkits", lic.toolkits + (lic.toolkits_switched_off ? " (" + lic.toolkits_switched_off + " switched off)" : "")]])] : null,
         h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
           try {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value) });
+              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value) });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
     } else if (tab === "roles") {
@@ -725,6 +742,7 @@ const VIEWS = {
               const u = await api("GET", "toolkits/" + encodeURIComponent(t.id) + "/used-by");
               modal("Agents using " + t.name, [table(["Agent"], u.agents.map((a) => ({ data: a, cells: [botName(a)] })))], []); } }, t.used_by + " agent" + (t.used_by === 1 ? "" : "s")) : h("span", { class: "muted", text: "none" }) },
             { label: "Status", value: (t) => t.enabled ? "On" : "Off", render: (t) => pill(t.enabled ? "enabled" : "disabled") },
+            { label: "Versions", sort: false, render: (t) => t.used_by ? h("button", { type: "button", onclick: () => toolkitVersionsDialog(t) }, "Versions") : "" },
             { label: "", sort: false, render: (t) => t.id === "core" ? "" : h("button", { type: "button", onclick: async () => {
               if (t.enabled && t.used_by && !confirm(t.used_by + " agents use " + t.name + ". They will stop running. Switch it off?")) return;
               try { await api("PATCH", "toolkits/" + encodeURIComponent(t.id), { enabled: !t.enabled }); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, t.enabled ? "Switch off" : "Switch on") }]}));
@@ -1605,13 +1623,16 @@ function teamMembersDialog(t) {
 
 /** One agent's statistics for the Operations period. */
 async function agentStatsDialog(path) {
-  let a;
+  let a, vp = null;
   try { a = await api("GET", "analytics/agent?path=" + encodeURIComponent(path) + "&days=" + ((S.ops && S.ops.days) || "30")); } catch (e) { toast(e.message, true); return; }
+  try { vp = await api("GET", "analytics/variables?path=" + encodeURIComponent(path) + "&days=" + ((S.ops && S.ops.days) || "30")); } catch (_) { vp = null; }
   const t = a.totals;
   modal("Statistics of " + botName(path), [kv([["Runs", String(t.runs)], ["Success rate", t.success_rate === null ? "\u2014" : t.success_rate + "%"], ["Average", dur(t.avg_ms)], ["95% within", dur(t.p95_ms)], ["Longest", dur(t.max_ms)],
     ["Last run", a.last_run ? local(a.last_run.created) + " (" + a.last_run.status + ")" : "none"], ["Last failure", a.last_failure ? local(a.last_failure.created) + " (" + a.last_failure.code + ")" : "none"]]),
     a.errors.length ? [h("h3", { text: "Errors" }), table(["Error", "Runs"], a.errors.map((e) => ({ data: e, cells: [h("code", { text: e.code }), String(e.runs)] })))] : null,
-    h("h3", { text: "Runners" }), table(["Runner", "Runs", "Success rate", "Average"], a.by_runner.map((r) => ({ data: r, cells: [String(r.runner), String(r.runs), r.success_rate === null ? "\u2014" : r.success_rate + "%", dur(r.avg_ms)] })))].flat().filter(Boolean), []);
+    h("h3", { text: "Runners" }), table(["Runner", "Runs", "Success rate", "Average"], a.by_runner.map((r) => ({ data: r, cells: [String(r.runner), String(r.runs), r.success_rate === null ? "\u2014" : r.success_rate + "%", dur(r.avg_ms)] }))),
+    vp && vp.variables.length ? [h("h3", { text: "Outputs (variable profile)" }), table(["Output", "Had a value", "Range", "Most common"], vp.variables.map((v) => ({ data: v, cells: [h("code", { text: v.variable }),
+      v.runs_with_value + " of " + v.runs, v.min !== undefined ? v.min + " \u2013 " + v.max + " (avg " + v.avg + ")" : "", (v.common || []).map((c) => c.value + " (" + c.runs + ")").join(", ")] })))] : null].flat().filter(Boolean), []);
 }
 
 function consumersDialog(l) {
@@ -1853,17 +1874,30 @@ function parseCsv(text) {
 
 function addItemsDialog(q, after) {
   const text = h("textarea", { rows: 8, placeholder: '[{"_reference": "INV-1001", "vendor": "Acme", "amount": 120.5}]' });
-  const file = h("input", { type: "file", accept: ".csv,.json,text/csv,application/json", "aria-label": "CSV or JSON file" });
+  const file = h("input", { type: "file", accept: ".csv,.json,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "aria-label": "CSV, JSON or Excel file" });
   const preview = h("p", { class: "muted" });
-  file.addEventListener("change", async () => { const f = file.files[0]; if (!f) return; text.value = await f.text(); preview.textContent = f.name + " loaded."; });
-  modal("Add work items to " + q.name, [h("p", { class: "muted", text: "Paste a JSON list of objects, or CSV with a header row. A reference column (or _reference) names the item; priority (or _priority) puts it first." }),
-    file, text, preview],
+  const sheet = h("input", { placeholder: "first sheet", "aria-label": "Sheet" });
+  const sheetBox = h("label", { hidden: true }, "Excel sheet (empty for the first)", sheet);
+  let workbook = null;
+  file.addEventListener("change", async () => {
+    const f = file.files[0]; if (!f) return;
+    workbook = null; sheetBox.hidden = true;
+    if (/\.xlsx$/i.test(f.name)) {
+      // the Command Center reads the workbook; it is sent as Base64
+      const buf = new Uint8Array(await f.arrayBuffer()); let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      workbook = btoa(bin); text.value = ""; sheetBox.hidden = false; preview.textContent = f.name + " loaded (Excel).";
+    } else { text.value = await f.text(); preview.textContent = f.name + " loaded."; }
+  });
+  modal("Add work items to " + q.name, [h("p", { class: "muted", text: "Paste a JSON list of objects or CSV with a header row, or choose a CSV, JSON or Excel file. A reference column (or _reference) names the item; priority (or _priority) puts it first." }),
+    file, sheetBox, text, preview],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
       const t = text.value.trim();
-      // CSV is read by the Command Center, which converts each cell to its field's type in the work item model
-      const r = t.startsWith("[") || t.startsWith("{") ? await api("POST", "queues/" + q.id + "/items", { items: [].concat(parseJson(t, [])) })
-        : await api("POST", "queues/" + q.id + "/items/csv", { csv: t });
+      // CSV and Excel are read by the Command Center, which converts each cell to its field's type in the work item model
+      const r = workbook ? await api("POST", "queues/" + q.id + "/items/xlsx", { file: workbook, sheet: sheet.value.trim() || null })
+        : t.startsWith("[") || t.startsWith("{") ? await api("POST", "queues/" + q.id + "/items", { items: [].concat(parseJson(t, [])) })
+          : await api("POST", "queues/" + q.id + "/items/csv", { csv: t });
       closeModal(); toast("Added " + r.added + " items"); if (after) after();
     } catch (e) { toast(e.message, true); } } }, "Add items")]);
 }
@@ -1903,6 +1937,10 @@ async function openQueue(q) {
       h("span", { class: "spacer" }), h("button", { type: "button", onclick: () => exportItems(q, st.status) }, ic("download", "#475569", "sm"), "Export CSV")), list], [
     can("queues.work") ? h("button", { type: "button", class: "primary", onclick: () => addItemsDialog(q, load) }, "Add items") : null,
     can("queues.manage") ? h("button", { type: "button", onclick: () => membersDialog(q) }, "Members") : null,
+    h("button", { type: "button", onclick: async () => {
+      const items = confirm("Include the waiting items (new, retry, deferred)? OK = with items, Cancel = settings only.");
+      try { const d = await api("GET", "queues/" + q.id + "/export" + (items ? "?items=true" : "")); download(q.name.replace(/[^A-Za-z0-9_.-]+/g, "_") + ".ooaqueue.json", JSON.stringify(d, null, 2), "application/json"); }
+      catch (e) { toast(e.message, true); } } }, "Export definition"),
     can("queues.work") ? h("button", { type: "button", onclick: async () => { try { await api("POST", "queues/" + q.id + (q.processing ? "/stop" : "/start")); q.processing = !q.processing; closeDrawer(); go("queues"); } catch (e) { toast(e.message, true); } } }, q.processing ? "Stop processing" : "Start processing") : null,
     can("queues.manage") ? h("button", { type: "button", onclick: () => queueDialog(q) }, "Edit") : null,
     can("queues.manage") ? h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete work queue " + q.name + " and its items?")) { try { await api("DELETE", "queues/" + q.id); closeDrawer(); go("queues"); } catch (e) { toast(e.message, true); } } } }, "Delete") : null]);
@@ -2009,6 +2047,39 @@ function importDialog() {
 }
 
 // ---------- work queues: models, members, items ----------
+/** Which agents use a toolkit at which required version range, and setting a new range on them (new versions, not made live). */
+async function toolkitVersionsDialog(t) {
+  let v;
+  try { v = await api("GET", "toolkits/" + encodeURIComponent(t.id) + "/versions"); } catch (e) { toast(e.message, true); return; }
+  const range = h("input", { value: "^" + String(v.installed).split(".")[0] + ".0.0", "aria-label": "Version range" });
+  const out = h("div");
+  modal(t.name + " " + v.installed + ": agents", [
+    table(["Agent", "Latest", "Requires", "Installed version fits"], v.agents.map((a) => ({ data: a, cells: [botName(a.path), "v" + a.version, a.required || "(any version)", a.satisfied ? pill("success") : pill("failed")] }))),
+    can("repo.checkin") ? h("div", { class: "grid2" }, h("label", {}, "Require this version range in every agent that uses it", range)) : null,
+    h("p", { class: "muted", text: "Each agent gets a new version with the range (its live version stays until you choose the new one). Agents checked out by others are left as they are." }), out].filter(Boolean),
+  can("repo.checkin") ? [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const r = await api("POST", "toolkits/" + encodeURIComponent(t.id) + "/update-agents", { range: range.value.trim() });
+      out.replaceChildren(table(["Agent", "Result"], r.results.map((x) => ({ data: x, cells: [botName(x.path), x.status + (x.version ? " (v" + x.version + ")" : "") + (x.error ? ": " + x.error.message : "")] }))));
+      toast("Updated " + r.results.filter((x) => x.status === "updated").length + " agent(s)");
+    } catch (e) { toast(e.message, true); } } }, "Update agents")] : []);
+}
+
+function importQueueDialog() {
+  const file = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Queue definition file" });
+  const name = h("input", { placeholder: "(the name in the file)" });
+  const out = h("div");
+  modal("Import a work queue", [h("p", { class: "muted", text: "A queue definition exported from a Command Center: settings, work item model, members and, when exported with them, waiting items. The agent and runner pool are linked when they exist here." }),
+    file, h("label", {}, "Name here", name), out],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const f = file.files[0]; if (!f) throw new Error("Choose a definition file");
+      const r = await api("POST", "queues/import", { definition: JSON.parse(await f.text()), name: name.value.trim() || null });
+      out.replaceChildren(h("p", { class: "ok-text", text: "Made " + r.name + " with " + r.items + " item(s)." }), ...(r.notes || []).map((n) => h("p", { class: "muted", text: n })));
+      toast("Imported " + r.name); go("queues");
+    } catch (e) { toast(e.message, true); } } }, "Import")]);
+}
+
 async function modelsDialog() {
   try { S.models = (await api("GET", "queue-models")).models; } catch (e) { toast(e.message, true); return; }
   modal("Work item models", [h("p", { class: "muted", text: "A model names the fields of a queue's items and their types. Items added by hand, from CSV, by agents or over the API are checked against it." }),

@@ -135,6 +135,10 @@ How permissions apply:
 - **Delete** removes an agent from the list and stops it running; its versions are kept, and **Deleted agents** brings it back.
 - An agent still used by a schedule, trigger or work queue is not deleted (they are listed).
 - An empty folder can be deleted.
+- **Rename folder** renames or moves a folder with everything in it: agents with all versions, labels and analysis
+  reports, the schedules, triggers, queues and API tasks that run them, their run history, sub-folders and folder
+  permissions. It is refused while someone else has an agent in it checked out, or while a workflow names one of its
+  agents or forms by path (change the workflow first).
 
 **Labels and dependencies.**
 
@@ -243,14 +247,21 @@ Work queues hold items (invoices, tickets, orders) that an agent processes one a
      converted to the field's type.
    - While items use a model, it can gain optional fields but not lose fields or change them.
 2. Add items by pasting JSON or CSV, or by uploading a file. A `reference` column names each item; a `priority` column
-   puts it first. Items can also be added through the API (`POST /api/queues/{id}/items`, or `/items/csv` with CSV text).
+   puts it first. An **Excel workbook** (.xlsx) works the same way: its first sheet, or the one you name, with a header
+   row; dates come as yyyy-mm-dd. Items can also be added through the API (`POST /api/queues/{id}/items`,
+   `/items/csv` with CSV text, or `/items/xlsx` with the workbook as Base64).
 3. Start processing. The agent receives each item in the input `work_item` (a dictionary) and its id in `work_item_id`.
    Its outputs are kept with the item. A failed item is retried until its attempts are used.
 4. The queue shows counts by status, items past the service level, and each item's result or error with a link to its run.
    - Failed or deferred items can be retried, waiting items can be deferred, and items not being worked on can be deleted.
    - **Open** an item to change its data, reference or priority (the form follows the model).
    - **Export CSV** downloads the items (filtered by status). Cells that a spreadsheet would read as a formula are made safe.
-5. **Members** (optional) limit who can use a queue.
+5. **Export definition** saves a queue's settings, work item model, members and, if you choose, its waiting items as
+   a file. **Import queue** makes a queue from such a file:
+   - the model is reused when one with the same name and fields exists;
+   - the agent and runner pool are linked when they exist here;
+   - anything missing is listed.
+6. **Members** (optional) limit who can use a queue.
    - Owners manage it, participants add and change items, and consumers start processing and retry items.
    - Without members, the roles alone decide.
    - People with `queues.all` see every queue.
@@ -343,6 +354,13 @@ newest or oldest first, with paging and the total. **Export CSV** downloads the 
 export is itself recorded. API: `GET /api/audit?actor=&action=&object_type=&object_id=&result=&from=&to=&sort=&limit=&offset=`
 and `GET /api/audit/export` with the same filters.
 
+## 9a. Toolkit versions
+
+Administration > Toolkits > **Versions** lists the agents that use a toolkit, the version range each requires, and
+whether the installed version fits. **Update agents** sets a new range (for example `^2.0.0` after an upgrade) on all
+of them. Each agent gets a new version; its live version stays until you choose the new one. Agents that someone else
+has checked out are left as they are and reported.
+
 ## 10a. Operations
 
 Run & Monitor > Operations shows how agents ran over a period (24 hours to a year), for all agents or one:
@@ -352,7 +370,13 @@ Run & Monitor > Operations shows how agents ran over a period (24 hours to a yea
 - the agents run most, that take longest and that fail most (with their most common errors);
 - use per runner and by how runs were started.
 
-Each list has a CSV download, and **Run history CSV** lists every run. An agent's **Statistics** (agent details, or a
+Each list has a CSV download, and **Run history CSV** lists every run. An agent's Statistics also shows its **variable
+profile**: for each output, how often it had a value, its most common values and, for numbers, the range and average.
+
+**Run history retention** (Administration > Settings): step logs and whole runs older than the periods you set are
+removed once an hour, and **Remove now** removes them at once. Queued and running runs are never removed.
+Settings also shows **This Command Center**: the edition (self-hosted, no limits on people, runners or agents) and
+what it holds. An agent's **Statistics** (agent details, or a
 click in these lists) shows its errors and runners. Only agents the person may see (folder permissions) are counted.
 API: `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=`, `GET /api/analytics/agent?path=`,
 `GET /api/analytics/export?report=most_run|longest|most_failed|by_runner|by_day|by_source|run_history`.

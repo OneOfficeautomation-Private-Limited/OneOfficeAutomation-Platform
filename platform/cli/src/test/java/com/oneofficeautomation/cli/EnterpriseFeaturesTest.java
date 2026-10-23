@@ -126,7 +126,8 @@ class EnterpriseFeaturesTest {
             String deviceId = (String) ((Map<String, Object>) ((List<Object>) call(base, "GET", "/api/devices", null, admin).json().get("devices")).get(0)).get("id");
             String aiRun = (String) call(base, "POST", "/api/runs", Map.of("bot_path", "AI/Ask AI.flow.json", "device_id", deviceId,
                     "inputs", Map.of("key", Map.of("$credential", "corp/erp/password"))), admin).json().get("run_id");
-            assertTrue(ControlRoomE2ETest.until(() -> call(base, "GET", "/api/runs/" + aiRun, null, admin).body().contains("\"status\":\"success\""), 90000),
+            // the run's own status (a step's event can say "success" before the run has finished)
+            assertTrue(ControlRoomE2ETest.until(() -> "success".equals(call(base, "GET", "/api/runs/" + aiRun, null, admin).json().get("status")), 90000),
                     "the AI agent finishes: " + call(base, "GET", "/api/runs/" + aiRun, null, admin).body());
             assertEquals(List.of("Bearer S3cret-from-vault"), llmAuth, "the key came from the external vault at run time");
             Map<String, Object> gov = call(base, "GET", "/api/governance?days=7", null, admin).json();

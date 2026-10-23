@@ -169,6 +169,49 @@ public final class Analytics {
         return m;
     }
 
+    /**
+     * An agent's variable profile: for each output it returned in the period, how often it had a value, its most common
+     * values and, for numbers, the smallest, largest and average.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> variables(User by, String path, Map<String, String> q) {
+        cr.folders.require(by, path, "view", "view agent statistics");
+        Map<String, String> f = new HashMap<>(q);
+        f.put("bot", path);
+        Set<String> ids = new HashSet<>();
+        for (Run r : runs(by, f)) ids.add(r.id());
+        Map<String, List<Object>> values = new TreeMap<>();
+        int n = 0;
+        for (Map<String, Object> r : db.query("SELECT id, outputs FROM runs WHERE bot_path = ? AND outputs IS NOT NULL ORDER BY created DESC LIMIT 5000", path)) {
+            if (!ids.contains((String) r.get("id"))) continue;
+            Object o;
+            try { o = JsonLite.parse((String) r.get("outputs")); } catch (IllegalArgumentException e) { continue; }
+            if (!(o instanceof Map<?, ?> m)) continue;
+            n++;
+            for (var e : ((Map<String, Object>) m).entrySet()) values.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
+        }
+        List<Object> out = new ArrayList<>();
+        for (var e : values.entrySet()) {
+            Map<String, Object> v = new LinkedHashMap<>();
+            v.put("variable", e.getKey());
+            List<Object> vals = e.getValue();
+            long set = vals.stream().filter(x -> x != null && !"".equals(x)).count();
+            v.put("runs_with_value", set);
+            v.put("runs", n);
+            List<Double> nums = vals.stream().filter(x -> x instanceof Number).map(x -> ((Number) x).doubleValue()).toList();
+            if (!nums.isEmpty() && nums.size() == set) {
+                v.put("min", nums.stream().mapToDouble(d -> d).min().orElse(0));
+                v.put("max", nums.stream().mapToDouble(d -> d).max().orElse(0));
+                v.put("avg", Math.round(nums.stream().mapToDouble(d -> d).average().orElse(0) * 100) / 100.0);
+            }
+            Map<String, Long> counts = new HashMap<>();
+            for (Object x : vals) if (x != null && !(x instanceof Map) && !(x instanceof List)) { String s = String.valueOf(x); counts.merge(s.length() > 60 ? s.substring(0, 60) + "\u2026" : s, 1L, Long::sum); }
+            v.put("common", counts.entrySet().stream().sorted(Map.Entry.<String, Long>comparingByValue().reversed()).limit(5).map(c -> Map.of("value", c.getKey(), "runs", c.getValue())).toList());
+            out.add(v);
+        }
+        return Map.of("bot_path", path, "runs", n, "variables", out);
+    }
+
     /** A report as CSV: most_run, longest, most_failed, by_runner, by_day, by_source or run_history. */
     @SuppressWarnings("unchecked")
     public String csv(User by, String report, Map<String, String> q) {
