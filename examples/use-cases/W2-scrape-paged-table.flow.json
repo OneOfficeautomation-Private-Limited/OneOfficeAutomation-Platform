@@ -1,0 +1,191 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w2_scrape_products",
+  "name": "W2 Scrape a paged product list",
+  "description": "Read a product table across several pages (following Next) into one table and save it as CSV.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "all_products",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [],
+        "rows": []
+      }
+    },
+    {
+      "name": "page_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "more",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "product_count",
+      "type": "Number",
+      "direction": "output",
+      "description": "Products found on all pages."
+    },
+    {
+      "name": "total_value",
+      "type": "Number",
+      "direction": "output",
+      "description": "Sum of all prices."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/products-1.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      }
+    },
+    {
+      "id": "s8",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "op": "eq",
+          "left": "$more",
+          "right": true
+        },
+        "max_iterations": 20
+      },
+      "description": "Every page",
+      "children": [
+        {
+          "id": "s2",
+          "action": "ooa.browser/extract_table",
+          "args": {
+            "selector": "#products"
+          },
+          "out": {
+            "table": "page_table"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.datatable/merge",
+          "args": {
+            "tables": [
+              "$all_products",
+              "$page_table"
+            ],
+            "columns": "union"
+          },
+          "out": {
+            "table": "all_products"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "selector": "#next"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s4",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "#next"
+              }
+            },
+            {
+              "id": "s5",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "selector": "#products",
+                "state": "visible"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "more",
+                "value": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s9",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s10",
+      "action": "ooa.datatable/change_column_type",
+      "args": {
+        "table": "$all_products",
+        "column": "Price",
+        "type": "Number"
+      },
+      "out": {
+        "table": "all_products"
+      }
+    },
+    {
+      "id": "s11",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$all_products",
+        "path": "${folder}/output/products.csv"
+      }
+    },
+    {
+      "id": "s12",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$all_products"
+      },
+      "out": {
+        "count": "product_count"
+      }
+    },
+    {
+      "id": "s13",
+      "action": "ooa.datatable/sum_column",
+      "args": {
+        "table": "$all_products",
+        "column": "Price"
+      },
+      "out": {
+        "total": "total_value"
+      }
+    }
+  ]
+}

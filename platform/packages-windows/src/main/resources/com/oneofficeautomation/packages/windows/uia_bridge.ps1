@@ -337,7 +337,16 @@ public static class Bridge {
         cr.Add(AutomationElement.ProcessIdProperty); cr.Add(AutomationElement.NativeWindowHandleProperty);
         AutomationElementCollection col;
         using (cr.Activate()) col = AutomationElement.RootElement.FindAll(TreeScope.Children, Condition.TrueCondition);
+        // dialogs a window owns (a validation pop-up, a Save As box) appear under it, not at the top: list them as windows too
+        List<AutomationElement> all = new List<AutomationElement>();
+        Condition isWindow = new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window);
         foreach (AutomationElement w in col) {
+            all.Add(w);
+            try { using (cr.Activate()) foreach (AutomationElement o in w.FindAll(TreeScope.Children, isWindow)) all.Add(o); }
+            catch (ElementNotAvailableException) { }
+        }
+        foreach (AutomationElement w in all) {
+            if ((int)w.GetCachedPropertyValue(AutomationElement.NativeWindowHandleProperty) == 0) continue;
             Dictionary<string, object> d = new Dictionary<string, object>();
             int pid = (int)w.GetCachedPropertyValue(AutomationElement.ProcessIdProperty);
             d["handle"] = (int)w.GetCachedPropertyValue(AutomationElement.NativeWindowHandleProperty);
@@ -574,10 +583,30 @@ public static class Bridge {
             }
             while (cols.Count < width) cols.Add("");
             foreach (object o in rows) { List<object> row = (List<object>)o; while (row.Count < cols.Count) row.Add(""); }
+            HeaderRow(cols, rows);
         }
         Dictionary<string, object> t = new Dictionary<string, object>();
         t["columns"] = cols; t["rows"] = rows;
         return t;
+    }
+
+    /**
+     * A Windows Forms grid (DataGridView) lists its column headers as the first row ("Top Left Header Cell", then
+     * the names) and a row header ("Row 0" ...) before each row: use the names as columns and drop the row headers.
+     */
+    static void HeaderRow(List<string> cols, List<object> rows) {
+        if (rows.Count == 0) return;
+        foreach (string c in cols) if (c != "") return;
+        List<object> first = (List<object>)rows[0];
+        if (first.Count == 0 || Convert.ToString(first[0], CultureInfo.InvariantCulture) != "Top Left Header Cell") return;
+        cols.Clear();
+        foreach (object x in first) cols.Add(Convert.ToString(x, CultureInfo.InvariantCulture));
+        rows.RemoveAt(0);
+        bool rowHeaders = true;
+        foreach (object o in rows) { List<object> r = (List<object>)o; string h = r.Count == 0 ? "" : Convert.ToString(r[0], CultureInfo.InvariantCulture); if (h != "" && !System.Text.RegularExpressions.Regex.IsMatch(h, "^Row [0-9]+$")) { rowHeaders = false; break; } }
+        if (!rowHeaders) { cols[0] = "Row"; return; }
+        cols.RemoveAt(0);
+        foreach (object o in rows) { List<object> r = (List<object>)o; if (r.Count > 0) r.RemoveAt(0); }
     }
 
     static object Act(Dictionary<string, object> req) {

@@ -1,0 +1,239 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w5_reconcile",
+  "name": "W5 Reconcile web orders with a CSV export",
+  "description": "Read the order list from a web page, compare each order with the ERP export, and report the differences.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "web_orders",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "expected",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "at",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "want",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "differences",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Order",
+          "Web status",
+          "Expected status"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "checked",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders checked."
+    },
+    {
+      "name": "mismatches",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders that differ or are missing in the export."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/orders.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "#orders"
+      },
+      "out": {
+        "table": "web_orders"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s4",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/orders-expected.csv"
+      },
+      "out": {
+        "table": "expected"
+      }
+    },
+    {
+      "id": "s12",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$web_orders",
+        "as": "row"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "ooa.datatable/find",
+          "args": {
+            "table": "$expected",
+            "value": "$row.Order",
+            "column": "Order",
+            "match": "equals"
+          },
+          "out": {
+            "found": "found",
+            "first_row": "at"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$found",
+              "right": false
+            }
+          },
+          "children": [
+            {
+              "id": "s6",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$differences",
+                "values": [
+                  "$row.Order",
+                  "$row.Status",
+                  "(missing)"
+                ]
+              },
+              "out": {
+                "table": "differences"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s7",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$expected",
+                "row": "$at",
+                "column": "Status"
+              },
+              "out": {
+                "value": "want"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "ne",
+                  "left": "$row.Status",
+                  "right": "$want"
+                }
+              },
+              "children": [
+                {
+                  "id": "s8",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$differences",
+                    "values": [
+                      "$row.Order",
+                      "$row.Status",
+                      "$want"
+                    ]
+                  },
+                  "out": {
+                    "table": "differences"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s11",
+          "action": "core/set",
+          "args": {
+            "variable": "checked",
+            "value": {
+              "expr": "$checked + 1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s13",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$differences",
+        "path": "${folder}/output/order-differences.csv"
+      }
+    },
+    {
+      "id": "s14",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$differences"
+      },
+      "out": {
+        "count": "mismatches"
+      }
+    }
+  ]
+}

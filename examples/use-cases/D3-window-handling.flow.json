@@ -1,0 +1,159 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_d3_windows",
+  "name": "D3 Arrange and close application windows",
+  "description": "Start an application, place and size its window, minimise and restore it, read its details and close it.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "app_pid",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "win",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "width",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Window width after resizing."
+    },
+    {
+      "name": "height",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Window height after resizing."
+    },
+    {
+      "name": "closed",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The window was closed."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s8",
+      "action": "ooa.application/start_program",
+      "args": {
+        "program": "powershell.exe",
+        "arguments": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${sys.workspace}/${folder}/apps/order-entry.ps1",
+          "-Out",
+          "${sys.workspace}/${folder}/output/desktop-orders.csv"
+        ],
+        "window_state": "normal"
+      },
+      "out": {
+        "process_id": "app_pid"
+      },
+      "description": "Start the demo order-entry application"
+    },
+    {
+      "id": "s9",
+      "action": "ooa.window/wait_for",
+      "args": {
+        "title": "OOA Order Entry",
+        "timeout_seconds": 30
+      },
+      "description": "Wait until its window is open"
+    },
+    {
+      "id": "s11",
+      "action": "core/try",
+      "description": "Work in the application; it is closed in any case",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.window/move_resize",
+          "args": {
+            "title": "OOA Order Entry",
+            "x": 80,
+            "y": 60,
+            "width": 700,
+            "height": 560
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.window/minimize",
+          "args": {
+            "title": "OOA Order Entry"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.window/restore",
+          "args": {
+            "title": "OOA Order Entry"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "ooa.window/get_info",
+          "args": {
+            "title": "OOA Order Entry"
+          },
+          "out": {
+            "window": "win"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "core/set",
+          "args": {
+            "variable": "width",
+            "value": "$win.width"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/set",
+          "args": {
+            "variable": "height",
+            "value": "$win.height"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.window/close",
+          "args": {
+            "title": "OOA Order Entry",
+            "wait_closed_seconds": 10
+          },
+          "out": {
+            "closed": "closed"
+          }
+        }
+      ],
+      "finally": [
+        {
+          "id": "s10",
+          "action": "ooa.application/stop_program",
+          "args": {
+            "process_id": "$app_pid",
+            "force": true
+          },
+          "description": "Close the application"
+        }
+      ]
+    }
+  ]
+}

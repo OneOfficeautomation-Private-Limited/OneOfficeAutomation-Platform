@@ -1,0 +1,230 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w4_excel_to_web",
+  "name": "W4 Register people from Excel in a web form",
+  "description": "For each row of an Excel sheet, fill in and save a web form, and write the registration number back to the sheet.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "people",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "person",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "row_no",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "reg_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "registered",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "People registered."
+    },
+    {
+      "name": "last_id",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Last registration number."
+    },
+    {
+      "name": "check_cell",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Registration number written for the second person (D3)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.excel/open",
+      "args": {
+        "path": "${folder}/data/people.xlsx",
+        "session": "people",
+        "header": true
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.excel/get_all_cells",
+      "args": {
+        "session": "people"
+      },
+      "out": {
+        "table": "people"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/form-entry.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      }
+    },
+    {
+      "id": "s13",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$people",
+        "as": "person",
+        "index": "i"
+      },
+      "children": [
+        {
+          "id": "s4",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#name",
+            "text": "$person.Name"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#email",
+            "text": "$person.Email"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.browser/select_option",
+          "args": {
+            "selector": "#plan",
+            "option": "$person.Plan"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#save"
+          }
+        },
+        {
+          "id": "s8",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "#last"
+          },
+          "out": {
+            "text": "reg_id"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "row_no",
+            "value": {
+              "expr": "$i + 2"
+            }
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "D${row_no}",
+            "value": "$reg_id",
+            "session": "people"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "core/set",
+          "args": {
+            "variable": "registered",
+            "value": {
+              "expr": "$registered + 1"
+            }
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/set",
+          "args": {
+            "variable": "last_id",
+            "value": "$reg_id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s14",
+      "action": "ooa.excel/set_cell",
+      "args": {
+        "cell": "D1",
+        "value": "Registration",
+        "session": "people"
+      }
+    },
+    {
+      "id": "s15",
+      "action": "ooa.excel/get_cell",
+      "args": {
+        "cell": "D3",
+        "session": "people"
+      },
+      "out": {
+        "value": "check_cell"
+      }
+    },
+    {
+      "id": "s16",
+      "action": "ooa.excel/save",
+      "args": {
+        "path": "${folder}/output/people-registered.xlsx",
+        "session": "people"
+      }
+    },
+    {
+      "id": "s17",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "people",
+        "save": false
+      }
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

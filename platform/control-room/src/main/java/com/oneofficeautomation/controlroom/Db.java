@@ -279,6 +279,12 @@ public final class Db implements AutoCloseable {
             "updated_by VARCHAR(80), comment VARCHAR(500), PRIMARY KEY (name, version))",
     };
 
+    /** Version 8: saved connections (a connector's address and vault references, chosen by name on steps). */
+    private static final String[] SCHEMA_V8 = {
+        "CREATE TABLE connections (name VARCHAR(80) PRIMARY KEY, package VARCHAR(120) NOT NULL, description VARCHAR(500), json_values VARCHAR(100000) NOT NULL, " +
+            "json_credentials VARCHAR(10000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+    };
+
     /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
     public void migrate() {
         tx(() -> {
@@ -312,6 +318,10 @@ public final class Db implements AutoCloseable {
             if (current < 7) {
                 for (String ddl : SCHEMA_V7) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
                 update("INSERT INTO schema_version (version) VALUES (7)");
+            }
+            if (current < 8) {
+                for (String ddl : SCHEMA_V8) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
+                update("INSERT INTO schema_version (version) VALUES (8)");
             }
             return null;
         });

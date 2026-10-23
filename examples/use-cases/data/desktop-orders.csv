@@ -1,0 +1,4 @@
+Customer,Amount,Kind,Urgent
+Acme,120.50,Standard,no
+Globex,75,Express,yes
+Initech,300,Return,no

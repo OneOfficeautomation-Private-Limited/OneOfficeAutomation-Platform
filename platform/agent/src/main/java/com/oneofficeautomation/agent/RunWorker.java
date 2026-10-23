@@ -94,6 +94,8 @@ public final class RunWorker {
         BotInvoker invoker = (automationId, in2) -> holder[0].run(repo.get(automationId, "production"), in2, new Runner.RunOptions().cancel(cancel).pause(pause));
         holder[0] = Runner.builder(registry).sink(sink).workDir(workspace).service("repository", repo).service("vault", vault)
                 .service("global_values", (java.util.function.Supplier<Object>) () -> globals).service("bot_invoker", invoker)
+                // saved connections (address and vault references per connector) from Command Center; secrets resolve through the vault above
+                .service("connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("connections", Map.of()))
                 // One Model Connections from Command Center; their keys are vault references resolved through the vault above.
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
                 // Prompt Skills kept in Command Center; a skill file in the workspace is used when Command Center sends none

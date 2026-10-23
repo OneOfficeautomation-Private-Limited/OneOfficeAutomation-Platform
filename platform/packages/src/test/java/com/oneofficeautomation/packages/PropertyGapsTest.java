@@ -439,7 +439,7 @@ class PropertyGapsTest {
     }
 
     @Test void pgpKeyFiles() throws Exception {
-        if (!OcrPgpTest.has(PgpPackage.exe())) { System.out.println("    (gpg not installed; skipped)"); return; }
+        if (!PgpPackage.usable() || !OcrPgpTest.has(PgpPackage.exe())) { System.out.println("    (gpg not installed; skipped)"); return; }
         Path w = tmp();
         ActionContext c = ctx(w);
         PgpPackage pgp = new PgpPackage();

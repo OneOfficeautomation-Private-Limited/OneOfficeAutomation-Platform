@@ -1,0 +1,183 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_o2_invoice_mail",
+  "name": "O2 Collect invoice emails",
+  "description": "Find unread emails with invoices, save their attachments, reply to each sender and count them.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "imap_host",
+      "type": "String",
+      "direction": "input",
+      "default": "outlook.office365.com",
+      "description": "Mail server (IMAP)."
+    },
+    {
+      "name": "imap_port",
+      "type": "Number",
+      "direction": "input",
+      "default": 993,
+      "description": "IMAP port."
+    },
+    {
+      "name": "security",
+      "type": "String",
+      "direction": "input",
+      "default": "ssl",
+      "description": "ssl, starttls or none."
+    },
+    {
+      "name": "smtp_host",
+      "type": "String",
+      "direction": "input",
+      "default": "smtp.office365.com",
+      "description": "Outgoing server for the replies."
+    },
+    {
+      "name": "smtp_port",
+      "type": "Number",
+      "direction": "input",
+      "default": 587,
+      "description": "SMTP port."
+    },
+    {
+      "name": "smtp_security",
+      "type": "String",
+      "direction": "input",
+      "default": "starttls",
+      "description": "ssl, starttls or none."
+    },
+    {
+      "name": "mailbox",
+      "type": "String",
+      "direction": "input",
+      "default": "invoices@example.com",
+      "description": "Mailbox user."
+    },
+    {
+      "name": "password",
+      "type": "Credential",
+      "direction": "input",
+      "required": true,
+      "description": "Mailbox password or app password from the vault."
+    },
+    {
+      "name": "mails",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "m",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "files",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Invoice emails handled."
+    },
+    {
+      "name": "attachments",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Attachments saved."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.email/connect",
+      "args": {
+        "imap_host": "$imap_host",
+        "port": "$imap_port",
+        "user": "$mailbox",
+        "password": "$password",
+        "security": "$security",
+        "smtp_host": "$smtp_host",
+        "smtp_port": "$smtp_port",
+        "smtp_security": "$smtp_security"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.email/list",
+      "args": {
+        "unread_only": true,
+        "subject_contains": "Invoice",
+        "has_attachments_only": true
+      },
+      "out": {
+        "table": "mails"
+      }
+    },
+    {
+      "id": "s7",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$mails",
+        "as": "m"
+      },
+      "children": [
+        {
+          "id": "s3",
+          "action": "ooa.email/save_attachments",
+          "args": {
+            "id": "$m.id",
+            "target_folder": "${folder}/output/invoices"
+          },
+          "out": {
+            "files": "files"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "attachments",
+            "value": {
+              "expr": "$attachments + len($files)"
+            }
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.email/reply",
+          "args": {
+            "id": "$m.id",
+            "body": "Thank you, we received ${m.subject}."
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/set",
+          "args": {
+            "variable": "processed",
+            "value": {
+              "expr": "$processed + 1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s8",
+      "action": "ooa.email/disconnect"
+    }
+  ]
+}

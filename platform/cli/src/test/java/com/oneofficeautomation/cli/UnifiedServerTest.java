@@ -55,6 +55,12 @@ class UnifiedServerTest {
             assertEquals(200, page.status());
             assertTrue(page.body().contains("<script src=\"studio.js\">"), "Studio's page uses relative paths so it works under /studio/");
             assertEquals(200, call(base, "GET", "/studio/studio.js", null, null, null).status());
+            // HEAD (used by uptime checks and some proxies): same status, no body, and no server warning
+            for (String p : List.of("/", "/studio/", "/api/health")) {
+                Res head = call(base, "HEAD", p, null, null, null);
+                assertEquals(200, head.status(), "HEAD " + p);
+                assertEquals("", head.body(), "HEAD " + p + " has no body");
+            }
             // ---- one design system: both applications serve the same token and component sheets ----
             for (String css : List.of("ooa-tokens.css", "ooa-components.css")) {
                 Res fromStudio = call(base, "GET", "/studio/" + css, null, null, null), fromConsole = call(base, "GET", "/" + css, null, null, null);

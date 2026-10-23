@@ -1,0 +1,163 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_o1_overdue_report",
+  "name": "O1 Overdue invoice report in Excel",
+  "description": "Read invoices from CSV, keep the unpaid ones past their due date, total them per customer and write an Excel report.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "report_date",
+      "type": "String",
+      "direction": "input",
+      "default": "2026-10-23",
+      "description": "Invoices due before this date (yyyy-MM-dd) are overdue."
+    },
+    {
+      "name": "invoices",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "unpaid",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "overdue",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "summary",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "customers",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Customers with overdue invoices."
+    },
+    {
+      "name": "total_overdue",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Total overdue amount."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/invoices.csv",
+        "detect_types": true
+      },
+      "out": {
+        "table": "invoices"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.datatable/filter",
+      "args": {
+        "table": "$invoices",
+        "column": "Status",
+        "operator": "ne",
+        "value": "Paid"
+      },
+      "out": {
+        "table": "unpaid"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.datatable/filter",
+      "args": {
+        "table": "$unpaid",
+        "column": "DueDate",
+        "operator": "lt",
+        "value": "$report_date"
+      },
+      "out": {
+        "table": "overdue"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.datatable/aggregate",
+      "args": {
+        "table": "$overdue",
+        "group_by": [
+          "Customer"
+        ],
+        "summaries": {
+          "Overdue": "sum:Amount",
+          "Invoices": "count"
+        }
+      },
+      "out": {
+        "table": "summary",
+        "count": "customers"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.datatable/sort",
+      "args": {
+        "table": "$summary",
+        "column": "Overdue",
+        "descending": true
+      },
+      "out": {
+        "table": "summary"
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "${folder}/output/overdue-report.xlsx",
+        "sheet": "Overdue",
+        "overwrite": true,
+        "session": "report"
+      }
+    },
+    {
+      "id": "s7",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$summary",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s8",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "report",
+        "save": true
+      }
+    },
+    {
+      "id": "s9",
+      "action": "ooa.datatable/sum_column",
+      "args": {
+        "table": "$summary",
+        "column": "Overdue"
+      },
+      "out": {
+        "total": "total_overdue"
+      }
+    }
+  ]
+}

@@ -209,6 +209,20 @@ class EnterpriseAiPropertiesTest {
 
     // ---------------------------------------------------------------- SAP
 
+    @Test void sapScriptErrorsGetSpecificCodes() {
+        assertEquals("SAP.NOT_RUNNING", SapPackage.scriptError("SAP GUI is not running or scripting is disabled: x").code());
+        assertEquals("SAP.NO_CONNECTION", SapPackage.scriptError("No SAP connection 2").code());
+        assertEquals("SAP.NO_SESSION", SapPackage.scriptError("No SAP session 1").code());
+        assertEquals("SAP.CONNECT_FAILED", SapPackage.scriptError("Cannot open system PRD: x").code());
+        assertEquals("SAP.ALREADY_LOGGED_ON", SapPackage.scriptError("The user is already logged on in another session").code());
+        assertEquals("SAP.LOGON_FAILED", SapPackage.scriptError("Logon failed: Name or password is incorrect").code());
+        assertEquals("SAP.STATUS_ERROR", SapPackage.scriptError("SAP reported: Enter a valid value").code());
+        assertEquals("SAP.TRANSACTION_FAILED", SapPackage.scriptError("Transaction ZZZ: not allowed").code());
+        assertEquals("SAP.OBJECT_NOT_FOUND", SapPackage.scriptError("Field wnd[0]/usr/txtX: The control could not be found by id.").code());
+        assertEquals("SAP.ACTION_FAILED", SapPackage.scriptError("Button btn[8]: Not changeable").code());
+        assertNotNull(SapPackage.scriptError("No SAP session 1").suggestedFix());
+    }
+
     @Test void sapConnectTransactionsFieldsAndStatusBar() throws Exception {
         List<Script> seen = new ArrayList<>();
         Map<String, Object> reply = new HashMap<>();

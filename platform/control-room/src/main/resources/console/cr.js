@@ -36,6 +36,7 @@ const ICONS = {
   gear: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1",
   key: "M7 14a4 4 0 1 1 3.5-6H21v3h-2v3h-3v-3h-5.5A4 4 0 0 1 7 14z", calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4", inbox: "M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5",
   timer: "M12 8v5l3 2M9 2h6M12 4a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", download: "M12 3v12M7 10l5 5 5-5M4 21h16", refresh: "M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6",
+  chevron: "M9 6l6 6-6 6", "chevron-left": "M15 6l-6 6 6 6", search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4", link: "M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1",
 };
 function svg(name) {
   const ns = "http://www.w3.org/2000/svg";
@@ -128,11 +129,13 @@ function showLogin() {
 function showPassword() { $("app").hidden = true; $("login-view").hidden = true; $("password-view").hidden = false; $("pw-current").focus(); }
 function showApp() {
   $("login-view").hidden = true; $("password-view").hidden = true; $("app").hidden = false;
-  $("who").textContent = S.user.display_name + " (" + roleLabel(S.user.role) + ")";
+  $("who").textContent = S.user.display_name || S.user.username;
+  $("user-pop-head").replaceChildren(h("strong", { text: S.user.display_name || S.user.username }), h("span", { class: "muted", text: S.user.username + " \u00B7 " + roleLabel(S.user.role) }));
   $("avatar").textContent = (S.user.display_name || S.user.username || "?").trim().charAt(0).toUpperCase();
   api("GET", "health").then((r) => { $("btn-studio").hidden = !r.studio; S.studioAvailable = !!r.studio; renderNav(); }).catch(() => {});
   api("GET", "catalog").then((r) => { S.names = r.actions || {}; }).catch(() => {});
   api("GET", "auth/me").then((u) => showAnnouncement(u.announcement)).catch(() => {});
+  document.body.classList.toggle("nav-mini", stored(NAV_MINI_KEY) === "1");
   renderNav(); go(S.page);
 }
 
@@ -140,7 +143,7 @@ const PAGES = [
   ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
   ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
-  ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["users", "Users", "users.manage", "users", "#7c3aed"],
+  ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
@@ -148,47 +151,74 @@ const PAGES = [
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"]];
 
-/** The menu: Home, then three groups. Pages not listed here (admin) are reachable from inside other pages only. */
+/**
+ * The menu: Home, then short sections (as in the reference product: Automation, Operations, AI, Manage,
+ * Administration). The section of the current page is open, and the one opened last; the others show only their name.
+ * Pages not listed here (admin) are reached from inside other pages.
+ */
 const NAV_GROUPS = [
-  ["build", "Build", ["automation", "studio", "workflows", "queues", "apitasks", "skills"]],
-  ["run", "Run & Monitor", ["activity", "operations", "inbox", "schedules", "triggers", "devices"]],
-  ["govern", "Govern", ["users", "teams", "roles", "credentials", "globals", "toolkits", "connections", "governance", "audit", "settings"]],
+  ["automation", "Automation", "bot", ["automation", "studio", "workflows", "apitasks"]],
+  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
+  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
+  ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
+  ["administration", "Administration", "gear", ["users", "roles", "teams", "audit", "settings"]],
 ];
-const NAV_COLLAPSED_KEY = "ooa.cc.navCollapsed";
-function navCollapsed() { try { return JSON.parse(localStorage.getItem(NAV_COLLAPSED_KEY) || "[]"); } catch (_) { return []; } }
+const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
+function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
+function stored(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
+function groupOf(page) { return NAV_GROUPS.find((g) => g[3].includes(page)) || null; }
+function pageLabel(id) { if (id === "studio") return "One Agent Studio"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
 
 function navButton(id) {
   if (id === "studio") {
     if (!S.studioAvailable) return null;
     const a = h("a", { class: "nav-link", href: "/studio/", target: "ooa-studio", "aria-label": "One Agent Studio", title: "Build and test agents in One Agent Studio (opens in a new tab)" },
-      ic("code", "#2563eb"), "One Agent Studio", h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
-    a.style.setProperty("--c", "#2563eb");
+      ic("code", "#2563eb"), h("span", { class: "nav-label", text: "One Agent Studio" }), h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
     return a;
   }
   const page = PAGES.find((x) => x[0] === id);
   if (!page || (page[2] && !can(page[2]))) return null;
-  const [, label, , icon, color] = page;
-  const b = h("button", { type: "button", class: S.page === id ? "active" : "", "aria-current": S.page === id ? "page" : null, "aria-label": label, onclick: () => go(id) }, ic(icon, color), label);
-  b.style.setProperty("--c", color);
-  return b;
+  const [, label, , icon] = page;
+  return h("button", { type: "button", class: S.page === id ? "active" : "", "aria-current": S.page === id ? "page" : null, "aria-label": label, title: label, onclick: () => go(id) },
+    ic(icon, "#fff"), h("span", { class: "nav-label", text: label }));
 }
 
 function renderNav() {
-  const collapsed = navCollapsed();
-  const parts = [navButton("home")];
-  for (const [gid, glabel, ids] of NAV_GROUPS) {
-    const items = ids.map(navButton).filter(Boolean);
-    if (!items.length) continue;
-    const isCollapsed = collapsed.includes(gid) && !ids.includes(S.page);
-    const head = h("button", { type: "button", class: "nav-group" + (isCollapsed ? " collapsed" : ""), "aria-expanded": String(!isCollapsed), "data-group": gid,
-      onclick: () => {
-        const c = navCollapsed();
-        const next = c.includes(gid) ? c.filter((x) => x !== gid) : c.concat(gid);
-        try { localStorage.setItem(NAV_COLLAPSED_KEY, JSON.stringify(next)); } catch (_) { /* storage unavailable */ }
-        renderNav();
-      } }, h("span", { class: "nav-caret", "aria-hidden": "true", text: isCollapsed ? "\u25B8" : "\u25BE" }), glabel);
-    parts.push(h("div", { class: "nav-section", role: "group", "aria-label": glabel }, head, isCollapsed ? null : h("div", { class: "nav-items" }, items)));
+  const q = (S.navQuery || "").trim().toLowerCase();
+  const search = h("label", { class: "nav-search" }, svg("search"), h("input", { type: "search", placeholder: "Find a page", "aria-label": "Find a page", value: S.navQuery || "",
+    oninput: (e) => { S.navQuery = e.target.value; renderNav(); const i = $("nav").querySelector(".nav-search input"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); },
+    onkeydown: (e) => {
+      if (e.key === "Enter") { const first = $("nav").querySelector(".nav-items button, .nav-items a"); if (first) first.click(); }
+      if (e.key === "Escape") { S.navQuery = ""; renderNav(); }
+    } }));
+  const parts = [search, navButton("home")];
+  if (q) {
+    // a search lists the matching pages of every section, open
+    for (const [, glabel, , ids] of NAV_GROUPS) {
+      const items = ids.filter((id) => (pageLabel(id) + " " + glabel).toLowerCase().includes(q)).map(navButton).filter(Boolean);
+      if (items.length) parts.push(h("div", { class: "nav-section open", role: "group", "aria-label": glabel }, h("div", { class: "nav-found", text: glabel }), h("div", { class: "nav-items" }, items)));
+    }
+    if (parts.length === 2) parts.push(h("p", { class: "nav-empty", text: "No page matches \u201C" + S.navQuery.trim() + "\u201D." }));
+  } else {
+    const current = groupOf(S.page);
+    const chosen = stored(NAV_OPEN_KEY);
+    for (const [gid, glabel, icon, ids] of NAV_GROUPS) {
+      if (!ids.map(navButton).some(Boolean)) continue;
+      const isCurrent = !!current && current[0] === gid, isOpen = isCurrent || chosen === gid;
+      const head = h("button", { type: "button", class: "nav-group" + (isOpen ? " open" : "") + (isCurrent ? " current" : ""), "aria-expanded": String(isOpen), "data-group": gid, title: glabel,
+        onclick: () => { store(NAV_OPEN_KEY, chosen === gid && !isCurrent ? "" : gid); renderNav(); } },
+        ic(icon, "#fff"), h("span", { class: "nav-label", text: glabel }), h("span", { class: "nav-caret", "aria-hidden": "true" }, svg("chevron")));
+      // in the narrow menu, a section's pages pop out beside its icon
+      const fly = h("div", { class: "nav-fly", role: "group", "aria-label": glabel }, h("div", { class: "nav-fly-title", text: glabel }), ids.map(navButton).filter(Boolean));
+      parts.push(h("div", { class: "nav-section" + (isOpen ? " open" : "") + (isCurrent ? " current" : ""), role: "group", "aria-label": glabel }, head,
+        isOpen ? h("div", { class: "nav-items" }, ids.map(navButton).filter(Boolean)) : null, fly));
+    }
   }
+  const mini = document.body.classList.contains("nav-mini");
+  parts.push(h("div", { class: "nav-foot" }, h("button", { type: "button", class: "nav-collapse", title: mini ? "Show the full menu" : "Make the menu narrow (icons only)",
+    "aria-label": mini ? "Show the full menu" : "Make the menu narrow",
+    onclick: () => { const m = !document.body.classList.contains("nav-mini"); document.body.classList.toggle("nav-mini", m); store(NAV_MINI_KEY, m ? "1" : ""); renderNav(); } },
+    svg(mini ? "chevron" : "chevron-left"), h("span", { class: "nav-label", text: mini ? "Full menu" : "Narrow menu" }))));
   $("nav").replaceChildren(...parts.filter(Boolean));
 }
 
@@ -225,7 +255,11 @@ async function go(page) {
 
 function header(title, sub, ...actions) {
   const meta = PAGES.find((p) => p[1] === title || p[0] === S.page) || PAGES[0];
-  return [h("div", { class: "page-head" }, ic(meta[3], meta[4], "lg"), h("div", { class: "page-titles" }, h("h1", { class: "page", text: title }), h("p", { class: "page-sub", text: sub })),
+  const group = groupOf(S.page);
+  const crumbs = S.page === "home" ? null : h("nav", { class: "crumbs", "aria-label": "Breadcrumb" },
+    h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("home"); } }, "Home"), h("span", { "aria-hidden": "true", text: "\u203A" }),
+    group ? h("span", { text: group[1] }) : null, group ? h("span", { "aria-hidden": "true", text: "\u203A" }) : null, h("span", { "aria-current": "page", text: title }));
+  return [h("div", { class: "page-head" }, ic(meta[3], meta[4], "lg"), h("div", { class: "page-titles" }, crumbs, h("h1", { class: "page", text: title }), h("p", { class: "page-sub", text: sub })),
     actions.filter(Boolean).length ? h("div", { class: "page-actions" }, actions) : null)];
 }
 
@@ -894,6 +928,26 @@ const VIEWS = {
             g.changeable ? h("button", { type: "button", onclick: () => myGlobalDialog(g) }, "My value") : null,
             can("globals.manage") ? h("button", { type: "button", onclick: () => globalDialog(g) }, "Edit") : null,
             can("globals.manage") ? h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete " + g.name + "? Everyone's own values of it go too.")) { await api("DELETE", "globals/" + g.name); go("globals"); } } }, "Delete") : null) }]}));
+  },
+
+  async savedconn(main) {
+    const [r, k] = await Promise.all([api("GET", "saved-connections"), api("GET", "connection-kinds")]);
+    S.connKinds = k.kinds;
+    const kindName = (pkg) => (S.connKinds.find((x) => x.package === pkg) || { name: pkg }).name;
+    main.replaceChildren(...header("Connections", "A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in One Agent Vault; a connection keeps only their references.",
+      can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => savedConnDialog(null) }, "New connection") : null),
+      dataTable({ rows: r.connections, search: "Search connections", exportName: "connections", empty: "No connections yet. Create one so agent steps do not repeat an address and sign-in.",
+        columns: [
+          { label: "Connection", value: (c) => c.name + " " + (c.description || ""), render: (c) => h("div", {}, h("strong", { text: c.name }), c.description ? h("div", { class: "muted small", text: c.description }) : null) },
+          { label: "Toolkit", value: (c) => kindName(c.package) },
+          { label: "Settings", value: (c) => Object.keys(c.values || {}).join(", "), render: (c) => h("div", { class: "chips" }, Object.entries(c.values || {}).map(([n, v]) => h("span", { class: "chip", title: String(v), text: n }))) },
+          { label: "Secrets from the vault", value: (c) => Object.values(c.credentials || {}).join(", "), render: (c) => h("div", { class: "chips" }, Object.entries(c.credentials || {}).map(([n, v]) => h("span", { class: "chip", title: n, text: v }))) },
+          { label: "Updated", value: (c) => c.updated, render: (c) => h("span", { title: local(c.updated) }, ago(c.updated) + " by " + c.updated_by) },
+          { label: "", sort: false, render: (c) => can("globals.manage") ? h("div", { class: "row-actions tight" },
+            h("button", { type: "button", onclick: () => savedConnDialog(c) }, "Edit"),
+            h("button", { type: "button", class: "danger", onclick: async () => {
+              if (!confirm("Delete the connection " + c.name + "? Agent steps that use it fail until another is chosen.")) return;
+              try { await api("DELETE", "saved-connections/" + encodeURIComponent(c.name)); toast("Deleted " + c.name); go("savedconn"); } catch (e) { toast(e.message, true); } } }, "Delete")) : null }]}));
   },
 
   async users(main) {
@@ -1697,6 +1751,39 @@ function globalDialog(g) {
       try { await api("PUT", "globals/" + name.value, { value: parseJson(val.value, ""), changeable: changeable.checked }); closeModal(); go("globals"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
+/** New or changed saved connection: the toolkit's address and settings, and vault references for its secrets. */
+function savedConnDialog(c) {
+  const kinds = S.connKinds || [];
+  const name = h("input", { value: c ? c.name : "", placeholder: "ServiceNow production" });
+  const desc = h("input", { value: c ? c.description || "" : "", placeholder: "What it is for (optional)" });
+  const kind = h("select", { "aria-label": "Toolkit" }, kinds.map((k) => h("option", { value: k.package, text: k.name })));
+  if (c) { name.disabled = true; kind.value = c.package; kind.disabled = true; }
+  const box = h("div", { class: "conn-inputs" });
+  const inputs = {};
+  const draw = () => {
+    const k = kinds.find((x) => x.package === kind.value) || kinds[0];
+    if (!k) { box.replaceChildren(h("p", { class: "muted", text: "No toolkit takes a connection." })); return; }
+    box.replaceChildren(...k.inputs.map((i) => {
+      const cur = c ? (i.credential ? (c.credentials || {})[i.name] : (c.values || {})[i.name]) : "";
+      const f = h("input", { value: cur === undefined ? "" : String(cur), placeholder: i.credential ? "vault folder/credential/attribute" : "" });
+      inputs[i.name] = { el: f, credential: i.credential };
+      return h("label", {}, i.name + (i.credential ? " (vault reference)" : ""), f, h("span", { class: "muted small", text: i.description }));
+    }));
+  };
+  kind.addEventListener("change", () => { for (const k of Object.keys(inputs)) delete inputs[k]; draw(); });
+  draw();
+  modal(c ? "Edit " + c.name : "New connection", [h("label", {}, "Name", name), h("label", {}, "Toolkit", kind), h("label", {}, "Description", desc), box,
+    h("p", { class: "muted", text: "Leave a setting empty to set it on each step instead. Secrets are references to One Agent Vault, read when the agent runs, as the person it runs as." })],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      const values = {}, credentials = {};
+      for (const [n, x] of Object.entries(inputs)) { const v = x.el.value.trim(); if (v) (x.credential ? credentials : values)[n] = v; }
+      try {
+        await api("PUT", "saved-connections/" + encodeURIComponent(name.value.trim()), { package: kind.value, description: desc.value.trim(), values, credentials });
+        closeModal(); toast("Saved connection " + name.value.trim()); go("savedconn");
+      } catch (e) { toast(e.message, true); }
+    } }, "Save")]);
+}
+
 function myGlobalDialog(g) {
   const val = h("textarea", { value: g.my_value === undefined ? JSON.stringify(g.value) : JSON.stringify(g.my_value) });
   modal("Your value of " + g.name, [h("p", { class: "muted", text: "Runs that run as you use this value instead of the shared one (" + JSON.stringify(g.value) + ")." }), h("label", {}, "Value (JSON)", val)],
@@ -2469,6 +2556,13 @@ async function boot() {
   $("btn-logout").addEventListener("click", async () => { try { await api("POST", "auth/logout"); } catch (_) { /* already signed out */ } S.user = null; showLogin(); });
   $("btn-change-pw").addEventListener("click", showPassword);
   $("btn-apikeys").addEventListener("click", () => apiKeysDialog().catch((e) => toast(e.message, true)));
+  // the user menu in the top bar: name and role, API keys, password, sign out
+  const userPop = $("user-pop"), userBtn = $("btn-user");
+  const setUserMenu = (open) => { userPop.hidden = !open; userBtn.setAttribute("aria-expanded", String(open)); if (open) userPop.querySelector("button").focus(); };
+  userBtn.addEventListener("click", (e) => { e.stopPropagation(); setUserMenu(userPop.hidden); });
+  userPop.addEventListener("click", (e) => { if (e.target.closest("button")) setUserMenu(false); });
+  document.addEventListener("click", (e) => { if (!userPop.hidden && !e.target.closest(".user-menu")) setUserMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !userPop.hidden) { setUserMenu(false); userBtn.focus(); } });
   $("modal").addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
   $("drawer-close").addEventListener("click", closeDrawer);
   $("drawer").addEventListener("click", (e) => { if (e.target === $("drawer")) closeDrawer(); });

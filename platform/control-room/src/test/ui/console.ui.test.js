@@ -48,16 +48,33 @@ async function page() {
   d.getElementById("pw-new").value = "Console-Passw0rd-1"; d.getElementById("pw-repeat").value = "Console-Passw0rd-1";
   submit(d.getElementById("password-form"));
   check("after the change the console opens", await until(() => !d.getElementById("app").hidden && d.getElementById("main").textContent.includes("Welcome")));
-  const navItems = [...d.querySelectorAll("#nav button:not(.nav-group)")].map((b) => b.textContent);
-  const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.replace(/^[^A-Za-z]+/, ""));
-  check("the menu is grouped into Build, Run & Monitor and Govern", groups.join("|") === "Build|Run & Monitor|Govern", groups.join("|"));
-  check("an administrator sees all eighteen sections", navItems.length === 18 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
-    && ["Settings", "Roles", "Toolkits", "One Model Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
-  const govern = [...d.querySelectorAll('#nav .nav-section[aria-label="Govern"] button:not(.nav-group)')].map((b) => b.textContent);
-  check("Govern holds the administration pages", ["Users", "Roles", "One Agent Vault", "Settings", "One Audit Trail"].every((x) => govern.includes(x)), govern.join(","));
-  click(d.querySelector('#nav .nav-group[data-group="build"]'));
-  check("a menu group can be collapsed", await until(() => !d.querySelector('#nav .nav-section[aria-label="Build"] .nav-items')));
-  click(d.querySelector('#nav .nav-group[data-group="build"]'));
+  // every page of the menu: Home, and each section's pages (listed in full in the section's pop-out)
+  const menuPages = () => [...d.querySelectorAll("#nav > button:not(.nav-collapse), #nav .nav-fly button")].map((b) => b.textContent);
+  const navItems = menuPages();
+  const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
+  check("the menu has short sections: Automation, Operations, AI, Manage, Administration", groups.join("|") === "Automation|Operations|AI|Manage|Administration", groups.join("|"));
+  check("an administrator sees Home and all 22 pages, each once", navItems.length === 23 && new Set(navItems).size === 23 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
+    && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
+  const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
+  check("Administration holds users, roles, audit and settings", ["Users", "Roles", "Teams", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
+  check("on Home only the sections show, no section is open", !d.querySelector("#nav .nav-items"));
+  click(d.querySelector('#nav .nav-group[data-group="manage"]'));
+  check("a section opens to show its pages", await until(() => [...d.querySelectorAll('#nav .nav-section[aria-label="Manage"] .nav-items button')].map((b) => b.textContent).includes("One Agent Vault")));
+  click(d.querySelector('#nav .nav-group[data-group="manage"]'));
+  check("and closes again", await until(() => !d.querySelector('#nav .nav-section[aria-label="Manage"] .nav-items')));
+  const find = d.querySelector("#nav .nav-search input");
+  find.value = "vault"; find.dispatchEvent(new P.w.Event("input", { bubbles: true }));
+  check("Find a page lists the matching pages", await until(() => [...d.querySelectorAll("#nav .nav-items button")].map((b) => b.textContent).join() === "One Agent Vault"));
+  const find2 = d.querySelector("#nav .nav-search input");
+  find2.value = ""; find2.dispatchEvent(new P.w.Event("input", { bubbles: true }));
+  click(d.querySelector("#nav .nav-collapse"));
+  check("the menu can be made narrow and is remembered", d.body.classList.contains("nav-mini") && P.w.localStorage.getItem("ooa.cc.navMini") === "1");
+  click(d.querySelector("#nav .nav-collapse"));
+  check("the top bar has one user menu with API keys, password and sign out", d.getElementById("user-pop").hidden && d.getElementById("user-pop").contains(d.getElementById("btn-logout"))
+    && d.getElementById("user-pop").contains(d.getElementById("btn-apikeys")));
+  click(d.getElementById("btn-user"));
+  check("the user menu opens and shows the role", !d.getElementById("user-pop").hidden && d.getElementById("user-pop-head").textContent.includes("Administrator"));
+  click(d.getElementById("btn-user"));
   check("home shows hours saved", d.getElementById("main").textContent.includes("Hours saved (30 days)"));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
@@ -111,6 +128,8 @@ async function page() {
   check("global values can be added", await until(() => d.getElementById("main").textContent.includes("$global.reports_folder")));
 
   // ---- Part 4: work queues, runner pools, calendars, administration, API keys ----
+  nav("Connections");
+  check("Manage has a Connections page for saved connector sign-ins", await until(() => d.getElementById("main").textContent.includes("chosen by name on agent steps") && btn("New connection") && d.querySelector(".crumbs") && d.querySelector(".crumbs").textContent.includes("Manage")));
   nav("Work queues");
   await until(() => btn("New work queue"));
   check("work queues start empty with guidance", d.getElementById("main").textContent.includes("No work queues yet"));
@@ -244,7 +263,7 @@ async function page() {
   d.getElementById("pw-current").value = carolTemp; d.getElementById("pw-new").value = "Carol-Passw0rd-22"; d.getElementById("pw-repeat").value = "Carol-Passw0rd-22";
   submit(d.getElementById("password-form"));
   await until(() => !d.getElementById("app").hidden);
-  const carolNav = [...d.querySelectorAll("#nav button:not(.nav-group)")].map((b) => b.textContent);
+  const carolNav = [...d.querySelectorAll("#nav > button:not(.nav-collapse), #nav .nav-fly button")].map((b) => b.textContent);
   check("a bot creator does not see Users or Audit log", !carolNav.includes("Users") && !carolNav.includes("One Audit Trail") && carolNav.includes("Agent repository"), carolNav.join(","));
   check("an agent builder sees work queues but not Administration", carolNav.includes("Work queues") && !carolNav.includes("Settings") && !carolNav.includes("Roles"), carolNav.join(","));
   check("everyone has a task inbox; AI governance is for auditors", carolNav.includes("Task inbox") && carolNav.includes("One Workflow") && !carolNav.includes("AI governance"), carolNav.join(","));

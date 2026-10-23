@@ -135,6 +135,12 @@
         "ooa.ai_skills",
         "ooa.web_agent"
       ]
+    },
+    {
+      "name": "13. Interactive forms",
+      "packages": [
+        "ooa.forms"
+      ]
     }
   ],
   "aaMap": {
@@ -664,7 +670,7 @@
     "AWS Comprehend NLP/Key Phrases": "ooa.genai/key_phrases",
     "AWS Comprehend NLP/Detect the language of the text": "ooa.genai/detect_language",
     "AWS Comprehend NLP/Named Entities": "ooa.genai/entities",
-    "Interactive forms/Display": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Display": "ooa.forms/display",
     "Microsoft 365 Calendar/Add attachment": "ooa.microsoft365/add_event_attachment",
     "Microsoft 365 Calendar/Add attendee": "ooa.microsoft365/add_attendees",
     "Microsoft 365 Calendar/Cancel meeting": "ooa.microsoft365/cancel_event",
@@ -1009,22 +1015,22 @@
     "Microsoft 365 Excel/Insert row or column": "ooa.microsoft365/excel_insert_range",
     "Microsoft 365 Excel/Open": "-: no sessions (each step names the workbook)",
     "Microsoft 365 Excel/Retrieve sheet count": "ooa.microsoft365/excel_get_worksheets",
-    "Interactive forms/Close": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Show": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Hide": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Reset": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Validate form": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Change Form Title": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Assign": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Enable": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Disable": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Get": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Set": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Set focus": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Highlight": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Unhighlight": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Change label": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
-    "Interactive forms/Dynamic area": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task"
+    "Interactive forms/Close": "ooa.forms/close",
+    "Interactive forms/Show": "ooa.forms/show",
+    "Interactive forms/Hide": "ooa.forms/hide",
+    "Interactive forms/Reset": "ooa.forms/reset",
+    "Interactive forms/Validate form": "ooa.forms/validate",
+    "Interactive forms/Change Form Title": "ooa.forms/change_title",
+    "Interactive forms/Assign": "ooa.forms/assign",
+    "Interactive forms/Enable": "ooa.forms/enable",
+    "Interactive forms/Disable": "ooa.forms/disable",
+    "Interactive forms/Get": "ooa.forms/get",
+    "Interactive forms/Set": "ooa.forms/set",
+    "Interactive forms/Set focus": "ooa.forms/set_focus",
+    "Interactive forms/Highlight": "ooa.forms/highlight",
+    "Interactive forms/Unhighlight": "ooa.forms/unhighlight",
+    "Interactive forms/Change label": "ooa.forms/change_label",
+    "Interactive forms/Dynamic area": "ooa.forms/dynamic_area"
   },
   "packages": {
     "core": {
@@ -1269,6 +1275,10 @@
     },
     "ooa.ai_skills": {
       "test": "AiAndWorkTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.forms": {
+      "test": "FormsPackageTest (the test plays the person at the form window through its local address)",
+      "ideas": "Built after the comparison: AA's Interactive forms. Forms come from Studio's form designer (new Button and Dynamic area fields)."
     }
   },
   "commands": {
@@ -1564,9 +1574,8 @@
       "fixed": "Limits on row, column, count or position (1-based)."
     },
     "ooa.browser/open": {
-      "diff": "Checked in AA's editor: what to open (existing tab, new tab, new window), browser incl. 'default browser', link, time-out in seconds (240, min 9). Ours: same modes; browser edge/chrome/chromium/firefox (no 'default'); time-out in milliseconds.",
-      "fixed": "Browser, headless and download folder show only for a new window; the tab picker only for new/existing tab; time-out at least 1 s.",
-      "ideas": "Proposal: a 'default browser' choice read from the user's Windows setting."
+      "diff": "Found by the web use cases: a local HTML file could not be opened by its path.",
+      "fixed": "A file path (absolute or in the workspace) opens as its file: address."
     },
     "ooa.browser/close": {
       "diff": "AA: tab, window or all browsers with a tab picker and a time-out. Ours: also 'this session'; no time-out (the step time-out applies).",
@@ -1850,6 +1859,30 @@
     },
     "ooa.sap/run_transaction": {
       "diff": "SAP GUI scripting actions match AA's SAP package. AA's SAP BAPI package is not built: it needs the customer's licensed SAP Java Connector at run time."
+    },
+    "ooa.forms/display": {
+      "diff": "New (AA Interactive forms Display): shows a form from the form designer in a small window on the runner; waits until submit, a button or close, or stays open.",
+      "fixed": "Answers come back typed (numbers, true/false); required fields and limits are checked in the window."
+    },
+    "ooa.forms/wait_for_event": {
+      "diff": "New: AA reacts to form events in handlers; here an agent waits for the next button, change, submit or close and branches on it.",
+      "fixed": "Closing the window always ends the wait; a time-out can stop or just report."
+    },
+    "ooa.forms/dynamic_area": {
+      "diff": "New (AA Dynamic area): the agent fills an area with fields while the form is open.",
+      "fixed": "Ids are checked so they never clash with other fields."
+    },
+    "ooa.desktop_ui/get_table": {
+      "diff": "Found by use case D2: a Windows Forms grid came back as Column1..6 with the headers as the first row.",
+      "fixed": "The header row becomes the column names and the row headers (Row 0 ...) are dropped."
+    },
+    "ooa.desktop_ui/object_action": {
+      "diff": "Found by use case D5: controls of an owned pop-up (validation box, Save As) were not found.",
+      "fixed": "Windows a window owns are searched as windows of their own."
+    },
+    "ooa.datatable/add_row": {
+      "diff": "Found by use cases W5 and O5: only a Dictionary was accepted; AA also takes values in column order.",
+      "fixed": "A Dictionary or a List in column order; too many values is reported."
     }
   }
 }

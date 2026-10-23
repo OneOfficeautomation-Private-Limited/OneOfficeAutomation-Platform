@@ -205,6 +205,30 @@ body.dock-right .dock-split { order: 8; cursor: col-resize; width: 5px; height: 
 .step.container.selected { background: color-mix(in srgb, var(--accent) 7%, var(--surface-1)); }
 .step.disabled { opacity: .55; filter: grayscale(.6); }
 .step.dragging-source { opacity: .35; }
+/* drop on a card: a bar above or below shows where it lands; a dashed outline means inside the block */
+.step.drop-before, .fnode.drop-before { box-shadow: 0 -4px 0 0 var(--accent); }
+.step.drop-after, .fnode.drop-after { box-shadow: 0 4px 0 0 var(--accent); }
+.step.drop-inside, .fnode.drop-inside { box-shadow: 0 0 0 2px var(--accent), 0 6px 0 0 var(--accent-subtle); }
+/* fixed Start and End markers of the list view */
+.terminal { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0; padding: 3px 14px; border: 1px solid transparent; border-radius: var(--radius-pill);
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); cursor: pointer; user-select: none; }
+.terminal.start { background: color-mix(in srgb, var(--success-solid) 14%, var(--surface-1)); color: var(--success); border-color: color-mix(in srgb, var(--success-solid) 35%, transparent); }
+.terminal.end { background: var(--neutral-bg); color: var(--text-2); border-color: var(--border-2); }
+.terminal:hover { border-color: var(--border-control); }
+.terminal.selected, .fterm.selected { box-shadow: 0 0 0 2px var(--accent); }
+.terminal.over, .fterm.over { box-shadow: 0 0 0 3px var(--accent); background: var(--accent-subtle); color: var(--text-1); }
+.terminal:focus-visible, .fterm:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.dnd .terminal { border-style: dashed; border-color: var(--accent); }
+/* offer to shorten long recorded variable names (older recordings) */
+.rename-offer { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); max-width: 1040px; margin: 0 0 var(--space-3); padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: var(--radius-md); background: var(--accent-subtle); color: var(--text-1); font-size: var(--text-sm); }
+.rename-offer span { flex: 1 1 260px; }
+/* saved connections */
+.conn-field { padding-bottom: var(--space-2); border-bottom: 1px dashed var(--border-2); }
+.conn-dialog { display: flex; flex-direction: column; gap: var(--space-2); min-width: min(520px, 86vw); }
+.conn-row { display: flex; align-items: center; gap: var(--space-2); padding: 6px 10px; border: 1px solid var(--border-2); border-radius: var(--radius-md); background: var(--surface-1); }
+.conn-row .spacer { flex: 1; }
+.conn-dialog .row-btns { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 .step .bar { align-self: stretch; width: 4px; flex: 0 0 4px; }
 .step .grip { color: var(--text-3); cursor: grab; letter-spacing: -2px; font-size: var(--text-base); }
 .step .num { position: relative; min-width: 34px; padding-left: 14px; border-radius: var(--radius-sm); color: var(--text-3); font-family: var(--font-mono); font-size: var(--text-sm); cursor: pointer; }
@@ -275,8 +299,12 @@ body.dnd .slot { height: 14px; }
 .fempty { padding: 8px; color: var(--text-3); font-size: var(--text-sm); font-style: italic; }
 /* flow view: lines take drops while something is dragged */
 .fslot { position: relative; }
-body.dnd .fslot.fline { width: 6px; height: 26px; border-radius: 3px; background: var(--accent-subtle); }
-.fslot.over, body.dnd .fslot.fline.over { background: var(--accent); box-shadow: 0 0 0 4px var(--ring); }
+/* the line is drawn thin but takes drops across a wide band, so it is easy to hit */
+.fslot.fline { width: 120px; background: linear-gradient(var(--border-control), var(--border-control)) no-repeat center / 2px 100%; }
+body.dnd .fslot.fline { height: 30px; background-image: linear-gradient(var(--accent-subtle), var(--accent-subtle)); background-size: 8px 100%; }
+.fslot.fline.over, body.dnd .fslot.fline.over { background-image: linear-gradient(var(--accent), var(--accent)); background-size: 100% 4px; }
+.fterm { cursor: pointer; user-select: none; }
+body.dnd .fterm { box-shadow: 0 0 0 2px var(--accent-subtle); }
 .fempty.fslot { border: 1px dashed transparent; border-radius: var(--radius-md); }
 body.dnd .fempty.fslot { border-color: var(--border-control); }
 .fempty.fslot.over { border-color: var(--accent); background: var(--accent-subtle); color: var(--text-1); }
@@ -397,7 +425,7 @@ details.more-opts > summary .n { padding: 0 7px; border-radius: var(--radius-pil
 .ve-table input { padding: 3px 6px; font-size: var(--text-sm); }
 
 /* ---------- 12. run dock and run window ---------- */
-.dock { display: flex; flex-direction: column; height: var(--dock-h, 30vh); min-height: 120px; background: var(--surface-1); border-top: 1px solid var(--border-2); }
+.dock { display: flex; flex-direction: column; height: var(--dock-h, 24vh); min-height: 120px; background: var(--surface-1); border-top: 1px solid var(--border-2); }
 body.no-dock .dock { display: none; }
 .dock-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: 0 var(--space-3); background: var(--surface-2); border-bottom: 1px solid var(--border-2); }
 .dock-tabs { display: flex; }

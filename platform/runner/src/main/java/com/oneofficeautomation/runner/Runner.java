@@ -269,6 +269,49 @@ public final class Runner {
             catch (Exception e) { throw new OoaException("GLOBALS.INVALID", "global-values.json is not valid JSON: " + e.getMessage(), "Fix the file in the workspace."); }
         }
 
+        /**
+         * Saved connections by name: from the connections service (Command Center) or connections.json in the
+         * workspace. Each is {"package": "ooa.servicenow", "values": {input: value}, "credentials": {input: vault ref}}.
+         */
+        @SuppressWarnings("unchecked")
+        Map<String, Object> connections() {
+            Object svc = services.get("connections");
+            if (svc instanceof java.util.function.Supplier<?> sup) { Object v = sup.get(); return v instanceof Map ? (Map<String, Object>) v : Map.of(); }
+            java.nio.file.Path p = workDir.resolve("connections.json");
+            if (!java.nio.file.Files.isRegularFile(p)) return Map.of();
+            try { Object v = JsonLite.parse(java.nio.file.Files.readString(p)); return v instanceof Map ? (Map<String, Object>) v : Map.of(); }
+            catch (Exception e) { throw new OoaException("CONNECTION.INVALID", "connections.json is not valid JSON: " + e.getMessage(), "Fix the file in the workspace."); }
+        }
+
+        /**
+         * The step's arguments with the inputs it leaves empty taken from the saved connection: plain values as they
+         * are, credentials fetched from the vault just in time (and masked in logs). What the step sets itself wins.
+         */
+        @SuppressWarnings("unchecked")
+        Map<String, Object> withConnection(String name, String pid, ActionSpec spec, Map<String, Object> raw) {
+            if (!(connections().get(name) instanceof Map<?, ?> found))
+                throw new OoaException("CONNECTION.NOT_FOUND", "There is no saved connection named '" + name + "'",
+                        "Create it under Connections (Command Center or Studio), or choose another connection on the step.");
+            Map<String, Object> conn = (Map<String, Object>) found;
+            Object pkgOf = conn.get("package");
+            if (pkgOf instanceof String cp && !cp.isBlank() && !cp.equals(pid))
+                throw new OoaException("CONNECTION.WRONG_TOOLKIT", "Connection '" + name + "' is for " + cp + ", not " + pid, "Choose a connection made for " + pid + ".");
+            Map<String, Object> out = new LinkedHashMap<>(raw == null ? Map.of() : raw);
+            java.util.function.Predicate<String> empty = k -> out.get(k) == null || (out.get(k) instanceof String s && s.isBlank());
+            if (conn.get("values") instanceof Map<?, ?> vals)
+                for (var e : ((Map<String, Object>) vals).entrySet()) if (spec.input(e.getKey()).isPresent() && empty.test(e.getKey())) out.put(e.getKey(), e.getValue());
+            if (conn.get("credentials") instanceof Map<?, ?> creds)
+                for (var e : ((Map<String, Object>) creds).entrySet()) {
+                    if (spec.input(e.getKey()).isEmpty() || !empty.test(e.getKey())) continue;
+                    CredentialVault vault = (CredentialVault) services.get("vault");
+                    if (vault == null) throw new OoaException("VAULT.UNAVAILABLE", "No vault configured for the credentials of connection '" + name + "'");
+                    SecureString s = vault.getSecret(String.valueOf(e.getValue()), principal);
+                    secrets.add(s.reveal()); secureValues.add(s);
+                    out.put(e.getKey(), s);
+                }
+            return out;
+        }
+
         void emit(String type, String stepId, Map<String, Object> data) {
             sink.emit(new RunEvent(runId, seq.incrementAndGet(), type, System.currentTimeMillis() / 1000.0, stepId, data));
         }
@@ -891,8 +934,7 @@ public final class Runner {
                 for (Object o : list(step, "catch")) {
                     Map<String, Object> c = (Map<String, Object>) o;
                     List<Object> codes = c.get("codes") instanceof List<?> l ? (List<Object>) l : List.of();
-                    boolean match = codes.isEmpty() || codes.stream().map(String::valueOf).anyMatch(x ->
-                            x.equals(e.code()) || (x.endsWith("*") && e.code().startsWith(x.substring(0, x.length() - 1))));
+                    boolean match = ErrorCodes.anyMatches(codes, e.code());   // exact, PREFIX.* or a kind such as NOT_FOUND
                     if (match) {
                         Map<String, Object> err = errorInfo(e);
                         if (c.get("screenshot") != null && !Boolean.FALSE.equals(c.get("screenshot"))) err.put("screenshot", screenshot(c.get("screenshot"), e.stepId() == null ? sid : e.stepId()));
@@ -1042,8 +1084,15 @@ public final class Runner {
             for (ActionSpec.InputSpec in : spec.inputs()) {
                 Object v = raw == null ? null : raw.get(in.name());
                 if (v != null) {
-                    if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString))
-                        v = Values.coerce(v, in.type().flowName(), in.name());
+                    if (in.type() != OoaType.ANY && in.type() != OoaType.CREDENTIAL && !(v instanceof SecureString)) {
+                        try { v = Values.coerce(v, in.type().flowName(), in.name()); }
+                        catch (OoaException e) {
+                            // name the step's input, not a variable: "Input 'values' expects Dictionary, got List"
+                            if (!"VAR.TYPE_MISMATCH".equals(e.code())) throw e;
+                            throw new OoaException(e.code(), e.getMessage().replaceFirst("^Variable '", "Input '"),
+                                    "Give " + in.name() + " a " + in.type().flowName() + (in.description().isEmpty() ? "." : ": " + in.description()), false, null);
+                        }
+                    }
                     if (!in.pattern().isEmpty() && v instanceof String s && !java.util.regex.Pattern.compile(in.pattern()).matcher(s).find())
                         throw new ActionException("ACTION.INPUT_INVALID", "Input '" + in.name() + "' value '" + s + "' does not match " + in.pattern(), in.description());
                     out.put(in.name(), v);
@@ -1119,7 +1168,9 @@ public final class Runner {
             while (true) {
                 OoaException err;
                 try {
-                    Map<String, Object> args = prepareArgs(spec, (Map<String, Object>) resolve(step.getOrDefault("args", Map.of())));
+                    Map<String, Object> raw = (Map<String, Object>) resolve(step.getOrDefault("args", Map.of()));
+                    if (step.get("connection") instanceof String cn && !cn.isBlank()) raw = withConnection(cn.strip(), pid, spec, raw);
+                    Map<String, Object> args = prepareArgs(spec, raw);
                     ActionContext c = ctx(sid);
                     result = callWithTimeout(() -> invoke(pkg, spec, args, c), timeout);
                     break;
@@ -1131,7 +1182,7 @@ public final class Runner {
                             "Report this to the toolkit publisher with the run id.");
                 }
                 List<Object> codes = policy.get("codes") instanceof List<?> l ? (List<Object>) l : null;
-                boolean retry = attempt < maxRetry && (codes != null ? codes.contains(err.code()) : err.retryable());
+                boolean retry = attempt < maxRetry && (codes != null ? !codes.isEmpty() && ErrorCodes.anyMatches(codes, err.code()) : err.retryable());
                 if (!retry) throw err;
                 attempt++;
                 double delay = Values.toNumber(policy.getOrDefault("delayMs", BigDecimal.valueOf(500))).doubleValue() / 1000;

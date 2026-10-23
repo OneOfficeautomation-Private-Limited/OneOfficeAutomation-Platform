@@ -110,7 +110,7 @@ public final class StudioServer {
                 if (!path.startsWith(base + "/")) { send(ex, 404, "text/plain", "Not found"); return; }
                 path = path.substring(base.length());
             }
-            String method = ex.getRequestMethod();
+            String method = "HEAD".equals(ex.getRequestMethod()) ? "GET" : ex.getRequestMethod();   // HEAD is answered like GET, without the body
             if (path.startsWith("/api/")) api(ex, method, path.substring(5));
             else asset(ex, path);
         } catch (OoaException e) {
@@ -393,6 +393,8 @@ public final class StudioServer {
                         "copied_by", System.getProperty("user.name", ""), "copied_at", java.time.Instant.now().toString()), false), StandardCharsets.UTF_8);
                 sendJson(ex, 200, Map.of("ok", true));
             } else sendJson(ex, 200, Files.exists(clip) ? json.parse(Files.readString(clip)) : Map.of("steps", List.of()));
+        } else if (route.equals("connections") || route.startsWith("connections/")) {
+            savedConnections(ex, method, route.equals("connections") ? null : route.substring("connections/".length()));
         } else if (method.equals("GET") && route.equals("builtins")) {
             Runner probe = runner(new EventSink.ListSink());
             Map<String, Object> flow = Map.of("kind", "TaskBot", "id", "probe", "name", "Agent Studio", "variables",
@@ -868,12 +870,55 @@ public final class StudioServer {
         sendBytes(ex, code, type, body.getBytes(StandardCharsets.UTF_8));
     }
 
+    /** Sends a reply body; a HEAD request gets the same status and headers without a body (HTTP does not allow one). */
+    /**
+     * Saved connections of this workspace (connections.json, read by local runs): a connector's address and settings
+     * plus vault references for its secrets. GET lists them; PUT connections/NAME saves one; DELETE removes it.
+     */
+    @SuppressWarnings("unchecked")
+    private void savedConnections(HttpExchange ex, String method, String name) throws IOException {
+        Path file = workspace.resolve("connections.json");
+        Map<String, Object> all = new TreeMap<>(Files.isRegularFile(file) && json.parse(Files.readString(file)) instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of());
+        if (method.equals("GET") && name == null) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            all.forEach((k, v) -> { Map<String, Object> c = new LinkedHashMap<>(); c.put("name", k); if (v instanceof Map<?, ?> vm) c.putAll((Map<String, Object>) vm); out.add(c); });
+            sendJson(ex, 200, Map.of("connections", out));
+            return;
+        }
+        if (name == null || !name.matches("^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$"))
+            throw new OoaException("STUDIO.BAD_INPUT", "Connection names use letters, digits, spaces, _ . and - (up to 80)", "Example: ServiceNow production.");
+        if (method.equals("DELETE")) {
+            if (all.remove(name) == null) throw new OoaException("STUDIO.NOT_FOUND", "No saved connection '" + name + "'");
+        } else if (method.equals("PUT")) {
+            Map<String, Object> b = (Map<String, Object>) body(ex);
+            String pkg = b.get("package") instanceof String s ? s.strip() : "";
+            if (!pkg.matches("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$")) throw new OoaException("STUDIO.BAD_INPUT", "Choose the toolkit the connection is for", "Example: ooa.servicenow.");
+            Map<String, Object> values = b.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
+            Map<String, Object> creds = b.get("credentials") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
+            for (var e : creds.entrySet())
+                if (!(e.getValue() instanceof String ref) || !ref.matches("^[^/]{1,120}/[^/]{1,120}/[^/]{1,120}$"))
+                    throw new OoaException("STUDIO.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Secrets are never stored in a connection.");
+            Map<String, Object> c = new LinkedHashMap<>();
+            c.put("package", pkg);
+            if (b.get("description") instanceof String d && !d.isBlank()) c.put("description", d.strip());
+            c.put("values", values); c.put("credentials", creds);
+            all.put(name, c);
+        } else { send(ex, 405, "text/plain", "Method not allowed"); return; }
+        Files.writeString(file, json.write(all, true), StandardCharsets.UTF_8);
+        sendJson(ex, 200, Map.of("ok", true));
+    }
+
+    static void writeBody(HttpExchange ex, int status, byte[] b) throws IOException {
+        if ("HEAD".equalsIgnoreCase(ex.getRequestMethod())) { ex.sendResponseHeaders(status, -1); ex.close(); return; }
+        ex.sendResponseHeaders(status, b.length);
+        try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+    }
+
     private static void sendBytes(HttpExchange ex, int code, String type, byte[] b) throws IOException {
         ex.getResponseHeaders().set("Content-Type", type);
         ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
         ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
         ex.getResponseHeaders().set("Cache-Control", "no-store");
-        ex.sendResponseHeaders(code, b.length);
-        try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+        writeBody(ex, code, b);
     }
 }

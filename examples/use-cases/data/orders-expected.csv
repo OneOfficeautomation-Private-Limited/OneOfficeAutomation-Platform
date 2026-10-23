@@ -1,0 +1,5 @@
+Order,Customer,Status
+SO-501,Acme,Shipped
+SO-502,Globex,Open
+SO-503,Initech,Shipped
+SO-504,Umbrella,Cancelled

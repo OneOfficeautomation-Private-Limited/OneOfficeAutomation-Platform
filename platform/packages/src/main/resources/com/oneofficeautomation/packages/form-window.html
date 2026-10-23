@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Form</title>
+<style>
+  :root { --bg: #f4f6fa; --card: #fff; --text: #1b2230; --muted: #5b6475; --line: #d6dbe5; --accent: #2563eb; --accent-bg: #e8efff; --danger: #c42b1c; --radius: 10px;
+    color-scheme: light dark; font: 15px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #14171d; --card: #1d222b; --text: #e8ebf1; --muted: #a0a8b8; --line: #343b47; --accent: #6b9bff; --accent-bg: #1f2a44; --danger: #ff7a6b; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 20px 16px; box-shadow: 0 1px 2px rgb(0 0 0 / 6%); }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 650; }
+  .desc { margin: 0 0 16px; color: var(--muted); }
+  .field { margin: 0 0 14px; border-radius: var(--radius); }
+  .field > label, .field > .label { display: block; margin: 0 0 4px; font-weight: 600; }
+  .req { color: var(--danger); margin-left: 2px; }
+  input[type=text], input[type=number], input[type=email], input[type=date], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+  textarea { min-height: 88px; resize: vertical; }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .help { margin-top: 3px; color: var(--muted); font-size: 13px; }
+  .error { margin-top: 3px; color: var(--danger); font-size: 13px; font-weight: 600; }
+  .bad input, .bad select, .bad textarea { border-color: var(--danger); }
+  .check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+  .choices label { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-weight: 400; }
+  .disabled { opacity: .55; }
+  .hl { outline: 3px solid var(--hl); outline-offset: 4px; }
+  h2 { margin: 18px 0 8px; font-size: 16px; }
+  p.block { margin: 0 0 14px; white-space: pre-wrap; }
+  .area { padding: 10px 12px 2px; margin: 0 0 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
+  .area:empty { display: none; }
+  button { padding: 8px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { cursor: default; opacity: .55; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .inline-btn { margin: 0 8px 14px 0; }
+  .closed { text-align: center; color: var(--muted); padding: 40px 0; }
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"><div class="closed">Loading the form…</div></main>
+<script>
+(() => {
+  const base = location.pathname.replace(/\/$/, "");
+  let state = null, version = 0, values = {}, editing = null, sending = false;
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs, ...kids) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (k === "text") e.textContent = v; else e.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c !== null && c !== undefined) e.append(c);
+    return e;
+  };
+  const send = (ev) => fetch(base + "/event", { method: "POST", headers: { "Content-Type": "application/json", "X-OOA-Form": "1" }, body: JSON.stringify(Object.assign({ values }, ev)) });
+  const look = (id) => (state.elements || {})[id] || {};
+
+  function problems() {
+    const out = {};
+    const walk = (list) => (list || []).forEach((f) => {
+      if (f.type === "area") return walk(f.fields);
+      if (["heading", "paragraph", "button"].includes(f.type)) return;
+      const st = look(f.id); if (st.hidden || st.disabled) return;
+      const v = values[f.id], t = v === undefined || v === null ? "" : String(v).trim();
+      const empty = f.type === "checkbox" ? v !== true && t !== "true" : t === "";
+      if (f.required && empty) { out[f.id] = "Required"; return; }
+      if (!t) return;
+      if (f.type === "number") { const n = Number(t); if (isNaN(n)) out[f.id] = "Enter a number"; else if (f.min !== undefined && n < f.min) out[f.id] = "At least " + f.min; else if (f.max !== undefined && n > f.max) out[f.id] = "At most " + f.max; }
+      if (f.type === "email" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t)) out[f.id] = "Enter an email address";
+    });
+    walk(state.form.fields);
+    return out;
+  }
+
+  function field(f) {
+    const st = look(f.id), label = st.label !== undefined ? st.label : f.label || "";
+    if (st.hidden) return null;
+    const cls = (extra) => [extra, st.disabled ? "disabled" : "", st.highlight ? "hl" : "", (state.errors || {})[f.id] ? "bad" : ""].filter(Boolean).join(" ");
+    const wrap = (node, opts = {}) => {
+      const w = el(opts.tag || "div", { class: cls(opts.cls || "field") }, node);
+      if (st.highlight) w.style.setProperty("--hl", st.highlight);
+      return w;
+    };
+    if (f.type === "heading") return wrap(el("h2", { text: label }), { tag: "div", cls: "" });
+    if (f.type === "paragraph") return wrap(el("p", { class: "block", text: st.label !== undefined ? st.label : f.text || f.label || "" }), { cls: "" });
+    if (f.type === "button") return wrap(el("button", { type: "button", id: "f_" + f.id, disabled: !!st.disabled, onclick: () => send({ type: "button", element: f.id }) }, label || f.id), { cls: "inline-btn" });
+    if (f.type === "area") return wrap((f.fields || []).map(field).filter(Boolean), { cls: "area" });
+    const id = "f_" + f.id, v = values[f.id];
+    const change = (val) => { values[f.id] = val; send({ type: "change", element: f.id }); };
+    let input;
+    const opts = st.options || f.options || [];
+    switch (f.type) {
+      case "multiline": input = el("textarea", { id, placeholder: f.placeholder || null, disabled: !!st.disabled, onchange: (e) => change(e.target.value), onfocus: () => { editing = f.id; }, onblur: () => { editing = null; } }); input.value = v ?? ""; break;
+      case "dropdown": input = el("select", { id, disabled: !!st.disabled, onchange: (e) => change(e.target.value) }, el("option", { value: "", text: "Choose…" }), opts.map((o) => el("option", { value: o, text: o }))); input.value = v ?? ""; break;
+      case "radio": input = el("div", { class: "choices", role: "radiogroup", id }, opts.map((o) => el("label", {}, el("input", { type: "radio", name: id, value: o, checked: String(v) === o, disabled: !!st.disabled, onchange: () => change(o) }), o))); break;
+      case "checkbox": return wrap(el("label", { class: "check" }, el("input", { type: "checkbox", id, checked: v === true || v === "true", disabled: !!st.disabled, onchange: (e) => change(e.target.checked) }), label, f.required ? el("span", { class: "req", text: "*" }) : null,
+          (state.errors || {})[f.id] ? el("div", { class: "error", text: state.errors[f.id] }) : null));
+      default: {
+        const type = { number: "number", email: "email", date: "date" }[f.type] || "text";
+        input = el("input", { id, type, placeholder: f.placeholder || null, min: f.min, max: f.max, disabled: !!st.disabled, onchange: (e) => change(e.target.value), onfocus: () => { editing = f.id; }, onblur: () => { editing = null; } });
+        input.value = v ?? "";
+      }
+    }
+    return wrap([el("label", { for: id }, label, f.required ? el("span", { class: "req", text: "*" }) : null), input,
+      f.help ? el("div", { class: "help", text: f.help }) : null, (state.errors || {})[f.id] ? el("div", { class: "error", text: state.errors[f.id] }) : null]);
+  }
+
+  function render() {
+    document.title = state.title || "Form";
+    if (state.closed) { $("app").replaceChildren(el("div", { class: "closed", text: "This form is closed. You can close this window." })); setTimeout(() => window.close(), 400); return; }
+    const focused = document.activeElement && document.activeElement.id;
+    const form = state.form;
+    const submit = el("button", { type: "submit", class: "primary", disabled: sending }, form.submitLabel || "Submit");
+    const body = el("form", { class: "card", novalidate: true, onsubmit: (e) => {
+      e.preventDefault();
+      if (form.check !== false) { const p = problems(); state.errors = p; if (Object.keys(p).length) { render(); const first = document.querySelector(".bad input, .bad select, .bad textarea"); if (first) first.focus(); return; } }
+      sending = true; send({ type: "submit" }).finally(() => { sending = false; });
+    } }, el("h1", { text: state.title || form.name || "Form" }), form.description ? el("p", { class: "desc", text: form.description }) : null,
+      (form.fields || []).map(field).filter(Boolean), el("div", { class: "actions" }, submit));
+    $("app").replaceChildren(body);
+    const want = state.focus ? "f_" + state.focus : focused;
+    if (want && $(want)) $(want).focus();
+  }
+
+  async function poll() {
+    while (true) {
+      try {
+        const r = await fetch(base + "/state?since=" + version, { cache: "no-store" });
+        if (!r.ok) { if (state) { state.closed = true; render(); } else $("app").replaceChildren(el("div", { class: "closed", text: "This form is closed." })); return; }
+        const s = await r.json();
+        if (s.version !== version || s.closed) {
+          const keep = editing && document.getElementById("f_" + editing) ? document.getElementById("f_" + editing).value : null;
+          state = s; version = s.version; values = Object.assign({}, s.values);
+          if (keep !== null && editing) values[editing] = keep;   // do not overwrite what the person is typing
+          render();
+          if (s.closed) return;
+        }
+      } catch (_) { await new Promise((res) => setTimeout(res, 1000)); }
+    }
+  }
+  window.addEventListener("pagehide", () => { if (state && !state.closed) navigator.sendBeacon && fetch(base + "/event", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", "X-OOA-Form": "1" }, body: JSON.stringify({ type: "close", values }) }); });
+  poll();
+})();
+</script>
+</body>
+</html>

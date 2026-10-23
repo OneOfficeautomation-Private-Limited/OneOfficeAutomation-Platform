@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Demo search</title><style>body{font:15px system-ui,"Segoe UI",sans-serif;margin:32px;color:#1b2230}label{display:block;margin:10px 0 4px;font-weight:600}
+input,select{padding:6px 8px;width:260px}button{margin-top:14px;padding:7px 14px}table{border-collapse:collapse;margin-top:12px}
+td,th{border:1px solid #ccd;padding:5px 10px;text-align:left}.hidden{display:none}#confirmation,#last{font-weight:700;color:#0a7a3e}</style></head><body>
+<h1>Demo shop search</h1><form id="f" onsubmit="go(); return false"><input id="q" placeholder="Search products"> <button type="submit">Search</button></form>
+<div id="out"></div>
+<script>
+const items = [["Laptop Pro 14", 1299], ["Laptop Air 13", 999], ["Phone X", 799], ["Tablet S", 499]];
+function go() {
+  const q = document.getElementById("q").value.trim().toLowerCase(), out = document.getElementById("out");
+  out.innerHTML = "<p>Searching...</p>";
+  setTimeout(() => {
+    const hits = items.filter(([n]) => n.toLowerCase().includes(q));
+    out.innerHTML = hits.length ? "<table id='results'><thead><tr><th>Name</th><th>Price</th></tr></thead><tbody>" + hits.map(([n, p]) => "<tr><td>" + n + "</td><td>" + p + "</td></tr>").join("") + "</tbody></table>"
+      : "<p id='none'>No results for that search.</p>";
+  }, 600);
+}
+</script></body></html>

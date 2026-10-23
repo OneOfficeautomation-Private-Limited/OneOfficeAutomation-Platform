@@ -268,7 +268,7 @@ function findPathById(id, list = state.flow.steps, base = ["steps"]) {
     if (s.id === id) return p;
     for (const [key] of SECTIONS[s.action] || []) {
       const k = Array.isArray(key) ? key : [key];
-      const r = findPathById(id, getAt(s, k), p.concat(k));
+      const r = findPathById(id, getAt(s, k) || [], p.concat(k));   // a missing section (Try without Finally) is empty, not the whole agent
       if (r) return r;
     }
   }
@@ -368,8 +368,10 @@ function setFlow(flow, file) {
   state.flow = flow;
   state.flow.variables = state.flow.variables || [];
   state.flow.steps = state.flow.steps || [];
+  // an empty Finally is not shown (a Try has Try and Catch unless Finally is added); runs are unchanged without it
+  for (const s of allSteps(state.flow.steps)) if (s.action === "core/try" && Array.isArray(s.finally) && !s.finally.length) delete s.finally;
   state.file = file;
-  state.selected = null; state.target = null; state.lastRun = null; state.multi = new Set();
+  state.selected = null; state.target = null; state.anchor = null; state.lastRun = null; state.multi = new Set();
   state.history = []; state.future = []; state.lastSnapshot = JSON.stringify(flow);
   state.liveSteps = { running: null, done: new Set(), failed: null };
   setDirty(false);
@@ -377,6 +379,7 @@ function setFlow(flow, file) {
   renderAll();
   renderTree();
   updateEditButtons();
+  offerShortNames();
   scheduleValidate(0);
 }
 
@@ -839,6 +842,8 @@ function renderLibrary() {
 // ---------- steps ----------
 function insertionPoint() {
   if (state.target) { const list = getAt(state.flow, state.target); return { list, index: list.length, path: state.target }; }
+  // Start or End selected (as in the reference product): clicked actions go first or last
+  if (state.anchor && !state.selected && !state.multi.size) return { list: state.flow.steps, index: state.anchor === "start" ? 0 : state.flow.steps.length, path: ["steps"] };
   const after = state.multi.size > 1 ? lastSelectedPath() : state.selected;
   if (after) {
     const listPath = after.slice(0, -1);
@@ -858,7 +863,7 @@ function addStep(action, at) {
   }
   if (Object.keys(args).length) step.args = args;
   if (action === "core/if") { step.children = []; step.else = []; }
-  else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; step.finally = []; }
+  else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally is added only when wanted
   else if (SECTIONS[action]) step.children = [];
   at = at || insertionPoint();
   at.list.splice(at.index, 0, step);
@@ -920,6 +925,62 @@ function makeSlot(listPath, index) {
   slot.addEventListener("dragleave", () => slot.classList.remove("over"));
   slot.addEventListener("drop", (e) => { e.preventDefault(); slot.classList.remove("over"); dropAt(e, listPath, index); });
   return slot;
+}
+
+/** Is this drag a library command or a canvas step (not a file or text from elsewhere)? */
+function isOoaDrag(e) {
+  const t = e.dataTransfer && e.dataTransfer.types ? [...e.dataTransfer.types] : [];
+  return t.includes("text/x-ooa-step") || t.includes("text/x-ooa-command") || !!state.dragStep;
+}
+
+/**
+ * Lets a whole step card take drops, not only the gaps between cards: the top half drops in front of the step, the
+ * bottom half after it. On a block (If, Loop, Try ...) that is open, the bottom half drops at the start of its first
+ * section, which is what is shown right below it. A line on the card shows where the drop will land.
+ */
+function stepDropTarget(el, listPath, index, step) {
+  const sections = SECTIONS[step.action] && !collapsedSet().has(step.id) ? sectionsOf(step) : [];
+  const first = sections.length ? listPath.concat(index, Array.isArray(sections[0][0]) ? sections[0][0] : [sections[0][0]]) : null;
+  const where = (e) => { const r = el.getBoundingClientRect(); return e.clientY - r.top < r.height / 2 ? "before" : first ? "inside" : "after"; };
+  const clear = () => el.classList.remove("drop-before", "drop-after", "drop-inside");
+  el.addEventListener("dragover", (e) => { if (!isOoaDrag(e)) return; e.preventDefault(); e.stopPropagation(); const w = where(e); if (!el.classList.contains("drop-" + w)) { clear(); el.classList.add("drop-" + w); } });
+  el.addEventListener("dragleave", (e) => { if (!el.contains(e.relatedTarget)) clear(); });
+  el.addEventListener("drop", (e) => {
+    if (!isOoaDrag(e)) return;
+    e.preventDefault(); e.stopPropagation();
+    const w = where(e); clear();
+    if (w === "inside") dropAt(e, first, 0);
+    else dropAt(e, listPath, index + (w === "after" ? 1 : 0));
+  });
+}
+
+/** The fixed Start and End markers of the canvas: select one to add clicked actions first or last; drop on one to put it there. */
+function terminalMarker(kind, cls) {
+  const label = kind === "start" ? "Start" : "End";
+  const el = h("div", { class: cls + (state.anchor === kind && !state.selected && !state.multi.size ? " selected" : ""), tabindex: "0", role: "button", "data-terminal": kind,
+    "aria-label": label + (kind === "start" ? ": select to add actions as step 1" : ": select to add actions at the end"),
+    title: kind === "start" ? "Select Start, then click actions to add them as step 1. Or drop an action or step here to put it first."
+      : "Select End, then click actions to add them at the end. Or drop an action or step here to put it last.",
+    onclick: (e) => { e.stopPropagation(); selectTerminal(kind); },
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectTerminal(kind); } } }, label);
+  el.addEventListener("dragover", (e) => { if (!isOoaDrag(e)) return; e.preventDefault(); e.stopPropagation(); el.classList.add("over"); });
+  el.addEventListener("dragleave", () => el.classList.remove("over"));
+  el.addEventListener("drop", (e) => { if (!isOoaDrag(e)) return; e.preventDefault(); e.stopPropagation(); el.classList.remove("over"); dropAt(e, ["steps"], kind === "start" ? 0 : state.flow.steps.length); });
+  return el;
+}
+function selectTerminal(kind) {
+  state.multi = new Set(); state.selected = null; state.target = null; state.anchor = kind;
+  renderSteps(); renderProps(); updateEditButtons();
+}
+
+/** While something is dragged over the canvas, scroll it when the pointer comes near its top or bottom edge. */
+function autoScrollOnDrag(box) {
+  box.addEventListener("dragover", (e) => {
+    const r = box.getBoundingClientRect(), edge = 56;
+    const top = e.clientY - r.top, bottom = r.bottom - e.clientY;
+    if (top < edge) box.scrollBy(0, -Math.ceil((edge - top) / 3));
+    else if (bottom < edge) box.scrollBy(0, Math.ceil((edge - bottom) / 3));
+  });
 }
 
 /** Handles a drop of a library command (insert) or a canvas step (move) at listPath[index]. */
@@ -1056,7 +1117,9 @@ function runAgentOutputs(step, current, set) {
         } else if (sel.value) map[v.name] = sel.value; else delete map[v.name];
         set(Object.keys(map).length ? Object.assign({}, map) : undefined);
         renderProps();
-      } }, h("option", { value: "", text: "(do not keep)" }), varNames().map((n) => h("option", { value: n, text: "$" + n })), h("option", { value: "__new", text: "+ New variable “" + v.name + "”" }));
+      } }, h("option", { value: "", text: "(do not keep)" }),
+        state.flow.variables.filter((x) => holds(x.type, v.type) || x.name === map[v.name]).map((x) => h("option", { value: x.name, text: "$" + x.name })),
+        h("option", { value: "__new", text: "+ New variable “" + v.name + "”" }));
       sel.value = map[v.name] || "";
       return h("div", { class: "map-row" }, h("span", { class: "map-name" }, v.name, typeChip(v.type)), sel);
     }));
@@ -1415,6 +1478,7 @@ function renderSteps() {
         problemsBy.get(s.id) ? h("span", { class: "flag", title: "Has problems; see the Problems tab", text: "!" + problemsBy.get(s.id) }) : null,
         stepMenuButton(p, s));
       row.style.setProperty("--c", st.color);
+      stepDropTarget(row, path, i, s);
       out.push(row);
       const sections = sectionsOf(s);
       if (!folded && sections.length) {
@@ -1449,13 +1513,113 @@ function renderSteps() {
     const zone = h("div", { class: "canvas-empty", text: "This agent has no steps yet. Drag an action here from Actions, click an action, or press Record." });
     zone.addEventListener("dragover", (e) => { e.preventDefault(); });
     zone.addEventListener("drop", (e) => { e.preventDefault(); dropAt(e, ["steps"], 0); });
-    container.replaceChildren(zone);
-  } else container.replaceChildren(...list(state.flow.steps, ["steps"], ""));
+    container.replaceChildren(terminalMarker("start", "terminal start"), zone, terminalMarker("end", "terminal end"));
+  } else container.replaceChildren(terminalMarker("start", "terminal start"), ...list(state.flow.steps, ["steps"], ""), terminalMarker("end", "terminal end"));
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
   renderSelectionCount();
-  $("insert-hint").textContent = state.target ? "Clicked actions go into the highlighted section."
-    : state.selected ? "Clicked actions go after the selected step." : "Clicked actions go at the end.";
+  $("insert-hint").textContent = insertHint();
+}
+
+// ---------- saved connections ----------
+/**
+ * The inputs a connector repeats on (nearly) every action, such as its address and sign-in: what a saved connection
+ * supplies. Toolkits whose shared inputs are a file or a request (Excel, PDF, REST, Generative AI) have none.
+ */
+function connectionInputs(pkgId) {
+  state.connInputs = state.connInputs || new Map();
+  if (state.connInputs.has(pkgId)) return state.connInputs.get(pkgId);
+  let out = new Set();
+  const p = (state.packages || []).find((x) => x.id === pkgId);
+  if (p && p.actions.length >= 3 && !["ooa.excel_desktop", "ooa.pdf", "ooa.rest", "ooa.genai"].includes(pkgId)) {
+    const count = new Map(), types = new Map();
+    for (const a of p.actions) for (const [k, v] of Object.entries(a.inputs.properties || {})) { count.set(k, (count.get(k) || 0) + 1); types.set(k, v["x-ooa-type"]); }
+    const common = [...count].filter(([, n]) => n >= 0.8 * p.actions.length).map(([k]) => k);
+    if (common.some((k) => types.get(k) === "Credential")) out = new Set(common);
+  }
+  state.connInputs.set(pkgId, out);
+  return out;
+}
+function loadConnections(force) {
+  if (!state.connectionsPromise || force) state.connectionsPromise = api("GET", "connections").then((r) => r.connections || []).catch(() => []);
+  return state.connectionsPromise.then((l) => { state.connections = l; return l; });
+}
+/** "Connection" at the top of a connector step's inputs: choose a saved connection instead of filling in the address and sign-in. */
+function connectionPicker(step, pkg, names) {
+  const list = (state.connections || []).filter((c) => c.package === pkg.id);
+  const sel = h("select", { "aria-label": "Saved connection", onchange: () => {
+    if (sel.value === "__manage") { sel.value = step.connection || ""; openConnections(pkg.id); return; }
+    if (sel.value) step.connection = sel.value; else delete step.connection;
+    changed(); renderProps();
+  } }, h("option", { value: "", text: "None: fill in the address and sign-in below" }),
+    list.map((c) => h("option", { value: c.name, text: c.name })),
+    step.connection && !list.some((c) => c.name === step.connection) ? h("option", { value: step.connection, text: step.connection + " (not in this workspace)" }) : null,
+    h("option", { value: "__manage", text: "Manage connections…" }));
+  sel.value = step.connection || "";
+  if (!state.connections) loadConnections().then(() => { if (getAt(state.flow, state.selected || []) === step) renderProps(); });
+  const note = step.connection ? h("div", { class: "help" }, "Comes from the connection: " + [...names].join(", ") + ". ",
+    h("button", { type: "button", class: "link-btn", onclick: () => { state.showConnInputs = !state.showConnInputs; renderProps(); } },
+      state.showConnInputs ? "Hide these settings" : "Set one of them on this step instead"))
+    : h("div", { class: "help", text: list.length ? "Or choose a saved connection, so the address and sign-in are kept in one place." : "Save the address and sign-in once as a connection and choose it on every " + pkg.name + " step (Manage connections…)." });
+  return h("div", { class: "field conn-field" }, h("label", {}, "Connection", infoTip("A saved connection supplies " + [...names].join(", ") + ". Secrets stay in the vault; the connection keeps only their references.")), sel, note);
+}
+/** The workspace's saved connections: list, create, edit and delete (secrets are vault references, never values). */
+async function openConnections(pkgId) {
+  await loadConnections(true);
+  const pkgs = (state.packages || []).filter((p) => connectionInputs(p.id).size).sort((a, b) => a.name.localeCompare(b.name));
+  let editing = null;
+  const body = h("div", { class: "conn-dialog" });
+  const draw = () => {
+    if (!editing) {
+      const rows = state.connections.map((c) => h("div", { class: "conn-row" },
+        h("strong", { text: c.name }), h("span", { class: "muted", text: (pkgs.find((p) => p.id === c.package) || { name: c.package }).name }),
+        h("span", { class: "spacer" }),
+        h("button", { type: "button", onclick: () => { editing = JSON.parse(JSON.stringify(c)); draw(); } }, "Edit"),
+        h("button", { type: "button", class: "danger", onclick: async () => {
+          if (!confirm("Delete the connection “" + c.name + "”? Steps that use it will fail until another is chosen.")) return;
+          try { await api("DELETE", "connections/" + encodeURIComponent(c.name)); await loadConnections(true); draw(); renderProps(); } catch (e) { toast(e.message, true); }
+        } }, "Delete")));
+      body.replaceChildren(
+        h("p", { class: "help", text: "A connection keeps a connector's address and settings once, with vault references for its secrets. Steps choose it by name. Local runs read these from connections.json in this workspace; runs from Command Center use its Connections page." }),
+        ...(rows.length ? rows : [h("div", { class: "empty", text: "No saved connections yet." })]),
+        h("button", { type: "button", class: "primary", onclick: () => { editing = { name: "", package: pkgId || (pkgs[0] || {}).id, values: {}, credentials: {}, isNew: true }; draw(); } }, "+ New connection"));
+      return;
+    }
+    const p = pkgs.find((x) => x.id === editing.package) || pkgs[0];
+    const fields = [...connectionInputs(p.id)].map((n) => {
+      const a = p.actions.find((x) => x.inputs.properties[n]);
+      const prop = a.inputs.properties[n], isCred = prop["x-ooa-type"] === "Credential";
+      const cur = isCred ? (editing.credentials || {})[n] : (editing.values || {})[n];
+      const inp = h("input", { type: "text", value: cur === undefined ? "" : String(cur), placeholder: isCred ? "vault folder/credential/attribute" : prop.default !== undefined ? String(prop.default) : "",
+        oninput: (e) => { const bag = isCred ? (editing.credentials = editing.credentials || {}) : (editing.values = editing.values || {}); if (e.target.value.trim()) bag[n] = e.target.value.trim(); else delete bag[n]; } });
+      return h("div", { class: "field" }, h("label", {}, n, typeChip(isCred ? "Credential" : prop["x-ooa-type"] || "String"), infoTip(prop.description)), inp,
+        isCred ? h("div", { class: "help", text: "A reference to the secret in the vault, not the secret itself." }) : null);
+    });
+    const name = h("input", { type: "text", value: editing.name, placeholder: "e.g. ServiceNow production", disabled: !editing.isNew, oninput: (e) => { editing.name = e.target.value.trim(); } });
+    const tk = h("select", { disabled: !editing.isNew, onchange: (e) => { editing.package = e.target.value; editing.values = {}; editing.credentials = {}; draw(); } },
+      pkgs.map((x) => h("option", { value: x.id, text: x.name })));
+    tk.value = p.id;
+    body.replaceChildren(h("div", { class: "field" }, h("label", { text: "Name" }), name), h("div", { class: "field" }, h("label", { text: "Toolkit" }), tk), ...fields,
+      h("div", { class: "row-btns" },
+        h("button", { type: "button", class: "primary", onclick: async () => {
+          if (!editing.name) { toast("Give the connection a name.", true); return; }
+          try {
+            await api("PUT", "connections/" + encodeURIComponent(editing.name), { package: p.id, values: editing.values || {}, credentials: editing.credentials || {} });
+            await loadConnections(true); toast("Saved connection " + editing.name); editing = null; draw(); renderProps();
+          } catch (e) { toast(e.message, true); }
+        } }, "Save"),
+        h("button", { type: "button", onclick: () => { editing = null; draw(); } }, "Cancel")));
+  };
+  draw();
+  openDialog("Saved connections", body, [], { closeLabel: "Close", wide: true });
+}
+
+/** Where clicked actions will go, in words (canvas hint and Quick add). */
+function insertHint() {
+  if (state.target) return "Clicked actions go into the highlighted section.";
+  if (state.selected || state.multi.size) return "Clicked actions go after the selected step.";
+  if (state.anchor === "start") return "Start is selected: clicked actions go first (step 1).";
+  return "Clicked actions go at the end. Select Start to add at the top.";
 }
 
 /** The small ⋮ button on every step card: opens the step menu (also on right-click, Shift+F10 or the context-menu key). */
@@ -1910,8 +2074,12 @@ function renderProps() {
     if (props.window && props.object && step.action.startsWith("ooa.browser/")) entries.sort((a, b) => (b[0] === "window") - (a[0] === "window"));
     const shown = elementActionFields(step);
     const timeoutBox = [];
+    // connector steps can take their address and sign-in from a saved connection; those inputs are then not asked here
+    const connInputs = connectionInputs(spec.pkg.id);
+    const fromConn = step.connection && connInputs.size && !state.showConnInputs;
     for (const [name, prop0] of entries) {
       if (shown && !shown.has(name)) continue;
+      if (fromConn && connInputs.has(name) && (step.args || {})[name] === undefined) continue;
       // Options that do not apply to the current choices are hidden (a value already set stays visible so it can be cleared).
       if (!fieldApplies(prop0, step.args || {}, props) && (step.args || {})[name] === undefined) continue;
       const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
@@ -1923,6 +2091,7 @@ function renderProps() {
       if (rare) moreNames.push(name);
     }
     const inputs = main;
+    if (connInputs.size) inputs.unshift(connectionPicker(step, spec.pkg, connInputs));
     if (timeoutBox.length) inputs.push(timeoutEditor(step, timeoutBox, req));
     if (more.length) {
       const setCount = moreNames.filter((n) => step.args && step.args[n] !== undefined).length;
@@ -1941,7 +2110,7 @@ function renderProps() {
           if (e.target.value) step.out[oname] = e.target.value; else delete step.out[oname];
           if (!Object.keys(step.out).length) delete step.out;
           changed();
-        } }, h("option", { value: "", text: "(do not store)" }), ...outputOptions(o["x-ooa-type"]));
+        } }, h("option", { value: "", text: "(do not store)" }), ...outputOptions(o["x-ooa-type"], (step.out || {})[oname]));
         sel.value = (step.out || {})[oname] || "";
         if (step.action === "ooa.browser/element_action" && oname === "result") sel.setAttribute("aria-label", "Save the outcome to a variable");
         const mk = h("button", { type: "button", title: "Create a new variable for this output", onclick: () => {
@@ -1970,7 +2139,8 @@ function renderProps() {
       const e = h("select", { "aria-label": label, onchange: (ev) => {
         if (ev.target.value === "__new") { const n = uniqueVarName(want === "Number" ? "error_line" : want === "Dictionary" ? "error" : "error_message"); state.flow.variables.push({ name: n, type: want }); renderVariables(); on(n); renderProps(); return; }
         on(ev.target.value || undefined);
-      } }, h("option", { value: "", text: "(do not keep)" }), varNames().map((n) => h("option", { value: n, text: "$" + n })), h("option", { value: "__new", text: "+ New " + want + " variable" }));
+      } }, h("option", { value: "", text: "(do not keep)" }),
+        state.flow.variables.filter((v) => holds(v.type, want) || v.name === cur).map((v) => h("option", { value: v.name, text: "$" + v.name })), h("option", { value: "__new", text: "+ New " + want + " variable" }));
       e.value = cur || ""; return e;
     };
     const blocks = step.catch.map((c, k) => {
@@ -1981,7 +2151,7 @@ function renderProps() {
         h("div", { class: "catch-head" }, h("strong", { text: catchLabel(c) }), h("span", { class: "spacer" }),
           step.catch.length > 1 ? h("button", { type: "button", class: "link-btn", onclick: () => { step.catch.splice(k, 1); changed(); renderProps(); } }, "Remove") : null),
         h("div", { class: "field" }, h("label", { text: "Errors to catch" }), codes,
-          h("div", { class: "help", text: "Empty catches every error. The first Catch that matches the error runs; put specific ones first." })),
+          h("div", { class: "help", text: "Empty catches every error. Name a code (FILE.NOT_FOUND), a toolkit (BROWSER.*) or a kind of error from any toolkit (NOT_FOUND, TIMEOUT, AUTH_FAILED …). The first Catch that matches runs; put specific ones first." })),
         h("div", { class: "field" }, h("label", { text: "Error message to" }), varSel(c.message_to, setKey("message_to"), "String", "Error message variable")),
         h("div", { class: "field" }, h("label", { text: "Line number to" }), varSel(c.line_to, setKey("line_to"), "Number", "Line number variable")),
         h("div", { class: "field" }, h("label", { text: "All error details to" }), varSel(c.as, setKey("as"), "Dictionary", "Error details variable"),
@@ -1991,12 +2161,22 @@ function renderProps() {
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!c.rethrow, onchange: (e) => { if (e.target.checked) c.rethrow = true; else delete c.rethrow; changed(); } }),
           "Raise the error again after this Catch (the agent still fails)"));
     });
-    const known = new Set(["RUN.TIMEOUT", "STEP.TIMEOUT", "BROWSER.*", "BROWSER.OBJECT_NOT_FOUND", "BROWSER.WINDOW_NOT_FOUND", "DESKTOP_UI.*", "DESKTOP_UI.OBJECT_NOT_FOUND",
-      "FILE.NOT_FOUND", "EXCEL.*", "EMAIL.*", "REST.*", "DATABASE.*", "CHILD.*", "BUSINESS.*"]);
+    // error kinds across toolkits (as the reference product's Catch offers them), then common codes and prefixes
+    const kinds = [["NOT_FOUND", "anything not found"], ["FILE_NOT_FOUND", "file or folder missing"], ["WINDOW_NOT_FOUND", "window not open"],
+      ["OBJECT_NOT_FOUND", "control, element or image missing"], ["TIMEOUT", "waited too long"], ["AUTH_FAILED", "sign-in or permission refused"], ["RATE_LIMITED", "too many requests"]];
+    const known = ["RUN.TIMEOUT", "STEP.TIMEOUT", "BROWSER.*", "BROWSER.OBJECT_NOT_FOUND", "BROWSER.WINDOW_NOT_FOUND", "DESKTOP_UI.*", "DESKTOP_UI.OBJECT_NOT_FOUND",
+      "FILE.NOT_FOUND", "EXCEL.*", "EMAIL.*", "REST.*", "DATABASE.*", "SAP.*", "SAP.OBJECT_NOT_FOUND", "SAP.NOT_RUNNING", "CHILD.*", "BUSINESS.*"];
     parts.push(acc("Catch blocks", [...blocks,
-      h("datalist", { id: "error-codes" }, [...known].map((c) => h("option", { value: c }))),
+      h("datalist", { id: "error-codes" }, kinds.map(([c, l]) => h("option", { value: c, label: "Any toolkit: " + l })), known.map((c) => h("option", { value: c }))),
       h("button", { type: "button", onclick: () => { step.catch.push({ codes: [], children: [] }); changed(); renderProps(); } }, "+ Catch")], true));
-    if (!step.finally) step.finally = [];
+    const hasFinally = Array.isArray(step.finally);
+    parts.push(acc("Finally", [
+      h("div", { class: "help", text: hasFinally ? "These steps always run at the end, after Try or Catch, whether or not there was an error."
+        : "Optional. Add a Finally section for steps that must always run at the end (close a file, log out), error or not." }),
+      hasFinally
+        ? h("button", { type: "button", disabled: step.finally.length > 0, title: step.finally.length ? "Move or delete the steps in Finally first" : "",
+          onclick: () => { delete step.finally; changed(); renderProps(); } }, "Remove Finally")
+        : h("button", { type: "button", onclick: () => { step.finally = []; state.target = findPathById(step.id).concat("finally"); changed(); renderProps(); } }, "+ Finally")], hasFinally));
   }
 
   const handling = [
@@ -2068,12 +2248,23 @@ function compatible(want, have) {
   if (want === "File") return have === "String";
   return (want === "Record" && have === "Dictionary") || (want === "Dictionary" && have === "Record");
 }
-function outputOptions(want) {
+/**
+ * Can a variable of type `varType` receive a value of type `valueType` (a command result)? Only the same kind, as in
+ * the reference product: a Number result goes to a Number variable, not to a String one (and the other way round).
+ */
+function holds(varType, valueType) {
+  if (!valueType || valueType === "Any" || !varType || varType === "Any" || varType === valueType) return true;
+  const pair = (a, b) => (varType === a && valueType === b) || (varType === b && valueType === a);
+  return pair("Record", "Dictionary") || pair("String", "File");
+}
+/** Variables a result of type `want` can be stored in; a current choice that does not fit stays listed, marked. */
+function outputOptions(want, current) {
   const vars = state.flow.variables;
-  const fit = vars.filter((v) => compatible(want, v.type) || compatible(v.type, want)), rest = vars.filter((v) => !fit.includes(v));
-  const opt = (v) => h("option", { value: v.name, text: v.name + "  (" + v.type + ")" });
-  if (!rest.length) return fit.map(opt);
-  return [fit.length ? h("optgroup", { label: "Matching " + (want || "Any") }, fit.map(opt)) : null, h("optgroup", { label: "Other variables" }, rest.map(opt))];
+  const opt = (v, note) => h("option", { value: v.name, text: v.name + "  (" + v.type + (note || "") + ")" });
+  const out = vars.filter((v) => holds(v.type, want)).map((v) => opt(v));
+  const cur = current && vars.find((v) => v.name === current && !holds(v.type, want));
+  if (cur) out.push(opt(cur, ": does not match " + want));
+  return out;
 }
 /** Matches $name and the start of an interpolation ${name...}; group 1 keeps the "{" so a rename can put it back. */
 function varRegex(name) { return new RegExp("\\$(\\{\\s*)?" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9_])", "g"); }
@@ -2353,6 +2544,7 @@ function openVarPicker(target, wantType, typedDollar) {
   closeVarPicker();
   if (!state.builtins) loadBuiltins();
   const want = wantType && wantType !== "Any" ? wantType : null;
+  let showAll = false;
   const q = h("input", { type: "search", placeholder: "Find a variable", "aria-label": "Find a variable" });
   const list = h("div", { class: "var-pop-list", role: "listbox" });
   const pick = (ref) => { closeVarPicker(); insertAt(target, ref, typedDollar); };
@@ -2365,15 +2557,20 @@ function openVarPicker(target, wantType, typedDollar) {
     const f = q.value.trim().toLowerCase();
     const m = (n) => !f || n.toLowerCase().includes(f);
     const vars = (state.flow ? state.flow.variables : []).filter((v) => m(v.name));
-    const good = vars.filter((v) => compatible(want, v.type)), other = vars.filter((v) => !compatible(want, v.type));
-    const sys = Object.entries((state.builtins || {}).sys || {}).filter(([k]) => m("sys." + k));
-    const glob = Object.entries((state.builtins || {}).global || {}).filter(([k]) => m("global." + k));
+    // only values of the field's type, as in the reference product (a text field takes any value, written as text);
+    // everything else stays one click away for the rare exception
+    const fits = (type) => showAll || want === "String" || compatible(want, type);   // any value can be written into text
+    const good = vars.filter((v) => fits(v.type));
+    const sys = Object.entries((state.builtins || {}).sys || {}).filter(([k, val]) => m("sys." + k) && fits(guessType(val)));
+    const glob = Object.entries((state.builtins || {}).global || {}).filter(([k, val]) => m("global." + k) && fits(guessType(val)));
+    const hidden = showAll ? 0 : vars.length - good.length;
     const parts = [];
-    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want ? "Variables that fit (" + want + ")" : "Agent variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? (v.direction === "in_out" ? "input and output" : v.direction) : "")));
-    if (other.length) parts.push(h("div", { class: "var-pop-head", text: "Other variables" }), ...other.map((v) => item("$" + v.name, v.type, v.type)));
+    if (good.length) parts.push(h("div", { class: "var-pop-head", text: want && !showAll ? want + " variables" : "Agent variables" }), ...good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? (v.direction === "in_out" ? "input and output" : v.direction) : "")));
     if (sys.length) parts.push(h("div", { class: "var-pop-head", text: "System" }), ...sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val))));
     if (glob.length) parts.push(h("div", { class: "var-pop-head", text: "Shared values" }), ...glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val))));
-    if (!parts.length) parts.push(h("div", { class: "empty", text: "No variables match." }));
+    if (!parts.length) parts.push(h("div", { class: "empty", text: want ? "No " + want + " variables yet." : "No variables match." }));
+    if (hidden) parts.push(h("button", { type: "button", class: "link-btn var-pop-all", onclick: () => { showAll = true; render(); } },
+      "Show all variables (" + hidden + " of another type)"));
     list.replaceChildren(...parts);
   };
   q.addEventListener("input", render);
@@ -2952,9 +3149,55 @@ async function recordIn(req, hint) {
   finally { btn.classList.remove("recording"); btn.disabled = false; }
 }
 
+/** The next free numbered name, e.g. Window_1, Text_2, Choice_1 (as in the reference product; short and stable). */
+function numberedName(base) {
+  let k = 1;
+  while (state.flow.variables.some((v) => v.name.toLowerCase() === (base + "_" + k).toLowerCase())) k++;
+  return base + "_" + k;
+}
+
+/** Recorded variables that older recordings named after a page title or field label, e.g. $window_contact_us_acme. */
+function longRecordedVariables() {
+  return ((state.flow && state.flow.variables) || []).filter((v) => {
+    if (/^(Window|Text|Choice)_\d+$/.test(v.name)) return false;
+    const d = String(v.description || "");
+    return (v.type === "Dictionary" && /^window_/i.test(v.name) && /^Window\b/.test(d)) || /^Recorded (typing|selection)/.test(d);
+  });
+}
+/** Renames those to numbered names and updates every step that uses them. */
+function shortenRecordedNames() {
+  const vars = longRecordedVariables();
+  for (const v of vars) {
+    const base = v.type === "Dictionary" ? "Window" : /selection/.test(v.description || "") ? "Choice" : "Text";
+    const old = v.name;
+    v.name = "";   // so its own old name (e.g. choice_2) does not count as taken
+    const name = numberedName(base);
+    renameVariableRefs(old, name);
+    v.name = name;
+    if (base !== "Window") v.description = (base === "Choice" ? "Selected in" : "Typed into") + " the field “" + old.replace(/_+/g, " ").trim() + "” when recorded (change it here or pass it in).";
+  }
+  const offer = $("rename-offer");
+  if (offer) offer.remove();
+  changed(); renderVariables(); renderProps();
+  toast("Renamed " + vars.length + " recorded variable" + (vars.length === 1 ? "" : "s") + " to short numbered names. Undo with Ctrl+Z.");
+}
+/** When a bot from an older recording is opened, offer to shorten its long recorded names (nothing changes unasked). */
+function offerShortNames() {
+  const old = $("rename-offer");
+  if (old) old.remove();
+  const n = longRecordedVariables().length;
+  if (!n) return;
+  const bar = h("div", { class: "rename-offer", id: "rename-offer", role: "status" },
+    h("span", { text: n + " recorded variable" + (n === 1 ? " has a" : "s have") + " long name" + (n === 1 ? "" : "s") + " (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?" }),
+    h("button", { type: "button", class: "primary", onclick: shortenRecordedNames }, "Rename"),
+    h("button", { type: "button", class: "link-btn", onclick: () => bar.remove() }, "Not now"));
+  $("tab-steps").prepend(bar);
+}
+
 /**
- * Variables for recorded steps: each typed value becomes an input variable named after the field (its label, name or
- * id), holding the recorded text as its default, and the step types $variable; each selected option likewise.
+ * Variables for recorded steps: each typed value becomes an input variable Text_1, Text_2 ... holding the recorded
+ * text as its default (each selected option Choice_1 ...), and the step uses $variable. The description names the
+ * field, so the variables stay easy to tell apart.
  */
 function recordedVariables(steps) {
   const made = [];
@@ -2977,8 +3220,10 @@ function recordedVariables(steps) {
     const key = st.action === "ooa.browser/type_text" || (st.action === "ooa.desktop_ui/object_action" && st.args && st.args.action === "set_text") ? "text"
       : st.action === "ooa.browser/select_option" ? "option" : null;
     if (!key || !st.args || typeof st.args[key] !== "string" || st.args[key].startsWith("$")) continue;
-    const name = uniqueVarName(fieldName(st).toLowerCase());
-    state.flow.variables.push({ name, type: "String", direction: "input", default: st.args[key], description: "Recorded " + (key === "text" ? "typing" : "selection") + " (change it here or pass it in)." });
+    const name = numberedName(key === "text" ? "Text" : "Choice");
+    const field = fieldName(st);
+    state.flow.variables.push({ name, type: "String", direction: "input", default: st.args[key],
+      description: (key === "text" ? "Typed into" : "Selected in") + " the field “" + field + "” when recorded (change it here or pass it in)." });
     st.args[key] = "$" + name;
     made.push(name);
   }
@@ -3404,6 +3649,8 @@ const FORM_FIELDS = {
   email: { label: "Email", icon: "mail" }, date: { label: "Date", icon: "calendar" }, dropdown: { label: "Drop-down", icon: "list" },
   radio: { label: "Choice", icon: "list" }, checkbox: { label: "Checkbox", icon: "toggle" }, file: { label: "File upload", icon: "file" },
   heading: { label: "Heading", icon: "text" }, paragraph: { label: "Text block", icon: "comment" },
+  // for Interactive forms (an agent shows the form and reacts to it): a button raises an event, an area is filled by the agent
+  button: { label: "Button", icon: "play" }, area: { label: "Dynamic area", icon: "template" },
 };
 function uniqueKey(list, base, key = "id") { let n = 1, k = base; while (list.some((x) => x[key] === k)) k = base + "_" + ++n; return k; }
 function setOrDelete(obj, k, v) { if (v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length)) delete obj[k]; else obj[k] = v; }
@@ -3416,7 +3663,7 @@ function formDesigner(it) {
   const move = (i, dl) => { const j = i + dl; if (j < 0 || j >= d.fields.length) return; [d.fields[i], d.fields[j]] = [d.fields[j], d.fields[i]]; it.sel = j; touch(); };
   function fieldProps(f) {
     const set = (k, v) => { setOrDelete(f, k, v); touch(); };
-    const isInput = !["heading", "paragraph"].includes(f.type);
+    const isInput = !["heading", "paragraph", "button", "area"].includes(f.type);
     const idIn = h("input", { type: "text", value: f.id || "", onchange: (e) => {
       const v = e.target.value.trim();
       if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(v) || d.fields.some((x) => x !== f && x.id === v)) { toast("Field ids are unique and use letters, digits and _.", true); e.target.value = f.id; return; }
@@ -3437,6 +3684,9 @@ function formDesigner(it) {
       if (f.type !== "file") parts.push(field("Default value", h("input", { type: "text", value: f.default ?? "", onchange: (e) => set("default", e.target.value) })));
       parts.push(field("Help text", h("input", { type: "text", value: f.help || "", onchange: (e) => set("help", e.target.value) })));
     } else if (f.type === "paragraph") parts.push(field("Text", h("textarea", { rows: 4, value: f.text || "", onchange: (e) => set("text", e.target.value) })));
+    else if (f.type === "button" || f.type === "area") parts.push(field(f.type === "button" ? "Button id" : "Area id", idIn,
+      f.type === "button" ? "When it is pressed, Display form or Wait for form event ends with this id, so the agent can react."
+        : "Empty here; the agent fills it while the form is open with Set dynamic area (e.g. one line per record)."));
     parts.push(h("div", { class: "row-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => { it.sel = null; render(); } }, "\u2190 Form settings")));
     return parts;
   }
@@ -3451,7 +3701,7 @@ function formDesigner(it) {
   function render() {
     const palette = h("div", { class: "palette" }, h("div", { class: "pane-title", text: "Add a field" }),
       Object.entries(FORM_FIELDS).map(([t, m]) => h("button", { type: "button", class: "pal-item", onclick: () => {
-        const f = { id: uniqueKey(d.fields, t === "heading" || t === "paragraph" ? t : t + "_field"), type: t, label: m.label };
+        const f = { id: uniqueKey(d.fields, ["heading", "paragraph", "button", "area"].includes(t) ? t : t + "_field"), type: t, label: m.label };
         if (t === "dropdown" || t === "radio") f.options = ["Option 1", "Option 2"];
         if (t === "paragraph") f.text = "Explain what to fill in.";
         d.fields.push(f); it.sel = d.fields.length - 1; touch();
@@ -3493,6 +3743,8 @@ function formPreview(d) {
   return h("div", { class: "form-canvas" }, h("form", { class: "form-card preview", onsubmit: (e) => { e.preventDefault(); toast("Preview only: forms are filled in through workflows."); } },
     h("h3", { text: d.name || "Form" }), d.description ? h("p", { class: "desc", text: d.description }) : null,
     (d.fields || []).map((f) => f.type === "heading" ? h("h4", { text: f.label }) : f.type === "paragraph" ? h("p", { text: f.text || "" })
+      : f.type === "button" ? h("button", { type: "button", onclick: () => toast("Preview only: when the agent shows the form, this button raises the event " + f.id + ".") }, f.label || f.id)
+      : f.type === "area" ? h("div", { class: "help", text: "Dynamic area " + f.id + ": filled by the agent while the form is open." })
       : h("div", { class: "field" }, f.type === "checkbox" ? null : h("label", {}, f.label || f.id, f.required ? h("span", { class: "req", text: " *" }) : null), ctl(f), f.help ? h("div", { class: "help", text: f.help }) : null)),
     h("div", { class: "row-actions" }, h("button", { type: "submit", class: "primary" }, d.submitLabel || "Submit"))));
 }
@@ -3716,7 +3968,7 @@ const TEMPLATES = [
       { name: "status", type: "Number", direction: "output" }, { name: "body", type: "Any", direction: "output" }, { name: "error", type: "Dictionary" }],
     steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "ooa.rest/request", args: { url: "$url", method: "GET" }, out: { status: "status", json: "body" } }],
       catch: [{ codes: [], as: "error", children: [{ id: "s3", action: "core/log", args: { message: "The request failed: ${error.message}", level: "error" } },
-        { id: "s4", action: "core/throw", args: { code: "BUSINESS.API_FAILED", message: "Could not call ${url}", suggested_fix: "Check the address and that the service is up." } }] }], finally: [] }] },
+        { id: "s4", action: "core/throw", args: { code: "BUSINESS.API_FAILED", message: "Could not call ${url}", suggested_fix: "Check the address and that the service is up." } }] }] }] },
   { id: "ai_summary", name: "Summarise a document with AI", icon: "spark", color: "#db2777", description: "Read a text file and summarise it with a language model.",
     variables: [{ name: "text_file", type: "File", direction: "input", required: true, description: "The text file to summarise." },
       { name: "api_key", type: "Credential", direction: "input", description: "API key for the AI provider." }, { name: "text", type: "String" },
@@ -3874,7 +4126,7 @@ function openQuickAdd() {
   });
   const box = h("div", { class: "qa-backdrop", id: "quick-add", onclick: (e) => { if (e.target.id === "quick-add") closeQuickAdd(); } },
     h("div", { class: "qa-panel", role: "dialog", "aria-label": "Quick add" }, h("div", { class: "qa-head" }, svg("plus"), h("strong", { text: "Quick add" }),
-      h("span", { class: "muted", text: state.target ? "into the highlighted section" : state.selected ? "after the selected step" : "at the end" })), q, list));
+      h("span", { class: "muted", text: state.target ? "into the highlighted section" : state.selected ? "after the selected step" : state.anchor === "start" && !state.multi.size ? "as step 1" : "at the end" })), q, list));
   document.body.appendChild(box);
   render();
   q.focus();
@@ -3904,6 +4156,7 @@ function renderFlowView() {
         h("div", { class: "fn-sum", text: s.description || summary(s) })),
       problemsBy.get(s.id) ? h("span", { class: "flag", text: "!" + problemsBy.get(s.id) }) : null, stepMenuButton(p, s));
     el.style.setProperty("--c", st.color);
+    stepDropTarget(el, p.slice(0, -1), p[p.length - 1], s);
     return el;
   };
   // the connecting lines take drops: an action from the list is added there, a dragged step moves there
@@ -3939,14 +4192,14 @@ function renderFlowView() {
     const zone = h("div", { class: "canvas-empty", text: "This agent has no steps yet. Drag an action here, or press Ctrl+K to quick add." });
     zone.addEventListener("dragover", (e) => { e.preventDefault(); });
     zone.addEventListener("drop", (e) => { e.preventDefault(); dropAt(e, ["steps"], 0); });
-    container.replaceChildren(zone);
+    container.replaceChildren(h("div", { class: "flow-view" }, terminalMarker("start", "fterm start"), zone, terminalMarker("end", "fterm end")));
     return;
   }
-  container.replaceChildren(h("div", { class: "flow-view" }, h("div", { class: "fterm start", text: "Start" }), seq(state.flow.steps, ["steps"]),
-    fslot(["steps"], state.flow.steps.length), h("div", { class: "fterm end", text: "End" })));
+  container.replaceChildren(h("div", { class: "flow-view" }, terminalMarker("start", "fterm start"), seq(state.flow.steps, ["steps"]),
+    fslot(["steps"], state.flow.steps.length), terminalMarker("end", "fterm end")));
   const total = allSteps(state.flow.steps).length;
   $("canvas-stats").textContent = total + (total === 1 ? " step" : " steps") + " \u00B7 " + state.problems.length + (state.problems.length === 1 ? " problem" : " problems");
-  $("insert-hint").textContent = "Flow view: drag actions onto a line to add them there; drag a step to move it.";
+  $("insert-hint").textContent = "Flow view: drop on a box (top half: before it, bottom half: after it or inside a block), on a line, or on Start/End. " + insertHint();
   renderSelectionCount();
 }
 
@@ -4206,11 +4459,9 @@ function fillWindowFromCapture(step, obj) {
  */
 function windowVariable(w) {
   const same = state.flow.variables.find((v) => v.type === "Dictionary" && v.default && typeof v.default === "object" && v.default.source === (w.source || "browser")
-    && v.default.title === w.title && (v.default.browser || "") === (w.browser || "") && /^window_/i.test(v.name));
+    && v.default.title === w.title && (v.default.browser || "") === (w.browser || "") && /^window_\d+$/i.test(v.name));
   if (same) return same.name;
-  let k = 1;
-  while (state.flow.variables.some((v) => v.name.toLowerCase() === "window_" + k)) k++;
-  const name = "Window_" + k;
+  const name = numberedName("Window");
   state.flow.variables.push({ name, type: "Dictionary", direction: "local", default: w, description: "Window " + (w.source === "application" ? "" : "(browser title) ") + "“" + w.title + "”, made by Capture." });
   renderVariables();
   return name;
@@ -4754,7 +5005,8 @@ function wire() {
   for (const b of document.querySelectorAll(".rail-btn")) b.addEventListener("click", () => switchSide(b.dataset.side, true));
   for (const b of document.querySelectorAll(".tab")) b.addEventListener("click", () => switchTab(b.dataset.tab));
   for (const b of document.querySelectorAll(".ctab")) b.addEventListener("click", () => switchConsole(b.dataset.ctab));
-  $("steps").addEventListener("click", () => { state.selected = null; state.target = null; state.multi = new Set(); renderSteps(); renderProps(); updateEditButtons(); });
+  $("steps").addEventListener("click", () => { state.selected = null; state.target = null; state.anchor = null; state.multi = new Set(); renderSteps(); renderProps(); updateEditButtons(); });
+  autoScrollOnDrag($("tab-steps"));
   document.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
     if (mod && k === "s") { e.preventDefault(); save(); return; }

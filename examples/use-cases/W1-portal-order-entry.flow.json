@@ -1,0 +1,156 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w1_portal_order",
+  "name": "W1 Portal order entry",
+  "description": "Sign in to a web portal, fill in an order form and read the confirmation number.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "portal_user",
+      "type": "String",
+      "direction": "input",
+      "default": "demo.user",
+      "description": "Portal user name."
+    },
+    {
+      "name": "portal_password",
+      "type": "Credential",
+      "direction": "input",
+      "required": true,
+      "description": "Portal password from the vault."
+    },
+    {
+      "name": "customer",
+      "type": "String",
+      "direction": "input",
+      "default": "Acme",
+      "description": "Customer to order for."
+    },
+    {
+      "name": "amount",
+      "type": "Number",
+      "direction": "input",
+      "default": 250,
+      "description": "Order amount."
+    },
+    {
+      "name": "kind",
+      "type": "String",
+      "direction": "input",
+      "default": "Express",
+      "description": "Delivery: Standard, Express or Return."
+    },
+    {
+      "name": "confirmation",
+      "type": "String",
+      "direction": "output",
+      "description": "Confirmation number shown by the portal."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/portal.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open the portal"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#user",
+        "text": "$portal_user"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#pass",
+        "text": "$portal_password"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#login"
+      },
+      "description": "Sign in"
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#order-form",
+        "state": "visible",
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#customer",
+        "text": "$customer"
+      }
+    },
+    {
+      "id": "s7",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#amount",
+        "text": "${amount}"
+      }
+    },
+    {
+      "id": "s8",
+      "action": "ooa.browser/select_option",
+      "args": {
+        "selector": "#kind",
+        "option": "$kind"
+      }
+    },
+    {
+      "id": "s9",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#submit"
+      },
+      "description": "Place the order"
+    },
+    {
+      "id": "s10",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "#confirmation"
+      },
+      "out": {
+        "text": "confirmation"
+      }
+    },
+    {
+      "id": "s11",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

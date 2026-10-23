@@ -46,8 +46,7 @@ public final class ControlRoomServer {
         byte[] b = ("<!doctype html><html><head><meta charset=\"utf-8\"><title>Signing in</title>" + body).getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
         ex.getResponseHeaders().set("Cache-Control", "no-store");
-        ex.sendResponseHeaders(status, b.length);
-        try (var os = ex.getResponseBody()) { os.write(b); }
+        writeBody(ex, status, b);
     }
 
     private static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
@@ -136,7 +135,7 @@ public final class ControlRoomServer {
         ControlRoom.User u = t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
         if (u == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
         boolean viaCookie = ex.getRequestHeaders().getFirst("Authorization") == null;
-        if (viaCookie && !ex.getRequestMethod().equals("GET") && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
+        if (viaCookie && !Set.of("GET", "HEAD").contains(ex.getRequestMethod()) && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
             throw new OoaException("CR.CSRF", "Missing request header X-OOA-Request");
         if (u.mustChange() && !allowMustChange) throw new OoaException("CR.PASSWORD_CHANGE_REQUIRED", "Change your password before continuing");
         return u;
@@ -150,7 +149,7 @@ public final class ControlRoomServer {
 
     @SuppressWarnings("unchecked")
     private void api(HttpExchange ex, String route) throws IOException {
-        String m = ex.getRequestMethod();
+        String m = "HEAD".equals(ex.getRequestMethod()) ? "GET" : ex.getRequestMethod();   // HEAD is answered like GET, without the body
         String ip = ip(ex);
         Map<String, String> q = query(ex);
         String[] seg = route.split("/");
@@ -570,6 +569,16 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteGlobal(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "connection-kinds" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("kinds", cr.connectionKinds(u)));
+                else notFound(ex);
+            }
+            case "saved-connections" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("connections", cr.connections(u)));
+                else if (m.equals("PUT") && seg.length == 2) { cr.saveConnection(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 2) { cr.deleteConnection(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else notFound(ex);
+            }
             case "audit" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.auditSearch(u, q));
                 else if (m.equals("GET") && route.equals("audit/export")) sendText(ex, 200, "text/csv; charset=utf-8", cr.auditCsv(u, q, ip), "audit-trail.csv");
@@ -597,8 +606,7 @@ public final class ControlRoomServer {
         byte[] b = body.getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", type);
         ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + filename + "\"");
-        ex.sendResponseHeaders(status, b.length);
-        try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+        writeBody(ex, status, b);
     }
 
     /** A file download; always sent as an attachment so the browser never shows it inside the console. */
@@ -607,7 +615,13 @@ public final class ControlRoomServer {
         ex.getResponseHeaders().set("Content-Type", type);
         ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + filename.replace("\"", "") + "\"");
         ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
-        ex.sendResponseHeaders(200, b.length);
+        writeBody(ex, 200, b);
+    }
+
+    /** Sends a reply body; a HEAD request gets the same status and headers without a body (HTTP does not allow one). */
+    static void writeBody(HttpExchange ex, int status, byte[] b) throws IOException {
+        if ("HEAD".equalsIgnoreCase(ex.getRequestMethod())) { ex.sendResponseHeaders(status, -1); ex.close(); return; }
+        ex.sendResponseHeaders(status, b.length);
         try (OutputStream os = ex.getResponseBody()) { os.write(b); }
     }
 
@@ -615,8 +629,7 @@ public final class ControlRoomServer {
         securityHeaders(ex);
         byte[] b = JsonLite.write(body).getBytes(StandardCharsets.UTF_8);
         ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        ex.sendResponseHeaders(status, b.length);
-        try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+        writeBody(ex, status, b);
     }
 
     private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml");
@@ -631,8 +644,7 @@ public final class ControlRoomServer {
             byte[] b = in.readAllBytes();
             securityHeaders(ex);
             ex.getResponseHeaders().set("Content-Type", TYPES.getOrDefault(name.substring(name.lastIndexOf('.') + 1), "application/octet-stream"));
-            ex.sendResponseHeaders(200, b.length);
-            try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+            writeBody(ex, 200, b);
         }
     }
 }

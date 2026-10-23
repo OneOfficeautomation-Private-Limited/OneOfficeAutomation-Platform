@@ -1,0 +1,7 @@
+Invoice,Customer,Amount,DueDate,Status
+INV-1001,Acme,1250.00,2026-09-30,Open
+INV-1002,Globex,980.00,2026-10-05,Open
+INV-1003,Acme,300.00,2026-10-12,Open
+INV-1004,Initech,450.00,2026-11-15,Open
+INV-1005,Globex,120.00,2026-08-31,Paid
+INV-1006,Umbrella,75.50,2026-10-20,Open

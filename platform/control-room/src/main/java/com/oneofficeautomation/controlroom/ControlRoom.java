@@ -1145,6 +1145,8 @@ public final class ControlRoom {
                     "inputs", JsonLite.parse((String) run.get("inputs")), "principal", principal, "global_values", globals));
             job.put("mode", run.get("run_mode") == null ? "unattended" : run.get("run_mode"));
             job.put("model_connections", platform.connectionsForJob(rolesOf(String.valueOf(principal), role)));
+            Map<String, Object> saved = connectionsForJob();
+            if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             if (!skills.isEmpty()) job.put("skills", skills);
             return job;
@@ -1919,6 +1921,99 @@ public final class ControlRoom {
             if (Boolean.TRUE.equals(g.get("changeable")) && mine.containsKey((String) g.get("name"))) m.put("my_value", mine.get((String) g.get("name")));
             out.add(m);
         }
+        return out;
+    }
+
+    // ---------------------------------------------------------------- saved connections
+
+    /** Saved connections: a connector's address and other settings plus vault references for its secrets (never the secrets). */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> connections(User by) {
+        require(by, "globals.view", "view saved connections");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> c : db.query("SELECT * FROM connections ORDER BY name")) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", c.get("name")); m.put("package", c.get("package")); m.put("description", c.get("description"));
+            m.put("values", JsonLite.parse((String) c.get("json_values"))); m.put("credentials", JsonLite.parse((String) c.get("json_credentials")));
+            m.put("updated", c.get("updated")); m.put("updated_by", c.get("updated_by"));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /**
+     * Toolkits a connection can be saved for, with the inputs it supplies: those a connector repeats on (nearly) every
+     * action and that include a secret, such as its address and sign-in (Studio applies the same rule).
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> connectionKinds(User by) {
+        require(by, "globals.view", "view saved connections");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> m : registry.allManifests()) {
+            String id = String.valueOf(m.get("id"));
+            List<Map<String, Object>> actions = m.get("actions") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
+            if (actions.size() < 3 || Set.of("ooa.excel_desktop", "ooa.pdf", "ooa.rest", "ooa.genai").contains(id)) continue;
+            Map<String, Integer> count = new LinkedHashMap<>();
+            Map<String, Map<String, Object>> prop = new HashMap<>();
+            for (Map<String, Object> a : actions) {
+                Map<String, Object> props = (Map<String, Object>) ((Map<String, Object>) a.getOrDefault("inputs", Map.of())).getOrDefault("properties", Map.of());
+                for (var e : props.entrySet()) { count.merge(e.getKey(), 1, Integer::sum); prop.putIfAbsent(e.getKey(), (Map<String, Object>) e.getValue()); }
+            }
+            List<Map<String, Object>> inputs = new ArrayList<>();
+            boolean secret = false;
+            for (var e : count.entrySet()) {
+                if (e.getValue() < 0.8 * actions.size()) continue;
+                Map<String, Object> p = prop.get(e.getKey());
+                boolean cred = "Credential".equals(p.get("x-ooa-type"));
+                secret |= cred;
+                inputs.add(Map.of("name", e.getKey(), "type", String.valueOf(p.getOrDefault("x-ooa-type", "String")), "credential", cred,
+                        "description", String.valueOf(p.getOrDefault("description", ""))));
+            }
+            if (secret) out.add(Map.of("package", id, "name", String.valueOf(m.getOrDefault("name", id)), "inputs", inputs));
+        }
+        out.sort(Comparator.comparing(x -> String.valueOf(x.get("name"))));
+        return out;
+    }
+
+    /** Creates or replaces a saved connection. Credentials are vault references (locker/credential/attribute). */
+    @SuppressWarnings("unchecked")
+    public void saveConnection(User by, String name, Map<String, Object> body, String ip) {
+        require(by, "globals.manage", "manage saved connections");
+        if (name == null || !name.matches("^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$"))
+            throw new OoaException("CR.BAD_INPUT", "Connection names use letters, digits, spaces, _ . and - (up to 80)", "Example: ServiceNow production.");
+        String pkg = body.get("package") instanceof String s ? s.strip() : "";
+        if (!pkg.matches("^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$")) throw new OoaException("CR.BAD_INPUT", "Choose the toolkit the connection is for", "Example: ooa.servicenow.");
+        Map<String, Object> values = body.get("values") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
+        Map<String, Object> creds = body.get("credentials") instanceof Map<?, ?> v ? (Map<String, Object>) v : Map.of();
+        for (var e : values.entrySet())
+            if (e.getValue() instanceof Map || e.getValue() instanceof List) throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' must be text, a number or true/false");
+        for (var e : creds.entrySet())
+            if (!(e.getValue() instanceof String ref) || !ref.matches("^[^/]{1,120}/[^/]{1,120}/[^/]{1,120}$"))
+                throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from One Agent Vault.");
+        String desc = body.get("description") instanceof String d ? d.strip() : null;
+        String jv = JsonLite.write(values), jc = JsonLite.write(creds);
+        db.tx(() -> {
+            if (db.update("UPDATE connections SET package = ?, description = ?, json_values = ?, json_credentials = ?, updated = ?, updated_by = ? WHERE name = ?",
+                    pkg, desc, jv, jc, now(), by.username(), name) == 0)
+                db.update("INSERT INTO connections (name, package, description, json_values, json_credentials, updated, updated_by) VALUES (?,?,?,?,?,?,?)",
+                        name, pkg, desc, jv, jc, now(), by.username());
+            return null;
+        });
+        audit.record(by.username(), "connection.save", "connection", name, Map.of("package", pkg), "ok", ip);
+    }
+
+    public void deleteConnection(User by, String name, String ip) {
+        require(by, "globals.manage", "manage saved connections");
+        if (db.update("DELETE FROM connections WHERE name = ?", name) == 0) throw new OoaException("CR.NOT_FOUND", "No saved connection '" + name + "'");
+        audit.record(by.username(), "connection.delete", "connection", name, null, "ok", ip);
+    }
+
+    /** What a job carries: every connection by name (vault references only; the runner fetches secrets as the run's user). */
+    private Map<String, Object> connectionsForJob() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map<String, Object> c : db.query("SELECT name, package, json_values, json_credentials FROM connections"))
+            out.put((String) c.get("name"), Map.of("package", c.get("package"), "values", JsonLite.parse((String) c.get("json_values")),
+                    "credentials", JsonLite.parse((String) c.get("json_credentials"))));
         return out;
     }
 

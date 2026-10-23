@@ -131,6 +131,7 @@
         "finally": {"$ref": "#/$defs/stepList"},
         "retry": {"$ref": "#/$defs/retry"},
         "timeoutSeconds": {"type": "number", "exclusiveMinimum": 0, "description": "Overrides the action's manifest timeout."},
+        "connection": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$", "description": "Name of a saved connection (Command Center or connections.json) that supplies this step's address and sign-in inputs."},
         "continueOnError": {"type": "boolean", "default": false}
       }
     },

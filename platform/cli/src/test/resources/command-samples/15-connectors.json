@@ -1702,5 +1702,107 @@
   "expectRequests": [
    "POST /me/findMeetingTimes ann@acme.test"
   ]
+ },
+ {
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k",
+   "test/snow/password": "s3cret"
+  },
+  "files": {
+   "connections.json": "{\"ServiceNow test\": {\"package\": \"ooa.servicenow\", \"values\": {\"instance_url\": \"{mock}\", \"user\": \"bot\"}, \"credentials\": {\"password\": \"test/snow/password\"}}}"
+  },
+  "command": "ooa.servicenow/create_record",
+  "name": "address and sign-in from a saved connection (connection)",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/api/now/table/incident",
+    "status": 201,
+    "body": {
+     "result": {
+      "sys_id": "abc",
+      "number": "INC9"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.servicenow/create_record",
+    "connection": "ServiceNow test",
+    "args": {
+     "table": "incident",
+     "fields": {
+      "short_description": "From connection"
+     }
+    },
+    "out": {
+     "number": "no"
+    }
+   }
+  ],
+  "expect": {
+   "no": "INC9"
+  },
+  "expectRequests": [
+   "POST /api/now/table/incident From connection"
+  ]
+ },
+ {
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k",
+   "test/snow/password": "s3cret"
+  },
+  "files": {
+   "connections.json": "{\"ServiceNow test\": {\"package\": \"ooa.servicenow\", \"values\": {\"instance_url\": \"{mock}\", \"user\": \"bot\"}, \"credentials\": {\"password\": \"test/snow/password\"}}}"
+  },
+  "command": "ooa.servicenow/create_record",
+  "name": "unknown connection is reported (connection)",
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.servicenow/create_record",
+    "connection": "Nope",
+    "args": {
+     "table": "incident",
+     "fields": {
+      "short_description": "x"
+     }
+    }
+   }
+  ],
+  "error": "CONNECTION.NOT_FOUND"
+ },
+ {
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k",
+   "test/snow/password": "s3cret"
+  },
+  "files": {
+   "connections.json": "{\"ServiceNow test\": {\"package\": \"ooa.servicenow\", \"values\": {\"instance_url\": \"{mock}\", \"user\": \"bot\"}, \"credentials\": {\"password\": \"test/snow/password\"}}}"
+  },
+  "command": "ooa.jira/create_issue",
+  "name": "connection for another toolkit is refused (connection)",
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.jira/create_issue",
+    "connection": "ServiceNow test",
+    "args": {
+     "project": "OPS",
+     "summary": "x"
+    }
+   }
+  ],
+  "error": "CONNECTION.WRONG_TOOLKIT"
  }
 ]

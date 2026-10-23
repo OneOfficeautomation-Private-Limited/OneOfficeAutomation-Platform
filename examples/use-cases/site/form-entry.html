@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Demo registration</title><style>body{font:15px system-ui,"Segoe UI",sans-serif;margin:32px;color:#1b2230}label{display:block;margin:10px 0 4px;font-weight:600}
+input,select{padding:6px 8px;width:260px}button{margin-top:14px;padding:7px 14px}table{border-collapse:collapse;margin-top:12px}
+td,th{border:1px solid #ccd;padding:5px 10px;text-align:left}.hidden{display:none}#confirmation,#last{font-weight:700;color:#0a7a3e}</style></head><body>
+<h1>Register a person</h1><form onsubmit="return false"><label for="name">Name</label><input id="name"><label for="email">Email</label><input id="email" type="email">
+<label for="plan">Plan</label><select id="plan"><option value="">Choose...</option><option>Basic</option><option>Pro</option><option>Team</option></select><br>
+<button id="save" type="button">Save</button></form><p>Last registration: <span id="last"></span></p><ul id="saved"></ul>
+<script>
+let n = 0;
+document.getElementById("save").onclick = () => {
+  const name = document.getElementById("name"), email = document.getElementById("email"), plan = document.getElementById("plan");
+  if (!name.value || !email.value || !plan.value) { alert("Fill in every field"); return; }
+  n++;
+  document.getElementById("last").textContent = "REG-" + n;
+  const li = document.createElement("li"); li.textContent = "REG-" + n + " " + name.value + " (" + plan.value + ")"; document.getElementById("saved").appendChild(li);
+  name.value = ""; email.value = ""; plan.value = "";
+};
+</script></body></html>
