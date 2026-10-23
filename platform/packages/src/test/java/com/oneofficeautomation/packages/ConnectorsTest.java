@@ -170,8 +170,8 @@ class ConnectorsTest {
             assertTrue(f.last("PATCH", ".*").text().contains("\"Status\":\"Closed\""));
             assertEquals("SALESFORCE.BAD_OBJECT", assertThrows(com.oneofficeautomation.sdk.ActionException.class,
                     () -> pkg.delete(ctx, f.url(), tok, "Case/../../x", "500X000000000001", "v61.0")).code());
-            RunResult viaBot = runRawWithToken(tmp(), "[" + TOKEN_VAR + "]", "[{\"id\":\"q\",\"action\":\"ooa.salesforce/query\",\"args\":{\"instance_url\":\"" + f.url() + "\",\"access_token\":\"$tok\",\"soql\":\"SELECT Id FROM Account\"}}]");
-            assertEquals("FLOW.INVALID", viaBot.error().get("code"), "bots must use https:// instance URLs");
+            RunResult viaBot = runRawWithToken(tmp(), "[" + TOKEN_VAR + "]", "[{\"id\":\"q\",\"action\":\"ooa.salesforce/query\",\"args\":{\"instance_url\":\"http://acme.my.salesforce.com\",\"access_token\":\"$tok\",\"soql\":\"SELECT Id FROM Account\"}}]");
+            assertEquals("FLOW.INVALID", viaBot.error().get("code"), "bots must use https:// instance URLs (plain http only to this machine)");
         }
     }
 

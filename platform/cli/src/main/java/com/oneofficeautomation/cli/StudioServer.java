@@ -132,11 +132,13 @@ public final class StudioServer {
     private void asset(HttpExchange ex, String path) throws IOException {
         String name = switch (path) {
             case "/", "/index.html" -> "index.html";
-            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png" -> path.substring(1);
+            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css" -> path.substring(1);
             default -> null;
         };
         if (name == null) { send(ex, 404, "text/plain", "Not found"); return; }
-        try (InputStream in = StudioServer.class.getResourceAsStream("/studio/" + name)) {
+        // The shared design system comes from the Command Center module, so both applications use the same files.
+        String folder = name.startsWith("ooa-") ? "/ooa-ui/" : "/studio/";
+        try (InputStream in = StudioServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { send(ex, 404, "text/plain", "Missing asset " + name); return; }
             String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8"
                     : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";

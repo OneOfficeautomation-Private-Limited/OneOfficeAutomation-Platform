@@ -358,6 +358,49 @@ public final class DocuSignPackage {
         return save(ctx, api(base, account) + "/envelopes/" + guid("envelope", env) + "/documents/combined?certificate=" + cert, saveAs, token);
     }
 
+    @Action(id = "download_zip", name = "Download signed ZIP", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Save all documents of an envelope as separate PDFs in one ZIP file, with the signing certificate.")
+    @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved ZIP.")
+    public Map<String, Object> downloadZip(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
+            @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
+            @Input(name = "save_as", type = OoaType.FILE, description = "Where to save the ZIP, e.g. signed/contract.zip. Missing folders are created.") String saveAs,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+        return save(ctx, api(base, account) + "/envelopes/" + guid("envelope", env) + "/documents/archive", saveAs, token);
+    }
+
+    @Action(id = "add_recipients", name = "Add recipients", category = "Recipients", capabilities = "network",
+            description = "Add signers or copy recipients to an envelope that is still a draft or in progress, optionally in a signing order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of recipients added.")
+    public Map<String, Object> addRecipients(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
+            @Input(name = "envelope_id", type = OoaType.STRING, description = D_ENV) String env,
+            @Input(name = "recipients", type = OoaType.LIST,
+                    description = "Recipients: each {\"name\", \"email\", \"type\": signer or copy, \"routing_order\": 1, 2 ...}, e.g. [{\"name\": \"Ann Lee\", \"email\": \"ann@acme.test\"}].") List<Object> recipients,
+            @Input(name = "resend", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Send the request to the new recipients when the envelope is already sent.") boolean resend,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+        if (recipients == null || recipients.isEmpty()) throw new ActionException(P + ".BAD_RECIPIENT", "No recipients given", "Give one or more {name, email}.");
+        List<Object> signers = new ArrayList<>(), copies = new ArrayList<>();
+        int n = 100;   // ids above the usual 1, 2, 3 ... so they do not clash with existing recipients
+        for (Object o : recipients) {
+            if (!(o instanceof Map<?, ?> m) || m.get("email") == null || m.get("name") == null)
+                throw new ActionException(P + ".BAD_RECIPIENT", "Each recipient needs a name and an email", "Example: {\"name\": \"Ann Lee\", \"email\": \"ann@acme.test\"}.");
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("recipientId", String.valueOf(n++));
+            r.put("name", String.valueOf(m.get("name")));
+            r.put("email", String.valueOf(m.get("email")));
+            if (m.get("routing_order") != null) r.put("routingOrder", String.valueOf(m.get("routing_order")));
+            ("copy".equals(String.valueOf(m.get("type"))) ? copies : signers).add(r);
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (!signers.isEmpty()) body.put("signers", signers);
+        if (!copies.isEmpty()) body.put("carbonCopies", copies);
+        send(ctx, req("POST", api(base, account) + "/envelopes/" + guid("envelope", env) + "/recipients?resend_envelope=" + resend, token).json(body));
+        return Out.of("count", java.math.BigDecimal.valueOf(signers.size() + copies.size()));
+    }
+
     private static Map<String, Object> save(ActionContext ctx, String url, String saveAs, Object token) {
         byte[] data = send(ctx, req("GET", url, token).header("Accept", "application/pdf, application/zip, */*").binaryResponse().timeout(600)).bytes();
         Path out = ctx.resolvePath(saveAs);

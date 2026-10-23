@@ -55,6 +55,16 @@ class UnifiedServerTest {
             assertEquals(200, page.status());
             assertTrue(page.body().contains("<script src=\"studio.js\">"), "Studio's page uses relative paths so it works under /studio/");
             assertEquals(200, call(base, "GET", "/studio/studio.js", null, null, null).status());
+            // ---- one design system: both applications serve the same token and component sheets ----
+            for (String css : List.of("ooa-tokens.css", "ooa-components.css")) {
+                Res fromStudio = call(base, "GET", "/studio/" + css, null, null, null), fromConsole = call(base, "GET", "/" + css, null, null, null);
+                assertEquals(200, fromStudio.status(), css);
+                assertEquals(200, fromConsole.status(), css);
+                assertTrue(fromStudio.headers().firstValue("Content-Type").orElse("").startsWith("text/css"), css);
+                assertEquals(fromConsole.body(), fromStudio.body(), css + " is the same file in both applications");
+                assertTrue(page.body().contains("href=\"" + css + "\""), "Studio's page loads " + css);
+            }
+            assertTrue(call(base, "GET", "/ooa-tokens.css", null, null, null).body().contains("--surface-canvas"));
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));
             assertEquals("/studio/", call(base, "GET", "/api/health", null, null, null).json().get("studio"), "Control Room links to Studio for browsers on this computer");
             assertTrue(call(base, "GET", "/", null, null, null).body().contains("One Command Center"));

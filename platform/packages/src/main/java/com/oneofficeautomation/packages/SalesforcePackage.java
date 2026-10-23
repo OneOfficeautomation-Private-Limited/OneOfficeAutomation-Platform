@@ -27,7 +27,7 @@ public final class SalesforcePackage {
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "instance_url", type = OoaType.STRING, description = "Instance URL returned by Salesforce; map it to instance_url of later actions.")
     public Map<String, Object> authenticate(ActionContext ctx,
-            @Input(name = "login_url", type = OoaType.STRING, required = false, defaultValue = "\"https://login.salesforce.com\"", pattern = "^https://",
+            @Input(name = "login_url", type = OoaType.STRING, required = false, defaultValue = "\"https://login.salesforce.com\"", pattern = HttpJson.HTTPS_OR_LOCAL,
                     description = "Login host: https://login.salesforce.com, https://test.salesforce.com for sandboxes, or your My Domain URL (required for client credentials).") String login,
             @Input(name = "grant_type", type = OoaType.STRING, required = false, defaultValue = "\"client_credentials\"", enumValues = {"client_credentials", "password"},
                     description = "client_credentials: the connected app's run-as user; password: a named user with password and security token.") String grant,
@@ -55,7 +55,7 @@ public final class SalesforcePackage {
 
     @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access token so it can no longer be used.")
     public Map<String, Object> revoke(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = "The token to revoke.") Object token) {
         String t = EnterpriseAuth.secret(token, P, "access token");
         HttpJson.req(P, "POST", instance.replaceAll("/+$", "") + "/services/oauth2/revoke")
@@ -69,7 +69,7 @@ public final class SalesforcePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "total_size", type = OoaType.NUMBER, description = "Number of matching records Salesforce reports, which can be more than were read.")
     public Map<String, Object> query(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "soql", type = OoaType.STRING, example = "SELECT Id, Name FROM Account WHERE Industry = 'Retail'", description = "SOQL query.") String soql,
             @Input(name = "max_records", type = OoaType.NUMBER, required = false, defaultValue = "50000", description = "Safety limit.") int max,
@@ -112,7 +112,7 @@ public final class SalesforcePackage {
     @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network", description = "Read one record by id.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "Field values.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "object", type = OoaType.STRING, example = "Account", description = "Object API name.") String obj,
             @Input(name = "id", type = OoaType.STRING, description = "Record id.") String rid,
@@ -126,7 +126,7 @@ public final class SalesforcePackage {
     @Action(id = "create_record", name = "Create record", category = "Records", capabilities = "network", description = "Create a record and return its id.")
     @Output(name = "id", type = OoaType.STRING, description = "New record id.")
     public Map<String, Object> create(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "object", type = OoaType.STRING, example = "Case", description = "Object API name.") String obj,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.") Map<String, Object> fields,
@@ -137,7 +137,7 @@ public final class SalesforcePackage {
 
     @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of an existing record.")
     public Map<String, Object> update(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "object", type = OoaType.STRING, description = "Object API name.") String obj,
             @Input(name = "id", type = OoaType.STRING, description = "Record id.") String rid,
@@ -149,7 +149,7 @@ public final class SalesforcePackage {
 
     @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record (it goes to the Salesforce recycle bin).")
     public Map<String, Object> delete(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "object", type = OoaType.STRING, description = "Object API name.") String obj,
             @Input(name = "id", type = OoaType.STRING, description = "Record id.") String rid,
@@ -178,7 +178,7 @@ public final class SalesforcePackage {
     @Output(name = "id", type = OoaType.STRING, description = "Record id (empty when Salesforce does not return it for an update).")
     @Output(name = "created", type = OoaType.BOOLEAN, description = "True when a new record was created.")
     public Map<String, Object> upsert(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "object", type = OoaType.STRING, example = "Account", description = "Object API name.") String obj,
             @Input(name = "external_id_field", type = OoaType.STRING, example = "ERP_Number__c", description = "API name of the external id field.") String field,
@@ -199,7 +199,7 @@ public final class SalesforcePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of files.")
     @Output(name = "files", type = OoaType.LIST, description = "Paths of downloaded files (empty when not downloading).")
     public Map<String, Object> attachments(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "record_id", type = OoaType.STRING, description = "Id of the record the files belong to.") String rid,
             @Input(name = "download_folder", type = OoaType.FILE, required = false, description = "Folder to save the files in; list only when empty.") String folder,
@@ -251,7 +251,7 @@ public final class SalesforcePackage {
     @Output(name = "content_version_id", type = OoaType.STRING, description = "Id of the new file version.")
     @Output(name = "content_document_id", type = OoaType.STRING, description = "Id of the file itself (filled when visibility is set).")
     public Map<String, Object> upload(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "record_id", type = OoaType.STRING, description = "Id of the record to attach the file to.") String rid,
             @Input(name = "path", type = OoaType.FILE, description = "File to upload.") String path,

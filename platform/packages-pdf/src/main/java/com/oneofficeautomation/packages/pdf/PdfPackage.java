@@ -146,18 +146,44 @@ public final class PdfPackage {
 
     public Map<String, Object> merge(ActionContext ctx, List<Object> files, String target) { return merge(ctx, files, target, true, null, null); }
 
+    public Map<String, Object> merge(ActionContext ctx, List<Object> files, String target, boolean overwrite, List<Object> pages, List<Object> passwords) {
+        return merge(ctx, files, target, overwrite, pages, passwords, null, "*.pdf", "name");
+    }
+
+    /** The PDFs of a folder (never the merge target itself), by name or by modification time. */
+    private static List<Object> folderPdfs(ActionContext ctx, String folder, String pattern, String sortBy, String target) {
+        java.nio.file.Path dir = ctx.resolvePath(folder);
+        if (!Files.isDirectory(dir)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + dir, "Check the folder path.");
+        java.nio.file.PathMatcher m = java.nio.file.FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*.pdf" : pattern));
+        java.nio.file.Path out = ctx.resolvePath(target).toAbsolutePath().normalize();
+        try (var s = Files.list(dir)) {
+            List<java.nio.file.Path> found = new ArrayList<>(s.filter(Files::isRegularFile).filter(x -> m.matches(x.getFileName()))
+                    .filter(x -> !x.toAbsolutePath().normalize().equals(out)).toList());
+            Comparator<java.nio.file.Path> byName = Comparator.comparing(x -> x.getFileName().toString().toLowerCase(Locale.ROOT));
+            found.sort("modified".equals(sortBy) ? Comparator.comparingLong((java.nio.file.Path x) -> x.toFile().lastModified()).thenComparing(byName) : byName);
+            return new ArrayList<>(found.stream().map(java.nio.file.Path::toString).toList());
+        } catch (IOException e) { throw new ActionException("PDF.MERGE_FAILED", "Cannot list " + dir + ": " + e.getMessage()); }
+    }
+
     @Action(id = "merge", name = "Merge PDFs", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Combine several PDFs, or chosen pages of each, in order, into one file; protected sources can be opened with passwords.")
+            description = "Combine several PDFs (a list, or every PDF in a folder), or chosen pages of each, in order, into one file; protected sources can be opened with passwords.")
     @Output(name = "page_count", type = OoaType.NUMBER, description = "Pages in the merged file.")
+    @Output(name = "files", type = OoaType.LIST, description = "The PDFs that were merged, in order.")
     public Map<String, Object> merge(ActionContext ctx,
-            @Input(name = "files", type = OoaType.LIST, description = "PDF paths in the order to merge.") List<Object> files,
+            @Input(name = "files", type = OoaType.LIST, required = false, visibleWhen = "folder=", description = "PDF paths in the order to merge.") List<Object> files,
             @Input(name = "target", type = OoaType.FILE, description = "Merged PDF to create.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace the target when it already exists; false stops with PDF.EXISTS.") boolean overwrite,
             @Input(name = "pages", type = OoaType.LIST, required = false,
                     description = "Pages to take from each file, in the same order as files, e.g. [\"1-3\", \"\", \"5,2\"]; an empty entry takes every page.") List<Object> pages,
             @Input(name = "passwords", type = OoaType.LIST, required = false,
-                    description = "Passwords (Credentials) for protected files, in the same order as files; empty entries for unprotected ones.") List<Object> passwords) {
-        if (files.size() < 2) throw new ActionException("PDF.NEED_FILES", "Give at least two PDFs to merge");
+                    description = "Passwords (Credentials) for protected files, in the same order as files; empty entries for unprotected ones.") List<Object> passwords,
+            @Input(name = "folder", type = OoaType.FILE, required = false, visibleWhen = "files=",
+                    description = "Merge every PDF in this folder instead of a list, sorted by name (or by sort_by).") String folder,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*.pdf\"", visibleWhen = "folder!=", description = "Which files of the folder, e.g. invoice-*.pdf.") String pattern,
+            @Input(name = "sort_by", type = OoaType.STRING, required = false, defaultValue = "\"name\"", enumValues = {"name", "modified"}, visibleWhen = "folder!=",
+                    description = "Order of the folder's files: by name or by last change (oldest first).") String sortBy) {
+        if ((files == null || files.isEmpty()) && folder != null && !folder.isBlank()) files = folderPdfs(ctx, folder, pattern, sortBy, target);
+        if (files == null || files.size() < 2) throw new ActionException("PDF.NEED_FILES", "Give at least two PDFs to merge", "Fill in files, or a folder with two or more PDFs.");
         if (pages != null && !pages.isEmpty() && pages.size() != files.size())
             throw new ActionException("PDF.BAD_PAGES", "pages has " + pages.size() + " entries for " + files.size() + " files", "Give one entry per file, empty for all pages.");
         if (!overwrite && Files.exists(ctx.resolvePath(target)))
@@ -172,7 +198,7 @@ public final class PdfPackage {
                 for (int pg : pages(spec, src.getNumberOfPages())) out.importPage(src.getPage(pg - 1));
             }
             save(ctx, out, target);
-            return Map.of("page_count", BigDecimal.valueOf(out.getNumberOfPages()));
+            return Map.of("page_count", BigDecimal.valueOf(out.getNumberOfPages()), "files", new ArrayList<>(files));
         } catch (IOException e) { throw new ActionException("PDF.MERGE_FAILED", e.getMessage());
         } finally { for (PDDocument d : sources) try { d.close(); } catch (IOException ignored) { } }
     }

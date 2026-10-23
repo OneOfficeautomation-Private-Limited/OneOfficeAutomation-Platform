@@ -529,15 +529,19 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     w.eval(`fillWindowFromCapture(state.flow.steps[state.flow.steps.length - 1], { page: { title: "The Internet", url: "https://the-internet.herokuapp.com/login" } }); renderProps();`);
     // as in the reference product, Capture makes a window variable (browser title, link, browser) and the step uses it
     const capWin = JSON.parse(w.eval(`JSON.stringify({ win: state.flow.steps[state.flow.steps.length - 1].args.window,
-      v: state.flow.variables.find((x) => x.name === "window_the_internet") })`));
-    check("Capture makes a window variable with the browser title, link and browser, and the step uses it", capWin.win === "$window_the_internet" && capWin.v && capWin.v.type === "Dictionary"
+      v: state.flow.variables.find((x) => x.name === "Window_1") })`));
+    check("Capture makes a numbered window variable (Window_1) with the browser title, link and browser, and the step uses it", capWin.win === "$Window_1" && capWin.v && capWin.v.type === "Dictionary"
       && JSON.stringify(capWin.v.default) === JSON.stringify({ source: "browser", title: "The Internet", title_match: "equals", link: "https://the-internet.herokuapp.com/login", browser: "edge" })
-      && !!(await until(() => d.querySelector(".win-now") && d.querySelector(".win-now").textContent.includes("\u201CThe Internet\u201D (window variable $window_the_internet)"))), JSON.stringify(capWin));
+      && !!(await until(() => d.querySelector(".win-now") && d.querySelector(".win-now").textContent.includes("\u201CThe Internet\u201D (window variable $Window_1)"))), JSON.stringify(capWin));
     w.eval(`fillWindowFromCapture((() => { state.flow.steps.push({ id: "win_ui2", action: "ooa.browser/click", args: {} }); return state.flow.steps[state.flow.steps.length - 1]; })(),
       { page: { title: "The Internet", url: "https://the-internet.herokuapp.com/login" } })`);
-    check("a second capture in the same window uses the same window variable", w.eval("state.flow.steps[state.flow.steps.length - 1].args.window") === "$window_the_internet"
-      && w.eval("state.flow.variables.filter((x) => /^window_the_internet/.test(x.name)).length") === 1);
-    w.eval("state.flow.steps.pop(); state.flow.steps.pop(); state.flow.variables = state.flow.variables.filter((x) => x.name !== 'window_the_internet'); state.selected = null; renderProps(); renderVariables(); state.dirty = false");
+    check("a second capture in the same window uses the same window variable", w.eval("state.flow.steps[state.flow.steps.length - 1].args.window") === "$Window_1"
+      && w.eval("state.flow.variables.filter((x) => /^Window_/.test(x.name)).length") === 1);
+    w.eval(`fillWindowFromCapture((() => { state.flow.steps.push({ id: "win_ui3", action: "ooa.browser/click", args: {} }); return state.flow.steps[state.flow.steps.length - 1]; })(),
+      { page: { title: "Secure Area | Example Portal with a long page title", url: "https://the-internet.herokuapp.com/secure" } })`);
+    check("another window gets the next number, not its title or link", w.eval("state.flow.steps[state.flow.steps.length - 1].args.window") === "$Window_2");
+    w.eval("state.flow.steps.pop(); state.flow.variables = state.flow.variables.filter((x) => x.name !== 'Window_2')");
+    w.eval("state.flow.steps.pop(); state.flow.steps.pop(); state.flow.variables = state.flow.variables.filter((x) => x.name !== 'Window_1'); state.selected = null; renderProps(); renderVariables(); state.dirty = false");
     // Recorded typing and selections become input variables named after the field
     const recVars = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
       const steps = [{ action: "ooa.browser/type_text", args: { text: "tomsmith", object: { properties: [{ name: "label", value: "Username" }, { name: "name", value: "user" }] } } },
@@ -552,8 +556,8 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
       const steps = [{ action: "ooa.browser/click", args: { window: Object.assign({}, win), object: { properties: [] } } }, { action: "ooa.browser/click", args: { window: Object.assign({}, win), object: { properties: [] } } }];
       const made = recordedVariables(steps); const vars = state.flow.variables.slice(before); state.flow.variables.splice(before);
       return { made, vars, windows: steps.map((s) => s.args.window) }; })())`));
-    check("the recorder makes one window variable and the steps use it", recWin.made.join() === "window_web_form" && recWin.vars[0].type === "Dictionary"
-      && recWin.vars[0].default.title === "Web form" && recWin.windows.every((x) => x === "$window_web_form"), JSON.stringify(recWin));
+    check("the recorder makes one numbered window variable and the steps use it", recWin.made.join() === "Window_1" && recWin.vars[0].type === "Dictionary"
+      && recWin.vars[0].default.title === "Web form" && recWin.windows.every((x) => x === "$Window_1"), JSON.stringify(recWin));
     // Desktop recordings: typed text becomes a variable named after the control, password fields use $password
     const recDesk = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
       const steps = [{ action: "ooa.desktop_ui/object_action", args: { action: "set_text", text: "Ann", object: { technology: "desktop", properties: [{ name: "Name", value: "Customer name" }, { name: "AutomationId", value: "txtName" }] } } },
@@ -958,6 +962,29 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     check("at " + wpx + " px the three panels fit side by side without overlapping", L.centerW >= L.m.center && L.sideW >= L.m.side && L.propsW >= L.m.props && L.total <= wpx + 0.5, JSON.stringify(L));
   }
   st.remove();
+
+  // ================= Command settings: options shown only when they apply (command comparison) =================
+  {
+    const fields = () => [...d.querySelectorAll("#props .field[data-field]")].map((x) => x.dataset.field);
+    w.eval(`openBot("Examples/Refunds/lookup_order.flow.json")`);
+    await until(() => w.eval("state.file") === "Examples/Refunds/lookup_order.flow.json" && w.eval("state.flow"));
+    w.eval(`state.flow.steps.push({ id: "cc_loop", action: "core/loop", args: { iterator: "times", count: 3 }, children: [] },
+      { id: "cc_date", action: "ooa.datetime/add", args: { value: "2026-10-23T00:00:00", amount: 2 } }); renderAll(); selectById("cc_loop")`);
+    check("Loop N times shows the count and start, not the list or while fields", await until(() => fields().includes("count") && fields().includes("start")
+      && !fields().includes("over") && !fields().includes("condition") && !fields().includes("from_index") && !fields().includes("check_at_end")), fields().join());
+    const iter = d.querySelector('#props .field[data-field="iterator"] select');
+    check("the Loop type list offers each key and each value of a dictionary", [...iter.options].some((o) => o.value === "dictionary_values") && [...iter.options].some((o) => o.value === "dictionary_keys"));
+    delete w.eval("state.flow.steps.find((s) => s.id === 'cc_loop').args").count;
+    change(iter, "list");
+    check("switching the Loop to a list shows its range options and hides the counter", await until(() => fields().includes("over") && fields().includes("from_index") && fields().includes("reverse")
+      && !fields().includes("count") && !fields().includes("start")), fields().join());
+    check("a number with limits says so in its help", (d.querySelector('#props .field[data-field="from_index"] .info-tip') || {}).title.includes("Smallest value: 0"));
+    w.eval(`selectById("cc_date")`);
+    check("Add to date hides the holiday list until business days are chosen", await until(() => fields().includes("unit") && !fields().includes("holidays")), fields().join());
+    change(d.querySelector('#props .field[data-field="unit"] select'), "business_days");
+    check("choosing business days shows the holiday list", await until(() => fields().includes("holidays")), fields().join());
+    w.eval(`state.flow.steps = state.flow.steps.filter((s) => !s.id.startsWith("cc_")); state.selected = null; renderAll()`);
+  }
 
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));

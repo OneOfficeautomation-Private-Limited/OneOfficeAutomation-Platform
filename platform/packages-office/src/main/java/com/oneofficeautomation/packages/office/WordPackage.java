@@ -33,6 +33,22 @@ public final class WordPackage {
 
     private static DocSession s(ActionContext ctx, String name) { return ctx.session(name, DocSession.class); }
 
+    /**
+     * A new paragraph at the end. A new document holds one blank paragraph (a .docx needs one); the first text added
+     * goes into it, so documents do not start with an empty line.
+     */
+    static XWPFParagraph appendParagraph(XWPFDocument d) {
+        XWPFParagraph blank = blankOnly(d);
+        return blank != null ? blank : d.createParagraph();
+    }
+
+    /** The document's only paragraph when it is blank (a new document), else null. */
+    private static XWPFParagraph blankOnly(XWPFDocument d) {
+        if (d.getBodyElements().size() != 1 || d.getParagraphs().size() != 1) return null;
+        XWPFParagraph only = d.getParagraphs().get(0);
+        return only.getRuns().isEmpty() && (only.getText() == null || only.getText().isEmpty()) ? only : null;
+    }
+
     /** Every paragraph in the body and in table cells, in document order. */
     private static List<XWPFParagraph> allParagraphs(XWPFDocument d) {
         List<XWPFParagraph> out = new ArrayList<>(d.getParagraphs());
@@ -112,9 +128,20 @@ public final class WordPackage {
     }
 
     /** Occurrences in document order, narrowed to all, the first or the last. */
-    private static List<Hit> hits(XWPFDocument d, java.util.regex.Pattern pat, String occurrence) {
+    private static List<Hit> hits(XWPFDocument d, java.util.regex.Pattern pat, String occurrence) { return hits(d, pat, occurrence, null, null); }
+
+    /** Paragraphs to search: the whole document, or body paragraphs from..to (1-based, inclusive) when a range is given. */
+    private static List<XWPFParagraph> inRange(XWPFDocument d, Integer from, Integer to) {
+        if (from == null && to == null) return allParagraphs(d);
+        List<XWPFParagraph> body = d.getParagraphs();
+        int a = from == null ? 1 : from, b = to == null ? body.size() : to;
+        if (a < 1 || b < a) throw new ActionException("WORD.BAD_RANGE", "Paragraph range " + a + " to " + b + " is not valid", "Use 1-based numbers with from_paragraph not above to_paragraph.");
+        return body.subList(Math.min(a - 1, body.size()), Math.min(b, body.size()));
+    }
+
+    private static List<Hit> hits(XWPFDocument d, java.util.regex.Pattern pat, String occurrence, Integer from, Integer to) {
         List<Hit> out = new ArrayList<>();
-        for (XWPFParagraph p : allParagraphs(d)) {
+        for (XWPFParagraph p : inRange(d, from, to)) {
             String all = p.getRuns().stream().map(WordPackage::runText).reduce("", String::concat);
             var m = pat.matcher(all);
             while (m.find()) if (m.end() > m.start()) out.add(new Hit(p, m.start(), m.end()));
@@ -138,6 +165,13 @@ public final class WordPackage {
 
     public Map<String, Object> replaceText(ActionContext ctx, String find, String with, String session) { return replaceText(ctx, find, with, session, true, false, "all"); }
 
+    public Map<String, Object> replaceText(ActionContext ctx, String find, String with, String session, boolean matchCase, boolean wholeWord, String occurrence) {
+        return replaceText(ctx, find, with, session, matchCase, wholeWord, occurrence, null, null);
+    }
+
+    private static final String D_FROM = "1-based first body paragraph to search; the whole document (with tables, headers and footers) when both are empty.";
+    private static final String D_TO = "1-based last body paragraph to search, included; to the end when empty.";
+
     @Action(id = "replace_text", name = "Replace text", category = "Text",
             description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template; can ignore case, match whole words or change only the first or last occurrence.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
@@ -147,11 +181,13 @@ public final class WordPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_MATCH_CASE) boolean matchCase,
             @Input(name = "whole_word", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_WHOLE_WORD) boolean wholeWord,
-            @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence) {
+            @Input(name = "occurrence", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "first", "last"}, description = D_OCCURRENCE) String occurrence,
+            @Input(name = "from_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_FROM) Integer from,
+            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to) {
         if (find.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to find is empty");
         String rep = with == null ? "" : with;
-        if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence)) {
-            List<Hit> hs = hits(s(ctx, session).doc, searchPattern(find, matchCase, wholeWord), occurrence);
+        if (!matchCase || wholeWord || !"all".equalsIgnoreCase(occurrence == null ? "all" : occurrence) || from != null || to != null) {
+            List<Hit> hs = hits(s(ctx, session).doc, searchPattern(find, matchCase, wholeWord), occurrence, from, to);
             for (int i = hs.size() - 1; i >= 0; i--) {  // back to front keeps earlier offsets valid
                 Hit h = hs.get(i);
                 List<XWPFRun> runs = isolate(h.p(), h.start(), h.end());
@@ -188,7 +224,7 @@ public final class WordPackage {
             @Input(name = "bold", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Bold text.") boolean bold,
             @Input(name = "style", type = OoaType.STRING, required = false, description = "Style id from the document, e.g. Heading1.") String style,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session) {
-        XWPFParagraph p = s(ctx, session).doc.createParagraph();
+        XWPFParagraph p = appendParagraph(s(ctx, session).doc);
         if (style != null && !style.isBlank()) p.setStyle(style);
         String[] lines = text.split("\n", -1);
         XWPFRun r = p.createRun();
@@ -486,13 +522,14 @@ public final class WordPackage {
             case "end" -> {
                 List<IBodyElement> els = d.getBodyElements();
                 XWPFParagraph last = !els.isEmpty() && els.get(els.size() - 1) instanceof XWPFParagraph lp ? lp : null;
-                XWPFParagraph p = !newParagraph && last != null ? last : d.createParagraph();
+                XWPFParagraph p = !newParagraph && last != null ? last : appendParagraph(d);
                 writeStyled(fmt, p.createRun(), text);
             }
             case "start" -> {
                 List<XWPFParagraph> ps = d.getParagraphs();
                 XWPFParagraph first = ps.isEmpty() ? null : ps.get(0);
                 if (first == null) writeStyled(fmt, d.createParagraph().createRun(), text);
+                else if (blankOnly(d) != null) writeStyled(fmt, first.createRun(), text);
                 else if (!newParagraph) writeStyled(fmt, first.insertNewRun(0), text);
                 else {
                     org.apache.xmlbeans.XmlCursor c = d.getBodyElements().get(0) instanceof XWPFTable tb ? tb.getCTTbl().newCursor() : first.getCTP().newCursor();
@@ -720,6 +757,11 @@ public final class WordPackage {
         return formatText(ctx, text, bold, italic, underline, size, colour, font, session, true, false, "all", null, null);
     }
 
+    public Map<String, Object> formatText(ActionContext ctx, String text, Boolean bold, Boolean italic, Boolean underline, Double size, String colour, String font,
+                                          String session, boolean matchCase, boolean wholeWord, String occurrence, String highlight, Boolean strike) {
+        return formatText(ctx, text, bold, italic, underline, size, colour, font, session, matchCase, wholeWord, occurrence, highlight, strike, null, null);
+    }
+
     @Action(id = "format_text", name = "Format text", category = "Text",
             description = "Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text; inputs left empty are not changed.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of occurrences formatted.")
@@ -728,7 +770,7 @@ public final class WordPackage {
             @Input(name = "bold", type = OoaType.BOOLEAN, required = false, description = "Bold on or off.") Boolean bold,
             @Input(name = "italic", type = OoaType.BOOLEAN, required = false, description = "Italic on or off.") Boolean italic,
             @Input(name = "underline", type = OoaType.BOOLEAN, required = false, description = "Single underline on or off.") Boolean underline,
-            @Input(name = "size", type = OoaType.NUMBER, required = false, description = "Font size in points.") Double size,
+            @Input(name = "size", type = OoaType.NUMBER, required = false, min = 1, max = 1638, description = "Font size in points.") Double size,
             @Input(name = "color", type = OoaType.STRING, required = false, example = "#C00000", description = "Hex text colour.") String colour,
             @Input(name = "font", type = OoaType.STRING, required = false, description = "Font name, e.g. Calibri.") String font,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
@@ -738,10 +780,12 @@ public final class WordPackage {
             @Input(name = "highlight", type = OoaType.STRING, required = false,
                     enumValues = {"yellow", "green", "cyan", "magenta", "blue", "red", "darkBlue", "darkCyan", "darkGreen", "darkMagenta", "darkRed", "darkYellow", "darkGray", "lightGray", "black", "white", "none"},
                     description = "Highlighter colour behind the text, or none to remove it.") String highlight,
-            @Input(name = "strikethrough", type = OoaType.BOOLEAN, required = false, description = "Strikethrough on or off.") Boolean strike) {
+            @Input(name = "strikethrough", type = OoaType.BOOLEAN, required = false, description = "Strikethrough on or off.") Boolean strike,
+            @Input(name = "from_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_FROM) Integer from,
+            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, min = 1, description = D_TO) Integer to) {
         if (text == null || text.isEmpty()) throw new ActionException("WORD.EMPTY_FIND", "Text to format is empty", "Give the text to format.");
         RunFormat f = new RunFormat(bold, italic, underline, size, hexColour(colour), font, highlight, strike);
-        List<Hit> hs = hits(s(ctx, session).doc, searchPattern(text, matchCase, wholeWord), occurrence);
+        List<Hit> hs = hits(s(ctx, session).doc, searchPattern(text, matchCase, wholeWord), occurrence, from, to);
         for (int i = hs.size() - 1; i >= 0; i--) {
             Hit h = hs.get(i);
             for (XWPFRun r : isolate(h.p(), h.start(), h.end())) f.apply(r);

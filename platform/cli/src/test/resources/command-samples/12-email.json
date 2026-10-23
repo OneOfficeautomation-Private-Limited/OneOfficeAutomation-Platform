@@ -1,0 +1,519 @@
+[
+ {
+  "command": "ooa.email/send",
+  "name": "send through the session's outgoing server (new), then find and read it",
+  "requires": "mail",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "invoice.txt": "INV-1"
+  },
+  "steps": [
+   {
+    "action": "ooa.email/connect",
+    "args": {
+     "imap_host": "127.0.0.1",
+     "port": "{imap_port}",
+     "user": "bot@sample.test",
+     "password": "$pw",
+     "security": "none",
+     "smtp_host": "127.0.0.1",
+     "smtp_port": "{smtp_port}",
+     "smtp_security": "none"
+    }
+   },
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "to": "bot@sample.test",
+     "subject": "Invoice 1",
+     "body": "Please pay",
+     "attachments": [
+      "{tmp}/invoice.txt"
+     ],
+     "importance": "high"
+    },
+    "out": {
+     "message_id": "mid"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "args": {
+     "subject_contains": "Invoice"
+    },
+    "out": {
+     "table": "t",
+     "count": "n"
+    }
+   },
+   {
+    "action": "ooa.datatable/get_value",
+    "args": {
+     "table": "$t",
+     "row": 0,
+     "column": "id"
+    },
+    "out": {
+     "value": "id"
+    }
+   },
+   {
+    "action": "ooa.email/get",
+    "args": {
+     "id": "$id"
+    },
+    "out": {
+     "email": "e"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "subject",
+     "value": {
+      "expr": "$e.subject"
+     }
+    }
+   },
+   {
+    "action": "ooa.email/disconnect"
+   }
+  ],
+  "expect": {
+   "n": 1,
+   "subject": "Invoice 1",
+   "mid": {
+    "$contains": "@"
+   }
+  }
+ },
+ {
+  "command": "ooa.email/send",
+  "name": "no server anywhere",
+  "steps": [
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "to": "a@b.c",
+     "subject": "x"
+    }
+   }
+  ],
+  "error": "EMAIL.NO_SMTP"
+ },
+ {
+  "command": "ooa.email/send",
+  "name": "classic SMTP fields on the step",
+  "requires": "mail",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "smtp_host": "127.0.0.1",
+     "port": "{smtp_port}",
+     "security": "none",
+     "user": "bot@sample.test",
+     "password": "$pw",
+     "to": "bot@sample.test",
+     "subject": "Direct"
+    }
+   },
+   {
+    "action": "ooa.email/connect",
+    "args": {
+     "imap_host": "127.0.0.1",
+     "port": "{imap_port}",
+     "user": "bot@sample.test",
+     "password": "$pw",
+     "security": "none"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.email/send",
+  "name": "wrong password",
+  "requires": "mail",
+  "steps": [
+   {
+    "action": "ooa.email/connect",
+    "args": {
+     "imap_host": "127.0.0.1",
+     "port": "{imap_port}",
+     "user": "bot@sample.test",
+     "password": "wrong",
+     "security": "none"
+    }
+   }
+  ],
+  "error": "EMAIL.NO_CREDENTIAL"
+ },
+ {
+  "command": "ooa.email/reply",
+  "name": "reply, reply all, forward, mark, attachments, eml, folders, move, delete",
+  "requires": "mail",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "files": {
+   "a.pdf": "%PDF-1.4 sample"
+  },
+  "steps": [
+   {
+    "action": "ooa.email/connect",
+    "args": {
+     "imap_host": "127.0.0.1",
+     "port": "{imap_port}",
+     "user": "bot@sample.test",
+     "password": "$pw",
+     "security": "none",
+     "smtp_host": "127.0.0.1",
+     "smtp_port": "{smtp_port}",
+     "smtp_security": "none"
+    }
+   },
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "to": "bot@sample.test",
+     "cc": "other@sample.test",
+     "subject": "Order 7",
+     "body": "hello",
+     "attachments": [
+      "{tmp}/a.pdf"
+     ]
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/get_value",
+    "args": {
+     "table": "$t",
+     "row": 0,
+     "column": "id"
+    },
+    "out": {
+     "value": "id"
+    }
+   },
+   {
+    "action": "ooa.email/reply",
+    "args": {
+     "id": "$id",
+     "body": "Thanks"
+    }
+   },
+   {
+    "action": "ooa.email/reply_all",
+    "args": {
+     "id": "$id",
+     "body": "Thanks all"
+    }
+   },
+   {
+    "action": "ooa.email/forward",
+    "args": {
+     "id": "$id",
+     "to": "bot@sample.test",
+     "note": "FYI"
+    }
+   },
+   {
+    "action": "ooa.email/mark",
+    "args": {
+     "id": "$id",
+     "read": false,
+     "flagged": true
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "args": {
+     "unread_only": true
+    },
+    "out": {
+     "count": "unread"
+    }
+   },
+   {
+    "action": "ooa.email/save_attachments",
+    "args": {
+     "id": "$id",
+     "target_folder": "{tmp}/att"
+    },
+    "out": {
+     "files": "files"
+    }
+   },
+   {
+    "action": "ooa.email/save_email_as_eml",
+    "args": {
+     "id": "$id",
+     "local_path": "{tmp}/order.eml"
+    }
+   },
+   {
+    "action": "ooa.email/folder_exists",
+    "args": {
+     "folder": "Done"
+    },
+    "out": {
+     "exists": "before"
+    }
+   },
+   {
+    "action": "ooa.email/move",
+    "args": {
+     "id": "$id",
+     "to_folder": "Done",
+     "create_folder": true
+    }
+   },
+   {
+    "action": "ooa.email/folder_exists",
+    "args": {
+     "folder": "Done"
+    },
+    "out": {
+     "exists": "after"
+    }
+   },
+   {
+    "action": "ooa.email/get_folders",
+    "out": {
+     "folders": "folders"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "args": {
+     "subject_contains": "Re:"
+    },
+    "out": {
+     "count": "replies"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "args": {
+     "subject_contains": "Fwd"
+    },
+    "out": {
+     "count": "forwards"
+    }
+   },
+   {
+    "action": "ooa.email/save_all_attachments",
+    "args": {
+     "target_folder": "{tmp}/all",
+     "folder": "Done"
+    },
+    "out": {
+     "files": "allfiles"
+    }
+   },
+   {
+    "action": "ooa.email/move_all",
+    "args": {
+     "to_folder": "Done",
+     "subject_contains": "Re:"
+    },
+    "out": {
+     "count": "moved"
+    }
+   },
+   {
+    "action": "ooa.email/delete_all",
+    "args": {
+     "folder": "Done",
+     "permanent": true
+    },
+    "out": {
+     "count": "deleted"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "out": {
+     "table": "rest",
+     "count": "left"
+    }
+   },
+   {
+    "action": "ooa.datatable/get_value",
+    "args": {
+     "table": "$rest",
+     "row": 0,
+     "column": "id"
+    },
+    "out": {
+     "value": "last"
+    }
+   },
+   {
+    "action": "ooa.email/delete",
+    "args": {
+     "id": "$last",
+     "permanent": true
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "out": {
+     "count": "empty"
+    }
+   },
+   {
+    "action": "ooa.email/disconnect"
+   }
+  ],
+  "expect": {
+   "unread": 4,
+   "files": {
+    "$type": "array"
+   },
+   "before": false,
+   "after": true,
+   "replies": 2,
+   "forwards": 1,
+   "moved": 2,
+   "deleted": 3,
+   "left": 1,
+   "empty": 0
+  },
+  "expectFiles": {
+   "att/a.pdf": "%PDF-1.4 sample",
+   "order.eml": true
+  }
+ },
+ {
+  "command": "ooa.email/get",
+  "name": "no open mailbox",
+  "steps": [
+   {
+    "action": "ooa.email/get",
+    "args": {
+     "id": 1
+    }
+   }
+  ],
+  "error": "SESSION.NOT_FOUND"
+ },
+ {
+  "command": "ooa.email/move",
+  "name": "missing folder without create",
+  "requires": "mail",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.email/connect",
+    "args": {
+     "imap_host": "127.0.0.1",
+     "port": "{imap_port}",
+     "user": "bot@sample.test",
+     "password": "$pw",
+     "security": "none",
+     "smtp_host": "127.0.0.1",
+     "smtp_port": "{smtp_port}",
+     "smtp_security": "none"
+    }
+   },
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "to": "bot@sample.test",
+     "subject": "x"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "out": {
+     "table": "t"
+    }
+   },
+   {
+    "action": "ooa.datatable/get_value",
+    "args": {
+     "table": "$t",
+     "row": 0,
+     "column": "id"
+    },
+    "out": {
+     "value": "id"
+    }
+   },
+   {
+    "action": "ooa.email/move",
+    "args": {
+     "id": "$id",
+     "to_folder": "Nowhere"
+    }
+   }
+  ],
+  "error": "EMAIL.NO_FOLDER"
+ },
+ {
+  "command": "ooa.email/send",
+  "name": "internal relay without sign-in (new)",
+  "requires": "mail",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "smtp_host": "127.0.0.1",
+     "port": "{smtp_port}",
+     "security": "none",
+     "from": "robot@sample.test",
+     "to": "bot@sample.test",
+     "subject": "Relay"
+    }
+   },
+   {
+    "action": "ooa.email/connect",
+    "args": {
+     "imap_host": "127.0.0.1",
+     "port": "{imap_port}",
+     "user": "bot@sample.test",
+     "password": "$pw",
+     "security": "none"
+    }
+   },
+   {
+    "action": "ooa.email/list",
+    "args": {
+     "subject_contains": "Relay"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ }
+]

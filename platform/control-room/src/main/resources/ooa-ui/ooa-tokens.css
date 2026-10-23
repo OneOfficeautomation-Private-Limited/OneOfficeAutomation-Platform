@@ -1,0 +1,169 @@
+/* =====================================================================================================================
+   ONEOFFICEAUTOMATION design tokens
+   One file, shared by One Command Center (/ooa-tokens.css) and One Agent Studio (studio/ooa-tokens.css).
+   Layers:  1. primitives (raw palette, never used directly by components)
+            2. semantic tokens (what components use: surfaces, text, borders, accent, status, frame)
+            3. scales (space, radius, shadow, type, size, layer, motion)
+            4. dark theme (redefines only semantic tokens)
+            5. compatibility names used by older rules (map to semantic tokens; do not use in new rules)
+   See docs/DESIGN_SYSTEM.md.
+   ===================================================================================================================== */
+
+/* ---------- 1. primitives ---------- */
+:root {
+  --ooa-gray-0: #ffffff; --ooa-gray-25: #f9fafb; --ooa-gray-50: #f4f6f9; --ooa-gray-100: #edf0f4; --ooa-gray-150: #e3e7ed;
+  --ooa-gray-200: #d7dce4; --ooa-gray-300: #c2c9d3; --ooa-gray-400: #8d97a6; --ooa-gray-500: #667183; --ooa-gray-600: #4b5565;
+  --ooa-gray-700: #353e4c; --ooa-gray-800: #232a35; --ooa-gray-850: #1a2029; --ooa-gray-900: #131820; --ooa-gray-950: #0c1016;
+  --ooa-blue-50: #ebf4fb; --ooa-blue-100: #d3e7f6; --ooa-blue-300: #7fb9e6; --ooa-blue-400: #4f9fdc; --ooa-blue-500: #1f7fc4;
+  --ooa-blue-600: #0b67a9; --ooa-blue-700: #09568e; --ooa-blue-800: #084675;
+  --ooa-navy-700: #18304f; --ooa-navy-800: #112540; --ooa-navy-900: #0c1b2f; --ooa-navy-950: #08121f;
+  --ooa-green-50: #e8f5ee; --ooa-green-500: #1f9d5c; --ooa-green-700: #17723f; --ooa-green-300: #6fd39c;
+  --ooa-red-50: #fdeeec; --ooa-red-500: #d93f36; --ooa-red-700: #b3261e; --ooa-red-300: #f59a94;
+  --ooa-amber-50: #fff5df; --ooa-amber-500: #e0950f; --ooa-amber-700: #8a5600; --ooa-amber-300: #f7c665;
+  --ooa-violet-50: #f1ecfd; --ooa-violet-500: #8a5ce6; --ooa-violet-700: #6237c4; --ooa-violet-300: #c3a9f7;
+}
+
+/* ---------- 2. semantic tokens (light, the default) ---------- */
+:root {
+  color-scheme: light;
+  /* surfaces, from back to front */
+  --surface-canvas: var(--ooa-gray-50);       /* page background behind cards */
+  --surface-1: var(--ooa-gray-0);             /* cards, panels, tables, dialogs */
+  --surface-2: var(--ooa-gray-25);            /* table headers, panel headers, toolbars inside cards */
+  --surface-hover: var(--ooa-gray-100);       /* hovered rows and list items */
+  --surface-selected: var(--ooa-blue-50);     /* selected rows and list items */
+  --surface-sunken: var(--ooa-gray-100);      /* code, tracks, inset wells */
+  --surface-inverse: var(--ooa-gray-800);     /* toasts, tooltips */
+  --overlay: rgba(12, 16, 22, .45);           /* behind dialogs and drawers */
+  /* text */
+  --text-1: #17202b;                          /* primary text, 15:1 on white */
+  --text-2: var(--ooa-gray-600);              /* secondary text, 7.4:1 */
+  --text-3: #626d7e;                          /* hints, placeholders, 5:1 */
+  --text-inverse: #f4f6f9;
+  --text-on-accent: #ffffff;
+  /* borders */
+  --border-1: var(--ooa-gray-150);            /* dividers inside a surface */
+  --border-2: var(--ooa-gray-200);            /* outline of cards, tables */
+  --border-control: var(--ooa-gray-400);      /* inputs, checkboxes: 3:1 against white */
+  --border-strong: var(--ooa-gray-500);
+  /* accent: one brand blue for primary actions, links, selection and focus */
+  --accent: var(--ooa-blue-600);
+  --accent-hover: var(--ooa-blue-700);
+  --accent-active: var(--ooa-blue-800);
+  --accent-subtle: var(--ooa-blue-50);
+  --accent-subtle-2: var(--ooa-blue-100);
+  --accent-text: var(--ooa-blue-700);
+  --brand-2: var(--ooa-violet-500);           /* second logo colour, decoration only */
+  --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--ooa-blue-500);
+  --focus-ring-inset: inset 0 0 0 2px var(--ooa-blue-500);
+  /* status: text colour, subtle background, border */
+  --success: var(--ooa-green-700); --success-bg: var(--ooa-green-50); --success-solid: var(--ooa-green-500);
+  --danger: var(--ooa-red-700); --danger-bg: var(--ooa-red-50); --danger-solid: var(--ooa-red-500);
+  --warning: var(--ooa-amber-700); --warning-bg: var(--ooa-amber-50); --warning-solid: var(--ooa-amber-500);
+  --info: var(--ooa-blue-700); --info-bg: var(--ooa-blue-50); --info-solid: var(--ooa-blue-500);
+  --special: var(--ooa-violet-700); --special-bg: var(--ooa-violet-50); --special-solid: var(--ooa-violet-500);
+  --neutral: var(--ooa-gray-600); --neutral-bg: var(--ooa-gray-100);
+  /* frame: the dark top bar and navigation around the light work area */
+  --frame-bg: var(--ooa-navy-900);
+  --frame-bg-2: var(--ooa-navy-800);
+  --frame-border: rgba(255, 255, 255, .09);
+  --frame-text: #e9eef6;
+  --frame-text-2: #a9b7ca;
+  --frame-hover: rgba(255, 255, 255, .07);
+  --frame-active: rgba(255, 255, 255, .12);
+  --frame-accent: var(--ooa-blue-300);
+}
+
+/* ---------- 3. scales ---------- */
+:root {
+  /* spacing: a 4 px grid */
+  --space-0: 0; --space-px: 1px; --space-05: 2px; --space-1: 4px; --space-15: 6px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  /* radius */
+  --radius-xs: 3px; --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-xl: 12px; --radius-pill: 999px;
+  /* elevation */
+  --shadow-xs: 0 1px 1px rgba(16, 24, 40, .04);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .04);
+  --shadow-md: 0 4px 10px -2px rgba(16, 24, 40, .10), 0 2px 4px -2px rgba(16, 24, 40, .06);
+  --shadow-lg: 0 12px 28px -6px rgba(16, 24, 40, .18), 0 4px 10px -4px rgba(16, 24, 40, .08);
+  --shadow-overlay: 0 24px 56px -12px rgba(16, 24, 40, .32), 0 8px 18px -8px rgba(16, 24, 40, .14);
+  /* typography */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --text-2xs: 10.5px; --text-xs: 11px; --text-sm: 12px; --text-base: 13px; --text-md: 14px; --text-lg: 16px;
+  --text-xl: 18px; --text-2xl: 22px; --text-3xl: 28px;
+  --leading-tight: 1.25; --leading: 1.45; --leading-loose: 1.6;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600; --weight-bold: 700;
+  --tracking-caps: .06em;
+  /* control heights */
+  --control-h-sm: 26px; --control-h: 32px; --control-h-lg: 38px;
+  /* layers */
+  --z-sticky: 20; --z-dropdown: 30; --z-drawer: 40; --z-float: 45; --z-modal: 50; --z-toast: 60; --z-popover: 70;
+  /* motion */
+  --dur-fast: 100ms; --dur: 160ms; --dur-slow: 240ms; --ease: cubic-bezier(.2, 0, 0, 1);
+}
+
+/* ---------- 4. dark theme (Command Center: data-theme="dark"; Agent Studio: data-theme="midnight") ---------- */
+[data-theme="dark"], [data-theme="midnight"] {
+  color-scheme: dark;
+  --surface-canvas: #0e131a;
+  --surface-1: #151b24;
+  --surface-2: #19202b;
+  --surface-hover: #212a37;
+  --surface-selected: #16314c;
+  --surface-sunken: #0b1016;
+  --surface-inverse: #e6ebf2;
+  --overlay: rgba(0, 0, 0, .6);
+  --text-1: #e6ebf2;
+  --text-2: #aeb9c8;
+  --text-3: #8894a6;
+  --text-inverse: #10151c;
+  --text-on-accent: #04111e;
+  --border-1: #232c39;
+  --border-2: #2d3746;
+  --border-control: #566274;
+  --border-strong: #7a8699;
+  --accent: #5aaaeb;
+  --accent-hover: #7cbcf0;
+  --accent-active: #9ccbf3;
+  --accent-subtle: #132b44;
+  --accent-subtle-2: #1a3a5c;
+  --accent-text: #8cc4f2;
+  --brand-2: var(--ooa-violet-300);
+  --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px #6cb4ee;
+  --focus-ring-inset: inset 0 0 0 2px #6cb4ee;
+  --success: var(--ooa-green-300); --success-bg: #11301f; --success-solid: #2fb170;
+  --danger: var(--ooa-red-300); --danger-bg: #3a1714; --danger-solid: #e5534b;
+  --warning: var(--ooa-amber-300); --warning-bg: #36270b; --warning-solid: #e8a325;
+  --info: #8cc4f2; --info-bg: #132b44; --info-solid: #3d94db;
+  --special: var(--ooa-violet-300); --special-bg: #261c44; --special-solid: #9a72ee;
+  --neutral: #aeb9c8; --neutral-bg: #232c39;
+  --frame-bg: #090d13;
+  --frame-bg-2: #0d1219;
+  --frame-border: rgba(255, 255, 255, .07);
+  --frame-text: #e6ebf2;
+  --frame-text-2: #96a3b6;
+  --frame-hover: rgba(255, 255, 255, .06);
+  --frame-active: rgba(255, 255, 255, .1);
+  --shadow-xs: 0 1px 1px rgba(0, 0, 0, .3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, .5);
+  --shadow-lg: 0 12px 30px -6px rgba(0, 0, 0, .6);
+  --shadow-overlay: 0 24px 60px -12px rgba(0, 0, 0, .7);
+}
+
+/* ---------- 5. compatibility names (older rules use these; new rules use the semantic names above) ---------- */
+:root, [data-theme] {
+  --bg: var(--surface-canvas); --panel: var(--surface-1); --code: var(--surface-sunken);
+  --ink: var(--text-1); --muted: var(--text-2); --faint: var(--text-3);
+  --line: var(--border-1); --line-2: var(--border-2); --border: var(--border-2);
+  --accent-ink: var(--accent-text); --accent-2: var(--brand-2); --tint: var(--accent-subtle);
+  --ring: color-mix(in srgb, var(--accent) 28%, transparent);
+  --ok: var(--success); --warn: var(--warning);
+  --ok-bg: var(--success-bg); --bad-bg: var(--danger-bg); --warn-bg: var(--warning-bg); --info-bg: var(--info-bg); --lock-bg: var(--special-bg);
+  --gradient: linear-gradient(90deg, var(--accent), var(--brand-2));
+  --shadow: var(--shadow-sm);
+  --frame: var(--frame-bg); --frame-2: var(--frame-bg-2); --frame-ink: var(--frame-text); --frame-muted: var(--frame-text-2); --frame-line: var(--frame-border);
+  --charcoal: var(--text-1);
+}

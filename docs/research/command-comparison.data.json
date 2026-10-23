@@ -1,0 +1,1855 @@
+{
+  "_about": "Source data for command-comparison.md (built by tools/command-table.js). aaMap: AA package/action -> our command, or '-: reason' when we deliberately do it differently. commands: findings per command of ours. packages: defaults for every command of a toolkit. AA behaviour is summarised in our own words.",
+  "groups": [
+    {
+      "name": "1. Logic, flow and variables",
+      "packages": [
+        "core",
+        "ooa.run_context",
+        "ooa.global_values"
+      ]
+    },
+    {
+      "name": "2. Text and data",
+      "packages": [
+        "ooa.string",
+        "ooa.number",
+        "ooa.boolean",
+        "ooa.list",
+        "ooa.dictionary",
+        "ooa.datatable",
+        "ooa.datetime",
+        "ooa.json",
+        "ooa.xml",
+        "ooa.csv"
+      ]
+    },
+    {
+      "name": "3. Files and folders",
+      "packages": [
+        "ooa.file",
+        "ooa.folder"
+      ]
+    },
+    {
+      "name": "4. Excel",
+      "packages": [
+        "ooa.excel"
+      ]
+    },
+    {
+      "name": "5. Web and browser",
+      "packages": [
+        "ooa.browser",
+        "ooa.web_agent"
+      ]
+    },
+    {
+      "name": "6. Window and desktop",
+      "packages": [
+        "ooa.window",
+        "ooa.desktop",
+        "ooa.desktop_ui",
+        "ooa.image",
+        "ooa.ocr",
+        "ooa.application"
+      ]
+    },
+    {
+      "name": "7. Email",
+      "packages": [
+        "ooa.email"
+      ]
+    },
+    {
+      "name": "8. Word, PowerPoint, PDF",
+      "packages": [
+        "ooa.word",
+        "ooa.powerpoint",
+        "ooa.pdf",
+        "ooa.excel_desktop"
+      ]
+    },
+    {
+      "name": "9. System and local toolkits",
+      "packages": [
+        "ooa.system",
+        "ooa.services",
+        "ooa.printer",
+        "ooa.network",
+        "ooa.script",
+        "ooa.crypto",
+        "ooa.pgp",
+        "ooa.log",
+        "ooa.sound",
+        "ooa.dll",
+        "ooa.credential_manager",
+        "ooa.fuzzy",
+        "ooa.interrupts",
+        "ooa.database",
+        "ooa.rest",
+        "ooa.soap",
+        "ooa.file_transfer",
+        "ooa.currency",
+        "ooa.workload",
+        "ooa.insights",
+        "ooa.triggerloop"
+      ]
+    },
+    {
+      "name": "10. Cloud connectors",
+      "packages": [
+        "ooa.microsoft365",
+        "ooa.google",
+        "ooa.jira",
+        "ooa.servicenow",
+        "ooa.salesforce",
+        "ooa.slack",
+        "ooa.workday",
+        "ooa.asana",
+        "ooa.azure_devops",
+        "ooa.box",
+        "ooa.docusign",
+        "ooa.github",
+        "ooa.okta",
+        "ooa.zendesk",
+        "ooa.connector"
+      ]
+    },
+    {
+      "name": "11. Enterprise systems",
+      "packages": [
+        "ooa.active_directory",
+        "ooa.sap",
+        "ooa.terminal",
+        "ooa.databricks",
+        "ooa.snowflake",
+        "ooa.kafka"
+      ]
+    },
+    {
+      "name": "12. AI",
+      "packages": [
+        "ooa.genai",
+        "ooa.ai_agent",
+        "ooa.ai_skills",
+        "ooa.web_agent"
+      ]
+    }
+  ],
+  "aaMap": {
+    "If/If": "core/if",
+    "If/Else If": "core/if",
+    "If/Else": "core/if",
+    "Loop/Loop": "core/loop",
+    "Loop/Continue": "core/continue",
+    "Loop/Break": "core/break",
+    "Error handler/Try": "core/try",
+    "Error handler/Catch": "core/try",
+    "Error handler/Finally": "core/try",
+    "Error handler/Throw": "core/throw",
+    "Step/Step": "core/step",
+    "Comment/Comment": "core/comment",
+    "Delay/Delay": "core/delay",
+    "Wait/Wait for condition": "core/wait_until",
+    "Task Bot/Pause": "core/pause",
+    "Task Bot/Run": "core/run_bot",
+    "Task Bot/Stop": "core/stop",
+    "Credential/Assign": "core/set",
+    "String/Assign": "core/set",
+    "String/Extract text": "ooa.string/extract_text",
+    "String/Compare": "ooa.string/compare",
+    "String/Evaluate variable": "-: not adopted: reading a variable whose name is held in text hides the data flow from validation and refactoring; use a Dictionary keyed by name (ooa.dictionary/get) instead",
+    "String/Find": "ooa.string/find",
+    "String/Length": "ooa.string/length",
+    "String/Lowercase": "ooa.string/change_case",
+    "String/Uppercase": "ooa.string/change_case",
+    "String/Generate random string": "ooa.string/random_string",
+    "String/Replace": "ooa.string/replace",
+    "String/Reverse": "ooa.string/reverse",
+    "String/Split": "ooa.string/split",
+    "String/Substring": "ooa.string/substring",
+    "String/To boolean": "ooa.boolean/from_text",
+    "String/To locale number": "ooa.string/to_number",
+    "String/To number": "ooa.string/to_number",
+    "String/Trim": "ooa.string/trim",
+    "Number/Assign": "core/set",
+    "Number/Decrement": "ooa.number/decrement",
+    "Number/Increment": "ooa.number/increment",
+    "Number/Random": "ooa.number/random",
+    "Number/To string": "ooa.number/to_text",
+    "Boolean/Assign": "core/set",
+    "Boolean/Compare to": "ooa.boolean/compare",
+    "Boolean/Equal to": "ooa.boolean/compare",
+    "Boolean/Invert": "ooa.boolean/invert",
+    "Boolean/To number": "ooa.boolean/to_number",
+    "Boolean/To string": "ooa.boolean/to_text",
+    "List/Add item": "ooa.list/add_item",
+    "List/Assign": "core/set",
+    "List/Clear": "ooa.list/clear",
+    "List/Get item": "ooa.list/get_item",
+    "List/Join items": "ooa.list/join",
+    "List/Append": "ooa.list/append_list",
+    "List/Remove item": "ooa.list/remove_item",
+    "List/Set item": "ooa.list/set_item",
+    "List/Size": "ooa.list/size",
+    "Dictionary/Assign": "core/set",
+    "Dictionary/Get": "ooa.dictionary/get",
+    "Dictionary/Put": "ooa.dictionary/put",
+    "Dictionary/Remove": "ooa.dictionary/remove",
+    "Dictionary/Size": "ooa.dictionary/size",
+    "Record/Assign": "core/set",
+    "Record/Add column": "ooa.dictionary/put",
+    "Record/Update column": "ooa.dictionary/put",
+    "Record/Delete column": "ooa.dictionary/remove",
+    "Data Table/Assign": "core/set",
+    "Data Table/Change column type": "ooa.datatable/change_column_type",
+    "Data Table/Clear content": "ooa.datatable/clear",
+    "Data Table/Get number of columns": "ooa.datatable/column_count",
+    "Data Table/Delete column": "ooa.datatable/delete_column",
+    "Data Table/Delete row": "ooa.datatable/delete_row",
+    "Data Table/Get column name": "ooa.datatable/column_name",
+    "Data Table/Insert column": "ooa.datatable/insert_column",
+    "Data Table/Insert row": "ooa.datatable/insert_row",
+    "Data Table/Join": "ooa.datatable/join",
+    "Data Table/Merge": "ooa.datatable/merge",
+    "Data Table/Remove duplicate rows": "ooa.datatable/remove_duplicates",
+    "Data Table/Get number of rows": "ooa.datatable/row_count",
+    "Data Table/Search for a value": "ooa.datatable/find",
+    "Data Table/Set value of a single cell": "ooa.datatable/set_value",
+    "Data Table/Sort": "ooa.datatable/sort",
+    "Data Table/Write to file": "ooa.datatable/write_to_file",
+    "Data Table/Write to file stream": "-: no stream type; write to a file (ooa.datatable/write_to_file) or keep the table in a variable",
+    "Datetime/Add": "ooa.datetime/add",
+    "Datetime/Assign": "ooa.datetime/parse",
+    "Datetime/Difference between dates": "ooa.datetime/difference",
+    "Datetime/Get": "ooa.datetime/get_part",
+    "Datetime/Is after": "ooa.datetime/is_after",
+    "Datetime/Is before": "ooa.datetime/is_before",
+    "Datetime/Is equal": "ooa.datetime/is_equal",
+    "Datetime/Is leap year": "ooa.datetime/is_leap_year",
+    "Datetime/Subtract": "ooa.datetime/subtract",
+    "Datetime/To string": "ooa.datetime/format",
+    "JSON utilities/Insert node": "ooa.json/insert_node",
+    "JSON utilities/Convert dictionary to JSON": "ooa.json/stringify",
+    "JSON utilities/Start session": "-: no sessions: JSON is an ordinary Dictionary/List variable (ooa.json/parse or read_file), which validates and shows in the variable watch",
+    "JSON utilities/End session": "-: no sessions (see Start session)",
+    "JSON utilities/Get node array": "ooa.json/get_node_array",
+    "JSON utilities/Get nodes": "ooa.json/get_nodes",
+    "JSON utilities/Get node value": "ooa.json/get_node",
+    "JSON utilities/Convert JSON to Dictionary": "ooa.json/parse",
+    "JSON utilities/Convert JSON to Table": "ooa.json/to_table",
+    "JSON utilities/Update node value": "ooa.json/update_node",
+    "JSON utilities/Validate": "ooa.json/validate",
+    "XML/Delete node": "ooa.xml/delete_nodes",
+    "XML/Execute XPath function": "ooa.xml/xpath_function",
+    "XML/Get multiple nodes": "ooa.xml/get_nodes",
+    "XML/Get single node": "ooa.xml/get_value",
+    "XML/Insert node": "ooa.xml/insert_node",
+    "XML/Save session data": "ooa.xml/save_file",
+    "XML/Update node": "ooa.xml/set_value",
+    "XML/Validate XML document": "ooa.xml/validate",
+    "XML/Start session": "-: no sessions: actions take the XML text or a file and return the changed XML",
+    "XML/End session": "-: no sessions (see Start session)",
+    "CSV/TXT/Open": "ooa.csv/read",
+    "CSV/TXT/Read": "ooa.csv/read",
+    "CSV/TXT/Close": "-: nothing to close: the file is read in one step",
+    "File/Assign": "core/set",
+    "File/Copy Desktop file": "ooa.file/copy",
+    "File/Create": "ooa.file/write_text",
+    "File/Delete": "ooa.file/delete",
+    "File/Copy Control Room file": "-: repository files listed in the agent's 'files' are placed in the runner's workspace before the run; then use ooa.file/copy",
+    "File/Get name": "ooa.file/get_name",
+    "File/Get path": "ooa.file/get_parent",
+    "File/Open": "ooa.application/open_file",
+    "File/Print": "ooa.file/print_files",
+    "File/Print multiple files": "ooa.file/print_files",
+    "File/Rename": "ooa.file/move",
+    "File/Create shortcut": "ooa.file/create_shortcut",
+    "File/Create symbolic link": "ooa.file/create_symbolic_link",
+    "Folder/Zip": "ooa.file/zip",
+    "Folder/Copy": "ooa.folder/copy",
+    "Folder/Create": "ooa.folder/create",
+    "Folder/Unzip": "ooa.file/unzip",
+    "Folder/Delete": "ooa.folder/delete",
+    "Folder/Create shortcut": "ooa.folder/create_shortcut",
+    "Folder/Open": "ooa.folder/open_folder",
+    "Folder/Rename": "ooa.folder/rename_folder",
+    "Folder/Create symbolic link": "ooa.folder/create_symbolic_link",
+    "Text file/Get text": "ooa.file/read_text",
+    "Text file/Read variables": "ooa.file/read_variables",
+    "Excel advanced/Access password protected worksheet": "ooa.excel/unprotect_sheet",
+    "Excel advanced/Append workbook": "ooa.excel/append_workbook",
+    "Excel advanced/Append worksheet": "ooa.excel/append_worksheet",
+    "Excel advanced/Close": "ooa.excel/close",
+    "Excel advanced/Convert excel to PDF": "ooa.excel_desktop/export_pdf",
+    "Excel advanced/Create workbook": "ooa.excel/create_workbook",
+    "Excel advanced/Create worksheet": "ooa.excel/add_sheet",
+    "Excel advanced/Delete cells": "ooa.excel/delete_cells",
+    "Excel advanced/Delete table column": "ooa.excel/delete_table_column",
+    "Excel advanced/Break workbook links": "ooa.excel/break_links",
+    "Excel advanced/Delete worksheet": "ooa.excel/delete_sheet",
+    "Excel advanced/Disable or enable real-time screen update": "-: not needed: workbooks are edited as files with no visible Excel window, so there is no screen to update (ooa.excel_desktop drives Excel when a macro must run)",
+    "Excel advanced/Filter": "ooa.excel/filter",
+    "Excel advanced/Find": "ooa.excel/find",
+    "Excel advanced/Find next empty cell": "ooa.excel/find_next_empty_cell",
+    "Excel advanced/Get cell color": "ooa.excel/get_cell_color",
+    "Excel advanced/Get current worksheet name": "ooa.excel/get_current_sheet_name",
+    "Excel advanced/Get multiple cells": "ooa.excel/rows",
+    "Excel advanced/Get number of rows": "ooa.excel/row_count",
+    "Excel advanced/Get sensitivity label": "ooa.excel/get_sensitivity_label",
+    "Excel advanced/Get single cell": "ooa.excel/get_cell",
+    "Excel advanced/Get cell address": "ooa.excel/cell_address",
+    "Excel advanced/Get column name": "ooa.excel/column_name",
+    "Excel advanced/Get row number": "ooa.excel/row_number",
+    "Excel advanced/Get table range": "ooa.excel/get_table_range",
+    "Excel advanced/Get workbook links": "ooa.excel/get_links",
+    "Excel advanced/Get worksheet as data table": "ooa.excel/get_all_cells",
+    "Excel advanced/Get worksheet names": "ooa.excel/get_sheet_names",
+    "Excel advanced/Go to cell": "ooa.excel/go_to_cell",
+    "Excel advanced/Go to next empty cell": "ooa.excel/go_to_next_empty_cell",
+    "Excel advanced/Hide rows/columns in selection": "ooa.excel/hide_rows",
+    "Excel advanced/Hide worksheet": "ooa.excel/hide_sheet",
+    "Excel advanced/Insert/Delete rows/columns": "ooa.excel/insert_rows",
+    "Excel advanced/Insert table column": "ooa.excel/insert_table_column",
+    "Excel advanced/Open": "ooa.excel/open",
+    "Excel advanced/Protect workbook": "ooa.excel/protect_workbook",
+    "Excel advanced/Password protect worksheet": "ooa.excel/protect_sheet",
+    "Excel advanced/Read cell formula": "ooa.excel/read_formula",
+    "Excel advanced/Read column": "ooa.excel/read_column",
+    "Excel advanced/Read row": "ooa.excel/read_row",
+    "Excel advanced/Remove blank rows": "ooa.excel/remove_blank_rows",
+    "Excel advanced/Rename worksheet": "ooa.excel/rename_sheet",
+    "Excel advanced/Replace": "ooa.excel/replace",
+    "Excel advanced/Retrieve sheets count": "ooa.excel/sheet_count",
+    "Excel advanced/Run macro": "ooa.excel_desktop/run_macro",
+    "Excel advanced/Save as": "ooa.excel/save_as",
+    "Excel advanced/Save workbook": "ooa.excel/save",
+    "Excel advanced/Select cells/rows/columns": "ooa.excel/select_range",
+    "Excel advanced/Set cell": "ooa.excel/set_cell",
+    "Excel advanced/Set cell formula": "ooa.excel/set_formula",
+    "Excel advanced/Set sensitivity label": "ooa.excel/set_sensitivity_label",
+    "Excel advanced/Sort": "ooa.excel/sort_range",
+    "Excel advanced/Switch to sheet": "ooa.excel/switch_sheet",
+    "Excel advanced/Unhide all worksheets": "ooa.excel/unhide_all_sheets",
+    "Excel advanced/Unhide rows/columns in selection": "ooa.excel/unhide_rows",
+    "Excel advanced/Unhide worksheet": "ooa.excel/unhide_sheet",
+    "Excel advanced/Unprotect workbook": "ooa.excel/unprotect_workbook",
+    "Excel advanced/Update workbook links": "ooa.excel/change_link",
+    "Excel advanced/Write from data table": "ooa.excel/write_table",
+    "Excel basic/Close": "ooa.excel/close",
+    "Excel basic/Delete cells": "ooa.excel/delete_cells",
+    "Excel basic/Find": "ooa.excel/find",
+    "Excel basic/Get single cell": "ooa.excel/get_cell",
+    "Excel basic/Get cell address": "ooa.excel/cell_address",
+    "Excel basic/Get column name": "ooa.excel/column_name",
+    "Excel basic/Get row number": "ooa.excel/row_number",
+    "Excel basic/Go to cell": "ooa.excel/go_to_cell",
+    "Excel basic/Open": "ooa.excel/open",
+    "Excel basic/Replace": "ooa.excel/replace",
+    "Excel basic/Save workbook": "ooa.excel/save",
+    "Excel basic/Set cell": "ooa.excel/set_cell",
+    "Excel basic/Switch to sheet": "ooa.excel/switch_sheet",
+    "Excel basic/Get multiple cells": "ooa.excel/get_range",
+    "Browser/Close": "ooa.browser/close",
+    "Browser/Download file": "ooa.browser/download_url",
+    "Browser/Get source code": "ooa.browser/get_page_source",
+    "Browser/Run JavaScript": "ooa.browser/run_javascript",
+    "Browser/Call a JavaScript function": "ooa.browser/call_javascript_function",
+    "Browser/Find broken links": "ooa.browser/find_broken_links",
+    "Browser/Go back": "ooa.browser/history",
+    "Browser/Open": "ooa.browser/open",
+    "Recorder/Capture": "ooa.browser/element_action",
+    "Recorder/Structured data extraction": "ooa.browser/extract_table",
+    "UI Agent - Web/Start Session": "ooa.web_agent/start_session",
+    "UI Agent - Web/Run": "ooa.web_agent/run",
+    "UI Agent - Web/End Session": "ooa.web_agent/end_session",
+    "Window/Activate": "ooa.window/activate",
+    "Window/Get active window title": "ooa.window/get_active",
+    "Window/Assign": "-: window variables are ordinary variables: core/set copies one; Capture and the window picker create them",
+    "Window/Close": "ooa.window/close",
+    "Window/Close all": "ooa.window/close_all",
+    "Window/Maximize": "ooa.window/maximize",
+    "Window/Minimize": "ooa.window/minimize",
+    "Window/Resize": "ooa.window/move_resize",
+    "Window/Restore": "ooa.window/restore",
+    "Window/Set title": "ooa.window/set_title",
+    "Wait/Wait for window": "ooa.window/wait_for",
+    "Wait/Wait for screen change": "ooa.image/wait_for_screen_change",
+    "Screen/Capture area": "ooa.desktop/capture_screen",
+    "Screen/Capture desktop": "ooa.desktop/capture_screen",
+    "Screen/Capture window": "ooa.window/capture",
+    "Mouse/Click": "ooa.desktop/mouse_click",
+    "Mouse/Move": "ooa.desktop/mouse_move",
+    "Mouse/Scroll": "ooa.desktop/mouse_scroll",
+    "Simulate keystrokes/Simulate keystrokes": "ooa.desktop/type_text",
+    "Clipboard/Copy from": "ooa.desktop/clipboard_get",
+    "Clipboard/Copy to": "ooa.desktop/clipboard_set",
+    "Clipboard/Clear": "ooa.desktop/clipboard_clear",
+    "Prompt/For file": "ooa.desktop/prompt_file",
+    "Prompt/For folder": "ooa.desktop/prompt_folder",
+    "Prompt/For value": "ooa.desktop/prompt_value",
+    "Prompt/For yes/no": "ooa.desktop/prompt_yes_no",
+    "Message box/Message box": "ooa.desktop/message_box",
+    "Application/Open program/file": "ooa.application/start_program",
+    "Image Recognition/Find image in window": "ooa.image/find_on_screen",
+    "Image Recognition/Find window in window": "ooa.image/find_in_image",
+    "OCR/Capture text by path": "ooa.ocr/read_image",
+    "OCR/Capture text by URL": "ooa.ocr/read_url",
+    "OCR/Capture window": "ooa.ocr/read_screen",
+    "OCR/Capture area": "ooa.ocr/read_screen",
+    "App integration/Capture area": "ooa.ocr/read_screen",
+    "App integration/Capture scrollable text": "ooa.desktop_ui/object_action",
+    "App integration/Capture text of window": "ooa.desktop_ui/object_action",
+    "Email/Change status": "ooa.email/mark",
+    "Email/Check if folder exists": "ooa.email/folder_exists",
+    "Email/Delete all": "ooa.email/delete_all",
+    "Email/Delete": "ooa.email/delete",
+    "Email/Disconnect": "ooa.email/disconnect",
+    "Email/Connect": "ooa.email/connect",
+    "Email/Forward": "ooa.email/forward",
+    "Email/Move all": "ooa.email/move_all",
+    "Email/Move": "ooa.email/move",
+    "Email/Reply All": "ooa.email/reply_all",
+    "Email/Reply": "ooa.email/reply",
+    "Email/Save all attachments": "ooa.email/save_all_attachments",
+    "Email/Save attachments": "ooa.email/save_attachments",
+    "Email/Save email": "ooa.email/save_email_as_eml",
+    "Email/Send": "ooa.email/send",
+    "Word/Close": "ooa.word/close",
+    "Word/Create document": "ooa.word/create_document",
+    "Word/Find and replace picture": "ooa.word/find_replace_picture",
+    "Word/Find and replace text": "ooa.word/replace_text",
+    "Word/Format text": "ooa.word/format_text",
+    "Word/Insert picture": "ooa.word/insert_picture",
+    "Word/Insert table": "ooa.word/add_table",
+    "Word/Insert text": "ooa.word/insert_text",
+    "Word/Open": "ooa.word/open",
+    "Word/Read table": "ooa.word/read_tables",
+    "Word/Read text": "ooa.word/read_text",
+    "Word/Save": "ooa.word/save",
+    "Word/Save as": "ooa.word/save_as",
+    "PowerPoint/Add slide": "ooa.powerpoint/add_slide",
+    "PowerPoint/Close": "ooa.powerpoint/close",
+    "PowerPoint/Copy paste slide": "ooa.powerpoint/copy_slide",
+    "PowerPoint/Create presentation": "ooa.powerpoint/create_presentation",
+    "PowerPoint/Delete slide": "ooa.powerpoint/delete_slide",
+    "PowerPoint/Find and replace picture": "ooa.powerpoint/find_replace_picture",
+    "PowerPoint/Find and replace text": "ooa.powerpoint/find_replace_text",
+    "PowerPoint/Format text": "ooa.powerpoint/format_text",
+    "PowerPoint/Insert picture": "ooa.powerpoint/insert_picture",
+    "PowerPoint/Insert table": "ooa.powerpoint/insert_table",
+    "PowerPoint/Insert text": "ooa.powerpoint/insert_text",
+    "PowerPoint/Open": "ooa.powerpoint/open",
+    "PowerPoint/Save": "ooa.powerpoint/save",
+    "PowerPoint/Save as": "ooa.powerpoint/save_as",
+    "PDF/Decrypt document": "ooa.pdf/decrypt",
+    "PDF/Encrypt document": "ooa.pdf/encrypt",
+    "PDF/Extract field": "ooa.pdf/read_form",
+    "PDF/Extract image": "ooa.pdf/extract_images",
+    "PDF/Extract text": "ooa.pdf/extract_text",
+    "PDF/Get property": "ooa.pdf/get_properties",
+    "PDF/Merge documents": "ooa.pdf/merge",
+    "PDF/Split document": "ooa.pdf/split",
+    "System/Lock computer": "ooa.system/lock",
+    "System/Logoff": "ooa.system/log_off",
+    "System/Restart": "ooa.system/restart",
+    "System/Shutdown": "ooa.system/shut_down",
+    "System/Get environment variable": "ooa.system/get_environment_variable",
+    "Service/Pause service": "ooa.services/pause",
+    "Service/Resume service": "ooa.services/resume",
+    "Service/Start service": "ooa.services/start",
+    "Service/Get service status": "ooa.services/get_status",
+    "Service/Stop service": "ooa.services/stop",
+    "Printer/Get default": "ooa.printer/get_default",
+    "Printer/Remove": "ooa.printer/remove_printer",
+    "Printer/Set default": "ooa.printer/set_default",
+    "SNMP/Get": "ooa.network/snmp_get",
+    "SNMP/Get next": "ooa.network/snmp_get_next",
+    "SNMP/Send trap": "ooa.network/snmp_send_trap",
+    "SNMP/Set": "ooa.network/snmp_set",
+    "SNMP/Walk": "ooa.network/snmp_walk",
+    "Python script/Open": "ooa.script/run_python_function",
+    "Python script/Execute function": "ooa.script/run_python_function",
+    "Python script/Execute script": "ooa.script/run_python",
+    "Python script/Close": "-: no sessions: each step starts Python and ends it",
+    "JavaScript/Open": "ooa.script/run_javascript_function",
+    "JavaScript/Run JavaScript": "ooa.script/run_javascript",
+    "JavaScript/Close": "-: no sessions: each step starts Node.js and ends it",
+    "VBScript/Open": "ooa.script/run_vbscript_function",
+    "VBScript/Run function": "ooa.script/run_vbscript_function",
+    "VBScript/Close": "-: no sessions: each step starts the script host and ends it",
+    "DLL/Open": "ooa.dll/open",
+    "DLL/Run function": "ooa.dll/call",
+    "DLL/Close": "ooa.dll/close",
+    "Credential Manager/Read Credential": "ooa.credential_manager/read_credential",
+    "PGP/Create keys": "ooa.pgp/create_keys",
+    "PGP/Decrypt files": "ooa.pgp/decrypt",
+    "PGP/Encrypt files": "ooa.pgp/encrypt",
+    "Logging/Log text to file": "ooa.log/write",
+    "Logging/Log to Server": "ooa.log/log_to_command_center",
+    "Logging/Log variables to file": "ooa.log/log_variables",
+    "Play Sound/Play beep": "ooa.sound/beep",
+    "Play Sound/Play media file": "ooa.sound/play",
+    "Fuzzy Match/Fuzzy Match": "ooa.fuzzy/best_match",
+    "Database/Bulk insert": "ooa.database/bulk_insert",
+    "Database/Begin database transaction": "ooa.database/begin_transaction",
+    "Database/End database transaction": "ooa.database/commit",
+    "Database/Connect": "ooa.database/connect",
+    "Database/Disconnect": "ooa.database/disconnect",
+    "Database/Read from": "ooa.database/query",
+    "Database/Run stored procedure": "ooa.database/call_procedure",
+    "Database/Export to data table": "ooa.database/query",
+    "Database/Export to file stream": "ooa.database/export_to_file",
+    "Database/Manage stored procedure": "-: create or drop procedures with Insert/update/delete (ooa.database/execute) and the database's own SQL",
+    "Database/Insert/Update/Delete": "ooa.database/execute",
+    "REST Web Services/Delete method": "ooa.rest/request",
+    "REST Web Services/Get method": "ooa.rest/request",
+    "REST Web Services/Get file stream": "ooa.rest/download_file",
+    "REST Web Services/Patch method": "ooa.rest/request",
+    "REST Web Services/Post method": "ooa.rest/request",
+    "REST Web Services/Put method": "ooa.rest/request",
+    "SOAP Web Service/SOAP Web Service": "ooa.soap/send",
+    "Ftp/Sftp/Change folder": "ooa.file_transfer/change_folder",
+    "Ftp/Sftp/Connect": "ooa.file_transfer/connect",
+    "Ftp/Sftp/Create folder": "ooa.file_transfer/create_folder",
+    "Ftp/Sftp/Delete folder": "ooa.file_transfer/delete_folder",
+    "Ftp/Sftp/Delete files": "ooa.file_transfer/delete_files",
+    "Ftp/Sftp/Disconnect": "ooa.file_transfer/disconnect",
+    "Ftp/Sftp/Get folders": "ooa.file_transfer/download_folder",
+    "Ftp/Sftp/Get files": "ooa.file_transfer/download",
+    "Ftp/Sftp/Put folders": "ooa.file_transfer/upload_folder",
+    "Ftp/Sftp/Put files": "ooa.file_transfer/upload",
+    "Ftp/Sftp/Rename files": "ooa.file_transfer/rename",
+    "Currency Conversion/Historical Conversion": "ooa.currency/convert",
+    "Currency Conversion/Real Time Conversion": "ooa.currency/convert",
+    "Workload/Insert work item": "ooa.workload/add_item",
+    "Workload/Update work item": "ooa.workload/update_item",
+    "Trigger loop/Trigger loop": "-: a Loop with the iterators ooa.triggerloop/file_arrives, process_starts or timer_tick (each event is one pass)",
+    "Trigger loop/Handle": "-: the Loop's children handle each event",
+    "Trigger loop/Break": "core/break",
+    "Microsoft 365 OneDrive/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 OneDrive/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Outlook/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Outlook/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft Teams/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft Teams/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Calendar/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Calendar/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Excel/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Excel/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Google Calendar/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Google Calendar/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Google Drive/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Google Drive/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Google Sheets/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Google Sheets/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Gmail/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Gmail/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Jira/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Jira/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Slack/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Slack/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Asana/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Asana/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Azure DevOps/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Azure DevOps/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Box/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Box/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "DocuSign/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "DocuSign/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "GitHub/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "GitHub/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Okta/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Okta/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Zendesk/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Zendesk/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Databricks/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Databricks/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Snowflake/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Snowflake/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Kafka/Connect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Kafka/Disconnect": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "SharePoint/Authentication": "-: no sessions: every step signs in with a token or credential from the vault, so there is nothing to connect or disconnect",
+    "Microsoft 365 Excel/Close": "-: no sessions (workbooks are addressed by item id or path on each step)",
+    "Google Sheets/Activate sheet": "-: no active sheet: each Sheets step names its sheet (stateless, so parallel steps cannot interfere)",
+    "Google Sheets/Close": "-: no sessions (each step names the spreadsheet)",
+    "Google Sheets/Get All Sheet Names": "ooa.google/sheets_list_sheets",
+    "Google Sheets/Get Current Sheet Name": "-: no current sheet (see Activate sheet); ooa.google/sheets_list_sheets lists them",
+    "Google Sheets/Set cell/text color": "ooa.google/sheets_format_cells",
+    "Salesforce/Assign file": "-: files are paths or variables; no separate assign step",
+    "Salesforce/Execute SOQL": "ooa.salesforce/query",
+    "Salesforce/Insert record": "ooa.salesforce/create_record",
+    "Workday/Launch EIB": "ooa.workday/launch_integration",
+    "Asana/Assign file": "-: files are paths or variables; no separate assign step",
+    "Asana/Create comment on task": "ooa.asana/add_comment",
+    "Asana/Create team": "ooa.asana/create_team",
+    "Asana/Delete attachment": "ooa.asana/delete_attachment",
+    "Asana/Delete comment": "ooa.asana/delete_comment",
+    "Asana/Delete project": "ooa.asana/delete_project",
+    "Asana/Download attachment": "ooa.asana/download_attachment",
+    "Asana/Duplicate task": "ooa.asana/duplicate_task",
+    "Asana/Get team": "ooa.asana/get_team",
+    "Asana/Update comment": "ooa.asana/update_comment",
+    "Asana/Update project": "ooa.asana/update_project",
+    "Asana/Update team": "ooa.asana/update_team",
+    "Azure DevOps/Add test cases to suite": "ooa.azure_devops/add_test_cases_to_suite",
+    "Azure DevOps/Create pipeline": "ooa.azure_devops/create_pipeline",
+    "Azure DevOps/Create test case": "ooa.azure_devops/create_test_case",
+    "Azure DevOps/Create test plan": "ooa.azure_devops/create_test_plan",
+    "Azure DevOps/Create test run": "ooa.azure_devops/create_test_run",
+    "Azure DevOps/Create test suite": "ooa.azure_devops/create_test_suite",
+    "Azure DevOps/Delete pipeline": "ooa.azure_devops/delete_pipeline",
+    "Azure DevOps/Delete test case": "ooa.azure_devops/delete_work_item",
+    "Azure DevOps/Delete test plan": "ooa.azure_devops/delete_test_plan",
+    "Azure DevOps/Delete test suite": "ooa.azure_devops/delete_test_suite",
+    "Azure DevOps/Edit pipeline": "ooa.azure_devops/update_pipeline",
+    "Azure DevOps/Edit test case": "ooa.azure_devops/update_work_item",
+    "Azure DevOps/Edit test plan": "ooa.azure_devops/update_test_plan",
+    "Azure DevOps/Edit test suite": "ooa.azure_devops/update_test_suite",
+    "Azure DevOps/Get pipeline details": "ooa.azure_devops/get_pipeline",
+    "Azure DevOps/Get test plan details": "ooa.azure_devops/get_test_plan",
+    "Azure DevOps/Get test run details": "ooa.azure_devops/get_test_run",
+    "Azure DevOps/List test plans": "ooa.azure_devops/list_test_plans",
+    "Azure DevOps/List test points": "ooa.azure_devops/list_test_points",
+    "Azure DevOps/Remove test cases from suite": "ooa.azure_devops/remove_test_cases_from_suite",
+    "Azure DevOps/Update test point": "ooa.azure_devops/update_test_point",
+    "DocuSign/Add recipients": "ooa.docusign/add_recipients",
+    "DocuSign/Assign PDF file": "-: files are paths or variables; no separate assign step",
+    "DocuSign/Assign ZIP file": "-: files are paths or variables; no separate assign step",
+    "DocuSign/Download signed ZIP": "ooa.docusign/download_zip",
+    "Okta/Get group ID by name": "ooa.okta/list_groups",
+    "Okta/Search groups": "ooa.okta/list_groups",
+    "Okta/Search users": "ooa.okta/list_users",
+    "Zendesk/Download attachment": "ooa.zendesk/download_attachment",
+    "Zendesk/Download attachment via assign file": "ooa.zendesk/download_attachment",
+    "Zendesk/List users": "ooa.zendesk/find_users",
+    "Zendesk/Update organization": "ooa.zendesk/update_organization",
+    "Databricks/Delete file": "ooa.databricks/delete_file",
+    "Snowflake/Bulk export": "ooa.snowflake/execute_statement",
+    "Snowflake/Bulk load": "ooa.snowflake/execute_statement",
+    "Snowflake/Delete rows": "ooa.snowflake/execute_statement",
+    "Snowflake/Execute DDL": "ooa.snowflake/execute_statement",
+    "Snowflake/Execute stored procedure": "ooa.snowflake/execute_statement",
+    "Snowflake/Select rows": "ooa.snowflake/execute_statement",
+    "Snowflake/Update rows": "ooa.snowflake/execute_statement",
+    "Snowflake/Insert Row": "ooa.snowflake/insert_rows",
+    "Kafka/Commit offsets": "ooa.kafka/read_messages",
+    "Kafka/Consume message": "ooa.kafka/read_messages",
+    "Kafka/Publish message": "ooa.kafka/produce_message",
+    "Active Directory/Get all users of a group": "ooa.active_directory/get_group_members",
+    "SAP/Check/uncheck checkbox": "ooa.sap/check_box",
+    "SAP/Disconnect": "ooa.sap/close",
+    "SAP/Get text": "ooa.sap/get_field",
+    "SAP/Left click": "ooa.sap/click",
+    "SAP/Set text": "ooa.sap/set_field",
+    "SAP BAPI/Create function": "-: not built: BAPI calls need the customer's licensed SAP Java Connector (JCo) at run time; planned as an add-on toolkit",
+    "SAP BAPI/Get structure": "-: not built (needs SAP JCo, see Create function)",
+    "SAP BAPI/Run custom workflow": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Run custom workflow advanced": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Run function": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Run standard workflow": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Get field value": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Set field value": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Get table": "-: not built (needs SAP JCo)",
+    "SAP BAPI/Connect": "-: not built (needs SAP JCo)",
+    "Generative AI/Amazon Bedrock": "ooa.genai/prompt",
+    "Generative AI/Google Cloud": "ooa.genai/prompt",
+    "Generative AI/Microsoft Azure OpenAI": "ooa.genai/prompt",
+    "Generative AI/OpenAI": "ooa.genai/prompt",
+    "AI/AWS SageMaker": "ooa.genai/prompt",
+    "AI/Hugging Face": "ooa.genai/prompt",
+    "AI Skill/Execute": "ooa.ai_skills/run",
+    "AWS Comprehend NLP/Get Sentiment": "ooa.genai/sentiment",
+    "AWS Comprehend NLP/Key Phrases": "ooa.genai/key_phrases",
+    "AWS Comprehend NLP/Detect the language of the text": "ooa.genai/detect_language",
+    "AWS Comprehend NLP/Named Entities": "ooa.genai/entities",
+    "Interactive forms/Display": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Microsoft 365 Calendar/Add attachment": "ooa.microsoft365/add_event_attachment",
+    "Microsoft 365 Calendar/Add attendee": "ooa.microsoft365/add_attendees",
+    "Microsoft 365 Calendar/Cancel meeting": "ooa.microsoft365/cancel_event",
+    "Microsoft 365 Calendar/Create meeting": "ooa.microsoft365/create_event",
+    "Microsoft 365 Calendar/Delete attendee": "ooa.microsoft365/remove_attendees",
+    "Microsoft 365 Calendar/Delete meeting information": "ooa.microsoft365/remove_attendees",
+    "Microsoft 365 Calendar/Modify meeting": "ooa.microsoft365/update_event",
+    "Microsoft 365 Calendar/Respond to meeting": "ooa.microsoft365/respond_to_event",
+    "Microsoft 365 Excel/Autofit columns": "ooa.microsoft365/excel_autofit_columns",
+    "Microsoft 365 Excel/Autofit rows": "ooa.microsoft365/excel_autofit_rows",
+    "Microsoft 365 Excel/Copy worksheet": "ooa.microsoft365/excel_show_worksheet",
+    "Microsoft 365 Excel/Create table": "ooa.microsoft365/excel_create_table",
+    "Microsoft 365 Excel/Create workbook": "ooa.microsoft365/excel_create_workbook",
+    "Microsoft 365 Excel/Create sheet": "ooa.microsoft365/excel_add_worksheet",
+    "Microsoft 365 Excel/Delete cell": "ooa.microsoft365/excel_delete_range",
+    "Microsoft 365 Excel/Delete range": "ooa.microsoft365/excel_delete_range",
+    "Microsoft 365 Excel/Delete table": "ooa.microsoft365/excel_delete_table",
+    "Microsoft 365 Excel/Delete worksheet": "ooa.microsoft365/excel_delete_worksheet",
+    "Microsoft 365 Excel/Find": "ooa.microsoft365/excel_find",
+    "Microsoft 365 Excel/Format cell": "ooa.microsoft365/excel_get_cell_format",
+    "Microsoft 365 Excel/Get cell": "ooa.microsoft365/excel_used_range",
+    "Microsoft 365 Excel/Get multiple cells": "ooa.microsoft365/excel_used_range",
+    "Microsoft 365 Excel/Get row count": "ooa.microsoft365/excel_read_row",
+    "Microsoft 365 Excel/Get cell address": "ooa.microsoft365/excel_used_range",
+    "Microsoft 365 Excel/Get column name": "ooa.microsoft365/excel_read_column",
+    "Microsoft 365 Excel/Get row number": "ooa.microsoft365/excel_read_row",
+    "Microsoft 365 Excel/Get table column": "ooa.microsoft365/excel_read_column",
+    "Microsoft 365 Excel/Get table names": "ooa.microsoft365/excel_list_tables",
+    "Microsoft 365 Excel/Get table row": "ooa.microsoft365/excel_get_table_rows",
+    "Microsoft 365 Excel/Get table row count": "ooa.microsoft365/excel_get_table_rows",
+    "Microsoft 365 Excel/Get worksheet names": "ooa.microsoft365/excel_get_worksheets",
+    "Microsoft 365 Excel/Go to cell": "ooa.microsoft365/excel_write_range",
+    "Microsoft 365 Excel/Hide worksheet": "ooa.microsoft365/excel_hide_worksheet",
+    "Microsoft 365 Excel/Insert cell": "ooa.microsoft365/excel_insert_range",
+    "Microsoft 365 Excel/Insert range": "ooa.microsoft365/excel_insert_range",
+    "Microsoft 365 Excel/Paste cell": "ooa.microsoft365/excel_write_range",
+    "Microsoft 365 Excel/Read cell format": "ooa.microsoft365/excel_get_cell_format",
+    "Microsoft 365 Excel/Read cell formula": "ooa.microsoft365/excel_read_range",
+    "Microsoft 365 Excel/Read column": "ooa.microsoft365/excel_read_column",
+    "Microsoft 365 Excel/Read row": "ooa.microsoft365/excel_read_row",
+    "Microsoft 365 Excel/Rename table": "ooa.microsoft365/excel_rename_table",
+    "Microsoft 365 Excel/Rename worksheet": "ooa.microsoft365/excel_rename_worksheet",
+    "Microsoft 365 Excel/Set cell": "ooa.microsoft365/excel_set_range",
+    "Microsoft 365 Excel/Set cell color": "ooa.microsoft365/excel_set_range",
+    "Microsoft 365 Excel/Set cell formula": "ooa.microsoft365/excel_set_range",
+    "Microsoft 365 Excel/Show worksheet": "ooa.microsoft365/excel_show_worksheet",
+    "Microsoft 365 Excel/Switch to sheet": "ooa.microsoft365/excel_show_worksheet",
+    "Microsoft 365 Excel/Write from data table": "ooa.microsoft365/excel_write_data_table",
+    "Microsoft 365 OneDrive/Assign file": "ooa.microsoft365/upload_file",
+    "Microsoft 365 OneDrive/Check permission": "ooa.microsoft365/check_permissions",
+    "Microsoft 365 OneDrive/Copy file or folder": "ooa.microsoft365/copy_item",
+    "Microsoft 365 OneDrive/Create folder": "ooa.microsoft365/create_folder",
+    "Microsoft 365 OneDrive/Delete file or folder": "ooa.microsoft365/delete_item",
+    "Microsoft 365 OneDrive/Download file": "ooa.microsoft365/download_file",
+    "Microsoft 365 OneDrive/Export to PDF": "ooa.microsoft365/export_to_pdf",
+    "Microsoft 365 OneDrive/Find files and folders": "ooa.microsoft365/share_item",
+    "Microsoft 365 OneDrive/Get file or folder information": "ooa.microsoft365/get_item_info",
+    "Microsoft 365 OneDrive/Move file or folder": "ooa.microsoft365/move_item",
+    "Microsoft 365 OneDrive/Rename file or folder": "ooa.microsoft365/rename_item",
+    "Microsoft 365 OneDrive/Restore last version": "ooa.microsoft365/restore_version",
+    "Microsoft 365 OneDrive/Upload file": "ooa.microsoft365/upload_file",
+    "Microsoft 365 Outlook/Assign attachment(s)": "ooa.microsoft365/save_mail_attachments",
+    "Microsoft 365 Outlook/Change status": "ooa.microsoft365/mark_mail",
+    "Microsoft 365 Outlook/Check if folder exists": "ooa.microsoft365/mail_folder_exists",
+    "Microsoft 365 Outlook/Delete": "ooa.microsoft365/delete_mail",
+    "Microsoft 365 Outlook/Delete all": "ooa.microsoft365/delete_all_mail",
+    "Microsoft 365 Outlook/Forward": "ooa.microsoft365/forward_mail",
+    "Microsoft 365 Outlook/Move": "ooa.microsoft365/move_mail",
+    "Microsoft 365 Outlook/Move all": "ooa.microsoft365/move_all_mail",
+    "Microsoft 365 Outlook/Reply": "ooa.microsoft365/reply_mail",
+    "Microsoft 365 Outlook/Reply All": "ooa.microsoft365/reply_all_mail",
+    "Microsoft 365 Outlook/Save all attachments": "ooa.microsoft365/save_all_mail_attachments",
+    "Microsoft 365 Outlook/Save attachments": "ooa.microsoft365/save_mail_attachments",
+    "Microsoft 365 Outlook/Save email": "ooa.microsoft365/save_mail_attachments",
+    "Microsoft 365 Outlook/Send": "ooa.microsoft365/send_mail",
+    "Microsoft Teams/Get channel by name": "ooa.microsoft365/get_channel_by_name",
+    "Microsoft Teams/Get channel details": "ooa.microsoft365/list_channels",
+    "Microsoft Teams/Get team by name": "ooa.microsoft365/get_team_by_name",
+    "Microsoft Teams/Get team details": "ooa.microsoft365/list_teams",
+    "Microsoft Teams/Get user details": "ooa.microsoft365/get_user",
+    "Microsoft Teams/Send channel message": "ooa.microsoft365/teams_message",
+    "Microsoft Teams/Send chat message": "ooa.microsoft365/send_chat_message",
+    "SharePoint/Folder & file": "ooa.microsoft365/share_item",
+    "SharePoint/List & list item": "ooa.microsoft365/update_list_item",
+    "Google Calendar/Create event": "ooa.google/calendar_create_event",
+    "Google Calendar/Delete event": "ooa.google/calendar_delete_event",
+    "Google Drive/Assign File": "ooa.google/drive_rename_item",
+    "Google Drive/Check Permissions": "ooa.google/drive_check_permission",
+    "Google Drive/Copy file": "ooa.google/drive_copy_file",
+    "Google Drive/Copy folder": "ooa.google/drive_copy_folder",
+    "Google Drive/Create file permission": "ooa.google/drive_create_permission",
+    "Google Drive/Create Folder": "ooa.google/drive_create_folder",
+    "Google Drive/Delete file": "ooa.google/drive_delete_item",
+    "Google Drive/Delete file permission": "ooa.google/drive_delete_permission",
+    "Google Drive/Delete Folder": "ooa.google/drive_delete_permission",
+    "Google Drive/Download file": "ooa.google/drive_download_export",
+    "Google Drive/Find file/folder": "ooa.google/drive_find_items",
+    "Google Drive/Get file information": "ooa.google/drive_list",
+    "Google Drive/Get file permission": "ooa.google/drive_list_permissions",
+    "Google Drive/Move file": "ooa.google/drive_move_item",
+    "Google Drive/Move folder": "ooa.google/drive_move_item",
+    "Google Drive/Rename file": "ooa.google/drive_rename_item",
+    "Google Drive/Rename folder": "ooa.google/drive_rename_item",
+    "Google Drive/Upload file": "ooa.google/drive_upload",
+    "Google Sheets/Autofit columns": "ooa.google/sheets_autofit_columns",
+    "Google Sheets/Autofit rows": "ooa.google/sheets_autofit_rows",
+    "Google Sheets/Create sheet": "ooa.google/sheets_insert_rows",
+    "Google Sheets/Create workbook": "ooa.google/sheets_insert_rows",
+    "Google Sheets/Delete cell": "ooa.google/sheets_delete_range",
+    "Google Sheets/Delete range": "ooa.google/sheets_delete_range",
+    "Google Sheets/Delete Row/Column": "ooa.google/sheets_delete_rows",
+    "Google Sheets/Delete sheet": "ooa.google/sheets_delete_sheet",
+    "Google Sheets/Format cells": "ooa.google/sheets_format_cells",
+    "Google Sheets/Get cell/text color": "ooa.google/sheets_get_cell_color",
+    "Google Sheets/Get multiple cells": "ooa.google/sheets_read",
+    "Google Sheets/Get number of rows": "ooa.google/sheets_row_count",
+    "Google Sheets/Get single cell": "ooa.google/sheets_read",
+    "Google Sheets/Go to cell": "ooa.google/sheets_set_cell",
+    "Google Sheets/Hide worksheet": "ooa.google/sheets_hide_sheet",
+    "Google Sheets/Insert cell": "ooa.google/sheets_insert_range",
+    "Google Sheets/Insert range": "ooa.google/sheets_insert_range",
+    "Google Sheets/Insert Row/Column": "ooa.google/sheets_insert_rows",
+    "Google Sheets/Open spreadsheet": "ooa.google/sheets_create_spreadsheet",
+    "Google Sheets/Paste cell": "ooa.google/sheets_set_cell",
+    "Google Sheets/Read cell formula": "ooa.google/sheets_read_formula",
+    "Google Sheets/Read column": "ooa.google/sheets_read_column",
+    "Google Sheets/Read row": "ooa.google/sheets_read_row",
+    "Google Sheets/Rename sheet": "ooa.google/sheets_rename_sheet",
+    "Google Sheets/Retrieve sheets count": "ooa.google/sheets_row_count",
+    "Google Sheets/Set cell formula": "ooa.google/sheets_set_formula",
+    "Google Sheets/Set cell": "ooa.google/sheets_set_cell",
+    "Google Sheets/Show worksheet": "ooa.google/sheets_show_sheet",
+    "Google Sheets/Write from data table": "ooa.google/sheets_write_data_table",
+    "Gmail/Change status": "ooa.google/gmail_mark_message",
+    "Gmail/Delete email": "ooa.google/gmail_delete_message",
+    "Gmail/Delete all": "ooa.google/gmail_delete_all",
+    "Gmail/Forward": "ooa.google/gmail_forward_message",
+    "Gmail/Move email": "ooa.google/gmail_move_message",
+    "Gmail/Move all": "ooa.google/gmail_move_all",
+    "Gmail/Reply": "ooa.google/gmail_reply_message",
+    "Gmail/Reply all": "ooa.google/gmail_reply_all",
+    "Gmail/Save attachment": "ooa.google/gmail_save_attachments",
+    "Gmail/Save all attachments": "ooa.google/gmail_save_all_attachments",
+    "Gmail/Save email": "ooa.google/gmail_save_message_as_eml",
+    "Gmail/Send": "ooa.google/gmail_send",
+    "Jira/Add comment": "ooa.jira/add_comment",
+    "Jira/Create issue": "ooa.jira/create_issue",
+    "Jira/Create project": "ooa.jira/create_project",
+    "Jira/Delete comment": "ooa.jira/delete_comment",
+    "Jira/Delete issue": "ooa.jira/delete_issue",
+    "Jira/Delete project": "ooa.jira/delete_project",
+    "Jira/Get comments": "ooa.jira/get_comments",
+    "Jira/Get issue": "ooa.jira/search",
+    "Jira/Get projects": "ooa.jira/get_projects",
+    "Jira/Update comment": "ooa.jira/update_comment",
+    "Jira/Update issue": "ooa.jira/update_issue",
+    "Jira/Update project": "ooa.jira/update_project",
+    "ServiceNow/Attachments": "ooa.servicenow/list_attachments",
+    "ServiceNow/Authentication": "ooa.servicenow/revoke_authentication",
+    "ServiceNow/Records": "ooa.servicenow/update_record",
+    "Salesforce/Authentication": "ooa.salesforce/revoke_authentication",
+    "Salesforce/Delete record": "ooa.salesforce/delete_record",
+    "Salesforce/Get attachment(s)": "ooa.salesforce/get_attachments",
+    "Salesforce/Get record": "ooa.salesforce/query",
+    "Salesforce/Revoke Authentication": "ooa.salesforce/revoke_authentication",
+    "Salesforce/Update record": "ooa.salesforce/update_record",
+    "Salesforce/Upload file attachment": "ooa.salesforce/upload_attachment",
+    "Salesforce/Upsert record (using External ID)": "ooa.salesforce/upsert_by_external_id",
+    "Slack/Get channel ID by name": "ooa.slack/get_channel_id_by_name",
+    "Slack/Get channel details": "ooa.slack/get_conversation_history",
+    "Slack/Get conversation details": "ooa.slack/get_conversation_history",
+    "Slack/Get user details": "ooa.slack/get_user_details",
+    "Slack/Get workspace ID by name": "ooa.slack/get_workspace_id_by_name",
+    "Slack/Get workspace details": "ooa.slack/get_workspace_id_by_name",
+    "Slack/Send channel message": "ooa.slack/send_direct_message",
+    "Slack/Send direct message": "ooa.slack/send_direct_message",
+    "Workday/Get Integration Event": "ooa.workday/get_integration_event",
+    "Workday/Get Report": "ooa.workday/get_report",
+    "Workday/Authentication": "ooa.workday/authenticate",
+    "Asana/Create project": "ooa.asana/create_section",
+    "Asana/Create subtask": "ooa.asana/create_subtask",
+    "Asana/Create task": "ooa.asana/create_task",
+    "Asana/Delete task": "ooa.asana/remove_tag_from_task",
+    "Asana/Get comment": "ooa.asana/list_comments",
+    "Asana/Get project": "ooa.asana/list_sections",
+    "Asana/Get task": "ooa.asana/search_tasks",
+    "Asana/Get teams for user": "ooa.asana/list_users",
+    "Asana/Get teams in workspace": "ooa.asana/list_workspaces",
+    "Asana/Get user": "ooa.asana/list_users",
+    "Asana/List projects": "ooa.asana/list_sections",
+    "Asana/List task attachments": "ooa.asana/list_tasks",
+    "Asana/List tasks": "ooa.asana/list_tasks",
+    "Asana/List users": "ooa.asana/list_users",
+    "Asana/Update task": "ooa.asana/update_task",
+    "Asana/Upload attachment": "ooa.asana/upload_attachment",
+    "Azure DevOps/Get pipeline run details": "ooa.azure_devops/get_pipeline_run",
+    "Azure DevOps/List pipeline runs": "ooa.azure_devops/run_pipeline",
+    "Azure DevOps/List pipelines": "ooa.azure_devops/list_pipelines",
+    "Azure DevOps/Run pipeline": "ooa.azure_devops/run_pipeline",
+    "Box/Copy file": "ooa.box/copy_file",
+    "Box/Create folder": "ooa.box/create_folder",
+    "Box/Create shared link": "ooa.box/create_shared_link",
+    "Box/Delete file": "ooa.box/delete_file",
+    "Box/Delete folder": "ooa.box/delete_folder",
+    "Box/Download file": "ooa.box/download_file",
+    "Box/Get folder details": "ooa.box/list_folder",
+    "Box/List folder items": "ooa.box/list_folder",
+    "Box/Move file": "ooa.box/move_file",
+    "Box/Search file/folder": "ooa.box/list_folder",
+    "Box/Upload file": "ooa.box/upload_file",
+    "DocuSign/Download signed PDF": "ooa.docusign/download_zip",
+    "DocuSign/Get document list": "ooa.docusign/list_documents",
+    "DocuSign/Get envelope details": "ooa.docusign/list_envelopes",
+    "DocuSign/Get envelope recipients": "ooa.docusign/list_recipients",
+    "DocuSign/Get envelope status": "ooa.docusign/get_envelope_status",
+    "DocuSign/Get template": "ooa.docusign/list_templates",
+    "DocuSign/List envelopes": "ooa.docusign/list_envelopes",
+    "DocuSign/List templates": "ooa.docusign/list_templates",
+    "DocuSign/Resend envelope": "ooa.docusign/resend_envelope",
+    "DocuSign/Send envelope from files": "ooa.docusign/send_envelope",
+    "DocuSign/Send envelope from template": "ooa.docusign/send_envelope",
+    "DocuSign/Void envelope": "ooa.docusign/void_envelope",
+    "GitHub/Add Comment": "ooa.github/add_issue_comment",
+    "GitHub/Create Issue": "ooa.github/create_issue",
+    "GitHub/Create Pull Request": "ooa.github/create_pull_request",
+    "GitHub/Get Issue": "ooa.github/list_issues",
+    "GitHub/Get Pull Request": "ooa.github/list_pull_requests",
+    "GitHub/Get Repository": "ooa.github/get_repository",
+    "GitHub/List Branches": "ooa.github/list_branches",
+    "GitHub/List Issues": "ooa.github/list_issues",
+    "GitHub/List Pull Requests": "ooa.github/list_pull_requests",
+    "GitHub/List Repositories": "ooa.github/list_repositories",
+    "GitHub/Merge pull Request": "ooa.github/merge_pull_request",
+    "GitHub/Update issue": "ooa.github/update_issue",
+    "Okta/Activate user": "ooa.okta/activate_user",
+    "Okta/Add user to group": "ooa.okta/add_user_to_group",
+    "Okta/Create user": "ooa.okta/create_user",
+    "Okta/Deactivate user": "ooa.okta/deactivate_user",
+    "Okta/Get user details": "ooa.okta/list_users",
+    "Okta/List user groups": "ooa.okta/list_user_groups",
+    "Okta/Remove user from group": "ooa.okta/remove_user_from_group",
+    "Okta/Update user": "ooa.okta/update_user",
+    "Zendesk/Add comment": "ooa.zendesk/add_comment",
+    "Zendesk/Create organization": "ooa.zendesk/create_organization",
+    "Zendesk/Create ticket": "ooa.zendesk/create_ticket",
+    "Zendesk/Create user": "ooa.zendesk/create_user",
+    "Zendesk/Delete ticket": "ooa.zendesk/delete_ticket",
+    "Zendesk/Get organization": "ooa.zendesk/list_organizations",
+    "Zendesk/Get ticket": "ooa.zendesk/search_tickets",
+    "Zendesk/Get ticket comments": "ooa.zendesk/list_comments",
+    "Zendesk/Get user": "ooa.zendesk/get_user",
+    "Zendesk/List organizations": "ooa.zendesk/list_organizations",
+    "Zendesk/List tickets": "ooa.zendesk/list_view_tickets",
+    "Zendesk/Update ticket": "ooa.zendesk/update_ticket",
+    "Zendesk/Update user": "ooa.zendesk/update_user",
+    "Zendesk/Upload attachment": "ooa.zendesk/upload_attachment",
+    "Databricks/Cancel job run": "ooa.databricks/cancel_run",
+    "Databricks/Cancel SQL statement": "ooa.databricks/cancel_statement",
+    "Databricks/Download file": "ooa.databricks/download_file",
+    "Databricks/Execute SQL statement": "ooa.databricks/execute_sql",
+    "Databricks/Get job run output": "ooa.databricks/get_run",
+    "Databricks/Get job run status": "ooa.databricks/get_run",
+    "Databricks/Get SQL statement result": "ooa.databricks/fetch_results",
+    "Databricks/List jobs": "ooa.databricks/list_jobs",
+    "Databricks/Run job": "ooa.databricks/run_job",
+    "Databricks/Upload file": "ooa.databricks/upload_file",
+    "Active Directory/Add users to group": "ooa.active_directory/add_to_group",
+    "Active Directory/Change user password": "ooa.active_directory/set_password",
+    "Active Directory/Connect": "ooa.active_directory/connect",
+    "Active Directory/Create computer": "ooa.active_directory/create_computer",
+    "Active Directory/Create group": "ooa.active_directory/create_group",
+    "Active Directory/Create organizational unit": "ooa.active_directory/create_ou",
+    "Active Directory/Create user": "ooa.active_directory/create_user",
+    "Active Directory/Delete computer": "ooa.active_directory/delete_computer",
+    "Active Directory/Delete group": "ooa.active_directory/remove_from_group",
+    "Active Directory/Delete organizational unit": "ooa.active_directory/delete_ou",
+    "Active Directory/Delete user": "ooa.active_directory/remove_from_group",
+    "Active Directory/Disable user account": "ooa.active_directory/update_account_options",
+    "Active Directory/Disconnect": "ooa.active_directory/disconnect",
+    "Active Directory/Enable user account": "ooa.active_directory/update_account_options",
+    "Active Directory/Get computer property": "ooa.active_directory/get_computer_property",
+    "Active Directory/Get group property": "ooa.active_directory/get_group_property",
+    "Active Directory/Get organizational unit property": "ooa.active_directory/get_ou_property",
+    "Active Directory/Get user property": "ooa.active_directory/set_attribute",
+    "Active Directory/Move computer": "ooa.active_directory/move_computer",
+    "Active Directory/Move organizational unit": "ooa.active_directory/move_ou",
+    "Active Directory/Remove user from group": "ooa.active_directory/remove_from_group",
+    "Active Directory/Rename computer": "ooa.active_directory/rename_computer",
+    "Active Directory/Rename group": "ooa.active_directory/rename_group",
+    "Active Directory/Rename organizational unit": "ooa.active_directory/rename_ou",
+    "Active Directory/Rename user": "ooa.active_directory/rename_user",
+    "Active Directory/Run query": "ooa.active_directory/run_query",
+    "Active Directory/Set computer property": "ooa.active_directory/set_computer_property",
+    "Active Directory/Set group property": "ooa.active_directory/set_group_property",
+    "Active Directory/Set organizational unit property": "ooa.active_directory/set_ou_property",
+    "Active Directory/Set user property": "ooa.active_directory/set_attribute",
+    "Active Directory/Update account options": "ooa.active_directory/update_account_options",
+    "Active Directory/Update user details": "ooa.active_directory/update_user_details",
+    "SAP/Click": "ooa.sap/right_click",
+    "SAP/Click menu": "ooa.sap/right_click",
+    "SAP/Connect": "ooa.sap/open_connection",
+    "SAP/Double click": "ooa.sap/double_click",
+    "SAP/Expand": "ooa.sap/expand_node",
+    "SAP/Export table": "ooa.sap/export_table",
+    "SAP/Get cell count": "ooa.sap/table_cell_count",
+    "SAP/Get children names": "ooa.sap/get_children",
+    "SAP/Get children text": "ooa.sap/get_children",
+    "SAP/Get column count": "ooa.sap/table_column_count",
+    "SAP/Get row count": "ooa.sap/table_row_count",
+    "SAP/Get selected item": "ooa.sap/get_selected_item",
+    "SAP/Get status": "ooa.sap/get_status_bar",
+    "SAP/Get table cell index": "ooa.sap/get_table_cell_index",
+    "SAP/Get table cell text": "ooa.sap/table_cell_count",
+    "SAP/Get item count": "ooa.sap/get_item_count",
+    "SAP/Right click": "ooa.sap/right_click",
+    "SAP/Select item": "ooa.sap/select_item",
+    "SAP/Select radio option": "ooa.sap/select_radio",
+    "SAP/Send virtual key": "ooa.sap/send_key",
+    "SAP/Set table cell text": "ooa.sap/set_table_cell",
+    "Terminal Emulator/Clear terminal": "ooa.terminal/clear_screen",
+    "Terminal Emulator/Connect": "ooa.terminal/connect",
+    "Terminal Emulator/Disconnect": "ooa.terminal/disconnect",
+    "Terminal Emulator/Get all fields": "ooa.terminal/get_all_fields",
+    "Terminal Emulator/Get field": "ooa.terminal/search_field",
+    "Terminal Emulator/Get text": "ooa.terminal/search_field",
+    "Terminal Emulator/Hide terminal": "ooa.terminal/hide_terminal",
+    "Terminal Emulator/Search field": "ooa.terminal/search_field",
+    "Terminal Emulator/Send key": "ooa.terminal/send_key",
+    "Terminal Emulator/Send text": "ooa.terminal/send_text",
+    "Terminal Emulator/Set cursor position": "ooa.terminal/set_cursor",
+    "Terminal Emulator/Set field": "ooa.terminal/set_field",
+    "Terminal Emulator/Set key mappings": "ooa.terminal/set_key_mapping",
+    "Terminal Emulator/Show terminal": "ooa.terminal/show_terminal",
+    "Terminal Emulator/Wait": "ooa.terminal/wait_for_text",
+    "Microsoft 365 Calendar/Get available meeting slot(s)": "ooa.microsoft365/find_meeting_times",
+    "Microsoft 365 Excel/Delete row or column": "ooa.microsoft365/excel_delete_range",
+    "Microsoft 365 Excel/Find next empty cell": "ooa.microsoft365/excel_find_next_empty_cell",
+    "Microsoft 365 Excel/Go to next empty cell": "ooa.microsoft365/excel_find_next_empty_cell",
+    "Microsoft 365 Excel/Get cell or text color": "ooa.microsoft365/excel_get_cell_format",
+    "Microsoft 365 Excel/Get current worksheet name": "-: no current sheet: each step names its sheet (stateless)",
+    "Microsoft 365 Excel/Get worksheet as data table": "ooa.microsoft365/excel_read_range",
+    "Microsoft 365 Excel/Insert row or column": "ooa.microsoft365/excel_insert_range",
+    "Microsoft 365 Excel/Open": "-: no sessions (each step names the workbook)",
+    "Microsoft 365 Excel/Retrieve sheet count": "ooa.microsoft365/excel_get_worksheets",
+    "Interactive forms/Close": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Show": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Hide": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Reset": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Validate form": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Change Form Title": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Assign": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Enable": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Disable": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Get": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Set": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Set focus": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Highlight": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Unhighlight": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Change label": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task",
+    "Interactive forms/Dynamic area": "-: NOT BUILT (gap): needs a forms runtime that shows a *.form.json to the attended user and reacts to its events; proposed as its own task"
+  },
+  "packages": {
+    "core": {
+      "test": "CommandSamplesTest (cli, 01-core.json), CoreOptionsTest, Studio UI test (Loop fields)",
+      "ideas": ""
+    },
+    "ooa.run_context": {
+      "test": "CommandSamplesTest (cli, 07)"
+    },
+    "ooa.global_values": {
+      "test": "CommandSamplesTest (cli, 07)"
+    },
+    "ooa.string": {
+      "test": "CommandSamplesTest (cli, 02-string.json), DataGapsTest"
+    },
+    "ooa.number": {
+      "test": "CommandSamplesTest (cli, 03, 04), DataOptionsTest"
+    },
+    "ooa.boolean": {
+      "test": "CommandSamplesTest (cli, 03), DataGapsTest"
+    },
+    "ooa.list": {
+      "test": "CommandSamplesTest (cli, 04), DataGapsTest"
+    },
+    "ooa.dictionary": {
+      "test": "CommandSamplesTest (cli, 04), DataGapsTest"
+    },
+    "ooa.datatable": {
+      "test": "CommandSamplesTest (cli, 05-datatable.json), DataGapsTest"
+    },
+    "ooa.datetime": {
+      "test": "CommandSamplesTest (cli, 06-datetime.json), DataOptionsTest, Studio UI test (holidays field)"
+    },
+    "ooa.json": {
+      "test": "CommandSamplesTest (cli, 07), DataGapsTest"
+    },
+    "ooa.xml": {
+      "test": "CommandSamplesTest (cli, 07), DataGapsTest"
+    },
+    "ooa.csv": {
+      "test": "CommandSamplesTest (cli, 07), DataOptionsTest"
+    },
+    "ooa.file": {
+      "test": "CommandSamplesTest (cli, 08-files.json), PropertyGapsTest"
+    },
+    "ooa.folder": {
+      "test": "CommandSamplesTest (cli, 08-files.json), PropertyGapsTest"
+    },
+    "ooa.excel": {
+      "test": "CommandSamplesTest (cli, 09-excel.json), ExcelGapsTest, ExcelPropertiesTest"
+    },
+    "ooa.browser": {
+      "test": "CommandSamplesTest (cli, 10-browser.json: headless Edge against a local test page), BrowserGapsTest"
+    },
+    "ooa.web_agent": {
+      "test": "WebAgentTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.window": {
+      "test": "CommandSamplesTest (cli, 11-window-desktop.json, run with OOA_DESKTOP_SAMPLES=1), WindowGapsTest"
+    },
+    "ooa.desktop": {
+      "test": "CommandSamplesTest (cli, 11, desktop), SystemGapsTest"
+    },
+    "ooa.desktop_ui": {
+      "test": "UiResilienceTest, Studio UI test (capture panel)",
+      "sample": "unit test (needs a desktop application to capture)"
+    },
+    "ooa.image": {
+      "test": "CommandSamplesTest (cli, 11, desktop), ImageOcrExcelDesktopPropertiesTest"
+    },
+    "ooa.ocr": {
+      "test": "OcrPgpTest, ImageOcrExcelDesktopPropertiesTest",
+      "sample": "unit test (needs Tesseract)"
+    },
+    "ooa.application": {
+      "test": "CommandSamplesTest (cli, 11), SystemGapsTest"
+    },
+    "ooa.email": {
+      "test": "CommandSamplesTest (cli, 12-email.json: in-memory SMTP/IMAP server), EmailMessagesTest, EmailOptionsTest"
+    },
+    "ooa.word": {
+      "test": "CommandSamplesTest (cli, 13-word-powerpoint-pdf.json), WordGapsTest, WordPackageTest"
+    },
+    "ooa.powerpoint": {
+      "test": "CommandSamplesTest (cli, 13), PowerPointPackageTest"
+    },
+    "ooa.pdf": {
+      "test": "CommandSamplesTest (cli, 13: a hand-written two-page PDF), PdfPackageTest"
+    },
+    "ooa.excel_desktop": {
+      "test": "ImageOcrExcelDesktopPropertiesTest",
+      "sample": "unit test (needs Microsoft Excel)"
+    },
+    "ooa.system": {
+      "test": "CommandSamplesTest (cli, 14-system-local.json), SystemGapsTest"
+    },
+    "ooa.services": {
+      "test": "CommandSamplesTest (cli, 14), SystemGapsTest"
+    },
+    "ooa.printer": {
+      "test": "CommandSamplesTest (cli, 14), SystemGapsTest"
+    },
+    "ooa.network": {
+      "test": "CommandSamplesTest (cli, 14), PackagesBatch2Test"
+    },
+    "ooa.script": {
+      "test": "CommandSamplesTest (cli, 14), SystemGapsTest"
+    },
+    "ooa.crypto": {
+      "test": "CommandSamplesTest (cli, 14), PackagesTest"
+    },
+    "ooa.pgp": {
+      "test": "OcrPgpTest, PropertyGapsTest, SystemGapsTest",
+      "sample": "unit test (needs GnuPG)"
+    },
+    "ooa.log": {
+      "test": "CommandSamplesTest (cli, 14), SystemGapsTest"
+    },
+    "ooa.sound": {
+      "test": "CommandSamplesTest (cli, 14, desktop)"
+    },
+    "ooa.dll": {
+      "test": "CommandSamplesTest (cli, 14: kernel32 calls)"
+    },
+    "ooa.credential_manager": {
+      "test": "CommandSamplesTest (cli, 14, desktop: writes and removes a test entry)"
+    },
+    "ooa.fuzzy": {
+      "test": "CommandSamplesTest (cli, 14), FuzzyCurrencyTest"
+    },
+    "ooa.interrupts": {
+      "test": "CommandSamplesTest (cli, 14), UiResilienceTest"
+    },
+    "ooa.database": {
+      "test": "CommandSamplesTest (cli, 14: in-memory H2), DatabasePackageTest"
+    },
+    "ooa.rest": {
+      "test": "CommandSamplesTest (cli, 14: local HTTP server), PackagesTest"
+    },
+    "ooa.soap": {
+      "test": "CommandSamplesTest (cli, 14: local HTTP server)"
+    },
+    "ooa.file_transfer": {
+      "test": "FileTransferFoldersTest (embedded servers)",
+      "sample": "unit test (embedded FTP/SFTP servers)"
+    },
+    "ooa.currency": {
+      "test": "CommandSamplesTest (cli, 14), FuzzyCurrencyTest"
+    },
+    "ooa.workload": {
+      "test": "CommandSamplesTest (cli, 14: local queue), AiAndWorkTest"
+    },
+    "ooa.insights": {
+      "test": "CommandSamplesTest (cli, 14)"
+    },
+    "ooa.triggerloop": {
+      "test": "TriggerLoopTest"
+    },
+    "ooa.microsoft365": {
+      "test": "CommandSamplesTest (cli, 15-connectors.json), Microsoft365GapsTest, Microsoft365OptionsTest, ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.google": {
+      "test": "CommandSamplesTest (cli, 15), GoogleGapsTest, GoogleOptionsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.jira": {
+      "test": "CommandSamplesTest (cli, 15), ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.servicenow": {
+      "test": "CommandSamplesTest (cli, 15), ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.salesforce": {
+      "test": "CommandSamplesTest (cli, 15), ConnectorsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.slack": {
+      "test": "CommandSamplesTest (cli, 15), SlackOptionsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.workday": {
+      "test": "EnterpriseGapsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.asana": {
+      "test": "CommandSamplesTest (cli, 15), AsanaPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.azure_devops": {
+      "test": "CommandSamplesTest (cli, 15), AzureDevOpsPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.box": {
+      "test": "BoxPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.docusign": {
+      "test": "CommandSamplesTest (cli, 15), DocuSignPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.github": {
+      "test": "CommandSamplesTest (cli, 15), GitHubPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.okta": {
+      "test": "OktaPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.zendesk": {
+      "test": "CommandSamplesTest (cli, 15), ZendeskPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "ideas": "Proposal: named connections (address and vault credential kept once in Command Center, referenced by name) instead of repeating the token on every step; AA keeps a session per package."
+    },
+    "ooa.connector": {
+      "test": "ConnectorsTest, CustomConnectorTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.active_directory": {
+      "test": "CommandSamplesTest (cli, 16-active-directory.json: in-memory LDAP directory), EnterpriseGapsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.sap": {
+      "test": "EnterpriseAiPropertiesTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "sample": "unit test (needs SAP GUI with scripting)"
+    },
+    "ooa.terminal": {
+      "test": "EnterpriseAiPropertiesTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)",
+      "sample": "unit test (needs the x3270 engine and a host)"
+    },
+    "ooa.databricks": {
+      "test": "CommandSamplesTest (cli, 15), DatabricksPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.snowflake": {
+      "test": "SnowflakePackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.kafka": {
+      "test": "KafkaPackageTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.genai": {
+      "test": "CommandSamplesTest (cli, 15: OpenAI-compatible mock model), AiProvidersTest, AiGapsTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.ai_agent": {
+      "test": "AiAndWorkTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    },
+    "ooa.ai_skills": {
+      "test": "AiAndWorkTest, ConnectorSmokeTest (cli: every command against a catch-all mock server)"
+    }
+  },
+  "commands": {
+    "core/if": {
+      "diff": "AA builds each condition from a typed form (one family per variable type, up to 32 conditions, And/Or). Ours: one condition editor with all/any/not groups, expressions and toolkit conditions; same operators plus between, not-in and the ignore-case/trim/line-break/date-only options (added 21 Oct).",
+      "ideas": "Proposal: show the condition as a sentence in the canvas and offer 'test this condition' with the current variable values."
+    },
+    "core/loop": {
+      "diff": "AA shows only the fields of the chosen loop type; ours showed all 15 fields at once. The built-in 'each key' and 'each value' iterators existed at run time but were missing from Studio's Loop type list.",
+      "fixed": "Fields now appear only for the chosen loop type (shown-when rules); Loop type list gained 'Each key' and 'Each value'; limits on count, max_iterations, from/to index.",
+      "ideas": "Done: safety limit (max_iterations) that AA lacks. Proposal: loop over pages of an API (cursor) as a built-in iterator."
+    },
+    "core/break": {
+      "diff": "Same, plus a label to leave an outer loop (AA has no labels)."
+    },
+    "core/continue": {
+      "diff": "Same, plus a label for nested loops."
+    },
+    "core/try": {
+      "diff": "AA: Catch by exception type, message and line to variables, 'continue on error in Catch'. Ours: catch by error-code patterns (more precise), message/line/details to variables, screenshot, rethrow, continueOnError (added 21 Oct). Typed error dictionary with code, message, suggestedFix, line, action, stepId."
+    },
+    "core/throw": {
+      "diff": "AA: message only. Ours: code, message, suggested fix, details, retryable."
+    },
+    "core/step": {
+      "diff": "Same (title)."
+    },
+    "core/comment": {
+      "diff": "Same."
+    },
+    "core/delay": {
+      "diff": "AA: fixed or random delay in seconds or milliseconds. Ours had the same.",
+      "fixed": "New unit 'minutes'; limits (no negative delays) shown in Studio and checked by the validator.",
+      "ideas": "Proposal: 'wait until a time of day' (e.g. until 18:00 local) as a delay mode."
+    },
+    "core/wait_until": {
+      "diff": "AA: one condition with its own wait time, stop or carry on. Ours: any condition, timeout, poll interval, fail_on_timeout, output met.",
+      "fixed": "Limits: timeout >= 0, poll >= 0.05 s."
+    },
+    "core/pause": {
+      "diff": "AA Task Bot > Pause waits for a person. Ours adds a message and an optional automatic resume time-out.",
+      "fixed": "Time-out limit >= 0."
+    },
+    "core/stop": {
+      "diff": "AA Task Bot > Stop. Ours: success or failed status; Finally blocks still run."
+    },
+    "core/run_bot": {
+      "diff": "AA Task Bot > Run: inputs, outputs to a dictionary, repeat, continue on error. Ours: same plus output_map to variables, timeout, shared sessions, error output.",
+      "fixed": "'Delay between repeats' appears only when repeat is more than 1; limits on repeat and time-outs."
+    },
+    "core/set": {
+      "diff": "Covers AA's Assign actions of every type (String, Number, Boolean, List, Dictionary, Record, Data Table, Credential) in one step with expressions and ${} interpolation."
+    },
+    "core/log": {
+      "diff": "No AA equivalent in the editor (AA logs to file through the Logging package); ours writes to the run log with a level."
+    },
+    "core/parallel": {
+      "diff": "No AA equivalent (AA runs steps one at a time). Ours: branches run at the same time.",
+      "fixed": "max_concurrency limited to 1-64."
+    },
+    "ooa.string/find": {
+      "diff": "AA Find returns a 1-based position. Ours returns 0-based index, 1-based position, match, occurrence.",
+      "fixed": "New outputs: regex capture groups, named groups, every match and the match count; limits on start and occurrence.",
+      "ideas": "Done (typed outputs). Proposal: an AI-assisted 'build a pattern from examples' helper in Studio."
+    },
+    "ooa.string/extract_text": {
+      "diff": "Same options (after/before markers with occurrence, ignore case, if not found, max length, remove line breaks).",
+      "fixed": "Occurrence fields show only when their marker is filled."
+    },
+    "ooa.string/replace": {
+      "fixed": "Limits on start and count."
+    },
+    "ooa.string/split": {
+      "fixed": "'Ignore case' hidden for regex splits (use (?i) there); limit on max parts."
+    },
+    "ooa.string/substring": {
+      "diff": "AA uses 1-based start; ours 0-based (documented).",
+      "fixed": "Limits on start, length and end."
+    },
+    "ooa.string/random_string": {
+      "fixed": "Letter case shows only when letters are on; length limited to 1-100000."
+    },
+    "ooa.string/to_locale_number": {
+      "diff": "Defect found by the sample task: en-IN (the field's own example) grouped digits in threes (1,234,567).",
+      "fixed": "Lakh/crore grouping for India, Pakistan, Bangladesh and Nepal (12,34,567)."
+    },
+    "ooa.string/to_number": {
+      "diff": "AA has To number and To locale number; ours is one action with locale and separator overrides."
+    },
+    "ooa.number/format": {
+      "diff": "Same defect as Number to locale text for en-IN.",
+      "fixed": "Lakh/crore grouping; decimals limited to 0-20."
+    },
+    "ooa.number/to_text": {
+      "fixed": "Rounding mode shows only when no custom pattern is used; decimals 0-20."
+    },
+    "ooa.number/random": {
+      "fixed": "Decimals limited to 0-15."
+    },
+    "ooa.list/get_item": {
+      "fixed": "Default value shows only when 'if out of range' is 'default'."
+    },
+    "ooa.list/remove_item": {
+      "fixed": "'All occurrences' shows only when removing by value."
+    },
+    "ooa.dictionary/get": {
+      "fixed": "Default shows only when 'fail if missing' is off."
+    },
+    "ooa.datatable/aggregate": {
+      "diff": "New: AA has no grouping or summaries (sums per vendor need a loop and a dictionary).",
+      "fixed": "New action Group and summarise: group by columns; count, sum, avg, min, max, first, last, count_distinct.",
+      "ideas": "Done."
+    },
+    "ooa.datatable/filter": {
+      "fixed": "Value hidden for empty/not empty; match case only for text operators."
+    },
+    "ooa.datatable/write_to_file": {
+      "fixed": "Delimiter, header, append and line ending show only for CSV."
+    },
+    "ooa.datatable/change_column_type": {
+      "fixed": "Date format shows only for DateTime; impossible dates (31/02) are now refused instead of being changed to 28/02."
+    },
+    "ooa.datatable/sum_column": {
+      "ideas": "Superseded by Group and summarise for anything beyond one total."
+    },
+    "ooa.datetime/add": {
+      "diff": "AA: units ms to years.",
+      "fixed": "New unit business_days (skips weekends and an optional holiday list, shown only for that unit).",
+      "ideas": "Done. Proposal: named holiday calendars kept in Command Center."
+    },
+    "ooa.datetime/subtract": {
+      "fixed": "New unit business_days with holidays."
+    },
+    "ooa.datetime/difference": {
+      "fixed": "New unit business_days (working days between two dates) with holidays."
+    },
+    "ooa.datetime/parse": {
+      "diff": "Defect found by the sample task: 31/02/2026 was accepted and silently became 28 Feb.",
+      "fixed": "Strict reading: impossible dates fail with DATETIME.PARSE_FAILED; pattern hidden when a standard format is chosen."
+    },
+    "ooa.datetime/is_valid": {
+      "diff": "Defect: 2026-02-30 counted as valid.",
+      "fixed": "Strict check; 12-hour patterns (h) read the time too."
+    },
+    "ooa.datetime/format": {
+      "fixed": "Pattern hidden when a standard format is chosen."
+    },
+    "ooa.json/stringify": {
+      "fixed": "Indent shows only with pretty printing; limited to 0-10."
+    },
+    "ooa.csv/read": {
+      "diff": "AA returns every value as text (as ours did), so arithmetic on a CSV column needs conversions; the sample task showed 0 + '1' concatenating.",
+      "fixed": "New option detect_types: numbers, true/false and ISO dates become typed values; codes with leading zeros stay text. Limits on skip_lines and max_rows.",
+      "ideas": "Done."
+    },
+    "ooa.csv/rows": {
+      "fixed": "detect_types option, as for Read."
+    },
+    "ooa.file/list": {
+      "diff": "AA has no list action (its loop 'each file in folder' lists); ours lists with size and age filters.",
+      "fixed": "New sort_by (name, modified, size) and descending; new outputs count and first (e.g. the newest file); limits on the size and age filters.",
+      "ideas": "Done: 'latest file in a folder' in one step."
+    },
+    "ooa.file/read_variables": {
+      "diff": "New: AA Text file > Read variables had no equivalent.",
+      "fixed": "New action: name=value lines into a Dictionary (separator, encoding, trim; # and ; comments skipped)."
+    },
+    "ooa.file/wait_for_file": {
+      "diff": "New: AA has no step that waits for a download or export to finish (people add fixed delays).",
+      "fixed": "New action: waits until a file (name may use * and ?) appears and stops growing; skips .crdownload/.part/.tmp and ~$ lock files; time-out with fail or carry on.",
+      "ideas": "Done."
+    },
+    "ooa.file/size_is (condition)": {
+      "diff": "New: AA's If has 'file size' conditions.",
+      "fixed": "New condition: compare size in bytes, KB, MB or GB."
+    },
+    "ooa.file/date_is (condition)": {
+      "diff": "New: AA's If has 'file date' conditions.",
+      "fixed": "New condition: modified or created date before/after/on a date, or older/newer than N days."
+    },
+    "ooa.file/has_extension (condition)": {
+      "diff": "New: AA's If has a 'file extension' condition.",
+      "fixed": "New condition: one or more extensions, any case, with or without the dot."
+    },
+    "ooa.file/copy": {
+      "fixed": "'Keep both' shows only when overwrite is off."
+    },
+    "ooa.file/move": {
+      "fixed": "'Keep both' shows only when overwrite is off."
+    },
+    "ooa.file/print_files": {
+      "diff": "An empty selection fails with FILE.NO_FILES (AA silently prints nothing).",
+      "fixed": "The files list and the folder/pattern options exclude each other in the form; copies 1-999."
+    },
+    "ooa.file/delete": {
+      "fixed": "Limits on the size and age filters."
+    },
+    "ooa.folder/subfolders (iterator)": {
+      "diff": "New: AA Loop 'each folder in folder' had no iterator of ours.",
+      "fixed": "New loop iterator with sub-folders at any depth and a name pattern."
+    },
+    "ooa.folder/copy": {
+      "fixed": "'Only newer' shows only when overwriting."
+    },
+    "ooa.folder/create": {
+      "ideas": "Proposal: one error-code family for the File and Folder toolkits (today FILE.NOT_FOUND and FOLDER.NOT_FOUND both occur), with the old codes kept as aliases."
+    },
+    "ooa.excel/rows (iterator)": {
+      "diff": "New: AA's Loop has 'each row in an Excel worksheet'; ours needed Get all cells first.",
+      "fixed": "New loop iterator: each row (of the sheet or a range) as a record by header names; hidden rows can be skipped."
+    },
+    "ooa.excel/protect_sheet": {
+      "diff": "The password was a plain String field, unlike Open and Save which take vault credentials.",
+      "fixed": "Password is a Credential input (vault or text); an empty password is refused instead of silently leaving the sheet unprotected."
+    },
+    "ooa.excel/unprotect_sheet": {
+      "fixed": "Password is a Credential input."
+    },
+    "ooa.excel/protect_workbook": {
+      "fixed": "Password is a Credential input."
+    },
+    "ooa.excel/unprotect_workbook": {
+      "fixed": "Password is a Credential input."
+    },
+    "ooa.excel/filter": {
+      "fixed": "'Value to' shows only for between; value hidden for empty/not empty; match case only for text operators."
+    },
+    "ooa.excel/save_as": {
+      "fixed": "Sheet shows only for CSV."
+    },
+    "ooa.excel/delete_rows": {
+      "fixed": "Row and count limited to 1 or more, so row 0 is reported before the run instead of failing in it."
+    },
+    "ooa.excel/switch_sheet": {
+      "fixed": "Sheet name and 1-based index exclude each other in the form."
+    },
+    "ooa.excel/delete_sheet": {
+      "fixed": "Name and index exclude each other."
+    },
+    "ooa.excel/hide_sheet": {
+      "fixed": "Name and index exclude each other."
+    },
+    "ooa.excel/unhide_sheet": {
+      "fixed": "Name and index exclude each other."
+    },
+    "ooa.excel/rename_sheet": {
+      "fixed": "Name and index exclude each other."
+    },
+    "ooa.excel/open": {
+      "diff": "Missing file gives EXCEL.NOT_FOUND (the File toolkit uses FILE.NOT_FOUND).",
+      "ideas": "Proposal: let a Catch match any not-found error (*.NOT_FOUND) so toolkits need not share codes."
+    },
+    "ooa.excel/sort_range": {
+      "fixed": "'Then descending' shows only with a second sort column."
+    },
+    "ooa.excel/insert_rows": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/hide_rows": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/unhide_rows": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/delete_columns": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/insert_columns": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/hide_columns": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/unhide_columns": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/read_column": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/read_row": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/cell_address": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/column_name": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/add_sheet": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.excel/insert_table_column": {
+      "fixed": "Limits on row, column, count or position (1-based)."
+    },
+    "ooa.browser/open": {
+      "diff": "Checked in AA's editor: what to open (existing tab, new tab, new window), browser incl. 'default browser', link, time-out in seconds (240, min 9). Ours: same modes; browser edge/chrome/chromium/firefox (no 'default'); time-out in milliseconds.",
+      "fixed": "Browser, headless and download folder show only for a new window; the tab picker only for new/existing tab; time-out at least 1 s.",
+      "ideas": "Proposal: a 'default browser' choice read from the user's Windows setting."
+    },
+    "ooa.browser/close": {
+      "diff": "AA: tab, window or all browsers with a tab picker and a time-out. Ours: also 'this session'; no time-out (the step time-out applies).",
+      "fixed": "Tab picker shows only for tab/window."
+    },
+    "ooa.browser/download_url": {
+      "diff": "AA Download file: URL, save to, overwrite (sign-in implied). Ours adds explicit user/password and a time-out."
+    },
+    "ooa.browser/get_page_source": {
+      "diff": "Same (tab, optional iframe, time-out, output); ours can also save to a file."
+    },
+    "ooa.browser/run_javascript": {
+      "diff": "Same (tab, iframe, script typed or from a file, time-out).",
+      "fixed": "Script and script file exclude each other in the form, as in AA."
+    },
+    "ooa.browser/call_javascript_function": {
+      "diff": "Same (function, arguments, return type; AA defaults the return type to none, ours to any)."
+    },
+    "ooa.browser/find_broken_links": {
+      "diff": "Same options; AA requires the CSV file and defaults to ANSI, ours makes the file optional (table output) and defaults to UTF-8.",
+      "fixed": "Pages limit only for scope site; append and encoding only with a CSV file; limits on threads and time-outs."
+    },
+    "ooa.browser/history": {
+      "diff": "AA Go back: steps and 'error if too many'; ours also forward and refresh.",
+      "fixed": "Steps and the error option show only for back/forward."
+    },
+    "ooa.browser/click": {
+      "diff": "With a plain selector a missing element fails as BROWSER.TIMEOUT, with a captured object as BROWSER.OBJECT_NOT_FOUND, so one Catch may not see both.",
+      "ideas": "Proposal: error-code aliases (one family for 'not found') so Catch blocks can match both without breaking existing ones."
+    },
+    "ooa.window/activate": {
+      "diff": "Defect found by the sample task on the real desktop: Activate reported success while Windows' focus lock kept another app in front.",
+      "fixed": "Activate now checks the window really is in front; if Windows refuses, it attaches to the foreground input and sends an ALT tap (the usual workaround), and otherwise fails with WINDOW.NOT_ACTIVATED. Capture window and the window events use the same routine."
+    },
+    "ooa.window/close_all": {
+      "diff": "Checked in AA's editor: AA closes all windows except a 'keep open' list. Ours closes windows matching a title (safer).",
+      "fixed": "New keep list; the agent's own windows (run window, Studio) are never closed."
+    },
+    "ooa.window/wait_for": {
+      "diff": "Checked in AA's editor: AA waits for a window to open or to close, 5 s default, and raising an error is optional. Ours only waited for it to open and always failed.",
+      "fixed": "New state (open or close), fail_on_timeout and output met."
+    },
+    "ooa.window/set_title": {
+      "diff": "Same (AA can match the window by regular expression; ours matches title text or alternatives)."
+    },
+    "ooa.window/move_resize": {
+      "diff": "AA Resize needs all four values; ours leaves empty ones unchanged."
+    },
+    "ooa.image/wait_for_screen_change": {
+      "diff": "New: AA's Wait for screen change (region relative to a window or the screen, initial wait, time-out) had no equivalent.",
+      "fixed": "New action with mode change or settle (wait until the screen stops changing), threshold, window, initial wait, fail or carry on.",
+      "ideas": "Done: 'settle' replaces fixed delays after loading."
+    },
+    "ooa.desktop/prompt_value": {
+      "diff": "Defect found by the sample task: on time-out the value was empty instead of the default.",
+      "fixed": "Time-out returns the default; new output timed_out."
+    },
+    "ooa.desktop/type_text": {
+      "diff": "Text in brackets that is not a key name is typed as text (by design), so a typo such as [ENTRE] is typed silently.",
+      "fixed": "Keystroke delay shows only for keystrokes; restore clipboard only for paste.",
+      "ideas": "Proposal: warn in the run log when a bracketed word looks like a key name but is unknown."
+    },
+    "ooa.desktop/prompt_yes_no": {
+      "fixed": "'Answer on time-out' shows only when a time-out is set."
+    },
+    "ooa.application/stop_program": {
+      "fixed": "Process id and program name exclude each other in the form."
+    },
+    "ooa.email/connect": {
+      "diff": "Checked in AA's editor: Outlook / email server / EWS, SSL, host, port, IMAP or POP3, credential user and password, time-out 120 s (10-300). Ours: email server only (Microsoft 365 through the Graph toolkit), time-out 15 s.",
+      "fixed": "New smtp_host, smtp_port and smtp_security: the session keeps an outgoing server so Send, Reply and Forward need no server or sign-in of their own; time-out limited to 1-300 s.",
+      "ideas": "Done. Proposal: a local-Outlook connection for desktops without IMAP access."
+    },
+    "ooa.email/send": {
+      "diff": "Checked in AA's editor: recipients, reply-to, 'raise error if addresses invalid', importance, subject, attachments, body, then SMTP host and port, 'server requires authentication' and credentials on every send. Ours always signed in and always failed on invalid addresses (kept: safer).",
+      "fixed": "SMTP host and user are optional when the mailbox session has an outgoing server; with no password or token the server is used without signing in (internal relay)."
+    },
+    "ooa.email/reply": {
+      "fixed": "Uses the session's outgoing server when the SMTP fields are empty; sign-in optional."
+    },
+    "ooa.email/reply_all": {
+      "fixed": "Uses the session's outgoing server when the SMTP fields are empty; sign-in optional."
+    },
+    "ooa.email/forward": {
+      "fixed": "Uses the session's outgoing server when the SMTP fields are empty; sign-in optional."
+    },
+    "ooa.email/delete_all": {
+      "diff": "Defect found by the sample task: a folder already open in the session did not see emails moved into it later, so Delete all removed 1 of 3.",
+      "fixed": "An open IMAP folder is refreshed (NOOP) each time a step uses it; the same fix applies to every mailbox action."
+    },
+    "ooa.word/open": {
+      "diff": "Checked in AA's editor: file, read-write or read-only, open password, edit password, session. Ours: same except the edit password (not a security feature)."
+    },
+    "ooa.word/insert_text": {
+      "diff": "Checked in AA's editor: at the cursor, start, end or a bookmark; text plain or HTML. Ours: start, end, bookmark, after or before a text; plain text with formatting options.",
+      "fixed": "Writing into a new document no longer leaves a blank first paragraph.",
+      "ideas": "Proposal: HTML input (bold, italic, lists) converted to Word formatting."
+    },
+    "ooa.word/add_paragraph": {
+      "diff": "Defect found by the sample task: a new document started with an empty paragraph, so generated documents began with a blank line and paragraph numbers were off by one.",
+      "fixed": "The first paragraph added to a new document uses the existing blank paragraph."
+    },
+    "ooa.word/replace_text": {
+      "diff": "Checked in AA's editor: match case, whole words, range (full document, a page or a paragraph index), occurrence. Ours had no range.",
+      "fixed": "New from_paragraph / to_paragraph range (1-based body paragraphs).",
+      "ideas": "Page ranges need Word's own layout engine (not available without Word)."
+    },
+    "ooa.word/format_text": {
+      "diff": "AA takes the colour as a decimal number; ours takes hex. AA limits size to 1-1638.",
+      "fixed": "Paragraph range as for Replace text; size limited to 1-1638."
+    },
+    "ooa.powerpoint/insert_text": {
+      "diff": "Checked in AA's editor: inserts on the current slide by default, position in centimetres, formatting. Ours needed a slide number on every insert and uses points.",
+      "fixed": "Slide is optional: the last slide (usually the one just added) when empty."
+    },
+    "ooa.powerpoint/insert_picture": {
+      "fixed": "Slide is optional (last slide)."
+    },
+    "ooa.powerpoint/insert_table": {
+      "fixed": "Slide is optional (last slide)."
+    },
+    "ooa.powerpoint/add_slide": {
+      "diff": "Checked in AA's editor: layout and position; ours also sets title and body text."
+    },
+    "ooa.pdf/extract_text": {
+      "diff": "Checked in AA's editor: user and owner passwords, plain or structured text, page range, save to .txt, overwrite, properties to a dictionary. Ours: same (properties via Get document properties)."
+    },
+    "ooa.pdf/merge": {
+      "diff": "AA's PDFUtils package also merges every PDF in a folder; ours needed a list.",
+      "fixed": "New folder, pattern and sort_by inputs; output files lists what was merged; the target is never merged into itself."
+    },
+    "ooa.pdf/encrypt": {
+      "diff": "Passwords must be vault credentials (plain text refused): safer than AA's 'insecure string' option."
+    },
+    "ooa.system/get_environment_variable": {
+      "diff": "Defect found by the sample task: a value set with Set environment variable (process scope) was invisible to Get environment variable in the same run.",
+      "fixed": "Values set earlier in the run are returned first."
+    },
+    "ooa.services/start": {
+      "diff": "An unknown service gave the generic SERVICES.FAILED.",
+      "fixed": "Unknown services fail with SERVICES.NOT_FOUND (start, stop, pause, resume, restart), as Get status already did; wait time shows only when waiting."
+    },
+    "ooa.services/get_status": {
+      "diff": "Returns upper-case states (RUNNING, STOPPED)."
+    },
+    "ooa.script/run_python_function": {
+      "diff": "Checked in AA's editor: AA opens a Python session from a file or a typed script, runs a function with one argument, errors optional. Ours: a function from a file, any number of arguments and keyword arguments, typed result, errors on by default.",
+      "fixed": "New script input: the function's code can be typed instead of a file (also for JavaScript and VBScript functions); script and file exclude each other in the form."
+    },
+    "ooa.script/run_javascript_function": {
+      "fixed": "Typed script as an alternative to a file."
+    },
+    "ooa.script/run_vbscript_function": {
+      "fixed": "Typed script as an alternative to a file."
+    },
+    "ooa.script/run_python": {
+      "fixed": "Script and file exclude each other in the form; time-out at least 1 s."
+    },
+    "ooa.rest/request": {
+      "diff": "Checked in AA's editor (Post method): URI, proxy, authentication, headers, content type, body with substitutions, failure response, insecure TLS, accept cookies, time-out, client keystore, output. Ours has all of these.",
+      "fixed": "Body fields hidden for GET; JSON, form and raw body exclude each other; proxy sign-in only with a proxy; certificate password only with a certificate."
+    },
+    "ooa.crypto/decrypt_text": {
+      "diff": "Decrypted text is returned as a secret (masked in logs and outputs), so it never leaks into run history."
+    },
+    "ooa.crypto/rsa_decrypt": {
+      "diff": "Decrypted text is returned as a secret (masked).",
+      "ideas": "Proposal: take private keys from the vault instead of a file path."
+    },
+    "ooa.network/check_port": {
+      "fixed": "Port limited to 1-65535 (checked before the run); time-outs at least 1 ms."
+    },
+    "ooa.file_transfer/connect": {
+      "fixed": "SFTP-only options (private key, passphrase, host key) and FTP-only options (passive mode, TLS mode, transfer mode) show only for their protocol; port 1-65535."
+    },
+    "ooa.currency/convert": {
+      "fixed": "Address and rates path show only for a JSON source; fixed rates only for the fixed source; decimals 0-10."
+    },
+    "ooa.database/query": {
+      "fixed": "Limits on rows and time-outs."
+    },
+    "ooa.servicenow/query": {
+      "diff": "Checked in AA's editor (Get Multiple Records): table, fields, filter by name/value pairs or a query, limit (0 = all). Ours needed ServiceNow's encoded query syntax.",
+      "fixed": "New filter input: field to value pairs, no query syntax needed (combined with query when both are given); local http test servers accepted."
+    },
+    "ooa.servicenow/create_record": {
+      "fixed": "Address pattern accepts http://localhost for test servers (https still required for real instances)."
+    },
+    "ooa.jira/create_issue": {
+      "diff": "Checked in AA's editor: project key, issue type, summary (up to 255 characters), description, priority (Medium by default), assignee email, labels, components, custom fields; output key, id, address and full reply. Ours: same plus due date and parent issue; priority left to the project default."
+    },
+    "ooa.slack/post_message": {
+      "diff": "Defect found by the connector smoke test: a reply that is not a Slack answer gave the code SLACK.NULL.",
+      "fixed": "Such replies fail with SLACK.BAD_RESPONSE and a hint about base_url or a proxy (all Slack commands)."
+    },
+    "ooa.databricks/upload_file": {
+      "diff": "Defect found by the connector smoke test: a reply without an upload handle crashed with a NullPointerException.",
+      "fixed": "Fails with DATABRICKS.BAD_RESPONSE instead."
+    },
+    "ooa.databricks/delete_file": {
+      "diff": "New: AA Databricks Delete file had no equivalent.",
+      "fixed": "New action for volumes, the workspace and DBFS (recursive folders on DBFS)."
+    },
+    "ooa.asana/duplicate_task": {
+      "diff": "New: AA Asana Duplicate task.",
+      "fixed": "New action; choose what is copied along."
+    },
+    "ooa.asana/update_project": {
+      "diff": "New: AA Asana Update project.",
+      "fixed": "New action (name, notes, owner, due date, archived, other fields)."
+    },
+    "ooa.asana/delete_project": {
+      "diff": "New: AA Asana Delete project.",
+      "fixed": "New action, with a confirm safeguard."
+    },
+    "ooa.asana/create_team": {
+      "diff": "New: AA Asana teams.",
+      "fixed": "New Create, Get and Update team actions."
+    },
+    "ooa.asana/update_comment": {
+      "diff": "New: AA Asana Update and Delete comment.",
+      "fixed": "New actions."
+    },
+    "ooa.asana/download_attachment": {
+      "diff": "New: AA Asana Download and Delete attachment.",
+      "fixed": "New actions; links to Google Drive or Box are reported clearly instead of downloading a web page."
+    },
+    "ooa.azure_devops/create_test_case": {
+      "diff": "New: AA Azure DevOps test management (plans, suites, cases, points, runs) had no equivalent; ours covered work items, repositories and pipelines.",
+      "fixed": "19 new actions: list/get/create/edit/delete test plans, create/edit/delete suites (static, requirement, query), add/remove test cases, create test case with steps, list/update test points, create/get test runs, get/create/edit/delete pipelines."
+    },
+    "ooa.azure_devops/delete_test_plan": {
+      "fixed": "New, with a confirm safeguard."
+    },
+    "ooa.azure_devops/delete_pipeline": {
+      "fixed": "New, with a confirm safeguard."
+    },
+    "ooa.docusign/add_recipients": {
+      "diff": "New: AA DocuSign Add recipients.",
+      "fixed": "New action: signers and copy recipients with signing order."
+    },
+    "ooa.docusign/download_zip": {
+      "diff": "New: AA DocuSign Download signed ZIP.",
+      "fixed": "New action."
+    },
+    "ooa.zendesk/update_organization": {
+      "diff": "New: AA Zendesk Update organization.",
+      "fixed": "New action."
+    },
+    "ooa.zendesk/download_attachment": {
+      "diff": "New: AA Zendesk Download attachment.",
+      "fixed": "New action."
+    },
+    "ooa.microsoft365/excel_find_next_empty_cell": {
+      "diff": "New: AA Microsoft 365 Excel Find / Go to next empty cell.",
+      "fixed": "New action: first empty cell down a column or along a row."
+    },
+    "ooa.active_directory/get_user": {
+      "diff": "Defect found by the directory sample: users were looked up by objectCategory, which only Active Directory fills in, so Samba or OpenLDAP with an AD schema found nobody.",
+      "fixed": "Lookups use objectClass user and not computer (same result on AD, works on other directories)."
+    },
+    "ooa.active_directory/get_group_members": {
+      "diff": "Defect found by the directory sample: members were found only through memberOf, which some directories do not keep.",
+      "fixed": "Falls back to the group's own member list when memberOf gives nothing."
+    },
+    "ooa.active_directory/connect": {
+      "diff": "Same as AA (address, bind user, credential, base DN); runs against an in-memory directory in the samples."
+    },
+    "ooa.ocr/read_screen": {
+      "diff": "Defect found by the smoke test: a whole multi-monitor screen at scale 2 ran out of memory.",
+      "fixed": "The enlarged image is capped at about 25 megapixels; scale limits corrected to 1-5 (what the code accepts)."
+    },
+    "ooa.ocr/click_text": {
+      "fixed": "Same memory cap as Read text from screen."
+    },
+    "ooa.genai/prompt": {
+      "diff": "AA lists one package per provider (Bedrock, Vertex AI, Azure OpenAI, OpenAI, SageMaker, Hugging Face); ours has one set of actions with a provider choice and named model connections."
+    },
+    "ooa.genai/classify": {
+      "diff": "An answer outside the given labels fails with AI.LABEL_NOT_ALLOWED instead of passing through."
+    },
+    "ooa.sap/run_transaction": {
+      "diff": "SAP GUI scripting actions match AA's SAP package. AA's SAP BAPI package is not built: it needs the customer's licensed SAP Java Connector at run time."
+    }
+  }
+}

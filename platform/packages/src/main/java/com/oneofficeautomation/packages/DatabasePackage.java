@@ -35,7 +35,7 @@ public final class DatabasePackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name for later steps.") String session,
             @Input(name = "driver_class", type = OoaType.STRING, required = false, example = "org.postgresql.Driver", description = "JDBC driver class to load first, for drivers that do not register themselves.") String driverClass,
-            @Input(name = "login_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Give up connecting after this many seconds; 0 uses the driver's default.") int loginTimeout,
+            @Input(name = "login_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up connecting after this many seconds; 0 uses the driver's default.") int loginTimeout,
             @Input(name = "properties", type = OoaType.DICTIONARY, required = false, description = "Extra driver properties, e.g. {\"encrypt\": \"true\"}; Credential values are revealed only to the driver.") Map<String, Object> properties,
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the connection read-only, so the agent cannot change data by mistake (when the driver supports it).") boolean readOnly,
             @Input(name = "auto_commit", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save each statement at once; false starts in a transaction that needs Commit.") boolean autoCommit) {
@@ -88,9 +88,9 @@ public final class DatabasePackage {
     public Map<String, Object> query(ActionContext ctx,
             @Input(name = "sql", type = OoaType.STRING, description = "SELECT statement with ? placeholders.") String sql,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
-            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Safety limit on rows returned.") int maxRows,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1, description = "Safety limit on rows returned.") int maxRows,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
-            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
         Connection c = ctx.session(session, DbSession.class).conn;
         try (PreparedStatement ps = prepare(c, sql, params)) {
             ps.setMaxRows(maxRows);
@@ -126,7 +126,7 @@ public final class DatabasePackage {
             @Input(name = "sql", type = OoaType.STRING, description = "Statement with ? placeholders.") String sql,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
-            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
         Connection c = ctx.session(session, DbSession.class).conn;
         try (PreparedStatement ps = prepare(c, sql, params)) {
             if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
@@ -190,7 +190,7 @@ public final class DatabasePackage {
             @Input(name = "table", type = OoaType.STRING, example = "dbo.invoices", description = "Database table to insert into.") String tableName,
             @Input(name = "data", type = OoaType.TABLE, description = "Data Table whose rows are inserted.") Map<String, Object> data,
             @Input(name = "columns", type = OoaType.LIST, required = false, description = "Database column for each Data Table column, in order; the Data Table's column names when empty.") List<Object> columns,
-            @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Rows sent to the database per batch.") int batchSize,
+            @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, max = 100000, description = "Rows sent to the database per batch.") int batchSize,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
         String t = identifier(tableName, "table");
         List<String> srcCols = DataTablePackage.cols(data);
@@ -232,9 +232,9 @@ public final class DatabasePackage {
     public Map<String, Object> callProcedure(ActionContext ctx,
             @Input(name = "procedure", type = OoaType.STRING, example = "dbo.close_period", description = "Procedure name, optionally schema.name.") String procedure,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Input values, in the procedure's parameter order.") List<Object> params,
-            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", description = "Safety limit on rows returned.") int maxRows,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1, description = "Safety limit on rows returned.") int maxRows,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
-            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
         String name = identifier(procedure, "procedure");
         int n = params == null ? 0 : params.size();
         String call = "{call " + name + "(" + String.join(", ", Collections.nCopies(n, "?")) + ")}";
@@ -271,7 +271,7 @@ public final class DatabasePackage {
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Write the column names as the first line.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding of the file.") String encoding,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
-            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout,
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite) {
         char d = delimiter == null || delimiter.isEmpty() ? ',' : delimiter.equalsIgnoreCase("tab") ? '\t' : delimiter.charAt(0);
         java.nio.file.Path p = ctx.resolvePath(path);

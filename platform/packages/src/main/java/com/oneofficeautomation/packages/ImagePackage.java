@@ -215,8 +215,8 @@ public final class ImagePackage {
     public Map<String, Object> findInImage(ActionContext ctx,
             @Input(name = "image", type = OoaType.FILE, description = "Image to search in.") String image,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to look for.") String template,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_OCC) int occurrence,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100, description = TOL) double tol,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = D_OCC) int occurrence,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"center\"", enumValues = {"center", "top_left"}, description = D_POS) String position,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OX) int offsetX,
             @Input(name = "offset_y", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OY) int offsetY,
@@ -242,8 +242,8 @@ public final class ImagePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches found (up to occurrence when it is above 1).")
     public Map<String, Object> findOnScreen(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to look for.") String template,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_OCC) int occurrence,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100, description = TOL) double tol,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = D_OCC) int occurrence,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"center\"", enumValues = {"center", "top_left"}, description = D_POS) String position,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OX) int offsetX,
             @Input(name = "offset_y", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OY) int offsetY,
@@ -266,9 +266,9 @@ public final class ImagePackage {
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y on screen.")
     public Map<String, Object> waitForImage(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to wait for.") String template,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait.") double timeout,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol,
-            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", description = "Pause between two looks at the screen, in milliseconds.") int intervalMs,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, description = "Maximum wait.") double timeout,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100, description = TOL) double tol,
+            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 50, description = "Pause between two looks at the screen, in milliseconds.") int intervalMs,
             @Input(name = "until_gone", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Wait for the picture to disappear instead, e.g. a loading spinner.") boolean untilGone,
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = D_RX) Integer rx,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Search region top.") Integer ry,
@@ -291,6 +291,68 @@ public final class ImagePackage {
         }
     }
 
+    /** Share of pixels (0-100) whose colour differs by more than a small noise margin; images of different sizes count as 100. */
+    static double changedPercent(BufferedImage a, BufferedImage b) {
+        if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight()) return 100;
+        long changed = 0, total = (long) a.getWidth() * a.getHeight();
+        for (int y = 0; y < a.getHeight(); y++) for (int x = 0; x < a.getWidth(); x++) {
+            int p = a.getRGB(x, y), q = b.getRGB(x, y);
+            int d = Math.abs(((p >> 16) & 255) - ((q >> 16) & 255)) + Math.abs(((p >> 8) & 255) - ((q >> 8) & 255)) + Math.abs((p & 255) - (q & 255));
+            if (d > 24) changed++;
+        }
+        return total == 0 ? 0 : changed * 100.0 / total;
+    }
+
+    @Action(id = "wait_for_screen_change", name = "Wait for screen change", category = "Image", capabilities = "desktop", timeoutSeconds = 3600,
+            description = "Wait until a region of the screen changes (e.g. a result appears), or until it stops changing (e.g. a page or application has finished drawing).")
+    @Output(name = "changed", type = OoaType.BOOLEAN, description = "True when the awaited change (or the steady state) happened in time.")
+    @Output(name = "changed_percent", type = OoaType.NUMBER, description = "How much of the region differed from the first look, in percent.")
+    public Map<String, Object> waitForScreenChange(ActionContext ctx,
+            @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"change\"", enumValues = {"change", "settle"},
+                    description = "change: wait until the region differs from how it looked at the start; settle: wait until it stays the same for stable_ms.") String mode,
+            @Input(name = "threshold_percent", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 100,
+                    description = "Share of the region's pixels that must differ to count as a change (ignores a blinking cursor).") double threshold,
+            @Input(name = "stable_ms", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0, visibleWhen = "mode=settle",
+                    description = "settle: how long the region must stay unchanged.") int stableMs,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, description = "Maximum wait.") double timeout,
+            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "250", min = 50, description = "Pause between two looks at the screen.") int intervalMs,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail with IMAGE.NO_CHANGE (or IMAGE.NOT_STEADY) when time runs out; otherwise changed is false.") boolean failOnTimeout,
+            @Input(name = "x", type = OoaType.NUMBER, required = false, description = "Region left; the whole screen when the region is empty.") Integer rx,
+            @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Region top.") Integer ry,
+            @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Region width.") Integer rw,
+            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Region height.") Integer rh,
+            @Input(name = "window", type = OoaType.STRING, required = false,
+                    description = "Title of a window to watch: it is brought to the front and the region is measured from its top-left corner (the whole window when the region is empty).") String window,
+            @Input(name = "initial_wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0,
+                    description = "Wait this long before the first look, e.g. while a click starts the change.") int initialWaitMs) {
+        Rectangle r = region(rx, ry, rw, rh);
+        int[] wb = DesktopPackage.focusWindow(window, window != null && !window.isBlank());
+        if (wb != null) r = r == null ? new Rectangle(wb[0], wb[1], wb[2], wb[3]) : new Rectangle(wb[0] + r.x, wb[1] + r.y, r.width, r.height);
+        if (initialWaitMs > 0) try { Thread.sleep(initialWaitMs); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        boolean settle = "settle".equals(mode);
+        BufferedImage first = screen(r), last = first;
+        long end = System.nanoTime() + (long) (timeout * 1e9), steadySince = System.nanoTime();
+        double pct = 0;
+        while (true) {
+            ctx.checkCancelled();
+            try { Thread.sleep(Math.max(50, intervalMs)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            BufferedImage now = screen(r);
+            pct = changedPercent(first, now);
+            if (!settle && pct >= Math.max(threshold, 0.0001)) return Out.of("changed", true, "changed_percent", java.math.BigDecimal.valueOf(Math.round(pct * 100) / 100.0));
+            if (settle) {
+                if (changedPercent(last, now) >= Math.max(threshold, 0.0001)) steadySince = System.nanoTime();
+                else if ((System.nanoTime() - steadySince) / 1_000_000 >= stableMs) return Out.of("changed", true, "changed_percent", java.math.BigDecimal.valueOf(Math.round(pct * 100) / 100.0));
+                last = now;
+            }
+            if (System.nanoTime() > end) {
+                if (failOnTimeout) throw settle
+                        ? new ActionException("IMAGE.NOT_STEADY", "The screen region kept changing for " + timeout + " s", "Raise timeout_seconds or threshold_percent, or choose a smaller region.", true)
+                        : new ActionException("IMAGE.NO_CHANGE", "The screen region did not change within " + timeout + " s", "Raise timeout_seconds, or lower threshold_percent.", true);
+                return Out.of("changed", false, "changed_percent", java.math.BigDecimal.valueOf(Math.round(pct * 100) / 100.0));
+            }
+        }
+    }
+
     public Map<String, Object> clickImage(ActionContext ctx, String template, boolean dbl, double tol) {
         return clickImage(ctx, template, dbl, tol, "left", 1, "center", 0, 0, 0, null, null, null, null);
     }
@@ -302,13 +364,13 @@ public final class ImagePackage {
     public Map<String, Object> clickImage(ActionContext ctx,
             @Input(name = "template", type = OoaType.FILE, description = "Picture to click.") String template,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
-            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", description = TOL) double tol,
+            @Input(name = "tolerance", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, max = 100, description = TOL) double tol,
             @Input(name = "button", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right", "middle"}, description = "Mouse button to click with.") String button,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_OCC) int occurrence,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = D_OCC) int occurrence,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"center\"", enumValues = {"center", "top_left"}, description = D_POS) String position,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OX) int offsetX,
             @Input(name = "offset_y", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_OY) int offsetY,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Keep looking for up to this many seconds before failing; 0 looks once.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Keep looking for up to this many seconds before failing; 0 looks once.") double timeout,
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = D_RX) Integer rx,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Search region top.") Integer ry,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Search region width.") Integer rw,

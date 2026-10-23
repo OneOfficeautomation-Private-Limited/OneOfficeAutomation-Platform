@@ -624,7 +624,9 @@ public final class ControlRoomServer {
     private void serveStatic(HttpExchange ex, String path) throws IOException {
         String name = path.equals("/") ? "index.html" : path.substring(1);
         if (!name.matches("^[A-Za-z0-9_.-]+$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
-        try (InputStream in = ControlRoomServer.class.getResourceAsStream("/console/" + name)) {
+        // The shared design system (ooa-tokens.css, ooa-components.css) lives in /ooa-ui/; Agent Studio serves the same files.
+        String folder = name.startsWith("ooa-") && name.endsWith(".css") ? "/ooa-ui/" : "/console/";
+        try (InputStream in = ControlRoomServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }
             byte[] b = in.readAllBytes();
             securityHeaders(ex);

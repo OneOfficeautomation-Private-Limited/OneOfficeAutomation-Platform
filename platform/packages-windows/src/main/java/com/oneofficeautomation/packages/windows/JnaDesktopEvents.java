@@ -35,7 +35,7 @@ public final class JnaDesktopEvents implements DesktopEvents {
     }
 
     @Override public boolean activateWindow(String pattern) {
-        return first(pattern).map(w -> { User32.INSTANCE.ShowWindow(w.hwnd(), SW_RESTORE); User32.INSTANCE.SetForegroundWindow(w.hwnd()); return true; }).orElse(false);
+        return first(pattern).map(w -> WindowPackage.bringToFront(w.hwnd())).orElse(false);
     }
 
     @Override public Optional<int[]> windowBounds(String pattern) {

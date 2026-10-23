@@ -23,7 +23,7 @@ public final class LogPackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", enumValues = {"utf-8", "utf-16le", "ansi"},
                     description = "File encoding: utf-8, utf-16le (Unicode, written with a byte-order mark) or ansi (the runner's code page). Match the existing file when appending.") String encoding,
-            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
+            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", visibleWhen = "timestamp=true", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
         Path p = ctx.resolvePath(path);
         String line = (ts ? now(tsFormat) + " " : "") + level + " " + ctx.redact(message) + System.lineSeparator();
         synchronized (LOCK) {
@@ -72,7 +72,7 @@ public final class LogPackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file instead of appending.") boolean overwrite,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", enumValues = {"utf-8", "utf-16le", "ansi"},
                     description = "File encoding: utf-8, utf-16le (Unicode, written with a byte-order mark) or ansi (the runner's code page). Match the existing file when appending.") String encoding,
-            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
+            @Input(name = "timestamp_format", type = OoaType.STRING, required = false, example = "yyyy-MM-dd HH:mm:ss", visibleWhen = "timestamp=true", description = "Pattern for the date and time; ISO 8601 with time zone when empty.") String tsFormat) {
         Path p = ctx.resolvePath(path);
         String nl = System.lineSeparator();
         StringBuilder sb = new StringBuilder();

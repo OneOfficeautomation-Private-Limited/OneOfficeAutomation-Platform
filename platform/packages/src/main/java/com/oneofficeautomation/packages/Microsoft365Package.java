@@ -1729,6 +1729,37 @@ public final class Microsoft365Package {
         return cells.isEmpty() || (r.get("rowCount") instanceof Number n && n.intValue() == 0) ? null : cells;
     }
 
+    @Action(id = "excel_find_next_empty_cell", name = "Find next empty cell (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
+            description = "Find the first empty cell after the last value in a column (going down) or in a row (going right), e.g. where to append the next record.")
+    @Output(name = "cell", type = OoaType.STRING, description = "Address of the empty cell, e.g. A43.")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Its row number.")
+    @Output(name = "column", type = OoaType.STRING, description = "Its column letter.")
+    public Map<String, Object> excelFindNextEmptyCell(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "remote_path", type = OoaType.STRING, description = D_BOOK) String remote,
+            @Input(name = "sheet", type = OoaType.STRING, description = D_SHEET) String sheet,
+            @Input(name = "direction", type = OoaType.STRING, required = false, defaultValue = "\"down\"", enumValues = {"down", "right"},
+                    description = "down: after the last value of a column; right: after the last value of a row.") String direction,
+            @Input(name = "column", type = OoaType.STRING, required = false, defaultValue = "\"A\"", pattern = "^[A-Za-z]{1,3}$", visibleWhen = "direction=down", description = "Column letter to look in.") String column,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, visibleWhen = "direction=right", description = "Row number to look in.") int row,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        boolean right = "right".equals(direction);
+        String col = (column == null || column.isBlank() ? "A" : column.strip()).toUpperCase(Locale.ROOT);
+        String line = right ? row + ":" + row : col + ":" + col;
+        Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + "/range(address='" + line + "')/usedRange(valuesOnly=true)") + "?$select=address,rowCount")
+                .bearer(token).send(ctx).map();
+        String a = s(r.get("address"));
+        String cells = a.substring(a.lastIndexOf('!') + 1);
+        boolean empty = cells.isEmpty() || (r.get("rowCount") instanceof Number n && n.intValue() == 0);
+        if (right) {
+            int next = empty ? 1 : bounds(cells)[1][0] + 1;   // column numbers start at 1 (A)
+            return Map.of("cell", colName(next) + row, "row", num(row), "column", colName(next));
+        }
+        int next = empty ? 1 : bounds(cells)[1][1] + 1;
+        return Map.of("cell", col + next, "row", num(next), "column", col);
+    }
+
     @Action(id = "excel_used_range", name = "Get used range (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Find the block of cells on a sheet that holds values, with its last row and column.")
     @Output(name = "address", type = OoaType.STRING, description = "Used range, e.g. A1:F42; empty for an empty sheet.")

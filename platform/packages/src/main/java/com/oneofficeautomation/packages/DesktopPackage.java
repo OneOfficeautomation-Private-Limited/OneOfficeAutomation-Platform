@@ -145,7 +145,7 @@ public final class DesktopPackage {
             @Input(name = "y", type = OoaType.NUMBER, description = "Vertical position.") int y,
             @Input(name = "relative_to", type = OoaType.STRING, required = false, defaultValue = "\"screen\"", enumValues = {"screen", "window"}, description = D_RELATIVE) String relativeTo,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
-            @Input(name = "duration_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Glide to the point over this many milliseconds; 0 jumps there at once.") int duration) {
+            @Input(name = "duration_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Glide to the point over this many milliseconds; 0 jumps there at once.") int duration) {
         String rel = choice("relative_to", relativeTo, "screen", "screen", "window");
         Robot r = DesktopSupport.robot();
         int[] p = target(x, y, rel, focusWindow(window, "window".equals(rel)));
@@ -176,7 +176,7 @@ public final class DesktopPackage {
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Vertical position to scroll at (with x).") Integer y,
             @Input(name = "relative_to", type = OoaType.STRING, required = false, defaultValue = "\"screen\"", enumValues = {"screen", "window"}, description = D_RELATIVE) String relativeTo,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
-            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Pause between notches; 0 scrolls all notches at once.") int delay) {
+            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Pause between notches; 0 scrolls all notches at once.") int delay) {
         String rel = choice("relative_to", relativeTo, "screen", "screen", "window");
         String dir = direction == null || direction.isBlank() ? null : choice("direction", direction, "down", "up", "down", "left", "right");
         int notches = wheel(amount, dir);
@@ -290,12 +290,12 @@ public final class DesktopPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Text to type.") String text,
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"paste\"", enumValues = {"paste", "keystrokes"},
                     description = "paste uses the clipboard (restored afterwards); keystrokes types letters and digits one by one.") String method,
-            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "20", description = "Delay between keystrokes.") int delay,
+            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "20", visibleWhen = "method=keystrokes", min = 0, description = "Delay between keystrokes.") int delay,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
             @Input(name = "special_keys", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Read keys in square brackets: [ENTER], [TAB 3], [CTRL+S], [SHIFT DOWN] ... [SHIFT UP]; [[ types a [.") boolean special,
-            @Input(name = "restore_clipboard", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "With paste, put the previous clipboard content back afterwards.") boolean restore,
-            @Input(name = "delay_before_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Wait this long after bringing the window to the front, before typing.") int before) {
+            @Input(name = "restore_clipboard", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "method=paste", description = "With paste, put the previous clipboard content back afterwards.") boolean restore,
+            @Input(name = "delay_before_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this long after bringing the window to the front, before typing.") int before) {
         String m = choice("method", method, "paste", "paste", "keystrokes");
         List<KeyStep> steps = special ? parseSequence(text) : List.of(KeyStep.text(text));
         UiGuard.before(ctx);
@@ -319,11 +319,11 @@ public final class DesktopPackage {
             description = "Press, hold down or release a key or key combination, e.g. ENTER, CTRL+S or ALT+F4, in the active or a chosen window; repeat if needed.")
     public Map<String, Object> pressKeys(ActionContext ctx,
             @Input(name = "keys", type = OoaType.STRING, example = "CTRL+S", description = "Key or combination joined with +.") String keys,
-            @Input(name = "times", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "How many times to press.") int times,
+            @Input(name = "times", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many times to press.") int times,
             @Input(name = "key_action", type = OoaType.STRING, required = false, defaultValue = "\"press\"", enumValues = {"press", "down", "up"},
                     description = "press presses and releases; down holds the keys; up releases keys held by an earlier step.") String keyAction,
-            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "40", description = "Pause after each press.") int delay,
-            @Input(name = "hold_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "How long to keep the keys down on each press.") int hold,
+            @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "40", min = 0, description = "Pause after each press.") int delay,
+            @Input(name = "hold_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "How long to keep the keys down on each press.") int hold,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window) {
         List<Integer> codes = parseKeys(keys);  // validated before touching the desktop
         String act = choice("key_action", keyAction, "press", "press", "down", "up");
@@ -403,7 +403,7 @@ public final class DesktopPackage {
     @Output(name = "text", type = OoaType.STRING, description = "Clipboard text, empty when it holds no text.")
     @Output(name = "has_text", type = OoaType.BOOLEAN, description = "True when the clipboard held text.")
     public Map<String, Object> clipboardGet(ActionContext ctx,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Keep checking up to this long while the clipboard is empty or busy; 0 reads once.") double wait,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Keep checking up to this long while the clipboard is empty or busy; 0 reads once.") double wait,
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove spaces and line breaks at both ends.") boolean trim) {
         DesktopSupport.requireDesktop();
         long end = System.currentTimeMillis() + (long) (Math.max(0, wait) * 1000);
@@ -495,10 +495,10 @@ public final class DesktopPackage {
     public Map<String, Object> messageBox(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Message text.") String message,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = "Window title.") String title,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Close automatically after this many seconds; 0 waits for OK.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Close automatically after this many seconds; 0 waits for OK.") int timeout,
             @Input(name = "buttons", type = OoaType.STRING, required = false, defaultValue = "\"ok\"", enumValues = {"ok", "ok_cancel", "yes_no", "yes_no_cancel"}, description = "Buttons to show.") String buttons,
             @Input(name = "icon", type = OoaType.STRING, required = false, defaultValue = "\"information\"", enumValues = {"information", "warning", "error", "question", "none"}, description = "Icon next to the message.") String icon,
-            @Input(name = "scroll_after_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Show the message in a scrolling box when it has more lines than this; 0 never scrolls.") int scrollAfter,
+            @Input(name = "scroll_after_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Show the message in a scrolling box when it has more lines than this; 0 never scrolls.") int scrollAfter,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         String btn = choice("buttons", buttons, "ok", "ok", "ok_cancel", "yes_no", "yes_no_cancel");
         String ic = choice("icon", icon, "information", "information", "warning", "error", "question", "none");
@@ -521,20 +521,23 @@ public final class DesktopPackage {
     @Action(id = "prompt_value", name = "Prompt for value", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to type a value, optionally hidden as it is typed.")
     @Output(name = "value", type = OoaType.STRING, description = "Entered text.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when the user cancelled or the prompt timed out.")
+    @Output(name = "timed_out", type = OoaType.BOOLEAN, description = "True when nobody answered in time; value is then the default.")
     public Map<String, Object> promptValue(ActionContext ctx,
             @Input(name = "question", type = OoaType.STRING, description = "Question to show.") String question,
             @Input(name = "default", type = OoaType.STRING, required = false, description = "Pre-filled answer.") String def,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Give up after this many seconds; 0 waits.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = D_TITLE) String title,
             @Input(name = "masked", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Show dots instead of the typed characters. The value is still plain text; use Prompt for password for secrets.") boolean masked,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         DesktopSupport.requireDesktop();
+        boolean[] timedOut = {false};
         String v = onEdt(() -> {
             if (masked) {
                 JPasswordField f = new JPasswordField(def == null ? "" : def, 24);
                 JOptionPane pane = new JOptionPane(new Object[]{question, f}, JOptionPane.QUESTION_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
                 dialog(pane, title, timeout, onTop).setVisible(true);
+                timedOut[0] = pane.getValue() == JOptionPane.UNINITIALIZED_VALUE;
                 if (!Objects.equals(pane.getValue(), JOptionPane.OK_OPTION)) return null;
                 char[] pw = f.getPassword();
                 String s = new String(pw);
@@ -545,10 +548,12 @@ public final class DesktopPackage {
             pane.setWantsInput(true);
             if (def != null) pane.setInitialSelectionValue(def);
             dialog(pane, title, timeout, onTop).setVisible(true);
+            timedOut[0] = pane.getValue() == JOptionPane.UNINITIALIZED_VALUE;   // the timer closed it: nobody pressed a button
             Object in = pane.getInputValue();
             return Objects.equals(pane.getValue(), JOptionPane.OK_OPTION) && in != JOptionPane.UNINITIALIZED_VALUE ? String.valueOf(in) : null;
         });
-        return Out.of("value", v == null ? "" : v, "cancelled", v == null);
+        if (timedOut[0]) return Out.of("value", def == null ? "" : def, "cancelled", true, "timed_out", true);
+        return Out.of("value", v == null ? "" : v, "cancelled", v == null, "timed_out", false);
     }
 
     @Action(id = "prompt_yes_no", name = "Prompt for yes/no", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user a yes/no question.")
@@ -556,10 +561,10 @@ public final class DesktopPackage {
     @Output(name = "timed_out", type = OoaType.BOOLEAN, description = "True when nobody answered before the timeout (or the window was closed).")
     public Map<String, Object> promptYesNo(ActionContext ctx,
             @Input(name = "question", type = OoaType.STRING, description = "Question to show.") String question,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Answer No after this many seconds; 0 waits.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Answer No after this many seconds; 0 waits.") int timeout,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = D_TITLE) String title,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
-            @Input(name = "answer_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Answer used when the prompt times out or is closed without a choice.") boolean onTimeout) {
+            @Input(name = "answer_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "timeout_seconds!=0", description = "Answer used when the prompt times out or is closed without a choice.") boolean onTimeout) {
         DesktopSupport.requireDesktop();
         Object v = onEdt(() -> {
             JOptionPane pane = new JOptionPane(question, JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION);
@@ -577,7 +582,7 @@ public final class DesktopPackage {
     public Map<String, Object> promptPassword(ActionContext ctx,
             @Input(name = "question", type = OoaType.STRING, required = false, defaultValue = "\"Enter password\"", description = "Prompt text.") String question,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"ONEOFFICEAUTOMATION\"", description = D_TITLE) String title,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Stop waiting after this many seconds (the step then fails as cancelled); 0 waits.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Stop waiting after this many seconds (the step then fails as cancelled); 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         DesktopSupport.requireDesktop();
         char[] pw = onEdt(() -> {
@@ -639,7 +644,7 @@ public final class DesktopPackage {
             @Input(name = "start_folder", type = OoaType.FILE, required = false, description = "Folder to start in.") String start,
             @Input(name = "file_types", type = OoaType.STRING, required = false, example = "pdf, xlsx", description = "Only show files with these extensions; all files when empty.") String fileTypes,
             @Input(name = "multiple", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Let the user choose several files.") boolean multiple,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Give up after this many seconds; 0 waits.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         return pick(title, false, start, ctx, extensions(fileTypes), multiple, timeout, onTop);
     }
@@ -650,7 +655,7 @@ public final class DesktopPackage {
     public Map<String, Object> promptFolder(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, defaultValue = "\"Choose a folder\"", description = "Dialog title.") String title,
             @Input(name = "start_folder", type = OoaType.FILE, required = false, description = "Folder to start in.") String start,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Give up after this many seconds; 0 waits.") int timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Give up after this many seconds; 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         Map<String, Object> r = pick(title, true, start, ctx, List.of(), false, timeout, onTop);
         r.remove("paths");

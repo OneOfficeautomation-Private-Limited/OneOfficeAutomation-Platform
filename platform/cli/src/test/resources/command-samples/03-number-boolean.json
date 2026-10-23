@@ -1,0 +1,15 @@
+[
+  {"command": "ooa.number/increment", "name": "by step", "vars": {"n": 5}, "steps": [{"action": "ooa.number/increment", "args": {"value": "$n", "step": 2.5}, "out": {"result": "n"}}], "expect": {"n": 7.5}},
+  {"command": "ooa.number/decrement", "name": "by one", "vars": {"n": 5}, "steps": [{"action": "ooa.number/decrement", "args": {"value": "$n"}, "out": {"result": "n"}}], "expect": {"n": 4}},
+  {"command": "ooa.number/round", "name": "half even", "steps": [{"action": "ooa.number/round", "args": {"value": 2.5, "mode": "half_even"}, "out": {"result": "r"}}], "expect": {"r": 2}},
+  {"command": "ooa.number/format", "name": "German thousands", "steps": [{"action": "ooa.number/format", "args": {"value": 1234.5, "decimals": 2, "locale": "de-DE"}, "out": {"text": "t"}}], "expect": {"t": "1.234,50"}},
+  {"command": "ooa.number/to_text", "name": "truncate", "steps": [{"action": "ooa.number/to_text", "args": {"value": 2.789, "decimals": 2, "rounding": "truncate"}, "out": {"text": "t"}}], "expect": {"t": "2.78"}},
+  {"command": "ooa.number/random", "name": "within range", "steps": [{"action": "ooa.number/random", "args": {"min": 1, "max": 3}, "out": {"result": "r"}},
+     {"action": "core/set", "args": {"variable": "ok", "value": {"expr": "$r >= 1 and $r <= 3"}}}], "expect": {"ok": true}},
+  {"command": "ooa.boolean/compare", "name": "order output", "steps": [{"action": "ooa.boolean/compare", "args": {"value": true, "other": false}, "out": {"result": "eq", "order": "o"}}], "expect": {"eq": false, "o": 1}},
+  {"command": "ooa.boolean/from_text", "name": "yes is true", "steps": [{"action": "ooa.boolean/from_text", "args": {"text": "Yes"}, "out": {"result": "b"}}], "expect": {"b": true}},
+  {"command": "ooa.boolean/from_text", "name": "strict rejects unknown", "steps": [{"action": "ooa.boolean/from_text", "args": {"text": "maybe"}}], "error": "BOOLEAN.INVALID"},
+  {"command": "ooa.boolean/invert", "name": "inverts", "steps": [{"action": "ooa.boolean/invert", "args": {"value": true}, "out": {"result": "b"}}], "expect": {"b": false}},
+  {"command": "ooa.boolean/to_number", "name": "true is 1", "steps": [{"action": "ooa.boolean/to_number", "args": {"value": true}, "out": {"result": "n"}}], "expect": {"n": 1}},
+  {"command": "ooa.boolean/to_text", "name": "custom words", "steps": [{"action": "ooa.boolean/to_text", "args": {"value": false, "true_text": "Ja", "false_text": "Nein"}, "out": {"text": "t"}}], "expect": {"t": "Nein"}}
+]

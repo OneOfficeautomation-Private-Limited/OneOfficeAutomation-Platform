@@ -102,9 +102,32 @@ public final class CsvPackage {
         return Values.table(cols, data);
     }
 
+    private static final java.util.regex.Pattern NUMBER = java.util.regex.Pattern.compile("-?(0|[1-9]\\d*)(\\.\\d+)?");
+    private static final java.util.regex.Pattern ISO_DATE = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}([T ]\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?)?");
+
+    /**
+     * A typed value for text that is clearly a number, true/false or an ISO date; anything else (including codes with
+     * leading zeros such as 00123, which are usually identifiers) stays text.
+     */
+    static Object typed(Object v) {
+        if (!(v instanceof String s) || s.isEmpty()) return v;
+        if (NUMBER.matcher(s).matches()) return new java.math.BigDecimal(s);
+        if (s.equalsIgnoreCase("true") || s.equalsIgnoreCase("false")) return Boolean.parseBoolean(s);
+        if (ISO_DATE.matcher(s).matches()) {
+            try { return s.length() == 10 ? java.time.LocalDate.parse(s).atStartOfDay() : java.time.LocalDateTime.parse(s.replace(' ', 'T')); }
+            catch (java.time.DateTimeException e) { return v; }
+        }
+        return v;
+    }
+
+    private static Map<String, Object> typedTable(Map<String, Object> t) {
+        for (List<Object> r : DataTablePackage.rows(t)) r.replaceAll(CsvPackage::typed);
+        return t;
+    }
+
     @Action(id = "read", name = "Read to table", category = "CSV", idempotent = true, capabilities = "filesystem",
             description = "Read a CSV or delimited text file into a table.")
-    @Output(name = "table", type = OoaType.TABLE, description = "Table of text values.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Table of text values (typed values with detect_types).")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
     public Map<String, Object> read(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
@@ -113,10 +136,13 @@ public final class CsvPackage {
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, utf-8-bom, ansi, unicode, utf-16, windows-1251 ...") String enc,
             @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
                     description = "Remove spaces at the start and/or end of every value.") String trim,
-            @Input(name = "skip_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Lines to skip at the top of the file, before the header.") int skipLines,
-            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, description = "Read at most this many data rows; all when empty.") Integer maxRows,
-            @Input(name = "skip_empty_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out rows whose values are all empty (blank lines are always skipped).") boolean skipEmptyRows) {
+            @Input(name = "skip_lines", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Lines to skip at the top of the file, before the header.") int skipLines,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, min = 0, description = "Read at most this many data rows; all when empty.") Integer maxRows,
+            @Input(name = "skip_empty_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out rows whose values are all empty (blank lines are always skipped).") boolean skipEmptyRows,
+            @Input(name = "detect_types", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Turn values that are clearly numbers, true/false or ISO dates (2026-10-23) into typed values; codes with leading zeros stay text.") boolean detectTypes) {
         Map<String, Object> t = load(ctx, path, d, header, enc, trim, skipLines, maxRows, skipEmptyRows);
+        if (detectTypes) typedTable(t);
         return Out.of("table", t, "row_count", java.math.BigDecimal.valueOf(((List<?>) t.get("rows")).size()));
     }
 
@@ -127,8 +153,11 @@ public final class CsvPackage {
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding.") String enc,
             @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
-                    description = "Remove spaces at the start and/or end of every value.") String trim) {
+                    description = "Remove spaces at the start and/or end of every value.") String trim,
+            @Input(name = "detect_types", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Turn values that are clearly numbers, true/false or ISO dates into typed values.") boolean detectTypes) {
         Map<String, Object> t = load(ctx, path, d, header, enc, trim, 0, null, false);
+        if (detectTypes) typedTable(t);
         List<String> cols = DataTablePackage.cols(t);
         List<Object> out = new ArrayList<>();
         for (List<Object> r : DataTablePackage.rows(t)) {

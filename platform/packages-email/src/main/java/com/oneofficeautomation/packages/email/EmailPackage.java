@@ -25,10 +25,17 @@ public final class EmailPackage {
         final Store store;
         final boolean pop3;
         final Map<String, Folder> open = new HashMap<>();
+        /** Outgoing server kept with the mailbox, so send, reply and forward can leave the SMTP fields empty. */
+        Smtp smtp;
         MailSession(Store s) { this(s, false); }
         MailSession(Store s, boolean pop3) { store = s; this.pop3 = pop3; }
         Folder folder(String name) throws MessagingException {
             Folder f = open.get(name);
+            if (f instanceof org.eclipse.angus.mail.imap.IMAPFolder imap && f.isOpen()) {
+                // an open folder only learns about emails moved or delivered into it since it was opened on the next
+                // server round trip; without it, later steps in the run would work on a stale list
+                imap.doCommand(p -> { p.simpleCommand("NOOP", null); return null; });
+            }
             if (f == null || !f.isOpen()) {
                 f = store.getFolder(name);
                 if (!f.exists()) throw new ActionException("EMAIL.NO_FOLDER", "Mail folder '" + name + "' not found", "Use Get folders to see the exact names.");
@@ -41,6 +48,39 @@ public final class EmailPackage {
             for (Folder f : open.values()) if (f.isOpen()) f.close(true);
             store.close();
         }
+    }
+
+    /** Where and how to send: the step's own SMTP fields, or the outgoing server kept by Connect. */
+    record Smtp(String host, int port, String security, String user, Object password, Object token) {
+        /** Without a password or token the server is used without signing in (an internal relay). */
+        boolean signIn() { return password != null || token != null; }
+
+        Session session() {
+            Properties p = props("smtp", host, port, security, token != null);
+            if (!signIn()) p.put("mail.smtp.auth", "false");
+            return Session.getInstance(p);
+        }
+
+        void connect(Transport t) throws MessagingException {
+            if (signIn()) t.connect(host, port, user, secret(password, token)); else t.connect(host, port, null, null);
+        }
+    }
+
+    static Smtp smtp(ActionContext ctx, String session, String host, int port, String security, String user, Object password, Object token) {
+        if (host != null && !host.isBlank()) {
+            if ((password != null || token != null) && (user == null || user.isBlank()))
+                throw new ActionException("EMAIL.BAD_INPUT", "Give the user that signs in to " + host, "Fill in user.");
+            return new Smtp(host, port, security, user, password, token);
+        }
+        Object o = session == null ? null : ctx.sessions().get(session);
+        if (o instanceof MailSession m && m.smtp != null) {
+            Smtp k = m.smtp;
+            boolean own = password != null || token != null;
+            return new Smtp(k.host(), k.port(), k.security(), user == null || user.isBlank() ? k.user() : user,
+                    own ? password : k.password(), own ? token : k.token());
+        }
+        throw new ActionException("EMAIL.NO_SMTP", "No outgoing (SMTP) server for this step",
+                "Fill in smtp_host and user, or give Connect an smtp_host so the mailbox session can send.");
     }
 
     private static ActionException mail(MessagingException e) {
@@ -89,11 +129,12 @@ public final class EmailPackage {
             description = "Send an email (plain text or HTML) with optional CC, BCC and attachments through an SMTP server.")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the sent email.")
     public Map<String, Object> send(ActionContext ctx,
-            @Input(name = "smtp_host", type = OoaType.STRING, example = "smtp.office365.com", description = "SMTP server.") String host,
+            @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "587", description = "587 for STARTTLS, 465 for SSL.") int port,
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
-            @Input(name = "user", type = OoaType.STRING, description = "Mailbox user name.") String user,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name; the mailbox session's user when empty.") String user,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Password or app password from the vault; with neither password nor token the server is used without signing in (internal relay).") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token (Microsoft 365, Gmail) from the vault.") Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
             @Input(name = "to", description = "Recipient address(es): text separated by , or ; or a List.") Object to,
@@ -108,14 +149,16 @@ public final class EmailPackage {
             @Input(name = "reply_to", required = false, description = "Address(es) that replies go to, when not the sender.") Object replyTo,
             @Input(name = "read_receipt", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ask the recipient's mail program to confirm when the email is opened.") boolean receipt,
             @Input(name = "inline_images", type = OoaType.LIST, required = false,
-                    description = "HTML body only: image files embedded in the email; refer to each in the body as cid: plus its file name, e.g. <img src=\"cid:logo.png\">.") List<Object> inline) {
-        boolean oauth = token != null;
-        Session session = Session.getInstance(props("smtp", host, port, security, oauth));
+                    description = "HTML body only: image files embedded in the email; refer to each in the body as cid: plus its file name, e.g. <img src=\"cid:logo.png\">.") List<Object> inline,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"",
+                    description = "Mailbox session whose outgoing server is used when smtp_host is empty.") String mailSession) {
+        Smtp k = smtp(ctx, mailSession, host, port, security, user, password, token);
+        Session session = k.session();
         try {
-            MimeMessage msg = buildMessage(session, from != null && !from.isBlank() ? from : user, to, cc, bcc, subject, body, html,
+            MimeMessage msg = buildMessage(session, from != null && !from.isBlank() ? from : k.user(), to, cc, bcc, subject, body, html,
                     fileParts(ctx, attachments), inlineParts(ctx, inline), importance, replyTo, receipt);
             try (Transport t = session.getTransport("smtp")) {
-                t.connect(host, port, user, secret(password, token));
+                k.connect(t);
                 t.sendMessage(msg, msg.getAllRecipients());
             }
             ctx.info("Sent '" + subject + "' to " + Arrays.toString(msg.getRecipients(Message.RecipientType.TO)));
@@ -158,8 +201,14 @@ public final class EmailPackage {
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"ssl\"", enumValues = {"ssl", "starttls", "none"}, description = "Connection security.") String security,
             @Input(name = "shared_mailbox", type = OoaType.STRING, required = false, example = "invoices@acme.com",
                     description = "Open this shared mailbox with the user's own sign-in (Exchange and Microsoft 365; the user needs full access to it).") String shared,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "15", description = "How long to wait for the server to answer when connecting.") int timeout,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "15", min = 1, max = 300, description = "How long to wait for the server to answer when connecting.") int timeout,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session,
+            @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com",
+                    description = "Outgoing server to keep with this session, so Send, Reply and Forward need no server or sign-in of their own.") String smtpHost,
+            @Input(name = "smtp_port", type = OoaType.NUMBER, required = false, defaultValue = "587", visibleWhen = "smtp_host!=", min = 1, max = 65535,
+                    description = "587 for STARTTLS, 465 for SSL.") int smtpPort,
+            @Input(name = "smtp_security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, visibleWhen = "smtp_host!=",
+                    description = "Outgoing connection security.") String smtpSecurity) {
         String proto = storeProtocol(protocol, security);
         int p = readPort(proto, security, port);
         String sec = security == null || security.isBlank() ? "ssl" : security.trim().toLowerCase(Locale.ROOT);
@@ -167,7 +216,10 @@ public final class EmailPackage {
             Session s = Session.getInstance(props(proto, host, p, sec, token != null, timeout));
             Store store = s.getStore(proto);
             store.connect(host, p, loginName(user, shared, token != null), secret(password, token));
-            ctx.sessions().put(session, new MailSession(store, proto.startsWith("pop3")));
+            MailSession m = new MailSession(store, proto.startsWith("pop3"));
+            if (smtpHost != null && !smtpHost.isBlank())
+                m.smtp = new Smtp(smtpHost.strip(), smtpPort, smtpSecurity == null || smtpSecurity.isBlank() ? "starttls" : smtpSecurity, user, password, token);
+            ctx.sessions().put(session, m);
         } catch (MessagingException e) { throw mail(e); }
         return Map.of();
     }
@@ -465,7 +517,7 @@ public final class EmailPackage {
 
     // ------------------------------------------------------------------ forward, reply, bulk actions and .eml
 
-    private static final String D_SMTP = "SMTP server used to send, e.g. smtp.office365.com.";
+    private static final String D_SMTP = "SMTP server used to send, e.g. smtp.office365.com; when empty, the outgoing server kept by Connect (smtp_host there).";
     private static final String D_SESSION = "Session name of the open mailbox.";
 
     /** Messages matching the filter, or every message in the folder when no filter is given. */
@@ -736,10 +788,10 @@ public final class EmailPackage {
         return p;
     }
 
-    private static void smtpSend(MimeMessage msg, String host, int port, String security, String user, Object password, Object token) throws MessagingException {
-        Session session = Session.getInstance(props("smtp", host, port, security, token != null));
+    private static void smtpSend(MimeMessage msg, Smtp k) throws MessagingException {
+        Session session = k.session();
         try (Transport t = session.getTransport("smtp")) {
-            t.connect(host, port, user, secret(password, token));
+            k.connect(t);
             t.sendMessage(msg, msg.getAllRecipients());
         }
     }
@@ -756,10 +808,10 @@ public final class EmailPackage {
             @Input(name = "note", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Text placed above the forwarded email.") String note,
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Note is HTML.") boolean html,
             @Input(name = "as_attachment", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Attach the original as an .eml file instead of quoting it.") boolean asAttachment,
-            @Input(name = "smtp_host", type = OoaType.STRING, example = "smtp.office365.com", description = D_SMTP) String host,
+            @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "587", description = "587 for STARTTLS, 465 for SSL.") int port,
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
-            @Input(name = "user", type = OoaType.STRING, description = "Mailbox user name for SMTP sign-in.") String user,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name for SMTP sign-in; the session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
@@ -771,9 +823,10 @@ public final class EmailPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
         try {
             Message orig = byUid(ms(ctx, session).folder(folder), id);
-            MimeMessage msg = buildForward(Session.getInstance(props("smtp", host, port, security, token != null)), orig, sender(from, user), to, cc, bcc, note, html, asAttachment,
+            Smtp k = smtp(ctx, session, host, port, security, user, password, token);
+            MimeMessage msg = buildForward(k.session(), orig, sender(from, k.user()), to, cc, bcc, note, html, asAttachment,
                     fileParts(ctx, attachments), importance, replyTo);
-            smtpSend(msg, host, port, security, user, password, token);
+            smtpSend(msg, k);
             ctx.info("Forwarded email " + id + " to " + addressText(msg.getRecipients(Message.RecipientType.TO)));
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
         } catch (MessagingException e) { throw mail(e);
@@ -785,8 +838,9 @@ public final class EmailPackage {
                                           Object cc, Object bcc, String importance, Object replyTo, boolean excludeSender, String session) {
         try {
             Message orig = byUid(ms(ctx, session).folder(folder), id);
-            MimeMessage msg = buildReply(orig, sender(from, user), body, html, all, include, fileParts(ctx, attachments), cc, bcc, importance, replyTo, excludeSender);
-            smtpSend(msg, host, port, security, user, password, token);
+            Smtp k = smtp(ctx, session, host, port, security, user, password, token);
+            MimeMessage msg = buildReply(orig, sender(from, k.user()), body, html, all, include, fileParts(ctx, attachments), cc, bcc, importance, replyTo, excludeSender);
+            smtpSend(msg, k);
             try { orig.setFlag(Flags.Flag.ANSWERED, true); } catch (MessagingException ignored) { }
             ctx.info("Replied to email " + id);
             return Map.of("message_id", Objects.toString(msg.getMessageID(), ""));
@@ -803,10 +857,10 @@ public final class EmailPackage {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
             @Input(name = "include_original", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Quote the original email below the reply.") boolean include,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
-            @Input(name = "smtp_host", type = OoaType.STRING, example = "smtp.office365.com", description = D_SMTP) String host,
+            @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "587", description = "587 for STARTTLS, 465 for SSL.") int port,
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
-            @Input(name = "user", type = OoaType.STRING, description = "Mailbox user name for SMTP sign-in.") String user,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name for SMTP sign-in; the session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty.") String from,
@@ -828,10 +882,10 @@ public final class EmailPackage {
             @Input(name = "html", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Body is HTML.") boolean html,
             @Input(name = "include_original", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Quote the original email below the reply.") boolean include,
             @Input(name = "attachments", type = OoaType.LIST, required = false, description = "File paths to attach.") List<Object> attachments,
-            @Input(name = "smtp_host", type = OoaType.STRING, example = "smtp.office365.com", description = D_SMTP) String host,
+            @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "587", description = "587 for STARTTLS, 465 for SSL.") int port,
             @Input(name = "security", type = OoaType.STRING, required = false, defaultValue = "\"starttls\"", enumValues = {"starttls", "ssl", "none"}, description = "Connection security.") String security,
-            @Input(name = "user", type = OoaType.STRING, description = "Mailbox user name for SMTP sign-in.") String user,
+            @Input(name = "user", type = OoaType.STRING, required = false, description = "Mailbox user name for SMTP sign-in; the session's user when empty.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password or app password from the vault.") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth 2.0 access token from the vault.") Object token,
             @Input(name = "from", type = OoaType.STRING, required = false, description = "Sender address; the user when empty; also left out of the recipients.") String from,

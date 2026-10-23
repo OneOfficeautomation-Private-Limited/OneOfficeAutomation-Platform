@@ -1,0 +1,914 @@
+[
+ {
+  "command": "core/set",
+  "name": "expression",
+  "vars": {
+   "a": 2
+  },
+  "steps": [
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "b",
+     "value": {
+      "expr": "$a * 21"
+     }
+    }
+   }
+  ],
+  "expect": {
+   "b": 42
+  }
+ },
+ {
+  "command": "core/set",
+  "name": "text with interpolation",
+  "vars": {
+   "n": "Ann"
+  },
+  "steps": [
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "t",
+     "value": "Hello ${n}!"
+    }
+   }
+  ],
+  "expect": {
+   "t": "Hello Ann!"
+  }
+ },
+ {
+  "command": "core/if",
+  "name": "else-if branch",
+  "vars": {
+   "amount": 500,
+   "band": ""
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "op": "gt",
+      "left": "$amount",
+      "right": 1000
+     }
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "band",
+       "value": "high"
+      }
+     }
+    ],
+    "elseIf": [
+     {
+      "condition": {
+       "op": "between",
+       "left": "$amount",
+       "right": [
+        100,
+        1000
+       ]
+      },
+      "children": [
+       {
+        "action": "core/set",
+        "args": {
+         "variable": "band",
+         "value": "mid"
+        }
+       }
+      ]
+     }
+    ],
+    "else": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "band",
+       "value": "low"
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "band": "mid"
+  }
+ },
+ {
+  "command": "core/if",
+  "name": "ignore case and all-of group",
+  "vars": {
+   "s": "  Paid ",
+   "ok": false
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "all": [
+       {
+        "op": "eq",
+        "left": "$s",
+        "right": "PAID",
+        "ignoreCase": true,
+        "trim": true
+       },
+       "len($s) > 2"
+      ]
+     }
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": true
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "core/loop",
+  "name": "times with start and step",
+  "vars": {
+   "sum": 0
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "times",
+     "count": 4,
+     "start": 10,
+     "step": 5,
+     "as": "i"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "sum",
+       "value": {
+        "expr": "$sum + $i"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "sum": 70,
+   "i": 25
+  }
+ },
+ {
+  "command": "core/loop",
+  "name": "list range reversed with index",
+  "vars": {
+   "items": [
+    "a",
+    "b",
+    "c",
+    "d"
+   ],
+   "out": ""
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "list",
+     "over": "$items",
+     "from_index": 1,
+     "to_index": 2,
+     "reverse": true,
+     "as": "x",
+     "index": "k"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "out",
+       "value": "${out}${x}${k}"
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "out": "c2b1"
+  }
+ },
+ {
+  "command": "core/loop",
+  "name": "while checked at end",
+  "vars": {
+   "n": 5
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "while",
+     "condition": {
+      "op": "lt",
+      "left": "$n",
+      "right": 3
+     },
+     "check_at_end": true
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "n",
+       "value": {
+        "expr": "$n + 1"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "n": 6
+  }
+ },
+ {
+  "command": "core/loop",
+  "name": "dictionary values",
+  "vars": {
+   "d": {
+    "a": 1,
+    "b": 2
+   },
+   "sum": 0
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "dictionary_values",
+     "over": "$d",
+     "as": "v"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "sum",
+       "value": {
+        "expr": "$sum + $v"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "sum": 3
+  }
+ },
+ {
+  "command": "core/loop",
+  "name": "table rows",
+  "vars": {
+   "t": {
+    "columns": [
+     "n"
+    ],
+    "rows": [
+     [
+      1
+     ],
+     [
+      2
+     ],
+     [
+      3
+     ]
+    ]
+   },
+   "sum": 0
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "table_rows",
+     "over": "$t",
+     "as": "row"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "sum",
+       "value": {
+        "expr": "$sum + $row.n"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "sum": 6
+  }
+ },
+ {
+  "command": "core/loop",
+  "name": "safety limit",
+  "vars": {
+   "n": 0
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "while",
+     "condition": "true",
+     "max_iterations": 3
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "n",
+       "value": {
+        "expr": "$n + 1"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "error": "LOOP.LIMIT"
+ },
+ {
+  "command": "core/break",
+  "name": "labelled outer loop",
+  "vars": {
+   "hits": 0
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "times",
+     "count": 3,
+     "label": "outer"
+    },
+    "children": [
+     {
+      "action": "core/loop",
+      "args": {
+       "iterator": "times",
+       "count": 3,
+       "as": "j"
+      },
+      "children": [
+       {
+        "action": "core/set",
+        "args": {
+         "variable": "hits",
+         "value": {
+          "expr": "$hits + 1"
+         }
+        }
+       },
+       {
+        "action": "core/if",
+        "args": {
+         "condition": "$j == 1"
+        },
+        "children": [
+         {
+          "action": "core/break",
+          "args": {
+           "label": "outer"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "hits": 2
+  }
+ },
+ {
+  "command": "core/continue",
+  "name": "skip even",
+  "vars": {
+   "odd": 0
+  },
+  "steps": [
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "times",
+     "count": 5,
+     "as": "i"
+    },
+    "children": [
+     {
+      "action": "core/if",
+      "args": {
+       "condition": "$i % 2 == 0"
+      },
+      "children": [
+       {
+        "action": "core/continue"
+       }
+      ]
+     },
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "odd",
+       "value": {
+        "expr": "$odd + 1"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "odd": 2
+  }
+ },
+ {
+  "command": "core/try",
+  "name": "catch by code, message and line",
+  "vars": {
+   "msg": "",
+   "fin": false
+  },
+  "steps": [
+   {
+    "action": "core/try",
+    "children": [
+     {
+      "action": "core/throw",
+      "args": {
+       "code": "BUSINESS.NO_INVOICE",
+       "message": "Invoice missing"
+      }
+     }
+    ],
+    "catch": [
+     {
+      "codes": [
+       "BUSINESS.*"
+      ],
+      "as": "err",
+      "message_to": "msg",
+      "children": []
+     }
+    ],
+    "finally": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "fin",
+       "value": true
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "msg": "Invoice missing",
+   "fin": true,
+   "err": {
+    "$type": "object"
+   }
+  }
+ },
+ {
+  "command": "core/throw",
+  "name": "uncaught custom error",
+  "steps": [
+   {
+    "action": "core/throw",
+    "args": {
+     "code": "BUSINESS.DUPLICATE",
+     "message": "Seen before",
+     "retryable": false
+    }
+   }
+  ],
+  "error": "BUSINESS.DUPLICATE"
+ },
+ {
+  "command": "core/step",
+  "name": "group runs its children",
+  "vars": {
+   "x": 0
+  },
+  "steps": [
+   {
+    "action": "core/step",
+    "args": {
+     "title": "Prepare"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "x",
+       "value": 1
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "x": 1
+  }
+ },
+ {
+  "command": "core/comment",
+  "name": "no effect",
+  "vars": {
+   "x": 1
+  },
+  "steps": [
+   {
+    "action": "core/comment",
+    "args": {
+     "text": "note"
+    }
+   }
+  ],
+  "expect": {
+   "x": 1
+  }
+ },
+ {
+  "command": "core/log",
+  "name": "logs with level",
+  "vars": {
+   "x": 1
+  },
+  "steps": [
+   {
+    "action": "core/log",
+    "args": {
+     "message": "x is ${x}",
+     "level": "warning"
+    }
+   }
+  ],
+  "expect": {
+   "x": 1
+  }
+ },
+ {
+  "command": "core/delay",
+  "name": "milliseconds",
+  "vars": {
+   "done": false
+  },
+  "steps": [
+   {
+    "action": "core/delay",
+    "args": {
+     "seconds": 20,
+     "unit": "milliseconds"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "done",
+     "value": true
+    }
+   }
+  ],
+  "expect": {
+   "done": true
+  }
+ },
+ {
+  "command": "core/delay",
+  "name": "minutes unit (new)",
+  "vars": {
+   "done": false
+  },
+  "steps": [
+   {
+    "action": "core/delay",
+    "args": {
+     "seconds": 0.0005,
+     "unit": "minutes"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "done",
+     "value": true
+    }
+   }
+  ],
+  "expect": {
+   "done": true
+  }
+ },
+ {
+  "command": "core/delay",
+  "name": "bad range",
+  "steps": [
+   {
+    "action": "core/delay",
+    "args": {
+     "seconds": 2,
+     "random_max": 1
+    }
+   }
+  ],
+  "error": "DELAY.BAD_RANGE"
+ },
+ {
+  "command": "core/wait_until",
+  "name": "carry on after timeout",
+  "vars": {
+   "never": false
+  },
+  "steps": [
+   {
+    "action": "core/wait_until",
+    "args": {
+     "condition": "$never",
+     "timeout_seconds": 0.2,
+     "poll_seconds": 0.05,
+     "fail_on_timeout": false
+    },
+    "out": {
+     "met": "met"
+    }
+   }
+  ],
+  "expect": {
+   "met": false
+  }
+ },
+ {
+  "command": "core/wait_until",
+  "name": "fails on timeout",
+  "steps": [
+   {
+    "action": "core/wait_until",
+    "args": {
+     "condition": "false",
+     "timeout_seconds": 0.1,
+     "poll_seconds": 0.05
+    }
+   }
+  ],
+  "error": "WAIT.TIMEOUT"
+ },
+ {
+  "command": "core/parallel",
+  "name": "branches all run",
+  "vars": {
+   "a": 0,
+   "b": 0
+  },
+  "steps": [
+   {
+    "action": "core/parallel",
+    "args": {
+     "max_concurrency": 2
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "a",
+       "value": 1
+      }
+     },
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "b",
+       "value": 2
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "a": 1,
+   "b": 2
+  }
+ },
+ {
+  "command": "core/pause",
+  "name": "resumes after its timeout",
+  "vars": {
+   "after": false
+  },
+  "steps": [
+   {
+    "action": "core/pause",
+    "args": {
+     "message": "check",
+     "timeout_seconds": 0.1
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "after",
+     "value": true
+    }
+   }
+  ],
+  "expect": {
+   "after": true
+  }
+ },
+ {
+  "command": "core/stop",
+  "name": "ends the run, finally still runs",
+  "vars": {
+   "after": false,
+   "fin": false
+  },
+  "steps": [
+   {
+    "action": "core/try",
+    "children": [
+     {
+      "action": "core/stop",
+      "args": {
+       "message": "done early"
+      }
+     },
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "after",
+       "value": true
+      }
+     }
+    ],
+    "finally": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "fin",
+       "value": true
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "after": false,
+   "fin": true
+  }
+ },
+ {
+  "command": "core/stop",
+  "name": "failed status",
+  "steps": [
+   {
+    "action": "core/stop",
+    "args": {
+     "status": "failed",
+     "message": "bad data"
+    }
+   }
+  ],
+  "error": "AGENT.STOPPED"
+ },
+ {
+  "command": "core/run_bot",
+  "name": "inputs and output map",
+  "agents": {
+   "double": {
+    "kind": "TaskBot",
+    "id": "double",
+    "name": "double",
+    "variables": [
+     {
+      "name": "n",
+      "type": "Number",
+      "direction": "input",
+      "required": true
+     },
+     {
+      "name": "r",
+      "type": "Number",
+      "direction": "output",
+      "default": 0
+     }
+    ],
+    "steps": [
+     {
+      "id": "1",
+      "action": "core/set",
+      "args": {
+       "variable": "r",
+       "value": {
+        "expr": "$n * 2"
+       }
+      }
+     }
+    ]
+   }
+  },
+  "vars": {
+   "x": 21,
+   "y": 0
+  },
+  "steps": [
+   {
+    "action": "core/run_bot",
+    "args": {
+     "automation": "double",
+     "inputs": {
+      "n": "$x"
+     },
+     "output_map": {
+      "r": "y"
+     },
+     "repeat": 2
+    },
+    "out": {
+     "status": "st",
+     "runs": "runs"
+    }
+   }
+  ],
+  "expect": {
+   "y": 42,
+   "st": "success",
+   "runs": 2
+  }
+ },
+ {
+  "command": "core/run_bot",
+  "name": "child fails, parent carries on",
+  "agents": {
+   "bad": {
+    "kind": "TaskBot",
+    "id": "bad",
+    "name": "bad",
+    "variables": [],
+    "steps": [
+     {
+      "id": "1",
+      "action": "core/throw",
+      "args": {
+       "code": "BUSINESS.X",
+       "message": "no"
+      }
+     }
+    ]
+   }
+  },
+  "steps": [
+   {
+    "action": "core/run_bot",
+    "args": {
+     "automation": "bad",
+     "fail_on_error": false
+    },
+    "out": {
+     "status": "st",
+     "error": "err"
+    }
+   }
+  ],
+  "expect": {
+   "st": "failed",
+   "err": {
+    "$type": "object"
+   }
+  }
+ }
+]

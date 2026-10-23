@@ -119,11 +119,55 @@ public final class WindowPackage {
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the activated window.")
     public Map<String, Object> activate(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) {
         Win w = locate(ctx, title, alternatives, wait);
-        User32.INSTANCE.ShowWindow(w.hwnd(), SW_RESTORE);
-        User32.INSTANCE.SetForegroundWindow(w.hwnd());
+        if (!bringToFront(w.hwnd()))
+            throw new ActionException("WINDOW.NOT_ACTIVATED", "Windows did not let '" + w.title() + "' come to the front",
+                    "Another program is holding the focus (for example a full-screen or elevated window); close it, or run the agent with the desktop unlocked.", true);
         return Map.of("title", w.title());
+    }
+
+    /** user32 calls for bringToFront that the bundled JNA User32 mapping does not declare. */
+    interface Focus extends com.sun.jna.Library {
+        Focus INSTANCE = loadFocus();
+        boolean IsIconic(WinDef.HWND hWnd);
+        boolean BringWindowToTop(WinDef.HWND hWnd);
+        boolean AttachThreadInput(int idAttach, int idAttachTo, boolean attach);
+        void keybd_event(byte vk, byte scan, int flags, com.sun.jna.Pointer extraInfo);
+    }
+
+    private static Focus loadFocus() {
+        try { return Native.load("user32", Focus.class); } catch (UnsatisfiedLinkError | NoClassDefFoundError e) { return null; }
+    }
+
+    /**
+     * Brings a window to the front and checks that it got there. Windows refuses SetForegroundWindow to a process that
+     * is not in front itself, so on a refusal the input of the current foreground thread is attached for a moment and
+     * an ALT tap is sent (which lifts the lock), then the call is repeated.
+     */
+    static boolean bringToFront(WinDef.HWND h) {
+        User32 u = User32.INSTANCE;
+        Focus f = Focus.INSTANCE;
+        if (f != null && f.IsIconic(h)) u.ShowWindow(h, SW_RESTORE); else u.ShowWindow(h, WinUser.SW_SHOW);
+        u.SetForegroundWindow(h);
+        for (int attempt = 0; attempt < 3; attempt++) {
+            if (h.equals(u.GetForegroundWindow())) return true;
+            WinDef.HWND fg = u.GetForegroundWindow();
+            int fgThread = fg == null ? 0 : u.GetWindowThreadProcessId(fg, new IntByReference());
+            int me = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetCurrentThreadId();
+            if (f == null) break;
+            boolean attached = fgThread != 0 && fgThread != me && f.AttachThreadInput(me, fgThread, true);
+            try {
+                f.keybd_event((byte) 0x12, (byte) 0, 0, null);   // ALT down
+                f.keybd_event((byte) 0x12, (byte) 0, 2, null);   // ALT up
+                f.BringWindowToTop(h);
+                u.SetForegroundWindow(h);
+            } finally {
+                if (attached) f.AttachThreadInput(me, fgThread, false);
+            }
+            try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+        }
+        return h.equals(u.GetForegroundWindow());
     }
 
     private Map<String, Object> show(ActionContext ctx, String title, Map<String, Object> alternatives, double wait, int cmd) {
@@ -136,19 +180,19 @@ public final class WindowPackage {
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> maximize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) { return show(ctx, title, alternatives, wait, SW_MAXIMIZE); }
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) { return show(ctx, title, alternatives, wait, SW_MAXIMIZE); }
 
     @Action(id = "minimize", name = "Minimise window", category = "Window", capabilities = "desktop", description = "Minimise a window.")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> minimize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) { return show(ctx, title, alternatives, wait, SW_MINIMIZE); }
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) { return show(ctx, title, alternatives, wait, SW_MINIMIZE); }
 
     @Action(id = "restore", name = "Restore window", category = "Window", capabilities = "desktop", description = "Restore a minimised or maximised window to its normal size.")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> restore(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) { return show(ctx, title, alternatives, wait, SW_RESTORE); }
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) { return show(ctx, title, alternatives, wait, SW_RESTORE); }
 
     @Action(id = "move_resize", name = "Move and resize window", category = "Window", capabilities = "desktop",
             description = "Set a window's position and/or size in pixels; values left empty keep the window's current ones.")
@@ -159,7 +203,7 @@ public final class WindowPackage {
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Width; unchanged when empty.") Integer w,
             @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Height; unchanged when empty.") Integer h,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) {
         if ((w != null && w <= 0) || (h != null && h <= 0)) throw new ActionException("WINDOW.BAD_SIZE", "Width and height must be greater than 0", "Check the size.");
         Win win = locate(ctx, title, alternatives, wait);
         User32.INSTANCE.ShowWindow(win.hwnd(), SW_RESTORE);
@@ -181,7 +225,7 @@ public final class WindowPackage {
     public Map<String, Object> getInfo(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) {
         return Map.of("window", details(locate(ctx, title, alternatives, wait)));
     }
 
@@ -209,8 +253,8 @@ public final class WindowPackage {
     @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when the window was gone by the end of wait_closed_seconds (always true when not waiting).")
     public Map<String, Object> close(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait,
-            @Input(name = "wait_closed_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Wait up to this many seconds for the window to disappear; 0 does not wait.") double waitClosed) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
+            @Input(name = "wait_closed_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait up to this many seconds for the window to disappear; 0 does not wait.") double waitClosed) {
         Win w = locate(ctx, title, alternatives, wait);
         User32.INSTANCE.PostMessage(w.hwnd(), WM_CLOSE, new WinDef.WPARAM(0), new WinDef.LPARAM(0));
         long end = System.currentTimeMillis() + (long) (Math.max(0, Math.min(3600, waitClosed)) * 1000);
@@ -236,17 +280,29 @@ public final class WindowPackage {
         return t -> t.toLowerCase(Locale.ROOT).contains(q);
     }
 
+    public Map<String, Object> closeAll(ActionContext ctx, String title, boolean regex) { return closeAll(ctx, title, regex, null); }
+
     @Action(id = "close_all", name = "Close all matching windows", category = "Window", capabilities = "desktop",
             description = "Ask every visible window whose title matches to close (like clicking each X); programs may still ask to save.")
     @Output(name = "closed", type = OoaType.LIST, description = "Titles of the windows asked to close.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows asked to close.")
     public Map<String, Object> closeAll(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, example = " - Notepad", description = "Text in the window titles (case-insensitive), or a regular expression when use_regex is true.") String title,
-            @Input(name = "use_regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat title as a regular expression.") boolean regex) {
+            @Input(name = "use_regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat title as a regular expression.") boolean regex,
+            @Input(name = "keep", type = OoaType.LIST, required = false,
+                    description = "Windows to leave open: text in their titles (case-insensitive), e.g. [\"Invoices.xlsx\"]. The agent's own windows are always kept.") List<Object> keep) {
         java.util.function.Predicate<String> m = matcher(title, regex);
+        List<String> keepTexts = new ArrayList<>();
+        if (keep != null) for (Object k : keep) if (k != null && !String.valueOf(k).isBlank()) keepTexts.add(String.valueOf(k).strip().toLowerCase(Locale.ROOT));
+        long self = ProcessHandle.current().pid();
         List<Object> closed = new ArrayList<>();
         for (Win w : all()) {
             if (!m.test(w.title())) continue;
+            String lower = w.title().toLowerCase(Locale.ROOT);
+            if (keepTexts.stream().anyMatch(lower::contains)) continue;
+            IntByReference pid = new IntByReference();
+            User32.INSTANCE.GetWindowThreadProcessId(w.hwnd(), pid);
+            if (pid.getValue() == self) continue;   // never close the run window or Studio running in this process
             User32.INSTANCE.PostMessage(w.hwnd(), WM_CLOSE, new WinDef.WPARAM(0), new WinDef.LPARAM(0));
             closed.add(w.title());
         }
@@ -270,7 +326,7 @@ public final class WindowPackage {
             @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "new_title", type = OoaType.STRING, description = "New title text.") String newTitle,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait) {
         if (newTitle == null || newTitle.length() > 512 || newTitle.chars().anyMatch(c -> c < 0x20))
             throw new ActionException("WINDOW.BAD_TITLE", "The new title must be at most 512 characters without line breaks", "Shorten the title.");
         Win w = alternatives == null && wait <= 0 ? find(title) : locate(ctx, title, alternatives, wait);
@@ -293,13 +349,45 @@ public final class WindowPackage {
         return Map.of("title", w.title(), "process_name", h == null ? "" : w.processName(), "class_name", h == null ? "" : w.className());
     }
 
-    @Action(id = "wait_for", name = "Wait for window", category = "Window", timeoutSeconds = 3600, capabilities = "desktop", description = "Wait until a window with this title appears.")
-    @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
+    public Map<String, Object> waitFor(ActionContext ctx, String title, double timeout, Map<String, Object> alternatives) {
+        return waitFor(ctx, title, timeout, alternatives, "open", true);
+    }
+
+    @Action(id = "wait_for", name = "Wait for window", category = "Window", timeoutSeconds = 3600, capabilities = "desktop",
+            description = "Wait until a window with this title opens, or until it has closed.")
+    @Output(name = "title", type = OoaType.STRING, description = "Full title of the window that opened (or that was open when waiting for it to close).")
+    @Output(name = "met", type = OoaType.BOOLEAN, description = "True when the window opened or closed in time.")
     public Map<String, Object> waitFor(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait.") double timeout,
-            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives) {
-        return Map.of("title", locate(ctx, title, alternatives, timeout).title());
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, description = "Maximum wait.") double timeout,
+            @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, visibleWhen = "state=open", description = D_ALT) Map<String, Object> alternatives,
+            @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"open\"", enumValues = {"open", "close"},
+                    description = "open: wait until the window is there; close: wait until no window with this title is left.") String state,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Fail the step when time runs out; when off, met is false and the agent carries on.") boolean failOnTimeout) {
+        if ("close".equals(state)) {
+            java.util.function.Predicate<String> m = matcher(title, false);
+            long end = System.nanoTime() + (long) (timeout * 1e9);
+            String last = "";
+            while (true) {
+                Optional<Win> open = all().stream().filter(w -> m.test(w.title())).findFirst();
+                if (open.isEmpty()) return Map.of("title", last, "met", true);
+                last = open.get().title();
+                if (System.nanoTime() >= end) {
+                    if (failOnTimeout) throw new ActionException("WINDOW.STILL_OPEN", "Window '" + last + "' was still open after " + timeout + " s",
+                            "Raise timeout_seconds, or close the window first (Close window).", true);
+                    return Map.of("title", last, "met", false);
+                }
+                ctx.checkCancelled();
+                try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+            }
+        }
+        try {
+            return Map.of("title", locate(ctx, title, alternatives, timeout).title(), "met", true);
+        } catch (ActionException e) {
+            if (failOnTimeout || !"WINDOW.NOT_FOUND".equals(e.code())) throw e;
+            return Map.of("title", "", "met", false);
+        }
     }
 
     @Condition(id = "exists", name = "Window exists", description = "True when a visible window title contains the text.")
@@ -314,14 +402,13 @@ public final class WindowPackage {
             @Input(name = "title", type = OoaType.STRING, description = D_TITLE) String title,
             @Input(name = "path", type = OoaType.FILE, description = "PNG file to create.") String path,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_WAIT) double wait,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
             @Input(name = "activate", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Bring the window to the front first so nothing covers it.") boolean activate,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite) {
         if (!overwrite && Files.exists(ctx.resolvePath(path))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(path), "Set overwrite to true or choose another name.");
         Win w = locate(ctx, title, alternatives, wait);
         if (activate) {
-            User32.INSTANCE.ShowWindow(w.hwnd(), SW_RESTORE);
-            User32.INSTANCE.SetForegroundWindow(w.hwnd());
+            bringToFront(w.hwnd());
             try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
         WinDef.RECT r = new WinDef.RECT();

@@ -30,7 +30,7 @@ public final class NumberPackage {
     public Map<String, Object> random(ActionContext ctx,
             @Input(name = "min", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Smallest value.") BigDecimal min,
             @Input(name = "max", type = OoaType.NUMBER, required = false, defaultValue = "100", description = "Largest value.") BigDecimal max,
-            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Decimal places of the result; 0 gives a whole number.") int decimals) {
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 15, description = "Decimal places of the result; 0 gives a whole number.") int decimals) {
         BigDecimal lo = min == null ? BigDecimal.ZERO : min, hi = max == null ? BigDecimal.valueOf(100) : max;
         if (hi.compareTo(lo) < 0) throw new ActionException("NUMBER.BAD_RANGE", "max (" + hi.toPlainString() + ") is smaller than min (" + lo.toPlainString() + ")", "Swap min and max.");
         if (decimals < 0 || decimals > 15) throw new ActionException("NUMBER.BAD_DECIMALS", "Decimals must be between 0 and 15, got " + decimals, "Use 0 for whole numbers.");
@@ -48,13 +48,32 @@ public final class NumberPackage {
     @Output(name = "text", type = OoaType.STRING, description = "Formatted text.")
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to format.") BigDecimal value,
-            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "2", description = "Decimal places.") int decimals,
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 0, max = 20, description = "Decimal places.") int decimals,
             @Input(name = "thousands_separator", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Group thousands.") boolean group,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en-US\"", description = "Locale for separators, e.g. en-US, de-DE, en-IN.") String locale) {
         DecimalFormat f = new DecimalFormat((group ? "#,##0" : "0") + (decimals > 0 ? "." + "0".repeat(decimals) : ""),
                 DecimalFormatSymbols.getInstance(Locale.forLanguageTag(locale)));
         f.setRoundingMode(RoundingMode.HALF_UP);
-        return Out.of("text", f.format(value));
+        Locale loc = Locale.forLanguageTag(locale);
+        return Out.of("text", group ? southAsianGrouping(f.format(value), loc) : f.format(value));
+    }
+
+    /** Countries that group digits as 12,34,56,789 (lakh and crore); Java's formats group them in threes. */
+    private static final java.util.Set<String> LAKH = java.util.Set.of("IN", "PK", "BD", "NP");
+
+    /** Regroups the whole-number part of an already formatted number for South Asian locales; other locales unchanged. */
+    static String southAsianGrouping(String formatted, Locale locale) {
+        if (!LAKH.contains(locale.getCountry())) return formatted;
+        DecimalFormatSymbols sym = DecimalFormatSymbols.getInstance(locale);
+        char g = sym.getGroupingSeparator(), d = sym.getDecimalSeparator();
+        int dot = formatted.indexOf(d);
+        String whole = dot < 0 ? formatted : formatted.substring(0, dot), rest = dot < 0 ? "" : formatted.substring(dot);
+        String sign = whole.startsWith("-") ? "-" : "";
+        String digits = whole.substring(sign.length()).replace(String.valueOf(g), "");
+        if (digits.length() <= 3 || !digits.chars().allMatch(Character::isDigit)) return formatted;
+        StringBuilder sb = new StringBuilder(digits.substring(digits.length() - 3));
+        for (int i = digits.length() - 3; i > 0; i -= 2) sb.insert(0, digits.substring(Math.max(0, i - 2), i) + g);
+        return sign + sb + rest;
     }
 
     @Action(id = "increment", name = "Increment", category = "Number", idempotent = true, description = "Add a step (1 by default) to a number.")
@@ -78,10 +97,10 @@ public final class NumberPackage {
     @Output(name = "text", type = OoaType.STRING, description = "The number as text.")
     public Map<String, Object> toText(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to write.") BigDecimal value,
-            @Input(name = "decimals", type = OoaType.NUMBER, required = false, description = "Fixed decimal places (rounded half up).") Integer decimals,
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, min = 0, max = 20, description = "Fixed decimal places (rounded half up).") Integer decimals,
             @Input(name = "pattern", type = OoaType.STRING, required = false, description = "Pattern with 0 for required digits and # for optional ones, e.g. 00000 or #,##0.00.") String pattern,
             @Input(name = "rounding", type = OoaType.STRING, required = false, defaultValue = "\"half_up\"", enumValues = {"half_up", "truncate"},
-                    description = "How extra decimals are dropped: rounded half up, or cut off (truncated).") String rounding) {
+                    visibleWhen = "pattern=", description = "How extra decimals are dropped: rounded half up, or cut off (truncated).") String rounding) {
         RoundingMode rm = "truncate".equals(rounding) ? RoundingMode.DOWN : RoundingMode.HALF_UP;
         if (pattern != null && !pattern.isBlank()) {
             try {

@@ -25,25 +25,26 @@ public final class CorePackage {
             description = "Repeat the children using an iterator: times, while, list, dictionary, dictionary_keys, dictionary_values, table_rows or a toolkit iterator (package/iterator).")
     public Map<String, Object> loop(ActionContext c,
             @Input(name = "iterator", type = OoaType.STRING, description = "Iterator kind or package/iterator address.", example = "list") String iterator,
-            @Input(name = "over", required = false, description = "Collection for list, dictionary and table_rows iterators.") Object over,
-            @Input(name = "count", type = OoaType.NUMBER, required = false, description = "Repetitions for the times iterator.") Object count,
-            @Input(name = "condition", required = false, description = "Condition for the while iterator, checked before each pass.") Object cond,
-            @Input(name = "iterator_args", type = OoaType.DICTIONARY, required = false, description = "Arguments for a toolkit iterator.") Object args,
+            @Input(name = "over", required = false, visibleWhen = "iterator=list|dictionary|dictionary_keys|dictionary_values|table_rows", description = "Collection for list, dictionary and table_rows iterators.") Object over,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, visibleWhen = "iterator=times", min = 0, description = "Repetitions for the times iterator.") Object count,
+            @Input(name = "condition", required = false, visibleWhen = "iterator=while", description = "Condition for the while iterator, checked before each pass.") Object cond,
+            @Input(name = "iterator_args", type = OoaType.DICTIONARY, required = false,
+                    visibleWhen = "iterator!=times|while|list|dictionary|dictionary_keys|dictionary_values|table_rows", description = "Arguments for a toolkit iterator.") Object args,
             @Input(name = "as", type = OoaType.STRING, required = false, description = "Declared variable that receives the current item.") String as,
             @Input(name = "index", type = OoaType.STRING, required = false, description = "Declared Number variable that receives the zero-based index.") String index,
-            @Input(name = "max_iterations", type = OoaType.NUMBER, required = false, defaultValue = "100000",
+            @Input(name = "max_iterations", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1,
                     description = "Safety limit; the loop fails with LOOP.LIMIT when reached.") Object max,
-            @Input(name = "from_index", type = OoaType.NUMBER, required = false,
+            @Input(name = "from_index", type = OoaType.NUMBER, required = false, visibleWhen = "iterator!=times|while", min = 0,
                     description = "First zero-based item or row to visit (list, dictionary, table and toolkit iterators); from the first when empty.") Object fromIndex,
-            @Input(name = "to_index", type = OoaType.NUMBER, required = false,
+            @Input(name = "to_index", type = OoaType.NUMBER, required = false, visibleWhen = "iterator!=times|while", min = 0,
                     description = "Last zero-based item or row to visit, included; up to the last when empty.") Object toIndex,
-            @Input(name = "step", type = OoaType.NUMBER, required = false, defaultValue = "1",
+            @Input(name = "step", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "iterator!=while",
                     description = "Visit every n-th item; for the times iterator, the amount the counter grows each pass.") Object step,
-            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0",
+            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", visibleWhen = "iterator=times",
                     description = "First counter value for the times iterator.") Object start,
-            @Input(name = "reverse", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+            @Input(name = "reverse", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "iterator!=times|while",
                     description = "Visit the items in reverse order (list, dictionary, table and toolkit iterators).") Object reverse,
-            @Input(name = "check_at_end", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+            @Input(name = "check_at_end", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "iterator=while",
                     description = "While iterator: check the condition after each pass, so the children run at least once.") Object checkAtEnd,
             @Input(name = "label", type = OoaType.STRING, required = false, pattern = "^[A-Za-z0-9_]+$",
                     description = "Name of this loop, so Exit loop and Continue loop inside nested loops can target it.") String label) { return interp(); }
@@ -57,7 +58,7 @@ public final class CorePackage {
 
     @Action(id = "parallel", name = "Parallel", category = "Logic", description = "Run each child step as a concurrent branch and wait for all branches.")
     public Map<String, Object> parallel(ActionContext c,
-            @Input(name = "max_concurrency", type = OoaType.NUMBER, required = false, defaultValue = "4", description = "Maximum branches running at once.") Object n) { return interp(); }
+            @Input(name = "max_concurrency", type = OoaType.NUMBER, required = false, defaultValue = "4", min = 1, max = 64, description = "Maximum branches running at once.") Object n) { return interp(); }
 
     @Action(id = "set", name = "Assign variable", category = "Variables", description = "Assign a value or expression result to a declared variable.")
     public Map<String, Object> set(ActionContext c,
@@ -72,18 +73,18 @@ public final class CorePackage {
 
     @Action(id = "delay", name = "Delay", category = "Runtime", description = "Pause the run for a fixed time, or for a random time within a range.")
     public Map<String, Object> delay(ActionContext c,
-            @Input(name = "seconds", type = OoaType.NUMBER, description = "Time to wait (in the chosen unit); the low end of the range for a random delay.") Object seconds,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"seconds\"", enumValues = {"seconds", "milliseconds"},
+            @Input(name = "seconds", type = OoaType.NUMBER, min = 0, description = "Time to wait (in the chosen unit); the low end of the range for a random delay.") Object seconds,
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"seconds\"", enumValues = {"seconds", "milliseconds", "minutes"},
                     description = "Unit of seconds and random_max.") String unit,
-            @Input(name = "random_max", type = OoaType.NUMBER, required = false,
+            @Input(name = "random_max", type = OoaType.NUMBER, required = false, min = 0,
                     description = "High end of a random delay; each run waits a random time between seconds and this value.") Object randomMax) { return interp(); }
 
     @Action(id = "wait_until", name = "Wait for condition", category = "Runtime", description = "Poll a condition until it is true or the timeout expires (WAIT.TIMEOUT).")
     @Output(name = "met", type = OoaType.BOOLEAN, description = "True when the condition became true before the timeout.")
     public Map<String, Object> waitUntil(ActionContext c,
             @Input(name = "condition", description = "Condition to poll.") Object condition,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Maximum wait.") Object timeout,
-            @Input(name = "poll_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Interval between checks.") Object poll,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, description = "Maximum wait.") Object timeout,
+            @Input(name = "poll_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0.05, description = "Interval between checks.") Object poll,
             @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Fail with WAIT.TIMEOUT when the time runs out; when off, carry on and set met to false.") Object failOnTimeout) { return interp(); }
 
@@ -116,7 +117,7 @@ public final class CorePackage {
     @Action(id = "pause", name = "Pause agent", category = "Agent", description = "Pause the run until someone resumes it from Agent Studio or Command Center, or until the optional timeout.")
     public Map<String, Object> pause(ActionContext c,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Why the run is waiting; shown with the paused run.") String message,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, description = "Resume by itself after this many seconds; waits until resumed when empty.") Object timeout) { return interp(); }
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, min = 0, description = "Resume by itself after this many seconds; waits until resumed when empty.") Object timeout) { return interp(); }
 
     @Action(id = "run_bot", name = "Run Agent", category = "Agent", description = "Run a published child automation with mapped inputs and receive its outputs.")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The child's output variables (of the last run when repeated).")
@@ -129,12 +130,12 @@ public final class CorePackage {
             @Input(name = "inputs", type = OoaType.DICTIONARY, required = false, description = "Values for the child's input variables.") Object inputs,
             @Input(name = "output_map", type = OoaType.DICTIONARY, required = false,
                     description = "Child output name to the variable of this agent that receives it, e.g. {\"total\": \"invoice_total\"}.") Object outputMap,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, min = 0,
                     description = "Stop the child with CHILD.TIMEOUT when one run takes longer than this; no limit when empty.") Object timeout,
             @Input(name = "same_session", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Share this agent's open sessions (workbooks, browsers, connections) with the child; sessions the child opens stay open for this agent.") Object sameSession,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Fail this step when the child fails; when off, set status to failed and the error output and carry on.") Object failOnError,
-            @Input(name = "repeat", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Run the child this many times in a row.") Object repeat,
-            @Input(name = "repeat_delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Wait between repeated runs.") Object repeatDelay) { return interp(); }
+            @Input(name = "repeat", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Run the child this many times in a row.") Object repeat,
+            @Input(name = "repeat_delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, visibleWhen = "repeat!=1", description = "Wait between repeated runs.") Object repeatDelay) { return interp(); }
 }

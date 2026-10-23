@@ -81,9 +81,11 @@ class WindowGapsTest {
             while (!frames.get(0).getTitle().equals(tag + " renamed") && System.currentTimeMillis() < end) Thread.sleep(50);
             assertTrue(WindowPackage.all().stream().anyMatch(w -> w.title().equals(tag + " renamed")));
             assertEquals("WINDOW.BAD_TITLE", assertThrows(ActionException.class, () -> wp.setTitle(c, tag, "two\nlines", null, 0)).code());
+            // these frames belong to this process, like the run window and Studio, so Close all keeps them;
+            // closing other programs' windows is covered by CommandSamplesTest (11-window-desktop.json)
             Map<String, Object> r = wp.closeAll(c, "^" + tag + " (renamed|window \\d)$", true);
-            assertEquals(2, ((List<?>) r.get("closed")).size());
-            assertTrue(closed.await(5, TimeUnit.SECONDS), "both windows received the close request");
+            assertEquals(0, ((List<?>) r.get("closed")).size(), "the agent's own windows are never closed");
+            assertFalse(closed.await(500, TimeUnit.MILLISECONDS), "no close request reached them");
         } finally {
             for (Frame f : frames) f.dispose();
         }

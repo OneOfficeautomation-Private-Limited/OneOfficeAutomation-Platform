@@ -117,6 +117,8 @@ public final class OcrPackage {
     }
 
     /** Crops (when a region is given), scales up and optionally turns the image grey or black and white before OCR. */
+    static final double MAX_OCR_PIXELS = 25_000_000;
+
     static BufferedImage prepare(BufferedImage img, Integer x, Integer y, Integer w, Integer h, double scale, String mode) {
         BufferedImage src = img;
         if (x != null || y != null || w != null || h != null) {
@@ -134,6 +136,10 @@ public final class OcrPackage {
             case "black_white" -> BufferedImage.TYPE_BYTE_BINARY;
             default -> throw new ActionException("OCR.BAD_MODE", "Image mode must be none, gray or black_white", "Use none, gray or black_white.");
         };
+        // a whole multi-monitor screen scaled up can need more memory than the runner has: keep the enlarged image
+        // at about 25 megapixels, which is still far more detail than OCR needs
+        double pixels = (double) src.getWidth() * src.getHeight();
+        if (pixels * scale * scale > MAX_OCR_PIXELS) scale = Math.max(1, Math.sqrt(MAX_OCR_PIXELS / pixels));
         int nw = (int) Math.round(src.getWidth() * scale), nh = (int) Math.round(src.getHeight() * scale);
         BufferedImage out = new BufferedImage(nw, nh, type == BufferedImage.TYPE_BYTE_BINARY ? BufferedImage.TYPE_BYTE_GRAY : type);
         Graphics2D g = out.createGraphics();
@@ -208,11 +214,11 @@ public final class OcrPackage {
     public Map<String, Object> readImage(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Image file.") String path,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
-            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "3", description = D_PSM) int psm,
+            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "3", min = 0, max = 13, description = D_PSM) int psm,
             @Input(name = "after_text", type = OoaType.STRING, required = false, description = D_AFTER) String after,
             @Input(name = "before_text", type = OoaType.STRING, required = false, description = D_BEFORE) String before,
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_TRIM) boolean trim,
-            @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_SCALE) double scale,
+            @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 5, description = D_SCALE) double scale,
             @Input(name = "image_mode", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gray", "black_white"}, description = D_MODE) String mode,
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = "Region left in pixels; the whole image when the region is empty.") Integer x,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Region top in pixels.") Integer y,
@@ -251,13 +257,13 @@ public final class OcrPackage {
     public Map<String, Object> readUrl(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, example = "https://example.com/scan.png", description = "Address of the image.") String url,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
-            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "3", description = D_PSM) int psm,
+            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "3", min = 0, max = 13, description = D_PSM) int psm,
             @Input(name = "after_text", type = OoaType.STRING, required = false, description = D_AFTER) String after,
             @Input(name = "before_text", type = OoaType.STRING, required = false, description = D_BEFORE) String before,
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_TRIM) boolean trim,
-            @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_SCALE) double scale,
+            @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 5, description = D_SCALE) double scale,
             @Input(name = "image_mode", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gray", "black_white"}, description = D_MODE) String mode,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "Maximum time for the download.") int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Maximum time for the download.") int timeout) {
         checkLanguage(lang);
         BufferedImage img = download(url, Math.max(1, timeout));
         return Map.of("text", filterText(ocr(ctx, prepare(img, null, null, null, null, scale, mode), lang, psm), after, before, trim));
@@ -276,13 +282,13 @@ public final class OcrPackage {
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Region width.") Integer w,
             @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Region height.") Integer h,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
-            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "6", description = D_PSM) int psm,
+            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "6", min = 0, max = 13, description = D_PSM) int psm,
             @Input(name = "after_text", type = OoaType.STRING, required = false, description = D_AFTER) String after,
             @Input(name = "before_text", type = OoaType.STRING, required = false, description = D_BEFORE) String before,
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_TRIM) boolean trim,
-            @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "2", description = D_SCALE) double scale,
+            @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 1, max = 5, description = D_SCALE) double scale,
             @Input(name = "image_mode", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gray", "black_white"}, description = D_MODE) String mode,
-            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Wait this many milliseconds before capturing, e.g. 1000 for a slow remote session.") int waitMs) {
+            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this many milliseconds before capturing, e.g. 1000 for a slow remote session.") int waitMs) {
         checkLanguage(lang);
         pause(ctx, waitMs);
         return Map.of("text", filterText(ocr(ctx, prepare(capture(x, y, w, h), null, null, null, null, scale, mode), lang, psm), after, before, trim));
@@ -310,7 +316,7 @@ public final class OcrPackage {
             @Input(name = "path", type = OoaType.FILE, description = "Image file.") String path,
             @Input(name = "text", type = OoaType.STRING, description = "Word or phrase to find.") String text,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which appearance to return, counting in reading order from 1.") int occurrence) {
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which appearance to return, counting in reading order from 1.") int occurrence) {
         List<int[]> all = locateAll(words(tess(ctx, ctx.resolvePath(path), lang, 11, true).stdout()), text);
         int[] box = occurrence >= 1 && occurrence <= all.size() ? all.get(occurrence - 1) : null;
         BigDecimal count = BigDecimal.valueOf(all.size());
@@ -338,7 +344,7 @@ public final class OcrPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Word or phrase to click.") String text,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
             @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = D_LANG) String lang,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which appearance to click, counting in reading order from 1.") int occurrence,
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which appearance to click, counting in reading order from 1.") int occurrence,
             @Input(name = "button", type = OoaType.STRING, required = false, defaultValue = "\"left\"", enumValues = {"left", "right", "middle"}, description = "Mouse button to click with.") String button,
             @Input(name = "offset_x", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Pixels to the right (negative: left) of the text's centre to click, e.g. to hit a field next to a label.") int offsetX,
             @Input(name = "offset_y", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Pixels below (negative: above) the text's centre to click.") int offsetY) {

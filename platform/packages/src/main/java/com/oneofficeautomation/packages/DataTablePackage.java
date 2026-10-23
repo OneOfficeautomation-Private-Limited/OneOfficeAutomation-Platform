@@ -69,8 +69,8 @@ public final class DataTablePackage {
             @Input(name = "column", type = OoaType.STRING, description = "Column name.") String column,
             @Input(name = "operator", type = OoaType.STRING, enumValues = {"eq", "ne", "gt", "ge", "lt", "le", "contains", "not_contains", "starts_with", "ends_with", "matches", "empty", "not_empty"},
                     description = "Comparison; matches takes a regular expression.") String op,
-            @Input(name = "value", required = false, description = "Value to compare with (not needed for empty/not_empty).") Object value,
-            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Compare text with upper/lower case taken into account.") boolean matchCase) {
+            @Input(name = "value", required = false, visibleWhen = "operator!=empty|not_empty", description = "Value to compare with (not needed for empty/not_empty).") Object value,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "operator=eq|ne|contains|not_contains|starts_with|ends_with|matches", description = "Compare text with upper/lower case taken into account.") boolean matchCase) {
         int c = col(table, column);
         List<List<Object>> kept = new ArrayList<>();
         for (List<Object> r : rows(table)) if (matches(cell(r, c), op, value, matchCase)) kept.add(r);
@@ -103,7 +103,7 @@ public final class DataTablePackage {
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column name.") String column,
             @Input(name = "descending", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Largest first.") boolean desc,
-            @Input(name = "column_index", type = OoaType.NUMBER, required = false, description = COL_INDEX) Integer columnIndex,
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Sort text without regard to upper/lower case.") boolean ignoreCase,
             @Input(name = "then_by", type = OoaType.LIST, required = false, description = "Further column names that order rows with equal values, in the same direction.") List<Object> thenBy) {
         List<Integer> keys = new ArrayList<>();
@@ -122,9 +122,9 @@ public final class DataTablePackage {
     @Output(name = "value", description = "Cell value.")
     public Map<String, Object> getValue(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "row", type = OoaType.NUMBER, description = "Zero-based row number.") int row,
+            @Input(name = "row", type = OoaType.NUMBER, min = 0, description = "Zero-based row number.") int row,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column name.") String column,
-            @Input(name = "column_index", type = OoaType.NUMBER, required = false, description = COL_INDEX) Integer columnIndex) {
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex) {
         int c = col(table, column, columnIndex);
         if (row < 0 || row >= rows(table).size()) throw new ActionException("TABLE.NO_ROW", "Row " + row + " does not exist (table has " + rows(table).size() + " rows)", "Row numbers start at 0.");
         return Out.of("value", cell(rows(table).get(row), c));
@@ -134,10 +134,10 @@ public final class DataTablePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> setValue(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "row", type = OoaType.NUMBER, description = "Zero-based row number.") int row,
+            @Input(name = "row", type = OoaType.NUMBER, min = 0, description = "Zero-based row number.") int row,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column name.") String column,
             @Input(name = "value", required = false, description = "New value.") Object value,
-            @Input(name = "column_index", type = OoaType.NUMBER, required = false, description = COL_INDEX) Integer columnIndex) {
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex) {
         int c = col(table, column, columnIndex);
         Map<String, Object> out = copy(table, rows(table));
         if (row < 0 || row >= rows(out).size()) throw new ActionException("TABLE.NO_ROW", "Row " + row + " does not exist");
@@ -194,6 +194,82 @@ public final class DataTablePackage {
         BigDecimal t = BigDecimal.ZERO;
         for (List<Object> r : rows(table)) { Object v = cell(r, c); if (v != null && !"".equals(v)) t = t.add(Values.toNumber(v)); }
         return Out.of("total", t);
+    }
+
+    @Action(id = "aggregate", name = "Group and summarise", category = "Table", idempotent = true,
+            description = "Group rows by one or more columns and compute count, sum, average, minimum, maximum, first or last per group; without group columns, one summary row.")
+    @Output(name = "table", type = OoaType.TABLE, description = "One row per group: the group columns, then one column per summary.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of groups.")
+    public Map<String, Object> aggregate(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
+            @Input(name = "group_by", type = OoaType.LIST, required = false, description = "Columns to group by, e.g. [\"Vendor\"]; one summary row for the whole table when empty.") List<Object> groupBy,
+            @Input(name = "summaries", type = OoaType.DICTIONARY, description = "New column name to 'function:column', e.g. {\"Total\": \"sum:Amount\", \"Invoices\": \"count\"}. Functions: count, sum, avg, min, max, first, last, count_distinct.",
+                    example = "{\"Total\": \"sum:Amount\", \"Invoices\": \"count\"}") Map<String, Object> summaries,
+            @Input(name = "sort_groups", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Order the groups by their group values; in order of first appearance when off.") boolean sortGroups) {
+        List<String> keys = new ArrayList<>();
+        if (groupBy != null) for (Object g : groupBy) keys.add(String.valueOf(g));
+        int[] keyCols = keys.stream().mapToInt(k -> col(table, k)).toArray();
+        record Sum(String name, String fn, int col) {}
+        List<Sum> sums = new ArrayList<>();
+        if (summaries == null || summaries.isEmpty())
+            throw new ActionException("TABLE.BAD_SUMMARY", "No summaries given", "Give at least one, e.g. {\"Total\": \"sum:Amount\"}.");
+        for (Map.Entry<String, Object> e : summaries.entrySet()) {
+            String spec = String.valueOf(e.getValue()).strip();
+            String fn = (spec.contains(":") ? spec.substring(0, spec.indexOf(':')) : spec).strip().toLowerCase(Locale.ROOT);
+            String column = spec.contains(":") ? spec.substring(spec.indexOf(':') + 1).strip() : null;
+            if (!Set.of("count", "sum", "avg", "min", "max", "first", "last", "count_distinct").contains(fn))
+                throw new ActionException("TABLE.BAD_SUMMARY", "Unknown summary '" + fn + "' for " + e.getKey(), "Use count, sum, avg, min, max, first, last or count_distinct.");
+            if (column == null && !fn.equals("count"))
+                throw new ActionException("TABLE.BAD_SUMMARY", "Summary '" + fn + "' for " + e.getKey() + " needs a column", "Write it as " + fn + ":ColumnName.");
+            sums.add(new Sum(e.getKey(), fn, column == null ? -1 : col(table, column)));
+        }
+        Map<List<Object>, List<List<Object>>> groups = new LinkedHashMap<>();
+        for (List<Object> r : rows(table)) {
+            List<Object> key = new ArrayList<>();
+            for (int c : keyCols) key.add(keyOf(cell(r, c)));
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(r);
+        }
+        List<Map.Entry<List<Object>, List<List<Object>>>> ordered = new ArrayList<>(groups.entrySet());
+        if (sortGroups) ordered.sort((a, b) -> {
+            for (int i = 0; i < a.getKey().size(); i++) {
+                int c = compareCells(a.getKey().get(i), b.getKey().get(i));
+                if (c != 0) return c;
+            }
+            return 0;
+        });
+        List<List<Object>> out = new ArrayList<>();
+        for (Map.Entry<List<Object>, List<List<Object>>> g : ordered) {
+            List<Object> row = new ArrayList<>();
+            List<Object> first = g.getValue().get(0);
+            for (int c : keyCols) row.add(cell(first, c));
+            for (Sum s : sums) {
+                List<Object> vals = new ArrayList<>();
+                if (s.col() >= 0) for (List<Object> r : g.getValue()) { Object v = cell(r, s.col()); if (v != null && !"".equals(v)) vals.add(v); }
+                row.add(switch (s.fn()) {
+                    case "count" -> BigDecimal.valueOf(s.col() < 0 ? g.getValue().size() : vals.size());
+                    case "count_distinct" -> BigDecimal.valueOf(vals.stream().map(DataTablePackage::keyOf).distinct().count());
+                    case "sum" -> vals.stream().map(Values::toNumber).reduce(BigDecimal.ZERO, BigDecimal::add);
+                    case "avg" -> vals.isEmpty() ? null : vals.stream().map(Values::toNumber).reduce(BigDecimal.ZERO, BigDecimal::add)
+                            .divide(BigDecimal.valueOf(vals.size()), java.math.MathContext.DECIMAL64).stripTrailingZeros();
+                    case "min" -> vals.stream().min(DataTablePackage::compareCells).orElse(null);
+                    case "max" -> vals.stream().max(DataTablePackage::compareCells).orElse(null);
+                    case "first" -> vals.isEmpty() ? null : vals.get(0);
+                    default -> vals.isEmpty() ? null : vals.get(vals.size() - 1);
+                });
+            }
+            out.add(row);
+        }
+        List<String> columns = new ArrayList<>(keys);
+        for (Sum s : sums) columns.add(s.name());
+        return Out.of("table", Values.table(columns, new ArrayList<>(out)), "count", BigDecimal.valueOf(out.size()));
+    }
+
+    /** Numbers by value, then text; empty cells first. */
+    private static int compareCells(Object a, Object b) {
+        if (a == null || "".equals(a)) return b == null || "".equals(b) ? 0 : -1;
+        if (b == null || "".equals(b)) return 1;
+        try { return Values.toNumber(a).compareTo(Values.toNumber(b)); }
+        catch (RuntimeException e) { return String.valueOf(a).compareToIgnoreCase(String.valueOf(b)); }
     }
 
     @Condition(id = "is_empty", name = "Table is empty", description = "True when the table has no rows.")
@@ -260,7 +336,7 @@ public final class DataTablePackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> insertRow(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Zero-based position for the new row; at the end when empty.") Integer rowAt,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based position for the new row; at the end when empty.") Integer rowAt,
             @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Column name to value; missing columns stay empty.") Map<String, Object> values) {
         int n = rows(table).size();
         int row = rowAt == null ? n : rowAt;
@@ -276,9 +352,9 @@ public final class DataTablePackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows deleted.")
     public Map<String, Object> deleteRow(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Zero-based row to delete.") Integer row,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based row to delete.") Integer row,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column to match (used when row is empty).") String column,
-            @Input(name = "value", required = false, description = "Delete rows whose column equals this value.") Object value) {
+            @Input(name = "value", required = false, visibleWhen = "column!=", description = "Delete rows whose column equals this value.") Object value) {
         List<List<Object>> kept = new ArrayList<>(rows(table));
         int before = kept.size();
         if (row != null) {
@@ -298,7 +374,7 @@ public final class DataTablePackage {
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "name", type = OoaType.STRING, description = "New column name.") String name,
             @Input(name = "default_value", required = false, description = "Value for every existing row; empty when not set.") Object def,
-            @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Zero-based column position; at the end when empty.") Integer position) {
+            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based column position; at the end when empty.") Integer position) {
         if (name == null || name.isBlank()) throw new ActionException("TABLE.BAD_COLUMN_NAME", "Column name is empty", "Give the new column a name.");
         if (cols(table).contains(name)) throw new ActionException("TABLE.COLUMN_EXISTS", "Column '" + name + "' already exists", "Choose a different name.");
         int width = cols(table).size();
@@ -321,7 +397,7 @@ public final class DataTablePackage {
     public Map<String, Object> deleteColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column to remove.") String column,
-            @Input(name = "column_index", type = OoaType.NUMBER, required = false, description = COL_INDEX) Integer columnIndex) {
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex) {
         int c = col(table, column, columnIndex);
         List<String> newCols = new ArrayList<>(cols(table));
         newCols.remove(c);
@@ -344,7 +420,7 @@ public final class DataTablePackage {
     @Output(name = "name", type = OoaType.STRING, description = "Column name.")
     public Map<String, Object> columnName(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "column_index", type = OoaType.NUMBER, description = "Zero-based column index.") int index) {
+            @Input(name = "column_index", type = OoaType.NUMBER, min = 0, description = "Zero-based column index.") int index) {
         return Out.of("name", cols(table).get(col(table, null, index)));
     }
 
@@ -354,7 +430,7 @@ public final class DataTablePackage {
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Current column name.") String column,
             @Input(name = "new_name", type = OoaType.STRING, description = "New column name.") String newName,
-            @Input(name = "column_index", type = OoaType.NUMBER, required = false, description = COL_INDEX) Integer columnIndex) {
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex) {
         int c = col(table, column, columnIndex);
         if (newName == null || newName.isBlank()) throw new ActionException("TABLE.BAD_COLUMN_NAME", "The new column name is empty", "Give the column a name.");
         if (cols(table).contains(newName) && !cols(table).get(c).equals(newName)) throw new ActionException("TABLE.COLUMN_EXISTS", "Column '" + newName + "' already exists", "Choose a different name.");
@@ -377,8 +453,8 @@ public final class DataTablePackage {
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Column to convert.") String column,
             @Input(name = "type", type = OoaType.STRING, enumValues = {"String", "Number", "DateTime", "Boolean"}, description = "Target type.") String type,
-            @Input(name = "column_index", type = OoaType.NUMBER, required = false, description = COL_INDEX) Integer columnIndex,
-            @Input(name = "date_format", type = OoaType.STRING, required = false, description = "Pattern of the text when converting to DateTime, e.g. dd/MM/yyyy; ISO dates when empty.") String dateFormat) {
+            @Input(name = "column_index", type = OoaType.NUMBER, required = false, min = 0, description = COL_INDEX) Integer columnIndex,
+            @Input(name = "date_format", type = OoaType.STRING, required = false, visibleWhen = "type=DateTime", description = "Pattern of the text when converting to DateTime, e.g. dd/MM/yyyy; ISO dates when empty.") String dateFormat) {
         int c = col(table, column, columnIndex);
         if (column == null || column.isBlank()) column = cols(table).get(c);
         if (!List.of("String", "Number", "DateTime", "Boolean").contains(type))
@@ -393,7 +469,7 @@ public final class DataTablePackage {
             Object conv;
             try {
                 if (type.equals("DateTime") && dateFormat != null && !dateFormat.isBlank() && v instanceof String s) {
-                    java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern(dateFormat, Locale.ENGLISH);
+                    java.time.format.DateTimeFormatter f = DateTimePackage.strictPattern(dateFormat, Locale.ENGLISH);
                     try { conv = dateFormat.contains("H") || dateFormat.contains("h") ? java.time.LocalDateTime.parse(s.trim(), f) : java.time.LocalDate.parse(s.trim(), f).atStartOfDay(); }
                     catch (RuntimeException e) { throw new OoaException("VAR.TYPE_MISMATCH", "not a date"); }
                     r.set(c, conv);
@@ -553,11 +629,11 @@ public final class DataTablePackage {
             @Input(name = "table", type = OoaType.TABLE, description = "Table to save.") Map<String, Object> table,
             @Input(name = "path", type = OoaType.FILE, description = "Target file, e.g. output/report.csv.") String path,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"csv\"", enumValues = {"csv", "json"}, description = "csv or json.") String format,
-            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "CSV delimiter (one character).") String delimiter,
-            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Write the column names as the first CSV line.") boolean header,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", visibleWhen = "format=csv", description = "CSV delimiter (one character).") String delimiter,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "format=csv", description = "Write the column names as the first CSV line.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding, e.g. utf-8, utf-8-bom, ansi (windows-1252), utf-16.") String encoding,
-            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Add the rows to the end of an existing CSV file (no header is repeated).") boolean append,
-            @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, description = "Line ending of CSV rows.") String lineEnding) {
+            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "format=csv", description = "Add the rows to the end of an existing CSV file (no header is repeated).") boolean append,
+            @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, visibleWhen = "format=csv", description = "Line ending of CSV rows.") String lineEnding) {
         String fmt = format == null ? "csv" : format.toLowerCase(Locale.ROOT);
         java.nio.file.Path p = ctx.resolvePath(path);
         boolean appending = append && fmt.equals("csv") && java.nio.file.Files.exists(p);

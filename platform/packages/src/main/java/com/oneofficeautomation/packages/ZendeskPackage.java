@@ -389,6 +389,32 @@ public final class ZendeskPackage {
         return Out.of("organization_id", HttpJson.path(call(ctx, "POST", api(site) + "/organizations", email, apiToken, oauth, Map.of("organization", o)), "organization.id"));
     }
 
+    @Action(id = "update_organization", name = "Update organization", category = "Organizations", capabilities = "network",
+            description = "Change an organization's name, email domains, details, notes, external id or custom fields; empty inputs are kept.")
+    public Map<String, Object> updateOrganization(ActionContext ctx,
+            @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
+            @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "organization_id", type = OoaType.NUMBER, description = "Organization id.") long orgId,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String orgName,
+            @Input(name = "domain_names", type = OoaType.LIST, required = false, description = "Email domains (replaces the list).") Object domains,
+            @Input(name = "details", type = OoaType.STRING, required = false, description = "Details such as an address.") String details,
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "Internal notes.") String notes,
+            @Input(name = "external_id", type = OoaType.STRING, required = false, description = "Your own id.") String external,
+            @Input(name = "organization_fields", type = OoaType.DICTIONARY, required = false, description = "Custom organization fields by key.") Map<String, Object> fields) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        if (orgName != null && !orgName.isBlank()) o.put("name", orgName);
+        if (domains != null) o.put("domain_names", HttpJson.addressList(domains));
+        if (details != null) o.put("details", details);
+        if (notes != null) o.put("notes", notes);
+        if (external != null) o.put("external_id", external);
+        if (fields != null && !fields.isEmpty()) o.put("organization_fields", fields);
+        if (o.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in at least one field.");
+        call(ctx, "PUT", api(site) + "/organizations/" + orgId, email, apiToken, oauth, Map.of("organization", o));
+        return Map.of();
+    }
+
     @Action(id = "get_organization", name = "Get organization", category = "Organizations", idempotent = true, capabilities = "network", description = "Read an organization's details.")
     @Output(name = "organization", type = OoaType.DICTIONARY, description = "id, name, domain_names, details, notes, external_id, group_id, tags, created_at, organization_fields.")
     public Map<String, Object> getOrganization(ActionContext ctx,
@@ -450,6 +476,30 @@ public final class ZendeskPackage {
         if (existing != null && !existing.isBlank()) q.put("token", existing);
         Map<String, Object> r = req("POST", api(site) + "/uploads?" + HttpJson.query(q), email, apiToken, oauth).bytes(data, type).timeout(600).send(ctx).map();
         return Out.of("token", HttpJson.path(r, "upload.token"), "attachment_id", HttpJson.path(r, "upload.attachment.id"));
+    }
+
+    @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Save an attachment (from a ticket comment) to a local folder under its own name.")
+    @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
+    public Map<String, Object> downloadAttachment(ActionContext ctx,
+            @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
+            @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
+            @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
+            @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
+            @Input(name = "attachment_id", type = OoaType.NUMBER, description = "Attachment id, from List comments.") long attachmentId,
+            @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
+        Map<String, Object> a = call(ctx, "GET", api(site) + "/attachments/" + attachmentId, email, apiToken, oauth, null);
+        Object url = HttpJson.path(a, "attachment.content_url");
+        if (url == null) throw new ActionException(P + ".NOT_FOUND", "Attachment " + attachmentId + " has no file", "Check the id with List comments.");
+        // the file is served from the same Zendesk account, so the agent's sign-in is sent along
+        byte[] data = req("GET", Values.text(url), email, apiToken, oauth).binaryResponse().timeout(600).send(ctx).bytes();
+        Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "." : folder);
+        String name = HttpJson.safeName(Values.text(Optional.ofNullable(HttpJson.path(a, "attachment.file_name")).orElse("attachment-" + attachmentId)));
+        Path out = dir.resolve(name);
+        for (int i = 2; !overwrite && Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
+        HttpJson.writeFile(out, data);
+        return Out.of("path", out.toString());
     }
 
     @Action(id = "list_views", name = "List views", category = "Views", idempotent = true, capabilities = "network", description = "List the active ticket views the agent can use.")

@@ -7,15 +7,28 @@ import java.math.RoundingMode;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /** DateTime values are UTC on the platform; time zones apply when reading or formatting. */
 @OoaPackage(id = "ooa.datetime", name = "Date and time", version = "1.0.0", description = "Current time, add, difference, format and time zone conversion.")
 public final class DateTimePackage {
-    private static final String[] UNITS = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"};
+    private static final String[] UNITS = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"};
     private static final String[] STANDARD = {"ISO_LOCAL_DATE", "ISO_LOCAL_TIME", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
             "ISO_DATE", "ISO_DATE_TIME", "ISO_ORDINAL_DATE", "ISO_WEEK_DATE", "BASIC_ISO_DATE", "RFC_1123_DATE_TIME"};
+
+    /**
+     * A reading pattern that refuses impossible dates such as 31/02 (the lenient default silently turns it into 28/02).
+     * Year letters y become u outside quotes, because strict reading of y needs an era.
+     */
+    static DateTimeFormatter strictPattern(String pattern, Locale locale) {
+        StringBuilder sb = new StringBuilder();
+        boolean quoted = false;
+        for (char ch : pattern.toCharArray()) {
+            if (ch == '\'') quoted = !quoted;
+            sb.append(!quoted && ch == 'y' ? 'u' : ch);
+        }
+        return DateTimeFormatter.ofPattern(sb.toString(), locale).withResolverStyle(java.time.format.ResolverStyle.STRICT);
+    }
 
     private static Locale locale(String tag) { return tag == null || tag.isBlank() ? Locale.ENGLISH : Locale.forLanguageTag(tag); }
 
@@ -44,8 +57,15 @@ public final class DateTimePackage {
     public Map<String, Object> add(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
             @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to add; negative to subtract.") long amount,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"},
-                    description = "Unit of the amount.") String unit) {
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"},
+                    description = "Unit of the amount; business_days skips Saturdays, Sundays and the holidays.") String unit,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, visibleWhen = "unit=business_days",
+                    description = "Dates that are not working days, e.g. [\"2026-12-25\"].") List<Object> holidays) {
+        if ("business_days".equals(unit)) return Out.of("result", plusBusinessDays(value, amount, holidays));
+        return add(ctx, value, amount, unit);
+    }
+
+    public Map<String, Object> add(ActionContext ctx, LocalDateTime value, long amount, String unit) {
         LocalDateTime r = switch (unit) {
             case "milliseconds" -> value.plus(amount, ChronoUnit.MILLIS);
             case "seconds" -> value.plusSeconds(amount); case "minutes" -> value.plusMinutes(amount); case "hours" -> value.plusHours(amount);
@@ -61,11 +81,26 @@ public final class DateTimePackage {
     public Map<String, Object> difference(ActionContext ctx,
             @Input(name = "start", type = OoaType.DATETIME, description = "Earlier date.") LocalDateTime start,
             @Input(name = "end", type = OoaType.DATETIME, description = "Later date.") LocalDateTime end,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"},
-                    description = "Result unit.") String unit,
-            @Input(name = "absolute", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the size of the difference without a minus sign when end is before start.") boolean absolute) {
-        Map<String, Object> r = difference(start, end, unit);
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"},
+                    description = "Result unit; business_days counts working days after start up to and including end.") String unit,
+            @Input(name = "absolute", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the size of the difference without a minus sign when end is before start.") boolean absolute,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, visibleWhen = "unit=business_days",
+                    description = "Dates that are not working days, e.g. [\"2026-12-25\"].") List<Object> holidays) {
+        Map<String, Object> r = "business_days".equals(unit) ? Out.of("result", businessDaysBetween(start.toLocalDate(), end.toLocalDate(), holidays)) : difference(start, end, unit);
         return absolute ? Out.of("result", ((BigDecimal) r.get("result")).abs()) : r;
+    }
+
+    public Map<String, Object> difference(ActionContext ctx, LocalDateTime start, LocalDateTime end, String unit, boolean absolute) {
+        return difference(ctx, start, end, unit, absolute, null);
+    }
+
+    private static BigDecimal businessDaysBetween(LocalDate start, LocalDate end, List<Object> holidays) {
+        Set<LocalDate> off = holidaySet(holidays);
+        boolean back = end.isBefore(start);
+        LocalDate from = back ? end : start, to = back ? start : end;
+        long n = 0;
+        for (LocalDate d = from.plusDays(1); !d.isAfter(to); d = d.plusDays(1)) if (workingDay(d, off)) n++;
+        return BigDecimal.valueOf(back ? -n : n);
     }
 
     private static Map<String, Object> difference(LocalDateTime start, LocalDateTime end, String unit) {
@@ -82,7 +117,7 @@ public final class DateTimePackage {
     @Output(name = "text", type = OoaType.STRING, description = "Formatted date.")
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to format (UTC).") LocalDateTime value,
-            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"yyyy-MM-dd\"", description = "Pattern, e.g. dd/MM/yyyy, yyyy-MM-dd HH:mm, MMM d, yyyy.") String pattern,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"yyyy-MM-dd\"", visibleWhen = "standard=", description = "Pattern, e.g. dd/MM/yyyy, yyyy-MM-dd HH:mm, MMM d, yyyy.") String pattern,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "IANA time zone for display, e.g. Asia/Kolkata.") String tz,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language for month and day names, e.g. en, de-DE, fr-FR.") String locale,
             @Input(name = "standard", type = OoaType.STRING, required = false, enumValues = {"ISO_LOCAL_DATE", "ISO_LOCAL_TIME", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
@@ -102,7 +137,7 @@ public final class DateTimePackage {
     @Output(name = "value", type = OoaType.DATETIME, description = "Parsed date (UTC).")
     public Map<String, Object> parse(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text such as 18/10/2026.") String text,
-            @Input(name = "pattern", type = OoaType.STRING, required = false, description = "Pattern of the text, e.g. dd/MM/yyyy; needed unless a standard format is chosen.") String pattern,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, visibleWhen = "standard=", description = "Pattern of the text, e.g. dd/MM/yyyy; needed unless a standard format is chosen.") String pattern,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone the text is in.") String tz,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en\"", description = "Language of month and day names in the text, e.g. en, de-DE.") String locale,
             @Input(name = "standard", type = OoaType.STRING, required = false, enumValues = {"ISO_LOCAL_DATE", "ISO_LOCAL_DATE_TIME", "ISO_OFFSET_DATE_TIME", "ISO_ZONED_DATE_TIME", "ISO_INSTANT",
@@ -123,7 +158,7 @@ public final class DateTimePackage {
         }
         if (pattern == null || pattern.isBlank()) throw new ActionException("DATETIME.BAD_PATTERN", "Give a pattern or a standard format", "Fill in 'pattern', e.g. dd/MM/yyyy.");
         try {
-            DateTimeFormatter f = DateTimeFormatter.ofPattern(pattern, locale(locale));
+            DateTimeFormatter f = strictPattern(pattern, locale(locale));
             LocalDateTime local = pattern.contains("H") || pattern.contains("h") ? LocalDateTime.parse(text.trim(), f) : LocalDate.parse(text.trim(), f).atStartOfDay();
             return Out.of("value", local.atZone(zone(tz)).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
         } catch (DateTimeException | IllegalArgumentException e) {
@@ -153,16 +188,16 @@ public final class DateTimePackage {
             @Input(name = "text", type = OoaType.STRING, description = "Text to check.") String text,
             @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"yyyy-MM-dd\"", description = "Expected pattern, e.g. dd/MM/yyyy.") String pattern) {
         try {
-            DateTimeFormatter f = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
-            if (pattern.contains("H")) LocalDateTime.parse(text.trim(), f); else LocalDate.parse(text.trim(), f);
+            DateTimeFormatter f = strictPattern(pattern, Locale.ENGLISH);
+            if (pattern.contains("H") || pattern.contains("h")) LocalDateTime.parse(text.trim(), f); else LocalDate.parse(text.trim(), f);
             return true;
         } catch (RuntimeException e) { return false; }
     }
 
     @Condition(id = "is_business_hours", name = "Within business hours", description = "True on weekdays between the start and end hours in the time zone.")
     public boolean isBusinessHours(ActionContext ctx,
-            @Input(name = "start_hour", type = OoaType.NUMBER, required = false, defaultValue = "9", description = "Start hour (24h).") int start,
-            @Input(name = "end_hour", type = OoaType.NUMBER, required = false, defaultValue = "17", description = "End hour (24h).") int end,
+            @Input(name = "start_hour", type = OoaType.NUMBER, required = false, defaultValue = "9", min = 0, max = 24, description = "Start hour (24h).") int start,
+            @Input(name = "end_hour", type = OoaType.NUMBER, required = false, defaultValue = "17", min = 0, max = 24, description = "End hour (24h).") int end,
             @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone.") String tz) {
         ZonedDateTime z = ZonedDateTime.now(zone(tz));
         DayOfWeek d = z.getDayOfWeek();
@@ -269,11 +304,41 @@ public final class DateTimePackage {
     public Map<String, Object> subtract(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
             @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to subtract.") long amount,
-            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years"},
-                    description = "Unit of the amount.") String unit) {
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"days\"", enumValues = {"milliseconds", "seconds", "minutes", "hours", "days", "weeks", "months", "years", "business_days"},
+                    description = "Unit of the amount; business_days skips Saturdays, Sundays and the holidays.") String unit,
+            @Input(name = "holidays", type = OoaType.LIST, required = false, visibleWhen = "unit=business_days",
+                    description = "Dates that are not working days, e.g. [\"2026-12-25\"].") List<Object> holidays) {
         if (unit != null && !java.util.Arrays.asList(UNITS).contains(unit))
             throw new ActionException("DATETIME.BAD_UNIT", "Unknown unit '" + unit + "'", "Use one of " + String.join(", ", UNITS) + ".");
-        return add(ctx, value, Math.negateExact(amount), unit == null ? "days" : unit);
+        return add(ctx, value, Math.negateExact(amount), unit == null ? "days" : unit, holidays);
+    }
+
+    public Map<String, Object> subtract(ActionContext ctx, LocalDateTime value, long amount, String unit) { return subtract(ctx, value, amount, unit, null); }
+
+    /** Moves by whole working days (Monday to Friday, not a holiday), keeping the time of day; 0 keeps the date. */
+    static LocalDateTime plusBusinessDays(LocalDateTime value, long amount, List<Object> holidays) {
+        Set<LocalDate> off = holidaySet(holidays);
+        LocalDateTime d = value;
+        long step = Long.signum(amount);
+        for (long left = Math.abs(amount); left > 0; ) {
+            d = d.plusDays(step);
+            if (workingDay(d.toLocalDate(), off)) left--;
+        }
+        return d;
+    }
+
+    private static boolean workingDay(LocalDate d, Set<LocalDate> off) {
+        return d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY && !off.contains(d);
+    }
+
+    private static Set<LocalDate> holidaySet(List<Object> holidays) {
+        Set<LocalDate> off = new HashSet<>();
+        if (holidays != null) for (Object h : holidays) {
+            if (h == null || "".equals(h)) continue;
+            try { off.add(h instanceof LocalDateTime t ? t.toLocalDate() : LocalDate.parse(String.valueOf(h).strip().substring(0, Math.min(10, String.valueOf(h).strip().length())))); }
+            catch (RuntimeException e) { throw new ActionException("DATETIME.BAD_HOLIDAY", "Holiday '" + h + "' is not a date", "Write holidays as yyyy-MM-dd, e.g. 2026-12-25."); }
+        }
+        return off;
     }
 
     @Action(id = "get_part", name = "Get part of date", category = "Date and time", idempotent = true,

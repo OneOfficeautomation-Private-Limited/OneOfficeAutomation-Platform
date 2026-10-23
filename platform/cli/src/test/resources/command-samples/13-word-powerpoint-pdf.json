@@ -1,0 +1,663 @@
+[
+ {
+  "command": "ooa.word/create_document",
+  "name": "create, write (no blank first line, fixed), replace in a paragraph range (new), format, table, read back",
+  "steps": [
+   {
+    "action": "ooa.word/create_document",
+    "args": {
+     "path": "{tmp}/d.docx"
+    }
+   },
+   {
+    "action": "ooa.word/add_paragraph",
+    "args": {
+     "text": "Dear {{name}},"
+    }
+   },
+   {
+    "action": "ooa.word/add_paragraph",
+    "args": {
+     "text": "Total: {{amount}}",
+     "bold": true
+    }
+   },
+   {
+    "action": "ooa.word/add_paragraph",
+    "args": {
+     "text": "Footer {{name}}"
+    }
+   },
+   {
+    "action": "ooa.word/insert_text",
+    "args": {
+     "text": "INVOICE",
+     "position": "start"
+    }
+   },
+   {
+    "action": "ooa.word/replace_text",
+    "args": {
+     "find": "{{name}}",
+     "replace_with": "Ann",
+     "from_paragraph": 1,
+     "to_paragraph": 2
+    },
+    "out": {
+     "count": "n1"
+    }
+   },
+   {
+    "action": "ooa.word/replace_text",
+    "args": {
+     "find": "{{amount}}",
+     "replace_with": "42.00"
+    },
+    "out": {
+     "count": "n2"
+    }
+   },
+   {
+    "action": "ooa.word/format_text",
+    "args": {
+     "text": "INVOICE",
+     "bold": true,
+     "size": 18,
+     "color": "#C00000"
+    },
+    "out": {
+     "count": "f"
+    }
+   },
+   {
+    "action": "ooa.word/add_table",
+    "args": {
+     "table": {
+      "columns": [
+       "Item",
+       "Qty"
+      ],
+      "rows": [
+       [
+        "pen",
+        "2"
+       ]
+      ]
+     }
+    }
+   },
+   {
+    "action": "ooa.word/read_tables",
+    "args": {
+     "index": 1
+    },
+    "out": {
+     "table": "t",
+     "count": "tc"
+    }
+   },
+   {
+    "action": "ooa.word/read_text",
+    "out": {
+     "text": "txt",
+     "paragraphs": "paras"
+    }
+   },
+   {
+    "action": "ooa.word/save_as",
+    "args": {
+     "path": "{tmp}/d.txt",
+     "format": "txt"
+    }
+   },
+   {
+    "action": "ooa.word/close",
+    "args": {
+     "save": true
+    }
+   }
+  ],
+  "expect": {
+   "n1": 1,
+   "n2": 1,
+   "f": 1,
+   "tc": 1,
+   "t": {
+    "columns": [
+     "Item",
+     "Qty"
+    ],
+    "rows": [
+     [
+      "pen",
+      "2"
+     ]
+    ]
+   },
+   "txt": {
+    "$contains": "Footer {{name}}"
+   },
+   "paras": [
+    "INVOICE",
+    "Dear Ann,",
+    "Total: 42.00",
+    "Footer {{name}}"
+   ]
+  },
+  "expectFiles": {
+   "d.docx": true,
+   "d.txt": true
+  }
+ },
+ {
+  "command": "ooa.word/replace_text",
+  "name": "bad paragraph range",
+  "steps": [
+   {
+    "action": "ooa.word/create_document",
+    "args": {
+     "path": "{tmp}/r.docx"
+    }
+   },
+   {
+    "action": "ooa.word/replace_text",
+    "args": {
+     "find": "x",
+     "from_paragraph": 3,
+     "to_paragraph": 2
+    }
+   }
+  ],
+  "error": "WORD.BAD_RANGE"
+ },
+ {
+  "command": "ooa.word/open",
+  "name": "read-only refuses save",
+  "steps": [
+   {
+    "action": "ooa.word/create_document",
+    "args": {
+     "path": "{tmp}/ro.docx"
+    }
+   },
+   {
+    "action": "ooa.word/close",
+    "args": {
+     "save": true
+    }
+   },
+   {
+    "action": "ooa.word/open",
+    "args": {
+     "path": "{tmp}/ro.docx",
+     "read_only": true
+    }
+   },
+   {
+    "action": "ooa.word/save"
+   }
+  ],
+  "error": "WORD.READ_ONLY"
+ },
+ {
+  "command": "ooa.word/open",
+  "name": "missing file",
+  "steps": [
+   {
+    "action": "ooa.word/open",
+    "args": {
+     "path": "{tmp}/none.docx"
+    }
+   }
+  ],
+  "error": "WORD.NOT_FOUND"
+ },
+ {
+  "command": "ooa.word/insert_picture",
+  "name": "missing image",
+  "steps": [
+   {
+    "action": "ooa.word/create_document",
+    "args": {
+     "path": "{tmp}/p.docx"
+    }
+   },
+   {
+    "action": "ooa.word/insert_picture",
+    "args": {
+     "image": "{tmp}/none.png"
+    }
+   }
+  ],
+  "error": "WORD.IMAGE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.word/find_replace_picture",
+  "name": "no pictures in the document",
+  "steps": [
+   {
+    "action": "ooa.word/create_document",
+    "args": {
+     "path": "{tmp}/fp.docx"
+    }
+   },
+   {
+    "action": "ooa.word/find_replace_picture",
+    "args": {
+     "image": "{tmp}/none.png",
+     "index": 1
+    }
+   }
+  ],
+  "error": "WORD.IMAGE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.powerpoint/create_presentation",
+  "name": "slides, text on the last slide (new default), table, replace, format, copy, delete, read",
+  "steps": [
+   {
+    "action": "ooa.powerpoint/create_presentation",
+    "args": {
+     "path": "{tmp}/p.pptx"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/add_slide",
+    "args": {
+     "layout": "title_only",
+     "title": "Q3 {{region}}"
+    },
+    "out": {
+     "slide": "s1"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/insert_text",
+    "args": {
+     "text": "Revenue up"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/insert_table",
+    "args": {
+     "table": {
+      "columns": [
+       "Region",
+       "Sales"
+      ],
+      "rows": [
+       [
+        "North",
+        "10"
+       ]
+      ]
+     }
+    }
+   },
+   {
+    "action": "ooa.powerpoint/find_replace_text",
+    "args": {
+     "find": "{{region}}",
+     "replace_with": "North"
+    },
+    "out": {
+     "count": "r"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/format_text",
+    "args": {
+     "text": "Revenue",
+     "bold": true,
+     "color": "#00AA00"
+    },
+    "out": {
+     "count": "f"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/copy_slide",
+    "args": {
+     "slide": 1
+    },
+    "out": {
+     "slide": "s2"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/slide_count",
+    "out": {
+     "count": "before"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/delete_slide",
+    "args": {
+     "slide": 2
+    }
+   },
+   {
+    "action": "ooa.powerpoint/slide_count",
+    "out": {
+     "count": "after"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/read_text",
+    "out": {
+     "text": "txt"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/save"
+   },
+   {
+    "action": "ooa.powerpoint/save_as",
+    "args": {
+     "path": "{tmp}/copy.pptx"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/close"
+   },
+   {
+    "action": "ooa.powerpoint/open",
+    "args": {
+     "path": "{tmp}/copy.pptx"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/slide_count",
+    "out": {
+     "count": "reopened"
+    }
+   }
+  ],
+  "expect": {
+   "s1": 1,
+   "r": 1,
+   "f": 1,
+   "s2": 2,
+   "before": 2,
+   "after": 1,
+   "reopened": 1,
+   "txt": {
+    "$contains": "Q3 North"
+   }
+  },
+  "expectFiles": {
+   "p.pptx": true
+  }
+ },
+ {
+  "command": "ooa.powerpoint/insert_text",
+  "name": "no slide yet",
+  "steps": [
+   {
+    "action": "ooa.powerpoint/create_presentation",
+    "args": {
+     "path": "{tmp}/e.pptx"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/insert_text",
+    "args": {
+     "text": "x"
+    }
+   }
+  ],
+  "error": "PPT.NO_SLIDE"
+ },
+ {
+  "command": "ooa.powerpoint/insert_picture",
+  "name": "missing image",
+  "steps": [
+   {
+    "action": "ooa.powerpoint/create_presentation",
+    "args": {
+     "path": "{tmp}/i.pptx"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/add_slide"
+   },
+   {
+    "action": "ooa.powerpoint/insert_picture",
+    "args": {
+     "image": "{tmp}/none.png"
+    }
+   }
+  ],
+  "error": "PPT.IMAGE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.powerpoint/find_replace_picture",
+  "name": "missing image",
+  "steps": [
+   {
+    "action": "ooa.powerpoint/create_presentation",
+    "args": {
+     "path": "{tmp}/fr.pptx"
+    }
+   },
+   {
+    "action": "ooa.powerpoint/find_replace_picture",
+    "args": {
+     "image": "{tmp}/none.png",
+     "index": 1
+    }
+   }
+  ],
+  "error": "PPT.IMAGE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.pdf/page_count",
+  "name": "pages, text, area text, properties, split, merge a folder (new), images, encrypt, decrypt",
+  "files": {
+   "in/a.pdf": "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj\n4 0 obj << /Length 44 >> stream\nBT /F1 18 Tf 20 150 Td (Invoice 7) Tj ET\nendstream endobj\n5 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 7 0 R /Resources << /Font << /F1 6 0 R >> >> >> endobj\n6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n7 0 obj << /Length 42 >> stream\nBT /F1 18 Tf 20 150 Td (Page two) Tj ET\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pdf/page_count",
+    "args": {
+     "path": "{tmp}/in/a.pdf"
+    },
+    "out": {
+     "count": "pages"
+    }
+   },
+   {
+    "action": "ooa.pdf/extract_text",
+    "args": {
+     "path": "{tmp}/in/a.pdf",
+     "pages": "2"
+    },
+    "out": {
+     "text": "p2"
+    }
+   },
+   {
+    "action": "ooa.pdf/extract_area_text",
+    "args": {
+     "path": "{tmp}/in/a.pdf",
+     "page": 1,
+     "x": 0,
+     "y": 0,
+     "width": 300,
+     "height": 100
+    },
+    "out": {
+     "text": "area"
+    }
+   },
+   {
+    "action": "ooa.pdf/get_properties",
+    "args": {
+     "path": "{tmp}/in/a.pdf"
+    },
+    "out": {
+     "properties": "props"
+    }
+   },
+   {
+    "action": "ooa.pdf/split",
+    "args": {
+     "path": "{tmp}/in/a.pdf",
+     "target_folder": "{tmp}/parts"
+    },
+    "out": {
+     "files": "parts"
+    }
+   },
+   {
+    "action": "ooa.pdf/merge",
+    "args": {
+     "folder": "{tmp}/parts",
+     "target": "{tmp}/merged.pdf"
+    },
+    "out": {
+     "page_count": "merged",
+     "files": "used"
+    }
+   },
+   {
+    "action": "ooa.pdf/to_images",
+    "args": {
+     "path": "{tmp}/in/a.pdf",
+     "target_folder": "{tmp}/img",
+     "dpi": 50,
+     "pages": "1"
+    },
+    "out": {
+     "files": "imgs"
+    }
+   },
+   {
+    "action": "ooa.pdf/extract_images",
+    "args": {
+     "path": "{tmp}/in/a.pdf",
+     "target_folder": "{tmp}/ex"
+    },
+    "out": {
+     "count": "embedded"
+    }
+   },
+   {
+    "action": "ooa.pdf/encrypt",
+    "args": {
+     "path": "{tmp}/merged.pdf",
+     "target": "{tmp}/locked.pdf",
+     "user_password": "$up",
+     "owner_password": "$op"
+    }
+   },
+   {
+    "action": "ooa.pdf/decrypt",
+    "args": {
+     "path": "{tmp}/locked.pdf",
+     "password": "$up",
+     "target": "{tmp}/open.pdf"
+    }
+   },
+   {
+    "action": "ooa.pdf/page_count",
+    "args": {
+     "path": "{tmp}/open.pdf"
+    },
+    "out": {
+     "count": "reopened"
+    }
+   },
+   {
+    "action": "ooa.pdf/read_form",
+    "args": {
+     "path": "{tmp}/open.pdf"
+    },
+    "out": {
+     "fields": "fields"
+    }
+   }
+  ],
+  "expect": {
+   "pages": 2,
+   "p2": {
+    "$contains": "Page two"
+   },
+   "area": {
+    "$contains": "Invoice 7"
+   },
+   "props": {
+    "$type": "object"
+   },
+   "merged": 2,
+   "embedded": 0,
+   "reopened": 2,
+   "fields": {}
+  },
+  "expectFiles": {
+   "merged.pdf": true,
+   "locked.pdf": true
+  },
+  "credentials": {
+   "up": "test/pdf/user",
+   "op": "test/pdf/owner"
+  },
+  "secrets": {
+   "test/pdf/user": "u1",
+   "test/pdf/owner": "o1"
+  }
+ },
+ {
+  "command": "ooa.pdf/page_count",
+  "name": "not a PDF",
+  "files": {
+   "x.pdf": "not a pdf"
+  },
+  "steps": [
+   {
+    "action": "ooa.pdf/page_count",
+    "args": {
+     "path": "{tmp}/x.pdf"
+    }
+   }
+  ],
+  "error": "PDF.INVALID"
+ },
+ {
+  "command": "ooa.pdf/merge",
+  "name": "folder with only one PDF",
+  "files": {
+   "one/a.pdf": "%PDF-1.4\n%%EOF\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pdf/merge",
+    "args": {
+     "folder": "{tmp}/one",
+     "target": "{tmp}/m.pdf"
+    }
+   }
+  ],
+  "error": "PDF.NEED_FILES"
+ },
+ {
+  "command": "ooa.pdf/fill_form",
+  "name": "no form in the file",
+  "files": {
+   "f.pdf": "%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n"
+  },
+  "steps": [
+   {
+    "action": "ooa.pdf/fill_form",
+    "args": {
+     "path": "{tmp}/f.pdf",
+     "values": {
+      "name": "Ann"
+     },
+     "target": "{tmp}/o.pdf"
+    }
+   }
+  ],
+  "error": "PDF.NO_FORM"
+ }
+]

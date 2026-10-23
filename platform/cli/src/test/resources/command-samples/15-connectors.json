@@ -1,0 +1,1706 @@
+[
+ {
+  "command": "ooa.servicenow/create_record",
+  "name": "create returns sys_id and number",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/api/now/table/incident",
+    "status": 201,
+    "body": {
+     "result": {
+      "sys_id": "abc",
+      "number": "INC9"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.servicenow/create_record",
+    "args": {
+     "instance_url": "{mock}",
+     "table": "incident",
+     "fields": {
+      "short_description": "Printer down"
+     },
+     "access_token": "$tok"
+    },
+    "out": {
+     "sys_id": "id",
+     "number": "no"
+    }
+   }
+  ],
+  "expect": {
+   "id": "abc",
+   "no": "INC9"
+  },
+  "expectRequests": [
+   "POST /api/now/table/incident Printer down"
+  ]
+ },
+ {
+  "command": "ooa.servicenow/get_record",
+  "name": "not found",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/api/now/table/incident/*",
+    "status": 404,
+    "body": {
+     "error": {
+      "message": "No Record found"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.servicenow/get_record",
+    "args": {
+     "instance_url": "{mock}",
+     "table": "incident",
+     "sys_id": "0123456789abcdef0123456789abcdef",
+     "access_token": "$tok"
+    }
+   }
+  ],
+  "error": "SERVICENOW.NOT_FOUND"
+ },
+ {
+  "command": "ooa.jira/create_issue",
+  "name": "create issue with labels",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/rest/api/2/issue",
+    "status": 201,
+    "body": {
+     "id": "10001",
+     "key": "OPS-7",
+     "self": "x"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.jira/create_issue",
+    "args": {
+     "site_url": "{mock}",
+     "project": "OPS",
+     "summary": "Disk full",
+     "labels": [
+      "infra"
+     ],
+     "email": "bot@acme.test",
+     "api_token": "$tok"
+    },
+    "out": {
+     "key": "k"
+    }
+   }
+  ],
+  "expect": {
+   "k": "OPS-7"
+  },
+  "expectRequests": [
+   "POST /rest/api/2/issue Disk full"
+  ]
+ },
+ {
+  "command": "ooa.jira/search",
+  "name": "JQL to a table",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "path": "/rest/api/2/search*",
+    "body": {
+     "issues": [
+      {
+       "key": "OPS-1",
+       "fields": {
+        "summary": "a",
+        "status": {
+         "name": "Open"
+        }
+       }
+      }
+     ],
+     "total": 1
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.jira/search",
+    "args": {
+     "site_url": "{mock}",
+     "jql": "project = OPS",
+     "email": "bot@acme.test",
+     "api_token": "$tok"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.salesforce/query",
+  "name": "SOQL to a table",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "path": "/services/data/v61.0/query*",
+    "body": {
+     "totalSize": 2,
+     "done": true,
+     "records": [
+      {
+       "attributes": {},
+       "Name": "Acme"
+      },
+      {
+       "attributes": {},
+       "Name": "Zeta"
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.salesforce/query",
+    "args": {
+     "instance_url": "{mock}",
+     "access_token": "$tok",
+     "soql": "SELECT Name FROM Account"
+    },
+    "out": {
+     "count": "n",
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2,
+   "t": {
+    "columns": [
+     "Name"
+    ],
+    "rows": [
+     [
+      "Acme"
+     ],
+     [
+      "Zeta"
+     ]
+    ]
+   }
+  },
+  "expectRequests": [
+   "GET /services/data/v61.0/query q=SELECT"
+  ]
+ },
+ {
+  "command": "ooa.salesforce/create_record",
+  "name": "create",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/services/data/v61.0/sobjects/Account*",
+    "status": 201,
+    "body": {
+     "id": "001X",
+     "success": true
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.salesforce/create_record",
+    "args": {
+     "instance_url": "{mock}",
+     "access_token": "$tok",
+     "object": "Account",
+     "fields": {
+      "Name": "Acme"
+     }
+    },
+    "out": {
+     "id": "id"
+    }
+   }
+  ],
+  "expect": {
+   "id": "001X"
+  }
+ },
+ {
+  "command": "ooa.slack/post_message",
+  "name": "post to a channel",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat.postMessage",
+    "body": {
+     "ok": true,
+     "ts": "123.45",
+     "channel": "C1"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.slack/post_message",
+    "args": {
+     "base_url": "{mock}",
+     "bot_token": "$tok",
+     "channel": "C1",
+     "text": "Run finished"
+    },
+    "out": {
+     "ts": "ts"
+    }
+   }
+  ],
+  "expect": {
+   "ts": "123.45"
+  },
+  "expectRequests": [
+   "POST /chat.postMessage Run finished"
+  ]
+ },
+ {
+  "command": "ooa.slack/post_message",
+  "name": "Slack refuses: clear code",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat.postMessage",
+    "body": {
+     "ok": false,
+     "error": "channel_not_found"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.slack/post_message",
+    "args": {
+     "base_url": "{mock}",
+     "bot_token": "$tok",
+     "channel": "C9",
+     "text": "x"
+    }
+   }
+  ],
+  "error": "SLACK.CHANNEL_NOT_FOUND"
+ },
+ {
+  "command": "ooa.slack/post_message",
+  "name": "not a Slack reply (fixed: was SLACK.NULL)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat.postMessage",
+    "body": {}
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.slack/post_message",
+    "args": {
+     "base_url": "{mock}",
+     "bot_token": "$tok",
+     "channel": "C9",
+     "text": "x"
+    }
+   }
+  ],
+  "error": "SLACK.BAD_RESPONSE"
+ },
+ {
+  "command": "ooa.microsoft365/send_mail",
+  "name": "send through Graph",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/me/sendMail",
+    "status": 202,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/send_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "to": "a@acme.test",
+     "subject": "Report",
+     "body": "Done"
+    }
+   }
+  ],
+  "expectRequests": [
+   "POST /me/sendMail Report"
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/list_mail",
+  "name": "list to a table",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/me/mailFolders/*",
+    "body": {
+     "value": [
+      {
+       "id": "m1",
+       "subject": "Invoice",
+       "from": {
+        "emailAddress": {
+         "address": "x@acme.test"
+        }
+       },
+       "receivedDateTime": "2026-10-23T10:00:00Z",
+       "isRead": false,
+       "hasAttachments": true
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/list_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok"
+    },
+    "out": {
+     "table": "t",
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.microsoft365/list_mail",
+  "name": "expired token: clear error",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "path": "*",
+    "status": 401,
+    "body": {
+     "error": {
+      "code": "InvalidAuthenticationToken",
+      "message": "Access token has expired."
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/list_mail",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok"
+    }
+   }
+  ],
+  "error": "M365.AUTH_FAILED"
+ },
+ {
+  "command": "ooa.google/sheets_read",
+  "name": "read a range",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/v4/spreadsheets/*",
+    "body": {
+     "range": "Sheet1!A1:B3",
+     "values": [
+      [
+       "Item",
+       "Qty"
+      ],
+      [
+       "pen",
+       "2"
+      ],
+      [
+       "cup",
+       "3"
+      ]
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.google/sheets_read",
+    "args": {
+     "endpoint_override": "{mock}",
+     "access_token": "$tok",
+     "spreadsheet_id": "abc",
+     "range": "Sheet1!A1:B3"
+    },
+    "out": {
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": {
+    "columns": [
+     "Item",
+     "Qty"
+    ],
+    "rows": [
+     [
+      "pen",
+      "2"
+     ],
+     [
+      "cup",
+      "3"
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "command": "ooa.github/create_issue",
+  "name": "create issue",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/repos/acme/app/issues",
+    "status": 201,
+    "body": {
+     "number": 42,
+     "html_url": "https://x/42",
+     "id": 9
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.github/create_issue",
+    "args": {
+     "base_url": "{mock}",
+     "token": "$tok",
+     "owner": "acme",
+     "repo": "app",
+     "title": "Bug"
+    },
+    "out": {
+     "number": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 42
+  },
+  "expectRequests": [
+   "POST /repos/acme/app/issues Bug"
+  ]
+ },
+ {
+  "command": "ooa.genai/prompt",
+  "name": "OpenAI-compatible model",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "Paris"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 1
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/prompt",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "prompt": "Capital of France?"
+    },
+    "out": {
+     "text": "a"
+    }
+   }
+  ],
+  "expect": {
+   "a": "Paris"
+  },
+  "expectRequests": [
+   "POST /chat/completions Capital of France"
+  ]
+ },
+ {
+  "command": "ooa.genai/classify",
+  "name": "label from the list",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"label\": \"billing\", \"reason\": \"double charge\"}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/classify",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "My card was charged twice",
+     "labels": [
+      "billing",
+      "shipping",
+      "other"
+     ]
+    },
+    "out": {
+     "label": "l"
+    }
+   }
+  ],
+  "expect": {
+   "l": "billing"
+  }
+ },
+ {
+  "command": "ooa.genai/classify",
+  "name": "model answers outside the list",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"label\": \"zebra\", \"reason\": \"?\"}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/classify",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "x",
+     "labels": [
+      "a",
+      "b"
+     ]
+    },
+    "out": {
+     "label": "l"
+    }
+   }
+  ],
+  "error": "AI.LABEL_NOT_ALLOWED"
+ },
+ {
+  "command": "ooa.genai/extract",
+  "name": "typed fields from text",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"number\": \"INV-7\", \"total\": 120.5}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/extract",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "Invoice INV-7 total 120.50 EUR",
+     "fields": {
+      "number": "invoice number",
+      "total": "amount as a number"
+     }
+    },
+    "out": {
+     "fields": "f"
+    }
+   }
+  ],
+  "expect": {
+   "f": {
+    "number": "INV-7",
+    "total": 120.5
+   }
+  }
+ },
+ {
+  "command": "ooa.genai/summarize",
+  "name": "summary",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "Short summary."
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/summarize",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "Long text ..."
+    },
+    "out": {
+     "summary": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "Short summary."
+  }
+ },
+ {
+  "command": "ooa.genai/sentiment",
+  "name": "sentiment",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"sentiment\": \"positive\", \"score\": 0.9}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/sentiment",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "Great service"
+    },
+    "out": {
+     "sentiment": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "positive"
+  }
+ },
+ {
+  "command": "ooa.genai/translate",
+  "name": "translate",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "Hello"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/translate",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "Hallo",
+     "target_language": "English"
+    },
+    "out": {
+     "text": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "Hello"
+  }
+ },
+ {
+  "command": "ooa.genai/detect_language",
+  "name": "detect",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"language\": \"French\", \"code\": \"fr\", \"confidence\": 0.98}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/detect_language",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "Bonjour"
+    },
+    "out": {
+     "code": "c"
+    }
+   }
+  ],
+  "expect": {
+   "c": "fr"
+  }
+ },
+ {
+  "command": "ooa.genai/key_phrases",
+  "name": "phrases",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"phrases\": [\"invoice\", \"late payment\"]}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/key_phrases",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "x"
+    },
+    "out": {
+     "phrases": "p"
+    }
+   }
+  ],
+  "expect": {
+   "p": [
+    "invoice",
+    "late payment"
+   ]
+  }
+ },
+ {
+  "command": "ooa.genai/entities",
+  "name": "entities",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"entities\": [{\"text\": \"Ann\", \"type\": \"person\"}, {\"text\": \"Acme\", \"type\": \"organization\"}]}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/entities",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "test-model",
+     "text": "Ann works at Acme"
+    },
+    "out": {
+     "entities": "e"
+    }
+   }
+  ],
+  "expect": {
+   "e": {
+    "columns": [
+     "text",
+     "type",
+     "score"
+    ],
+    "rows": [
+     [
+      "Ann",
+      "PERSON",
+      0
+     ],
+     [
+      "Acme",
+      "ORGANIZATION",
+      0
+     ]
+    ]
+   }
+  }
+ },
+ {
+  "command": "ooa.genai/chat",
+  "name": "two turns keep the history",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "ok"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.genai/chat",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "m",
+     "message": "My name is Ann"
+    }
+   },
+   {
+    "action": "ooa.genai/chat",
+    "args": {
+     "provider": "openai_compatible",
+     "base_url": "{mock}",
+     "api_key": "$tok",
+     "model": "m",
+     "message": "What is my name?"
+    },
+    "out": {
+     "turns": "n"
+    }
+   },
+   {
+    "action": "ooa.genai/end_chat"
+   }
+  ],
+  "expect": {
+   "n": 4
+  },
+  "expectRequests": [
+   "POST /chat/completions My name is Ann",
+   "POST /chat/completions My name is Ann"
+  ]
+ },
+ {
+  "command": "ooa.asana/duplicate_task",
+  "name": "copy with subtasks (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/tasks/12345/duplicate",
+    "status": 201,
+    "body": {
+     "data": {
+      "gid": "999",
+      "new_task": {
+       "gid": "777"
+      }
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.asana/duplicate_task",
+    "args": {
+     "base_url": "{mock}",
+     "token": "$tok",
+     "task_id": "12345",
+     "name": "Copy",
+     "include": [
+      "subtasks",
+      "notes"
+     ]
+    },
+    "out": {
+     "task_id": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "777"
+  },
+  "expectRequests": [
+   "POST /tasks/12345/duplicate subtasks,notes"
+  ]
+ },
+ {
+  "command": "ooa.asana/update_project",
+  "name": "archive a project (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "PUT",
+    "path": "/projects/42",
+    "body": {
+     "data": {
+      "gid": "42"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.asana/update_project",
+    "args": {
+     "base_url": "{mock}",
+     "token": "$tok",
+     "project_id": "42",
+     "archived": true
+    }
+   }
+  ],
+  "expectRequests": [
+   "PUT /projects/42 \"archived\":true"
+  ]
+ },
+ {
+  "command": "ooa.asana/delete_project",
+  "name": "refused without confirm (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [],
+  "steps": [
+   {
+    "action": "ooa.asana/delete_project",
+    "args": {
+     "base_url": "{mock}",
+     "token": "$tok",
+     "project_id": "42",
+     "confirm": false
+    }
+   }
+  ],
+  "error": "ASANA.CONFIRM_REQUIRED"
+ },
+ {
+  "command": "ooa.asana/create_team",
+  "name": "team (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/teams",
+    "status": 201,
+    "body": {
+     "data": {
+      "gid": "55"
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.asana/create_team",
+    "args": {
+     "base_url": "{mock}",
+     "token": "$tok",
+     "workspace_id": "1",
+     "name": "Robots"
+    },
+    "out": {
+     "team_id": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": "55"
+  },
+  "expectRequests": [
+   "POST /teams Robots"
+  ]
+ },
+ {
+  "command": "ooa.azure_devops/create_test_case",
+  "name": "test case with steps, added to a suite (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/acme/Portal/_apis/wit/workitems/*",
+    "body": {
+     "id": 101
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/acme/Portal/_apis/testplan/Plans/5/Suites/6/TestCase",
+    "body": {
+     "value": []
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_devops/create_test_case",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "title": "Login works",
+     "steps": [
+      {
+       "action": "Open login",
+       "expected": "Form shows"
+      }
+     ],
+     "plan_id": 5,
+     "suite_id": 6
+    },
+    "out": {
+     "id": "id"
+    }
+   }
+  ],
+  "expect": {
+   "id": 101
+  },
+  "expectRequests": [
+   "POST /acme/Portal/_apis/wit/workitems/$Test Microsoft.VSTS.TCM.Steps",
+   "POST /acme/Portal/_apis/testplan/Plans/5/Suites/6/TestCase \"id\":101"
+  ]
+ },
+ {
+  "command": "ooa.azure_devops/create_test_plan",
+  "name": "plan and suite (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/acme/Portal/_apis/testplan/plans",
+    "body": {
+     "id": 5,
+     "rootSuite": {
+      "id": 6
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/acme/Portal/_apis/testplan/Plans/5/suites",
+    "body": {
+     "id": 7
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_devops/create_test_plan",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "name": "R3"
+    },
+    "out": {
+     "plan_id": "p",
+     "root_suite_id": "r"
+    }
+   },
+   {
+    "action": "ooa.azure_devops/create_test_suite",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "plan_id": "$p",
+     "parent_suite_id": "$r",
+     "name": "Smoke"
+    },
+    "out": {
+     "suite_id": "s"
+    }
+   }
+  ],
+  "expect": {
+   "p": 5,
+   "r": 6,
+   "s": 7
+  }
+ },
+ {
+  "command": "ooa.azure_devops/update_test_point",
+  "name": "mark points passed (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "PATCH",
+    "path": "/acme/Portal/_apis/testplan/Plans/5/Suites/6/TestPoint",
+    "body": {
+     "value": []
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_devops/update_test_point",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "plan_id": 5,
+     "suite_id": 6,
+     "point_ids": [
+      11,
+      12
+     ],
+     "outcome": "passed"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  },
+  "expectRequests": [
+   "PATCH /acme/Portal/_apis/testplan/Plans/5/Suites/6/TestPoint passed"
+  ]
+ },
+ {
+  "command": "ooa.docusign/add_recipients",
+  "name": "signer and copy (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/v2.1/accounts/acc/envelopes/*",
+    "status": 201,
+    "body": {
+     "signers": [
+      {}
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.docusign/add_recipients",
+    "args": {
+     "base_url": "{mock}",
+     "account_id": "acc",
+     "envelope_id": "11111111-2222-3333-4444-555555555555",
+     "access_token": "$tok",
+     "recipients": [
+      {
+       "name": "Ann",
+       "email": "ann@acme.test"
+      },
+      {
+       "name": "Bob",
+       "email": "bob@acme.test",
+       "type": "copy"
+      }
+     ]
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  },
+  "expectRequests": [
+   "POST /v2.1/accounts/acc/envelopes/11111111-2222-3333-4444-555555555555/recipients carbonCopies"
+  ]
+ },
+ {
+  "command": "ooa.zendesk/update_organization",
+  "name": "notes (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "PUT",
+    "path": "/api/v2/organizations/8",
+    "body": {
+     "organization": {
+      "id": 8
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.zendesk/update_organization",
+    "args": {
+     "site": "{mock}",
+     "email": "bot@acme.test",
+     "api_token": "$tok",
+     "organization_id": 8,
+     "notes": "VIP"
+    }
+   }
+  ],
+  "expectRequests": [
+   "PUT /api/v2/organizations/8 VIP"
+  ]
+ },
+ {
+  "command": "ooa.databricks/delete_file",
+  "name": "volume file (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "DELETE",
+    "path": "/api/2.0/fs/files/*",
+    "status": 204,
+    "body": ""
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.databricks/delete_file",
+    "args": {
+     "workspace_url": "{mock}",
+     "access_token": "$tok",
+     "remote_path": "/Volumes/main/fin/in/a.csv"
+    }
+   }
+  ],
+  "expectRequests": [
+   "DELETE /api/2.0/fs/files/Volumes/main/fin/in/a.csv"
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/excel_find_next_empty_cell",
+  "name": "next row to append (new)",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "*",
+    "body": {
+     "address": "Sheet1!A1:A42",
+     "rowCount": 42
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/excel_find_next_empty_cell",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "remote_path": "Book.xlsx",
+     "sheet": "Sheet1"
+    },
+    "out": {
+     "cell": "c"
+    }
+   }
+  ],
+  "expect": {
+   "c": "A43"
+  }
+ },
+ {
+  "command": "ooa.microsoft365/find_meeting_times",
+  "name": "free slots",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/me/findMeetingTimes",
+    "body": {
+     "meetingTimeSuggestions": [
+      {
+       "confidence": 100,
+       "organizerAvailability": "free",
+       "meetingTimeSlot": {
+        "start": {
+         "dateTime": "2026-10-26T10:00:00"
+        },
+        "end": {
+         "dateTime": "2026-10-26T10:30:00"
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/find_meeting_times",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "attendees": [
+      "ann@acme.test"
+     ],
+     "from": "2026-10-26T09:00:00",
+     "to": "2026-10-26T17:00:00"
+    },
+    "out": {
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": {
+    "$type": "object"
+   }
+  },
+  "expectRequests": [
+   "POST /me/findMeetingTimes ann@acme.test"
+  ]
+ }
+]

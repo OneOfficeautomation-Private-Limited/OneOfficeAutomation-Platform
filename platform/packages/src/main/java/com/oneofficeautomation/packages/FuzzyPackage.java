@@ -150,7 +150,7 @@ public final class FuzzyPackage {
     public Map<String, Object> bestMatch(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to look for.") String text,
             @Input(name = "candidates", type = OoaType.LIST, description = "Entries to compare with, e.g. a list of customer names.") List<Object> candidates,
-            @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", description = "Lowest score (0 to 100) accepted as a match.") double threshold,
+            @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 0, max = 100, description = "Lowest score (0 to 100) accepted as a match.") double threshold,
             @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"levenshtein\"", enumValues = {"levenshtein", "jaro_winkler", "token_sort", "token_set"}, description = D_ALGO) String algorithm,
             @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_CASE) boolean caseSensitive) {
         BigDecimal min = threshold(threshold);
@@ -178,7 +178,7 @@ public final class FuzzyPackage {
             @Input(name = "left_column", type = OoaType.STRING, description = "Column of the first table to match on.") String leftColumn,
             @Input(name = "right_table", type = OoaType.TABLE, description = "Reference table to look values up in.") Map<String, Object> right,
             @Input(name = "right_column", type = OoaType.STRING, description = "Column of the reference table to match on.") String rightColumn,
-            @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", description = "Lowest score (0 to 100) accepted as a match.") double threshold,
+            @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 0, max = 100, description = "Lowest score (0 to 100) accepted as a match.") double threshold,
             @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"token_set\"", enumValues = {"levenshtein", "jaro_winkler", "token_sort", "token_set"}, description = D_ALGO) String algorithm,
             @Input(name = "keep_unmatched", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Keep rows without a match, with empty reference columns. Off: drop them.") boolean keepUnmatched,
             @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_CASE) boolean caseSensitive) {
@@ -220,7 +220,7 @@ public final class FuzzyPackage {
     public boolean textsSimilar(ActionContext ctx,
             @Input(name = "text1", type = OoaType.STRING, description = "First text.") String text1,
             @Input(name = "text2", type = OoaType.STRING, description = "Second text.") String text2,
-            @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", description = "Lowest score that counts as similar.") double threshold,
+            @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 0, max = 100, description = "Lowest score that counts as similar.") double threshold,
             @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"levenshtein\"", enumValues = {"levenshtein", "jaro_winkler", "token_sort", "token_set"}, description = D_ALGO) String algorithm,
             @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_CASE) boolean caseSensitive) {
         return score(text1, text2, algorithm, caseSensitive).compareTo(threshold(threshold)) >= 0;

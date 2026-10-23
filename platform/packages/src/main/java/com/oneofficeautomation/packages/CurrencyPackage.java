@@ -154,12 +154,12 @@ public final class CurrencyPackage {
             @Input(name = "amount", type = OoaType.NUMBER, description = "Amount to convert.") BigDecimal amount,
             @Input(name = "from_currency", type = OoaType.STRING, example = "USD", description = "Currency of the amount.") String from,
             @Input(name = "to_currency", type = OoaType.STRING, example = "EUR", description = "Currency to convert into.") String to,
-            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "2", description = "Decimal places in the result.") int decimals,
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 0, max = 10, description = "Decimal places in the result.") int decimals,
             @Input(name = "source", type = OoaType.STRING, required = false, defaultValue = "\"ecb\"", enumValues = {"ecb", "json", "fixed"}, description = D_SOURCE) String source,
-            @Input(name = "url", type = OoaType.STRING, required = false, description = D_URL) String url,
-            @Input(name = "rates_path", type = OoaType.STRING, required = false, description = D_PATH) String path,
-            @Input(name = "base_currency", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, description = D_RATES) Map<String, Object> fixed) {
+            @Input(name = "url", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_URL) String url,
+            @Input(name = "rates_path", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_PATH) String path,
+            @Input(name = "base_currency", type = OoaType.STRING, required = false, visibleWhen = "source=json|fixed", description = D_BASE) String base,
+            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed) {
         if (amount == null) throw new ActionException(P + ".NO_AMOUNT", "Give an amount to convert");
         if (decimals < 0 || decimals > 12) throw new ActionException(P + ".BAD_DECIMALS", "decimals must be between 0 and 12");
         Rates r = rates(ctx, source, url, path, base, fixed);
@@ -176,10 +176,10 @@ public final class CurrencyPackage {
             @Input(name = "from_currency", type = OoaType.STRING, example = "GBP", description = "Currency you have.") String from,
             @Input(name = "to_currency", type = OoaType.STRING, example = "INR", description = "Currency you want.") String to,
             @Input(name = "source", type = OoaType.STRING, required = false, defaultValue = "\"ecb\"", enumValues = {"ecb", "json", "fixed"}, description = D_SOURCE) String source,
-            @Input(name = "url", type = OoaType.STRING, required = false, description = D_URL) String url,
-            @Input(name = "rates_path", type = OoaType.STRING, required = false, description = D_PATH) String path,
-            @Input(name = "base_currency", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, description = D_RATES) Map<String, Object> fixed) {
+            @Input(name = "url", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_URL) String url,
+            @Input(name = "rates_path", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_PATH) String path,
+            @Input(name = "base_currency", type = OoaType.STRING, required = false, visibleWhen = "source=json|fixed", description = D_BASE) String base,
+            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed) {
         Rates r = rates(ctx, source, url, path, base, fixed);
         return Out.of("rate", rate(r, from, to).stripTrailingZeros(), "rate_date", r.date() == null ? "" : r.date());
     }
@@ -192,10 +192,10 @@ public final class CurrencyPackage {
     @Output(name = "rate_date", type = OoaType.STRING, description = "Date of the rates when the source gives one, otherwise empty.")
     public Map<String, Object> listCurrencies(ActionContext ctx,
             @Input(name = "source", type = OoaType.STRING, required = false, defaultValue = "\"ecb\"", enumValues = {"ecb", "json", "fixed"}, description = D_SOURCE) String source,
-            @Input(name = "url", type = OoaType.STRING, required = false, description = D_URL) String url,
-            @Input(name = "rates_path", type = OoaType.STRING, required = false, description = D_PATH) String path,
-            @Input(name = "base_currency", type = OoaType.STRING, required = false, description = D_BASE) String base,
-            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, description = D_RATES) Map<String, Object> fixed) {
+            @Input(name = "url", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_URL) String url,
+            @Input(name = "rates_path", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_PATH) String path,
+            @Input(name = "base_currency", type = OoaType.STRING, required = false, visibleWhen = "source=json|fixed", description = D_BASE) String base,
+            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed) {
         Rates r = rates(ctx, source, url, path, base, fixed);
         Map<String, Object> all = new TreeMap<>(r.rates());
         all.put(r.base(), BigDecimal.ONE);

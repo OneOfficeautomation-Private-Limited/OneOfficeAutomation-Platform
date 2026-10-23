@@ -1515,6 +1515,29 @@ function addVariable(name, type) {
   return n;
 }
 
+/**
+ * Whether an input applies for the step's current values, from the manifest's x-ooa-visible-when rule
+ * ({field: [values]} or {field: ["!", values...]}). A $variable or expression in the controlling field counts as "may apply".
+ */
+function fieldApplies(prop, args, props) {
+  const rule = prop && prop["x-ooa-visible-when"];
+  if (!rule) return true;
+  return Object.entries(rule).every(([other, vals]) => {
+    let v = args[other];
+    if (v === undefined && props && props[other]) v = props[other].default;
+    if ((typeof v === "string" && v.trim().startsWith("$")) || (v && typeof v === "object")) return true;
+    const neg = vals[0] === "!";
+    const hit = (neg ? vals.slice(1) : vals).includes(v === undefined || v === null ? "" : String(v));
+    return neg ? !hit : hit;
+  });
+}
+
+/** True when another input of the action is shown or hidden by this one, so the form is redrawn after it changes. */
+function controlsOtherFields(action, name) {
+  const spec = state.specs.get(action);
+  return !!spec && Object.values(spec.action.inputs.properties).some((p) => p["x-ooa-visible-when"] && name in p["x-ooa-visible-when"]);
+}
+
 function inputControl(step, name, prop, required) {
   const args = step.args || (step.args = {});
   const type = prop["x-ooa-type"] || "Any";
@@ -1523,6 +1546,7 @@ function inputControl(step, name, prop, required) {
     if (v === undefined) delete args[name]; else { args[name] = v; step.args = args; }
     if (!Object.keys(args).length) delete step.args;
     changed();
+    if (controlsOtherFields(step.action, name)) renderProps();
   };
   let control;
   if (step.action === "core/run_bot" && name === "automation") {
@@ -1571,7 +1595,8 @@ function inputControl(step, name, prop, required) {
     const iters = [];
     for (const p of state.packages) for (const it of p.iterators || []) iters.push([p.id + "/" + it.id, it.name + " (" + p.name + ")"]);
     control = h("select", { onchange: (e) => set(e.target.value) },
-      h("optgroup", { label: "Built in" }, [["times", "N times"], ["while", "While a condition is true"], ["list", "Each item in a list"], ["dictionary", "Each key in a dictionary"], ["table_rows", "Each row in a table"]].map(([v, t]) => h("option", { value: v, text: t }))),
+      h("optgroup", { label: "Built in" }, [["times", "N times"], ["while", "While a condition is true"], ["list", "Each item in a list"], ["dictionary", "Each key and value in a dictionary"],
+        ["dictionary_keys", "Each key in a dictionary"], ["dictionary_values", "Each value in a dictionary or record"], ["table_rows", "Each row in a table"]].map(([v, t]) => h("option", { value: v, text: t }))),
       iters.length ? h("optgroup", { label: "From toolkits" }, iters.map(([v, t]) => h("option", { value: v, text: t }))) : null);
     control.value = current || "list";
   } else if (prop.enum) {
@@ -1606,7 +1631,16 @@ function inputControl(step, name, prop, required) {
       }, null, step) }, takesObject ? "Capture" : "Pick");
     control = h("div", { class: "field-row" }, control, pick);
   }
-  const help = [prop.description, prop.examples ? "Example: " + showValue(prop.examples[0]) : null].filter(Boolean).join("  ");
+  const range = prop.minimum !== undefined && prop.maximum !== undefined ? "Allowed: " + prop.minimum + " to " + prop.maximum + "."
+    : prop.minimum !== undefined ? "Smallest value: " + prop.minimum + "." : prop.maximum !== undefined ? "Largest value: " + prop.maximum + "." : null;
+  if (range && control.tagName === "DIV") {
+    const inp = control.querySelector("input");
+    if (inp) inp.addEventListener("change", (e) => {
+      const n = Number(e.target.value);
+      e.target.classList.toggle("invalid", e.target.value.trim() !== "" && !e.target.value.trim().startsWith("$") && (isNaN(n) || (prop.minimum !== undefined && n < prop.minimum) || (prop.maximum !== undefined && n > prop.maximum)));
+    });
+  }
+  const help = [prop.description, range, prop.examples ? "Example: " + showValue(prop.examples[0]) : null].filter(Boolean).join("  ");
   return h("div", { class: "field", "data-field": name },
     h("label", {}, (prop["x-ooa-label"] || name), required ? h("span", { class: "req", text: " *" }) : null, typeChip(type), infoTip(help)),
     control);
@@ -1878,6 +1912,8 @@ function renderProps() {
     const timeoutBox = [];
     for (const [name, prop0] of entries) {
       if (shown && !shown.has(name)) continue;
+      // Options that do not apply to the current choices are hidden (a value already set stays visible so it can be cleared).
+      if (!fieldApplies(prop0, step.args || {}, props) && (step.args || {})[name] === undefined) continue;
       const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
       if (shown && ["timeout_ms", "timeout_seconds", "wait_for_page_ms", "if_not_found"].includes(name)) { timeoutBox.push([name, prop]); continue; }
       // Advanced inputs (self-healing alternatives, session names) always go under More options.
@@ -4163,12 +4199,18 @@ function fillWindowFromCapture(step, obj) {
   args.window = "$" + windowVariable(w);
 }
 
-/** The window variable for a browser window (title and browser), made the first time a step needs it. */
+/**
+ * The window variable for a window (title, source and browser), made the first time a step needs it. As in the
+ * reference product, names are numbered (Window_1, Window_2, ...) rather than built from the title; the title stays in
+ * the variable's value and description.
+ */
 function windowVariable(w) {
   const same = state.flow.variables.find((v) => v.type === "Dictionary" && v.default && typeof v.default === "object" && v.default.source === (w.source || "browser")
-    && v.default.title === w.title && (v.default.browser || "") === (w.browser || "") && /^window_/.test(v.name));
+    && v.default.title === w.title && (v.default.browser || "") === (w.browser || "") && /^window_/i.test(v.name));
   if (same) return same.name;
-  const name = uniqueVarName("window_" + String(w.title).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40));
+  let k = 1;
+  while (state.flow.variables.some((v) => v.name.toLowerCase() === "window_" + k)) k++;
+  const name = "Window_" + k;
   state.flow.variables.push({ name, type: "Dictionary", direction: "local", default: w, description: "Window " + (w.source === "application" ? "" : "(browser title) ") + "“" + w.title + "”, made by Capture." });
   renderVariables();
   return name;

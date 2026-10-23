@@ -463,6 +463,364 @@ public final class AzureDevOpsPackage {
         return result(HttpJson.table(recs, "id", "name", "folder", "revision"), recs.size());
     }
 
+    // ---------------------------------------------------------------- test plans, suites, cases, points and runs
+
+    private static final String D_PLAN = "Test plan id, from List test plans.";
+    private static final String D_SUITE = "Test suite id; a plan's top suite has the plan's root suite id (see Get test plan).";
+
+    static Map<String, Object> plan(Map<String, Object> p) {
+        return Out.of("id", p.get("id"), "name", p.get("name"), "state", p.get("state"), "area_path", p.get("areaPath"), "iteration", p.get("iteration"),
+                "root_suite_id", HttpJson.path(p, "rootSuite.id"), "owner", who(p.get("owner")), "start_date", p.get("startDate"), "end_date", p.get("endDate"));
+    }
+
+    @Action(id = "list_test_plans", name = "List test plans", category = "Test plans", idempotent = true, capabilities = "network", description = "List the test plans of a project.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, area_path, iteration, root_suite_id.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of plans.")
+    public Map<String, Object> listTestPlans(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "active_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out inactive plans.") boolean active) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> p : pages(ctx, proj(org, project) + "/_apis/testplan/plans" + (active ? "?filterActivePlans=true" : ""), pat, 5000)) rows.add(plan(p));
+        return Out.of("table", HttpJson.table(rows, "id", "name", "state", "area_path", "iteration", "root_suite_id"), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "get_test_plan", name = "Get test plan details", category = "Test plans", idempotent = true, capabilities = "network", description = "Read one test plan.")
+    @Output(name = "plan", type = OoaType.DICTIONARY, description = "Keys: id, name, state, area_path, iteration, root_suite_id, owner, start_date, end_date.")
+    public Map<String, Object> getTestPlan(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId) {
+        return Out.of("plan", plan(call(ctx, "GET", proj(org, project) + "/_apis/testplan/plans/" + planId, pat, null)));
+    }
+
+    @Action(id = "create_test_plan", name = "Create test plan", category = "Test plans", capabilities = "network", description = "Create a test plan; its root suite is created with it.")
+    @Output(name = "plan_id", type = OoaType.NUMBER, description = "Id of the new plan.")
+    @Output(name = "root_suite_id", type = OoaType.NUMBER, description = "Id of the plan's root suite, for Create test suite.")
+    public Map<String, Object> createTestPlan(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "name", type = OoaType.STRING, description = "Plan name, e.g. Release 3.2 regression.") String name,
+            @Input(name = "area_path", type = OoaType.STRING, required = false, description = "Area path; the project's root area when empty.") String area,
+            @Input(name = "iteration", type = OoaType.STRING, required = false, description = "Iteration path, e.g. Finance Portal\\Sprint 12.") String iteration,
+            @Input(name = "plan_description", type = OoaType.STRING, required = false, description = "Description.") String desc) {
+        Map<String, Object> b = new LinkedHashMap<>(Map.of("name", name));
+        if (area != null && !area.isBlank()) b.put("areaPath", area);
+        if (iteration != null && !iteration.isBlank()) b.put("iteration", iteration);
+        if (desc != null && !desc.isBlank()) b.put("description", desc);
+        Map<String, Object> r = call(ctx, "POST", proj(org, project) + "/_apis/testplan/plans", pat, b);
+        return Out.of("plan_id", r.get("id"), "root_suite_id", HttpJson.path(r, "rootSuite.id"));
+    }
+
+    @Action(id = "update_test_plan", name = "Edit test plan", category = "Test plans", capabilities = "network", description = "Rename a test plan, change its state, description, area or iteration; empty inputs are kept.")
+    public Map<String, Object> updateTestPlan(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
+            @Input(name = "state", type = OoaType.STRING, required = false, enumValues = {"Active", "Inactive"}, description = "Plan state.") String state,
+            @Input(name = "plan_description", type = OoaType.STRING, required = false, description = "New description.") String desc,
+            @Input(name = "area_path", type = OoaType.STRING, required = false, description = "New area path.") String area,
+            @Input(name = "iteration", type = OoaType.STRING, required = false, description = "New iteration path.") String iteration) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        if (name != null && !name.isBlank()) b.put("name", name);
+        if (state != null && !state.isBlank()) b.put("state", state);
+        if (desc != null) b.put("description", desc);
+        if (area != null && !area.isBlank()) b.put("areaPath", area);
+        if (iteration != null && !iteration.isBlank()) b.put("iteration", iteration);
+        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in at least one field.");
+        call(ctx, "PATCH", proj(org, project) + "/_apis/testplan/plans/" + planId, pat, b);
+        return Map.of();
+    }
+
+    @Action(id = "delete_test_plan", name = "Delete test plan", category = "Test plans", capabilities = "network", description = "Delete a test plan with its suites (test cases stay as work items). Needs confirm.")
+    public Map<String, Object> deleteTestPlan(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true: a safeguard against deleting by mistake.") boolean confirm) {
+        if (!confirm) throw new ActionException(P + ".CONFIRM_REQUIRED", "The test plan was not deleted because confirm is false", "Set confirm to true.");
+        call(ctx, "DELETE", proj(org, project) + "/_apis/testplan/plans/" + planId, pat, null);
+        return Map.of();
+    }
+
+    @Action(id = "create_test_suite", name = "Create test suite", category = "Test plans", capabilities = "network",
+            description = "Create a static, requirement-based or query-based suite inside a plan's suite.")
+    @Output(name = "suite_id", type = OoaType.NUMBER, description = "Id of the new suite.")
+    public Map<String, Object> createTestSuite(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "parent_suite_id", type = OoaType.NUMBER, min = 1, description = "Suite to create it in, usually the plan's root suite.") int parent,
+            @Input(name = "name", type = OoaType.STRING, description = "Suite name.") String name,
+            @Input(name = "suite_type", type = OoaType.STRING, required = false, defaultValue = "\"static\"", enumValues = {"static", "requirement", "query"},
+                    description = "static: test cases added by hand; requirement: the tests of one work item; query: tests matching a WIQL query.") String type,
+            @Input(name = "requirement_id", type = OoaType.NUMBER, required = false, visibleWhen = "suite_type=requirement", min = 1, description = "Work item whose tests the suite holds.") Integer requirement,
+            @Input(name = "query", type = OoaType.STRING, required = false, visibleWhen = "suite_type=query", description = "WIQL query selecting the test cases.") String query) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("suiteType", switch (type == null ? "static" : type) { case "requirement" -> "requirementTestSuite"; case "query" -> "dynamicTestSuite"; default -> "staticTestSuite"; });
+        b.put("name", name);
+        b.put("parentSuite", Map.of("id", parent));
+        if ("requirement".equals(type)) {
+            if (requirement == null) throw new ActionException(P + ".MISSING_REQUIREMENT", "A requirement suite needs requirement_id", "Fill in the work item id.");
+            b.put("requirementId", requirement);
+        }
+        if ("query".equals(type)) {
+            if (query == null || query.isBlank()) throw new ActionException(P + ".MISSING_QUERY", "A query suite needs a query", "Fill in a WIQL query.");
+            b.put("queryString", query);
+        }
+        return Out.of("suite_id", call(ctx, "POST", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites", pat, b).get("id"));
+    }
+
+    @Action(id = "update_test_suite", name = "Edit test suite", category = "Test plans", capabilities = "network", description = "Rename a suite or move it under another suite of the plan.")
+    public Map<String, Object> updateTestSuite(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
+            @Input(name = "parent_suite_id", type = OoaType.NUMBER, required = false, min = 1, description = "Move under this suite.") Integer parent) {
+        Map<String, Object> b = new LinkedHashMap<>();
+        if (name != null && !name.isBlank()) b.put("name", name);
+        if (parent != null) b.put("parentSuite", Map.of("id", parent));
+        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name or parent_suite_id.");
+        call(ctx, "PATCH", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites/" + suiteId, pat, b);
+        return Map.of();
+    }
+
+    @Action(id = "delete_test_suite", name = "Delete test suite", category = "Test plans", capabilities = "network", description = "Delete a suite and its child suites (test cases stay as work items).")
+    public Map<String, Object> deleteTestSuite(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId) {
+        call(ctx, "DELETE", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites/" + suiteId, pat, null);
+        return Map.of();
+    }
+
+    @Action(id = "add_test_cases_to_suite", name = "Add test cases to suite", category = "Test plans", capabilities = "network", description = "Add existing test case work items to a static suite.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of test cases added.")
+    public Map<String, Object> addTestCases(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
+            @Input(name = "test_case_ids", type = OoaType.LIST, description = "Work item ids of the test cases, e.g. [101, 102].") List<Object> ids) {
+        List<Object> body = new ArrayList<>();
+        for (int id : testCaseIds(ids)) body.add(Map.of("workItem", Map.of("id", id)));
+        call(ctx, "POST", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestCase", pat, body);
+        return Out.of("count", BigDecimal.valueOf(body.size()));
+    }
+
+    @Action(id = "remove_test_cases_from_suite", name = "Remove test cases from suite", category = "Test plans", capabilities = "network",
+            description = "Take test cases out of a suite; the test case work items are kept.")
+    public Map<String, Object> removeTestCases(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
+            @Input(name = "test_case_ids", type = OoaType.LIST, description = "Work item ids of the test cases.") List<Object> ids) {
+        StringBuilder sb = new StringBuilder();
+        for (int id : testCaseIds(ids)) sb.append(sb.isEmpty() ? "" : ",").append(id);
+        call(ctx, "DELETE", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestCase?testCaseIds=" + sb, pat, null);
+        return Map.of();
+    }
+
+    private static List<Integer> testCaseIds(List<Object> ids) {
+        if (ids == null || ids.isEmpty()) throw new ActionException(P + ".MISSING_TEST_CASES", "No test case ids given", "Give one or more work item ids.");
+        List<Integer> out = new ArrayList<>();
+        for (Object o : ids) {
+            try { out.add(Values.toNumber(o).intValueExact()); }
+            catch (RuntimeException e) { throw new ActionException(P + ".BAD_ID", "'" + o + "' is not a work item id", "Use whole numbers such as 101."); }
+        }
+        return out;
+    }
+
+    @Action(id = "create_test_case", name = "Create test case", category = "Test plans", capabilities = "network",
+            description = "Create a Test Case work item with numbered steps (action and expected result), optionally added to a suite.")
+    @Output(name = "id", type = OoaType.NUMBER, description = "Work item id of the test case.")
+    public Map<String, Object> createTestCase(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "title", type = OoaType.STRING, description = "Test case title.") String title,
+            @Input(name = "steps", type = OoaType.LIST, required = false,
+                    description = "Steps in order: text, or {\"action\": ..., \"expected\": ...}, e.g. [{\"action\": \"Open the invoice\", \"expected\": \"Total shows 120.50\"}].") List<Object> steps,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Other fields, e.g. {\"priority\": 2, \"area_path\": \"Finance Portal\"}.") Map<String, Object> fields,
+            @Input(name = "plan_id", type = OoaType.NUMBER, required = false, min = 1, description = "Add the new test case to this plan's suite (with suite_id).") Integer planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, required = false, min = 1, visibleWhen = "plan_id!=", description = "Suite to add it to.") Integer suiteId) {
+        List<Object> ops = new ArrayList<>();
+        ops.add(Map.of("op", "add", "path", "/fields/System.Title", "value", title));
+        if (steps != null && !steps.isEmpty()) ops.add(Map.of("op", "add", "path", "/fields/Microsoft.VSTS.TCM.Steps", "value", stepsXml(steps)));
+        if (fields != null) fields.forEach((k, v) -> ops.add(Map.of("op", "add", "path", "/fields/" + FRIENDLY.getOrDefault(k, k), "value", v)));
+        HttpJson.Req r = req("POST", withVersion(proj(org, project) + "/_apis/wit/workitems/$Test%20Case", V), pat).bytes(JsonLite.write(ops).getBytes(java.nio.charset.StandardCharsets.UTF_8), "application/json-patch+json");
+        Object id = send(r, ctx).map().get("id");
+        if (planId != null && suiteId != null && id != null)
+            addTestCases(ctx, org, pat, project, planId, suiteId, List.of(id));
+        return Out.of("id", id);
+    }
+
+    /** The steps field of a Test Case: XML with an action and an expected result per step (both stored as escaped HTML). */
+    static String stepsXml(List<Object> steps) {
+        StringBuilder sb = new StringBuilder("<steps id=\"0\" last=\"" + (steps.size() + 1) + "\">");
+        int i = 2;
+        for (Object s : steps) {
+            String action, expected;
+            if (s instanceof Map<?, ?> m) { action = Values.text(m.get("action")); expected = m.get("expected") == null ? "" : Values.text(m.get("expected")); }
+            else { action = Values.text(s); expected = ""; }
+            sb.append("<step id=\"").append(i++).append("\" type=\"").append(expected.isEmpty() ? "ActionStep" : "ValidateStep").append("\">")
+              .append("<parameterizedString isformatted=\"true\">").append(xml("<P>" + html(action) + "</P>")).append("</parameterizedString>")
+              .append("<parameterizedString isformatted=\"true\">").append(xml(expected.isEmpty() ? "" : "<P>" + html(expected) + "</P>")).append("</parameterizedString>")
+              .append("<description/></step>");
+        }
+        return sb.append("</steps>").toString();
+    }
+
+    private static String html(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"); }
+    private static String xml(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
+
+    @Action(id = "list_test_points", name = "List test points", category = "Test plans", idempotent = true, capabilities = "network",
+            description = "List the test points of a suite (one per test case and configuration) with their latest outcome.")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, test_case_id, test_case, configuration, tester, outcome, state.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of points.")
+    public Map<String, Object> listTestPoints(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> p : pages(ctx, proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestPoint", pat, 10000))
+            rows.add(Out.of("id", p.get("id"), "test_case_id", HttpJson.path(p, "testCaseReference.id"), "test_case", HttpJson.path(p, "testCaseReference.name"),
+                    "configuration", HttpJson.path(p, "configuration.name"), "tester", who(p.get("tester")),
+                    "outcome", HttpJson.path(p, "results.outcome"), "state", HttpJson.path(p, "results.state")));
+        return Out.of("table", HttpJson.table(rows, "id", "test_case_id", "test_case", "configuration", "tester", "outcome", "state"), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    @Action(id = "update_test_point", name = "Update test point", category = "Test plans", capabilities = "network",
+            description = "Set the outcome of test points (passed, failed, blocked, not applicable), or reset them to active, e.g. after a manual check done by an agent.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of points updated.")
+    public Map<String, Object> updateTestPoint(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
+            @Input(name = "point_ids", type = OoaType.LIST, description = "Test point ids, from List test points.") List<Object> points,
+            @Input(name = "outcome", type = OoaType.STRING, enumValues = {"passed", "failed", "blocked", "notApplicable", "active"}, description = "New outcome; active resets the point.") String outcome) {
+        List<Object> body = new ArrayList<>();
+        for (int id : testCaseIds(points))
+            body.add("active".equals(outcome) ? Map.of("id", id, "resetToActive", true) : Map.of("id", id, "results", Map.of("outcome", outcome)));
+        call(ctx, "PATCH", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestPoint", pat, body);
+        return Out.of("count", BigDecimal.valueOf(body.size()));
+    }
+
+    @Action(id = "create_test_run", name = "Create test run", category = "Test plans", capabilities = "network",
+            description = "Start a manual test run for test points of a plan, so their results can be recorded.")
+    @Output(name = "run_id", type = OoaType.NUMBER, description = "Id of the new run.")
+    @Output(name = "url", type = OoaType.STRING, description = "Web address of the run.")
+    public Map<String, Object> createTestRun(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
+            @Input(name = "name", type = OoaType.STRING, description = "Run name.") String name,
+            @Input(name = "point_ids", type = OoaType.LIST, required = false, description = "Test points to include; the run starts empty when none are given.") List<Object> points) {
+        Map<String, Object> b = new LinkedHashMap<>(Map.of("name", name, "plan", Map.of("id", String.valueOf(planId)), "automated", false));
+        if (points != null && !points.isEmpty()) b.put("pointIds", testCaseIds(points));
+        Map<String, Object> r = call(ctx, "POST", proj(org, project) + "/_apis/test/runs", pat, b);
+        return Out.of("run_id", r.get("id"), "url", r.get("webAccessUrl"));
+    }
+
+    @Action(id = "get_test_run", name = "Get test run details", category = "Test plans", idempotent = true, capabilities = "network",
+            description = "Read a test run: state, counts of passed, failed and incomplete tests, dates.")
+    @Output(name = "run", type = OoaType.DICTIONARY, description = "Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url.")
+    public Map<String, Object> getTestRun(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "run_id", type = OoaType.NUMBER, min = 1, description = "Test run id.") int runId) {
+        Map<String, Object> r = call(ctx, "GET", proj(org, project) + "/_apis/test/runs/" + runId, pat, null);
+        return Out.of("run", Out.of("id", r.get("id"), "name", r.get("name"), "state", r.get("state"), "total_tests", r.get("totalTests"),
+                "passed_tests", r.get("passedTests"), "failed_tests", r.get("unanalyzedTests"), "incomplete_tests", r.get("incompleteTests"),
+                "started", r.get("startedDate"), "completed", r.get("completedDate"), "url", r.get("webAccessUrl")));
+    }
+
+    // ---------------------------------------------------------------- pipeline definitions
+
+    @Action(id = "get_pipeline", name = "Get pipeline details", category = "Pipelines", idempotent = true, capabilities = "network",
+            description = "Read a pipeline: name, folder, YAML file and repository.")
+    @Output(name = "pipeline", type = OoaType.DICTIONARY, description = "Keys: id, name, folder, yaml_path, repository, url.")
+    public Map<String, Object> getPipeline(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "pipeline_id", type = OoaType.NUMBER, min = 1, description = "Pipeline id, from List pipelines.") int pipeline) {
+        Map<String, Object> r = call(ctx, "GET", proj(org, project) + "/_apis/pipelines/" + pipeline, pat, null);
+        return Out.of("pipeline", Out.of("id", r.get("id"), "name", r.get("name"), "folder", r.get("folder"), "yaml_path", HttpJson.path(r, "configuration.path"),
+                "repository", HttpJson.path(r, "configuration.repository.name") != null ? HttpJson.path(r, "configuration.repository.name") : HttpJson.path(r, "configuration.repository.id"),
+                "url", HttpJson.path(r, "_links.web.href")));
+    }
+
+    @Action(id = "create_pipeline", name = "Create pipeline", category = "Pipelines", capabilities = "network",
+            description = "Create a YAML pipeline from a file in an Azure Repos Git repository.")
+    @Output(name = "pipeline_id", type = OoaType.NUMBER, description = "Id of the new pipeline.")
+    public Map<String, Object> createPipeline(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "name", type = OoaType.STRING, description = "Pipeline name.") String name,
+            @Input(name = "repository_id", type = OoaType.STRING, description = "Repository id (a GUID, from List repositories).") String repo,
+            @Input(name = "yaml_path", type = OoaType.STRING, example = "/azure-pipelines.yml", description = "Path of the YAML file in the repository.") String yaml,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"\\\\\"", description = "Folder for the pipeline, e.g. \\Finance.") String folder) {
+        Map<String, Object> b = Map.of("name", name, "folder", folder == null || folder.isBlank() ? "\\" : folder,
+                "configuration", Map.of("type", "yaml", "path", yaml, "repository", Map.of("id", repo.strip(), "type", "azureReposGit")));
+        return Out.of("pipeline_id", call(ctx, "POST", proj(org, project) + "/_apis/pipelines", pat, b).get("id"));
+    }
+
+    @Action(id = "update_pipeline", name = "Edit pipeline", category = "Pipelines", capabilities = "network",
+            description = "Rename a pipeline or move it to another folder (its YAML is changed in the repository, not here).")
+    public Map<String, Object> updatePipeline(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "pipeline_id", type = OoaType.NUMBER, min = 1, description = "Pipeline id.") int pipeline,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
+            @Input(name = "folder", type = OoaType.STRING, required = false, description = "New folder, e.g. \\Finance.") String folder) {
+        if ((name == null || name.isBlank()) && (folder == null || folder.isBlank()))
+            throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name or folder.");
+        String url = proj(org, project) + "/_apis/build/definitions/" + pipeline;
+        Map<String, Object> def = new LinkedHashMap<>(call(ctx, "GET", url, pat, null));   // the full definition is sent back with the change
+        if (def.isEmpty()) throw new ActionException(P + ".NOT_FOUND", "Pipeline " + pipeline + " was not found", "Check the id with List pipelines.");
+        if (name != null && !name.isBlank()) def.put("name", name);
+        if (folder != null && !folder.isBlank()) def.put("path", folder);
+        call(ctx, "PUT", url, pat, def);
+        return Map.of();
+    }
+
+    @Action(id = "delete_pipeline", name = "Delete pipeline", category = "Pipelines", capabilities = "network",
+            description = "Delete a pipeline and its run history. Needs confirm.")
+    public Map<String, Object> deletePipeline(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "pipeline_id", type = OoaType.NUMBER, min = 1, description = "Pipeline id.") int pipeline,
+            @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true: a safeguard against deleting by mistake.") boolean confirm) {
+        if (!confirm) throw new ActionException(P + ".CONFIRM_REQUIRED", "The pipeline was not deleted because confirm is false", "Set confirm to true.");
+        call(ctx, "DELETE", proj(org, project) + "/_apis/build/definitions/" + pipeline, pat, null);
+        return Map.of();
+    }
+
     @Action(id = "run_pipeline", name = "Run pipeline", category = "Pipelines", capabilities = "network",
             description = "Start a pipeline run on a branch, with optional parameters and variables.")
     @Output(name = "run_id", type = OoaType.NUMBER, description = "Id of the new run; use it with Get pipeline run.")

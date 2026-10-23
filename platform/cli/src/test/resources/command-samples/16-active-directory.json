@@ -1,0 +1,298 @@
+[
+ {
+  "command": "ooa.active_directory/connect",
+  "name": "OUs, users, groups, computers: create, read, change, move, rename, delete",
+  "requires": "ldap",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.active_directory/connect",
+    "args": {
+     "url": "{ldap}",
+     "bind_user": "CN=admin,DC=acme,DC=test",
+     "password": "$pw",
+     "base_dn": "DC=acme,DC=test"
+    }
+   },
+   {
+    "action": "ooa.active_directory/create_ou",
+    "args": {
+     "parent_dn": "DC=acme,DC=test",
+     "name": "Robots",
+     "ou_description": "Agents"
+    },
+    "out": {
+     "dn": "ou"
+    }
+   },
+   {
+    "action": "ooa.active_directory/create_user",
+    "args": {
+     "container_dn": "OU=Staff,DC=acme,DC=test",
+     "username": "jdoe",
+     "first_name": "Jane",
+     "last_name": "Doe"
+    },
+    "out": {
+     "dn": "user_dn"
+    }
+   },
+   {
+    "action": "ooa.active_directory/get_user",
+    "args": {
+     "username": "jdoe"
+    },
+    "out": {
+     "user": "u"
+    }
+   },
+   {
+    "action": "ooa.active_directory/update_user_details",
+    "args": {
+     "username": "jdoe",
+     "title": "Analyst"
+    }
+   },
+   {
+    "action": "ooa.active_directory/disable_user",
+    "args": {
+     "username": "jdoe"
+    }
+   },
+   {
+    "action": "ooa.active_directory/enable_user",
+    "args": {
+     "username": "jdoe"
+    }
+   },
+   {
+    "action": "ooa.active_directory/create_group",
+    "args": {
+     "container_dn": "OU=Staff,DC=acme,DC=test",
+     "name": "Finance"
+    },
+    "out": {
+     "dn": "group_dn"
+    }
+   },
+   {
+    "action": "ooa.active_directory/add_to_group",
+    "args": {
+     "username": "jdoe",
+     "group_dn": "$group_dn"
+    },
+    "out": {
+     "changed": "added"
+    }
+   },
+   {
+    "action": "ooa.active_directory/get_group_members",
+    "args": {
+     "group": "Finance"
+    },
+    "out": {
+     "count": "members"
+    }
+   },
+   {
+    "action": "ooa.active_directory/remove_from_group",
+    "args": {
+     "username": "jdoe",
+     "group_dn": "$group_dn"
+    },
+    "out": {
+     "changed": "removed"
+    }
+   },
+   {
+    "action": "ooa.active_directory/create_computer",
+    "args": {
+     "container_dn": "OU=Staff,DC=acme,DC=test",
+     "name": "PC01"
+    },
+    "out": {
+     "dn": "pc"
+    }
+   },
+   {
+    "action": "ooa.active_directory/move_computer",
+    "args": {
+     "computer": "PC01",
+     "target_ou_dn": "$ou"
+    },
+    "out": {
+     "dn": "pc_moved"
+    }
+   },
+   {
+    "action": "ooa.active_directory/rename_computer",
+    "args": {
+     "computer": "PC01",
+     "new_name": "PC02"
+    },
+    "out": {
+     "dn": "pc_renamed"
+    }
+   },
+   {
+    "action": "ooa.active_directory/get_computer_property",
+    "args": {
+     "computer": "PC02"
+    },
+    "out": {
+     "properties": "pcp"
+    }
+   },
+   {
+    "action": "ooa.active_directory/move_user",
+    "args": {
+     "username": "jdoe",
+     "target_ou_dn": "$ou"
+    },
+    "out": {
+     "dn": "user_moved"
+    }
+   },
+   {
+    "action": "ooa.active_directory/rename_user",
+    "args": {
+     "username": "jdoe",
+     "new_name": "Jane Smith"
+    },
+    "out": {
+     "dn": "user_renamed"
+    }
+   },
+   {
+    "action": "ooa.active_directory/search",
+    "args": {
+     "filter": "(objectClass=user)"
+    },
+    "out": {
+     "table": "found",
+     "count": "nfound"
+    }
+   },
+   {
+    "action": "ooa.active_directory/run_query",
+    "args": {
+     "filter": "(objectClass=organizationalUnit)",
+     "scope": "one_level"
+    },
+    "out": {
+     "count": "ous"
+    }
+   },
+   {
+    "action": "ooa.active_directory/get_ou_property",
+    "args": {
+     "ou": "$ou"
+    },
+    "out": {
+     "properties": "oup"
+    }
+   },
+   {
+    "action": "ooa.active_directory/delete_user",
+    "args": {
+     "username": "jdoe"
+    }
+   },
+   {
+    "action": "ooa.active_directory/delete_computer",
+    "args": {
+     "computer": "PC02"
+    }
+   },
+   {
+    "action": "ooa.active_directory/delete_group",
+    "args": {
+     "group": "Finance"
+    }
+   },
+   {
+    "action": "ooa.active_directory/delete_ou",
+    "args": {
+     "ou": "$ou"
+    }
+   },
+   {
+    "action": "ooa.active_directory/disconnect"
+   }
+  ],
+  "expect": {
+   "ou": "OU=Robots,DC=acme,DC=test",
+   "user_dn": {
+    "$contains": "OU=Staff"
+   },
+   "u": {
+    "$type": "object"
+   },
+   "added": 1,
+   "members": 1,
+   "removed": 1,
+   "pc_moved": {
+    "$contains": "OU=Robots"
+   },
+   "pc_renamed": {
+    "$contains": "PC02"
+   },
+   "user_moved": {
+    "$contains": "OU=Robots"
+   },
+   "nfound": 2,
+   "ous": 2
+  }
+ },
+ {
+  "command": "ooa.active_directory/connect",
+  "name": "wrong password",
+  "requires": "ldap",
+  "credentials": {
+   "pw": "test/x/y"
+  },
+  "secrets": {
+   "test/x/y": "wrong"
+  },
+  "steps": [
+   {
+    "action": "ooa.active_directory/connect",
+    "args": {
+     "url": "{ldap}",
+     "bind_user": "CN=admin,DC=acme,DC=test",
+     "password": "$pw",
+     "base_dn": "DC=acme,DC=test"
+    }
+   }
+  ],
+  "error": "AD.AUTH_FAILED"
+ },
+ {
+  "command": "ooa.active_directory/get_user",
+  "name": "unknown user",
+  "requires": "ldap",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.active_directory/connect",
+    "args": {
+     "url": "{ldap}",
+     "bind_user": "CN=admin,DC=acme,DC=test",
+     "password": "$pw",
+     "base_dn": "DC=acme,DC=test"
+    }
+   },
+   {
+    "action": "ooa.active_directory/get_user",
+    "args": {
+     "username": "nobody"
+    }
+   }
+  ],
+  "error": "AD.USER_NOT_FOUND"
+ }
+]

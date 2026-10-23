@@ -84,9 +84,9 @@ public final class FilePackage {
     public Map<String, Object> delete(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File path, or a folder when pattern is given.") String path,
             @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.tmp", description = "Delete the files in the folder at path that match this glob pattern.") String pattern,
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With pattern, also delete matching files in sub-folders.") boolean sub,
-            @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, description = "With pattern, only files last changed more than this many days ago.") Integer older,
-            @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, description = "With pattern, only files at least this large.") Long min,
-            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, description = "With pattern, only files at most this large.") Long max) {
+            @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files last changed more than this many days ago.") Integer older,
+            @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at least this large.") Long min,
+            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at most this large.") Long max) {
         Path p = ctx.resolvePath(path);
         if (pattern == null || pattern.isBlank()) {
             try { return Map.of("deleted", BigDecimal.valueOf(Files.deleteIfExists(p) ? 1 : 0)); } catch (IOException e) { throw io("delete", p, e); }
@@ -101,21 +101,180 @@ public final class FilePackage {
 
     @Action(id = "list", name = "List files", category = "Folders", idempotent = true, capabilities = "filesystem",
             description = "List files in a folder matching a glob pattern.")
-    @Output(name = "files", type = OoaType.LIST, description = "Sorted list of file paths.")
+    @Output(name = "files", type = OoaType.LIST, description = "File paths in the chosen order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of files found.")
+    @Output(name = "first", type = OoaType.FILE, description = "First file of the list (e.g. the newest with sort_by modified, descending); empty when none.")
     public Map<String, Object> list(ActionContext ctx,
             @Input(name = "folder", type = OoaType.FILE, description = "Folder path.") String folder,
             @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Glob pattern, e.g. *.pdf.") String pattern,
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also list matching files in sub-folders.") boolean sub,
-            @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, description = "Only files at least this large.") Long min,
-            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, description = "Only files at most this large.") Long max,
-            @Input(name = "modified_within_days", type = OoaType.NUMBER, required = false, description = "Only files changed in the last this many days.") Integer within,
-            @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, description = "Only files last changed more than this many days ago.") Integer older) {
-        return Map.of("files", new ArrayList<Object>(files(ctx.resolvePath(folder), pattern, sub, filter(min, max, within, older))));
+            @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "Only files at least this large.") Long min,
+            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "Only files at most this large.") Long max,
+            @Input(name = "modified_within_days", type = OoaType.NUMBER, required = false, min = 0, description = "Only files changed in the last this many days.") Integer within,
+            @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, min = 0, description = "Only files last changed more than this many days ago.") Integer older,
+            @Input(name = "sort_by", type = OoaType.STRING, required = false, defaultValue = "\"name\"", enumValues = {"name", "modified", "size"},
+                    description = "Order of the list: by path name, by last change (oldest first) or by size (smallest first).") String sortBy,
+            @Input(name = "descending", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Reverse the order, e.g. newest first with sort_by modified.") boolean descending) {
+        List<Object> list = new ArrayList<>(files(ctx.resolvePath(folder), pattern, sub, filter(min, max, within, older)));
+        Comparator<Object> by = switch (sortBy == null ? "name" : sortBy) {
+            case "modified" -> Comparator.comparingLong(p -> modified(Path.of((String) p)));
+            case "size" -> Comparator.comparingLong(p -> size(Path.of((String) p)));
+            case "name" -> Comparator.comparing(p -> (String) p);
+            default -> throw new ActionException("FILE.BAD_OPTION", "Unknown sort '" + sortBy + "'", "Use name, modified or size.");
+        };
+        list.sort(descending ? by.reversed() : by);
+        return Out.of("files", list, "count", BigDecimal.valueOf(list.size()), "first", list.isEmpty() ? "" : list.get(0));
     }
+
+    public Map<String, Object> list(ActionContext ctx, String folder, String pattern, boolean sub, Long min, Long max, Integer within, Integer older) {
+        return list(ctx, folder, pattern, sub, min, max, within, older, "name", false);
+    }
+
+    private static long modified(Path p) { try { return Files.getLastModifiedTime(p).toMillis(); } catch (IOException e) { return 0; } }
+    private static long size(Path p) { try { return Files.size(p); } catch (IOException e) { return 0; } }
 
     @Condition(id = "exists", name = "File exists", description = "True when the file exists.")
     public boolean exists(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File path.") String path) {
         return Files.isRegularFile(ctx.resolvePath(path));
+    }
+
+    private static Path existing(ActionContext ctx, String path) {
+        Path p = ctx.resolvePath(path);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
+        return p;
+    }
+
+    private static boolean compare(long actual, String op, long expected) {
+        return switch (op == null ? "eq" : op) {
+            case "eq" -> actual == expected; case "ne" -> actual != expected; case "gt" -> actual > expected;
+            case "ge" -> actual >= expected; case "lt" -> actual < expected; case "le" -> actual <= expected;
+            default -> throw new ActionException("FILE.BAD_OPERATOR", "Unknown operator '" + op + "'", "Use eq, ne, gt, ge, lt or le.");
+        };
+    }
+
+    @Condition(id = "size_is", name = "File size is", description = "Compare the size of a file with a number of bytes, KB or MB, e.g. larger than 0 bytes.")
+    public boolean sizeIs(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
+            @Input(name = "operator", type = OoaType.STRING, required = false, defaultValue = "\"gt\"", enumValues = {"eq", "ne", "gt", "ge", "lt", "le"}, description = "How to compare.") String op,
+            @Input(name = "size", type = OoaType.NUMBER, min = 0, description = "Size to compare with.") BigDecimal size,
+            @Input(name = "unit", type = OoaType.STRING, required = false, defaultValue = "\"bytes\"", enumValues = {"bytes", "KB", "MB", "GB"}, description = "Unit of the size (1 KB = 1024 bytes).") String unit) {
+        long mult = switch (unit == null ? "bytes" : unit) { case "KB" -> 1024L; case "MB" -> 1024L * 1024; case "GB" -> 1024L * 1024 * 1024; default -> 1L; };
+        return compare(size(existing(ctx, path)), op, size.multiply(BigDecimal.valueOf(mult)).longValue());
+    }
+
+    @Condition(id = "date_is", name = "File date is", description = "Compare when a file was last changed or created with a date, or check its age in days.")
+    public boolean dateIs(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
+            @Input(name = "which", type = OoaType.STRING, required = false, defaultValue = "\"modified\"", enumValues = {"modified", "created"}, description = "Which date of the file.") String which,
+            @Input(name = "operator", type = OoaType.STRING, required = false, defaultValue = "\"before\"", enumValues = {"before", "after", "on", "older_than_days", "newer_than_days"},
+                    description = "Before, after or on a date (calendar day, UTC), or older/newer than a number of days.") String op,
+            @Input(name = "date", type = OoaType.DATETIME, required = false, visibleWhen = "operator=before|after|on", description = "Date to compare with (UTC).") java.time.LocalDateTime date,
+            @Input(name = "days", type = OoaType.NUMBER, required = false, visibleWhen = "operator=older_than_days|newer_than_days", min = 0, description = "Age in days.") BigDecimal days) {
+        Path p = existing(ctx, path);
+        long ms;
+        try {
+            ms = "created".equals(which) ? ((java.nio.file.attribute.FileTime) Files.getAttribute(p, "creationTime")).toMillis() : Files.getLastModifiedTime(p).toMillis();
+        } catch (IOException e) { throw io("read the date of", p, e); }
+        LocalDateTime fileDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(ms), ZoneOffset.UTC);
+        String o = op == null ? "before" : op;
+        if (o.endsWith("_days")) {
+            if (days == null) throw new ActionException("FILE.BAD_OPTION", "Give the number of days", "Fill in 'days'.");
+            long ageMs = System.currentTimeMillis() - ms, limit = days.multiply(BigDecimal.valueOf(86_400_000L)).longValue();
+            return o.startsWith("older") ? ageMs > limit : ageMs < limit;
+        }
+        if (date == null) throw new ActionException("FILE.BAD_OPTION", "Give the date to compare with", "Fill in 'date'.");
+        return switch (o) {
+            case "after" -> fileDate.isAfter(date);
+            case "on" -> fileDate.toLocalDate().equals(date.toLocalDate());
+            default -> fileDate.isBefore(date);
+        };
+    }
+
+    @Condition(id = "has_extension", name = "File has extension", description = "True when the file name ends with one of the extensions, e.g. pdf, xlsx (case is ignored).")
+    public boolean hasExtension(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "File path or name.") String path,
+            @Input(name = "extensions", type = OoaType.STRING, description = "One or more extensions separated by commas, with or without the dot.", example = "pdf, xlsx") String extensions) {
+        String name = Path.of(path).getFileName().toString().toLowerCase(Locale.ROOT);
+        for (String e : extensions.split("[,; ]+")) {
+            String x = e.strip().toLowerCase(Locale.ROOT);
+            if (x.isEmpty()) continue;
+            if (name.endsWith(x.startsWith(".") ? x : "." + x)) return true;
+        }
+        return false;
+    }
+
+    @Action(id = "read_variables", name = "Read variables from file", category = "Files", idempotent = true, capabilities = "filesystem",
+            description = "Read name=value lines (a settings or .properties-style file) into a Dictionary; blank lines and lines starting with # or ; are skipped.")
+    @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value, in file order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of values read.")
+    public Map<String, Object> readVariables(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "Text file with one name=value per line.") String path,
+            @Input(name = "separator", type = OoaType.STRING, required = false, defaultValue = "\"=\"", description = "Text between the name and the value, e.g. = or : or a tab (\\t).") String separator,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, ansi, unicode ...") String encoding,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces around names and values.") boolean trim) {
+        Path p = existing(ctx, path);
+        String sep = separator == null || separator.isEmpty() ? "=" : separator.replace("\\t", "\t");
+        List<String> lines;
+        try { lines = Files.readAllLines(p, charset(encoding)); } catch (IOException e) { throw io("read", p, e); }
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (String line : lines) {
+            String l = line.startsWith("﻿") ? line.substring(1) : line;
+            if (l.isBlank() || l.stripLeading().startsWith("#") || l.stripLeading().startsWith(";")) continue;
+            int i = l.indexOf(sep);
+            String name = i < 0 ? l : l.substring(0, i), value = i < 0 ? "" : l.substring(i + sep.length());
+            values.put(trim ? name.strip() : name, trim ? value.strip() : value);
+        }
+        return Out.of("values", values, "count", BigDecimal.valueOf(values.size()));
+    }
+
+    @Action(id = "wait_for_file", name = "Wait for file", category = "Files", capabilities = "filesystem", timeoutSeconds = 3600,
+            description = "Wait until a file appears and has stopped growing (for example a download or an export), then return its path.")
+    @Output(name = "path", type = OoaType.FILE, description = "Path of the file found; empty when time ran out and fail_on_timeout is off.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the file was found in time.")
+    public Map<String, Object> waitForFile(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "File to wait for; the name may use * and ? (e.g. Downloads/report*.xlsx), the newest match wins.") String path,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 0, description = "How long to wait at most.") BigDecimal timeout,
+            @Input(name = "stable_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0,
+                    description = "The file's size must stay the same for this long, so a file still being written is not taken.") BigDecimal stable,
+            @Input(name = "ignore_temporary", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Skip browser download placeholders (.crdownload, .part, .tmp) and Office lock files (~$...).") boolean ignoreTemp,
+            @Input(name = "fail_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail with FILE.WAIT_TIMEOUT when time runs out; otherwise found is false.") boolean failOnTimeout) {
+        // Windows paths may not contain * or ?, so only the folder part is resolved as a path
+        int cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        Path dir = ctx.resolvePath(cut < 0 ? "." : path.substring(0, Math.max(cut, 1)));
+        String name = path.substring(cut + 1);
+        String full = dir.resolve("x").getParent() + java.io.File.separator + name;
+        PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + name);
+        long end = System.nanoTime() + (long) ((timeout == null ? 60 : timeout.doubleValue()) * 1e9);
+        long stableMs = (long) ((stable == null ? 1 : stable.doubleValue()) * 1000);
+        Path last = null; long lastSize = -1, since = 0;
+        while (true) {
+            Path cand = null;
+            if (dir != null && Files.isDirectory(dir)) try (Stream<Path> s = Files.list(dir)) {
+                cand = s.filter(Files::isRegularFile).filter(x -> m.matches(x.getFileName()))
+                        .filter(x -> !ignoreTemp || !temporary(x.getFileName().toString()))
+                        .max(Comparator.comparingLong(FilePackage::modified)).orElse(null);
+            } catch (IOException e) { cand = null; }
+            if (cand != null) {
+                long sz = size(cand);
+                if (!cand.equals(last) || sz != lastSize) { last = cand; lastSize = sz; since = System.nanoTime(); }
+                else if ((System.nanoTime() - since) / 1_000_000 >= stableMs) return Out.of("path", cand.toString(), "found", true);
+            }
+            if (System.nanoTime() >= end) {
+                if (failOnTimeout) throw new ActionException("FILE.WAIT_TIMEOUT", "No finished file matching " + full + " appeared in time",
+                        "Raise timeout_seconds, or check the folder and name pattern.", true);
+                return Out.of("path", "", "found", false);
+            }
+            ctx.checkCancelled();
+            try { Thread.sleep(Math.min(200, Math.max(20, stableMs / 4))); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new ActionException("RUN.CANCELLED", "Interrupted"); }
+        }
+    }
+
+    private static boolean temporary(String n) {
+        String l = n.toLowerCase(Locale.ROOT);
+        return l.endsWith(".crdownload") || l.endsWith(".part") || l.endsWith(".tmp") || l.endsWith(".download") || n.startsWith("~$");
     }
 
     @LoopIterator(id = "files_in_folder", name = "Each file in folder", description = "Yield each file path in a folder.")
@@ -140,7 +299,7 @@ public final class FilePackage {
             @Input(name = "target", type = OoaType.FILE, description = "Target file.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace an existing target.") boolean overwrite,
             @Input(name = "keep_both", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth) {
+                    visibleWhen = "overwrite=false", description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth) {
         return Map.of("path", transfer(ctx, source, target, overwrite, false, keepBoth).toString());
     }
 
@@ -151,7 +310,7 @@ public final class FilePackage {
             @Input(name = "target", type = OoaType.FILE, description = "New path or name.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace an existing target.") boolean overwrite,
             @Input(name = "keep_both", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth) {
+                    visibleWhen = "overwrite=false", description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth) {
         return Map.of("path", transfer(ctx, source, target, overwrite, true, keepBoth).toString());
     }
 
@@ -395,13 +554,13 @@ public final class FilePackage {
             description = "Print several files, in order, on a named printer or with each file's default application.")
     @Output(name = "printed", type = OoaType.NUMBER, description = "Number of files sent to the printer.")
     public Map<String, Object> printFiles(ActionContext ctx,
-            @Input(name = "files", type = OoaType.LIST, required = false, description = "File paths to print (or use folder).") List<Object> files,
+            @Input(name = "files", type = OoaType.LIST, required = false, visibleWhen = "folder=", description = "File paths to print (or use folder).") List<Object> files,
             @Input(name = "printer", type = OoaType.STRING, required = false, description = "Printer name; the default printer when empty.") String printer,
-            @Input(name = "copies", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Copies of each file.") int copies,
-            @Input(name = "folder", type = OoaType.FILE, required = false, description = "Print the files in this folder that match pattern, after any files in the list.") String folder,
-            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", example = "*.pdf", description = "With folder, glob pattern of the files to print.") String pattern,
-            @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With folder, also print matching files in sub-folders.") boolean sub,
-            @Input(name = "modified_within_days", type = OoaType.NUMBER, required = false, description = "With folder, only files changed in the last this many days.") Integer within) {
+            @Input(name = "copies", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 999, description = "Copies of each file.") int copies,
+            @Input(name = "folder", type = OoaType.FILE, required = false, visibleWhen = "files=", description = "Print the files in this folder that match pattern, after any files in the list.") String folder,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", example = "*.pdf", visibleWhen = "files=", description = "With folder, glob pattern of the files to print.") String pattern,
+            @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "files=", description = "With folder, also print matching files in sub-folders.") boolean sub,
+            @Input(name = "modified_within_days", type = OoaType.NUMBER, required = false, visibleWhen = "files=", min = 0, description = "With folder, only files changed in the last this many days.") Integer within) {
         List<Object> all = new ArrayList<>(files == null ? List.of() : files);
         if (folder != null && !folder.isBlank()) all.addAll(files(ctx.resolvePath(folder), pattern, sub, filter(null, null, within, null)));
         if (all.isEmpty()) throw new ActionException("FILE.NO_FILES", "Give at least one file to print", "Fill in the files list, or a folder with matching files.");

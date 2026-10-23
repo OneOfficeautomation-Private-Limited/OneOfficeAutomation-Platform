@@ -21,7 +21,7 @@ public final class ListPackage {
     public Map<String, Object> addItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
             @Input(name = "item", required = false, description = "Item to add.") Object item,
-            @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Zero-based position; end of list when empty.") Integer pos,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based position; end of list when empty.") Integer pos,
             @Input(name = "items", type = OoaType.LIST, required = false, description = "Several items to add in one go, after 'item' when both are given.") List<Object> items,
             @Input(name = "skip_existing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Do not add an item that is already in the list.") boolean skipExisting) {
         List<Object> out = new ArrayList<>(list);
@@ -43,7 +43,7 @@ public final class ListPackage {
             @Input(name = "position", type = OoaType.NUMBER, description = "Zero-based position; negative counts from the end (-1 = last).") int pos,
             @Input(name = "if_out_of_range", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "default"},
                     description = "When the position is outside the list: fail with LIST.INDEX, or return the default.") String ifOutOfRange,
-            @Input(name = "default", required = false, description = "Value returned for a position outside the list when if_out_of_range is default.") Object def) {
+            @Input(name = "default", required = false, visibleWhen = "if_out_of_range=default", description = "Value returned for a position outside the list when if_out_of_range is default.") Object def) {
         int p = pos < 0 ? list.size() + pos : pos;
         if ((p < 0 || p >= list.size()) && "default".equals(ifOutOfRange)) return Out.of("item", def);
         return Out.of("item", list.get(index(list, p, false)));
@@ -57,7 +57,7 @@ public final class ListPackage {
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
             @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Position to remove.") Integer pos,
             @Input(name = "value", required = false, description = "Remove every item equal to this value.") Object value,
-            @Input(name = "all_occurrences", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "With a value: remove every equal item; when off, only the first.") boolean all) {
+            @Input(name = "all_occurrences", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "value!=", description = "With a value: remove every equal item; when off, only the first.") boolean all) {
         List<Object> out = new ArrayList<>(list);
         if (pos != null) {
             Object r = out.remove(index(out, pos, false));

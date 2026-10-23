@@ -448,6 +448,152 @@ public final class AsanaPackage {
         return Out.of("attachment_id", HttpJson.path(d, "gid"), "url", HttpJson.path(d, "view_url") != null ? HttpJson.path(d, "view_url") : HttpJson.path(d, "permanent_url"));
     }
 
+    @Action(id = "update_comment", name = "Update comment", category = "Comments", capabilities = "network", description = "Change the text of a comment (only the comment's author can).")
+    public Map<String, Object> updateComment(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "comment_id", type = OoaType.STRING, description = "Comment id, from Add comment or List comments.") String comment,
+            @Input(name = "text", type = OoaType.STRING, description = "New comment text.") String text) {
+        data(ctx, "PUT", base, "/stories/" + gid("comment", comment), token, Map.of("text", text));
+        return Map.of();
+    }
+
+    @Action(id = "delete_comment", name = "Delete comment", category = "Comments", capabilities = "network", description = "Delete a comment (only the comment's author can).")
+    public Map<String, Object> deleteComment(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "comment_id", type = OoaType.STRING, description = "Comment id, from Add comment or List comments.") String comment) {
+        data(ctx, "DELETE", base, "/stories/" + gid("comment", comment), token, null);
+        return Map.of();
+    }
+
+    @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
+            description = "Save an attachment of a task to a local folder.")
+    @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
+    public Map<String, Object> downloadAttachment(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment id, from Upload attachment or the task's attachments.") String attachment,
+            @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file of the same name; otherwise a number is added.") boolean overwrite) {
+        Map<String, Object> a = data(ctx, "GET", base, "/attachments/" + gid("attachment", attachment) + "?opt_fields=name,download_url", token, null);
+        Object url = a.get("download_url");
+        if (url == null) throw new ActionException(P + ".NO_DOWNLOAD", "Attachment " + attachment + " has no download address (links to Google Drive, Box and similar are not files)",
+                "Open the link from the task instead.");
+        byte[] bytes = send(HttpJson.req(P, "GET", Values.text(url)).timeout(600), ctx).bytes();   // a signed address: no token is sent
+        java.nio.file.Path dir = ctx.resolvePath(folder == null || folder.isBlank() ? "." : folder);
+        String name = HttpJson.safeName(Values.text(a.getOrDefault("name", "attachment")));
+        java.nio.file.Path out = dir.resolve(name);
+        for (int i = 2; !overwrite && java.nio.file.Files.exists(out); i++) out = dir.resolve(name.replaceFirst("(\\.[^.]+)?$", " (" + i + ")$1"));
+        HttpJson.writeFile(out, bytes);
+        return Out.of("path", out.toString());
+    }
+
+    @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Remove an attachment from its task.")
+    public Map<String, Object> deleteAttachment(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment id.") String attachment) {
+        data(ctx, "DELETE", base, "/attachments/" + gid("attachment", attachment), token, null);
+        return Map.of();
+    }
+
+    @Action(id = "duplicate_task", name = "Duplicate task", category = "Tasks", capabilities = "network",
+            description = "Copy a task with a new name, choosing what is copied along (notes, assignee, subtasks, attachments, tags, followers, projects, dates).")
+    @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task (it may take a moment to fill in its subtasks).")
+    public Map<String, Object> duplicateTask(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "name", type = OoaType.STRING, description = "Name of the copy.") String name,
+            @Input(name = "include", type = OoaType.LIST, required = false,
+                    description = "What to copy: any of notes, assignee, subtasks, attachments, tags, followers, projects, dates; notes, assignee and projects when empty.") List<Object> include) {
+        Set<String> allowed = Set.of("notes", "assignee", "subtasks", "attachments", "tags", "followers", "projects", "dates");
+        List<String> inc = new ArrayList<>();
+        for (Object o : include == null || include.isEmpty() ? List.<Object>of("notes", "assignee", "projects") : include) {
+            String v = Values.text(o).strip().toLowerCase(Locale.ROOT);
+            if (!allowed.contains(v)) throw new ActionException(P + ".BAD_INCLUDE", "Cannot copy '" + o + "'", "Use notes, assignee, subtasks, attachments, tags, followers, projects or dates.");
+            inc.add(v);
+        }
+        Map<String, Object> job = data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/duplicate", token, Map.of("name", name, "include", String.join(",", inc)));
+        return Out.of("task_id", HttpJson.path(job, "new_task.gid"));
+    }
+
+    @Action(id = "update_project", name = "Update project", category = "Projects", capabilities = "network",
+            description = "Change a project's name, notes, colour, owner, due date or archived state; empty inputs are left as they are.")
+    public Map<String, Object> updateProject(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
+            @Input(name = "notes", type = OoaType.STRING, required = false, description = "New description.") String notes,
+            @Input(name = "owner", type = OoaType.STRING, required = false, description = D_USER) String owner,
+            @Input(name = "due_on", type = OoaType.STRING, required = false, pattern = "^\\d{4}-\\d{2}-\\d{2}$", example = "2026-12-31", description = "Due date, yyyy-MM-dd.") String due,
+            @Input(name = "archived", type = OoaType.BOOLEAN, required = false, description = "Archive (true) or restore (false) the project.") Boolean archived,
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Other project fields by their API name, e.g. {\"color\": \"dark-green\"}.") Map<String, Object> fields) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (fields != null) body.putAll(fields);
+        if (name != null && !name.isBlank()) body.put("name", name);
+        if (notes != null) body.put("notes", notes);
+        if (owner != null && !owner.isBlank()) body.put("owner", user(owner));
+        if (due != null && !due.isBlank()) body.put("due_on", due);
+        if (archived != null) body.put("archived", archived);
+        if (body.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in at least one field.");
+        data(ctx, "PUT", base, "/projects/" + gid("project", project), token, body);
+        return Map.of();
+    }
+
+    @Action(id = "delete_project", name = "Delete project", category = "Projects", capabilities = "network",
+            description = "Delete a project; its tasks stay in other projects they belong to. Needs confirm, as this cannot be undone from the API.")
+    public Map<String, Object> deleteProject(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "project_id", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true: a safeguard against deleting by mistake.") boolean confirm) {
+        if (!confirm) throw new ActionException(P + ".CONFIRM_REQUIRED", "The project was not deleted because confirm is false", "Set confirm to true.");
+        data(ctx, "DELETE", base, "/projects/" + gid("project", project), token, null);
+        return Map.of();
+    }
+
+    @Action(id = "create_team", name = "Create team", category = "Teams", capabilities = "network", description = "Create a team in an organization workspace.")
+    @Output(name = "team_id", type = OoaType.STRING, description = "Id of the new team.")
+    public Map<String, Object> createTeam(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = "Organization (workspace) id, from List workspaces.") String ws,
+            @Input(name = "name", type = OoaType.STRING, description = "Team name.") String name,
+            @Input(name = "team_description", type = OoaType.STRING, required = false, description = "What the team is for.") String desc) {
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("name", name, "organization", gid("workspace", ws)));
+        if (desc != null && !desc.isBlank()) body.put("description", desc);
+        return Out.of("team_id", data(ctx, "POST", base, "/teams", token, body).get("gid"));
+    }
+
+    @Action(id = "get_team", name = "Get team", category = "Teams", idempotent = true, capabilities = "network", description = "Read a team's name, description, organization and link.")
+    @Output(name = "team", type = OoaType.DICTIONARY, description = "Keys: gid, name, description, organization, url.")
+    public Map<String, Object> getTeam(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team) {
+        Map<String, Object> t = data(ctx, "GET", base, "/teams/" + gid("team", team) + "?opt_fields=name,description,organization.name,permalink_url", token, null);
+        return Out.of("team", Out.of("gid", t.get("gid"), "name", t.get("name"), "description", t.get("description"),
+                "organization", HttpJson.path(t, "organization.name"), "url", t.get("permalink_url")));
+    }
+
+    @Action(id = "update_team", name = "Update team", category = "Teams", capabilities = "network", description = "Rename a team or change its description.")
+    public Map<String, Object> updateTeam(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "team_id", type = OoaType.STRING, description = "Team id.") String team,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
+            @Input(name = "team_description", type = OoaType.STRING, required = false, description = "New description.") String desc) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (name != null && !name.isBlank()) body.put("name", name);
+        if (desc != null) body.put("description", desc);
+        if (body.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name or team_description.");
+        data(ctx, "PUT", base, "/teams/" + gid("team", team), token, body);
+        return Map.of();
+    }
+
     // ---------------------------------------------------------------- tags
 
     @Action(id = "list_tags", name = "List tags", category = "Tags", idempotent = true, capabilities = "network", description = "List the tags of a workspace.")

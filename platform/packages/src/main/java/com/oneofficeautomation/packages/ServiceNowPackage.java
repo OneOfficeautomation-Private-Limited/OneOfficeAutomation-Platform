@@ -59,7 +59,7 @@ public final class ServiceNowPackage {
     @Output(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token, when the instance returns one.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires.")
     public Map<String, Object> authenticate(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the OAuth application registry entry.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "grant_type", type = OoaType.STRING, required = false, defaultValue = "\"password\"", enumValues = {"password", "client_credentials"}, description = "password: sign in as a user; client_credentials: as the application.") String grant,
@@ -87,7 +87,7 @@ public final class ServiceNowPackage {
 
     @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access or refresh token so it can no longer be used.")
     public Map<String, Object> revoke(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the OAuth application.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = "The token to revoke.") Object token) {
@@ -102,12 +102,31 @@ public final class ServiceNowPackage {
         return Map.of();
     }
 
+    public Map<String, Object> query(ActionContext ctx, String instance, String t, String q, List<Object> fields, int max, String user, Object password, Object token,
+                                     String display, String orderBy, int start, boolean noLinks) {
+        return query(ctx, instance, t, q, fields, max, user, password, token, display, orderBy, start, noLinks, null);
+    }
+
+    /** An encoded query extended with field=value conditions (values may not contain ^, which separates conditions). */
+    static String withFilter(String query, Map<String, Object> filter) {
+        if (filter == null || filter.isEmpty()) return query;
+        StringBuilder sb = new StringBuilder(query == null ? "" : query.strip());
+        for (Map.Entry<String, Object> e : filter.entrySet()) {
+            if (!e.getKey().matches("^[A-Za-z0-9_.]{1,80}$")) throw new ActionException(P + ".BAD_FIELD", "Invalid filter field '" + e.getKey() + "'", "Use the field's column name, e.g. assignment_group.");
+            String v = e.getValue() == null ? "" : com.oneofficeautomation.runner.Values.text(e.getValue());
+            if (v.contains("^")) throw new ActionException(P + ".BAD_FILTER", "The value for " + e.getKey() + " contains ^", "Use the query input for values with ^.");
+            if (!sb.isEmpty()) sb.append('^');
+            sb.append(e.getKey()).append(e.getValue() == null ? "ISEMPTY" : "=" + v);
+        }
+        return sb.toString();
+    }
+
     @Action(id = "query", name = "Query records", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
             description = "Return records matching an encoded query (as copied from a ServiceNow list filter).")
     @Output(name = "table", type = OoaType.TABLE, description = "Records.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     public Map<String, Object> query(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "active=true^priority=1", description = "Encoded query.") String q,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return, e.g. [\"number\",\"short_description\",\"state\"].") List<Object> fields,
@@ -118,9 +137,11 @@ public final class ServiceNowPackage {
             @Input(name = "display_value", type = OoaType.STRING, required = false, defaultValue = "\"true\"", enumValues = {"true", "false", "all"}, description = D_DISPLAY) String display,
             @Input(name = "order_by", type = OoaType.STRING, required = false, example = "sys_created_on", description = "Field to sort by; put - in front for newest or largest first, e.g. -sys_created_on.") String orderBy,
             @Input(name = "offset", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Skip this many matching records first (for paging).") int start,
-            @Input(name = "exclude_reference_link", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Leave out the API links of reference fields.") boolean noLinks) {
+            @Input(name = "exclude_reference_link", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Leave out the API links of reference fields.") boolean noLinks,
+            @Input(name = "filter", type = OoaType.DICTIONARY, required = false, example = "{\"active\": true, \"priority\": 1}",
+                    description = "Field to required value, all of which must match; combined with query when both are given. No query syntax needed.") Map<String, Object> filter) {
         String dv = displayValue(display);
-        String query = q;
+        String query = withFilter(q, filter);
         if (orderBy != null && !orderBy.isBlank()) {
             String f = orderBy.strip(); boolean desc = f.startsWith("-");
             if (desc) f = f.substring(1);
@@ -155,7 +176,7 @@ public final class ServiceNowPackage {
     @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network", description = "Read one record by sys_id.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "Field values.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -183,7 +204,7 @@ public final class ServiceNowPackage {
     @Output(name = "number", type = OoaType.STRING, description = "Record number, e.g. INC0012345.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The new record as the instance returned it.")
     public Map<String, Object> create(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value, e.g. {\"short_description\": \"...\", \"urgency\": \"2\"}.") Map<String, Object> fields,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -202,7 +223,7 @@ public final class ServiceNowPackage {
     @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of a record.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The record after the change, as the instance returned it.")
     public Map<String, Object> update(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to new value.") Map<String, Object> fields,
@@ -221,7 +242,7 @@ public final class ServiceNowPackage {
 
     @Action(id = "add_comment", name = "Add comment or work note", category = "Records", capabilities = "network", description = "Add a customer-visible comment or an internal work note.")
     public Map<String, Object> comment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "text", type = OoaType.STRING, description = "Comment text.") String text,
@@ -236,7 +257,7 @@ public final class ServiceNowPackage {
     @Action(id = "attach_file", name = "Attach file", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to a record.")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id.")
     public Map<String, Object> attach(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "path", type = OoaType.FILE, description = "File to attach.") String path,
@@ -267,7 +288,7 @@ public final class ServiceNowPackage {
 
     @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Delete an attachment by its sys_id.")
     public Map<String, Object> deleteAttachment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
@@ -280,7 +301,7 @@ public final class ServiceNowPackage {
 
     @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record by sys_id.")
     public Map<String, Object> delete(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -294,7 +315,7 @@ public final class ServiceNowPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: sys_id, file_name, content_type, size_bytes, created_on.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of attachments.")
     public Map<String, Object> listAttachments(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
             @Input(name = "sys_id", type = OoaType.STRING, description = "Record sys_id.") String id,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -314,7 +335,7 @@ public final class ServiceNowPackage {
             description = "Save an attachment to a local folder under its original file name.")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> downloadAttachment(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
             @Input(name = "folder", type = OoaType.FILE, required = false, defaultValue = "\".\"", description = "Folder to save into.") String folder,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
@@ -346,7 +367,7 @@ public final class ServiceNowPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "latest", type = OoaType.STRING, description = "Newest sys_updated_on seen; pass it as since on the next poll (equal to since when nothing changed).")
     public Map<String, Object> changed(ActionContext ctx,
-            @Input(name = "instance_url", type = OoaType.STRING, pattern = "^https://", description = D_URL) String instance,
+            @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, example = "incident", description = "Table name.") String t,
             @Input(name = "since", type = OoaType.STRING, example = "2026-10-19 08:00:00", description = "UTC time; records updated strictly after it are returned.") String since,
             @Input(name = "query", type = OoaType.STRING, required = false, example = "active=true", description = "Extra encoded query to narrow the records.") String q,

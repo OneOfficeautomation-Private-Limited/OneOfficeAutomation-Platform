@@ -15,4 +15,14 @@ public @interface Input {
     String pattern() default "";
     String[] enumValues() default {};
     String example() default "";
+    /**
+     * When the field applies, as {@code other=value1|value2}; several conditions joined with {@code ;} must all hold
+     * ({@code !=} negates one). Studio hides the field otherwise, as other tools disable options that do not apply.
+     * Example: {@code "iterator=times"} or {@code "mode=regex;ignore_case=true"}.
+     */
+    String visibleWhen() default "";
+    /** Smallest allowed number (inclusive); NaN = no limit. Checked by the validator and shown by Studio. */
+    double min() default Double.NaN;
+    /** Largest allowed number (inclusive); NaN = no limit. */
+    double max() default Double.NaN;
 }
