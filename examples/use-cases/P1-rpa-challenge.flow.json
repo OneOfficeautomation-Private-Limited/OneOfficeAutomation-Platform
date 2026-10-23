@@ -1,0 +1,240 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p1_rpa_challenge",
+  "name": "P1 RPA Challenge (rpachallenge.com)",
+  "description": "Download the challenge Excel file, start the challenge and fill in the form once per row while its fields change places every round; read the score.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "xlsx",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "people",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "rounds",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Rows submitted."
+    },
+    {
+      "name": "result_message",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The challenge result shown at the end."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://rpachallenge.com/",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://rpachallenge.com/"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/download",
+      "args": {
+        "selector": "a[href*='challenge.xlsx']",
+        "folder": "${folder}/output",
+        "timeout_ms": 30000
+      },
+      "out": {
+        "path": "xlsx"
+      },
+      "description": "Download the challenge data"
+    },
+    {
+      "id": "s3",
+      "action": "ooa.excel/open",
+      "args": {
+        "path": "$xlsx",
+        "session": "challenge",
+        "header": true
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.excel/get_all_cells",
+      "args": {
+        "session": "challenge"
+      },
+      "out": {
+        "table": "people"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "challenge",
+        "save": false
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "xpath=//button[normalize-space()='Start']"
+      },
+      "description": "Start the timer"
+    },
+    {
+      "id": "s17",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$people",
+        "as": "row"
+      },
+      "description": "One round per row: the fields move, so they are found by their name, not their place",
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "notEmpty",
+              "left": {
+                "expr": "$row[\"First Name\"]"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelFirstName']",
+                "text": {
+                  "expr": "toString($row[\"First Name\"])"
+                }
+              }
+            },
+            {
+              "id": "s8",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelLastName']",
+                "text": {
+                  "expr": "toString($row[\"Last Name \"])"
+                }
+              }
+            },
+            {
+              "id": "s9",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelCompanyName']",
+                "text": {
+                  "expr": "toString($row[\"Company Name\"])"
+                }
+              }
+            },
+            {
+              "id": "s10",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelRole']",
+                "text": {
+                  "expr": "toString($row[\"Role in Company\"])"
+                }
+              }
+            },
+            {
+              "id": "s11",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelAddress']",
+                "text": {
+                  "expr": "toString($row[\"Address\"])"
+                }
+              }
+            },
+            {
+              "id": "s12",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelEmail']",
+                "text": {
+                  "expr": "toString($row[\"Email\"])"
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "input[ng-reflect-name='labelPhone']",
+                "text": {
+                  "expr": "toString($row[\"Phone Number\"])"
+                }
+              }
+            },
+            {
+              "id": "s14",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "input[type='submit']"
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "rounds",
+                "value": {
+                  "expr": "$rounds + 1"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": ".message2"
+      },
+      "out": {
+        "text": "result_message"
+      }
+    },
+    {
+      "id": "s19",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

@@ -1,0 +1,474 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p5_quotes_authors",
+  "name": "P5 Quotes and authors (quotes.toscrape.com)",
+  "description": "Sign in, read every page of the JavaScript-rendered quotes, rank the authors by number of quotes and visit the top authors' pages for their birth details.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "quote_user",
+      "type": "String",
+      "direction": "input",
+      "default": "demo",
+      "description": "User name (the site accepts any)."
+    },
+    {
+      "name": "quote_password",
+      "type": "String",
+      "direction": "input",
+      "default": "demo",
+      "description": "Password (the site accepts any)."
+    },
+    {
+      "name": "top_n",
+      "type": "Number",
+      "direction": "input",
+      "default": 3,
+      "description": "How many top authors to look up."
+    },
+    {
+      "name": "page_quotes",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "page_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "quotes",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [],
+        "rows": []
+      }
+    },
+    {
+      "name": "more",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "ranking",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "slug",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "born",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "place",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "authors",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Author",
+          "Quotes",
+          "Born",
+          "Born in"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "quote_count",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Quotes read."
+    },
+    {
+      "name": "top_author",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Author with the most quotes."
+    },
+    {
+      "name": "top_author_born",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Birth date of that author."
+    },
+    {
+      "name": "signed_in",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The sign-in worked."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://quotes.toscrape.com/login",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://quotes.toscrape.com/login"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#username",
+        "text": "$quote_user"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#password",
+        "text": "$quote_password"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "input[type='submit']"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "a[href='/logout']",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s6",
+      "action": "core/set",
+      "args": {
+        "variable": "signed_in",
+        "value": true
+      }
+    },
+    {
+      "id": "s7",
+      "action": "ooa.browser/navigate",
+      "args": {
+        "url": "https://quotes.toscrape.com/js/"
+      }
+    },
+    {
+      "id": "s16",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "op": "eq",
+          "left": "$more",
+          "right": true
+        },
+        "max_iterations": 30
+      },
+      "description": "Every page (rendered by JavaScript)",
+      "children": [
+        {
+          "id": "s8",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": ".quote",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.browser/run_javascript",
+          "args": {
+            "script": "Array.from(document.querySelectorAll('.quote')).map(q => ({Quote: q.querySelector('.text').textContent, Author: q.querySelector('.author').textContent, Tags: Array.from(q.querySelectorAll('.tag')).map(t => t.textContent).join(', ')}))"
+          },
+          "out": {
+            "result": "page_quotes"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.datatable/from_records",
+          "args": {
+            "records": "$page_quotes"
+          },
+          "out": {
+            "table": "page_table"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.datatable/merge",
+          "args": {
+            "tables": [
+              "$quotes",
+              "$page_table"
+            ],
+            "columns": "union"
+          },
+          "out": {
+            "table": "quotes"
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "selector": "li.next a"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.browser/click",
+              "args": {
+                "selector": "li.next a"
+              }
+            },
+            {
+              "id": "s13",
+              "action": "core/delay",
+              "args": {
+                "seconds": 300,
+                "unit": "milliseconds"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "more",
+                "value": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s17",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$quotes"
+      },
+      "out": {
+        "count": "quote_count"
+      }
+    },
+    {
+      "id": "s18",
+      "action": "ooa.datatable/aggregate",
+      "args": {
+        "table": "$quotes",
+        "group_by": [
+          "Author"
+        ],
+        "summaries": {
+          "Quotes": "count"
+        }
+      },
+      "out": {
+        "table": "ranking"
+      }
+    },
+    {
+      "id": "s19",
+      "action": "ooa.datatable/sort",
+      "args": {
+        "table": "$ranking",
+        "column": "Quotes",
+        "descending": true,
+        "then_by": [
+          "Author"
+        ]
+      },
+      "out": {
+        "table": "ranking"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$ranking",
+        "as": "a",
+        "to_index": {
+          "expr": "$top_n - 1"
+        }
+      },
+      "description": "The top authors' pages",
+      "children": [
+        {
+          "id": "s20",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$a.Author",
+            "find": "[^A-Za-z0-9]+",
+            "replace_with": "-",
+            "regex": true
+          },
+          "out": {
+            "result": "slug"
+          }
+        },
+        {
+          "id": "s21",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$slug",
+            "find": "^-+|-+$",
+            "replace_with": "",
+            "regex": true
+          },
+          "out": {
+            "result": "slug"
+          }
+        },
+        {
+          "id": "s22",
+          "action": "ooa.browser/navigate",
+          "args": {
+            "url": "https://quotes.toscrape.com/author/${slug}/"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": ".author-born-date"
+          },
+          "out": {
+            "text": "born"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": ".author-born-location"
+          },
+          "out": {
+            "text": "place"
+          }
+        },
+        {
+          "id": "s25",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$authors",
+            "values": [
+              "$a.Author",
+              "$a.Quotes",
+              "$born",
+              {
+                "expr": "replace($place, \"in \", \"\")"
+              }
+            ]
+          },
+          "out": {
+            "table": "authors"
+          }
+        },
+        {
+          "id": "s28",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$top_author"
+            }
+          },
+          "children": [
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "top_author",
+                "value": "$a.Author"
+              }
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "top_author_born",
+                "value": "$born"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s30",
+      "action": "ooa.browser/navigate",
+      "args": {
+        "url": "https://quotes.toscrape.com/logout"
+      }
+    },
+    {
+      "id": "s31",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s32",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$quotes",
+        "path": "${folder}/output/quotes.csv"
+      }
+    },
+    {
+      "id": "s33",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$authors",
+        "path": "${folder}/output/top-authors.csv"
+      }
+    }
+  ]
+}

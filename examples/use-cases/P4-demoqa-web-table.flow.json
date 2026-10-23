@@ -1,0 +1,382 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p4_demoqa_tables",
+  "name": "P4 Maintain records in a web table (demoqa.com)",
+  "description": "Delete the Legal department's records, add employees from a CSV through the table's pop-up form, search for one and raise the salary, and check the table. (Deletes come first: the demo site forgets records added in the same visit once one is deleted.)",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "employees",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "start_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "end_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "raise_for",
+      "type": "String",
+      "direction": "input",
+      "default": "Kumar",
+      "description": "Last name of the employee whose salary is raised."
+    },
+    {
+      "name": "new_salary",
+      "type": "Number",
+      "direction": "input",
+      "default": 58000,
+      "description": "New salary."
+    },
+    {
+      "name": "rows_before",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records at the start."
+    },
+    {
+      "name": "rows_after",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records at the end."
+    },
+    {
+      "name": "salary_now",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Salary shown for the employee after the raise."
+    },
+    {
+      "name": "deleted",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records deleted."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/demoqa-employees.csv"
+      },
+      "out": {
+        "table": "employees"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://demoqa.com/webtables",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://demoqa.com/webtables"
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "table tbody tr",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "table"
+      },
+      "out": {
+        "table": "start_table"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$start_table"
+      },
+      "out": {
+        "count": "rows_before"
+      }
+    },
+    {
+      "id": "s9",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "condition": "ooa.browser/element_exists",
+          "args": {
+            "selector": "xpath=//tr[td[normalize-space()='Legal']]//*[starts-with(@id,'delete-record')]"
+          }
+        },
+        "max_iterations": 20
+      },
+      "description": "Delete every Legal record",
+      "children": [
+        {
+          "id": "s6",
+          "action": "ooa.browser/element_action",
+          "args": {
+            "selector": "xpath=(//tr[td[normalize-space()='Legal']]//*[starts-with(@id,'delete-record')])[1]",
+            "action": "click",
+            "click_method": "javascript"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "deleted",
+            "value": {
+              "expr": "$deleted + 1"
+            }
+          }
+        },
+        {
+          "id": "s8",
+          "action": "core/delay",
+          "args": {
+            "seconds": 300,
+            "unit": "milliseconds"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s20",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$employees",
+        "as": "e"
+      },
+      "description": "Add each employee",
+      "children": [
+        {
+          "id": "s10",
+          "action": "ooa.browser/element_action",
+          "args": {
+            "selector": "#addNewRecordButton",
+            "action": "click",
+            "click_method": "javascript"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#userForm",
+            "state": "visible"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#firstName",
+            "text": "$e.FirstName"
+          }
+        },
+        {
+          "id": "s13",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#lastName",
+            "text": "$e.LastName"
+          }
+        },
+        {
+          "id": "s14",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#userEmail",
+            "text": "$e.Email"
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#age",
+            "text": "${e.Age}"
+          }
+        },
+        {
+          "id": "s16",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#salary",
+            "text": "${e.Salary}"
+          }
+        },
+        {
+          "id": "s17",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#department",
+            "text": "$e.Department"
+          }
+        },
+        {
+          "id": "s18",
+          "action": "ooa.browser/element_action",
+          "args": {
+            "selector": "#submit",
+            "action": "click",
+            "click_method": "javascript"
+          }
+        },
+        {
+          "id": "s19",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#userForm",
+            "state": "hidden"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s21",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#searchBox",
+        "text": "$raise_for"
+      },
+      "description": "Find the employee"
+    },
+    {
+      "id": "s22",
+      "action": "ooa.browser/element_action",
+      "args": {
+        "selector": "xpath=//tr[td[normalize-space()='${raise_for}']]//*[starts-with(@id,'edit-record')]",
+        "action": "click",
+        "click_method": "javascript"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#userForm",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s24",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#salary",
+        "text": "${new_salary}"
+      }
+    },
+    {
+      "id": "s25",
+      "action": "ooa.browser/element_action",
+      "args": {
+        "selector": "#submit",
+        "action": "click",
+        "click_method": "javascript"
+      }
+    },
+    {
+      "id": "s26",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#userForm",
+        "state": "hidden"
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "xpath=//tr[td[normalize-space()='${raise_for}']]/td[5]"
+      },
+      "out": {
+        "text": "salary_now"
+      }
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/element_action",
+      "args": {
+        "selector": "#searchBox",
+        "action": "clear"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "table"
+      },
+      "out": {
+        "table": "end_table"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "ooa.datatable/filter",
+      "args": {
+        "table": "$end_table",
+        "column": "Email",
+        "operator": "not_empty"
+      },
+      "out": {
+        "count": "rows_after"
+      }
+    },
+    {
+      "id": "s31",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s32",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$end_table",
+        "path": "${folder}/output/demoqa-table.csv"
+      }
+    }
+  ]
+}

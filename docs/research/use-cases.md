@@ -1,15 +1,15 @@
 # Use cases: One Agent Studio compared with Automation Anywhere
 
-Twenty automations: fifteen everyday ones and five larger web processes (W6-W10), built as real agents in `examples/use-cases/` (open them in Studio from the
+Twenty-six automations: fifteen everyday ones, five larger web processes on demo applications (W6-W10) and six on real public websites (P1-P6), built as real agents in `examples/use-cases/` (open them in Studio from the
 **Use cases** folder of the workspace) and run as tests by `CommandSamplesTest`
 (`platform/cli/src/test/resources/command-samples/20-use-cases.json`, 16 runs: W3 is run with and without results;
-`21-big-web-processes.json` for W6-W10).
+`21-big-web-processes.json` for W6-W10; `22-public-websites.json` for P1-P6).
 
 How the comparison was made: each agent was built and run in One Agent Studio. The AA column describes how the same
 task is built from AA's actions (from the action-by-action comparison in `command-comparison.md`), in our own words.
 Nothing was built or saved in AA (AA access rule: open forms and cancel, never save).
 
-Status on 2026-10-24: **21 of 21 runs pass**. The desktop cases (D1-D5) run with `OOA_DESKTOP_SAMPLES=1` because they
+Status on 2026-10-24: **27 of 27 runs pass** (P1-P6 against the live sites). The desktop cases (D1-D5) run with `OOA_DESKTOP_SAMPLES=1` because they
 open a window on the screen.
 
 | # | Use case | Our steps | How AA does it | Result |
@@ -54,6 +54,33 @@ What these show beyond the smaller cases:
 
 Found while building them: **Navigate** did not accept a local file path the way Open browser now does; it does now.
 
+## Real public websites
+
+These run against live sites that are made for automation practice or open to scraping. Nothing is bought, no
+account is created and nothing real changes (Sauce Demo's demo user is printed on its own sign-in page; Quotes to
+Scrape accepts any user name). The sites can change; their tests are skipped when a site cannot be reached.
+
+| # | Site and process | Our steps | How AA does it | Result on 2026-10-24 |
+| --- | --- | --- | --- | --- |
+| P1 | **rpachallenge.com**: download the challenge Excel, start, fill the form for each of the 10 rows while its fields move every round | 19 | Download file, Excel Open/Get all cells, Loop for each row, Recorder captures that must use a stable attribute (not position) for each field, Click Submit, Get property of the result | 100% (70 of 70 fields) in about 1.4 s |
+| P2 | **saucedemo.com**: sign in, sort by price, add the three cheapest products, check out, compare the shop's item total with the prices seen, finish, sign out | 31 | Captures for sign-in, sort list, Loop with a capture per Add button (or the first one each time), Extract text of the totals, String to number, If, captures for checkout and sign-out | 3 items, item total 33.97 = prices seen, order completed |
+| P3 | **books.toscrape.com**: open a category, read every page, visit all 32 books for product code and stock, Excel report with a sheet per star rating | 27 | Loop While Next exists, Extract table (or a capture per field per book), Loop over books with Go to URL, Get property per detail field, Data table, Excel with two sheets | 32 books, 290 in stock, 5 rating groups |
+| P4 | **demoqa.com** web table: delete the Legal records, add three employees from CSV through the pop-up form, search one and raise the salary, check the table | 32 | Captures for the table buttons and the modal form, Loop over CSV rows, a capture on the row's Edit/Delete icon built from a variable, Extract table | 5 records, salary 58,000 |
+| P5 | **quotes.toscrape.com**: sign in, read all 10 JavaScript-rendered pages (100 quotes), rank authors, visit the top three authors' pages for birth details | 33 | Captures for sign-in, Loop While Next exists with Wait for the rendered list, Extract data per quote (a capture per field), Data table Group by, Go to URL per author, Get property | 100 quotes, Albert Einstein first, born March 14, 1879 |
+| P6 | **en.wikipedia.org**: read the population list, open the ten largest countries' articles, read capital and currency from each information box, Excel report | 24 | Extract table, Loop with Go to URL, captures or XPath per information-box row, Excel | 10 countries, India's capital New Delhi |
+
+What the real sites added:
+
+- **Scripts that read a whole page at once.** Run JavaScript returns a list of records (every book, quote or country
+  on the page) in one step; AA reads them through a capture per field or an Extract table that fits only real tables.
+- **Stable selectors on moving pages.** The RPA Challenge moves its fields every round; the agent finds them by an
+  attribute, as AA's recorder must be told to do.
+- **XPath with variables** for the row of a named employee or an information-box line.
+- **Real-site behaviour shows up.** Wikipedia's country links point to demographics articles, so the agent addresses
+  the country article by name; DemoQA forgets records added in the same visit once one is deleted, so the agent deletes
+  first. Both are written in the agents' descriptions.
+- **Polite pacing** between page visits on Wikipedia.
+
 ## Differences found while building them
 
 What is simpler in One Agent Studio:
@@ -87,6 +114,6 @@ Defects and gaps the use cases found (all fixed and covered by these tests):
   demo application `apps/order-entry.ps1`; O2 needs a mailbox, O4 reads a public test API by default, O5 needs an AI
   connection or API key. Results go to `Use cases/output/`.
 - As tests: `OOA_SAMPLES=20-use-cases OOA_DESKTOP_SAMPLES=1 gradlew.bat :cli:test --tests *CommandSamplesTest`
-  (from PowerShell); `OOA_SAMPLES=21-big-web` runs W6-W10.
-- To change them: edit `examples/use-cases/tools/generate.py` (W6-W10: `generate_big_web.py`) and run it; `tools/make-office-files.flow.json`
+  (from PowerShell); `OOA_SAMPLES=21-big-web` runs W6-W10 and `OOA_SAMPLES=22-public` runs P1-P6 (needs internet).
+- To change them: edit `examples/use-cases/tools/generate.py` (W6-W10: `generate_big_web.py`; P1-P6: `generate_public_web.py`) and run it; `tools/make-office-files.flow.json`
   (`ooa run`) makes the Excel and Word data files.
