@@ -20,7 +20,7 @@ public final class JsonPackage {
     @Output(name = "text", type = OoaType.STRING, description = "JSON text.")
     public Map<String, Object> stringify(ActionContext ctx, @Input(name = "value", description = "Value to serialise.") Object value,
             @Input(name = "pretty", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Spread the JSON over several indented lines for reading.") boolean pretty,
-            @Input(name = "indent", type = OoaType.NUMBER, required = false, defaultValue = "2", description = "Spaces per level when pretty is on.") int indent) {
+            @Input(name = "indent", type = OoaType.NUMBER, required = false, defaultValue = "2", visibleWhen = "pretty=true", min = 0, max = 10, description = "Spaces per level when pretty is on.") int indent) {
         return Map.of("text", pretty ? pretty(com.oneofficeautomation.runner.Values.toJsonable(value), indent) : JsonLite.write(value));
     }
 

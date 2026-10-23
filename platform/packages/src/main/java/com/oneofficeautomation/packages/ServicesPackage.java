@@ -32,6 +32,7 @@ public final class ServicesPackage {
         ProcessRunner.Result r = ProcessRunner.run(ctx, List.of("sc.exe", verb, name), null, null, 30);
         String out = r.stdout();
         if (out.contains(" 5:") || out.contains("FAILED 5")) throw new ActionException("SERVICES.ACCESS_DENIED", "Access denied to " + verb + " '" + name + "'", "Run the agent with administrator rights.");
+        if (out.contains("1060")) throw new ActionException("SERVICES.NOT_FOUND", "Service '" + name + "' does not exist", "Check the service name (not the display name).");
         if (r.exitCode() != 0 && !out.contains("1056") && !out.contains("1062"))
             throw new ActionException("SERVICES.FAILED", "sc " + verb + " " + name + " failed: " + ApplicationPackage.tail(out), null);
         if (timeoutSeconds < 0) return;  // asked not to wait
@@ -52,7 +53,7 @@ public final class ServicesPackage {
     @Action(id = "start", name = "Start service", category = "Services", timeoutSeconds = 180, description = "Start a service and wait until it is running.")
     public Map<String, Object> start(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait.") int t,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the service reaches the new state; false continues as soon as the request is sent.") boolean wait) {
         control(ctx, "start", name, "RUNNING", wait ? t : -1); return Map.of();
     }
@@ -60,7 +61,7 @@ public final class ServicesPackage {
     @Action(id = "stop", name = "Stop service", category = "Services", timeoutSeconds = 180, description = "Stop a service and wait until it has stopped.")
     public Map<String, Object> stop(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait.") int t,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the service reaches the new state; false continues as soon as the request is sent.") boolean wait) {
         control(ctx, "stop", name, "STOPPED", wait ? t : -1); return Map.of();
     }
@@ -68,7 +69,7 @@ public final class ServicesPackage {
     @Action(id = "restart", name = "Restart service", category = "Services", timeoutSeconds = 360, description = "Stop then start a service.")
     public Map<String, Object> restart(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait for each phase.") int t) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "How long to wait for each phase.") int t) {
         if (!status(ctx, name).equals("STOPPED")) control(ctx, "stop", name, "STOPPED", t);
         control(ctx, "start", name, "RUNNING", t);
         return Map.of();
@@ -104,7 +105,7 @@ public final class ServicesPackage {
             description = "Pause a running service that supports pausing and wait until it is paused.")
     public Map<String, Object> pause(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait.") int t,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the service reaches the new state; false continues as soon as the request is sent.") boolean wait) {
         pauseOrResume(ctx, name, true, wait ? t : -1); return Map.of();
     }
@@ -113,7 +114,7 @@ public final class ServicesPackage {
             description = "Continue a paused service and wait until it is running again.")
     public Map<String, Object> resume(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", description = "How long to wait.") int t,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the service reaches the new state; false continues as soon as the request is sent.") boolean wait) {
         pauseOrResume(ctx, name, false, wait ? t : -1); return Map.of();
     }

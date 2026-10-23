@@ -326,23 +326,23 @@ class DataOptionsTest {
     @Test @SuppressWarnings("unchecked") void csvReadOptionsIteratorAndWriteOptions() throws Exception {
         CsvPackage c = new CsvPackage();
         Files.write(tmp.resolve("in.csv"), "report v1\nname ; city \n Ann ; Pune \n;\nBob;Goa\n".getBytes(StandardCharsets.UTF_8));
-        Map<String, Object> r = c.read(ctx(), "in.csv", ";", true, "utf-8", "both", 1, null, true);
+        Map<String, Object> r = c.read(ctx(), "in.csv", ";", true, "utf-8", "both", 1, null, true, false);
         Map<String, Object> t = (Map<String, Object>) r.get("table");
         assertEquals(List.of("name", "city"), t.get("columns"));
         num(2, r.get("row_count"));
         assertEquals(List.of("Ann", "Pune"), ((List<Object>) t.get("rows")).get(0));
-        num(1, c.read(ctx(), "in.csv", ";", true, "utf-8", "both", 1, 1, true).get("row_count"));
-        num(3, c.read(ctx(), "in.csv", ";", true, "utf-8", "none", 1, null, false).get("row_count"));
+        num(1, c.read(ctx(), "in.csv", ";", true, "utf-8", "both", 1, 1, true, false).get("row_count"));
+        num(3, c.read(ctx(), "in.csv", ";", true, "utf-8", "none", 1, null, false, false).get("row_count"));
         List<Object> recs = new ArrayList<>();
-        c.rows(ctx(), "in.csv", ";", true, "utf-8", "both").forEach(recs::add);
+        c.rows(ctx(), "in.csv", ";", true, "utf-8", "both", false).forEach(recs::add);
         assertEquals(4, recs.size(), "the iterator reads from the first line");
         Files.write(tmp.resolve("u16.csv"), "a,b\r\n1,2\r\n".getBytes(StandardCharsets.UTF_16LE));
-        assertEquals(List.of("a", "b"), ((Map<String, Object>) c.read(ctx(), "u16.csv", ",", true, "unicode", "none", 0, null, false).get("table")).get("columns"));
+        assertEquals(List.of("a", "b"), ((Map<String, Object>) c.read(ctx(), "u16.csv", ",", true, "unicode", "none", 0, null, false, false).get("table")).get("columns"));
         c.write(ctx(), table("{\"columns\":[\"a\"],\"rows\":[[\"x\"]]}"), "q.csv", ",", true, false, "utf-8-bom", true, "lf");
         byte[] q = Files.readAllBytes(tmp.resolve("q.csv"));
         assertEquals((byte) 0xEF, q[0]);
         assertEquals("﻿\"a\"\n\"x\"\n", new String(q, StandardCharsets.UTF_8));
-        assertEquals("FILE.BAD_ENCODING", code(() -> c.read(ctx(), "in.csv", ",", true, "klingon", "none", 0, null, false)));
+        assertEquals("FILE.BAD_ENCODING", code(() -> c.read(ctx(), "in.csv", ",", true, "klingon", "none", 0, null, false, false)));
     }
 
     // ---- Shared values and run context ----

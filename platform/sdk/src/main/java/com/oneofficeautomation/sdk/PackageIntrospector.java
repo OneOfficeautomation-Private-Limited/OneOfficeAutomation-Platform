@@ -61,8 +61,12 @@ public final class PackageIntrospector {
             if (in.description().isBlank()) throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' has no description");
             Object def = in.defaultValue().isEmpty() ? null : JsonLite.parse(in.defaultValue());
             inputs.add(new ActionSpec.InputSpec(in.name(), in.type(), in.description(), in.label(), in.required(), def,
-                    in.pattern(), List.of(in.enumValues()), in.example()));
+                    in.pattern(), List.of(in.enumValues()), in.example(), in.visibleWhen(), in.min(), in.max()));
         }
+        for (ActionSpec.InputSpec in : inputs)
+            for (String other : in.visibleRule().keySet())
+                if (inputs.stream().noneMatch(x -> x.name().equals(other)))
+                    throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' is shown when '" + other + "' has a value, but there is no such input");
         List<ActionSpec.OutputSpec> outputs = new ArrayList<>();
         for (Output o : m.getAnnotationsByType(Output.class)) outputs.add(new ActionSpec.OutputSpec(o.name(), o.type(), o.description()));
         return new ActionSpec(kind, id, name, desc, category, List.copyOf(inputs), List.copyOf(outputs), timeout, idempotent,

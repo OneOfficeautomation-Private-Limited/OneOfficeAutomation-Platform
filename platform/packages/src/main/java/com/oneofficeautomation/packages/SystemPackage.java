@@ -19,6 +19,11 @@ public final class SystemPackage {
         if (name.toUpperCase(Locale.ROOT).matches(".*(PASSWORD|SECRET|TOKEN|API_KEY|PRIVATE).*"))
             throw new ActionException("SYSTEM.SECRET_VARIABLE", "Reading '" + name + "' is blocked because it looks like a secret",
                     "Store secrets in the credential vault and use a Credential variable.");
+        // a value set earlier in this run (Set environment variable, process scope) wins; empty means removed
+        if (ctx.sessions() != null && ctx.sessions().get(ProcessRunner.RUN_ENV_SESSION) instanceof Map<?, ?> runEnv && runEnv.containsKey(name)) {
+            String set = String.valueOf(runEnv.get(name));
+            return Out.of("value", set.isEmpty() ? def : set);
+        }
         String v = System.getenv(name);
         return Out.of("value", v != null ? v : def);
     }
@@ -137,7 +142,7 @@ public final class SystemPackage {
     @Action(id = "restart", name = "Restart computer", category = "Power", description = "Restart the runner after a delay.")
     public Map<String, Object> restart(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to restart.") boolean confirm,
-            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before restarting.") int delay,
+            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, max = 315360000, description = "Seconds before restarting.") int delay,
             @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Close programs without asking them to save (unsaved work is lost).") boolean force,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Reason shown to signed-in users and written to the Windows event log.") String message) {
         return power(ctx, confirm, "Restart", powerCommand("/r", delay, force, message, true), powerCommand("-r", delay, force, message, false));
@@ -146,7 +151,7 @@ public final class SystemPackage {
     @Action(id = "shut_down", name = "Shut down computer", category = "Power", description = "Shut the runner down after a delay.")
     public Map<String, Object> shutDown(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to shut down.") boolean confirm,
-            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Seconds before shutting down.") int delay,
+            @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, max = 315360000, description = "Seconds before shutting down.") int delay,
             @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Close programs without asking them to save (unsaved work is lost).") boolean force,
             @Input(name = "message", type = OoaType.STRING, required = false, description = "Reason shown to signed-in users and written to the Windows event log.") String message) {
         return power(ctx, confirm, "Shut down", powerCommand("/s", delay, force, message, true), powerCommand("-h", delay, force, message, false));

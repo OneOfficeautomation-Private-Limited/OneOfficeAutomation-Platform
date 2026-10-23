@@ -172,9 +172,9 @@ public final class BrowserPackage {
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium", "firefox"},
-                    description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright.") String which,
-            @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Run without a visible window (for unattended agents).") boolean headless,
-            @Input(name = "download_folder", type = OoaType.FILE, required = false, description = "Where downloads are saved.") String downloads,
+                    visibleWhen = "open_in=new_window", description = "edge and chrome use the installed browser; chromium and firefox are downloaded by Playwright.") String which,
+            @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "open_in=new_window", description = "Run without a visible window (for unattended agents).") boolean headless,
+            @Input(name = "download_folder", type = OoaType.FILE, required = false, visibleWhen = "open_in=new_window", description = "Where downloads are saved.") String downloads,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "keep_open", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let Studio and later agents reach it. "
@@ -184,8 +184,8 @@ public final class BrowserPackage {
                             + "playwright: a browser the agent starts itself; auto: the connector when that browser has it, else playwright.") String engine,
             @Input(name = "open_in", type = OoaType.STRING, required = false, defaultValue = "\"new_window\"", enumValues = {"new_window", "new_tab", "existing_tab"},
                     description = "new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab.") String openIn,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = "For new_tab and existing_tab: the tab to use. " + BrowserWindows.D_WINDOW) Object window,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "240000", description = "How long to wait for the page to load.") double timeout) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, visibleWhen = "open_in!=new_window", description = "For new_tab and existing_tab: the tab to use. " + BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "240000", min = 1000, description = "How long to wait for the page to load.") double timeout) {
         if (openIn != null && !openIn.equals("new_window")) {
             String s = BrowserWindows.use(ctx, session, window, Math.min(timeout, 30000));
             if (!s.equals(session)) { Object found = ctx.sessions().get(s); ctx.sessions().put(session, found); }
@@ -257,7 +257,7 @@ public final class BrowserPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "double_click", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Double-click.") boolean dbl,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
@@ -277,7 +277,7 @@ public final class BrowserPackage {
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "press_enter", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Press Enter afterwards.") boolean enter,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
@@ -305,7 +305,7 @@ public final class BrowserPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "option", type = OoaType.STRING, description = "Option value or visible text.") String option,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
@@ -328,7 +328,7 @@ public final class BrowserPackage {
     public Map<String, Object> getText(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
@@ -344,7 +344,7 @@ public final class BrowserPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "attribute", type = OoaType.STRING, example = "href", description = "Attribute name; use value for input fields.") String attr,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
@@ -364,7 +364,7 @@ public final class BrowserPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"visible\"", enumValues = {"visible", "attached", "hidden", "detached"}, description = "State to wait for.") String state,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
@@ -414,7 +414,7 @@ public final class BrowserPackage {
     public Map<String, Object> extractTable(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, defaultValue = "\"table\"", description = "Selector of the table element, used when no captured object is given.") String sel,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", description = D_TIMEOUT) double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
@@ -445,9 +445,9 @@ public final class BrowserPackage {
             description = "Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).")
     @Output(name = "result", description = "Value returned by the script.")
     public Map<String, Object> runJs(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", description = "JavaScript expression or function, typed here.") String script,
+            @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", visibleWhen = "script_file=", description = "JavaScript expression or function, typed here.") String script,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "script_file", type = OoaType.FILE, required = false, description = "Or a .js file to run (UTF-8), used instead of the typed script.") String scriptFile,
+            @Input(name = "script_file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "Or a .js file to run (UTF-8), used instead of the typed script.") String scriptFile,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         script = scriptText(ctx, script, scriptFile);
@@ -660,7 +660,7 @@ public final class BrowserPackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace the file if it already exists.") boolean overwrite,
             @Input(name = "username", type = OoaType.STRING, required = false, description = "User name when the server asks to sign in (domain\\user for Windows sign-in); empty uses the Windows sign-in of the agent's user.") String username,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for that user name (a Credential).") Object password,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "600000", description = "How long the download may take.") int timeoutMs) {
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "600000", min = 1000, description = "How long the download may take.") int timeoutMs) {
         Path target = ctx.resolvePath(saveTo);
         String name = url.replaceFirst("[?#].*$", "").replaceFirst(".*/", "");
         if (Files.isDirectory(target) || saveTo.endsWith("/") || saveTo.endsWith("\\")) target = target.resolve(name.isBlank() ? "download" : java.net.URLDecoder.decode(name, java.nio.charset.StandardCharsets.UTF_8));
@@ -698,17 +698,17 @@ public final class BrowserPackage {
     public Map<String, Object> findBrokenLinks(ActionContext ctx,
             @Input(name = "only_broken", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "List only failing links instead of every link.") boolean onlyBroken,
             @Input(name = "same_site_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Check only links to the page's own host.") boolean sameSite,
-            @Input(name = "max_links", type = OoaType.NUMBER, required = false, defaultValue = "200", description = "Safety limit on links checked.") int maxLinks,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", description = "Time allowed for each link, in milliseconds.") int timeoutMs,
+            @Input(name = "max_links", type = OoaType.NUMBER, required = false, defaultValue = "200", min = 1, description = "Safety limit on links checked.") int maxLinks,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", min = 100, description = "Time allowed for each link, in milliseconds.") int timeoutMs,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to check, by its address, instead of the browser's current page (no browser needed).") String url,
             @Input(name = "scope", type = OoaType.STRING, required = false, defaultValue = "\"page\"", enumValues = {"page", "site"},
                     description = "page: the links of that page; site: also follow the site's own pages (same host) and check their links.") String scope,
-            @Input(name = "max_pages", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "With scope site: at most this many pages are read.") int maxPages,
+            @Input(name = "max_pages", type = OoaType.NUMBER, required = false, defaultValue = "50", visibleWhen = "scope=site", min = 1, description = "With scope site: at most this many pages are read.") int maxPages,
             @Input(name = "csv_path", type = OoaType.FILE, required = false, description = "Also save the list to this CSV file.") String csvPath,
-            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Add to the CSV file if it exists, instead of replacing it.") boolean append,
-            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", enumValues = {"UTF-8", "UTF-16", "ANSI"}, description = "CSV file encoding.") String encoding,
-            @Input(name = "threads", type = OoaType.NUMBER, required = false, defaultValue = "10", description = "How many links are checked at the same time (1-50).") int threads) {
+            @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "csv_path!=", description = "Add to the CSV file if it exists, instead of replacing it.") boolean append,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"UTF-8\"", enumValues = {"UTF-8", "UTF-16", "ANSI"}, visibleWhen = "csv_path!=", description = "CSV file encoding.") String encoding,
+            @Input(name = "threads", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 1, max = 64, description = "How many links are checked at the same time (1-50).") int threads) {
         List<Object> hrefs;
         String pageUrl;
         if (url != null && !url.isBlank()) {
@@ -765,7 +765,7 @@ public final class BrowserPackage {
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = "Element that starts the download, used when no captured object is given.") String sel,
             @Input(name = "folder", type = OoaType.FILE, description = "Folder to save into.") String folder,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "120000", description = "How long to wait for the download.") double timeout,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "120000", min = 0, description = "How long to wait for the download.") double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
@@ -846,9 +846,9 @@ public final class BrowserPackage {
     public Map<String, Object> history(ActionContext ctx,
             @Input(name = "action", type = OoaType.STRING, enumValues = {"back", "forward", "refresh"}, description = "What to do.") String action,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "steps", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "back: how many pages to go back (e.g. 3).") int steps,
+            @Input(name = "steps", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "action=back|forward", min = 1, description = "back: how many pages to go back (e.g. 3).") int steps,
             @Input(name = "error_if_too_many", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "back: fail when the tab has visited fewer pages than the steps asked for.") boolean strict,
+                    visibleWhen = "action=back|forward", description = "back: fail when the tab has visited fewer pages than the steps asked for.") boolean strict,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         int n = Math.max(1, steps);
@@ -906,7 +906,7 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "what", type = OoaType.STRING, required = false, defaultValue = "\"session\"", enumValues = {"session", "tab", "window", "all"},
                     description = "session: what this agent opened (its window, or the tab it worked in); tab: the current tab; window: the whole window; all: every browser window.") String what,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = "The tab or window to close, instead of the session's current one. " + BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, visibleWhen = "what=tab|window", description = "The tab or window to close, instead of the session's current one. " + BrowserWindows.D_WINDOW) Object window) {
         if (window != null) session = BrowserWindows.use(ctx, session, window, 10000);
         String w = what == null ? "session" : what;
         if (!w.equals("session") && ctx.sessions().get(session) instanceof BrowserSession bs0 && !w.equals("all")) {

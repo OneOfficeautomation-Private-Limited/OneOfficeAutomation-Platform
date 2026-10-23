@@ -16,12 +16,12 @@ public final class StringPackage {
             @Input(name = "before", type = OoaType.STRING, required = false, description = "Return text before this marker.") String before,
             @Input(name = "after", type = OoaType.STRING, required = false, description = "Return text after this marker.") String after,
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Trim whitespace from the result.") boolean trim,
-            @Input(name = "after_occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which occurrence of the 'after' marker to start from (1 = first).") int afterOccurrence,
-            @Input(name = "before_occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which occurrence of the 'before' marker to stop at (1 = first).") int beforeOccurrence,
+            @Input(name = "after_occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "after!=", min = 1, description = "Which occurrence of the 'after' marker to start from (1 = first).") int afterOccurrence,
+            @Input(name = "before_occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", visibleWhen = "before!=", min = 1, description = "Which occurrence of the 'before' marker to stop at (1 = first).") int beforeOccurrence,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Find the markers without regard to upper/lower case.") boolean ignoreCase,
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"empty\"", enumValues = {"empty", "source"},
                     description = "Result when a marker is missing: empty text, or the whole source text.") String ifNotFound,
-            @Input(name = "max_length", type = OoaType.NUMBER, required = false, description = "Keep at most this many characters of the result.") Integer maxLength,
+            @Input(name = "max_length", type = OoaType.NUMBER, required = false, min = 0, description = "Keep at most this many characters of the result.") Integer maxLength,
             @Input(name = "remove_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove line breaks from the result.") boolean removeLineBreaks) {
         if (afterOccurrence < 1 || beforeOccurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1", "Use 1 for the first match.");
         String out = text;
@@ -63,8 +63,8 @@ public final class StringPackage {
             @Input(name = "replace_with", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "Replacement text.") String with,
             @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat 'find' as a regular expression.") boolean regex,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Match without regard to upper/lower case.") boolean ignoreCase,
-            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Zero-based position to start replacing from; text before it is kept as is.") int start,
-            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "-1", description = "Replace at most this many matches; -1 replaces all.") int count) {
+            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Zero-based position to start replacing from; text before it is kept as is.") int start,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "-1", min = -1, description = "Replace at most this many matches; -1 replaces all.") int count) {
         if (start < 0 || start > text.length())
             throw new ActionException("STRING.BAD_POSITION", "Start position " + start + " is outside the text (length " + text.length() + ")", "Use a position from 0 to the text length.");
         try {
@@ -93,8 +93,8 @@ public final class StringPackage {
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "delimiter", type = OoaType.STRING, description = "Delimiter, e.g. ','.") String delimiter,
             @Input(name = "trim_items", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Trim each item.") boolean trimItems,
-            @Input(name = "max_parts", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Split into at most this many parts; the last part keeps the rest. 0 splits at every delimiter.") int maxParts,
-            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Match a letter delimiter without regard to upper/lower case.") boolean ignoreCase,
+            @Input(name = "max_parts", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Split into at most this many parts; the last part keeps the rest. 0 splits at every delimiter.") int maxParts,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "regex=false", description = "Match a letter delimiter without regard to upper/lower case.") boolean ignoreCase,
             @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat the delimiter as a regular expression, e.g. \\R for any line break.") boolean regex,
             @Input(name = "remove_empty", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out empty parts.") boolean removeEmpty) {
         if (maxParts < 0) throw new ActionException("STRING.BAD_COUNT", "max_parts cannot be negative", "Use 0 for all parts.");
@@ -189,13 +189,17 @@ public final class StringPackage {
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a match was found.")
     @Output(name = "match", type = OoaType.STRING, description = "The matched text, empty when not found.")
     @Output(name = "position", type = OoaType.NUMBER, description = "One-based position of the match, or 0 when not found.")
+    @Output(name = "groups", type = OoaType.LIST, description = "Regular expression: the capture groups of the returned match (group 1 first); empty otherwise.")
+    @Output(name = "named_groups", type = OoaType.DICTIONARY, description = "Regular expression: named groups (?<name>...) of the returned match.")
+    @Output(name = "all_matches", type = OoaType.LIST, description = "Every match from the start position on, in order.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "How many matches there are from the start position on.")
     public Map<String, Object> find(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to search in.") String text,
             @Input(name = "find", type = OoaType.STRING, description = "Text or regular expression to look for.") String find,
             @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat 'find' as a regular expression.") boolean regex,
-            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Zero-based position to start searching from.") int start,
+            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Zero-based position to start searching from.") int start,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ignore upper/lower case.") boolean ignoreCase,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Which match to return (1 = first, 2 = second ...).") int occurrence) {
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which match to return (1 = first, 2 = second ...).") int occurrence) {
         if (start < 0 || start > text.length())
             throw new ActionException("STRING.BAD_POSITION", "Start position " + start + " is outside the text (length " + text.length() + ")", "Use a position from 0 to the text length.");
         if (occurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1, got " + occurrence, "Use 1 for the first match.");
@@ -203,10 +207,24 @@ public final class StringPackage {
             java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex ? find : java.util.regex.Pattern.quote(find),
                     ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0);
             java.util.regex.Matcher m = p.matcher(text);
-            boolean hit = m.find(start);
-            for (int k = 1; hit && k < occurrence; k++) hit = m.find();
-            if (hit) return Out.of("index", java.math.BigDecimal.valueOf(m.start()), "found", true, "match", m.group(), "position", java.math.BigDecimal.valueOf(m.start() + 1L));
-            return Out.of("index", java.math.BigDecimal.valueOf(-1), "found", false, "match", "", "position", java.math.BigDecimal.ZERO);
+            List<Object> all = new ArrayList<>();
+            List<Object> groups = new ArrayList<>();
+            Map<String, Object> named = new LinkedHashMap<>();
+            int index = -1;
+            String match = "";
+            if (m.find(start)) do {
+                all.add(m.group());
+                if (all.size() == occurrence) {
+                    index = m.start(); match = m.group();
+                    if (regex) {
+                        for (int g = 1; g <= m.groupCount(); g++) groups.add(m.group(g) == null ? "" : m.group(g));
+                        for (String name : p.namedGroups().keySet()) named.put(name, m.group(name) == null ? "" : m.group(name));
+                    }
+                }
+            } while (m.find());
+            return Out.of("index", java.math.BigDecimal.valueOf(index), "found", index >= 0, "match", match,
+                    "position", java.math.BigDecimal.valueOf(index + 1L), "groups", groups, "named_groups", named,
+                    "all_matches", all, "count", java.math.BigDecimal.valueOf(all.size()));
         } catch (PatternSyntaxException e) {
             throw new ActionException("STRING.BAD_REGEX", "Invalid regular expression: " + e.getDescription(), "Escape special characters such as ( ) [ ] . *");
         }
@@ -223,9 +241,9 @@ public final class StringPackage {
     @Output(name = "result", type = OoaType.STRING, description = "The selected part of the text.")
     public Map<String, Object> substring(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
-            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Zero-based start position.") int start,
-            @Input(name = "length", type = OoaType.NUMBER, required = false, description = "Number of characters to take; to the end when empty.") Integer length,
-            @Input(name = "end", type = OoaType.NUMBER, required = false, description = "Zero-based end position (not included); used when length is empty.") Integer end,
+            @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Zero-based start position.") int start,
+            @Input(name = "length", type = OoaType.NUMBER, required = false, min = 0, description = "Number of characters to take; to the end when empty.") Integer length,
+            @Input(name = "end", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based end position (not included); used when length is empty.") Integer end,
             @Input(name = "if_out_of_range", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "empty"},
                     description = "When the start is past the end of the text: fail with STRING.BAD_POSITION, or return empty text.") String ifOutOfRange) {
         if (start > text.length() && "empty".equals(ifOutOfRange)) return Out.of("result", "");
@@ -270,12 +288,12 @@ public final class StringPackage {
             description = "Generate random text of a given length from letters, digits and/or symbols.")
     @Output(name = "result", type = OoaType.STRING, description = "Random text.")
     public Map<String, Object> randomString(ActionContext ctx,
-            @Input(name = "length", type = OoaType.NUMBER, required = false, defaultValue = "12", description = "Number of characters.") int length,
+            @Input(name = "length", type = OoaType.NUMBER, required = false, defaultValue = "12", min = 1, max = 100000, description = "Number of characters.") int length,
             @Input(name = "letters", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include letters A-Z and a-z.") boolean letters,
             @Input(name = "digits", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include digits 0-9.") boolean digits,
             @Input(name = "symbols", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Include symbols such as ! # $ %.") boolean symbols,
             @Input(name = "letter_case", type = OoaType.STRING, required = false, defaultValue = "\"mixed\"", enumValues = {"mixed", "upper", "lower"},
-                    description = "Letters in mixed, upper or lower case.") String letterCase,
+                    visibleWhen = "letters=true", description = "Letters in mixed, upper or lower case.") String letterCase,
             @Input(name = "exclude_characters", type = OoaType.STRING, required = false, description = "Characters never to use, e.g. 0O1l to avoid look-alikes.") String exclude) {
         if (length < 0 || length > 100_000) throw new ActionException("STRING.BAD_LENGTH", "Length must be between 0 and 100000, got " + length, "Choose a smaller positive length.");
         String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ", lower = "abcdefghijklmnopqrstuvwxyz";
@@ -321,7 +339,7 @@ public final class StringPackage {
     public Map<String, Object> toLocaleNumber(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to write.") java.math.BigDecimal value,
             @Input(name = "locale", type = OoaType.STRING, required = false, defaultValue = "\"en-US\"", description = "Locale, e.g. en-US, de-DE, en-IN.") String locale,
-            @Input(name = "decimals", type = OoaType.NUMBER, required = false, description = "Fixed decimal places; keeps the number's own decimals when empty.") Integer decimals,
+            @Input(name = "decimals", type = OoaType.NUMBER, required = false, min = 0, max = 20, description = "Fixed decimal places; keeps the number's own decimals when empty.") Integer decimals,
             @Input(name = "grouping", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Use a thousands separator.") boolean grouping) {
         if (decimals != null && (decimals < 0 || decimals > 50)) throw new ActionException("STRING.BAD_DECIMALS", "Decimals must be between 0 and 50, got " + decimals, "Use a small positive number.");
         java.text.NumberFormat f = java.text.NumberFormat.getNumberInstance(Locale.forLanguageTag(locale == null || locale.isBlank() ? "en-US" : locale));
@@ -330,6 +348,7 @@ public final class StringPackage {
         f.setMaximumFractionDigits(d);
         f.setGroupingUsed(grouping);
         f.setRoundingMode(java.math.RoundingMode.HALF_UP);
-        return Out.of("result", f.format(value));
+        String text = f.format(value);
+        return Out.of("result", grouping ? NumberPackage.southAsianGrouping(text, Locale.forLanguageTag(locale == null || locale.isBlank() ? "en-US" : locale)) : text);
     }
 }

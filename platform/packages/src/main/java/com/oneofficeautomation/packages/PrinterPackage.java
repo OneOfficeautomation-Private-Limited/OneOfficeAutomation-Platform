@@ -30,7 +30,7 @@ public final class PrinterPackage {
     public Map<String, Object> print(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to print.") String path,
             @Input(name = "printer", type = OoaType.STRING, required = false, description = "Printer name; default printer when empty.") String printer,
-            @Input(name = "copies", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Number of copies.") int copies) {
+            @Input(name = "copies", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 999, description = "Number of copies.") int copies) {
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
         if (printer == null || printer.isBlank()) {

@@ -17,6 +17,9 @@ import java.util.*;
  * retryable flags (429, 5xx), and secret masking in logs.
  */
 final class HttpJson {
+    /** Address pattern: https for real servers; plain http only for this computer (local test and mock servers). */
+    static final String HTTPS_OR_LOCAL = "^(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))";
+
     private HttpJson() {}
     static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NORMAL).build();
 

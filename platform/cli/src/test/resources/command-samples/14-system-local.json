@@ -1,0 +1,1949 @@
+[
+ {
+  "command": "ooa.system/get_environment_variable",
+  "name": "default when not set",
+  "steps": [
+   {
+    "action": "ooa.system/get_environment_variable",
+    "args": {
+     "name": "OOA_NO_SUCH_VAR_9F3A",
+     "default": "none"
+    },
+    "out": {
+     "value": "v"
+    }
+   }
+  ],
+  "expect": {
+   "v": "none"
+  }
+ },
+ {
+  "command": "ooa.system/set_environment_variable",
+  "name": "process scope, read back",
+  "steps": [
+   {
+    "action": "ooa.system/set_environment_variable",
+    "args": {
+     "name": "OOA_SAMPLE_VAR",
+     "value": "x1"
+    }
+   },
+   {
+    "action": "ooa.system/get_environment_variable",
+    "args": {
+     "name": "OOA_SAMPLE_VAR"
+    },
+    "out": {
+     "value": "v"
+    }
+   }
+  ],
+  "expect": {
+   "v": "x1"
+  }
+ },
+ {
+  "command": "ooa.system/get_environment_variables",
+  "name": "secrets hidden",
+  "steps": [
+   {
+    "action": "ooa.system/get_environment_variables",
+    "out": {
+     "variables": "vars",
+     "hidden_count": "h"
+    }
+   }
+  ],
+  "expect": {
+   "vars": {
+    "$type": "object"
+   }
+  }
+ },
+ {
+  "command": "ooa.system/get_system_info",
+  "name": "info",
+  "steps": [
+   {
+    "action": "ooa.system/get_system_info",
+    "out": {
+     "info": "i"
+    }
+   }
+  ],
+  "expect": {
+   "i": {
+    "$type": "object"
+   }
+  }
+ },
+ {
+  "command": "ooa.system/shut_down",
+  "name": "refused without confirm",
+  "steps": [
+   {
+    "action": "ooa.system/shut_down",
+    "args": {
+     "confirm": false
+    }
+   }
+  ],
+  "error": "SYSTEM.CONFIRM_REQUIRED"
+ },
+ {
+  "command": "ooa.system/restart",
+  "name": "refused without confirm",
+  "steps": [
+   {
+    "action": "ooa.system/restart",
+    "args": {
+     "confirm": false
+    }
+   }
+  ],
+  "error": "SYSTEM.CONFIRM_REQUIRED"
+ },
+ {
+  "command": "ooa.system/log_off",
+  "name": "refused without confirm",
+  "steps": [
+   {
+    "action": "ooa.system/log_off",
+    "args": {
+     "confirm": false
+    }
+   }
+  ],
+  "error": "SYSTEM.CONFIRM_REQUIRED"
+ },
+ {
+  "command": "ooa.system/lock",
+  "name": "refused without confirm",
+  "steps": [
+   {
+    "action": "ooa.system/lock",
+    "args": {
+     "confirm": false
+    }
+   }
+  ],
+  "error": "SYSTEM.CONFIRM_REQUIRED"
+ },
+ {
+  "command": "ooa.services/get_status",
+  "name": "a Windows service",
+  "steps": [
+   {
+    "action": "ooa.services/get_status",
+    "args": {
+     "name": "EventLog"
+    },
+    "out": {
+     "status": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "RUNNING"
+  }
+ },
+ {
+  "command": "ooa.services/is_running",
+  "name": "condition",
+  "vars": {
+   "ok": false
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "condition": "ooa.services/is_running",
+      "args": {
+       "name": "EventLog"
+      }
+     }
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": true
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.services/start",
+  "name": "unknown service",
+  "steps": [
+   {
+    "action": "ooa.services/start",
+    "args": {
+     "name": "NoSuchService9f3a"
+    }
+   }
+  ],
+  "error": "SERVICES.NOT_FOUND"
+ },
+ {
+  "command": "ooa.printer/list_printers",
+  "name": "lists printers",
+  "steps": [
+   {
+    "action": "ooa.printer/list_printers",
+    "out": {
+     "printers": "p"
+    }
+   }
+  ],
+  "expect": {
+   "p": {
+    "$type": "array"
+   }
+  }
+ },
+ {
+  "command": "ooa.printer/get_default",
+  "name": "default printer",
+  "steps": [
+   {
+    "action": "ooa.printer/get_default",
+    "out": {
+     "printer": "p"
+    }
+   }
+  ],
+  "expect": {
+   "p": {
+    "$type": "string"
+   }
+  }
+ },
+ {
+  "command": "ooa.printer/remove_printer",
+  "name": "refused without confirm",
+  "steps": [
+   {
+    "action": "ooa.printer/remove_printer",
+    "args": {
+     "printer": "x",
+     "confirm": false
+    }
+   }
+  ],
+  "error": "PRINTER.CONFIRM_REQUIRED"
+ },
+ {
+  "command": "ooa.printer/set_default",
+  "name": "unknown printer",
+  "steps": [
+   {
+    "action": "ooa.printer/set_default",
+    "args": {
+     "printer": "No such printer 9f3a"
+    }
+   }
+  ],
+  "error": "PRINTER.NOT_FOUND"
+ },
+ {
+  "command": "ooa.printer/print_file",
+  "name": "missing file",
+  "steps": [
+   {
+    "action": "ooa.printer/print_file",
+    "args": {
+     "path": "{tmp}/none.pdf"
+    }
+   }
+  ],
+  "error": "FILE.NOT_FOUND"
+ },
+ {
+  "command": "ooa.network/ping",
+  "name": "loopback",
+  "steps": [
+   {
+    "action": "ooa.network/ping",
+    "args": {
+     "host": "127.0.0.1"
+    },
+    "out": {
+     "reachable": "r"
+    }
+   }
+  ],
+  "expect": {
+   "r": true
+  }
+ },
+ {
+  "command": "ooa.network/check_port",
+  "name": "closed port",
+  "steps": [
+   {
+    "action": "ooa.network/check_port",
+    "args": {
+     "host": "127.0.0.1",
+     "port": 9,
+     "timeout_ms": 300
+    },
+    "out": {
+     "open": "o"
+    }
+   }
+  ],
+  "expect": {
+   "o": false
+  }
+ },
+ {
+  "command": "ooa.network/port_open",
+  "name": "condition false",
+  "vars": {
+   "ok": true
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "condition": "ooa.network/port_open",
+      "args": {
+       "host": "127.0.0.1",
+       "port": 9,
+       "timeout_ms": 300
+      }
+     }
+    },
+    "else": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": false
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "command": "ooa.network/host_reachable",
+  "name": "condition true",
+  "vars": {
+   "ok": false
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "condition": "ooa.network/host_reachable",
+      "args": {
+       "host": "127.0.0.1"
+      }
+     }
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": true
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.network/check_port",
+  "name": "port out of range is reported before the run (new limit)",
+  "steps": [
+   {
+    "action": "ooa.network/check_port",
+    "args": {
+     "host": "127.0.0.1",
+     "port": 70000
+    }
+   }
+  ],
+  "error": "FLOW.INVALID"
+ },
+ {
+  "command": "ooa.network/snmp_get",
+  "name": "no agent answers",
+  "steps": [
+   {
+    "action": "ooa.network/snmp_get",
+    "args": {
+     "host": "127.0.0.1",
+     "oids": "1.3.6.1.2.1.1.1.0",
+     "port": 16199,
+     "timeout_ms": 200,
+     "retries": 0
+    }
+   }
+  ],
+  "error": "SNMP.TIMEOUT"
+ },
+ {
+  "command": "ooa.script/run_powershell",
+  "name": "output and JSON",
+  "steps": [
+   {
+    "action": "ooa.script/run_powershell",
+    "args": {
+     "script": "@{ total = 42 } | ConvertTo-Json -Compress"
+    },
+    "out": {
+     "json": "j",
+     "exit_code": "e"
+    }
+   }
+  ],
+  "expect": {
+   "j": {
+    "total": 42
+   },
+   "e": 0
+  }
+ },
+ {
+  "command": "ooa.script/run_vbscript",
+  "name": "echo",
+  "steps": [
+   {
+    "action": "ooa.script/run_vbscript",
+    "args": {
+     "script": "WScript.Echo \"hi\""
+    },
+    "out": {
+     "output": "o"
+    }
+   }
+  ],
+  "expect": {
+   "o": {
+    "$contains": "hi"
+   }
+  }
+ },
+ {
+  "command": "ooa.script/run_vbscript_function",
+  "name": "typed script (new)",
+  "steps": [
+   {
+    "action": "ooa.script/run_vbscript_function",
+    "args": {
+     "script": "Function Twice(x)\r\n Twice = x & x\r\nEnd Function",
+     "function": "Twice",
+     "arguments": [
+      "ab"
+     ]
+    },
+    "out": {
+     "result": "r"
+    }
+   }
+  ],
+  "expect": {
+   "r": "abab"
+  }
+ },
+ {
+  "command": "ooa.script/run_python",
+  "name": "needs Python or a typed script",
+  "steps": [
+   {
+    "action": "ooa.script/run_python",
+    "args": {}
+   }
+  ],
+  "error": "SCRIPT.NO_SCRIPT"
+ },
+ {
+  "command": "ooa.script/run_python_function",
+  "name": "no file and no script",
+  "steps": [
+   {
+    "action": "ooa.script/run_python_function",
+    "args": {
+     "function": "f"
+    }
+   }
+  ],
+  "error": "SCRIPT.NO_SOURCE"
+ },
+ {
+  "command": "ooa.script/run_javascript",
+  "name": "needs a script",
+  "steps": [
+   {
+    "action": "ooa.script/run_javascript",
+    "args": {}
+   }
+  ],
+  "error": "SCRIPT.NO_SCRIPT"
+ },
+ {
+  "command": "ooa.script/run_javascript_function",
+  "name": "typed script (new)",
+  "requires": "node",
+  "steps": [
+   {
+    "action": "ooa.script/run_javascript_function",
+    "args": {
+     "script": "function add(a, b) { return a + b; } module.exports = { add };",
+     "function": "add",
+     "arguments": [
+      2,
+      3
+     ]
+    },
+    "out": {
+     "result": "r"
+    }
+   }
+  ],
+  "expect": {
+   "r": 5
+  }
+ },
+ {
+  "command": "ooa.crypto/hash_text",
+  "name": "SHA-256 hex",
+  "steps": [
+   {
+    "action": "ooa.crypto/hash_text",
+    "args": {
+     "text": "abc"
+    },
+    "out": {
+     "hash": "h"
+    }
+   }
+  ],
+  "expect": {
+   "h": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  }
+ },
+ {
+  "command": "ooa.crypto/hash_file",
+  "name": "MD5",
+  "files": {
+   "a.txt": "abc"
+  },
+  "steps": [
+   {
+    "action": "ooa.crypto/hash_file",
+    "args": {
+     "path": "{tmp}/a.txt",
+     "algorithm": "MD5"
+    },
+    "out": {
+     "hash": "h"
+    }
+   }
+  ],
+  "expect": {
+   "h": "900150983cd24fb0d6963f7d28e17f72"
+  }
+ },
+ {
+  "command": "ooa.crypto/hmac",
+  "name": "SHA-256",
+  "credentials": {
+   "k": "test/hmac/key"
+  },
+  "secrets": {
+   "test/hmac/key": "key"
+  },
+  "steps": [
+   {
+    "action": "ooa.crypto/hmac",
+    "args": {
+     "text": "The quick brown fox jumps over the lazy dog",
+     "key": "$k"
+    },
+    "out": {
+     "signature": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+  }
+ },
+ {
+  "command": "ooa.crypto/base64_encode",
+  "name": "round trip",
+  "steps": [
+   {
+    "action": "ooa.crypto/base64_encode",
+    "args": {
+     "text": "h\u00e9llo"
+    },
+    "out": {
+     "result": "b"
+    }
+   },
+   {
+    "action": "ooa.crypto/base64_decode",
+    "args": {
+     "text": "$b"
+    },
+    "out": {
+     "result": "t"
+    }
+   }
+  ],
+  "expect": {
+   "b": "aMOpbGxv",
+   "t": "h\u00e9llo"
+  }
+ },
+ {
+  "command": "ooa.crypto/base64_decode",
+  "name": "not Base64",
+  "steps": [
+   {
+    "action": "ooa.crypto/base64_decode",
+    "args": {
+     "text": "***"
+    }
+   }
+  ],
+  "error": "ENCODING.INVALID"
+ },
+ {
+  "command": "ooa.crypto/encrypt_text",
+  "name": "encrypt, decrypt text and file",
+  "credentials": {
+   "pp": "test/crypto/pass"
+  },
+  "secrets": {
+   "test/crypto/pass": "s3cret!"
+  },
+  "files": {
+   "a.txt": "plain"
+  },
+  "steps": [
+   {
+    "action": "ooa.crypto/encrypt_text",
+    "args": {
+     "text": "hello",
+     "passphrase": "$pp"
+    },
+    "out": {
+     "result": "c"
+    }
+   },
+   {
+    "action": "ooa.crypto/decrypt_text",
+    "args": {
+     "text": "$c",
+     "passphrase": "$pp"
+    },
+    "out": {
+     "result": "t"
+    }
+   },
+   {
+    "action": "ooa.crypto/encrypt_file",
+    "args": {
+     "path": "{tmp}/a.txt",
+     "target": "{tmp}/a.enc",
+     "passphrase": "$pp"
+    }
+   },
+   {
+    "action": "ooa.crypto/decrypt_file",
+    "args": {
+     "path": "{tmp}/a.enc",
+     "target": "{tmp}/b.txt",
+     "passphrase": "$pp"
+    }
+   }
+  ],
+  "expect": {
+   "t": "****"
+  },
+  "expectFiles": {
+   "b.txt": "plain"
+  }
+ },
+ {
+  "command": "ooa.crypto/decrypt_text",
+  "name": "wrong passphrase",
+  "credentials": {
+   "a": "test/crypto/a",
+   "b": "test/crypto/b"
+  },
+  "secrets": {
+   "test/crypto/a": "one",
+   "test/crypto/b": "two"
+  },
+  "steps": [
+   {
+    "action": "ooa.crypto/encrypt_text",
+    "args": {
+     "text": "hello",
+     "passphrase": "$a"
+    },
+    "out": {
+     "result": "c"
+    }
+   },
+   {
+    "action": "ooa.crypto/decrypt_text",
+    "args": {
+     "text": "$c",
+     "passphrase": "$b"
+    }
+   }
+  ],
+  "error": "CRYPTO.WRONG_KEY"
+ },
+ {
+  "command": "ooa.crypto/rsa_generate_keys",
+  "name": "keys, encrypt, decrypt, sign, verify",
+  "steps": [
+   {
+    "action": "ooa.crypto/rsa_generate_keys",
+    "args": {
+     "folder": "{tmp}/keys"
+    },
+    "out": {
+     "public_key": "pub",
+     "private_key": "priv"
+    }
+   },
+   {
+    "action": "ooa.crypto/rsa_encrypt",
+    "args": {
+     "text": "hi",
+     "public_key": "$pub"
+    },
+    "out": {
+     "result": "c"
+    }
+   },
+   {
+    "action": "ooa.crypto/rsa_decrypt",
+    "args": {
+     "text": "$c",
+     "private_key": "$priv"
+    },
+    "out": {
+     "result": "t"
+    }
+   },
+   {
+    "action": "ooa.crypto/rsa_sign",
+    "args": {
+     "text": "doc",
+     "private_key": "$priv"
+    },
+    "out": {
+     "signature": "s"
+    }
+   },
+   {
+    "action": "ooa.crypto/rsa_verify",
+    "args": {
+     "text": "doc",
+     "signature": "$s",
+     "public_key": "$pub"
+    },
+    "out": {
+     "valid": "v"
+    }
+   },
+   {
+    "action": "ooa.crypto/rsa_verify",
+    "args": {
+     "text": "tampered",
+     "signature": "$s",
+     "public_key": "$pub"
+    },
+    "out": {
+     "valid": "v2"
+    }
+   }
+  ],
+  "expect": {
+   "t": "****",
+   "v": true,
+   "v2": false
+  }
+ },
+ {
+  "command": "ooa.log/write",
+  "name": "append with level",
+  "steps": [
+   {
+    "action": "ooa.log/write",
+    "args": {
+     "path": "{tmp}/run.log",
+     "message": "started",
+     "timestamp": false
+    }
+   },
+   {
+    "action": "ooa.log/write",
+    "args": {
+     "path": "{tmp}/run.log",
+     "message": "done",
+     "level": "WARN",
+     "timestamp": false
+    }
+   },
+   {
+    "action": "ooa.file/read_text",
+    "args": {
+     "path": "{tmp}/run.log"
+    },
+    "out": {
+     "text": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": {
+    "$contains": "WARN"
+   }
+  }
+ },
+ {
+  "command": "ooa.log/log_variables",
+  "name": "masked secrets",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.log/log_variables",
+    "args": {
+     "path": "{tmp}/vars.log",
+     "variables": {
+      "user": "ann",
+      "pw": "$pw"
+     },
+     "timestamp": false
+    },
+    "out": {
+     "lines": "n"
+    }
+   },
+   {
+    "action": "ooa.file/read_text",
+    "args": {
+     "path": "{tmp}/vars.log"
+    },
+    "out": {
+     "text": "t"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2,
+   "t": {
+    "$contains": "ann"
+   }
+  }
+ },
+ {
+  "command": "ooa.log/log_to_command_center",
+  "name": "without Command Center goes to the run log",
+  "steps": [
+   {
+    "action": "ooa.log/log_to_command_center",
+    "args": {
+     "message": "hello"
+    }
+   }
+  ]
+ },
+ {
+  "command": "ooa.fuzzy/best_match",
+  "name": "closest vendor",
+  "steps": [
+   {
+    "action": "ooa.fuzzy/best_match",
+    "args": {
+     "text": "Acme Corp.",
+     "candidates": [
+      "ACME Corporation",
+      "Zeta Ltd"
+     ],
+     "algorithm": "token_set",
+     "threshold": 50
+    },
+    "out": {
+     "match": "m",
+     "found": "f"
+    }
+   }
+  ],
+  "expect": {
+   "m": "ACME Corporation",
+   "f": true
+  }
+ },
+ {
+  "command": "ooa.fuzzy/similarity",
+  "name": "score",
+  "steps": [
+   {
+    "action": "ooa.fuzzy/similarity",
+    "args": {
+     "text1": "kitten",
+     "text2": "sitting"
+    },
+    "out": {
+     "score": "s"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "ok",
+     "value": {
+      "expr": "$s > 50 and $s < 70"
+     }
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.fuzzy/fuzzy_lookup",
+  "name": "join",
+  "vars": {
+   "a": {
+    "columns": [
+     "name"
+    ],
+    "rows": [
+     [
+      "Acme Corp"
+     ]
+    ]
+   },
+   "b": {
+    "columns": [
+     "vendor",
+     "id"
+    ],
+    "rows": [
+     [
+      "ACME Corporation",
+      7
+     ]
+    ]
+   }
+  },
+  "steps": [
+   {
+    "action": "ooa.fuzzy/fuzzy_lookup",
+    "args": {
+     "left_table": "$a",
+     "left_column": "name",
+     "right_table": "$b",
+     "right_column": "vendor",
+     "threshold": 50
+    },
+    "out": {
+     "matched": "m"
+    }
+   }
+  ],
+  "expect": {
+   "m": 1
+  }
+ },
+ {
+  "command": "ooa.fuzzy/texts_similar",
+  "name": "condition",
+  "vars": {
+   "ok": false
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "condition": "ooa.fuzzy/texts_similar",
+      "args": {
+       "text1": "colour",
+       "text2": "color",
+       "threshold": 70
+      }
+     }
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": true
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.dll/call",
+  "name": "Windows API function",
+  "steps": [
+   {
+    "action": "ooa.dll/call",
+    "args": {
+     "library": "kernel32",
+     "function": "GetCurrentProcessId",
+     "return_type": "int"
+    },
+    "out": {
+     "result": "pid"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "ok",
+     "value": {
+      "expr": "$pid > 0"
+     }
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "command": "ooa.dll/open",
+  "name": "open, call through the session, close",
+  "steps": [
+   {
+    "action": "ooa.dll/open",
+    "args": {
+     "library": "kernel32"
+    }
+   },
+   {
+    "action": "ooa.dll/call",
+    "args": {
+     "session": "dll",
+     "function": "GetTickCount",
+     "return_type": "int"
+    },
+    "out": {
+     "result": "t"
+    }
+   },
+   {
+    "action": "ooa.dll/close"
+   }
+  ],
+  "expect": {
+   "t": {
+    "$type": "number"
+   }
+  }
+ },
+ {
+  "command": "ooa.dll/close",
+  "name": "missing library",
+  "steps": [
+   {
+    "action": "ooa.dll/open",
+    "args": {
+     "library": "no_such_library_9f3a"
+    }
+   }
+  ],
+  "error": "DLL.NOT_FOUND"
+ },
+ {
+  "command": "ooa.credential_manager/write_credential",
+  "name": "save, read, list, remove (Windows Credential Manager)",
+  "requires": "desktop",
+  "credentials": {
+   "pw": "test/mail/password"
+  },
+  "steps": [
+   {
+    "action": "ooa.credential_manager/write_credential",
+    "args": {
+     "target": "ooa-sample-9f3a",
+     "username": "bot",
+     "password": "$pw",
+     "persist": "session"
+    }
+   },
+   {
+    "action": "ooa.credential_manager/read_credential",
+    "args": {
+     "target": "ooa-sample-9f3a"
+    },
+    "out": {
+     "username": "u"
+    }
+   },
+   {
+    "action": "ooa.credential_manager/list_targets",
+    "args": {
+     "filter": "ooa-sample-*"
+    },
+    "out": {
+     "targets": "t"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "listed",
+     "value": {
+      "expr": "len($t)"
+     }
+    }
+   },
+   {
+    "action": "ooa.credential_manager/delete_credential",
+    "args": {
+     "target": "ooa-sample-9f3a"
+    },
+    "out": {
+     "deleted": "d"
+    }
+   }
+  ],
+  "expect": {
+   "u": "bot",
+   "listed": 1,
+   "d": true
+  }
+ },
+ {
+  "command": "ooa.credential_manager/read_credential",
+  "name": "missing target",
+  "steps": [
+   {
+    "action": "ooa.credential_manager/read_credential",
+    "args": {
+     "target": "ooa-none-9f3a"
+    }
+   }
+  ],
+  "error": "CREDMAN.NOT_FOUND"
+ },
+ {
+  "command": "ooa.credential_manager/credential_exists",
+  "name": "condition false",
+  "vars": {
+   "ok": true
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "condition": "ooa.credential_manager/credential_exists",
+      "args": {
+       "target": "ooa-none-9f3a"
+      }
+     }
+    },
+    "else": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": false
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "command": "ooa.interrupts/add_rule",
+  "name": "add, list, remove, clear rules",
+  "steps": [
+   {
+    "action": "ooa.interrupts/add_rule",
+    "args": {
+     "name": "popup",
+     "when_window": "Session expired",
+     "then": "close_window"
+    }
+   },
+   {
+    "action": "ooa.interrupts/list_rules",
+    "out": {
+     "rules": "r"
+    }
+   },
+   {
+    "action": "core/set",
+    "args": {
+     "variable": "n",
+     "value": {
+      "expr": "len($r)"
+     }
+    }
+   },
+   {
+    "action": "ooa.interrupts/check_now",
+    "out": {
+     "count": "handled"
+    }
+   },
+   {
+    "action": "ooa.interrupts/remove_rule",
+    "args": {
+     "name": "popup"
+    },
+    "out": {
+     "removed": "rm"
+    }
+   },
+   {
+    "action": "ooa.interrupts/clear_rules"
+   }
+  ],
+  "expect": {
+   "n": 1,
+   "rm": true,
+   "handled": 0
+  }
+ },
+ {
+  "command": "ooa.sound/beep",
+  "name": "one beep",
+  "requires": "desktop",
+  "steps": [
+   {
+    "action": "ooa.sound/beep"
+   }
+  ]
+ },
+ {
+  "command": "ooa.sound/play",
+  "name": "missing file",
+  "steps": [
+   {
+    "action": "ooa.sound/play",
+    "args": {
+     "path": "{tmp}/none.wav"
+    }
+   }
+  ],
+  "error": "FILE.NOT_FOUND"
+ },
+ {
+  "command": "ooa.database/connect",
+  "name": "create, insert, bulk insert, query, transaction, export, describe",
+  "steps": [
+   {
+    "action": "ooa.database/connect",
+    "args": {
+     "jdbc_url": "jdbc:h2:mem:sample;DB_CLOSE_DELAY=-1",
+     "user": "sa"
+    }
+   },
+   {
+    "action": "ooa.database/execute",
+    "args": {
+     "sql": "CREATE TABLE inv (id INT PRIMARY KEY, vendor VARCHAR(40), amount DECIMAL(10,2))"
+    }
+   },
+   {
+    "action": "ooa.database/execute",
+    "args": {
+     "sql": "INSERT INTO inv VALUES (?, ?, ?)",
+     "parameters": [
+      1,
+      "Acme",
+      120.5
+     ]
+    },
+    "out": {
+     "rows_affected": "ins"
+    }
+   },
+   {
+    "action": "ooa.database/bulk_insert",
+    "args": {
+     "table": "inv",
+     "data": {
+      "columns": [
+       "id",
+       "vendor",
+       "amount"
+      ],
+      "rows": [
+       [
+        2,
+        "Zeta",
+        80
+       ],
+       [
+        3,
+        "Acme",
+        10
+       ]
+      ]
+     }
+    },
+    "out": {
+     "rows_inserted": "bulk"
+    }
+   },
+   {
+    "action": "ooa.database/begin_transaction"
+   },
+   {
+    "action": "ooa.database/execute",
+    "args": {
+     "sql": "DELETE FROM inv"
+    }
+   },
+   {
+    "action": "ooa.database/rollback"
+   },
+   {
+    "action": "ooa.database/query",
+    "args": {
+     "sql": "SELECT vendor, SUM(amount) AS total FROM inv GROUP BY vendor ORDER BY vendor"
+    },
+    "out": {
+     "table": "t",
+     "row_count": "n"
+    }
+   },
+   {
+    "action": "ooa.database/begin_transaction"
+   },
+   {
+    "action": "ooa.database/execute",
+    "args": {
+     "sql": "UPDATE inv SET amount = 0 WHERE id = 3"
+    }
+   },
+   {
+    "action": "ooa.database/commit"
+   },
+   {
+    "action": "ooa.database/export_to_file",
+    "args": {
+     "sql": "SELECT id FROM inv ORDER BY id",
+     "path": "{tmp}/ids.csv"
+    },
+    "out": {
+     "row_count": "exported"
+    }
+   },
+   {
+    "action": "ooa.database/list_tables",
+    "out": {
+     "table": "tables"
+    }
+   },
+   {
+    "action": "ooa.database/describe_table",
+    "args": {
+     "table": "INV"
+    },
+    "out": {
+     "table": "cols"
+    }
+   },
+   {
+    "action": "ooa.database/execute",
+    "args": {
+     "sql": "DROP TABLE inv"
+    }
+   },
+   {
+    "action": "ooa.database/disconnect"
+   }
+  ],
+  "expect": {
+   "ins": 1,
+   "bulk": 2,
+   "n": 2,
+   "t": {
+    "columns": [
+     "VENDOR",
+     "TOTAL"
+    ],
+    "rows": [
+     [
+      "Acme",
+      130.5
+     ],
+     [
+      "Zeta",
+      80
+     ]
+    ]
+   },
+   "exported": 3
+  },
+  "expectFiles": {
+   "ids.csv": true
+  }
+ },
+ {
+  "command": "ooa.database/query",
+  "name": "SQL error",
+  "steps": [
+   {
+    "action": "ooa.database/connect",
+    "args": {
+     "jdbc_url": "jdbc:h2:mem:sample2",
+     "user": "sa"
+    }
+   },
+   {
+    "action": "ooa.database/query",
+    "args": {
+     "sql": "SELECT * FROM missing_table"
+    }
+   }
+  ],
+  "error": "DB.SQL_ERROR"
+ },
+ {
+  "command": "ooa.database/call_procedure",
+  "name": "no connection",
+  "steps": [
+   {
+    "action": "ooa.database/call_procedure",
+    "args": {
+     "procedure": "p"
+    }
+   }
+  ],
+  "error": "SESSION.NOT_FOUND"
+ },
+ {
+  "command": "ooa.rest/request",
+  "name": "GET JSON from a local server",
+  "files": {
+   "data.json": "{\"items\": [1, 2, 3]}"
+  },
+  "steps": [
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "{web}/data.json"
+    },
+    "out": {
+     "status": "s",
+     "json": "j"
+    }
+   }
+  ],
+  "expect": {
+   "s": 200,
+   "j": {
+    "items": [
+     1,
+     2,
+     3
+    ]
+   }
+  }
+ },
+ {
+  "command": "ooa.rest/request",
+  "name": "404 carries on when asked",
+  "steps": [
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "{web}/missing.json",
+     "fail_on_error": false
+    },
+    "out": {
+     "status": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": 404
+  }
+ },
+ {
+  "command": "ooa.rest/request",
+  "name": "404 fails by default",
+  "steps": [
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "{web}/missing.json"
+    }
+   }
+  ],
+  "error": "REST.HTTP_ERROR"
+ },
+ {
+  "command": "ooa.rest/download_file",
+  "name": "download",
+  "files": {
+   "r.txt": "report"
+  },
+  "steps": [
+   {
+    "action": "ooa.rest/download_file",
+    "args": {
+     "url": "{web}/r.txt",
+     "path": "{tmp}/out/r.txt"
+    },
+    "out": {
+     "size_bytes": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 6
+  },
+  "expectFiles": {
+   "out/r.txt": "report"
+  }
+ },
+ {
+  "command": "ooa.rest/upload_file",
+  "name": "upload to a server that answers",
+  "files": {
+   "u.txt": "x"
+  },
+  "steps": [
+   {
+    "action": "ooa.rest/upload_file",
+    "args": {
+     "url": "{web}/u.txt",
+     "path": "{tmp}/u.txt"
+    },
+    "out": {
+     "status": "s"
+    }
+   }
+  ],
+  "expect": {
+   "s": 200
+  }
+ },
+ {
+  "command": "ooa.soap/send",
+  "name": "SOAP envelope to a local endpoint",
+  "files": {
+   "svc.xml": "<?xml version='1.0'?><soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/'><soap:Body><r><total>42</total></r></soap:Body></soap:Envelope>"
+  },
+  "steps": [
+   {
+    "action": "ooa.soap/send",
+    "args": {
+     "url": "{web}/svc.xml",
+     "body": "<GetTotal/>"
+    },
+    "out": {
+     "status": "s",
+     "body": "b"
+    }
+   }
+  ],
+  "expect": {
+   "s": 200,
+   "b": {
+    "$contains": "42"
+   }
+  }
+ },
+ {
+  "command": "ooa.currency/convert",
+  "name": "fixed rates (offline)",
+  "steps": [
+   {
+    "action": "ooa.currency/convert",
+    "args": {
+     "amount": 100,
+     "from_currency": "EUR",
+     "to_currency": "INR",
+     "source": "fixed",
+     "base_currency": "EUR",
+     "rates": {
+      "INR": 90.5
+     }
+    },
+    "out": {
+     "amount": "a",
+     "rate": "r"
+    }
+   }
+  ],
+  "expect": {
+   "a": 9050,
+   "r": 90.5
+  }
+ },
+ {
+  "command": "ooa.currency/get_rate",
+  "name": "rates from a JSON address",
+  "files": {
+   "rates.json": "{\"base\": \"USD\", \"rates\": {\"EUR\": 0.5}}"
+  },
+  "steps": [
+   {
+    "action": "ooa.currency/get_rate",
+    "args": {
+     "from_currency": "USD",
+     "to_currency": "EUR",
+     "source": "json",
+     "url": "{web}/rates.json",
+     "rates_path": "rates",
+     "base_currency": "USD"
+    },
+    "out": {
+     "rate": "r"
+    }
+   }
+  ],
+  "expect": {
+   "r": 0.5
+  }
+ },
+ {
+  "command": "ooa.currency/list_currencies",
+  "name": "fixed list",
+  "steps": [
+   {
+    "action": "ooa.currency/list_currencies",
+    "args": {
+     "source": "fixed",
+     "base_currency": "EUR",
+     "rates": {
+      "USD": 1.1,
+      "INR": 90
+     }
+    },
+    "out": {
+     "currencies": "c"
+    }
+   }
+  ],
+  "expect": {
+   "c": {
+    "$type": "array"
+   }
+  }
+ },
+ {
+  "command": "ooa.workload/add_item",
+  "name": "local queue: add, get next, complete, fail, defer, counts",
+  "steps": [
+   {
+    "action": "ooa.workload/add_item",
+    "args": {
+     "queue": "invoices",
+     "data": {
+      "no": 1
+     }
+    },
+    "out": {
+     "item_id": "a"
+    }
+   },
+   {
+    "action": "ooa.workload/add_items",
+    "args": {
+     "queue": "invoices",
+     "table": {
+      "columns": [
+       "no"
+      ],
+      "rows": [
+       [
+        2
+       ],
+       [
+        3
+       ]
+      ]
+     }
+    },
+    "out": {
+     "count": "added"
+    }
+   },
+   {
+    "action": "ooa.workload/get_next",
+    "args": {
+     "queue": "invoices"
+    },
+    "out": {
+     "item_id": "first",
+     "data": "d"
+    }
+   },
+   {
+    "action": "ooa.workload/complete",
+    "args": {
+     "queue": "invoices",
+     "item_id": "$first",
+     "result": {
+      "ok": true
+     }
+    }
+   },
+   {
+    "action": "ooa.workload/get_next",
+    "args": {
+     "queue": "invoices"
+    },
+    "out": {
+     "item_id": "second"
+    }
+   },
+   {
+    "action": "ooa.workload/fail",
+    "args": {
+     "queue": "invoices",
+     "item_id": "$second",
+     "error": "bad",
+     "max_attempts": 1
+    },
+    "out": {
+     "will_retry": "retry"
+    }
+   },
+   {
+    "action": "ooa.workload/get_next",
+    "args": {
+     "queue": "invoices"
+    },
+    "out": {
+     "item_id": "third"
+    }
+   },
+   {
+    "action": "ooa.workload/defer",
+    "args": {
+     "queue": "invoices",
+     "item_id": "$third",
+     "until": "2099-01-01T00:00:00"
+    }
+   },
+   {
+    "action": "ooa.workload/get_item",
+    "args": {
+     "queue": "invoices",
+     "item_id": "$first"
+    },
+    "out": {
+     "item": "item"
+    }
+   },
+   {
+    "action": "ooa.workload/update_item",
+    "args": {
+     "queue": "invoices",
+     "item_id": "$first",
+     "data": {
+      "note": "x"
+     }
+    }
+   },
+   {
+    "action": "ooa.workload/list_items",
+    "args": {
+     "queue": "invoices",
+     "status": "completed"
+    },
+    "out": {
+     "table": "done"
+    }
+   },
+   {
+    "action": "ooa.workload/counts",
+    "args": {
+     "queue": "invoices"
+    },
+    "out": {
+     "counts": "c"
+    }
+   }
+  ],
+  "expect": {
+   "added": 2,
+   "d": {
+    "no": 1
+   },
+   "retry": false,
+   "item": {
+    "$type": "object"
+   },
+   "c": {
+    "$type": "object"
+   }
+  }
+ },
+ {
+  "command": "ooa.workload/each_item",
+  "name": "loop over queue items",
+  "vars": {
+   "sum": 0
+  },
+  "steps": [
+   {
+    "action": "ooa.workload/add_items",
+    "args": {
+     "queue": "q2",
+     "table": {
+      "columns": [
+       "n"
+      ],
+      "rows": [
+       [
+        1
+       ],
+       [
+        2
+       ]
+      ]
+     }
+    }
+   },
+   {
+    "action": "core/loop",
+    "args": {
+     "iterator": "ooa.workload/each_item",
+     "iterator_args": {
+      "queue": "q2"
+     },
+     "as": "it"
+    },
+    "children": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "sum",
+       "value": {
+        "expr": "$sum + $it.data.n"
+       }
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "sum": 3
+  }
+ },
+ {
+  "command": "ooa.workload/has_items",
+  "name": "empty queue",
+  "vars": {
+   "ok": true
+  },
+  "steps": [
+   {
+    "action": "core/if",
+    "args": {
+     "condition": {
+      "condition": "ooa.workload/has_items",
+      "args": {
+       "queue": "empty-q"
+      }
+     }
+    },
+    "else": [
+     {
+      "action": "core/set",
+      "args": {
+       "variable": "ok",
+       "value": false
+      }
+     }
+    ]
+   }
+  ],
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "command": "ooa.insights/tag_values",
+  "name": "tag, transaction, read back",
+  "steps": [
+   {
+    "action": "ooa.insights/tag_values",
+    "args": {
+     "category": "invoices",
+     "values": {
+      "amount": 120
+     }
+    }
+   },
+   {
+    "action": "ooa.insights/open_transaction",
+    "args": {
+     "transaction": "inv-1",
+     "category": "invoices"
+    }
+   },
+   {
+    "action": "ooa.insights/close_transaction",
+    "args": {
+     "transaction": "inv-1",
+     "values": {
+      "amount": 80
+     }
+    },
+    "out": {
+     "duration_seconds": "d"
+    }
+   },
+   {
+    "action": "ooa.insights/read_values",
+    "args": {
+     "category": "invoices"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  }
+ }
+]

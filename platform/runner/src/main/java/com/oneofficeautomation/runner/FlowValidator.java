@@ -157,6 +157,10 @@ public final class FlowValidator {
             p.add(sid, path, "Input '" + in.name() + "': " + Values.safeRepr(v) + " is not one of " + in.enumValues(), in.description());
         if (!in.pattern().isEmpty() && v instanceof String s && !Pattern.compile(in.pattern()).matcher(s).find())
             p.add(sid, path, "Input '" + in.name() + "': '" + s + "' does not match " + in.pattern(), in.description());
+        if (v instanceof BigDecimal n && (n.doubleValue() < in.min() || n.doubleValue() > in.max()))
+            p.add(sid, path, "Input '" + in.name() + "': " + n.toPlainString() + " is outside the allowed range "
+                    + (Double.isNaN(in.min()) ? "" : "from " + BigDecimal.valueOf(in.min()).stripTrailingZeros().toPlainString() + " ")
+                    + (Double.isNaN(in.max()) ? "" : "to " + BigDecimal.valueOf(in.max()).stripTrailingZeros().toPlainString()), in.description());
     }
 
     /** Condition strings are expressions, so they are scanned as {"expr": ...}. */

@@ -23,7 +23,7 @@ public final class WorkdayPackage {
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, descriptor, primary_work_email, business_title.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of workers.")
     public Map<String, Object> searchWorkers(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = "OAuth access token from the vault.") Object token,
             @Input(name = "search", type = OoaType.STRING, required = false, description = "Name or id text; all workers when empty.") String search,
@@ -50,7 +50,7 @@ public final class WorkdayPackage {
             description = "GET any Workday REST resource or RaaS report URL path and return the JSON.")
     @Output(name = "json", description = "Response body.")
     public Map<String, Object> get(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "path", type = OoaType.STRING, example = "/ccx/api/v1/acme/workers/3aa5550b7fe348b98d7b5741afc65534", description = "Path starting with /ccx/.") String path,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = "OAuth access token from the vault.") Object token) {
         if (!path.startsWith("/ccx/") || path.contains("..")) throw new ActionException(P + ".BAD_PATH", "The path must start with /ccx/", "Example: /ccx/service/customreport2/acme/owner/Report?format=json");
@@ -69,7 +69,7 @@ public final class WorkdayPackage {
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
     @Output(name = "path", type = OoaType.FILE, description = "The saved file, when save_to_file was given.")
     public Map<String, Object> getReport(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "report_path", type = OoaType.STRING, example = "/ccx/service/customreport2/acme/isu_reports/Active_Workers", description = "Report path starting with /ccx/service/customreport2/.") String path,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Report prompts, e.g. {\"Effective_as_of_Date\": \"2026-10-01\"}.") Map<String, Object> params,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"json\"", enumValues = {"json", "csv", "simple_xml", "workday_xml"},
@@ -158,7 +158,7 @@ public final class WorkdayPackage {
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires, when Workday says.")
     public Map<String, Object> authenticate(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the API client registered in Workday.") String clientId,
             @Input(name = "client_secret", type = OoaType.CREDENTIAL, description = "Client secret from the vault.") Object clientSecret,
@@ -252,7 +252,7 @@ public final class WorkdayPackage {
             description = "Start an integration system (such as an EIB) through the Integrations web service and return the event id to track it.")
     @Output(name = "event_id", type = OoaType.STRING, description = "Integration event WID; pass it to Get integration event.")
     public Map<String, Object> launchIntegration(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
             @Input(name = "integration_system_id", type = OoaType.STRING, example = "INT_Worker_Load", description = "Integration System ID of the integration to start.") String integrationId,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
@@ -286,7 +286,7 @@ public final class WorkdayPackage {
     @Output(name = "completed", type = OoaType.STRING, description = "Completion time; empty while running.")
     @Output(name = "done", type = OoaType.BOOLEAN, description = "True once the run has finished, whether it succeeded or not.")
     public Map<String, Object> getIntegrationEvent(ActionContext ctx,
-            @Input(name = "host", type = OoaType.STRING, pattern = "^https://", description = D_HOST) String host,
+            @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
             @Input(name = "tenant", type = OoaType.STRING, description = "Tenant name.") String tenant,
             @Input(name = "event_id", type = OoaType.STRING, description = "Integration event WID from Launch integration.") String eventId,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,

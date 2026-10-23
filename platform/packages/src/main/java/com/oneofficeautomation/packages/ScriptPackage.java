@@ -86,11 +86,11 @@ public final class ScriptPackage {
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
     @Output(name = "json", description = "Output parsed as JSON, when it is JSON.")
     public Map<String, Object> runPowerShell(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, required = false, description = D_SCRIPT) String script,
-            @Input(name = "file", type = OoaType.FILE, required = false, description = D_FILE) String file,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = D_SCRIPT) String script,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = D_FILE) String file,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = D_ARGS) List<Object> args,
             @Input(name = "input", type = OoaType.STRING, required = false, description = D_INPUT) String input,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "working_folder", type = OoaType.FILE, required = false, description = "Folder the script runs in; the workspace when empty.") String workingFolder,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the script.") Map<String, Object> environment,
@@ -104,11 +104,11 @@ public final class ScriptPackage {
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
     @Output(name = "json", description = "Output parsed as JSON, when it is JSON.")
     public Map<String, Object> runPython(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, required = false, description = D_SCRIPT) String script,
-            @Input(name = "file", type = OoaType.FILE, required = false, description = D_FILE) String file,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = D_SCRIPT) String script,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = D_FILE) String file,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = D_ARGS) List<Object> args,
             @Input(name = "input", type = OoaType.STRING, required = false, description = D_INPUT) String input,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "working_folder", type = OoaType.FILE, required = false, description = "Folder the script runs in; the workspace when empty.") String workingFolder,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the script.") Map<String, Object> environment,
@@ -123,11 +123,11 @@ public final class ScriptPackage {
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
     @Output(name = "json", description = "Output parsed as JSON, when it is JSON.")
     public Map<String, Object> runJavaScript(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, required = false, description = D_SCRIPT) String script,
-            @Input(name = "file", type = OoaType.FILE, required = false, description = D_FILE) String file,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = D_SCRIPT) String script,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = D_FILE) String file,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = D_ARGS) List<Object> args,
             @Input(name = "input", type = OoaType.STRING, required = false, description = D_INPUT) String input,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "working_folder", type = OoaType.FILE, required = false, description = "Folder the script runs in; the workspace when empty.") String workingFolder,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the script.") Map<String, Object> environment,
@@ -141,11 +141,11 @@ public final class ScriptPackage {
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
     @Output(name = "json", description = "Output parsed as JSON, when it is JSON.")
     public Map<String, Object> runVbScript(ActionContext ctx,
-            @Input(name = "script", type = OoaType.STRING, required = false, description = D_SCRIPT) String script,
-            @Input(name = "file", type = OoaType.FILE, required = false, description = D_FILE) String file,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = D_SCRIPT) String script,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = D_FILE) String file,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = D_ARGS) List<Object> args,
             @Input(name = "input", type = OoaType.STRING, required = false, description = D_INPUT) String input,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "working_folder", type = OoaType.FILE, required = false, description = "Folder the script runs in; the workspace when empty.") String workingFolder,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the script.") Map<String, Object> environment) {
@@ -189,23 +189,49 @@ public final class ScriptPackage {
             main()
             """;
 
+    /** The file that defines the function: the given file, or the typed script written to a temporary file (deleted after the call). */
+    private static Path functionSource(ActionContext ctx, String file, String script, String ext, String language) {
+        if (script != null && !script.isBlank()) {
+            try {
+                Path tmp = Files.createTempFile("ooa-function-", ext);
+                Files.writeString(tmp, script, java.nio.charset.StandardCharsets.UTF_8);
+                return tmp;
+            } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write the script to a temporary file: " + e.getMessage(), null, true); }
+        }
+        if (file == null || file.isBlank()) throw new ActionException("SCRIPT.NO_SOURCE", "Give the " + language + " file or type the script", "Fill in file or script.");
+        Path p = ctx.resolvePath(file);
+        if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", language + " file not found: " + p, "Check the path.");
+        return p;
+    }
+
     @Action(id = "run_python_function", name = "Run Python function", category = "Scripts", timeoutSeconds = 3600,
             description = "Call one function in a Python file with JSON-compatible arguments and return what it returns.")
     @Output(name = "result", description = "Value returned by the function (numbers, text, lists and dictionaries).")
     @Output(name = "output", type = OoaType.STRING, description = "Text the function printed.")
     @Output(name = "error", type = OoaType.STRING, description = "Error raised by the function when fail_on_error is false; empty on success.")
     public Map<String, Object> runPythonFunction(ActionContext ctx,
-            @Input(name = "file", type = OoaType.FILE, description = "Python file (.py) that defines the function.") String file,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "Python file (.py) that defines the function.") String file,
             @Input(name = "function", type = OoaType.STRING, example = "calculate_total", description = "Function name; use Class.method for a static method.") String function,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Positional arguments, in order.") List<Object> args,
             @Input(name = "keyword_arguments", type = OoaType.DICTIONARY, required = false, description = "Named arguments.") Map<String, Object> kwargs,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Fail the step when the function raises an error; when false the error is returned in error and the step continues.") boolean fail,
             @Input(name = "interpreter", type = OoaType.STRING, required = false, description = "Python program to use; found on the PATH when empty.") String interpreter,
-            @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for Python.") Map<String, Object> environment) {
-        Path py = ctx.resolvePath(file);
-        if (!Files.isRegularFile(py)) throw new ActionException("FILE.NOT_FOUND", "Python file not found: " + py, "Check the path.");
+            @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for Python.") Map<String, Object> environment,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = "Code that defines the function, typed in the agent, instead of a file.") String script) {
+        Path py = functionSource(ctx, file, script, ".py", "Python");
+        try { return runPythonFunction(ctx, py, function, args, kwargs, timeout, fail, interpreter, environment); }
+        finally { if (script != null && !script.isBlank()) try { Files.deleteIfExists(py); } catch (IOException ignored) { } }
+    }
+
+    public Map<String, Object> runPythonFunction(ActionContext ctx, String file, String function, List<Object> args, Map<String, Object> kwargs, double timeout,
+                                                 boolean fail, String interpreter, Map<String, Object> environment) {
+        return runPythonFunction(ctx, file, function, args, kwargs, timeout, fail, interpreter, environment, null);
+    }
+
+    private Map<String, Object> runPythonFunction(ActionContext ctx, Path py, String function, List<Object> args, Map<String, Object> kwargs, double timeout,
+                                                  boolean fail, String interpreter, Map<String, Object> environment) {
         if (function == null || !function.matches("^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$"))
             throw new ActionException("SCRIPT.BAD_FUNCTION", "Invalid function name '" + function + "'", "Give a plain Python name such as calculate_total.");
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -278,14 +304,23 @@ public final class ScriptPackage {
     @Output(name = "output", type = OoaType.STRING, description = "Text the function printed.")
     @Output(name = "error", type = OoaType.STRING, description = "Error thrown by the function when fail_on_error is false; empty on success.")
     public Map<String, Object> runJavaScriptFunction(ActionContext ctx,
-            @Input(name = "file", type = OoaType.FILE, description = "JavaScript file (.js) that defines or exports the function.") String file,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "JavaScript file (.js) that defines or exports the function.") String file,
             @Input(name = "function", type = OoaType.STRING, example = "calculateTotal", description = "Function name; use object.method for a method of an exported object.") String function,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, in order.") List<Object> args,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the function throws; when false the error is returned in error.") boolean fail,
-            @Input(name = "interpreter", type = OoaType.STRING, required = false, description = "Node.js program to use; node on the PATH when empty.") String interpreter) {
-        Path js = ctx.resolvePath(file);
-        if (!Files.isRegularFile(js)) throw new ActionException("FILE.NOT_FOUND", "JavaScript file not found: " + js, "Check the path.");
+            @Input(name = "interpreter", type = OoaType.STRING, required = false, description = "Node.js program to use; node on the PATH when empty.") String interpreter,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = "Code that defines the function, typed in the agent, instead of a file.") String script) {
+        Path js = functionSource(ctx, file, script, ".js", "JavaScript");
+        try { return runJavaScriptFunction(ctx, js, function, args, timeout, fail, interpreter); }
+        finally { if (script != null && !script.isBlank()) try { Files.deleteIfExists(js); } catch (IOException ignored) { } }
+    }
+
+    public Map<String, Object> runJavaScriptFunction(ActionContext ctx, String file, String function, List<Object> args, double timeout, boolean fail, String interpreter) {
+        return runJavaScriptFunction(ctx, file, function, args, timeout, fail, interpreter, null);
+    }
+
+    private Map<String, Object> runJavaScriptFunction(ActionContext ctx, Path js, String function, List<Object> args, double timeout, boolean fail, String interpreter) {
         if (function == null || !function.matches("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$"))
             throw new ActionException("SCRIPT.BAD_FUNCTION", "Invalid function name '" + function + "'", "Give a plain JavaScript name such as calculateTotal.");
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -325,13 +360,22 @@ public final class ScriptPackage {
     @Output(name = "output", type = OoaType.STRING, description = "Other text the script wrote.")
     @Output(name = "error", type = OoaType.STRING, description = "Error raised by the function when fail_on_error is false; empty on success.")
     public Map<String, Object> runVbScriptFunction(ActionContext ctx,
-            @Input(name = "file", type = OoaType.FILE, description = "VBScript file (.vbs) that defines the function.") String file,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "VBScript file (.vbs) that defines the function.") String file,
             @Input(name = "function", type = OoaType.STRING, example = "FormatInvoice", description = "Function name.") String function,
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, in order; each is passed as text.") List<Object> args,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
-            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the function raises an error; when false the error is returned in error.") boolean fail) {
-        Path vbs = ctx.resolvePath(file);
-        if (!Files.isRegularFile(vbs)) throw new ActionException("FILE.NOT_FOUND", "VBScript file not found: " + vbs, "Check the path.");
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 1, description = "Maximum run time.") double timeout,
+            @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the function raises an error; when false the error is returned in error.") boolean fail,
+            @Input(name = "script", type = OoaType.STRING, required = false, visibleWhen = "file=", description = "Code that defines the function, typed in the agent, instead of a file.") String script) {
+        Path vbs = functionSource(ctx, file, script, ".vbs", "VBScript");
+        try { return runVbScriptFunction(ctx, vbs, function, args, timeout, fail); }
+        finally { if (script != null && !script.isBlank()) try { Files.deleteIfExists(vbs); } catch (IOException ignored) { } }
+    }
+
+    public Map<String, Object> runVbScriptFunction(ActionContext ctx, String file, String function, List<Object> args, double timeout, boolean fail) {
+        return runVbScriptFunction(ctx, file, function, args, timeout, fail, null);
+    }
+
+    private Map<String, Object> runVbScriptFunction(ActionContext ctx, Path vbs, String function, List<Object> args, double timeout, boolean fail) {
         if (function == null || !function.matches("^[A-Za-z][A-Za-z0-9_]{0,127}$"))
             throw new ActionException("SCRIPT.BAD_FUNCTION", "Invalid function name '" + function + "'", "Give a plain VBScript name such as FormatInvoice.");
         if (!ProcessRunner.WINDOWS) throw new ActionException("SYSTEM.WINDOWS_ONLY", "VBScript runs only on Windows", "Run this agent on a Windows runner.");

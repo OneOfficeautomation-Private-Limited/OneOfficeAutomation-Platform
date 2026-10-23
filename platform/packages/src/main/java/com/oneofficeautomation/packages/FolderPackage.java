@@ -51,6 +51,19 @@ public final class FolderPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
     }
 
+    @LoopIterator(id = "subfolders", name = "Each folder in folder", description = "Yield the path of each folder inside a folder, optionally with all folders below it.")
+    public Iterable<Object> subfolders(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path,
+            @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also yield folders inside the sub-folders, at any depth.") boolean deep,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", description = "Glob pattern for the folder names, e.g. 2026-*.") String pattern) {
+        Path p = ctx.resolvePath(path);
+        if (!Files.isDirectory(p)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + p, "Check the folder path.");
+        PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
+        try (Stream<Path> s = deep ? Files.walk(p) : Files.list(p)) {
+            return new ArrayList<>(s.filter(x -> !x.equals(p) && Files.isDirectory(x) && m.matches(x.getFileName())).map(Path::toString).sorted().toList());
+        } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
+    }
+
     @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files.")
     @Output(name = "copied", type = OoaType.NUMBER, description = "Number of files copied.")
     public Map<String, Object> copy(ActionContext ctx,
@@ -58,7 +71,7 @@ public final class FolderPackage {
             @Input(name = "target", type = OoaType.FILE, description = "Target folder.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist in the target; when false they are kept.") boolean overwrite,
             @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.pdf", description = "Only copy files whose names match this glob pattern; all files when empty.") String pattern,
-            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer) {
+            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "overwrite=true", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
         if (!Files.isDirectory(s)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + s, "Check the source path.");
         PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));

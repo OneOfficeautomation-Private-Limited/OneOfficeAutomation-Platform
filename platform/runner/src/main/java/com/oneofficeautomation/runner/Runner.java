@@ -638,9 +638,9 @@ public final class Runner {
             }
             if (wait < 0) throw new OoaException("DELAY.BAD_VALUE", "A delay cannot be negative", "Use 0 or more.");
             String unit = optText(a.get("unit"));
-            if (unit != null && !unit.equals("seconds") && !unit.equals("milliseconds"))
-                throw new OoaException("DELAY.BAD_UNIT", "Unknown delay unit '" + unit + "'", "Use seconds or milliseconds.");
-            sleep("milliseconds".equals(unit) ? wait / 1000 : wait);
+            if (unit != null && !unit.equals("seconds") && !unit.equals("milliseconds") && !unit.equals("minutes"))
+                throw new OoaException("DELAY.BAD_UNIT", "Unknown delay unit '" + unit + "'", "Use seconds, milliseconds or minutes.");
+            sleep("milliseconds".equals(unit) ? wait / 1000 : "minutes".equals(unit) ? wait * 60 : wait);
         }
 
         /** core/pause: the same pause the Control Center button uses, started from inside the agent. */

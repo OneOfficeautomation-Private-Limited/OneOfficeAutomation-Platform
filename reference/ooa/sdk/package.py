@@ -32,6 +32,21 @@ class Input:
     pattern: str | None = None
     enum: tuple | None = None
     example: Any = None
+    # when the field applies, e.g. "iterator=times" or "mode!=none;regex=true" (same syntax as the Java SDK)
+    visible_when: str | None = None
+    minimum: float | None = None
+    maximum: float | None = None
+
+    def visible_rule(self) -> dict:
+        rule: dict = {}
+        for part in (self.visible_when or "").split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            neg = "!=" in part
+            key, vals = part.split("!=" if neg else "=", 1)
+            rule[key.strip()] = (["!"] if neg else []) + [v.strip() for v in vals.split("|")]
+        return rule
 
     def schema(self) -> dict:
         s = dict(json_schema_for(self.type))
@@ -47,6 +62,12 @@ class Input:
             s["default"] = self.default
         if self.example is not None:
             s["examples"] = [self.example]
+        if self.minimum is not None:
+            s["minimum"] = self.minimum
+        if self.maximum is not None:
+            s["maximum"] = self.maximum
+        if self.visible_when:
+            s["x-ooa-visible-when"] = self.visible_rule()
         s["x-ooa-type"] = self.type
         s["x-ooa-label"] = self.label or self.name.replace("_", " ").capitalize()
         return s

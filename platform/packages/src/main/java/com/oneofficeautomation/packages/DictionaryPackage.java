@@ -30,7 +30,7 @@ public final class DictionaryPackage {
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict,
             @Input(name = "key", type = OoaType.STRING, description = "Key.") String key,
-            @Input(name = "default", required = false, description = "Value to return when the key is missing.") Object def,
+            @Input(name = "default", required = false, visibleWhen = "fail_if_missing=false", description = "Value to return when the key is missing.") Object def,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Find the key without regard to upper/lower case.") boolean ignoreCase,
             @Input(name = "fail_if_missing", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Fail with DICT.KEY_NOT_FOUND instead of returning the default.") boolean failIfMissing) {
         String k = ignoreCase ? findKey(dict, key) : key;

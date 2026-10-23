@@ -1,0 +1,290 @@
+/* =====================================================================================================================
+   ONEOFFICEAUTOMATION shared components
+   Loaded after ooa-tokens.css and before each application's own sheet (cr.css, studio.css). Uses semantic tokens only.
+   Where the two applications name the same component differently, both names are listed in one selector.
+   Sections:  1. base          2. focus           3. buttons         4. form controls   5. cards
+              6. tables        7. pills, badges   8. tabs, segments  9. toolbars        10. menus, popovers
+              11. dialogs      12. drawer         13. toasts         14. states (empty, loading, error, notes)
+              15. utilities    16. reduced motion
+   ===================================================================================================================== */
+
+/* ---------- 1. base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--font-sans); font-size: var(--text-md); line-height: var(--leading); font-weight: var(--weight-regular);
+  background: var(--surface-canvas); color: var(--text-1);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-feature-settings: "tnum" 0;
+}
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+h1, h2, h3, h4 { font-family: var(--font-display); color: var(--text-1); line-height: var(--leading-tight); letter-spacing: -.005em; }
+h3 { font-size: var(--text-md); font-weight: var(--weight-semibold); margin: var(--space-4) 0 var(--space-15); }
+p { margin: var(--space-15) 0; }
+a { color: var(--accent-text); text-underline-offset: 2px; }
+a:hover { color: var(--accent-hover); }
+code, kbd, samp, pre, .mono { font-family: var(--font-mono); font-size: .92em; }
+pre { background: var(--surface-sunken); border: 1px solid var(--border-1); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); overflow: auto; margin: var(--space-15) 0; font-size: var(--text-sm); line-height: var(--leading); }
+hr { border: 0; border-top: 1px solid var(--border-1); margin: var(--space-3) 0; }
+::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+::placeholder { color: var(--text-3); opacity: 1; }
+/* thin, quiet scrollbars */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-3) 45%, transparent) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-3) 40%, transparent); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--text-3) 65%, transparent); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* ---------- 2. focus: one visible ring for every keyboard-focusable thing ---------- */
+:focus { outline: none; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+tr:focus-visible { box-shadow: none; outline: 2px solid var(--ooa-blue-500); outline-offset: -2px; }
+
+/* ---------- 3. buttons ---------- */
+/* default (secondary) button: white, outlined; 32 px high from padding and line height so explicit sizes still win */
+button, a.button-link {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-15);
+  padding: 5px 12px; line-height: 20px; min-width: 0;
+  background: var(--surface-1); color: var(--text-1);
+  border: 1px solid var(--border-2); border-radius: var(--radius-md);
+  font-weight: var(--weight-medium); white-space: nowrap; cursor: pointer; text-decoration: none;
+  box-shadow: var(--shadow-xs);
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+button:hover, a.button-link:hover { background: var(--surface-hover); border-color: var(--border-control); color: var(--text-1); }
+button:active { background: var(--border-1); }
+button:focus-visible, a.button-link:focus-visible { box-shadow: var(--focus-ring); border-radius: var(--radius-md); }
+button svg { flex: 0 0 auto; }
+/* primary: one per area, the main action */
+button.primary, a.button-link.primary {
+  background: var(--accent); border-color: var(--accent); color: var(--text-on-accent); font-weight: var(--weight-semibold);
+  box-shadow: var(--shadow-xs);
+}
+button.primary:hover, a.button-link.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--text-on-accent); }
+button.primary:active { background: var(--accent-active); border-color: var(--accent-active); }
+button.primary svg { fill: currentColor; }
+/* danger: outlined until hovered, so destructive actions never shout */
+button.danger { color: var(--danger); }
+button.danger:hover { background: var(--danger-bg); border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
+/* quiet text buttons */
+button.link, .link-btn {
+  background: transparent; border-color: transparent; box-shadow: none; color: var(--accent-text);
+  padding: 2px 6px; font-weight: var(--weight-medium);
+}
+button.link:hover, .link-btn:hover { background: var(--accent-subtle); border-color: transparent; color: var(--accent-hover); }
+button.small { padding: 2px 10px; font-size: var(--text-sm); }
+button:disabled, button[aria-disabled="true"] { opacity: 1; color: var(--text-3); background: var(--surface-2); border-color: var(--border-1); box-shadow: none; cursor: not-allowed; }
+button.primary:disabled { color: var(--text-on-accent); background: color-mix(in srgb, var(--accent) 45%, var(--surface-1)); border-color: transparent; }
+/* grouped buttons share borders */
+.btn-group { display: inline-flex; }
+.btn-group > button { border-radius: 0; margin-left: -1px; box-shadow: none; }
+.btn-group > button:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); margin-left: 0; }
+.btn-group > button:last-child { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.btn-group > button:hover, .btn-group > button:focus-visible { position: relative; z-index: 1; }
+
+/* ---------- 4. form controls ---------- */
+input, select, textarea {
+  width: 100%; min-width: 0; padding: 5px 10px; line-height: 20px;
+  background: var(--surface-1); color: var(--text-1);
+  border: 1px solid var(--border-control); border-radius: var(--radius-md);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+select { padding-right: 6px; cursor: pointer; }
+textarea { font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading); resize: vertical; }
+input:hover, select:hover, textarea:hover { border-color: var(--border-strong); }
+input:focus, select:focus, textarea:focus, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); border-radius: var(--radius-md);
+}
+input:disabled, select:disabled, textarea:disabled, input[readonly], textarea[readonly] { background: var(--surface-2); color: var(--text-2); border-color: var(--border-2); }
+input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; }
+input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; padding: 0; margin: 0; flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; box-shadow: none; }
+input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { box-shadow: var(--focus-ring); }
+input[type="color"] { padding: 2px; height: var(--control-h); }
+input[type="file"] { padding: 4px; }
+input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
+.invalid, input:user-invalid { border-color: var(--danger) !important; }
+.invalid:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent) !important; }
+.req { color: var(--danger); font-weight: var(--weight-semibold); }
+fieldset { border: 1px solid var(--border-2); border-radius: var(--radius-lg); padding: var(--space-2) var(--space-3); margin: 0; }
+legend { padding: 0 var(--space-1); font-weight: var(--weight-semibold); }
+
+/* ---------- 5. cards ---------- */
+.card, .card-box {
+  background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5); box-shadow: var(--shadow-xs);
+}
+.card > h2:first-child, .card-box > h2:first-child, .card-head h2, .card-head h3 { font-size: var(--text-md); font-weight: var(--weight-semibold); margin: 0 0 var(--space-3); }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.card-head h2, .card-head h3 { margin: 0; }
+
+/* ---------- 6. tables: dense, readable, with a quiet header and row hover ---------- */
+.table-wrap, .home-table { overflow: auto; background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
+.table-wrap table, table.list { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.table-wrap th, table.list th {
+  position: sticky; top: 0; z-index: 1;
+  text-align: left; vertical-align: bottom; white-space: nowrap;
+  padding: 8px 12px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-2);
+  background: var(--surface-2); border-bottom: 1px solid var(--border-2);
+}
+.table-wrap td, table.list td { padding: 8px 12px; border-bottom: 1px solid var(--border-1); vertical-align: middle; }
+.table-wrap tr:last-child td, table.list tr:last-child td { border-bottom: 0; }
+.table-wrap tbody tr:hover td, table.list tbody tr:hover td { background: color-mix(in srgb, var(--surface-hover) 60%, var(--surface-1)); }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--surface-hover) !important; }
+th .th-sort { padding: 0; border: 0; background: transparent; box-shadow: none; color: inherit; font: inherit; gap: 2px; }
+th .th-sort:hover { color: var(--text-1); background: transparent; }
+th[aria-sort="ascending"], th[aria-sort="descending"] { color: var(--text-1); }
+th .arrow { font-size: 9px; color: var(--accent-text); }
+.empty-cell, td.empty-cell { text-align: center; padding: var(--space-8) var(--space-4) !important; color: var(--text-3); }
+
+/* ---------- 7. pills (status), badges (counts, kinds), chips (filters, labels), tags (ids) ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 7px; border-radius: var(--radius-pill);
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); line-height: 18px; white-space: nowrap; text-transform: capitalize;
+  background: var(--neutral-bg); color: var(--neutral);
+}
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+.pill.success, .pill.online, .pill.enabled, .pill.active { background: var(--success-bg); color: var(--success); }
+.pill.failed, .pill.offline { background: var(--danger-bg); color: var(--danger); }
+.pill.running { background: var(--info-bg); color: var(--info); }
+.pill.queued, .pill.paused, .pill.pending, .pill.stopping, .pill-warn { background: var(--warning-bg); color: var(--warning); }
+.pill.stopped, .pill.disabled { background: var(--neutral-bg); color: var(--neutral); }
+.pill.locked, .lock { background: var(--special-bg); color: var(--special); text-transform: none; }
+.pill-warn { display: inline-flex; align-items: center; padding: 0 8px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.badge, .count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; padding: 0 6px; border-radius: var(--radius-pill);
+  font-size: var(--text-xs); font-weight: var(--weight-semibold); line-height: 17px; background: var(--neutral-bg); color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.count:empty { display: none; }
+.tag { font-family: var(--font-mono); font-size: var(--text-sm); background: var(--surface-sunken); border: 1px solid var(--border-1); border-radius: var(--radius-sm); padding: 0 5px; color: var(--text-1); }
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+/* ---------- 8. tabs and segmented controls ---------- */
+.tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border-2); overflow-x: auto; scrollbar-width: none; }
+.tabs .tab, .tab, .ctab {
+  position: relative; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  padding: 8px 12px; color: var(--text-2); font-weight: var(--weight-medium); gap: var(--space-15);
+}
+.tabs .tab:hover, .tab:hover, .ctab:hover { background: transparent; color: var(--text-1); }
+.tabs .tab::after, .tab::after, .ctab::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: transparent; }
+.tabs .tab:hover::after, .tab:hover::after, .ctab:hover::after { background: var(--border-control); }
+.tabs .tab.active, .tab.active, .ctab.active { color: var(--text-1); font-weight: var(--weight-semibold); border-bottom: 0; }
+.tabs .tab.active::after, .tab.active::after, .ctab.active::after { background: var(--accent); }
+.tab:focus-visible, .ctab:focus-visible { box-shadow: var(--focus-ring-inset); border-radius: var(--radius-sm); }
+.tabs .count { background: var(--neutral-bg); color: var(--text-2); }
+.tabs .tab.active .count { background: var(--accent-subtle-2); color: var(--accent-text); }
+/* segmented control: a set of mutually exclusive choices */
+.seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--surface-sunken); border: 1px solid var(--border-2); border-radius: var(--radius-md); }
+.seg > button { border: 0; border-radius: var(--radius-sm); background: transparent; box-shadow: none; padding: 2px 10px; font-size: var(--text-sm); line-height: 20px; color: var(--text-2); }
+.seg > button:hover { background: color-mix(in srgb, var(--surface-1) 70%, transparent); color: var(--text-1); }
+.seg > button[aria-pressed="true"], .seg > button[aria-checked="true"], .seg > button[aria-selected="true"] {
+  background: var(--surface-1); color: var(--text-1); font-weight: var(--weight-semibold); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-2);
+}
+
+/* ---------- 9. toolbars ---------- */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.toolbar input[type="search"] { width: 280px; max-width: 100%; }
+.toolbar select { width: auto; }
+.spacer { flex: 1; }
+.row-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.row-actions.tight { margin-top: 0; gap: var(--space-15); flex-wrap: nowrap; }
+
+/* ---------- 10. menus and popovers ---------- */
+.menu, .ctx-menu, .popover, .var-pop {
+  background: var(--surface-1); color: var(--text-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: var(--space-1);
+}
+.menu hr, .ctx-menu hr { border: 0; border-top: 1px solid var(--border-1); margin: var(--space-1) calc(-1 * var(--space-1)); }
+.menu-item, .ctx-menu button, .var-pop-item, .qa-item {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; text-align: left; justify-content: flex-start;
+  border: 0; border-radius: var(--radius-sm); background: transparent; box-shadow: none; padding: 6px 8px; font-weight: var(--weight-regular);
+}
+.menu-item:hover, .menu-item:focus-visible, .ctx-menu button:hover:not(:disabled), .ctx-menu button:focus-visible,
+.var-pop-item:hover, .var-pop-item:focus-visible, .qa-item:hover, .qa-item.sel { background: var(--surface-hover); }
+.ctx-menu button:disabled { background: transparent; color: var(--text-3); }
+
+/* ---------- 11. dialogs (Command Center: .modal/.modal-card; Agent Studio: .dialog-backdrop/.dialog) ---------- */
+.modal, .dialog-backdrop {
+  position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: var(--space-5);
+  background: var(--overlay); animation: ooa-fade var(--dur) var(--ease);
+}
+.modal-card, .dialog {
+  width: 600px; max-width: 100%; max-height: min(88vh, 900px); overflow: auto;
+  background: var(--surface-1); color: var(--text-1); border: 1px solid var(--border-2); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-overlay); padding: var(--space-5) var(--space-6) var(--space-4);
+  animation: ooa-rise var(--dur-slow) var(--ease);
+}
+.modal-card > h2:first-child, .dialog > h2:first-child { margin: 0 0 var(--space-4); font-size: var(--text-xl); font-weight: var(--weight-semibold); }
+.modal-card > .row-actions, .dialog > .row-actions {
+  position: sticky; bottom: calc(-1 * var(--space-4)); margin: var(--space-5) calc(-1 * var(--space-6)) calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-6); background: var(--surface-2); border-top: 1px solid var(--border-1);
+  justify-content: flex-start; flex-direction: row-reverse; border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+}
+.modal-card > .row-actions:empty, .dialog > .row-actions:empty { display: none; }
+@keyframes ooa-fade { from { opacity: 0; } }
+@keyframes ooa-rise { from { opacity: 0; transform: translateY(8px) scale(.99); } }
+
+/* ---------- 12. drawer: a side sheet for details ---------- */
+.drawer { position: fixed; inset: 0; z-index: var(--z-drawer); display: flex; justify-content: flex-end; background: var(--overlay); animation: ooa-fade var(--dur) var(--ease); }
+.drawer-panel { width: min(780px, 100%); height: 100%; display: flex; flex-direction: column; background: var(--surface-canvas); border-left: 1px solid var(--border-2); box-shadow: var(--shadow-overlay); animation: ooa-slide var(--dur-slow) var(--ease); }
+.drawer-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-5); background: var(--surface-1); border-bottom: 1px solid var(--border-2); }
+.drawer-head h2 { flex: 1; min-width: 200px; margin: 0; display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.drawer-body { flex: 1; overflow: auto; padding: var(--space-4) var(--space-5) var(--space-8); }
+.icon-close { width: var(--control-h); height: var(--control-h); padding: 0; border-color: transparent; background: transparent; box-shadow: none; color: var(--text-2); font-size: 14px; }
+.icon-close:hover { background: var(--surface-hover); border-color: transparent; }
+@keyframes ooa-slide { from { transform: translateX(24px); opacity: .4; } }
+
+/* ---------- 13. toasts ---------- */
+.toast {
+  position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: var(--z-toast); max-width: min(460px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 10px 14px 10px 12px; border-radius: var(--radius-lg); border-left: 4px solid var(--success-solid);
+  background: var(--surface-inverse); color: var(--text-inverse); box-shadow: var(--shadow-lg); font-weight: var(--weight-medium);
+  animation: ooa-rise var(--dur-slow) var(--ease);
+}
+.toast.error { border-left-color: var(--danger-solid); background: var(--surface-inverse); color: var(--text-inverse); }
+
+/* ---------- 14. states ---------- */
+/* empty: a centred message with an optional icon and action */
+.empty-state, .canvas-empty, .var-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); text-align: center;
+  padding: var(--space-10) var(--space-6); color: var(--text-2);
+  background: var(--surface-1); border: 1px dashed var(--border-control); border-radius: var(--radius-lg);
+}
+.empty-state strong { color: var(--text-1); font-size: var(--text-md); }
+.empty-state p { margin: 0; max-width: 46ch; }
+/* loading: a spinner, and a shimmering placeholder for content that is on its way */
+.spinner, .is-loading::before {
+  content: ""; display: inline-block; width: 14px; height: 14px; flex: 0 0 auto; vertical-align: -2px;
+  border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); border-radius: 50%;
+  animation: ooa-spin .7s linear infinite;
+}
+.skeleton { background: linear-gradient(90deg, var(--surface-sunken) 0, var(--surface-hover) 40%, var(--surface-sunken) 80%) 0 0 / 300% 100%; border-radius: var(--radius-sm); animation: ooa-shimmer 1.4s ease-in-out infinite; color: transparent !important; }
+@keyframes ooa-spin { to { transform: rotate(360deg); } }
+@keyframes ooa-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+/* error: what failed, its code and what to do */
+.error { color: var(--danger); }
+.error-box {
+  display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-4);
+  background: var(--danger-bg); color: var(--text-1); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-left: 4px solid var(--danger-solid); border-radius: var(--radius-md);
+}
+.error-box .code { font-family: var(--font-mono); font-weight: var(--weight-bold); color: var(--danger); }
+/* notes: neutral, info and warning call-outs */
+.note { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, var(--info-solid) 30%, transparent); border-left: 4px solid var(--info-solid); background: var(--info-bg); border-radius: var(--radius-md); color: var(--text-1); }
+.note.warn { border-color: color-mix(in srgb, var(--warning-solid) 40%, transparent); border-left-color: var(--warning-solid); background: var(--warning-bg); }
+
+/* ---------- 15. utilities ---------- */
+.muted { color: var(--text-2); font-weight: var(--weight-regular); }
+.faint { color: var(--text-3); }
+.small { font-size: var(--text-sm); }
+.ok-text { color: var(--success); font-weight: var(--weight-semibold); }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ta-center { text-align: center; }
+
+/* ---------- 16. reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

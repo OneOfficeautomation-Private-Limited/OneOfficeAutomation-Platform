@@ -27,9 +27,9 @@ public final class InterruptsPackage {
             @Input(name = "then", type = OoaType.STRING, enumValues = {"click", "press_keys", "close_window", "run_agent", "ignore"},
                     description = "Response: click the target, press the target keys, close the matched window, run the target agent, or only log it.") String then,
             @Input(name = "target", type = OoaType.STRING, required = false,
-                    description = "For click: a selector in the browser session or x,y screen coordinates; for press_keys: keys such as ENTER or ALT+F4; for run_agent: the agent id.") String target,
-            @Input(name = "inputs", type = OoaType.DICTIONARY, required = false, description = "Inputs for the child agent (run_agent).") Map<String, Object> inputs,
-            @Input(name = "max_times", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Respond at most this many times in the run; 0 means no limit.") int maxTimes) {
+                    visibleWhen = "then=click|press_keys|run_agent", description = "For click: a selector in the browser session or x,y screen coordinates; for press_keys: keys such as ENTER or ALT+F4; for run_agent: the agent id.") String target,
+            @Input(name = "inputs", type = OoaType.DICTIONARY, required = false, visibleWhen = "then=run_agent", description = "Inputs for the child agent (run_agent).") Map<String, Object> inputs,
+            @Input(name = "max_times", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Respond at most this many times in the run; 0 means no limit.") int maxTimes) {
         InterruptRules.of(ctx).add(new InterruptRules.Rule(name, whenWindow, whenElement, session, then, target, inputs, maxTimes));
         ctx.info("Interrupt rule '" + name + "' is active for this run");
         return Map.of();

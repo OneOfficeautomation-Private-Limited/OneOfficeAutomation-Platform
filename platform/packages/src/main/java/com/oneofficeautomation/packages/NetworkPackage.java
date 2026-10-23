@@ -19,9 +19,9 @@ public final class NetworkPackage {
     @Output(name = "lost", type = OoaType.NUMBER, description = "How many attempts got no answer.")
     public Map<String, Object> ping(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "Timeout in milliseconds.") int timeout,
-            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Number of attempts (1 to 100); reachable is true when any is answered.") int count,
-            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Pause between attempts.") int interval) {
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout,
+            @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 100, description = "Number of attempts (1 to 100); reachable is true when any is answered.") int count,
+            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0, description = "Pause between attempts.") int interval) {
         InetAddress addr;
         try { addr = InetAddress.getByName(host); }
         catch (UnknownHostException e) { throw new ActionException("NETWORK.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
@@ -44,8 +44,8 @@ public final class NetworkPackage {
     @Output(name = "open", type = OoaType.BOOLEAN, description = "True when the port accepted a connection.")
     public Map<String, Object> checkPort(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
-            @Input(name = "port", type = OoaType.NUMBER, description = "TCP port.") int port,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "Timeout in milliseconds.") int timeout) {
+            @Input(name = "port", type = OoaType.NUMBER, min = 1, max = 65535, description = "TCP port.") int port,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout) {
         try (Socket s = new Socket()) { s.connect(new InetSocketAddress(host, port), timeout); return Map.of("open", true); }
         catch (IOException e) { return Map.of("open", false); }
     }
@@ -53,15 +53,15 @@ public final class NetworkPackage {
     @Condition(id = "host_reachable", name = "Host is reachable", description = "True when the host answers a ping within the timeout.")
     public boolean reachable(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "Timeout in milliseconds.") int timeout) {
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout) {
         try { return InetAddress.getByName(host).isReachable(timeout); } catch (IOException e) { return false; }
     }
 
     @Condition(id = "port_open", name = "Port is open", description = "True when a TCP port accepts connections.")
     public boolean portOpen(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
-            @Input(name = "port", type = OoaType.NUMBER, description = "TCP port.") int port,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "Timeout in milliseconds.") int timeout) {
+            @Input(name = "port", type = OoaType.NUMBER, min = 1, max = 65535, description = "TCP port.") int port,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = "Timeout in milliseconds.") int timeout) {
         try (Socket s = new Socket()) { s.connect(new InetSocketAddress(host, port), timeout); return true; } catch (IOException e) { return false; }
     }
 
@@ -368,9 +368,9 @@ public final class NetworkPackage {
             @Input(name = "host", type = OoaType.STRING, description = D_HOST) String host,
             @Input(name = "oids", example = "1.3.6.1.2.1.1.5.0", description = "One OID, several separated by commas, or a List of OIDs.") Object oids,
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         List<String> list = HttpJson.addressList(oids);
         if (list.isEmpty()) throw new ActionException("SNMP.BAD_OID", "Give at least one OID", "For example 1.3.6.1.2.1.1.5.0 (device name).");
@@ -392,9 +392,9 @@ public final class NetworkPackage {
             @Input(name = "host", type = OoaType.STRING, description = D_HOST) String host,
             @Input(name = "oid", type = OoaType.STRING, description = "Starting OID.") String oid,
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         Snmp.parseOid(oid);
         Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GETNEXT, List.of(new Snmp.VarBind(oid, Snmp.NULL, null)), timeout, retries, Snmp.version(version));
@@ -410,10 +410,10 @@ public final class NetworkPackage {
             @Input(name = "host", type = OoaType.STRING, description = D_HOST) String host,
             @Input(name = "oid", type = OoaType.STRING, example = "1.3.6.1.2.1.2.2", description = "Root OID of the subtree to read.") String oid,
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
-            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "10000", description = "Safety limit on objects read.") int maxRows,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "10000", min = 1, description = "Safety limit on objects read.") int maxRows,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         Snmp.parseOid(oid);
         String root = oid.strip().startsWith(".") ? oid.strip().substring(1) : oid.strip();
@@ -448,9 +448,9 @@ public final class NetworkPackage {
             @Input(name = "value_type", type = OoaType.STRING, required = false, defaultValue = "\"string\"",
                     enumValues = {"string", "integer", "oid", "ip_address", "counter32", "gauge32", "timeticks", "counter64"}, description = "SNMP type of the new value.") String type,
             @Input(name = "community", required = false, defaultValue = "\"private\"", description = "SNMP v2c community with write access (text or a Credential).") Object community,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", description = "UDP port of the SNMP agent.") int port,
-            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = D_TIMEOUT) int timeout,
-            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", description = D_RETRIES) int retries,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
         Snmp.parseOid(oid);
         int t = Snmp.typeCode(type);
@@ -469,7 +469,7 @@ public final class NetworkPackage {
             @Input(name = "trap_oid", type = OoaType.STRING, example = "1.3.6.1.4.1.99999.0.1", description = "OID that identifies the kind of notification.") String trapOid,
             @Input(name = "variables", type = OoaType.DICTIONARY, required = false, description = "Extra values to include: OID to value (numbers are sent as integers, everything else as text).") Map<String, Object> variables,
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "162", description = "UDP port of the trap receiver.") int port) {
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "162", min = 1, max = 65535, description = "UDP port of the trap receiver.") int port) {
         Snmp.parseOid(trapOid);
         List<Snmp.VarBind> extra = new ArrayList<>();
         if (variables != null) for (var e : variables.entrySet()) {

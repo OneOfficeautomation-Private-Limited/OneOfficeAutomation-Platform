@@ -1,0 +1,172 @@
+[
+  {"command": "ooa.excel/create_workbook", "name": "create, write, read back, save, close", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/b.xlsx", "sheet": "Data"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "Vendor"}}, {"action": "ooa.excel/set_cell", "args": {"cell": "B1", "value": "Amount"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A2", "value": "Acme"}}, {"action": "ooa.excel/set_cell", "args": {"cell": "B2", "value": 120}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A3", "value": "Zeta"}}, {"action": "ooa.excel/set_cell", "args": {"cell": "B3", "value": 80}},
+     {"action": "ooa.excel/set_formula", "args": {"cell": "B4", "formula": "SUM(B2:B3)"}},
+     {"action": "ooa.excel/get_cell", "args": {"cell": "B4"}, "out": {"value": "total"}},
+     {"action": "ooa.excel/read_formula", "args": {"cell": "B4"}, "out": {"formula": "f", "has_formula": "hf"}},
+     {"action": "ooa.excel/get_all_cells", "out": {"table": "t", "row_count": "n"}},
+     {"action": "ooa.excel/close", "args": {"save": true}}],
+   "expect": {"total": 200, "f": "=SUM(B2:B3)", "hf": true, "n": 3}, "expectFiles": {"b.xlsx": true}},
+  {"command": "ooa.excel/rows", "name": "loop over rows (new iterator)", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/r.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["Item", "Qty"], "rows": [["pen", 2], ["cup", 3]]}}},
+     {"action": "core/set", "args": {"variable": "sum", "value": 0}},
+     {"action": "core/loop", "args": {"iterator": "ooa.excel/rows", "as": "row"}, "children": [{"action": "core/set", "args": {"variable": "sum", "value": {"expr": "$sum + $row.Qty"}}}]},
+     {"action": "ooa.excel/close"}], "expect": {"sum": 5}},
+  {"command": "ooa.excel/open", "name": "missing file", "steps": [{"action": "ooa.excel/open", "args": {"path": "{tmp}/none.xlsx"}}], "error": "EXCEL.NOT_FOUND"},
+  {"command": "ooa.excel/open", "name": "read-only refuses save", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/ro.xlsx"}}, {"action": "ooa.excel/close"},
+     {"action": "ooa.excel/open", "args": {"path": "{tmp}/ro.xlsx", "read_only": true}}, {"action": "ooa.excel/save"}], "error": "EXCEL.READ_ONLY"},
+  {"command": "ooa.excel/get_range", "name": "range as table", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/g.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b"], "rows": [[1, 2], [3, 4]]}}},
+     {"action": "ooa.excel/get_range", "args": {"range": "A1:B2"}, "out": {"table": "t"}}, {"action": "ooa.excel/close"}],
+   "expect": {"t": {"columns": ["a", "b"], "rows": [[1, 2]]}}},
+  {"command": "ooa.excel/find", "name": "cells found", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/f.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["k"], "rows": [["x"], ["y"], ["x"]]}}},
+     {"action": "ooa.excel/find", "args": {"text": "x", "whole_cell": true}, "out": {"count": "n", "first_cell": "c"}}, {"action": "ooa.excel/close"}], "expect": {"n": 2, "c": "A2"}},
+  {"command": "ooa.excel/replace", "name": "all", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/rp.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["k"], "rows": [["old"], ["old"]]}}},
+     {"action": "ooa.excel/replace", "args": {"find": "old", "replace_with": "new"}, "out": {"count": "n"}},
+     {"action": "ooa.excel/get_cell", "args": {"cell": "A3"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"n": 2, "v": "new"}},
+  {"command": "ooa.excel/filter", "name": "between", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/fl.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["n"], "rows": [[1], [5], [9]]}}},
+     {"action": "ooa.excel/filter", "args": {"column": "n", "operator": "between", "value": 2, "value_to": 9}, "out": {"count": "c"}}, {"action": "ooa.excel/close"}], "expect": {"c": 2}},
+  {"command": "ooa.excel/sort_range", "name": "descending", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/s.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["n"], "rows": [[1], [3], [2]]}}},
+     {"action": "ooa.excel/sort_range", "args": {"column": "n", "descending": true}},
+     {"action": "ooa.excel/read_column", "args": {"column": "A", "start_row": 2}, "out": {"values": "v"}}, {"action": "ooa.excel/close"}], "expect": {"v": [3, 2, 1]}},
+  {"command": "ooa.excel/read_row", "name": "row values", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/rr.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b", "c"], "rows": []}}},
+     {"action": "ooa.excel/read_row", "args": {"row": 1}, "out": {"values": "v"}}, {"action": "ooa.excel/close"}], "expect": {"v": ["a", "b", "c"]}},
+  {"command": "ooa.excel/read_column", "name": "column values", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/rc.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a"], "rows": [[1], [2]]}}},
+     {"action": "ooa.excel/read_column", "args": {"column": 1}, "out": {"values": "v"}}, {"action": "ooa.excel/close"}], "expect": {"v": ["a", 1, 2]}},
+  {"command": "ooa.excel/insert_rows", "name": "insert, delete, count rows", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/ir.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a"], "rows": [[1], [2]]}}},
+     {"action": "ooa.excel/insert_rows", "args": {"row": 2, "count": 2}},
+     {"action": "ooa.excel/row_count", "args": {"mode": "all"}, "out": {"last_row": "last"}},
+     {"action": "ooa.excel/delete_rows", "args": {"row": 2, "count": 2}},
+     {"action": "ooa.excel/row_count", "out": {"count": "n"}}, {"action": "ooa.excel/close"}], "expect": {"last": 5, "n": 3}},
+  {"command": "ooa.excel/delete_rows", "name": "row 0 is refused before the run (new limit)", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/x.xlsx"}}, {"action": "ooa.excel/delete_rows", "args": {"row": 0}}], "error": "FLOW.INVALID"},
+  {"command": "ooa.excel/insert_columns", "name": "insert and delete columns", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/ic.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b"], "rows": []}}},
+     {"action": "ooa.excel/insert_columns", "args": {"column": "B"}}, {"action": "ooa.excel/get_cell", "args": {"cell": "C1"}, "out": {"value": "c"}},
+     {"action": "ooa.excel/delete_columns", "args": {"column": "B"}}, {"action": "ooa.excel/get_cell", "args": {"cell": "B1"}, "out": {"value": "b"}}, {"action": "ooa.excel/close"}], "expect": {"c": "b", "b": "b"}},
+  {"command": "ooa.excel/delete_cells", "name": "shift up", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/dc.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a"], "rows": [[1], [2]]}}},
+     {"action": "ooa.excel/delete_cells", "args": {"range": "A2"}}, {"action": "ooa.excel/get_cell", "args": {"cell": "A2"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"v": 2}},
+  {"command": "ooa.excel/hide_rows", "name": "hidden rows skipped by get_all_cells", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/h.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a"], "rows": [[1], [2], [3]]}}},
+     {"action": "ooa.excel/hide_rows", "args": {"row": 3}},
+     {"action": "ooa.excel/get_all_cells", "args": {"include_hidden": false}, "out": {"row_count": "visible"}},
+     {"action": "ooa.excel/unhide_rows", "args": {"row": 3}},
+     {"action": "ooa.excel/get_all_cells", "args": {"include_hidden": false}, "out": {"row_count": "all"}}, {"action": "ooa.excel/close"}], "expect": {"visible": 2, "all": 3}},
+  {"command": "ooa.excel/hide_columns", "name": "hide and unhide", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/hc.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b"], "rows": [[1, 2]]}}},
+     {"action": "ooa.excel/hide_columns", "args": {"column": "A"}},
+     {"action": "ooa.excel/get_all_cells", "args": {"include_hidden": false}, "out": {"table": "t"}},
+     {"action": "ooa.excel/unhide_columns", "args": {"column": "A"}}, {"action": "ooa.excel/close"}], "expect": {"t": {"columns": ["b"], "rows": [[2]]}}},
+  {"command": "ooa.excel/add_sheet", "name": "sheets: add, rename, copy, count, names, switch, delete", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/sh.xlsx", "sheet": "One"}},
+     {"action": "ooa.excel/add_sheet", "args": {"name": "Two", "activate": true}},
+     {"action": "ooa.excel/get_current_sheet_name", "out": {"name": "cur"}},
+     {"action": "ooa.excel/rename_sheet", "args": {"sheet": "Two", "new_name": "Second"}},
+     {"action": "ooa.excel/copy_sheet", "args": {"sheet": "One", "new_name": "One copy"}},
+     {"action": "ooa.excel/sheet_count", "out": {"count": "n"}},
+     {"action": "ooa.excel/switch_sheet", "args": {"index": 1}},
+     {"action": "ooa.excel/delete_sheet", "args": {"name": "One copy"}},
+     {"action": "ooa.excel/get_sheet_names", "out": {"names": "names"}}, {"action": "ooa.excel/close"}], "expect": {"cur": "Two", "n": 3, "names": ["One", "Second"]}},
+  {"command": "ooa.excel/hide_sheet", "name": "hide, unhide all", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/hs.xlsx", "sheet": "A"}},
+     {"action": "ooa.excel/add_sheet", "args": {"name": "B"}},
+     {"action": "ooa.excel/hide_sheet", "args": {"sheet": "B"}},
+     {"action": "ooa.excel/sheet_count", "args": {"include_hidden": false}, "out": {"count": "visible"}},
+     {"action": "ooa.excel/unhide_all_sheets", "out": {"count": "shown"}},
+     {"action": "ooa.excel/hide_sheet", "args": {"sheet": "B"}}, {"action": "ooa.excel/unhide_sheet", "args": {"sheet": "B"}},
+     {"action": "ooa.excel/close"}], "expect": {"visible": 1, "shown": 1}},
+  {"command": "ooa.excel/delete_sheet", "name": "unknown sheet", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/d.xlsx"}}, {"action": "ooa.excel/delete_sheet", "args": {"name": "Nope"}}], "error": "EXCEL.NO_SHEET"},
+  {"command": "ooa.excel/cell_address", "name": "row and column to address", "steps": [{"action": "ooa.excel/cell_address", "args": {"row": 4, "column": 28}, "out": {"cell": "c"}}], "expect": {"c": "AB4"}},
+  {"command": "ooa.excel/column_name", "name": "number to letters", "steps": [{"action": "ooa.excel/column_name", "args": {"column": 703}, "out": {"name": "n"}}], "expect": {"n": "AAA"}},
+  {"command": "ooa.excel/row_number", "name": "address parts", "steps": [{"action": "ooa.excel/row_number", "args": {"cell": "AB12"}, "out": {"row": "r", "column": "c", "column_name": "cn"}}], "expect": {"r": 12, "c": 28, "cn": "AB"}},
+  {"command": "ooa.excel/go_to_cell", "name": "move to row end", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/gc.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b", "c"], "rows": []}}},
+     {"action": "ooa.excel/go_to_cell", "args": {"cell": "A1", "move": "row_end"}, "out": {"cell": "c"}}, {"action": "ooa.excel/close"}], "expect": {"c": "C1"}},
+  {"command": "ooa.excel/find_next_empty_cell", "name": "down", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/ne.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a"], "rows": [[1], [2]]}}},
+     {"action": "ooa.excel/find_next_empty_cell", "args": {"start_cell": "A1"}, "out": {"cell": "c", "row": "r"}}, {"action": "ooa.excel/close"}], "expect": {"c": "A4", "r": 4}},
+  {"command": "ooa.excel/go_to_next_empty_cell", "name": "right", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/ge.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b"], "rows": []}}},
+     {"action": "ooa.excel/go_to_next_empty_cell", "args": {"start_cell": "A1", "direction": "right"}, "out": {"cell": "c"}},
+     {"action": "ooa.excel/set_cell", "args": {"value": "here"}}, {"action": "ooa.excel/get_cell", "args": {"cell": "C1"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"c": "C1", "v": "here"}},
+  {"command": "ooa.excel/select_range", "name": "selection becomes the active cell", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/sr.xlsx"}},
+     {"action": "ooa.excel/select_range", "args": {"range": "B2:C3"}}, {"action": "ooa.excel/set_cell", "args": {"value": 7}},
+     {"action": "ooa.excel/get_cell", "args": {"cell": "B2"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"v": 7}},
+  {"command": "ooa.excel/set_cell_color", "name": "fill colour", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/col.xlsx"}},
+     {"action": "ooa.excel/set_cell_color", "args": {"range": "A1", "color": "#FF0000"}},
+     {"action": "ooa.excel/get_cell_color", "args": {"cell": "A1"}, "out": {"color": "c"}}, {"action": "ooa.excel/close"}], "expect": {"c": {"$contains": "FF0000"}}},
+  {"command": "ooa.excel/remove_blank_rows", "name": "removes", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/rb.xlsx"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "a"}}, {"action": "ooa.excel/set_cell", "args": {"cell": "A3", "value": "b"}},
+     {"action": "ooa.excel/remove_blank_rows", "out": {"count": "n"}}, {"action": "ooa.excel/get_cell", "args": {"cell": "A2"}, "out": {"value": "v"}}, {"action": "ooa.excel/close"}], "expect": {"n": 1, "v": "b"}},
+  {"command": "ooa.excel/get_table_range", "name": "used range", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/tr.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a", "b"], "rows": [[1, 2]]}}},
+     {"action": "ooa.excel/get_table_range", "out": {"range": "r"}}, {"action": "ooa.excel/close"}], "expect": {"r": "A1:B2"}},
+  {"command": "ooa.excel/protect_sheet", "name": "protect and unprotect with the right password", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/p.xlsx"}},
+     {"action": "ooa.excel/protect_sheet", "args": {"password": "s3cret"}},
+     {"action": "ooa.excel/unprotect_sheet", "args": {"password": "s3cret"}}, {"action": "ooa.excel/close"}]},
+  {"command": "ooa.excel/unprotect_sheet", "name": "wrong password", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/p2.xlsx"}},
+     {"action": "ooa.excel/protect_sheet", "args": {"password": "s3cret"}}, {"action": "ooa.excel/unprotect_sheet", "args": {"password": "nope"}}], "error": "EXCEL.WRONG_PASSWORD"},
+  {"command": "ooa.excel/protect_workbook", "name": "protect and unprotect", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/pw.xlsx"}},
+     {"action": "ooa.excel/protect_workbook", "args": {"password": "k"}}, {"action": "ooa.excel/unprotect_workbook", "args": {"password": "k"}}, {"action": "ooa.excel/close"}]},
+  {"command": "ooa.excel/unprotect_workbook", "name": "wrong password", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/pw2.xlsx"}},
+     {"action": "ooa.excel/protect_workbook", "args": {"password": "k"}}, {"action": "ooa.excel/unprotect_workbook", "args": {"password": "x"}}], "error": "EXCEL.WRONG_PASSWORD"},
+  {"command": "ooa.excel/save_as", "name": "csv of one sheet", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/c.xlsx"}},
+     {"action": "ooa.excel/write_table", "args": {"table": {"columns": ["a"], "rows": [[1]]}}},
+     {"action": "ooa.excel/save_as", "args": {"path": "{tmp}/c.csv", "format": "csv"}}, {"action": "ooa.excel/close"}], "expectFiles": {"c.csv": true}},
+  {"command": "ooa.excel/save", "name": "encrypted save, reopen needs the password", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/e.xlsx"}},
+     {"action": "ooa.excel/save", "args": {"password": "pw"}}, {"action": "ooa.excel/close"},
+     {"action": "ooa.excel/open", "args": {"path": "{tmp}/e.xlsx"}}], "error": "EXCEL.PASSWORD_REQUIRED"},
+  {"command": "ooa.excel/append_worksheet", "name": "copy a sheet from another file", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/src.xlsx", "sheet": "Src", "session": "s"}},
+     {"action": "ooa.excel/set_cell", "args": {"cell": "A1", "value": "from src", "session": "s"}}, {"action": "ooa.excel/close", "args": {"session": "s", "save": true}},
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/dst.xlsx"}},
+     {"action": "ooa.excel/append_worksheet", "args": {"path": "{tmp}/src.xlsx"}, "out": {"name": "n"}},
+     {"action": "ooa.excel/append_workbook", "args": {"path": "{tmp}/src.xlsx"}, "out": {"sheets": "all"}},
+     {"action": "ooa.excel/sheet_count", "out": {"count": "c"}}, {"action": "ooa.excel/close"}], "expect": {"n": "Src", "c": 3}},
+  {"command": "ooa.excel/insert_table_column", "name": "no such table", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/t.xlsx"}}, {"action": "ooa.excel/insert_table_column", "args": {"table": "T1", "column_name": "X"}}], "error": "EXCEL.NO_TABLE"},
+  {"command": "ooa.excel/delete_table_column", "name": "no such table", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/t2.xlsx"}}, {"action": "ooa.excel/delete_table_column", "args": {"table": "T1", "column_name": "X"}}], "error": "EXCEL.NO_TABLE"},
+  {"command": "ooa.excel/get_links", "name": "no external links", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/l.xlsx"}}, {"action": "ooa.excel/get_links", "out": {"links": "l"}}, {"action": "ooa.excel/close"}], "expect": {"l": []}},
+  {"command": "ooa.excel/break_links", "name": "nothing to break", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/l2.xlsx"}}, {"action": "ooa.excel/break_links", "out": {"count": "n"}}, {"action": "ooa.excel/close"}], "expect": {"n": 0}},
+  {"command": "ooa.excel/change_link", "name": "link not found", "steps": [{"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/l3.xlsx"}}, {"action": "ooa.excel/change_link", "args": {"old_link": "a.xlsx", "new_link": "b.xlsx"}}], "error": "EXCEL.NO_LINK"},
+  {"command": "ooa.excel/set_sensitivity_label", "name": "set then get", "steps": [
+     {"action": "ooa.excel/create_workbook", "args": {"path": "{tmp}/sl.xlsx"}},
+     {"action": "ooa.excel/set_sensitivity_label", "args": {"label_id": "11111111-1111-1111-1111-111111111111", "site_id": "22222222-2222-2222-2222-222222222222", "name": "General"}},
+     {"action": "ooa.excel/get_sensitivity_label", "out": {"has_label": "h", "name": "n"}}, {"action": "ooa.excel/close"}], "expect": {"h": true, "n": "General"}}
+]

@@ -9,9 +9,16 @@ import java.util.*;
 public final class SlackPackage {
     static final String P = "SLACK";
 
+    /** A reply without Slack's ok/error fields: usually a proxy or a wrong base address. */
+    private static ActionException badResponse(String method) {
+        return new ActionException(P + ".BAD_RESPONSE", "The reply to " + method + " is not a Slack answer (no ok or error field)",
+                "Check base_url (https://slack.com/api) and any proxy between the runner and Slack.", true);
+    }
+
     private static Map<String, Object> call(ActionContext ctx, String base, String method, Object token, Map<String, Object> body) {
         Map<String, Object> r = HttpJson.req(P, "POST", base.replaceAll("/+$", "") + "/" + method).bearer(token).json(body).send(ctx).map();
         if (!Boolean.TRUE.equals(r.get("ok"))) {
+            if (r.get("error") == null) throw badResponse(method);
             String err = String.valueOf(r.get("error"));
             String fix = switch (err) {
                 case "channel_not_found" -> "Check the channel id and invite the agent to the channel.";
@@ -124,6 +131,7 @@ public final class SlackPackage {
         Map<String, Object> r = HttpJson.req(P, "POST", base.replaceAll("/+$", "") + "/" + method).bearer(token)
                 .bytes(HttpJson.query(args).getBytes(java.nio.charset.StandardCharsets.UTF_8), "application/x-www-form-urlencoded").timeout(120).send(ctx).map();
         if (!Boolean.TRUE.equals(r.get("ok"))) {
+            if (r.get("error") == null) throw badResponse(method);
             String err = String.valueOf(r.get("error"));
             String fix = switch (err) {
                 case "channel_not_found" -> "Check the channel id and invite the agent to the channel.";

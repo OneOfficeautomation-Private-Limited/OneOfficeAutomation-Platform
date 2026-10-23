@@ -37,6 +37,8 @@ public final class PowerPointPackage {
 
     private static DeckSession s(ActionContext ctx, String name) { return ctx.session(name, DeckSession.class); }
 
+    private static int lastSlide(DeckSession d) { return d.ppt.getSlides().size(); }
+
     private static XSLFSlide slide(DeckSession d, int number) {
         List<XSLFSlide> slides = d.ppt.getSlides();
         if (number < 1 || number > slides.size())
@@ -308,7 +310,7 @@ public final class PowerPointPackage {
     @Action(id = "insert_text", name = "Insert text", category = "Text",
             description = "Put text into a slide's title or body placeholder, or add it as a new text box at a position given in points.")
     public Map<String, Object> insertText(ActionContext ctx,
-            @Input(name = "slide", type = OoaType.NUMBER, description = "1-based slide number.") int slide,
+            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; each line becomes a paragraph.") String text,
             @Input(name = "placeholder", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "title", "body"},
                     description = "title or body replaces that placeholder's text; none adds a new text box.") String placeholder,
@@ -324,7 +326,7 @@ public final class PowerPointPackage {
             @Input(name = "color", type = OoaType.STRING, required = false, example = "#C00000", description = "Hex colour for the new text.") String colour,
             @Input(name = "font", type = OoaType.STRING, required = false, description = "Font name for the new text, e.g. Calibri.") String font,
             @Input(name = "alignment", type = OoaType.STRING, required = false, enumValues = {"left", "center", "right", "justify"}, description = "Paragraph alignment of the new text; unchanged when empty.") String alignment) {
-        XSLFSlide sl = slide(s(ctx, session), slide);
+        XSLFSlide sl = slide(s(ctx, session), slide == null ? lastSlide(s(ctx, session)) : slide);
         Color c = colour(colour);
         org.apache.poi.sl.usermodel.TextParagraph.TextAlign align = null;
         if (alignment != null && !alignment.isBlank()) align = switch (alignment.toLowerCase(Locale.ROOT)) {
@@ -600,7 +602,7 @@ public final class PowerPointPackage {
             description = "Place an image file on a slide at a position in points, optionally scaled to a width, a height or both.")
     @Output(name = "shape", type = OoaType.STRING, description = "Name of the new picture shape.")
     public Map<String, Object> insertPicture(ActionContext ctx,
-            @Input(name = "slide", type = OoaType.NUMBER, description = "1-based slide number.") int slide,
+            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
             @Input(name = "image", type = OoaType.FILE, description = "Image file (PNG, JPEG, GIF, BMP, TIFF, EMF or WMF).") String image,
             @Input(name = "x", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Left edge in points.") double x,
             @Input(name = "y", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Top edge in points.") double y,
@@ -610,7 +612,7 @@ public final class PowerPointPackage {
             @Input(name = "height", type = OoaType.NUMBER, required = false,
                     description = "Height in points; with width both are used as given, alone the width keeps the aspect ratio.") Double height) {
         DeckSession d = s(ctx, session);
-        XSLFSlide sl = slide(d, slide);
+        XSLFSlide sl = slide(d, slide == null ? d.ppt.getSlides().size() : slide);
         Path img = ctx.resolvePath(image);
         PictureData.PictureType type = pictureType(img);
         byte[] bytes = WordPackage.readImage(img, "PPT");
@@ -684,7 +686,7 @@ public final class PowerPointPackage {
             description = "Add a table to a slide from a Data Table, with the column names as an optional bold header row, at a position and size in points.")
     @Output(name = "shape", type = OoaType.STRING, description = "Name of the new table shape.")
     public Map<String, Object> insertTable(ActionContext ctx,
-            @Input(name = "slide", type = OoaType.NUMBER, description = "1-based slide number.") int slide,
+            @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
             @Input(name = "table", type = OoaType.TABLE, description = "Data to insert.") Map<String, Object> table,
             @Input(name = "x", type = OoaType.NUMBER, required = false, defaultValue = "50", description = "Left edge in points.") double x,
             @Input(name = "y", type = OoaType.NUMBER, required = false, defaultValue = "120", description = "Top edge in points.") double y,
@@ -695,7 +697,7 @@ public final class PowerPointPackage {
             @Input(name = "row_height", type = OoaType.NUMBER, required = false, description = "Height of each row in points; twice the font size when empty.") Double rowHeightPt,
             @Input(name = "column_widths", type = OoaType.LIST, required = false,
                     description = "Width of each column in points, in order; the total width is shared equally when empty.") List<Object> columnWidths) {
-        XSLFSlide sl = slide(s(ctx, session), slide);
+        XSLFSlide sl = slide(s(ctx, session), slide == null ? lastSlide(s(ctx, session)) : slide);
         List<?> cols = (List<?>) table.get("columns");
         List<?> rows = (List<?>) table.get("rows");
         if (cols == null || cols.isEmpty()) throw new ActionException("PPT.EMPTY_TABLE", "The table has no columns", "Pass a Data Table with at least one column.");

@@ -123,7 +123,7 @@ public final class ActiveDirectoryPackage {
     }
 
     private Entry findUser(AdSession s, String username) throws NamingException {
-        String f = "(&(objectCategory=person)(objectClass=user)(|(sAMAccountName=" + escape(username) + ")(userPrincipalName=" + escape(username) + ")))";
+        String f = "(&(objectClass=user)(!(objectClass=computer))(|(sAMAccountName=" + escape(username) + ")(userPrincipalName=" + escape(username) + ")))";
         Entry e = first(s, f);
         if (e == null) throw new ActionException("AD.USER_NOT_FOUND", "User '" + username + "' not found", "Check the user name (sAMAccountName or UPN).");
         return e;
@@ -681,7 +681,7 @@ public final class ActiveDirectoryPackage {
             @Input(name = "member_type", type = OoaType.STRING, required = false, defaultValue = "\"all\"", enumValues = {"all", "user", "group", "computer"}, description = "Only return members of this kind.") String memberType) {
         String typeFilter = switch (memberType == null ? "all" : memberType) {
             case "all" -> "";
-            case "user" -> "(objectCategory=person)(objectClass=user)";
+            case "user" -> "(objectClass=user)(!(objectClass=computer))";
             case "group" -> "(objectClass=group)";
             case "computer" -> "(objectClass=computer)";
             default -> throw new ActionException("AD.BAD_TYPE", "Unknown member type '" + memberType + "'", "Use all, user, group or computer.");
@@ -701,6 +701,26 @@ public final class ActiveDirectoryPackage {
                     } catch (NamingException x) { throw new IllegalStateException(x); }
                 });
             } catch (SizeLimitExceededException e) { ctx.warn("Stopped at " + max + " members"); }
+            if (rows.isEmpty() && !recursive) {
+                // directories that do not keep memberOf (OpenLDAP without the overlay, test servers): read the group's own member list
+                Attribute members = s.dir.read(dn, new String[]{"member"}).get("member");
+                for (int i = 0; members != null && i < members.size() && rows.size() < max; i++) {
+                    String mdn = String.valueOf(members.get(i));
+                    Attributes a = s.dir.read(mdn, new String[]{"cn", "sAMAccountName", "objectClass", "mail"});
+                    Attribute oc = a.get("objectClass");
+                    Set<String> classes = new HashSet<>();
+                    for (int k = 0; oc != null && k < oc.size(); k++) classes.add(String.valueOf(oc.get(k)).toLowerCase(Locale.ROOT));
+                    boolean ok = switch (memberType == null ? "all" : memberType) {
+                        case "user" -> classes.contains("user") && !classes.contains("computer");
+                        case "group" -> classes.contains("group");
+                        case "computer" -> classes.contains("computer");
+                        default -> true;
+                    };
+                    if (!ok) continue;
+                    Object type = oc == null || oc.size() == 0 ? null : oc.get(oc.size() - 1);
+                    rows.add(new ArrayList<>(Arrays.asList(mdn, attrValue(a.get("cn")), attrValue(a.get("sAMAccountName")), type == null ? null : String.valueOf(type), attrValue(a.get("mail")))));
+                }
+            }
             return Map.of("table", Values.table(List.of("dn", "name", "sAMAccountName", "type", "mail"), rows), "count", BigDecimal.valueOf(rows.size()));
         });
     }

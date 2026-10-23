@@ -388,6 +388,8 @@ public final class DatabricksPackage {
             req("PUT", ws(url) + "/api/2.0/fs/files/" + HttpJson.encPath(r) + "?overwrite=" + overwrite, token).bytes(data, "application/octet-stream").timeout(3600).send(ctx);
         } else {
             Object handle = req("POST", ws(url) + "/api/2.0/dbfs/create", token).json(Map.of("path", r, "overwrite", overwrite)).send(ctx).map().get("handle");
+            if (handle == null) throw new ActionException("DATABRICKS.BAD_RESPONSE", "Databricks did not return an upload handle for " + r,
+                    "Check workspace_url and that the token may write to DBFS.", true);
             for (int off = 0; off < data.length; off += DBFS_BLOCK) {
                 byte[] block = Arrays.copyOfRange(data, off, Math.min(data.length, off + DBFS_BLOCK));
                 req("POST", ws(url) + "/api/2.0/dbfs/add-block", token).json(Map.of("handle", handle, "data", Base64.getEncoder().encodeToString(block))).timeout(300).send(ctx);
@@ -395,6 +397,19 @@ public final class DatabricksPackage {
             req("POST", ws(url) + "/api/2.0/dbfs/close", token).json(Map.of("handle", handle)).send(ctx);
         }
         return Out.of("remote_path", filesApi(r) ? r : "dbfs:" + r);
+    }
+
+    @Action(id = "delete_file", name = "Delete file", category = "Files", capabilities = "network",
+            description = "Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder with recursive).")
+    public Map<String, Object> deleteFile(ActionContext ctx,
+            @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
+            @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/inbox/old.csv", description = "File to delete.") String remotePath,
+            @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "DBFS only: also delete a folder with everything in it.") boolean recursive,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+        String r = remote(remotePath);
+        if (filesApi(r)) req("DELETE", ws(url) + "/api/2.0/fs/files/" + HttpJson.encPath(r), token).send(ctx);
+        else req("POST", ws(url) + "/api/2.0/dbfs/delete", token).json(Map.of("path", r, "recursive", recursive)).send(ctx);
+        return Map.of();
     }
 
     @Action(id = "download_file", name = "Download file", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},

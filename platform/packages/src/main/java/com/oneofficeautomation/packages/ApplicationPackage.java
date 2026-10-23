@@ -41,7 +41,7 @@ public final class ApplicationPackage {
             @Input(name = "window_state", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "minimized", "maximized", "hidden"},
                     description = "How the program's main window opens (Windows); other systems always use normal.") String windowState,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the program; an empty value removes one.") Map<String, Object> environment,
-            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Pause this long after starting so the program can open its window; 0 continues at once.") double waitSeconds) {
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Pause this long after starting so the program can open its window; 0 continues at once.") double waitSeconds) {
         String state = windowState == null || windowState.isBlank() ? "normal" : windowState.strip().toLowerCase(Locale.ROOT);
         if (!List.of("normal", "minimized", "maximized", "hidden").contains(state))
             throw new ActionException("APPLICATION.BAD_WINDOW_STATE", "Unknown window_state '" + windowState + "'", "Use normal, minimized, maximized or hidden.");
@@ -116,7 +116,7 @@ public final class ApplicationPackage {
             @Input(name = "arguments", type = OoaType.LIST, required = false, description = "Arguments, one list item each (no shell quoting needed).") List<Object> args,
             @Input(name = "working_folder", type = OoaType.FILE, required = false, description = "Folder to run in; the workspace when empty.") String dir,
             @Input(name = "input", type = OoaType.STRING, required = false, description = "Text sent to the program's standard input.") String input,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", description = "Maximum run time.") double timeout,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 0, description = "Maximum run time.") double timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Fail the step when the exit code is not 0.") boolean fail,
             @Input(name = "environment", type = OoaType.DICTIONARY, required = false, description = "Extra environment variables for the program.") Map<String, Object> environment,
             @Input(name = "output_encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", example = "cp850", description = "Text encoding of the program's input and output, e.g. utf-8, cp850, windows-1252.") String encoding) {
@@ -135,8 +135,8 @@ public final class ApplicationPackage {
             description = "Stop a program by process id or by program name (e.g. EXCEL.EXE).")
     @Output(name = "stopped", type = OoaType.NUMBER, description = "Number of processes stopped.")
     public Map<String, Object> stopProgram(ActionContext ctx,
-            @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = "Process id from Start program.") Long pid,
-            @Input(name = "name", type = OoaType.STRING, required = false, description = "Program file name, e.g. notepad.exe.") String name,
+            @Input(name = "process_id", type = OoaType.NUMBER, required = false, visibleWhen = "name=", description = "Process id from Start program.") Long pid,
+            @Input(name = "name", type = OoaType.STRING, required = false, visibleWhen = "process_id=", description = "Program file name, e.g. notepad.exe.") String name,
             @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Force-stop if it does not close normally.") boolean force) {
         long self = ProcessHandle.current().pid();
         List<ProcessHandle> targets = new ArrayList<>();

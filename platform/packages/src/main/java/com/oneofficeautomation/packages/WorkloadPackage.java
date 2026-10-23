@@ -136,7 +136,7 @@ public final class WorkloadPackage {
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
             @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
             @Input(name = "error", type = OoaType.STRING, required = false, defaultValue = "\"\"", description = "What went wrong (shown to operators).") String error,
-            @Input(name = "max_attempts", type = OoaType.NUMBER, required = false, defaultValue = "3", description = "Total attempts allowed.") int max) {
+            @Input(name = "max_attempts", type = OoaType.NUMBER, required = false, defaultValue = "3", min = 1, description = "Total attempts allowed.") int max) {
         boolean retry = update(ctx, queue, true, items -> {
             Map<String, Object> it = find(items, id);
             boolean again = Values.toNumber(it.getOrDefault("attempts", BigDecimal.ZERO)).intValue() < max;
@@ -168,7 +168,7 @@ public final class WorkloadPackage {
             @Input(name = "replace_data", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace all fields with data instead of merging.") boolean replace,
             @Input(name = "status", type = OoaType.STRING, required = false, defaultValue = "\"unchanged\"", enumValues = {"unchanged", "reprocess", "on_hold"},
                     description = "reprocess: back to new so it is taken again (attempts restart); on_hold: put aside until on_hold_until, or until changed again.") String status,
-            @Input(name = "on_hold_until", type = OoaType.DATETIME, required = false, description = "When an on-hold item becomes available again (UTC); held indefinitely when empty.") LocalDateTime until,
+            @Input(name = "on_hold_until", type = OoaType.DATETIME, required = false, visibleWhen = "status=on_hold", description = "When an on-hold item becomes available again (UTC); held indefinitely when empty.") LocalDateTime until,
             @Input(name = "result", type = OoaType.DICTIONARY, required = false, description = "Result fields to keep with the item.") Map<String, Object> result) {
         String st = status == null || status.isBlank() ? "unchanged" : status;
         if (!Set.of("unchanged", "reprocess", "on_hold").contains(st)) throw new ActionException("QUEUE.BAD_STATUS", "Unknown status '" + status + "'", "Use unchanged, reprocess or on_hold.");
@@ -226,7 +226,7 @@ public final class WorkloadPackage {
     @LoopIterator(id = "each_item", name = "Each available work item", description = "Take items one by one until the queue is empty; mark each completed or failed inside the loop.")
     public Iterable<Object> eachItem(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
-            @Input(name = "max_items", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Stop after this many items.") int max) {
+            @Input(name = "max_items", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 1, description = "Stop after this many items.") int max) {
         return () -> new Iterator<>() {
             int taken = 0; Map<String, Object> next;
             public boolean hasNext() {
