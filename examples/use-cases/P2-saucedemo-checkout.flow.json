@@ -1,0 +1,405 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p2_saucedemo_checkout",
+  "name": "P2 Web shop checkout (saucedemo.com)",
+  "description": "Sign in to the demo shop, sort by price, put the cheapest products in the cart, check out, check the item total against the prices seen, finish and sign out.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "shop_user",
+      "type": "String",
+      "direction": "input",
+      "default": "standard_user",
+      "description": "Demo user (printed on the shop's sign-in page)."
+    },
+    {
+      "name": "shop_password",
+      "type": "String",
+      "direction": "input",
+      "default": "secret_sauce",
+      "description": "Demo password (printed on the shop's sign-in page). Real shops: use a Credential from the vault."
+    },
+    {
+      "name": "items_to_buy",
+      "type": "Number",
+      "direction": "input",
+      "default": 3,
+      "description": "How many of the cheapest products to buy."
+    },
+    {
+      "name": "first_name",
+      "type": "String",
+      "direction": "input",
+      "default": "Ann",
+      "description": "Checkout: first name."
+    },
+    {
+      "name": "last_name",
+      "type": "String",
+      "direction": "input",
+      "default": "Lee",
+      "description": "Checkout: last name."
+    },
+    {
+      "name": "postal_code",
+      "type": "String",
+      "direction": "input",
+      "default": "1011AB",
+      "description": "Checkout: postal code."
+    },
+    {
+      "name": "products",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "label",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "cart",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "expected",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Sum of the prices of the products put in the cart."
+    },
+    {
+      "name": "item_total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Item total shown at checkout."
+    },
+    {
+      "name": "order_total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Total with tax."
+    },
+    {
+      "name": "total_matches",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The shop's item total equals the prices seen."
+    },
+    {
+      "name": "cart_count",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Products in the cart at checkout."
+    },
+    {
+      "name": "confirmation",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Message after finishing the order."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://www.saucedemo.com/",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://www.saucedemo.com/"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#user-name",
+        "text": "$shop_user"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#password",
+        "text": "$shop_password"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#login-button"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": ".inventory_list",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/select_option",
+      "args": {
+        "selector": ".product_sort_container",
+        "option": "lohi"
+      },
+      "description": "Sort by price, low to high"
+    },
+    {
+      "id": "s7",
+      "action": "ooa.browser/run_javascript",
+      "args": {
+        "script": "Array.from(document.querySelectorAll('.inventory_item')).map(x => ({name: x.querySelector('.inventory_item_name').textContent, price: Number(x.querySelector('.inventory_item_price').textContent.replace('$', ''))}))"
+      },
+      "out": {
+        "result": "products"
+      },
+      "description": "Read the product list in the order shown"
+    },
+    {
+      "id": "s10",
+      "action": "core/loop",
+      "args": {
+        "iterator": "list",
+        "over": "$products",
+        "as": "p",
+        "index": "i",
+        "to_index": {
+          "expr": "$items_to_buy - 1"
+        }
+      },
+      "description": "The cheapest products",
+      "children": [
+        {
+          "id": "s8",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "button[data-test^='add-to-cart'] >> nth=0"
+          },
+          "description": "Its Add button (added ones turn into Remove)"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "expected",
+            "value": {
+              "expr": "$expected + $p.price"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s11",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": ".shopping_cart_link"
+      }
+    },
+    {
+      "id": "s12",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": ".cart_list",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s13",
+      "action": "ooa.browser/run_javascript",
+      "args": {
+        "script": "Array.from(document.querySelectorAll('.cart_item .inventory_item_name')).map(x => x.textContent)"
+      },
+      "out": {
+        "result": "cart"
+      }
+    },
+    {
+      "id": "s14",
+      "action": "core/set",
+      "args": {
+        "variable": "cart_count",
+        "value": {
+          "expr": "len($cart)"
+        }
+      }
+    },
+    {
+      "id": "s15",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#checkout"
+      }
+    },
+    {
+      "id": "s16",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#first-name",
+        "text": "$first_name"
+      }
+    },
+    {
+      "id": "s17",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#last-name",
+        "text": "$last_name"
+      }
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "selector": "#postal-code",
+        "text": "$postal_code"
+      }
+    },
+    {
+      "id": "s19",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#continue"
+      }
+    },
+    {
+      "id": "s20",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": ".summary_subtotal_label"
+      },
+      "out": {
+        "text": "label"
+      }
+    },
+    {
+      "id": "s21",
+      "action": "core/set",
+      "args": {
+        "variable": "item_total",
+        "value": {
+          "expr": "toNumber(regexExtract($label, \"[0-9.]+\"))"
+        }
+      }
+    },
+    {
+      "id": "s22",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": ".summary_total_label"
+      },
+      "out": {
+        "text": "label"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "core/set",
+      "args": {
+        "variable": "order_total",
+        "value": {
+          "expr": "toNumber(regexExtract($label, \"[0-9.]+\"))"
+        }
+      }
+    },
+    {
+      "id": "s24",
+      "action": "core/set",
+      "args": {
+        "variable": "total_matches",
+        "value": {
+          "expr": "round($item_total, 2) == round($expected, 2)"
+        }
+      }
+    },
+    {
+      "id": "s25",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#finish"
+      }
+    },
+    {
+      "id": "s26",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": ".complete-header"
+      },
+      "out": {
+        "text": "confirmation"
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#react-burger-menu-btn"
+      },
+      "description": "Sign out"
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#logout_sidebar_link",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "#logout_sidebar_link"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#login-button",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s31",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

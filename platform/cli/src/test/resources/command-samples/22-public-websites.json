@@ -1,0 +1,127 @@
+[
+ {
+  "command": "use-case/P1",
+  "name": "ten rounds of the moving form",
+  "flow": "../../examples/use-cases/P1-rpa-challenge.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "rounds": 10,
+   "result_message": {
+    "$contains": "100%"
+   }
+  },
+  "requires": "internet",
+  "probe": "https://rpachallenge.com/"
+ },
+ {
+  "command": "use-case/P2",
+  "name": "cheapest three bought, totals agree",
+  "flow": "../../examples/use-cases/P2-saucedemo-checkout.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "cart_count": 3,
+   "total_matches": true,
+   "confirmation": {
+    "$contains": "Thank you"
+   }
+  },
+  "requires": "internet",
+  "probe": "https://www.saucedemo.com/"
+ },
+ {
+  "command": "use-case/P3",
+  "name": "mystery category crawled with details",
+  "flow": "../../examples/use-cases/P3-books-catalogue-crawl.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "books": 32,
+   "ratings": 5,
+   "total_stock": {
+    "$type": "number"
+   },
+   "most_expensive": {
+    "$type": "string"
+   }
+  },
+  "requires": "internet",
+  "probe": "https://books.toscrape.com/",
+  "expectFiles": {
+   "output/books-Mystery.xlsx": true
+  }
+ },
+ {
+  "command": "use-case/P4",
+  "name": "records added, edited and deleted",
+  "flow": "../../examples/use-cases/P4-demoqa-web-table.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "rows_before": 3,
+   "deleted": 1,
+   "rows_after": 5,
+   "salary_now": "58000"
+  },
+  "requires": "internet",
+  "probe": "https://demoqa.com/webtables"
+ },
+ {
+  "command": "use-case/P5",
+  "name": "hundred quotes, top authors looked up",
+  "flow": "../../examples/use-cases/P5-quotes-and-authors.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "signed_in": true,
+   "quote_count": 100,
+   "top_author": "Albert Einstein",
+   "top_author_born": "March 14, 1879"
+  },
+  "requires": "internet",
+  "probe": "https://quotes.toscrape.com/"
+ },
+ {
+  "command": "use-case/P6",
+  "name": "ten countries with capital and currency",
+  "flow": "../../examples/use-cases/P6-wikipedia-country-facts.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "looked_up": 10,
+   "first_country": {
+    "$type": "string"
+   },
+   "first_capital": {
+    "$type": "string"
+   },
+   "total_population": {
+    "$type": "number"
+   }
+  },
+  "requires": "internet",
+  "probe": "https://en.wikipedia.org/",
+  "expectFiles": {
+   "output/country-facts.xlsx": true
+  }
+ }
+]

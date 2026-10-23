@@ -65,6 +65,16 @@ class CommandSamplesTest {
         } catch (Exception e) { return false; }
     }
 
+    /** Whether a public website answers (any HTTP status below 500 within 15 seconds). */
+    static boolean reachable(String url) {
+        try {
+            var r = java.net.http.HttpClient.newBuilder().followRedirects(java.net.http.HttpClient.Redirect.NORMAL).connectTimeout(java.time.Duration.ofSeconds(10)).build()
+                    .send(java.net.http.HttpRequest.newBuilder(java.net.URI.create(url)).timeout(java.time.Duration.ofSeconds(15)).header("User-Agent", "Mozilla/5.0 ooa-samples").GET().build(),
+                            java.net.http.HttpResponse.BodyHandlers.discarding());
+            return r.statusCode() < 500;
+        } catch (Exception e) { return false; }
+    }
+
     /** Whether a headless browser can start here (it cannot in some shells and CI images); browser cases are skipped otherwise. */
     static synchronized boolean browserWorks(Runner runner) {
         if (browserWorks == null) {
@@ -103,6 +113,9 @@ class CommandSamplesTest {
         String requires = String.valueOf(raw.getOrDefault("requires", ""));
         String skip = requires.equals("desktop") && !"1".equals(System.getenv("OOA_DESKTOP_SAMPLES")) ? "desktop sample: set OOA_DESKTOP_SAMPLES=1 to run it (it opens windows on the screen)"
                 : requires.equals("browser") && !browserWorks(runner) ? "no browser can start here"
+                // public websites: a browser, and the site's address ("probe") answering; skipped when offline or the site is down
+                : requires.equals("internet") && !browserWorks(runner) ? "no browser can start here"
+                : requires.equals("internet") && !reachable(String.valueOf(raw.get("probe"))) ? "cannot reach " + raw.get("probe")
                 : requires.equals("node") && !onPath("node") ? "Node.js is not installed here" : null;
         if (skip != null) {
             RESULTS.add(new LinkedHashMap<>(Map.of("command", raw.get("command"), "name", raw.getOrDefault("name", ""), "check", "skipped", "detail", skip)));

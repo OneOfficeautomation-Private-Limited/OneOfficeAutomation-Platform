@@ -1,0 +1,337 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p6_wikipedia_countries",
+  "name": "P6 Country facts from Wikipedia (en.wikipedia.org)",
+  "description": "Read the largest countries from Wikipedia's population list, open each country's article and read its capital and currency from the information box; write an Excel report.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "top_n",
+      "type": "Number",
+      "direction": "input",
+      "default": 10,
+      "description": "How many of the largest countries to look up."
+    },
+    {
+      "name": "rows",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "countries",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "capital",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "currency",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "facts",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Country",
+          "Population",
+          "Capital",
+          "Currency"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "looked_up",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Countries looked up."
+    },
+    {
+      "name": "first_country",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The most populous country."
+    },
+    {
+      "name": "first_capital",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Its capital."
+    },
+    {
+      "name": "total_population",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Population of the countries looked up."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "table.wikitable",
+        "state": "visible"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/run_javascript",
+      "args": {
+        "script": "Array.from(document.querySelector('table.wikitable').querySelectorAll('tbody tr')).map(r => { const c = r.children; const a = c[0] && Array.from(c[0].querySelectorAll('a')).find(x => !x.closest('.flagicon') && !/^(#|File:)/.test(x.getAttribute('href') || '')); return a && c[1] ? {Country: a.textContent.trim(), Population: Number(c[1].textContent.replace(/[^0-9]/g, '')), Url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(a.textContent.trim().replace(/ /g, '_'))} : null; }).filter(x => x && x.Country !== 'World' && x.Population > 0)"
+      },
+      "out": {
+        "result": "rows"
+      },
+      "description": "The list, without the World row (its links go to demographics articles, so the country article is addressed by name)"
+    },
+    {
+      "id": "s4",
+      "action": "ooa.datatable/from_records",
+      "args": {
+        "records": "$rows"
+      },
+      "out": {
+        "table": "countries"
+      }
+    },
+    {
+      "id": "s20",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$countries",
+        "as": "c",
+        "to_index": {
+          "expr": "$top_n - 1"
+        }
+      },
+      "description": "Each of the largest countries",
+      "children": [
+        {
+          "id": "s5",
+          "action": "ooa.browser/navigate",
+          "args": {
+            "url": "$c.Url"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "table.infobox",
+            "state": "visible",
+            "timeout_ms": 20000
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "capital",
+            "value": ""
+          }
+        },
+        {
+          "id": "s8",
+          "action": "core/set",
+          "args": {
+            "variable": "currency",
+            "value": ""
+          }
+        },
+        {
+          "id": "s10",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Capital')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s9",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Capital')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              },
+              "out": {
+                "text": "capital"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s12",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Currency')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s11",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Currency')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              },
+              "out": {
+                "text": "currency"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s13",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$facts",
+            "values": [
+              "$c.Country",
+              "$c.Population",
+              "$capital",
+              "$currency"
+            ]
+          },
+          "out": {
+            "table": "facts"
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/set",
+          "args": {
+            "variable": "looked_up",
+            "value": {
+              "expr": "$looked_up + 1"
+            }
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/set",
+          "args": {
+            "variable": "total_population",
+            "value": {
+              "expr": "$total_population + $c.Population"
+            }
+          }
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$first_country"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "first_country",
+                "value": "$c.Country"
+              }
+            },
+            {
+              "id": "s17",
+              "action": "core/set",
+              "args": {
+                "variable": "first_capital",
+                "value": "$capital"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "core/delay",
+          "args": {
+            "seconds": 500,
+            "unit": "milliseconds"
+          },
+          "description": "Be polite to the site"
+        }
+      ]
+    },
+    {
+      "id": "s21",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s22",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "${folder}/output/country-facts.xlsx",
+        "sheet": "Countries",
+        "overwrite": true,
+        "session": "report"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$facts",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s24",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "report",
+        "save": true
+      }
+    }
+  ]
+}
