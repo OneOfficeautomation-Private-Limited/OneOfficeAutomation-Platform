@@ -1,0 +1,143 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_d2_desktop_grid",
+  "name": "D2 Read a desktop grid into a table",
+  "description": "Read the order grid of a Windows application, keep the open orders and save them as CSV.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "grid",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "open_orders",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "app_pid",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "total_rows",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Rows in the grid."
+    },
+    {
+      "name": "open_count",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Open orders."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s4",
+      "action": "ooa.application/start_program",
+      "args": {
+        "program": "powershell.exe",
+        "arguments": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${sys.workspace}/${folder}/apps/order-entry.ps1",
+          "-Out",
+          "${sys.workspace}/${folder}/output/desktop-orders.csv",
+          "-Demo"
+        ],
+        "window_state": "normal"
+      },
+      "out": {
+        "process_id": "app_pid"
+      },
+      "description": "Start the demo order-entry application"
+    },
+    {
+      "id": "s5",
+      "action": "ooa.window/wait_for",
+      "args": {
+        "title": "OOA Order Entry",
+        "timeout_seconds": 30
+      },
+      "description": "Wait until its window is open"
+    },
+    {
+      "id": "s7",
+      "action": "core/try",
+      "description": "Work in the application; it is closed in any case",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.desktop_ui/get_table",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "gridOrders",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            }
+          },
+          "out": {
+            "table": "grid",
+            "row_count": "total_rows"
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.datatable/filter",
+          "args": {
+            "table": "$grid",
+            "column": "Status",
+            "operator": "eq",
+            "value": "Open"
+          },
+          "out": {
+            "table": "open_orders",
+            "count": "open_count"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.csv/write",
+          "args": {
+            "table": "$open_orders",
+            "path": "${folder}/output/open-orders.csv"
+          }
+        }
+      ],
+      "finally": [
+        {
+          "id": "s6",
+          "action": "ooa.application/stop_program",
+          "args": {
+            "process_id": "$app_pid",
+            "force": true
+          },
+          "description": "Close the application"
+        }
+      ]
+    }
+  ]
+}

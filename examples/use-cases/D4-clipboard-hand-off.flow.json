@@ -1,0 +1,178 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_d4_clipboard",
+  "name": "D4 Hand text over through the clipboard",
+  "description": "Copy a note from a file to the clipboard, put it into a desktop application field and check it arrived intact.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "note",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "clip",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "back",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "app_pid",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "same",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The field holds exactly the note."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s7",
+      "action": "ooa.application/start_program",
+      "args": {
+        "program": "powershell.exe",
+        "arguments": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${sys.workspace}/${folder}/apps/order-entry.ps1",
+          "-Out",
+          "${sys.workspace}/${folder}/output/desktop-orders.csv"
+        ],
+        "window_state": "normal"
+      },
+      "out": {
+        "process_id": "app_pid"
+      },
+      "description": "Start the demo order-entry application"
+    },
+    {
+      "id": "s8",
+      "action": "ooa.window/wait_for",
+      "args": {
+        "title": "OOA Order Entry",
+        "timeout_seconds": 30
+      },
+      "description": "Wait until its window is open"
+    },
+    {
+      "id": "s10",
+      "action": "core/try",
+      "description": "Work in the application; it is closed in any case",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.file/read_text",
+          "args": {
+            "path": "${folder}/data/note.txt"
+          },
+          "out": {
+            "text": "note"
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.desktop/clipboard_set",
+          "args": {
+            "text": "$note"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.desktop/clipboard_get",
+          "args": {
+            "wait_seconds": 2
+          },
+          "out": {
+            "text": "clip"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "txtNotes",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "set_text",
+            "text": "$clip"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "txtNotes",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "get_text"
+          },
+          "out": {
+            "result": "back"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/set",
+          "args": {
+            "variable": "same",
+            "value": {
+              "expr": "$back == $note"
+            }
+          }
+        }
+      ],
+      "finally": [
+        {
+          "id": "s9",
+          "action": "ooa.application/stop_program",
+          "args": {
+            "process_id": "$app_pid",
+            "force": true
+          },
+          "description": "Close the application"
+        }
+      ]
+    }
+  ]
+}

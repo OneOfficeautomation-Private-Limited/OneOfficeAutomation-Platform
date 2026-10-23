@@ -1,0 +1,281 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_d5_popup",
+  "name": "D5 Handle a validation pop-up",
+  "description": "Enter a wrong amount, read the validation pop-up, close it, correct the amount and save.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "app_pid",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "popup_text",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Message shown by the pop-up."
+    },
+    {
+      "name": "final_status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Status line after saving."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s10",
+      "action": "ooa.application/start_program",
+      "args": {
+        "program": "powershell.exe",
+        "arguments": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${sys.workspace}/${folder}/apps/order-entry.ps1",
+          "-Out",
+          "${sys.workspace}/${folder}/output/desktop-orders.csv"
+        ],
+        "window_state": "normal"
+      },
+      "out": {
+        "process_id": "app_pid"
+      },
+      "description": "Start the demo order-entry application"
+    },
+    {
+      "id": "s11",
+      "action": "ooa.window/wait_for",
+      "args": {
+        "title": "OOA Order Entry",
+        "timeout_seconds": 30
+      },
+      "description": "Wait until its window is open"
+    },
+    {
+      "id": "s13",
+      "action": "core/try",
+      "description": "Work in the application; it is closed in any case",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "txtCustomer",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "set_text",
+            "text": "Wayne Corp"
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "txtAmount",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "set_text",
+            "text": "abc"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "btnSave",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "click",
+            "click_method": "pattern"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "ooa.window/wait_for",
+          "args": {
+            "title": "Validation",
+            "timeout_seconds": 10
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "Validation",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "lblMessage",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "get_text"
+          },
+          "out": {
+            "result": "popup_text"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "Validation",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "btnOk",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "click",
+            "click_method": "pattern"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "txtAmount",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "set_text",
+            "text": "99.90"
+          }
+        },
+        {
+          "id": "s8",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "btnSave",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "click",
+            "click_method": "pattern"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.desktop_ui/object_action",
+          "args": {
+            "object": {
+              "technology": "desktop",
+              "window": {
+                "title": "OOA Order Entry",
+                "title_match": "equals"
+              },
+              "properties": [
+                {
+                  "name": "AutomationId",
+                  "value": "lblStatus",
+                  "match": "equals",
+                  "use": true
+                }
+              ]
+            },
+            "action": "get_text"
+          },
+          "out": {
+            "result": "final_status"
+          }
+        }
+      ],
+      "finally": [
+        {
+          "id": "s12",
+          "action": "ooa.application/stop_program",
+          "args": {
+            "process_id": "$app_pid",
+            "force": true
+          },
+          "description": "Close the application"
+        }
+      ]
+    }
+  ]
+}

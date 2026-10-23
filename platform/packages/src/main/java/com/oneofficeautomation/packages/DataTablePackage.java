@@ -147,15 +147,25 @@ public final class DataTablePackage {
         return Out.of("table", out);
     }
 
-    @Action(id = "add_row", name = "Add row", category = "Table", idempotent = true, description = "Append a row given as a dictionary of column values.")
+    @Action(id = "add_row", name = "Add row", category = "Table", idempotent = true,
+            description = "Append a row: a Dictionary of column values, or a List of values in column order.")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
+    @SuppressWarnings("unchecked")
     public Map<String, Object> addRow(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
-            @Input(name = "values", type = OoaType.DICTIONARY, description = "Column name to value.") Map<String, Object> values) {
-        for (String k : values.keySet()) col(table, k);
-        Map<String, Object> out = copy(table, rows(table));
+            @Input(name = "values", type = OoaType.ANY, description = "Column name to value (Dictionary), or the values in column order (List).") Object values) {
+        List<String> columns = cols(table);
         List<Object> r = new ArrayList<>();
-        for (String c : cols(table)) r.add(values.get(c));
+        if (values instanceof List<?> list) {
+            if (list.size() > columns.size())
+                throw new ActionException("TABLE.TOO_MANY_VALUES", list.size() + " values for " + columns.size() + " columns", "Give at most one value per column: " + String.join(", ", columns) + ".");
+            r.addAll(list);
+            while (r.size() < columns.size()) r.add(null);
+        } else if (values instanceof Map<?, ?> m) {
+            for (Object k : m.keySet()) col(table, String.valueOf(k));
+            for (String c : columns) r.add(((Map<String, Object>) m).get(c));
+        } else throw new ActionException("TABLE.BAD_ROW", "The row must be a Dictionary of column values or a List of values", "For example {\"Name\": \"Ann\"} or [\"Ann\", 42].");
+        Map<String, Object> out = copy(table, rows(table));
         rows(out).add(r);
         return Out.of("table", out);
     }

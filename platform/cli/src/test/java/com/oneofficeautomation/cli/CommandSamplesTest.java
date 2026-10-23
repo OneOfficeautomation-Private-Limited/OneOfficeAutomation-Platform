@@ -83,7 +83,8 @@ class CommandSamplesTest {
         List<DynamicTest> tests = new ArrayList<>();
         Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmpRoot).build();
         try (Stream<Path> files = Files.list(dir)) {
-            for (Path f : files.filter(p -> p.toString().endsWith(".json")).sorted().toList()) {
+            String only = System.getenv("OOA_SAMPLES");   // e.g. OOA_SAMPLES=20-use-cases runs that file only
+            for (Path f : files.filter(p -> p.toString().endsWith(".json") && (only == null || only.isBlank() || p.getFileName().toString().contains(only))).sorted().toList()) {
                 List<?> cases = (List<?>) JsonLite.parse(Files.readString(f, StandardCharsets.UTF_8));
                 int n = 0;
                 for (Object c : cases) {
@@ -131,7 +132,9 @@ class CommandSamplesTest {
                     Map<String, Object> rt = (Map<String, Object>) o;
                     String want = String.valueOf(rt.getOrDefault("path", "*"));
                     boolean pathOk = want.endsWith("*") ? ex.getRequestURI().getPath().startsWith(want.substring(0, want.length() - 1)) : ex.getRequestURI().getPath().equals(want);
-                    if (pathOk && String.valueOf(rt.getOrDefault("method", ex.getRequestMethod())).equalsIgnoreCase(ex.getRequestMethod())) { hit = rt; break; }
+                    // "contains": the route answers only requests whose body has this text (e.g. one AI answer per ticket)
+                    boolean bodyOk = !(rt.get("contains") instanceof String c) || body.contains(c);
+                    if (pathOk && bodyOk && String.valueOf(rt.getOrDefault("method", ex.getRequestMethod())).equalsIgnoreCase(ex.getRequestMethod())) { hit = rt; break; }
                 }
                 Object b = hit == null ? Map.of("error", "no mock route") : hit.getOrDefault("body", Map.of());
                 byte[] out = (b instanceof String str ? str : JsonLite.write(b)).getBytes(StandardCharsets.UTF_8);
@@ -182,8 +185,80 @@ class CommandSamplesTest {
 
     static final String MAIL_USER = "bot@sample.test", MAIL_PASSWORD = "sample-mail-pass";
 
+    /**
+     * A use case: a whole agent file (examples/use-cases) run with its folder copied into the case folder.
+     * {@code {"flow": path, "copy": folder, "inputs": {name: value | {"$credential": ref}}, "secrets"?, "setup"?: [steps], "expect", "expectFiles"}}.
+     * setup steps run first (e.g. to put mail in the test mailbox); expect checks the agent's output variables.
+     */
+    @SuppressWarnings("unchecked")
+    static void runFlowCase(Map<String, Object> cs, String label, Path tmp) throws Exception {
+        if (cs.get("copy") instanceof String from) {
+            Path src = Path.of(from);
+            try (Stream<Path> all = Files.walk(src)) {
+                for (Path p : all.toList()) {
+                    Path rel = src.relativize(p);
+                    if (rel.toString().startsWith("output")) continue;
+                    Path dst = tmp.resolve(rel.toString());
+                    if (Files.isDirectory(p)) Files.createDirectories(dst); else Files.copy(p, dst, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
+        var vault = new com.oneofficeautomation.runner.CredentialVault.InMemory().put("test", "mail", "password", MAIL_PASSWORD);
+        for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("secrets", Map.of())).entrySet()) {
+            String[] ref = e.getKey().split("/");
+            vault.put(ref[0], ref[1], ref[2], String.valueOf(e.getValue()));
+        }
+        Runner runner = Runner.builder(FirstPartyPackages.registry()).workDir(tmp).service("vault", vault).build();
+        if (cs.get("setup") instanceof List<?> setup) {
+            List<Map<String, Object>> steps = (List<Map<String, Object>>) setup;
+            collect(steps, new LinkedHashSet<>(), new int[]{0});
+            RunResult s = runner.run(Map.of("kind", "TaskBot", "id", "setup", "name", "setup", "variables", List.of(), "steps", steps), Map.of());
+            assertTrue(s.ok(), label + ": setup failed: " + s.error());
+        }
+        Map<String, Object> flow = (Map<String, Object>) JsonLite.parse(Files.readString(Path.of((String) cs.get("flow")), StandardCharsets.UTF_8));
+        RunResult r = runner.run(flow, (Map<String, Object>) cs.getOrDefault("inputs", Map.of()));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("command", cs.get("command")); result.put("name", cs.getOrDefault("name", ""));
+        Set<String> uses = new TreeSet<>();
+        usedActions((List<Map<String, Object>>) flow.get("steps"), uses);
+        result.put("uses", new ArrayList<>(uses));
+        result.put("steps", countSteps((List<Map<String, Object>>) flow.get("steps")));
+        result.put("status", r.status());
+        if (r.error() != null) result.put("error", r.error().get("code"));
+        result.put("outputs", Values.toJsonable(r.outputs()));
+        try {
+            assertTrue(r.ok(), label + ": " + r.error());
+            Map<String, Object> actual = (Map<String, Object>) Values.toJsonable(r.outputs());
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("expect", Map.of())).entrySet())
+                assertTrue(same(e.getValue(), actual.get(e.getKey())), label + ": $" + e.getKey() + " expected " + JsonLite.write(e.getValue()) + " but was " + JsonLite.write(actual.get(e.getKey())));
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("expectFiles", Map.of())).entrySet()) {
+                Path p = tmp.resolve(e.getKey());
+                if (e.getValue() instanceof Boolean b) assertEquals(b, Files.exists(p), label + ": file " + e.getKey() + (b ? " missing" : " should not exist"));
+                else assertEquals(String.valueOf(e.getValue()), Files.readString(p, StandardCharsets.UTF_8).replace("\r\n", "\n"), label + ": file " + e.getKey());
+            }
+            result.put("check", "pass");
+        } catch (AssertionError e) {
+            result.put("check", "fail"); result.put("detail", e.getMessage());
+            throw e;
+        } finally {
+            RESULTS.add(result);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static int countSteps(List<Map<String, Object>> steps) {
+        int n = 0;
+        for (Map<String, Object> s : steps == null ? List.<Map<String, Object>>of() : steps) {
+            n++;
+            for (String k : List.of("children", "else", "finally")) n += countSteps((List<Map<String, Object>>) s.get(k));
+            for (String k : List.of("elseIf", "catch")) if (s.get(k) instanceof List<?> l) for (Object b : l) n += countSteps((List<Map<String, Object>>) ((Map<String, Object>) b).get("children"));
+        }
+        return n;
+    }
+
     @SuppressWarnings("unchecked")
     static void runCase(Runner runner, Map<String, Object> cs, String label, Path tmp) throws Exception {
+        if (cs.get("flow") instanceof String) { runFlowCase(cs, label, tmp); return; }
         for (Map.Entry<String, Object> e : ((Map<String, Object>) cs.getOrDefault("files", Map.of())).entrySet()) {
             Path p = tmp.resolve(e.getKey());
             Files.createDirectories(p.getParent());

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_make_office_files",
+  "name": "Make the Excel and Word data of the use cases",
+  "description": "Creates data/people.xlsx and data/letter-template.docx.",
+  "variables": [
+    {
+      "name": "people",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Name",
+          "Email",
+          "Plan"
+        ],
+        "rows": [
+          [
+            "Ann Lee",
+            "ann.lee@example.com",
+            "Basic"
+          ],
+          [
+            "Bo Chen",
+            "bo.chen@example.com",
+            "Pro"
+          ],
+          [
+            "Cy Diaz",
+            "cy.diaz@example.com",
+            "Team"
+          ]
+        ]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "data/people.xlsx",
+        "sheet": "People",
+        "overwrite": true,
+        "session": "x"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$people",
+        "session": "x"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "x",
+        "save": true
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.word/create_document",
+      "args": {
+        "path": "data/letter-template.docx",
+        "overwrite": true,
+        "session": "w"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.word/add_paragraph",
+      "args": {
+        "text": "Dear {{customer}},",
+        "session": "w"
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.word/add_paragraph",
+      "args": {
+        "text": "Thank you for your order. Invoice {{invoice}} over {{total}} is due within 30 days.",
+        "session": "w"
+      }
+    },
+    {
+      "id": "s7",
+      "action": "ooa.word/add_paragraph",
+      "args": {
+        "text": "Kind regards, Accounts team",
+        "session": "w"
+      }
+    },
+    {
+      "id": "s8",
+      "action": "ooa.word/close",
+      "args": {
+        "session": "w",
+        "save": true
+      }
+    }
+  ]
+}

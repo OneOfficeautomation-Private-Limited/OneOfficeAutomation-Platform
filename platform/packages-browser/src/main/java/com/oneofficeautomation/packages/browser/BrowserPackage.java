@@ -167,6 +167,19 @@ public final class BrowserPackage {
         }
     }
 
+    /** A local file (C:\reports\day.html, or a path in the workspace) becomes its file: address; web addresses stay as they are. */
+    static String localPage(ActionContext ctx, String url) {
+        if (url == null || url.isBlank()) return url;
+        String u = url.strip();
+        boolean drive = u.matches("^[A-Za-z]:[\\\\/].*");
+        if (!drive && u.matches("^[A-Za-z][A-Za-z0-9+.-]*:.*")) return u;   // http:, https:, file:, about:, data: ...
+        try {
+            java.nio.file.Path p = ctx.resolvePath(u);
+            if (drive || java.nio.file.Files.exists(p)) return p.toAbsolutePath().normalize().toUri().toString();
+        } catch (java.nio.file.InvalidPathException ignored) { /* not a path */ }
+        return u;
+    }
+
     @Action(id = "open", name = "Open browser", category = "Browser", timeoutSeconds = 180, capabilities = "browser",
             description = "Start a browser, optionally open a URL, as a named session.")
     public Map<String, Object> open(ActionContext ctx,
@@ -186,6 +199,7 @@ public final class BrowserPackage {
                     description = "new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab.") String openIn,
             @Input(name = "window", type = OoaType.DICTIONARY, required = false, visibleWhen = "open_in!=new_window", description = "For new_tab and existing_tab: the tab to use. " + BrowserWindows.D_WINDOW) Object window,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "240000", min = 1000, description = "How long to wait for the page to load.") double timeout) {
+        url = localPage(ctx, url);
         if (openIn != null && !openIn.equals("new_window")) {
             String s = BrowserWindows.use(ctx, session, window, Math.min(timeout, 30000));
             if (!s.equals(session)) { Object found = ctx.sessions().get(s); ctx.sessions().put(session, found); }

@@ -1,0 +1,449 @@
+[
+ {
+  "command": "use-case/W1",
+  "name": "portal sign-in and order entry",
+  "flow": "../../examples/use-cases/W1-portal-order-entry.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true,
+   "portal_password": {
+    "$credential": "test/portal/password"
+   }
+  },
+  "expect": {
+   "confirmation": "CONF-ACME-250-EXPRESS"
+  },
+  "requires": "browser",
+  "secrets": {
+   "test/portal/password": "demo-pass"
+  }
+ },
+ {
+  "command": "use-case/W2",
+  "name": "three pages of products into one CSV",
+  "flow": "../../examples/use-cases/W2-scrape-paged-table.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "product_count": 7,
+   "total_value": 554.1
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/products.csv": true
+  }
+ },
+ {
+  "command": "use-case/W3",
+  "name": "search finds two laptops",
+  "flow": "../../examples/use-cases/W3-search-wait-branch.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true,
+   "term": "laptop"
+  },
+  "expect": {
+   "found": 2,
+   "first_result": "Laptop Pro 14",
+   "status": "found"
+  },
+  "requires": "browser"
+ },
+ {
+  "command": "use-case/W3",
+  "name": "search with no results takes the other branch",
+  "flow": "../../examples/use-cases/W3-search-wait-branch.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true,
+   "term": "zzz"
+  },
+  "expect": {
+   "found": 0,
+   "status": "no results"
+  },
+  "requires": "browser"
+ },
+ {
+  "command": "use-case/W4",
+  "name": "three people from Excel registered on the web",
+  "flow": "../../examples/use-cases/W4-excel-to-web-form.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "registered": 3,
+   "last_id": "REG-3",
+   "check_cell": "REG-2"
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/people-registered.xlsx": true
+  }
+ },
+ {
+  "command": "use-case/W5",
+  "name": "one changed and one missing order found",
+  "flow": "../../examples/use-cases/W5-reconcile-web-and-csv.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "headless": true
+  },
+  "expect": {
+   "checked": 5,
+   "mismatches": 2
+  },
+  "requires": "browser",
+  "expectFiles": {
+   "output/order-differences.csv": "Order,Web status,Expected status\nSO-502,Shipped,Open\nSO-505,Open,(missing)\n"
+  }
+ },
+ {
+  "command": "use-case/D1",
+  "name": "three orders typed into the desktop application",
+  "flow": "../../examples/use-cases/D1-desktop-order-entry.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "saved": 3,
+   "last_status": "Saved ORD-1003"
+  },
+  "requires": "desktop",
+  "expectFiles": {
+   "output/desktop-orders.csv": true
+  }
+ },
+ {
+  "command": "use-case/D2",
+  "name": "grid read and filtered",
+  "flow": "../../examples/use-cases/D2-desktop-grid-to-csv.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "total_rows": 4,
+   "open_count": 3
+  },
+  "requires": "desktop",
+  "expectFiles": {
+   "output/open-orders.csv": true
+  }
+ },
+ {
+  "command": "use-case/D3",
+  "name": "window placed, sized and closed",
+  "flow": "../../examples/use-cases/D3-window-handling.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "width": 700,
+   "height": 560,
+   "closed": true
+  },
+  "requires": "desktop"
+ },
+ {
+  "command": "use-case/D4",
+  "name": "note handed over through the clipboard",
+  "flow": "../../examples/use-cases/D4-clipboard-hand-off.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "same": true
+  },
+  "requires": "desktop"
+ },
+ {
+  "command": "use-case/D5",
+  "name": "validation pop-up read and closed",
+  "flow": "../../examples/use-cases/D5-validation-popup.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "popup_text": "Amount must be a number",
+   "final_status": "Saved ORD-1001"
+  },
+  "requires": "desktop"
+ },
+ {
+  "command": "use-case/O1",
+  "name": "overdue invoices per customer",
+  "flow": "../../examples/use-cases/O1-overdue-invoice-report.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "customers": 3,
+   "total_overdue": 2605.5
+  },
+  "expectFiles": {
+   "output/overdue-report.xlsx": true
+  }
+ },
+ {
+  "command": "use-case/O2",
+  "name": "two invoice emails saved and answered",
+  "flow": "../../examples/use-cases/O2-invoice-emails.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "imap_host": "127.0.0.1",
+   "imap_port": "{imap_port}",
+   "security": "none",
+   "smtp_host": "127.0.0.1",
+   "smtp_port": "{smtp_port}",
+   "smtp_security": "none",
+   "mailbox": "bot@sample.test",
+   "password": {
+    "$credential": "test/mail/password"
+   }
+  },
+  "expect": {
+   "processed": 2,
+   "attachments": 2
+  },
+  "requires": "mail",
+  "secrets": {},
+  "setup": [
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "smtp_host": "127.0.0.1",
+     "port": "{smtp_port}",
+     "security": "none",
+     "to": "bot@sample.test",
+     "from": "supplier@sample.test",
+     "subject": "Invoice 1001",
+     "body": "Please find the invoice attached.",
+     "attachments": [
+      "data/invoice-1001.pdf"
+     ]
+    }
+   },
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "smtp_host": "127.0.0.1",
+     "port": "{smtp_port}",
+     "security": "none",
+     "to": "bot@sample.test",
+     "from": "supplier@sample.test",
+     "subject": "Invoice 1002",
+     "body": "Please find the invoice attached.",
+     "attachments": [
+      "data/invoice-1002.pdf"
+     ]
+    }
+   },
+   {
+    "action": "ooa.email/send",
+    "args": {
+     "smtp_host": "127.0.0.1",
+     "port": "{smtp_port}",
+     "security": "none",
+     "to": "bot@sample.test",
+     "from": "friend@sample.test",
+     "subject": "Lunch?",
+     "body": "Friday?"
+    }
+   }
+  ],
+  "expectFiles": {
+   "output/invoices/invoice-1001.pdf": true,
+   "output/invoices/invoice-1002.pdf": true
+  }
+ },
+ {
+  "command": "use-case/O3",
+  "name": "two letters from two PDF invoices",
+  "flow": "../../examples/use-cases/O3-pdf-to-word-letters.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": "."
+  },
+  "expect": {
+   "letters": 2,
+   "letter_text": {
+    "$contains": "Globex Ltd"
+   }
+  },
+  "expectFiles": {
+   "output/letters/letter-1001.docx": true,
+   "output/letters/letter-1002.docx": true
+  }
+ },
+ {
+  "command": "use-case/O4",
+  "name": "API users stored and summarised with SQL",
+  "flow": "../../examples/use-cases/O4-rest-api-to-database.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "api_url": "{mock}",
+   "jdbc_url": "jdbc:h2:mem:uc_o4_test"
+  },
+  "expect": {
+   "loaded": 4,
+   "cities": 3,
+   "top_city": "Gwenborough"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/users",
+    "body": [
+     {
+      "id": 1,
+      "name": "Leanne",
+      "address": {
+       "city": "Gwenborough"
+      }
+     },
+     {
+      "id": 2,
+      "name": "Ervin",
+      "address": {
+       "city": "Wisokyburgh"
+      }
+     },
+     {
+      "id": 3,
+      "name": "Clementine",
+      "address": {
+       "city": "Gwenborough"
+      }
+     },
+     {
+      "id": 4,
+      "name": "Patricia",
+      "address": {
+       "city": "McKenziehaven"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "command": "use-case/O5",
+  "name": "tickets labelled and routed by a model",
+  "flow": "../../examples/use-cases/O5-ai-ticket-triage.flow.json",
+  "copy": "../../examples/use-cases",
+  "inputs": {
+   "folder": ".",
+   "provider": "openai_compatible",
+   "base_url": "{mock}",
+   "model": "test-model",
+   "api_key": {
+    "$credential": "test/api/token"
+   }
+  },
+  "expect": {
+   "billing": 2,
+   "technical": 1,
+   "other": 1
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "contains": "Charged twice",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"label\": \"Billing\", \"reason\": \"test\"}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "contains": "crashes",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"label\": \"Technical\", \"reason\": \"test\"}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "contains": "Refund for invoice",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"label\": \"Billing\", \"reason\": \"test\"}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   },
+   {
+    "method": "POST",
+    "path": "/chat/completions",
+    "body": {
+     "choices": [
+      {
+       "message": {
+        "role": "assistant",
+        "content": "{\"label\": \"Other\", \"reason\": \"test\"}"
+       }
+      }
+     ],
+     "usage": {
+      "prompt_tokens": 5,
+      "completion_tokens": 3
+     }
+    }
+   }
+  ],
+  "expectFiles": {
+   "output/routed-tickets.csv": true
+  }
+ }
+]

@@ -12,11 +12,29 @@ import java.util.*;
 @OoaPackage(id = "ooa.pgp", name = "PGP", version = "1.0.0", description = "Import keys, encrypt, decrypt, sign and verify files with OpenPGP (GnuPG).")
 public final class PgpPackage {
 
+    /** Is there a gpg this runner can use (for tests and checks; actions report why not)? */
+    static boolean usable() {
+        try { exe(); return true; } catch (ActionException e) { return false; }
+    }
+
     static String exe() {
         String env = System.getenv("OOA_GPG");
         if (env != null && !env.isBlank()) return env;
-        if (ProcessRunner.WINDOWS) for (String p : List.of("C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe", "C:\\Program Files\\GnuPG\\bin\\gpg.exe"))
+        if (!ProcessRunner.WINDOWS) return "gpg";
+        for (String p : List.of("C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe", "C:\\Program Files\\GnuPG\\bin\\gpg.exe"))
             if (Files.isRegularFile(Path.of(p))) return p;
+        // a gpg on PATH, but not the one that comes with Git for Windows (MSYS): it reads C:\ paths as relative and fails
+        boolean msysOnly = false;
+        for (String dir : System.getenv().getOrDefault("PATH", "").split(java.io.File.pathSeparator)) {
+            try {
+                Path c = Path.of(dir.strip().replace("\"", ""), "gpg.exe");
+                if (!Files.isRegularFile(c)) continue;
+                if (Files.exists(c.resolveSibling("msys-2.0.dll"))) { msysOnly = true; continue; }
+                return c.toString();
+            } catch (java.nio.file.InvalidPathException ignored) { /* not a folder */ }
+        }
+        if (msysOnly) throw new ActionException("PGP.NOT_INSTALLED", "Only the gpg that comes with Git for Windows was found; it cannot work with Windows paths",
+                "Install Gpg4win, or set OOA_GPG to the full path of a Windows gpg.exe.");
         return "gpg";
     }
 

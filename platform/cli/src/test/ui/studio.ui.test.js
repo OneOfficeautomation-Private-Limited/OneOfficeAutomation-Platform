@@ -6,6 +6,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
 const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + name + (ok || extra === undefined ? "" : "  -> " + extra)); if (!ok) failures++; };
 
+// The checks change the workspace (new folders, renamed and moved bots, new forms ...). Keep a copy and put the
+// workspace back at the end, so the test can run again against the same Studio; a copy left by a crashed run wins.
+const SNAP = WS ? path.join(path.dirname(path.resolve(WS)), "." + path.basename(path.resolve(WS)) + ".uitest-copy") : null;
+const emptyDir = (dir) => { for (const n of fs.readdirSync(dir)) fs.rmSync(path.join(dir, n), { recursive: true, force: true }); };
+if (SNAP && fs.existsSync(WS)) {
+  if (fs.existsSync(SNAP)) { emptyDir(WS); fs.cpSync(SNAP, WS, { recursive: true }); }
+  else fs.cpSync(WS, SNAP, { recursive: true });
+}
+function restoreWorkspace() {
+  if (!SNAP || !fs.existsSync(SNAP)) return;
+  try { emptyDir(WS); fs.cpSync(SNAP, WS, { recursive: true }); fs.rmSync(SNAP, { recursive: true, force: true }); }
+  catch (e) { console.error("Could not put the workspace back (the copy is in " + SNAP + "):", e.message); }
+}
+
 (async () => {
   const dom = new JSDOM(fs.readFileSync(S + "/index.html", "utf8").replace('<script src="studio.js"></script>', ""), { url: BASE + "/", runScripts: "dangerously", pretendToBeVisual: true });
   const w = dom.window, d = w.document;
@@ -548,8 +562,8 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
         { action: "ooa.browser/type_text", args: { text: "$password" } }, { action: "ooa.browser/select_option", args: { option: "Option 2", object: { properties: [{ name: "id", value: "dropdown" }] } } }];
       const made = recordedVariables(steps); const vars = state.flow.variables.slice(before); state.flow.variables.splice(before);
       return { made, vars, texts: [steps[0].args.text, steps[1].args.text, steps[2].args.option] }; })())`));
-    check("recorded values become variables with the recorded value as default", recVars.made.join() === "username,dropdown"
-      && recVars.vars[0].default === "tomsmith" && recVars.texts.join() === "$username,$password,$dropdown", JSON.stringify(recVars));
+    check("recorded values become short numbered variables (Text_1, Choice_1) with the recorded value as default and the field named", recVars.made.join() === "Text_1,Choice_1"
+      && recVars.vars[0].default === "tomsmith" && recVars.vars[0].description.includes("Username") && recVars.texts.join() === "$Text_1,$password,$Choice_1", JSON.stringify(recVars));
     // The recorder makes one window variable per window, and its steps use it
     const recWin = JSON.parse(w.eval(`JSON.stringify((() => { const before = state.flow.variables.length;
       const win = { source: "browser", title: "Web form", title_match: "equals", link: "https://x.test/form", browser: "edge" };
@@ -564,8 +578,8 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
         { action: "ooa.desktop_ui/object_action", args: { action: "click", object: { technology: "desktop", properties: [{ name: "Name", value: "Save" }] } } }];
       const made = recordedVariables(steps); const vars = state.flow.variables.slice(before); state.flow.variables.splice(before);
       return { made, vars, text: steps[0].args.text, click: steps[1].args.text === undefined }; })())`));
-    check("recorded desktop typing becomes a variable named after the control", recDesk.made.join() === "customer_name" && recDesk.vars[0].default === "Ann"
-      && recDesk.text === "$customer_name" && recDesk.click, JSON.stringify(recDesk));
+    check("recorded desktop typing becomes Text_1, its description naming the control", recDesk.made.join() === "Text_1" && recDesk.vars[0].default === "Ann"
+      && recDesk.vars[0].description.includes("Customer name") && recDesk.text === "$Text_1" && recDesk.click, JSON.stringify(recDesk));
     // Run in background: offered on both element actions; on desktop it hides the mouse and typing choices
     const bgFields = JSON.parse(w.eval(`JSON.stringify({
       web: [...elementActionFields({ action: "ooa.browser/element_action", args: { action: "click" } })],
@@ -986,6 +1000,47 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
     w.eval(`state.flow.steps = state.flow.steps.filter((s) => !s.id.startsWith("cc_")); state.selected = null; renderAll()`);
   }
 
+  // ================= Canvas, Try, variables and connections (reported defects) =================
+  {
+    w.eval(`openBot("Examples/Refunds/lookup_order.flow.json")`);
+    await until(() => w.eval("state.file") === "Examples/Refunds/lookup_order.flow.json" && w.eval("state.flow"));
+    if (w.eval("state.canvasMode") === "flow") click([...d.querySelectorAll("button")].find((b) => b.textContent.trim() === "List"));
+    check("the canvas shows fixed Start and End rows", await until(() => d.querySelector("#steps .terminal.start") && d.querySelector("#steps .terminal.end")));
+    const firstId = w.eval("state.flow.steps[0].id");
+    click(d.querySelector("#steps .terminal.start"));
+    check("selecting Start says clicked actions go first", d.getElementById("insert-hint").textContent.includes("step 1"));
+    w.eval(`addStep("core/log")`);
+    check("with Start selected a clicked action becomes step 1", w.eval("state.flow.steps[0].action") === "core/log" && w.eval("state.flow.steps[1].id") === firstId);
+    w.eval(`addStep("core/comment")`);
+    check("the next action goes after it, as step 2", w.eval("state.flow.steps[1].action") === "core/comment");
+    const rows = () => [...d.querySelectorAll("#steps > .step")];
+    const lastId = rows()[rows().length - 1].dataset.stepId;
+    drag(rows()[rows().length - 1], rows()[0]);
+    check("dropping a step on a whole row moves it next to that row", w.eval("state.flow.steps[1].id") === lastId, w.eval("state.flow.steps.map((s) => s.id).join()"));
+    const movedId = rows()[0].dataset.stepId;
+    drag(rows()[0], d.querySelector("#steps .terminal.end"));
+    check("dropping on End puts the step last", await until(() => w.eval("state.flow.steps[state.flow.steps.length - 1].id") === movedId), w.eval("state.flow.steps.map((s) => s.id).join()"));
+    w.eval(`addStep("core/try")`);
+    const t = w.eval("getAt(state.flow, state.selected)");
+    check("a new Try has Try and Catch but no Finally", t.children && t.catch && !("finally" in t), JSON.stringify(Object.keys(t)));
+    const addFinally = await until(() => [...d.querySelectorAll("#props button")].some((b) => b.textContent === "+ Finally"));
+    click([...d.querySelectorAll("#props button")].find((b) => b.textContent === "+ Finally"));
+    check("+ Finally adds the section when wanted", addFinally && Array.isArray(w.eval("getAt(state.flow, findPathById('" + t.id + "')).finally")));
+    w.eval(`state.flow.variables.push({ name: "total_n", type: "Number" }, { name: "label_s", type: "String" })`);
+    const outs = w.eval(`outputOptions("Number").map((o) => o.value)`);
+    check("a Number result is offered only Number variables", outs.includes("total_n") && !outs.includes("label_s"), outs.join());
+    w.eval(`state.flow.variables.push({ name: "window_contact_us_acme_corp", type: "Dictionary", default: { source: "browser", title: "Contact us | Acme" }, description: "Window the recording worked in (browser title “Contact us | Acme”)." },
+      { name: "tell_us_more", type: "String", default: "x", description: "Recorded typing (change it here or pass it in)." });
+      state.flow.steps.push({ id: "rn1", action: "ooa.browser/click", args: { window: "$window_contact_us_acme_corp", selector: "#a" } }); offerShortNames()`);
+    check("an older recording offers to shorten its variable names", await until(() => d.getElementById("rename-offer")));
+    click(d.querySelector("#rename-offer button.primary"));
+    check("long recorded names become Window_1 and Text_1, steps included", w.eval(`state.flow.variables.some((v) => v.name === "Window_1") && state.flow.variables.some((v) => v.name === "Text_1")
+      && state.flow.steps.find((s) => s.id === "rn1").args.window === "$Window_1"`));
+    w.eval(`state.flow.steps.push({ id: "cn1", action: "ooa.servicenow/create_record", args: { table: "incident" } }); renderAll(); selectById("cn1")`);
+    check("a connector step offers a saved connection", await until(() => d.querySelector("#props .conn-field select")));
+    w.eval(`state.dirty = false`);
+  }
+
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));
   if (d.body.classList.contains("no-left")) click(d.querySelector('.rail-btn[data-side="explorer"]'));
@@ -997,5 +1052,6 @@ const check = (name, ok, extra) => { console.log((ok ? "  PASS " : "  FAIL ") + 
   check("connecting to an unreachable Control Room explains the problem", await until(() => lastToast.includes("Cannot reach Command Center"), 8000), lastToast);
 
   console.log(failures ? failures + " UI check(s) FAILED" : "All UI checks passed");
+  restoreWorkspace();
   process.exit(failures ? 1 : 0);
-})().catch((e) => { console.error("UI test crashed:", e); process.exit(2); });
+})().catch((e) => { console.error("UI test crashed:", e); restoreWorkspace(); process.exit(2); });

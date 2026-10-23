@@ -1,0 +1,186 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w3_search",
+  "name": "W3 Search with waits, branches and error handling",
+  "description": "Search a site, wait for the results, branch on whether anything was found, and keep a screenshot when something goes wrong.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "term",
+      "type": "String",
+      "direction": "input",
+      "default": "laptop",
+      "description": "What to search for."
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Number of results."
+    },
+    {
+      "name": "first_result",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Name of the first result."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "found, no results or error."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s13",
+      "action": "core/try",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.browser/open",
+          "args": {
+            "url": "${folder}/site/search.html",
+            "headless": "$headless",
+            "engine": "playwright",
+            "keep_open": false
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "selector": "#q",
+            "text": "$term",
+            "press_enter": true
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#results tr, #none",
+            "state": "visible",
+            "timeout_ms": 8000
+          },
+          "description": "Results or a no-results note"
+        },
+        {
+          "id": "s9",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_visible",
+              "args": {
+                "selector": "#none"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s4",
+              "action": "core/set",
+              "args": {
+                "variable": "status",
+                "value": "no results"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s5",
+              "action": "ooa.browser/extract_table",
+              "args": {
+                "selector": "#results"
+              },
+              "out": {
+                "table": "results"
+              }
+            },
+            {
+              "id": "s6",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$results"
+              },
+              "out": {
+                "count": "found"
+              }
+            },
+            {
+              "id": "s7",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$results",
+                "row": 0,
+                "column": "Name"
+              },
+              "out": {
+                "value": "first_result"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "status",
+                "value": "found"
+              }
+            }
+          ]
+        }
+      ],
+      "catch": [
+        {
+          "codes": [],
+          "screenshot": true,
+          "children": [
+            {
+              "id": "s10",
+              "action": "ooa.browser/screenshot",
+              "args": {
+                "path": "${folder}/output/search-error.png"
+              }
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "status",
+                "value": "error"
+              }
+            }
+          ]
+        }
+      ],
+      "finally": [
+        {
+          "id": "s12",
+          "action": "ooa.browser/close"
+        }
+      ]
+    }
+  ]
+}

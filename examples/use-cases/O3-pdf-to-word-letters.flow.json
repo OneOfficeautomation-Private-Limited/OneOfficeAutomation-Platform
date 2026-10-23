@@ -1,0 +1,203 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_o3_documents",
+  "name": "O3 Letters from PDF invoices and a Word template",
+  "description": "Read the customer and total from each PDF invoice and write a Word letter for it from a template.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "invoices",
+      "type": "List",
+      "direction": "input",
+      "default": [
+        "1001",
+        "1002"
+      ],
+      "description": "Invoice numbers (data/invoice-<number>.pdf)."
+    },
+    {
+      "name": "inv",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "match",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "customer",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "total",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "letters",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Letters written."
+    },
+    {
+      "name": "letter_text",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Text of the last letter."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s13",
+      "action": "core/loop",
+      "args": {
+        "iterator": "list",
+        "over": "$invoices",
+        "as": "inv"
+      },
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.pdf/extract_text",
+          "args": {
+            "path": "${folder}/data/invoice-${inv}.pdf"
+          },
+          "out": {
+            "text": "text"
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.string/find",
+          "args": {
+            "text": "$text",
+            "find": "Total:\\s*[0-9.,]+",
+            "regex": true
+          },
+          "out": {
+            "match": "match"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$match",
+            "find": "^Total:\\s*",
+            "replace_with": "",
+            "regex": true
+          },
+          "out": {
+            "result": "total"
+          }
+        },
+        {
+          "id": "s4",
+          "action": "ooa.string/find",
+          "args": {
+            "text": "$text",
+            "find": "Customer:\\s*[^\\r\\n]+",
+            "regex": true
+          },
+          "out": {
+            "match": "match"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$match",
+            "find": "^Customer:\\s*",
+            "replace_with": "",
+            "regex": true
+          },
+          "out": {
+            "result": "customer"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.word/create_document",
+          "args": {
+            "path": "${folder}/output/letters/letter-${inv}.docx",
+            "template": "${folder}/data/letter-template.docx",
+            "overwrite": true,
+            "session": "letter"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.word/replace_text",
+          "args": {
+            "find": "{{customer}}",
+            "replace_with": "$customer",
+            "session": "letter"
+          }
+        },
+        {
+          "id": "s8",
+          "action": "ooa.word/replace_text",
+          "args": {
+            "find": "{{invoice}}",
+            "replace_with": "$inv",
+            "session": "letter"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.word/replace_text",
+          "args": {
+            "find": "{{total}}",
+            "replace_with": "$total",
+            "session": "letter"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.word/read_text",
+          "args": {
+            "session": "letter"
+          },
+          "out": {
+            "text": "letter_text"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.word/close",
+          "args": {
+            "session": "letter",
+            "save": true
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/set",
+          "args": {
+            "variable": "letters",
+            "value": {
+              "expr": "$letters + 1"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

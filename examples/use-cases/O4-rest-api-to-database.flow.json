@@ -1,0 +1,169 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_o4_api_to_db",
+  "name": "O4 Load REST API data into a database",
+  "description": "Read users from a REST API, store them in a database table and summarise them per city with SQL.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "api_url",
+      "type": "String",
+      "direction": "input",
+      "default": "https://jsonplaceholder.typicode.com",
+      "description": "Base address of the API (GET /users)."
+    },
+    {
+      "name": "jdbc_url",
+      "type": "String",
+      "direction": "input",
+      "default": "jdbc:h2:mem:use_case_o4",
+      "description": "Database to load into."
+    },
+    {
+      "name": "users",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "u",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "by_city",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "loaded",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Users stored."
+    },
+    {
+      "name": "cities",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Different cities."
+    },
+    {
+      "name": "top_city",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "City with the most users."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.rest/request",
+      "args": {
+        "url": "${api_url}/users",
+        "method": "GET"
+      },
+      "out": {
+        "json": "users"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.database/connect",
+      "args": {
+        "jdbc_url": "$jdbc_url",
+        "user": "sa",
+        "session": "db"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.database/execute",
+      "args": {
+        "sql": "CREATE TABLE IF NOT EXISTS api_users (id INT PRIMARY KEY, name VARCHAR(200), city VARCHAR(200))",
+        "session": "db"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.database/execute",
+      "args": {
+        "sql": "DELETE FROM api_users",
+        "session": "db"
+      }
+    },
+    {
+      "id": "s7",
+      "action": "core/loop",
+      "args": {
+        "iterator": "list",
+        "over": "$users",
+        "as": "u"
+      },
+      "children": [
+        {
+          "id": "s5",
+          "action": "ooa.database/execute",
+          "args": {
+            "sql": "INSERT INTO api_users (id, name, city) VALUES (?, ?, ?)",
+            "parameters": [
+              "$u.id",
+              "$u.name",
+              "$u.address.city"
+            ],
+            "session": "db"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "core/set",
+          "args": {
+            "variable": "loaded",
+            "value": {
+              "expr": "$loaded + 1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s8",
+      "action": "ooa.database/query",
+      "args": {
+        "sql": "SELECT city, COUNT(*) AS people FROM api_users GROUP BY city ORDER BY people DESC, city",
+        "session": "db"
+      },
+      "out": {
+        "table": "by_city",
+        "row_count": "cities"
+      }
+    },
+    {
+      "id": "s9",
+      "action": "ooa.datatable/get_value",
+      "args": {
+        "table": "$by_city",
+        "row": 0,
+        "column": "CITY"
+      },
+      "out": {
+        "value": "top_city"
+      }
+    },
+    {
+      "id": "s10",
+      "action": "ooa.database/disconnect",
+      "args": {
+        "session": "db"
+      }
+    }
+  ]
+}

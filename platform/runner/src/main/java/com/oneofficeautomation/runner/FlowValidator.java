@@ -125,7 +125,8 @@ public final class FlowValidator {
                 if (spec.input(k).isEmpty()) p.add(sid, "args/" + k, "Unknown input '" + k + "' for " + act,
                         "Valid inputs: " + (spec.inputs().isEmpty() ? "none" : String.join(", ", spec.inputs().stream().map(ActionSpec.InputSpec::name).toList())) + ".");
             for (ActionSpec.InputSpec in : spec.inputs()) {
-                if (in.required() && in.defaultValue() == null && !args.containsKey(in.name()))
+                // a step with a saved connection gets its address and sign-in inputs from it at run time
+                if (in.required() && in.defaultValue() == null && !args.containsKey(in.name()) && !(step.get("connection") instanceof String))
                     p.add(sid, "args/" + in.name(), "Missing required input '" + in.name() + "' for " + act, in.description());
                 if (args.containsKey(in.name())) checkLiteral(p, sid, in, args.get(in.name()));
             }

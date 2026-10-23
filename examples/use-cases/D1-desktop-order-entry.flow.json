@@ -1,0 +1,291 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_d1_desktop_entry",
+  "name": "D1 Enter orders in a desktop application",
+  "description": "Type each order of a CSV file into a Windows application (fields, drop-down, check box, button) and read the saved order number.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "orders",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "status_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "app_pid",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "saved",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders saved."
+    },
+    {
+      "name": "last_status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Status line after the last order."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s12",
+      "action": "ooa.application/start_program",
+      "args": {
+        "program": "powershell.exe",
+        "arguments": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${sys.workspace}/${folder}/apps/order-entry.ps1",
+          "-Out",
+          "${sys.workspace}/${folder}/output/desktop-orders.csv"
+        ],
+        "window_state": "normal"
+      },
+      "out": {
+        "process_id": "app_pid"
+      },
+      "description": "Start the demo order-entry application"
+    },
+    {
+      "id": "s13",
+      "action": "ooa.window/wait_for",
+      "args": {
+        "title": "OOA Order Entry",
+        "timeout_seconds": 30
+      },
+      "description": "Wait until its window is open"
+    },
+    {
+      "id": "s15",
+      "action": "core/try",
+      "description": "Work in the application; it is closed in any case",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.csv/read",
+          "args": {
+            "path": "${folder}/data/desktop-orders.csv"
+          },
+          "out": {
+            "table": "orders"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "core/loop",
+          "args": {
+            "iterator": "table_rows",
+            "over": "$orders",
+            "as": "o"
+          },
+          "children": [
+            {
+              "id": "s2",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "OOA Order Entry",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "AutomationId",
+                      "value": "txtCustomer",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ]
+                },
+                "action": "set_text",
+                "text": "$o.Customer"
+              }
+            },
+            {
+              "id": "s3",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "OOA Order Entry",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "AutomationId",
+                      "value": "txtAmount",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ]
+                },
+                "action": "set_text",
+                "text": "${o.Amount}"
+              }
+            },
+            {
+              "id": "s4",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "OOA Order Entry",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "AutomationId",
+                      "value": "cboKind",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ]
+                },
+                "action": "select_item",
+                "item": "$o.Kind"
+              }
+            },
+            {
+              "id": "s6",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$o.Urgent",
+                  "right": "yes"
+                }
+              },
+              "children": [
+                {
+                  "id": "s5",
+                  "action": "ooa.desktop_ui/object_action",
+                  "args": {
+                    "object": {
+                      "technology": "desktop",
+                      "window": {
+                        "title": "OOA Order Entry",
+                        "title_match": "equals"
+                      },
+                      "properties": [
+                        {
+                          "name": "AutomationId",
+                          "value": "chkUrgent",
+                          "match": "equals",
+                          "use": true
+                        }
+                      ]
+                    },
+                    "action": "check"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s7",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "OOA Order Entry",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "AutomationId",
+                      "value": "btnSave",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ]
+                },
+                "action": "click",
+                "click_method": "pattern"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "ooa.desktop_ui/object_action",
+              "args": {
+                "object": {
+                  "technology": "desktop",
+                  "window": {
+                    "title": "OOA Order Entry",
+                    "title_match": "equals"
+                  },
+                  "properties": [
+                    {
+                      "name": "AutomationId",
+                      "value": "lblStatus",
+                      "match": "equals",
+                      "use": true
+                    }
+                  ]
+                },
+                "action": "get_text"
+              },
+              "out": {
+                "result": "status_text"
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "saved",
+                "value": {
+                  "expr": "$saved + 1"
+                }
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/set",
+              "args": {
+                "variable": "last_status",
+                "value": "$status_text"
+              }
+            }
+          ]
+        }
+      ],
+      "finally": [
+        {
+          "id": "s14",
+          "action": "ooa.application/stop_program",
+          "args": {
+            "process_id": "$app_pid",
+            "force": true
+          },
+          "description": "Close the application"
+        }
+      ]
+    }
+  ]
+}

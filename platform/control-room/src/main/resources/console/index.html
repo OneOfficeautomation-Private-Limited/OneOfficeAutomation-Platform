@@ -42,11 +42,17 @@
       <span class="spacer"></span>
       <a id="btn-studio" class="button-link" href="/studio/" target="ooa-studio" hidden title="Build and test agents in Agent Studio (this computer)">Open One Agent Studio</a>
       <button type="button" id="btn-theme" aria-label="Switch between light and dark" title="Light or dark">&#9680;</button>
-      <span id="avatar" class="avatar" aria-hidden="true"></span>
-      <span id="who" class="muted"></span>
-      <button type="button" id="btn-apikeys" title="Keys for other systems to call the Command Center as you">API keys</button>
-      <button type="button" id="btn-change-pw">Change password</button>
-      <button type="button" id="btn-logout">Sign out</button>
+      <div class="user-menu">
+        <button type="button" id="btn-user" class="user-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-pop">
+          <span id="avatar" class="avatar" aria-hidden="true"></span><span id="who"></span><span class="user-caret" aria-hidden="true">&#9662;</span>
+        </button>
+        <div id="user-pop" class="user-pop" hidden>
+          <div id="user-pop-head" class="user-pop-head"></div>
+          <button type="button" id="btn-apikeys" title="Keys for other systems to call the Command Center as you">API keys</button>
+          <button type="button" id="btn-change-pw">Change password</button>
+          <button type="button" id="btn-logout">Sign out</button>
+        </div>
+      </div>
     </header>
     <div id="announcement" class="announcement" role="status" hidden></div>
     <div class="layout">

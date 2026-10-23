@@ -262,6 +262,30 @@ class CommunityEditionGapsTest {
         assertEquals(0, cr.count("SELECT COUNT(*) AS n FROM user_global_values"));
     }
 
+    @Test @Order(7)
+    @SuppressWarnings("unchecked")
+    void savedConnectionsGoWithEveryJob() {
+        Map<String, Object> body = json("{\"package\":\"ooa.servicenow\",\"description\":\"Production\",\"values\":{\"instance_url\":\"https://acme.service-now.com\",\"user\":\"bot\"},"
+                + "\"credentials\":{\"password\":\"it/servicenow-bot/password\"}}");
+        cr.saveConnection(admin, "ServiceNow prod", body, null);
+        assertEquals("CR.FORBIDDEN", code(() -> cr.saveConnection(bob, "Other", body, null)), "viewers may not change connections");
+        assertEquals("CR.BAD_INPUT", code(() -> cr.saveConnection(admin, "bad/name", body, null)));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.saveConnection(admin, "Plain secret", json("{\"package\":\"ooa.servicenow\",\"credentials\":{\"password\":\"hunter2\"}}"), null)),
+                "a connection keeps vault references, never a password");
+        Map<String, Object> listed = cr.connections(bob).get(0);
+        assertEquals("ServiceNow prod", listed.get("name"));
+        assertEquals("it/servicenow-bot/password", ((Map<String, Object>) listed.get("credentials")).get("password"));
+        cr.checkin(jane, "Ops/Ticket.flow.json", agent("ticket", ""), "v1", true, null);
+        cr.startRun("jane", "bot_creator", "Ops/Ticket.flow.json", device, Map.of(), "manual", null);
+        Map<String, Object> conn = (Map<String, Object>) ((Map<String, Object>) claim().get("connections")).get("ServiceNow prod");
+        assertEquals("ooa.servicenow", conn.get("package"));
+        assertEquals("https://acme.service-now.com", ((Map<String, Object>) conn.get("values")).get("instance_url"));
+        finishAll();
+        cr.deleteConnection(admin, "ServiceNow prod", null);
+        assertTrue(cr.connections(admin).isEmpty());
+        assertEquals("CR.NOT_FOUND", code(() -> cr.deleteConnection(admin, "ServiceNow prod", null)));
+    }
+
     @Test @Order(8)
     void runnerSettings() {
         assertEquals("info", cr.heartbeat(db.one("SELECT * FROM devices WHERE id = ?", device), Map.of()).get("log_level"));

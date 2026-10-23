@@ -1,0 +1,214 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_o5_ai_triage",
+  "name": "O5 Sort support tickets with AI",
+  "description": "Let a language model label each support ticket (Billing, Technical, Other), route it and count the labels.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "provider",
+      "type": "String",
+      "direction": "input",
+      "default": "openai",
+      "description": "AI provider, e.g. openai, azure_openai, openai_compatible."
+    },
+    {
+      "name": "model",
+      "type": "String",
+      "direction": "input",
+      "default": "gpt-4o-mini",
+      "description": "Model name."
+    },
+    {
+      "name": "base_url",
+      "type": "String",
+      "direction": "input",
+      "default": "",
+      "description": "Address of an OpenAI-compatible service (empty for the provider default)."
+    },
+    {
+      "name": "api_key",
+      "type": "Credential",
+      "direction": "input",
+      "required": true,
+      "description": "API key from the vault."
+    },
+    {
+      "name": "tickets",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "t",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "label",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "routed",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Id",
+          "Subject",
+          "Team"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "billing",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Tickets for Billing."
+    },
+    {
+      "name": "technical",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Tickets for Technical support."
+    },
+    {
+      "name": "other",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Other tickets."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/tickets.csv"
+      },
+      "out": {
+        "table": "tickets"
+      }
+    },
+    {
+      "id": "s8",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$tickets",
+        "as": "t"
+      },
+      "children": [
+        {
+          "id": "s2",
+          "action": "ooa.genai/classify",
+          "args": {
+            "text": "${t.Subject}. ${t.Body}",
+            "labels": [
+              "Billing",
+              "Technical",
+              "Other"
+            ],
+            "provider": "$provider",
+            "model": "$model",
+            "base_url": "$base_url",
+            "api_key": "$api_key"
+          },
+          "out": {
+            "label": "label"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$routed",
+            "values": [
+              "$t.Id",
+              "$t.Subject",
+              "$label"
+            ]
+          },
+          "out": {
+            "table": "routed"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$label",
+              "right": "Billing"
+            }
+          },
+          "children": [
+            {
+              "id": "s4",
+              "action": "core/set",
+              "args": {
+                "variable": "billing",
+                "value": {
+                  "expr": "$billing + 1"
+                }
+              }
+            }
+          ],
+          "elseIf": [
+            {
+              "condition": {
+                "op": "eq",
+                "left": "$label",
+                "right": "Technical"
+              },
+              "children": [
+                {
+                  "id": "s5",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "technical",
+                    "value": {
+                      "expr": "$technical + 1"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "else": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "other",
+                "value": {
+                  "expr": "$other + 1"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s9",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$routed",
+        "path": "${folder}/output/routed-tickets.csv"
+      }
+    }
+  ]
+}

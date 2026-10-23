@@ -25,6 +25,7 @@ from ..sdk.package import ActionContext
 from ..sdk.registry import PackageRegistry, canonical
 from ..sdk.types import SecureString, coerce, safe_repr, to_jsonable
 from .core_package import CONTAINERS
+from .error_codes import any_matches
 from .events import EventSink, ListSink, RunEvent
 from .expressions import binary, evaluate, resolve, truthy
 from .validate import validate_flow
@@ -411,7 +412,7 @@ class _Run:
         except OoaError as e:
             for c in step.get("catch", []) or []:
                 codes = c.get("codes") or []
-                if not codes or any(e.code == x or (x.endswith("*") and e.code.startswith(x[:-1])) for x in codes):
+                if any_matches(codes, e.code):
                     if c.get("as"):
                         self.scope.set(c["as"], e.to_dict())
                     self._log("info", f"Caught {e.code}", step["id"])

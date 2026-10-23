@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Demo order portal</title><style>body{font:15px system-ui,"Segoe UI",sans-serif;margin:32px;color:#1b2230}label{display:block;margin:10px 0 4px;font-weight:600}
+input,select{padding:6px 8px;width:260px}button{margin-top:14px;padding:7px 14px}table{border-collapse:collapse;margin-top:12px}
+td,th{border:1px solid #ccd;padding:5px 10px;text-align:left}.hidden{display:none}#confirmation,#last{font-weight:700;color:#0a7a3e}</style></head><body>
+<h1>Demo order portal</h1>
+<form id="login-form" onsubmit="return false"><label for="user">User</label><input id="user"><label for="pass">Password</label><input id="pass" type="password">
+<br><button id="login" type="button">Sign in</button><p id="login-error" class="hidden">Enter a user and a password.</p></form>
+<form id="order-form" class="hidden" onsubmit="return false"><label for="customer">Customer</label><input id="customer"><label for="amount">Amount</label><input id="amount" type="number">
+<label for="kind">Delivery</label><select id="kind"><option>Standard</option><option>Express</option><option>Return</option></select>
+<br><button id="submit" type="button">Place order</button><p>Confirmation: <span id="confirmation"></span></p></form>
+<script>
+document.getElementById("login").onclick = () => {
+  const ok = document.getElementById("user").value.trim() && document.getElementById("pass").value;
+  document.getElementById("login-error").classList.toggle("hidden", !!ok);
+  if (ok) setTimeout(() => { document.getElementById("login-form").classList.add("hidden"); document.getElementById("order-form").classList.remove("hidden"); }, 300);
+};
+document.getElementById("submit").onclick = () => {
+  const c = document.getElementById("customer").value.trim().toUpperCase(), a = document.getElementById("amount").value, k = document.getElementById("kind").value.toUpperCase();
+  document.getElementById("confirmation").textContent = "CONF-" + c + "-" + a + "-" + k;
+};
+</script></body></html>

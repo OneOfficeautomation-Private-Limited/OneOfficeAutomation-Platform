@@ -48,10 +48,29 @@ public final class SapPackage {
             Object parsed;
             try { parsed = JsonLite.parse(last); } catch (IllegalArgumentException e) { throw new ActionException("SAP.FAILED", "Unexpected SAP script output: " + ApplicationPackage.tail(out + r.stderr()), null); }
             @SuppressWarnings("unchecked") Map<String, Object> m = parsed instanceof Map ? (Map<String, Object>) parsed : Map.of();
-            if (m.get("error") != null) throw new ActionException("SAP.ERROR", String.valueOf(m.get("error")), "Check SAP GUI is open, scripting is enabled and the element id is correct.");
+            if (m.get("error") != null) throw scriptError(String.valueOf(m.get("error")));
             return m;
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true);
         } finally { if (script != null) try { Files.deleteIfExists(script); } catch (IOException ignored) { } }
+    }
+
+    /**
+     * A specific error for what the SAP script reported, so an agent can catch, say, a missing field apart from SAP
+     * not running. A Catch on the older SAP.ERROR still catches all of these (see ErrorCodes).
+     */
+    static ActionException scriptError(String msg) {
+        String m = msg.toLowerCase(Locale.ROOT);
+        if (m.contains("not running or scripting is disabled")) return new ActionException("SAP.NOT_RUNNING", msg, "Start SAP GUI and enable scripting (SAP GUI options > Accessibility & Scripting; on the server: RZ11 sapgui/user_scripting = TRUE).");
+        if (m.startsWith("no sap connection")) return new ActionException("SAP.NO_CONNECTION", msg, "Open the system first (Connect / Log on), or check the connection number (0 = first open system).");
+        if (m.startsWith("no sap session")) return new ActionException("SAP.NO_SESSION", msg, "Check the session number (0 = first window of the connection).");
+        if (m.startsWith("cannot open system")) return new ActionException("SAP.CONNECT_FAILED", msg, "Check the system name exactly as it appears in SAP Logon, and that the server is reachable.");
+        if (m.contains("already logged on")) return new ActionException("SAP.ALREADY_LOGGED_ON", msg, "Choose what to do with the other session in the logon step's multiple logon option.");
+        if (m.startsWith("logon failed") || m.startsWith("logon screen not found")) return new ActionException("SAP.LOGON_FAILED", msg, "Check the client, user, password and language.");
+        if (m.startsWith("sap reported:")) return new ActionException("SAP.STATUS_ERROR", msg, "SAP showed an error message in the status bar; read it with Get status bar or fix the input.");
+        if (m.startsWith("transaction")) return new ActionException("SAP.TRANSACTION_FAILED", msg, "Check the transaction code and that the user may run it.");
+        if (m.contains("could not be found") || m.contains("findbyid") || m.contains("not found"))
+            return new ActionException("SAP.OBJECT_NOT_FOUND", msg, "Check the element id (record it again or read it with the SAP GUI scripting tracker) and that the right screen is open.");
+        return new ActionException("SAP.ACTION_FAILED", msg, "Check SAP GUI is open on the expected screen and the element id is correct.");
     }
 
     private static final String D_CONN = "SAP connection number (0 = first open system).";

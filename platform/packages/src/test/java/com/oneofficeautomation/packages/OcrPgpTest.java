@@ -50,7 +50,7 @@ class OcrPgpTest {
 
     @SuppressWarnings("unchecked")
     @Test void pgpEncryptDecryptSignVerify() throws Exception {
-        if (!has(PgpPackage.exe())) { System.out.println("    (gpg not installed; skipped)"); return; }
+        if (!PgpPackage.usable() || !has(PgpPackage.exe())) { System.out.println("    (gpg not installed; skipped)"); return; }
         Path w = tmp();
         Path home = w.resolve("keys");
         Files.createDirectories(home);
