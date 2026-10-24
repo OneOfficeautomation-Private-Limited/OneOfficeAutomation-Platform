@@ -1,0 +1,3687 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w7_supplier_onboarding_capture",
+  "name": "W7 Supplier onboarding wizard (Capture)",
+  "description": "Take each supplier from a CSV file through a three-step onboarding wizard; suppliers the portal refuses are logged with the reason; the results go to Excel. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "suppliers",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sup",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "msg",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "err",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "sid",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Company",
+          "Supplier number",
+          "Result",
+          "Reason"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "onboarded",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Suppliers created."
+    },
+    {
+      "name": "failed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Suppliers refused by the portal."
+    },
+    {
+      "name": "last_id",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Last supplier number."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/suppliers.csv"
+      },
+      "out": {
+        "table": "suppliers"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/supplier-onboarding.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open supplier-onboarding.html"
+    },
+    {
+      "id": "s34",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$suppliers",
+        "as": "sup"
+      },
+      "description": "Each supplier",
+      "children": [
+        {
+          "id": "s33",
+          "action": "core/try",
+          "description": "Onboard one supplier",
+          "children": [
+            {
+              "id": "s3",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "$sup.Company",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "company",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Company name",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='company']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#company",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[1]/input[1]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/1/3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "13",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "195",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "320",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"company\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 195,
+                    "width": 320,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s4",
+              "action": "ooa.browser/select_option",
+              "args": {
+                "option": "$sup.Country",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "select",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Drop-down list",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "country",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Country",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Choose... Germany Spain Netherlands Norway",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//select[@id='country']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "select#country",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[1]/select",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/1/5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "15",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "265",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "300",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "selected",
+                      "value": "Choose...",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "<option value=\"\">Choose...</option><option>Germany</option><option>Spain</option><option>Netherlands</option><option>Norway</option>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<select id=\"country\"><option value=\"\">Choose...</option><option>Germany</option><option>Spain</option><option>Netherlands</option><option>Norway</option></select>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 265,
+                    "width": 300,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s5",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "$sup.VAT",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "vat",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "VAT number",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='vat']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#vat",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[1]/input[2]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/1/7",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "22",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "335",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "320",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"vat\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 335,
+                    "width": 320,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s6",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "next1",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='next1']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#next1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[1]/button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/1/9",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "24",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "381",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "59",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"next1\">Next</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 381,
+                    "width": 59,
+                    "height": 33
+                  }
+                }
+              }
+            },
+            {
+              "id": "s7",
+              "action": "core/delay",
+              "args": {
+                "seconds": 300,
+                "unit": "milliseconds"
+              }
+            },
+            {
+              "id": "s10",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.browser/element_visible",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                        "title": "Supplier onboarding",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "p",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Element",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "error1",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "VAT number is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "class",
+                          "value": "error",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//p[@id='error1']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "p#error1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/section[1]/p",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/1/10",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "section#step1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "25",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "43",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "429",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "942",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "20",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "VAT number is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<p id=\"error1\" class=\"error\">VAT number is not valid</p>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 43,
+                        "top": 429,
+                        "width": 942,
+                        "height": 20
+                      }
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s8",
+                  "action": "ooa.browser/get_text",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                        "title": "Supplier onboarding",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "p",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Element",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "error1",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "VAT number is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "class",
+                          "value": "error",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//p[@id='error1']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "p#error1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/section[1]/p",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/1/10",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "section#step1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "25",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "43",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "429",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "942",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "20",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "VAT number is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<p id=\"error1\" class=\"error\">VAT number is not valid</p>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 43,
+                        "top": 429,
+                        "width": 942,
+                        "height": 20
+                      }
+                    }
+                  },
+                  "out": {
+                    "text": "msg"
+                  }
+                },
+                {
+                  "id": "s9",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "BUSINESS.REFUSED",
+                    "message": "$msg"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s11",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "state": "visible",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "section",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Element",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "step2",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "2. Bank account IBAN BIC Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "card",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//section[@id='step2']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "section#step2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[2]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "main",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "26",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "8",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "24",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "87",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "980",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "274",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "<h2>2. Bank account</h2><label for=\"iban\">IBAN</label><input id=\"iban\"><label for=\"bic\">BIC</label><input id=\"bic\"><br>\n<button id=\"next2\">Next</button><p id=\"error2\" class=\"error hidden\"></p>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<section id=\"step2\" class=\"card\"><h2>2. Bank account</h2><label for=\"iban\">IBAN</label><input id=\"iban\"><label for=\"bic\">BIC</label><input id=\"bic\"><br>\n<button id=\"next2\">Next</button><p id=\"error2\" class=\"error hidden\"></p></section>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 24,
+                    "top": 87,
+                    "width": 980,
+                    "height": 274
+                  }
+                }
+              }
+            },
+            {
+              "id": "s12",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "$sup.IBAN",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "iban",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "IBAN",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='iban']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#iban",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[2]/input[1]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/2/3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "29",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "195",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "320",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"iban\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 195,
+                    "width": 320,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "$sup.BIC",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "bic",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "BIC",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='bic']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#bic",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[2]/input[2]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/2/5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "31",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "265",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "320",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"bic\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 265,
+                    "width": 320,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s14",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "next2",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='next2']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#next2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[2]/button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/2/7",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "311",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "59",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"next2\">Next</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 311,
+                    "width": 59,
+                    "height": 33
+                  }
+                }
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/delay",
+              "args": {
+                "seconds": 300,
+                "unit": "milliseconds"
+              }
+            },
+            {
+              "id": "s18",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "condition": "ooa.browser/element_visible",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                        "title": "Supplier onboarding",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "p",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Element",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "error2",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "IBAN is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "class",
+                          "value": "error",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//p[@id='error2']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "p#error2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/section[2]/p",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/2/8",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "section#step2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "34",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "43",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "359",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "942",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "20",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "IBAN is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<p id=\"error2\" class=\"error\">IBAN is not valid</p>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 43,
+                        "top": 359,
+                        "width": 942,
+                        "height": 20
+                      }
+                    }
+                  }
+                }
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "ooa.browser/get_text",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                        "title": "Supplier onboarding",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "p",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Element",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "error2",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "IBAN is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "class",
+                          "value": "error",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//p[@id='error2']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "p#error2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/section[2]/p",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/2/8",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "section#step2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "34",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "43",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "359",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "942",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "20",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "IBAN is not valid",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<p id=\"error2\" class=\"error\">IBAN is not valid</p>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 43,
+                        "top": 359,
+                        "width": 942,
+                        "height": 20
+                      }
+                    }
+                  },
+                  "out": {
+                    "text": "msg"
+                  }
+                },
+                {
+                  "id": "s17",
+                  "action": "core/throw",
+                  "args": {
+                    "code": "BUSINESS.REFUSED",
+                    "message": "$msg"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "s19",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "state": "visible",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "section",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Element",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "step3",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "3. Contact Contact name Email The supplier accepts the purchasing terms Submit",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "card",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//section[@id='step3']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "section#step3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[3]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "main",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "35",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "8",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "24",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "87",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "980",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "308",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "<h2>3. Contact</h2><label for=\"contact-name\">Contact name</label><input id=\"contact-name\"><label for=\"contact-email\">Email</label><input id=\"contact-email\" type=\"email\">\n<label><input id=\"terms\" type=\"checkbox\" style=\"width:auto\"> The supplier accepts the purchasing terms</label><button id=\"submit\">Submit</button><p id=\"error3\" class=\"error hidden\"></p>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<section id=\"step3\" class=\"card\"><h2>3. Contact</h2><label for=\"contact-name\">Contact name</label><input id=\"contact-name\"><label for=\"contact-email\">Email</label><input id=\"contact-email\" type=\"email\">\n<label><input id=\"terms\" type=\"checkbox\" style=\"width:auto\"> The supplier accepts the purchasing terms</label><button id=\"submit\">Submit</button><p id=\"error3\" class=\"error hidden\"></p></section>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 24,
+                    "top": 87,
+                    "width": 980,
+                    "height": 308
+                  }
+                }
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "$sup.Contact",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "contact-name",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Contact name",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='contact-name']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#contact-name",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[3]/input[1]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/3/3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "4",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "38",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "195",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "320",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"contact-name\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 195,
+                    "width": 320,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s21",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "$sup.Email",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "contact-email",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "type",
+                      "value": "email",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "label",
+                      "value": "Email",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='contact-email']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#contact-email",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[3]/input[2]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/3/5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "40",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "265",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "320",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"contact-email\" type=\"email\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 265,
+                    "width": 320,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s22",
+              "action": "ooa.browser/element_action",
+              "args": {
+                "action": "check",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Check box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "terms",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "type",
+                      "value": "checkbox",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "label",
+                      "value": "The supplier accepts the purchasing terms",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "value",
+                      "value": "on",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='terms']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#terms",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[3]/label[3]/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/3/6/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "label",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "6",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "42",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "47",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "314",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "13",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "13",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input id=\"terms\" type=\"checkbox\" style=\"width:auto\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 47,
+                    "top": 314,
+                    "width": 13,
+                    "height": 13
+                  }
+                }
+              }
+            },
+            {
+              "id": "s23",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "submit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Submit",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='submit']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#submit",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[3]/button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/3/7",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#step3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "345",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "74",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Submit",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"submit\">Submit</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 345,
+                    "width": 74,
+                    "height": 33
+                  }
+                }
+              }
+            },
+            {
+              "id": "s24",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "state": "visible",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "section",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Element",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "done",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Supplier created Supplier number: SUP-1001 Onboard another supplier",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "card",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//section[@id='done']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "section#done",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[4]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/4",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "main",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "45",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "24",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "87",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "980",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "179",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "<h2>Supplier created</h2><p>Supplier number: <span id=\"supplier-id\" class=\"ok\">SUP-1001</span></p><button id=\"new\">Onboard another supplier</button>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<section id=\"done\" class=\"card\"><h2>Supplier created</h2><p>Supplier number: <span id=\"supplier-id\" class=\"ok\">SUP-1001</span></p><button id=\"new\">Onboard another supplier</button></section>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 24,
+                    "top": 87,
+                    "width": 980,
+                    "height": 179
+                  }
+                }
+              }
+            },
+            {
+              "id": "s25",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "span",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Element",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "supplier-id",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "SUP-1001",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "class",
+                      "value": "ok",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//span[@id='supplier-id']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "span#supplier-id",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[4]/p/span",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/4/2/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "p",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "48",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "161",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "171",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "69",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "20",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "SUP-1001",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<span id=\"supplier-id\" class=\"ok\">SUP-1001</span>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 161,
+                    "top": 171,
+                    "width": 69,
+                    "height": 20
+                  }
+                }
+              },
+              "out": {
+                "text": "sid"
+              }
+            },
+            {
+              "id": "s26",
+              "action": "ooa.datatable/add_row",
+              "args": {
+                "table": "$results",
+                "values": [
+                  "$sup.Company",
+                  "$sid",
+                  "Onboarded",
+                  ""
+                ]
+              },
+              "out": {
+                "table": "results"
+              }
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "onboarded",
+                "value": {
+                  "expr": "$onboarded + 1"
+                }
+              }
+            },
+            {
+              "id": "s28",
+              "action": "core/set",
+              "args": {
+                "variable": "last_id",
+                "value": "$sid"
+              }
+            },
+            {
+              "id": "s29",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                    "title": "Supplier onboarding",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "new",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Onboard another supplier",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='new']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#new",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[4]/button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/4/3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#done",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "4",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "49",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "216",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "183",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Onboard another supplier",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"new\">Onboard another supplier</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 216,
+                    "width": 183,
+                    "height": 33
+                  }
+                }
+              }
+            }
+          ],
+          "catch": [
+            {
+              "codes": [
+                "BUSINESS.*"
+              ],
+              "message_to": "err",
+              "children": [
+                {
+                  "id": "s30",
+                  "action": "ooa.datatable/add_row",
+                  "args": {
+                    "table": "$results",
+                    "values": [
+                      "$sup.Company",
+                      "",
+                      "Refused",
+                      "$err"
+                    ]
+                  },
+                  "out": {
+                    "table": "results"
+                  }
+                },
+                {
+                  "id": "s31",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "failed",
+                    "value": {
+                      "expr": "$failed + 1"
+                    }
+                  }
+                },
+                {
+                  "id": "s32",
+                  "action": "ooa.browser/click",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                        "title": "Supplier onboarding",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "button",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Button",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "start-over",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "Start over",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//button[@id='start-over']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "button#start-over",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/header/button",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/1/2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "header",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "8",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "1158",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "22",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "90",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "33",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/supplier-onboarding.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "Start over",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<button id=\"start-over\">Start over</button>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 1158,
+                        "top": 22,
+                        "width": 90,
+                        "height": 33
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s35",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s36",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "${folder}/output/supplier-onboarding.xlsx",
+        "sheet": "Onboarding",
+        "overwrite": true,
+        "session": "report"
+      }
+    },
+    {
+      "id": "s37",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$results",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s38",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "report",
+        "save": true
+      }
+    }
+  ]
+}

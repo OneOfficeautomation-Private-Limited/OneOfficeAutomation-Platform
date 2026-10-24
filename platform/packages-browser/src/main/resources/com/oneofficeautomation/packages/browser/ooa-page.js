@@ -2,7 +2,21 @@
 // One source for Playwright runs (WebObjects) and the browser extension (content script). Plain declarations only:
 // it is pasted inside a function or loaded as a content script.
 const __norm = (s) => s == null ? null : String(s).replace(/\s+/g, ' ').trim();
-const __generated = (v) => /\d{3,}|^\d/.test(v);
+// Ids made up by a framework or at random change between visits: many digits, a leading digit, or a short mix of
+// letters that does not read as words (UeWWS, jQjQk, g7Aeq), unlike firstName, user_email or SubmitButton.
+const __generated = (v) => {
+  v = String(v);
+  if (/\d{3,}|^\d/.test(v)) return true;
+  if (!/^[A-Za-z0-9]{4,12}$/.test(v)) return false;
+  if (/[A-Za-z]\d+[A-Za-z]/.test(v)) return true;
+  const words = v.match(/[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+/g) || [];
+  if (words.join('') !== v) return true;
+  // each word needs a vowel (common short forms such as btn, txt, lbl aside); single letters may only end the id (userId, pageX)
+  const short = /^(btn|txt|lbl|msg|img|pwd|nbr|num|qty|amt|cfg|ctl|ddl|chk|rb|cb|tb|dt|db|nav|src|dst|ctx|tmp|hdr|ftr|tbl|col|row|frm|pnl|grd|dlg|html|xml|css|url|pdf|sql|csv|xls|png|jpg|svg|http|www)$/i;
+  if (/^[A-Z]+$/.test(v) || /^[a-z]+$/.test(v)) return false;
+  return words.some((w, i) => (/^[A-Za-z]{2,}$/.test(w) && !(/^[A-Z]{2}$/.test(w)) && !/[aeiouyAEIOUY]/.test(w) && !short.test(w))
+    || (w.length === 1 && i < words.length - 1 && /[A-Za-z]/.test(w)));
+};
 const __xq = (v) => v.indexOf("'") < 0 ? "'" + v + "'" : (v.indexOf('"') < 0 ? '"' + v + '"' : "'" + v.split("'").join('') + "'");
 const __cssq = (v) => String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 const __absXpath = (el) => {
@@ -19,8 +33,9 @@ const __domXpath = (el) => {
   for (const a of ['id', 'name', 'data-testid', 'aria-label', 'placeholder', 'title']) {
     const v = el.getAttribute(a); if (v && !(a === 'id' && __generated(v))) return '//' + tag + '[@' + a + '=' + __xq(v) + ']';
   }
-  const tx = (el.innerText || '').trim();
-  if (tx && tx.length < 60 && tx.indexOf(String.fromCharCode(10)) < 0) return '//' + tag + '[normalize-space()=' + __xq(tx) + ']';
+  // the page's own text: XPath does not see CSS changes such as upper-case letters (START on screen, Start in the page)
+  const tx = __norm(el.textContent || '');
+  if (tx && tx.length < 60 && (el.innerText || '').trim().indexOf(String.fromCharCode(10)) < 0) return '//' + tag + '[normalize-space()=' + __xq(tx) + ']';
   let e = el.parentElement, depth = 0;
   while (e && depth < 6) {
     if (e.id && !__generated(e.id)) return '//*[@id=' + __xq(e.id) + ']' + __absXpath(el).slice(__absXpath(e).length);
@@ -59,6 +74,15 @@ const __labelOf = (el) => {
   if (el.labels && el.labels.length) return __norm(el.labels[0].innerText);
   const by = el.getAttribute && el.getAttribute('aria-labelledby');
   if (by) { const t = by.split(' ').map(i => document.getElementById(i)).filter(Boolean).map(n => n.innerText).join(' '); if (t) return __norm(t); }
+  // a label next to the field without for= (a wrapper that holds one label and this one field), as many forms build them
+  if (el.tagName && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) {
+    let w = el.parentElement;
+    for (let d = 0; w && d < 3; d++, w = w.parentElement) {
+      const fields = w.querySelectorAll('input:not([type=hidden]),select,textarea'), labels = w.querySelectorAll('label');
+      if (fields.length > 1) break;
+      if (labels.length === 1 && !labels[0].control) return __norm(labels[0].innerText);
+    }
+  }
   return null;
 };
 const __rect = (el) => {

@@ -1,0 +1,867 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p3_books_catalogue_capture",
+  "name": "P3 Book catalogue crawl (books.toscrape.com) (Capture)",
+  "description": "Open a category, read every page of it, visit each book for its product code and stock, and write an Excel report with a summary per star rating. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "category",
+      "type": "String",
+      "direction": "input",
+      "default": "Mystery",
+      "description": "Category to crawl."
+    },
+    {
+      "name": "page_books",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "page_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "all",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [],
+        "rows": []
+      }
+    },
+    {
+      "name": "more",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "b",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "upc",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "availability",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "stock",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "by_rating",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "sorted",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "details",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Title",
+          "Price",
+          "Rating",
+          "UPC",
+          "In stock"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "books",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Books in the category."
+    },
+    {
+      "name": "total_stock",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Copies in stock over all books."
+    },
+    {
+      "name": "most_expensive",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Title of the most expensive book."
+    },
+    {
+      "name": "ratings",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Different star ratings found."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://books.toscrape.com/",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://books.toscrape.com/"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/click",
+      "args": {
+        "selector": "xpath=//div[contains(@class,'side_categories')]//a[normalize-space()='${category}']"
+      },
+      "description": "Open the category"
+    },
+    {
+      "id": "s10",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "op": "eq",
+          "left": "$more",
+          "right": true
+        },
+        "max_iterations": 60
+      },
+      "description": "Every page of the category",
+      "children": [
+        {
+          "id": "s3",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+                "title": "Mystery | Books to Scrape - Sandbox",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "article",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Sharp Objects £47.82 In stock Add to basket",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "product_pod",
+                  "match": "contains",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "/html/body/div/div/div/div/section/div[2]/ol/li[1]/article",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "div > section > div:nth-of-type(2) > ol > li:nth-of-type(1) > article",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div/div/div/section/div[2]/ol/li[1]/article",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/1/2/2/5/2/1/1/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "li.col-xs-6.col-sm-4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "152",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "365",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "417",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "195",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "370",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<div class=\"image_container\">\n                \n                    \n                    <a href=\"../../../sharp-objects_997/index.html\"><img src=\"../../../../media/cache/32/51/3251cf3a3412f53f339e42cac2134093.jpg\" alt=\"Sharp Objects\" class=\"thumbnail\"></a>\n                    \n                \n            </div>\n        \n\n        \n            \n                <p class=\"star-rating Four\">\n                    <i class=\"icon-star\"></i>\n                    <i class=\"icon-star\"></i>\n                 ",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<article class=\"product_pod\">\n        \n            <div class=\"image_container\">\n                \n                    \n                    <a href=\"../../../sharp-objects_997/index.html\"><img src=\"../../../../media/cache/32/51/3251cf3a3412f53f339e42cac2134093.jpg\" alt=\"Sharp Objects\" class=\"thumbnail\"></a>\n                    \n                \n            </div>\n        \n\n        \n            \n                <p class=\"star-rating Four\">\n                    <i class=\"icon-star\"></i>\n            ",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 365,
+                "top": 417,
+                "width": 195,
+                "height": 370
+              }
+            }
+          }
+        },
+        {
+          "id": "s4",
+          "action": "ooa.browser/run_javascript",
+          "args": {
+            "script": "Array.from(document.querySelectorAll('article.product_pod')).map(a => ({Title: a.querySelector('h3 a').title, Url: a.querySelector('h3 a').href, Price: Number(a.querySelector('.price_color').textContent.replace(/[^0-9.]/g, '')), Rating: a.querySelector('.star-rating').className.replace('star-rating', '').trim()}))"
+          },
+          "out": {
+            "result": "page_books"
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.datatable/from_records",
+          "args": {
+            "records": "$page_books"
+          },
+          "out": {
+            "table": "page_table"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.datatable/merge",
+          "args": {
+            "tables": [
+              "$all",
+              "$page_table"
+            ],
+            "columns": "union"
+          },
+          "out": {
+            "table": "all"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+                    "title": "Mystery | Books to Scrape - Sandbox",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "a",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Link",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "text",
+                      "value": "next",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "href",
+                      "value": "page-2.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//a[normalize-space()='next']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "section > div:nth-of-type(2) > div > ul > li:nth-of-type(2) > a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/div/div/section/div[2]/div/ul/li[2]/a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/1/2/2/5/2/2/1/2/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "li.next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "94",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "535",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "1179",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "2467",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "56",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<a href=\"page-2.html\">next</a>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 1179,
+                    "top": 2467,
+                    "width": 56,
+                    "height": 32
+                  }
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+                    "title": "Mystery | Books to Scrape - Sandbox",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "a",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Link",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "text",
+                      "value": "next",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "href",
+                      "value": "page-2.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//a[normalize-space()='next']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "section > div:nth-of-type(2) > div > ul > li:nth-of-type(2) > a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/div/div/section/div[2]/div/ul/li[2]/a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/1/2/2/5/2/2/1/2/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "li.next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "94",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "535",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "1179",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "2467",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "56",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<a href=\"page-2.html\">next</a>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 1179,
+                    "top": 2467,
+                    "width": 56,
+                    "height": 32
+                  }
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "more",
+                "value": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s17",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$all",
+        "as": "b"
+      },
+      "description": "Each book page: product code and stock",
+      "children": [
+        {
+          "id": "s11",
+          "action": "ooa.browser/navigate",
+          "args": {
+            "url": "$b.Url"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "xpath=//th[normalize-space()='UPC']/following-sibling::td"
+          },
+          "out": {
+            "text": "upc"
+          }
+        },
+        {
+          "id": "s13",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": "xpath=//th[normalize-space()='Availability']/following-sibling::td"
+          },
+          "out": {
+            "text": "availability"
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/set",
+          "args": {
+            "variable": "stock",
+            "value": {
+              "expr": "toNumber(coalesce(regexExtract($availability, \"[0-9]+\"), \"0\"))"
+            }
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$details",
+            "values": [
+              "$b.Title",
+              "$b.Price",
+              "$b.Rating",
+              "$upc",
+              "$stock"
+            ]
+          },
+          "out": {
+            "table": "details"
+          }
+        },
+        {
+          "id": "s16",
+          "action": "core/set",
+          "args": {
+            "variable": "total_stock",
+            "value": {
+              "expr": "$total_stock + $stock"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s19",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$details"
+      },
+      "out": {
+        "count": "books"
+      }
+    },
+    {
+      "id": "s20",
+      "action": "ooa.datatable/sort",
+      "args": {
+        "table": "$details",
+        "column": "Price",
+        "descending": true
+      },
+      "out": {
+        "table": "sorted"
+      }
+    },
+    {
+      "id": "s21",
+      "action": "ooa.datatable/get_value",
+      "args": {
+        "table": "$sorted",
+        "row": 0,
+        "column": "Title"
+      },
+      "out": {
+        "value": "most_expensive"
+      }
+    },
+    {
+      "id": "s22",
+      "action": "ooa.datatable/aggregate",
+      "args": {
+        "table": "$details",
+        "group_by": [
+          "Rating"
+        ],
+        "summaries": {
+          "Books": "count",
+          "Average price": "avg:Price",
+          "In stock": "sum:In stock"
+        }
+      },
+      "out": {
+        "table": "by_rating",
+        "count": "ratings"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "${folder}/output/books-${category}.xlsx",
+        "sheet": "Books",
+        "overwrite": true,
+        "session": "report"
+      }
+    },
+    {
+      "id": "s24",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$sorted",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s25",
+      "action": "ooa.excel/add_sheet",
+      "args": {
+        "name": "By rating",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s26",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$by_rating",
+        "sheet": "By rating",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "report",
+        "save": true
+      }
+    }
+  ]
+}

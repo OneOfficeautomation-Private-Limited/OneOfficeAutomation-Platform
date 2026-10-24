@@ -1,0 +1,1009 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w4_excel_to_web_capture",
+  "name": "W4 Register people from Excel in a web form (Capture)",
+  "description": "For each row of an Excel sheet, fill in and save a web form, and write the registration number back to the sheet. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "people",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "person",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "row_no",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "reg_id",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "registered",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "People registered."
+    },
+    {
+      "name": "last_id",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Last registration number."
+    },
+    {
+      "name": "check_cell",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Registration number written for the second person (D3)."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.excel/open",
+      "args": {
+        "path": "${folder}/data/people.xlsx",
+        "session": "people",
+        "header": true
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.excel/get_all_cells",
+      "args": {
+        "session": "people"
+      },
+      "out": {
+        "table": "people"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/form-entry.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      }
+    },
+    {
+      "id": "s13",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$people",
+        "as": "person",
+        "index": "i"
+      },
+      "children": [
+        {
+          "id": "s4",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$person.Name",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                "title": "Demo registration",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "name",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "label",
+                  "value": "Name",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='name']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#name",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/form/input[1]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "9",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "32",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "116",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "280",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "31",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input id=\"name\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 32,
+                "top": 116,
+                "width": 280,
+                "height": 31
+              }
+            }
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$person.Email",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                "title": "Demo registration",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "email",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "email",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "Email",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='email']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#email",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/form/input[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "11",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "32",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "181",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "280",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "31",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input id=\"email\" type=\"email\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 32,
+                "top": 181,
+                "width": 280,
+                "height": 31
+              }
+            }
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.browser/select_option",
+          "args": {
+            "option": "$person.Plan",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                "title": "Demo registration",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "select",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Drop-down list",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "plan",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "label",
+                  "value": "Plan",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Choose... Basic Pro Team",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//select[@id='plan']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "select#plan",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/form/select",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "13",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "32",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "246",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "260",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "31",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "selected",
+                  "value": "Choose...",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<option value=\"\">Choose...</option><option>Basic</option><option>Pro</option><option>Team</option>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<select id=\"plan\"><option value=\"\">Choose...</option><option>Basic</option><option>Pro</option><option>Team</option></select>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 32,
+                "top": 246,
+                "width": 260,
+                "height": 31
+              }
+            }
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.browser/click",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                "title": "Demo registration",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "save",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "type",
+                  "value": "button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Save",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[@id='save']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "button#save",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/form/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/8",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "19",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "32",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "291",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "62",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Save",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button id=\"save\" type=\"button\">Save</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 32,
+                "top": 291,
+                "width": 62,
+                "height": 33
+              }
+            }
+          }
+        },
+        {
+          "id": "s8",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                "title": "Demo registration",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "last",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "REG-1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='last']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#last",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/p/span",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "21",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "145",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "339",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "43",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/form-entry.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "REG-1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"last\">REG-1</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 145,
+                "top": 339,
+                "width": 43,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "text": "reg_id"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "row_no",
+            "value": {
+              "expr": "$i + 2"
+            }
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.excel/set_cell",
+          "args": {
+            "cell": "D${row_no}",
+            "value": "$reg_id",
+            "session": "people"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "core/set",
+          "args": {
+            "variable": "registered",
+            "value": {
+              "expr": "$registered + 1"
+            }
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/set",
+          "args": {
+            "variable": "last_id",
+            "value": "$reg_id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s14",
+      "action": "ooa.excel/set_cell",
+      "args": {
+        "cell": "D1",
+        "value": "Registration",
+        "session": "people"
+      }
+    },
+    {
+      "id": "s15",
+      "action": "ooa.excel/get_cell",
+      "args": {
+        "cell": "D3",
+        "session": "people"
+      },
+      "out": {
+        "value": "check_cell"
+      }
+    },
+    {
+      "id": "s16",
+      "action": "ooa.excel/save",
+      "args": {
+        "path": "${folder}/output/people-registered.xlsx",
+        "session": "people"
+      }
+    },
+    {
+      "id": "s17",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "people",
+        "save": false
+      }
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

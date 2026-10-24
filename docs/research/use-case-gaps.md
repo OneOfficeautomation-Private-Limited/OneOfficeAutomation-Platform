@@ -49,6 +49,141 @@ The fixes below keep every option but put the common path first.
 | **Window** (desktop) | The same title typed in up to 9 steps (D1); "equals" in objects but "contains" in Window commands | | Open (P2): a window variable chosen once |
 | **Excel / Word sessions** | Custom session names (`report`, `letter`) typed in 3–6 steps | | Open (P3): fill in the open session |
 
+## Web steps with Capture: P1 pilot
+
+The first AA bots did their web steps with Run JavaScript, which is not how AA is normally used. P1 was rebuilt in both
+products with **Capture** (a captured object plus an action), and both versions were run:
+- AA: bot **P1 RPA Challenge (Capture)** in Bots\Use cases;
+- ours: `examples/use-cases/P1-rpa-challenge-capture.flow.json`.
+
+How the captures were made:
+- **Ours:** Studio's real Capture (`POST /studio/api/capture` on an open Chrome tab). The click on the element was made
+  through the browser's debugging port, as a person's click would be.
+- **AA:** its Capture follows the desktop mouse, which could not be driven from here. Its Recorder Capture actions were
+  built with the properties AA records for web controls and matched by DOM XPath, then run on the Bot Agent. AA's own
+  default choice of properties to match was therefore not observed; one real capture by hand would show it.
+
+| | AA | Ours |
+| --- | --- | --- |
+| Result | 10 rounds, 70 of 70 fields | 10 rounds, 70 of 70 fields |
+| Time | 28.7 s run | 6.6 s run (1.6 s on the challenge's timer) |
+| Fields (their ids change every round) | DOM XPath on `ng-reflect-name`, edited by hand | Label ("First Name"), chosen by Capture after the fixes below |
+| Start, Submit | DOM XPath (text, type) | Text "START"; tag + type `submit` |
+| Canvas line | "Set text $rRow[0]$ in textbox in the 'Rpa Challenge' window" (no field name) | "$row["First Name"] into text box “First Name”" |
+| Result message | Get property *HTML InnerText* of a label | Get text |
+
+**What P1 showed, and was fixed (C1–C6):**
+
+| # | Problem in our Capture | Fix |
+| --- | --- | --- |
+| C1 | **Random ids were matched.** `UeWWS` was treated as stable because the rule only looked for digits, so the object would break as soon as the page made new ids | Ids that do not read as words count as made up (`UeWWS`, `jQjQk`, `g7Aeq`, `OCNJj`); `firstName`, `btnSave` and `APIKey` stay. The same rule runs in the page script and in Java (`generatedId`), with a unit test |
+| C2 | **No label for fields whose label is not linked** (a `<label>` next to the box without `for=`) | The label next to a field is found when the field's wrapper holds that one label and one field |
+| C3 | **Fields are found by their label** when it is unique on the page. One field (`jeoyL`) still passed the id rule | For a form field, a unique label wins over id and name: it is what a person reads, and it survives made-up ids |
+| C4 | **The DOM XPath used the on-screen text:** `//button[normalize-space()='START']` matched nothing, because the page says `Start` and CSS shows it in capitals | The XPath uses the page's own text |
+| C5 | **The capture tooltip could be captured** when it lay over the element (small windows) | The tooltip ignores the mouse |
+| C6 | **Step labels:** Submit showed as "input", and Download repeated its selector | Control type and visible value: "button “Submit”", "text box “First Name”". Desktop objects fall back to Automation ID or class name (O12) |
+
+**Still open from P1:**
+- One element field: Capture and Selector are both shown on every web step (O8).
+- AA's Get property offers named properties (HTML InnerText, HTML Href …); ours has Get text and Get attribute, which
+  cover the same ground.
+
+## Web steps with Capture: all 15 web cases
+
+P2–P6 and W1–W10 were rebuilt with Capture in both products.
+
+**Ours: all 15 pass, with the same results as the selector versions.** Each flow ran once with object recording on
+(`OOA_RECORD_OBJECTS`, see below). Every element a web step found was described exactly as Capture describes a clicked
+element. The recorded objects then replaced the selectors: 137 element steps in all, plus P1's 9. The flows are
+`examples/use-cases/*-capture.flow.json`. All 15 ran again with the objects and gave the same outputs as the selector
+versions.
+
+What Capture now matches on, across those 137 steps:
+
+| Property | Steps | Example |
+| --- | --- | --- |
+| id | 69 | `#checkout`, `#m-approve` |
+| label (fields) | 31 | "First Name", "Email" |
+| test attribute (`data-test`) | 19 | saucedemo, every element |
+| text | 8 | "Sign in", "Next" |
+| class | 7 | `quote`, `author-born-date` |
+| other (name, type, DOM XPath) | 3 | |
+
+34 steps keep their selector, because one fixed object cannot describe what the step does:
+
+| Why | Steps | Example |
+| --- | --- | --- |
+| Reads a whole table or form, so there's no single element to record | 11 | P4 `table`, W2 `#products` |
+| Meets a different element each time (one per row or page) | 11 | P3 product details, P6 infobox rows, W6 queue rows |
+| Has a variable in it | 6 | W6 `#${decision}`, W10 `.line:nth-child(${k})` |
+| Lists alternatives ("either A or B") | 4 | W3 `#results tr, #none` |
+| Picks the n-th match | 2 | P2 first "Add to cart", W8 first result row |
+
+These show what captured objects still cannot express (open items O8, O17 and C10–C12 below).
+
+**What the 15 cases showed, and was fixed (C7–C9):**
+
+| # | Problem in our Capture | Fix |
+| --- | --- | --- |
+| C7 | **Test attributes were ignored.** saucedemo marks every element with `data-test`, but only `data-testid` counted | `data-test`, `data-test-id`, `data-qa`, `data-cy` and `data-automation-id` are used first |
+| C8 | **Data was used as a name.** The cart link was matched on `aria-label="Cart, 3 items"` and the totals on `text="Item total: $33.97"`, so they break when the count or amount changes | Text, aria-label and title containing digits are not used to find an element |
+| C9 | **Some objects matched any element.** When nothing named the element (`.inventory_list`), only `tag=div` was ticked | The element's own class (matched with contains, as classes change with state), or else its DOM XPath |
+
+**New: object recording.** Set `OOA_RECORD_OBJECTS` to a file before a run, and every element a web step finds by
+selector is written to that file as a captured object, one JSON line per step. Recording never changes what the step
+does. It turns working selector agents into captured-object agents without clicking through every page again, which is
+how the 15 cases were converted (scratchpad tool `to-capture.mjs`). Studio could offer it as "Convert selectors to
+captured objects" (open item C10).
+
+**AA: 9 of 16 web cases pass with Capture.** The 15 AA bots were rebuilt as **<name> (Capture)** in Bots\Use cases:
+- each page script became a Recorder Capture action (click, set text, get property, check);
+- each wait loop became a Capture that waits for the object.
+
+AA's own object format came from a real recording. AA's Universal recorder was started from the bot editor; its
+desktop window was operated with UI Automation and the mouse; the clicks in the page went through Chrome's debugging
+port. Every generated object copies that recorded one: its technology section (the browser agent), its full list of
+47 criteria and its attributes, filled with the element's values from our recordings. Before that, generated objects
+failed with "Search Criteria did not match".
+
+| Case | AA with Capture | Capture steps reached (with the failing one) | Note |
+| --- | --- | --- | --- |
+| P1 | Pass | 10 | 70 of 70 fields |
+| W1 | Pass | 8 | |
+| W2 | Pass | 3 | |
+| W3 | Pass | 2 | |
+| W5 | Pass | 1 | |
+| W6 | Pass | 10 | One XPath holds a variable (`#$sDecision$`) |
+| W7 | Pass | 38 | |
+| W8 | Pass | 24 | |
+| W10 | Pass | 19 | |
+| P2 | Fails at Login | 3 | The same button object is read, then not found for the click (flaky) |
+| P3, P5 | Fail at the first element without an id | 1–3 | AA matches id-based DOM XPaths; matching on class, type or value alone was not found |
+| P6, W9 | Fail at a table | 1–3 | A table as a plain label object is not found; AA's Table control type would be needed |
+| P4, W4 | Fail at a button low on the page | 9, 4 | Capture does not scroll to an element outside the window |
+
+What AA's Capture showed, against ours:
+
+| | AA | Ours |
+| --- | --- | --- |
+| Default ticks | 9 of 47 properties: tag, DOM XPath, id, name, type, Path, has frame, **frame source (the page address)** and CSS selector | One or two properties chosen by what stays the same (test attribute, label, stable id, text) |
+| Elements without an id | DOM XPath anchored on the nearest ancestor with an id | Class, text or DOM XPath, as found |
+| Password boxes | Set text takes only a vault credential, a credential variable or an insecure string | Credential, variable or text |
+| Typing into React and Angular pages | 0 ms between keys pastes the value, which such pages may ignore; 40 ms (the recorder's choice) types it | Fills the field the page way |
+| Off-screen elements | Not found | Scrolled into view |
+| Running | A run is tied to the open editor page: navigating, a dialog or resizing the page cancels it ("A user cancelled") | Runs on their own |
+| Recording | Universal recorder on the desktop; the first click on a page can be recorded as a desktop control before the browser link is ready | Capture in the page |
+
+Steps with no native Capture counterpart stayed as scripts: reading lists, selecting in a drop-down, password boxes,
+emptying a field, and XPaths that are not one element with one test.
+
+**Open from the 15 cases:**
+
+| # | Gap | Fix | Pri |
+| --- | --- | --- | --- |
+| C10 | Converting selectors to captured objects needs a script | Studio: "Convert selectors to captured objects" after a run with recording on | P2 |
+| C11 | A captured object can't say "the n-th match" or "in the row where …" | Object index in the editor ("which match: first / last / n-th"), and objects relative to an anchor (a row, a label) | P2 |
+| C12 | A captured object can't say "either A or B" | "Any of these objects" for Wait for and conditions | P3 |
+
 ## Fixed on 2026-10-24
 
 | # | What | Where |
@@ -85,7 +220,7 @@ The fixes below keep every option but put the common path first.
 | O9 | **Open browser defaults** | Every unattended agent changes *Engine* and *Keep open* | A *Run mode* choice (watch / unattended) that sets both | P2 |
 | O10 | **Get text into a Number variable** | W6 and W9 store read amounts in Number variables; the runtime converts, but Studio does not offer them | Offer Number and Boolean variables for text results, with a "converted" note | P2 |
 | O11 | **Window variable** (desktop and web) | D1 types the window title 7 times; D5 has two windows | Choose a window once and pick it in every step; also "the window of process `$pid`" | P2 |
-| O12 | **Desktop step labels** | D1's six steps all read "control" when the object is found by Automation ID | Use Automation ID or class name in the step label | P2 |
+| O12 | ~~Desktop step labels~~ | | Fixed (C6) | - |
 | O13 | **Database Connect** | A JDBC URL typed by hand (O4) | Database type list with server, database and file fields that build the URL | P2 |
 | O14 | ~~Column names ignore case~~ | | Fixed (N11) | - |
 | O15 | **Nested AND/OR groups and type-aware operators** in conditions | AA has groups and per-type operators (match case, dates) | Add groups; *match case* for text; date comparison | P2 |

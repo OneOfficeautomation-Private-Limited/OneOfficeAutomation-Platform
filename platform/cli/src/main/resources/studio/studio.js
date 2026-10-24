@@ -997,7 +997,7 @@ function keyArgs(step, n) {
   const spec = state.specs.get(step.action);
   const props = spec ? spec.action.inputs.properties || {} : {};
   const required = spec ? spec.action.inputs.required || [] : [];
-  const skip = new Set(["window", "object", "session", "timeout_ms", "timeout_seconds", "alternatives", "headless", "engine", "keep_open"]);
+  const skip = new Set(["window", "object", "selector", "session", "timeout_ms", "timeout_seconds", "alternatives", "headless", "engine", "keep_open"]);
   const names = Object.keys(a).filter((k) => !skip.has(k) && a[k] !== undefined && a[k] !== "");
   names.sort((x, y) => (required.includes(y) ? 1 : 0) - (required.includes(x) ? 1 : 0));
   return names.slice(0, n || 2).map((k) => {
@@ -1062,9 +1062,13 @@ function windowLabel(w) {
 function objectLabel(o) {
   const props = o.properties || [];
   const val = (n) => { const p = props.find((x) => x.name === n); return p && p.value ? String(p.value) : ""; };
-  if (o.technology === "desktop") return (val("ControlType") || "control") + (val("Name") ? " \u201C" + val("Name").slice(0, 30) + "\u201D" : "");
-  const label = val("label") || val("text") || val("aria-label") || val("placeholder") || val("name") || val("id");
-  return (val("tag") || "element") + (label ? " \u201C" + label.slice(0, 30) + "\u201D" : "");
+  // the kind of control in words (text box, button) and what a person sees on it: label, text, or a button's value
+  if (o.technology === "desktop") {
+    const what = val("Name") || val("AutomationId") || val("ClassName");
+    return (val("ControlType") || "control").toLowerCase() + (what ? " \u201C" + what.slice(0, 30) + "\u201D" : "");
+  }
+  const label = val("label") || val("text") || val("aria-label") || val("placeholder") || (/^(submit|button|reset)$/i.test(val("type")) ? val("value") : "") || val("name") || val("id");
+  return (val("control_type") || val("tag") || "element").toLowerCase() + (label ? " \u201C" + label.slice(0, 30) + "\u201D" : "");
 }
 
 /** The open windows worth offering: real pages, not extension, settings or blank pages. */

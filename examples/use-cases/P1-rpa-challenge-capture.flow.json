@@ -1,0 +1,1731 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p1_rpa_challenge_capture",
+  "name": "P1 RPA Challenge (Capture)",
+  "description": "P1 with captured objects (OOA Capture) instead of typed selectors.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "xlsx",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "people",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "row",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "rounds",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Rows submitted."
+    },
+    {
+      "name": "result_message",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The challenge result shown at the end."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://rpachallenge.com/",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://rpachallenge.com/"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/download",
+      "args": {
+        "selector": "a[href*='challenge.xlsx']",
+        "folder": "${folder}/output",
+        "timeout_ms": 30000
+      },
+      "out": {
+        "path": "xlsx"
+      },
+      "description": "Download the challenge data"
+    },
+    {
+      "id": "s3",
+      "action": "ooa.excel/open",
+      "args": {
+        "path": "$xlsx",
+        "session": "challenge",
+        "header": true
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.excel/get_all_cells",
+      "args": {
+        "session": "challenge"
+      },
+      "out": {
+        "table": "people"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "challenge",
+        "save": false
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://rpachallenge.com/",
+            "title": "Rpa Challenge",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "START",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "class",
+              "value": "waves-effect col s12 m12 l12 btn-large uiColorButton",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[normalize-space()='Start']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "div:nth-of-type(2) > app-rpa1 > div > div:nth-of-type(1) > div:nth-of-type(6) > button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/app-root/div[2]/app-rpa1/div/div[1]/div[6]/button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/2/1/1/7/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "58",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "11",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "599",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "294",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "54",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://rpachallenge.com/",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Start<div class=\"waves-ripple \" data-hold=\"1792842061902\" data-scale=\"scale(29.4)\" data-x=\"146.75\" data-y=\"26.500011444091797\" style=\"top:26.500011444091797px;left:146.75px;-webkit-transform:scale(29.4);-moz-transform:scale(29.4);-ms-transform:scale(29.4);-o-transform:scale(29.4);transform:scale(29.4);opacity:1;-webkit-transition-duration:750ms;-moz-transition-duration:750ms;-o-transition-duration:750ms;transition-duration:750ms;-webkit-transition-timing-function:cubic-bezier(0.250, 0.460, 0.450",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button _ngcontent-c1=\"\" class=\"waves-effect col s12 m12 l12 btn-large uiColorButton\">Start<div class=\"waves-ripple \" data-hold=\"1792842061902\" data-scale=\"scale(29.4)\" data-x=\"146.75\" data-y=\"26.500011444091797\" style=\"top:26.500011444091797px;left:146.75px;-webkit-transform:scale(29.4);-moz-transform:scale(29.4);-ms-transform:scale(29.4);-o-transform:scale(29.4);transform:scale(29.4);opacity:1;-webkit-transition-duration:750ms;-moz-transition-duration:750ms;-o-transition-duration:750ms;transit",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 11,
+            "top": 599,
+            "width": 294,
+            "height": 54
+          }
+        }
+      },
+      "description": "Start the timer"
+    },
+    {
+      "id": "s17",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$people",
+        "as": "row"
+      },
+      "description": "One round per row: the fields move, so they are found by their name, not their place",
+      "children": [
+        {
+          "id": "s16",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "notEmpty",
+              "left": {
+                "expr": "$row[\"First Name\"]"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s7",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"First Name\"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "RKTsL",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "RKTsL",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "First Name",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelFirstName",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@name='RKTsL']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input[name=\"RKTsL\"]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[1]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/1/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "67",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "427",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "136",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelFirstName\" id=\"RKTsL\" name=\"RKTsL\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 427,
+                    "top": 136,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s8",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"Last Name \"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "I5JQc",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "I5JQc",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Last Name",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelLastName",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@name='I5JQc']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input[name=\"I5JQc\"]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[2]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/2/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "72",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "688",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "136",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelLastName\" id=\"I5JQc\" name=\"I5JQc\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 688,
+                    "top": 136,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s9",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"Company Name\"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "l5RYS",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "l5RYS",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Company Name",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelCompanyName",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@name='l5RYS']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input[name=\"l5RYS\"]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[6]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/6/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "92",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "688",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "312",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelCompanyName\" id=\"l5RYS\" name=\"l5RYS\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 688,
+                    "top": 312,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s10",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"Role in Company\"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "PyNKr",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "PyNKr",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Role in Company",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelRole",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@name='PyNKr']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input[name=\"PyNKr\"]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[4]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/4/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "3",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "82",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "688",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "224",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelRole\" id=\"PyNKr\" name=\"PyNKr\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 688,
+                    "top": 224,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s11",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"Address\"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "H9g3x",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "H9g3x",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Address",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelAddress",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@name='H9g3x']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input[name=\"H9g3x\"]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[7]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/7/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "6",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "97",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "427",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "400",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelAddress\" id=\"H9g3x\" name=\"H9g3x\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 427,
+                    "top": 400,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s12",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"Email\"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "jeoyL",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "jeoyL",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Email",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelEmail",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@id='jeoyL']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input#jeoyL",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[5]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/5/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "4",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "87",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "427",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "312",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelEmail\" id=\"jeoyL\" name=\"jeoyL\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 427,
+                    "top": 312,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": {
+                  "expr": "toString($row[\"Phone Number\"])"
+                },
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "DNmbQ",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "name",
+                      "value": "DNmbQ",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Phone Number",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "ng-pristine ng-invalid ng-touched",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "ng-reflect-name",
+                      "value": "labelPhone",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//input[@name='DNmbQ']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "input[name=\"DNmbQ\"]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/div/div[3]/rpa1-field/div/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/1/3/1/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "77",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "427",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "224",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "238",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "46",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c2=\"\" ng-reflect-name=\"labelPhone\" id=\"DNmbQ\" name=\"DNmbQ\" class=\"ng-pristine ng-invalid ng-touched\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 427,
+                    "top": 224,
+                    "width": 238,
+                    "height": 46
+                  }
+                }
+              }
+            },
+            {
+              "id": "s14",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://rpachallenge.com/",
+                    "title": "Rpa Challenge",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "input",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "type",
+                      "value": "submit",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "class",
+                      "value": "btn uiColorButton",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "value",
+                      "value": "Submit",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "div:nth-of-type(2) > app-rpa1 > div > div:nth-of-type(2) > form > input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/app-root/div[2]/app-rpa1/div/div[2]/form/input",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/2/2/1/2/1/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "form.ng-pristine.ng-invalid",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "7",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "98",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "416",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "466",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "116",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "36",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "checked",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://rpachallenge.com/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<input _ngcontent-c1=\"\" class=\"btn uiColorButton\" type=\"submit\" value=\"Submit\" style=\"\">",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 416,
+                    "top": 466,
+                    "width": 116,
+                    "height": 36
+                  }
+                }
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "rounds",
+                "value": {
+                  "expr": "$rounds + 1"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": ".message2"
+      },
+      "out": {
+        "text": "result_message"
+      }
+    },
+    {
+      "id": "s19",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

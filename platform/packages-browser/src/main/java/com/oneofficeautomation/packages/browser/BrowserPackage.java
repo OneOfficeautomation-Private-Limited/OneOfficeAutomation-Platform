@@ -147,7 +147,9 @@ public final class BrowserPackage {
     static int countNow(ActionContext ctx, String session, Object object, String sel) {
         if (object != null) { Map<String, Object> o = WebObjects.object(object); return WebObjects.findAll(s(ctx, session).page, o).length; }
         if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
-        return s(ctx, session).page.locator(sel).count();
+        int n = s(ctx, session).page.locator(sel).count();
+        if (n > 0) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
+        return n;
     }
 
     static Locator element(ActionContext ctx, String session, String sel, Map<String, Object> alternatives, double timeoutMs) {
@@ -155,11 +157,11 @@ public final class BrowserPackage {
         UiGuard.before(ctx);
         InterruptRules rules = InterruptRules.existing(ctx);
         boolean noAlt = alternatives == null || alternatives.isEmpty();
-        if (noAlt && (rules == null || rules.isEmpty())) return page.locator(sel).first();
+        if (noAlt && (rules == null || rules.isEmpty())) return ObjectRecorder.note(ctx, page.locator(sel).first(), sel, timeoutMs);
         List<SelfHealing.Candidate> chain = SelfHealing.chain(new SelfHealing.Candidate("selector", sel), alternatives, SelfHealing::webSelector);
         try {
-            return SelfHealing.locate(chain, c -> { Locator l = s(ctx, session).page.locator(c.query()); return l.count() > 0 ? Optional.of(l.first()) : Optional.empty(); },
-                    (long) timeoutMs, SelfHealing.SYSTEM, 250, () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled).element();
+            return ObjectRecorder.note(ctx, SelfHealing.locate(chain, c -> { Locator l = s(ctx, session).page.locator(c.query()); return l.count() > 0 ? Optional.of(l.first()) : Optional.empty(); },
+                    (long) timeoutMs, SelfHealing.SYSTEM, 250, () -> UiGuard.before(ctx), ctx::warn, ctx::checkCancelled).element(), sel, timeoutMs);
         } catch (ActionException e) {
             if (noAlt && "UI.ELEMENT_NOT_FOUND".equals(e.code()))
                 throw new ActionException("BROWSER.TIMEOUT", "No element matches " + sel + " within " + (long) timeoutMs + " ms", "Check the selector matches an element on the page, or raise timeout_ms.", true);
@@ -419,6 +421,7 @@ public final class BrowserPackage {
             if (object == null) {
                 if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
                 s(ctx, session).page.locator(sel).first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(st));
+                if (st == WaitForSelectorState.VISIBLE || st == WaitForSelectorState.ATTACHED) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
             } else if (st == WaitForSelectorState.VISIBLE || st == WaitForSelectorState.ATTACHED) {
                 Locator l = target(ctx, session, object, null, null, timeout);
                 l.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(st));
@@ -1452,7 +1455,7 @@ public final class BrowserPackage {
                     n = found.length;
                     int idx = object.get("index") instanceof Number x ? x.intValue() : 0;
                     l = found.length > idx ? found[idx] : null;
-                } else { Locator all = page.locator(sel); n = all.count(); l = n > 0 ? all.first() : null; }
+                } else { Locator all = page.locator(sel); n = all.count(); l = n > 0 ? ObjectRecorder.note(ctx, all.first(), sel, 0) : null; }
                 result = switch (action) {
                     case "count" -> BigDecimal.valueOf(n);
                     case "is_present" -> l != null;
@@ -1633,7 +1636,9 @@ public final class BrowserPackage {
             if (object != null) { Map<String, Object> o = WebObjects.object(object); int idx = o.get("index") instanceof Number n ? n.intValue() : 0;
                 Locator[] f = WebObjects.findAll(s(ctx, session).page, o); return f.length > idx && f[idx].isVisible(); }
             if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
-            return s(ctx, session).page.locator(sel).first().isVisible();
+            boolean visible = s(ctx, session).page.locator(sel).first().isVisible();
+            if (visible) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
+            return visible;
         } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
@@ -1682,7 +1687,7 @@ public final class BrowserPackage {
           const box = document.createElement('div');
           box.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #a371ed;background:rgba(163,113,237,.12);border-radius:3px;display:none';
           const tip = document.createElement('div');
-          tip.style.cssText = 'position:fixed;z-index:2147483647;top:10px;right:10px;background:#2f3336;color:#fff;font:13px Segoe UI,sans-serif;padding:8px 12px;border-radius:10px';
+          tip.style.cssText = 'position:fixed;pointer-events:none;z-index:2147483647;top:10px;right:10px;background:#2f3336;color:#fff;font:13px Segoe UI,sans-serif;padding:8px 12px;border-radius:10px';
           tip.textContent = 'OOA Capture: click the element you want';
           const add = () => { if (document.body && !box.isConnected) { document.body.append(box, tip); } };
           if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
@@ -1702,6 +1707,7 @@ public final class BrowserPackage {
             window.__ooaPicked({ selector: sel(t), tag: t.tagName.toLowerCase(), text: (t.innerText || t.value || '').trim().slice(0, 80),
               type: t.getAttribute('type') || '', name: t.getAttribute('name') || '', id: t.id || '', alternatives: alt(t),
               props: __props(t), css: __cssPath(t), xpath: __absXpath(t), dom_xpath: __domXpath(t),
+              label_unique: (() => { const l = __labelOf(t); return !!l && Array.from(document.querySelectorAll('input:not([type=hidden]),select,textarea')).filter((x) => __labelOf(x) === l).length === 1; })(),
               rect: { x: r.left, y: r.top, width: r.width, height: r.height }, page_rect: __rect(t), page: { url: location.href, title: document.title } });
           }, true);
         })();
@@ -1879,31 +1885,48 @@ public final class BrowserPackage {
     static Map<String, Object> capturedObject(Map<String, Object> picked) {
         Map<String, Object> p = picked.get("props") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         String tag = String.valueOf(p.getOrDefault("tag", "")), id = (String) p.get("id"), name = (String) p.get("name");
-        boolean stableId = id != null && !id.matches(".*\\d{3,}.*") && !id.matches("^\\d.*");
+        boolean stableId = id != null && !generatedId(id);
         boolean field = Set.of("input", "select", "textarea").contains(tag);
-        String testId = (String) p.get("data-testid");
+        // attributes written for testing and automation name an element on purpose and do not change with the data
+        String testAttr = null;
+        for (String a : List.of("data-testid", "data-test", "data-test-id", "data-qa", "data-cy", "data-automation-id"))
+            if (p.get(a) != null && !String.valueOf(p.get(a)).isBlank()) { testAttr = a; break; }
+        // text or a label with numbers in it is data (a total, a count): it changes, so the element is not found by it
+        java.util.function.Predicate<String> steady = (k) -> p.get(k) != null && !String.valueOf(p.get(k)).isBlank() && !String.valueOf(p.get(k)).matches(".*\\d.*");
         Set<String> use = new LinkedHashSet<>(List.of("tag"));
-        if (testId != null) use.add("data-testid");
+        // a field is found by its label when no other field on the page has the same one: that is how a person tells fields
+        // apart, and it survives ids and names that a framework makes up anew on every visit
+        boolean byLabel = field && p.get("label") != null && Boolean.TRUE.equals(picked.get("label_unique"));
+        if (testAttr != null) use.add(testAttr);
+        else if (byLabel) use.add("label");
         else if (stableId) use.add("id");
-        else if (name != null) use.add("name");
-        else if (p.get("aria-label") != null) use.add("aria-label");
+        else if (field && p.get("label") != null && (name == null || generatedId(name))) use.add("label");
+        else if (name != null && !generatedId(name)) use.add("name");
+        else if (steady.test("aria-label")) use.add("aria-label");
         else if (field && p.get("placeholder") != null) use.add("placeholder");
         else if (field && p.get("label") != null) use.add("label");
-        else if (p.get("text") != null && String.valueOf(p.get("text")).length() <= 80) use.add("text");
-        else if (p.get("title") != null) use.add("title");
+        else if (steady.test("text") && String.valueOf(p.get("text")).length() <= 80) use.add("text");
+        else if (steady.test("title")) use.add("title");
         if (field && p.get("type") != null && !use.contains("id")) use.add("type");
-        List<String> order = new ArrayList<>(List.of("tag", "control_type", "id", "name", "data-testid", "type", "aria-label", "label", "placeholder", "text", "title", "role", "class", "value", "href", "src", "alt", "for"));
+        // nothing names the element: its own class (contains, as classes come and go with its state), else its place in the page
+        String cls = null;
+        if (use.size() == 1 && p.get("class") instanceof String c)
+            for (String t : c.trim().split("\\s+")) if (t.length() > 3 && !generatedId(t) && !t.matches("(?i)(ng|is|has)-.*|active|selected|open|show|hidden|disabled|focus.*")) { cls = t; break; }
+        if (use.size() == 1 && cls != null) use.add("class");
+        else if (use.size() == 1 && (picked.get("dom_xpath") instanceof String dx && !dx.isBlank() || p.get("dom_xpath") != null)) use.add("dom_xpath");
+        List<String> order = new ArrayList<>(List.of("tag", "control_type", "id", "name", "data-testid", "data-test", "type", "aria-label", "label", "placeholder", "text", "title", "role", "class", "value", "href", "src", "alt", "for"));
         for (String k : p.keySet()) if (!order.contains(k) && !TECHNICAL.contains(k)) order.add(k);
         order.addAll(TECHNICAL);
         List<Map<String, Object>> props = new ArrayList<>();
         for (String k : order) {
             if (!p.containsKey(k)) continue;
             Map<String, Object> e = new LinkedHashMap<>();
-            e.put("name", k); e.put("value", p.get(k)); e.put("match", "equals"); e.put("use", use.contains(k));
+            boolean byClass = k.equals("class") && cls != null && use.contains("class");
+            e.put("name", k); e.put("value", byClass ? cls : p.get(k)); e.put("match", byClass ? "contains" : "equals"); e.put("use", use.contains(k));
             props.add(e);
         }
         for (String k : List.of("dom_xpath", "css", "relative_xpath", "xpath"))
-            if (!p.containsKey(k) && picked.get(k) instanceof String v && !v.isBlank()) props.add(new LinkedHashMap<>(Map.of("name", k, "value", v, "match", "equals", "use", false)));
+            if (!p.containsKey(k) && picked.get(k) instanceof String v && !v.isBlank()) props.add(new LinkedHashMap<>(Map.of("name", k, "value", v, "match", "equals", "use", use.contains(k))));
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("technology", "web");
         Map<String, Object> page = picked.get("page") instanceof Map<?, ?> pm ? new LinkedHashMap<>((Map<String, Object>) pm) : new LinkedHashMap<>();
@@ -1917,6 +1940,32 @@ public final class BrowserPackage {
         if (picked.get("page_rect") instanceof Map<?, ?> r) o.put("rect", r);
         if (picked.get("screenshot") != null) o.put("screenshot", picked.get("screenshot"));
         return o;
+    }
+
+    private static final java.util.regex.Pattern SHORT_FORMS = java.util.regex.Pattern.compile(
+            "(?i)btn|txt|lbl|msg|img|pwd|nbr|num|qty|amt|cfg|ctl|ddl|chk|rb|cb|tb|dt|db|nav|src|dst|ctx|tmp|hdr|ftr|tbl|col|row|frm|pnl|grd|dlg|html|xml|css|url|pdf|sql|csv|xls|png|jpg|svg|http|www");
+
+    /**
+     * Is this id made up by a framework or at random (it changes between visits)? Many digits, a leading digit, or a short
+     * mix of letters that does not read as words (UeWWS, jQjQk, g7Aeq), unlike firstName, user_email or btnSave.
+     * The same rule as __generated in ooa-page.js.
+     */
+    static boolean generatedId(String v) {
+        if (v == null) return false;
+        if (v.matches(".*\\d{3,}.*") || v.matches("^\\d.*")) return true;
+        if (!v.matches("[A-Za-z0-9]{4,12}")) return false;
+        if (v.matches(".*[A-Za-z]\\d+[A-Za-z].*")) return true;
+        if (v.matches("[A-Z]+") || v.matches("[a-z]+")) return false;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\\d+").matcher(v);
+        List<String> words = new ArrayList<>();
+        while (m.find()) words.add(m.group());
+        if (!String.join("", words).equals(v)) return true;
+        for (int i = 0; i < words.size(); i++) {
+            String w = words.get(i);
+            if (w.matches("[A-Za-z]{2,}") && !w.matches("[A-Z]{2}") && !w.matches(".*[aeiouyAEIOUY].*") && !SHORT_FORMS.matcher(w).matches()) return true;
+            if (w.length() == 1 && i < words.size() - 1 && Character.isLetter(w.charAt(0))) return true;
+        }
+        return false;
     }
 
     /** Properties computed from the element's place in the page, listed after its attributes and text. */

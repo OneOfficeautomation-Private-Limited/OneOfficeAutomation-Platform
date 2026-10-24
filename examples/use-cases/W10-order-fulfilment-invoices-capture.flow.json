@@ -1,0 +1,1990 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w10_order_fulfilment_capture",
+  "name": "W10 Order fulfilment with invoice check (Capture)",
+  "description": "Create each order from a JSON file with its product lines, wait until the shop has processed it, download the invoice and check its total against the expected total. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "orders_json",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "orders",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "o",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "line",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "k",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "invoice_path",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "invoice_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "match",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "total_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "total",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "order_no",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "order_list",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "created",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders created."
+    },
+    {
+      "name": "verified",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Invoices whose total matches the expected total."
+    },
+    {
+      "name": "grand_total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Sum of the invoice totals."
+    },
+    {
+      "name": "ready_orders",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Orders shown as Ready in the order list."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.file/read_text",
+      "args": {
+        "path": "${folder}/data/orders-to-create.json"
+      },
+      "out": {
+        "text": "orders_json"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.json/parse",
+      "args": {
+        "text": "$orders_json"
+      },
+      "out": {
+        "value": "orders"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/order-admin.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open order-admin.html"
+    },
+    {
+      "id": "s31",
+      "action": "core/loop",
+      "args": {
+        "iterator": "list",
+        "over": "$orders",
+        "as": "o"
+      },
+      "description": "Each order",
+      "children": [
+        {
+          "id": "s4",
+          "action": "ooa.browser/click",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "new-order",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "New order",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[@id='new-order']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "button#new-order",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[1]/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/1/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "section#orders-view",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "10",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "43",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "95",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "94",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "New order",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button id=\"new-order\">New order</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 43,
+                "top": 95,
+                "width": 94,
+                "height": 33
+              }
+            }
+          }
+        },
+        {
+          "id": "s5",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "section",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "order-form",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "New order Customer Add product lineCreate orderCancel",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "card",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//section[@id='order-form']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "section#order-form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "main",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "19",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "8",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "24",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "68",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "980",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "204",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<h2>New order</h2><label for=\"customer\">Customer</label><input id=\"customer\"><div id=\"lines\"></div>\n<button id=\"add-line\">Add product line</button><button id=\"create\">Create order</button><button id=\"cancel\">Cancel</button><p id=\"form-error\" class=\"error hidden\"></p>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<section id=\"order-form\" class=\"card\"><h2>New order</h2><label for=\"customer\">Customer</label><input id=\"customer\"><div id=\"lines\"></div>\n<button id=\"add-line\">Add product line</button><button id=\"create\">Create order</button><button id=\"cancel\">Cancel</button><p id=\"form-error\" class=\"error hidden\"></p></section>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 24,
+                "top": 68,
+                "width": 980,
+                "height": 204
+              }
+            }
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$o.customer",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "customer",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "label",
+                  "value": "Customer",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='customer']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#customer",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/2/3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "section#order-form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "22",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "43",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "176",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "320",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "36",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input id=\"customer\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 43,
+                "top": 176,
+                "width": 320,
+                "height": 36
+              }
+            }
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "k",
+            "value": 0
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$o.lines",
+            "as": "line"
+          },
+          "description": "Each product line",
+          "children": [
+            {
+              "id": "s8",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                    "title": "Order admin",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "add-line",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Add product line",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='add-line']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#add-line",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[2]/button[1]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/2/5",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "section#order-form",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "24",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "43",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "222",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "128",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Add product line",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"add-line\">Add product line</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 43,
+                    "top": 222,
+                    "width": 128,
+                    "height": 33
+                  }
+                }
+              }
+            },
+            {
+              "id": "s9",
+              "action": "core/set",
+              "args": {
+                "variable": "k",
+                "value": {
+                  "expr": "$k + 1"
+                }
+              }
+            },
+            {
+              "id": "s10",
+              "action": "ooa.browser/select_option",
+              "args": {
+                "selector": "#lines .line:nth-child(${k}) select.product",
+                "option": "$line.product"
+              }
+            },
+            {
+              "id": "s11",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "selector": "#lines .line:nth-child(${k}) input.qty",
+                "text": "${line.qty}"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s13",
+          "action": "ooa.browser/click",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "create",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Create order",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[@id='create']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "button#create",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[2]/button[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/2/6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "section#order-form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "41",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "179",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "294",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "107",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Create order",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button id=\"create\">Create order</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 179,
+                "top": 294,
+                "width": 107,
+                "height": 33
+              }
+            }
+          }
+        },
+        {
+          "id": "s14",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "section",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "order-detail",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Order ORD-5001 Status: Processing Total: 198.00 Back to orders",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "card",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//section[@id='order-detail']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "section#order-detail",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "main",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "49",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "5",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "24",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "68",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "980",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "214",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<h2>Order <span id=\"o-number\">ORD-5001</span></h2><p>Status: <b id=\"o-status\">Processing</b></p><p>Total: <span id=\"o-total\">198.00</span></p>\n<p><a id=\"invoice\" class=\"hidden\" href=\"#\">Download invoice</a></p><button id=\"back-to-orders\">Back to orders</button>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<section id=\"order-detail\" class=\"card\"><h2>Order <span id=\"o-number\">ORD-5001</span></h2><p>Status: <b id=\"o-status\">Processing</b></p><p>Total: <span id=\"o-total\">198.00</span></p>\n<p><a id=\"invoice\" class=\"hidden\" href=\"#\">Download invoice</a></p><button id=\"back-to-orders\">Back to orders</button></section>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 24,
+                "top": 68,
+                "width": 980,
+                "height": 214
+              }
+            }
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "o-number",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "ORD-5001",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='o-number']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#o-number",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/h2/span",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/1/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "h2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "51",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "110",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "104",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "109",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "30",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "ORD-5001",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"o-number\">ORD-5001</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 110,
+                "top": 104,
+                "width": 109,
+                "height": 30
+              }
+            }
+          },
+          "out": {
+            "text": "order_no"
+          }
+        },
+        {
+          "id": "s16",
+          "action": "core/set",
+          "args": {
+            "variable": "status",
+            "value": ""
+          }
+        },
+        {
+          "id": "s19",
+          "action": "core/loop",
+          "args": {
+            "iterator": "while",
+            "condition": {
+              "op": "ne",
+              "left": "$status",
+              "right": "Ready"
+            },
+            "max_iterations": 60
+          },
+          "description": "Wait until the shop has processed it",
+          "children": [
+            {
+              "id": "s17",
+              "action": "core/delay",
+              "args": {
+                "seconds": 250,
+                "unit": "milliseconds"
+              }
+            },
+            {
+              "id": "s18",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                    "title": "Order admin",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "b",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Element",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "o-status",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Processing",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//b[@id='o-status']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "b#o-status",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/main/section[3]/p[1]/b",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2/3/2/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "p",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "53",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "91",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "152",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "75",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "20",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Processing",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<b id=\"o-status\">Processing</b>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 91,
+                    "top": 152,
+                    "width": 75,
+                    "height": 20
+                  }
+                }
+              },
+              "out": {
+                "text": "status"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s20",
+          "action": "ooa.browser/download",
+          "args": {
+            "folder": "${folder}/output/invoices",
+            "timeout_ms": 15000,
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "a",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Link",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "invoice",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Download invoice",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "href",
+                  "value": "blob:null/df636cd2-03e9-4148-8dcd-ce338ea5f957",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "download",
+                  "value": "ORD-5001.txt",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//a[@id='invoice']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "a#invoice",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/p[3]/a",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/4/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "57",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "43",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "222",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "118",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Download invoice",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<a id=\"invoice\" class=\"\" href=\"blob:null/df636cd2-03e9-4148-8dcd-ce338ea5f957\" download=\"ORD-5001.txt\">Download invoice</a>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 43,
+                "top": 222,
+                "width": 118,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "path": "invoice_path"
+          }
+        },
+        {
+          "id": "s21",
+          "action": "ooa.file/read_text",
+          "args": {
+            "path": "$invoice_path"
+          },
+          "out": {
+            "text": "invoice_text"
+          }
+        },
+        {
+          "id": "s22",
+          "action": "ooa.string/find",
+          "args": {
+            "text": "$invoice_text",
+            "find": "Total:\\s*[0-9.]+",
+            "regex": true
+          },
+          "out": {
+            "match": "match"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$match",
+            "find": "^Total:\\s*",
+            "replace_with": "",
+            "regex": true
+          },
+          "out": {
+            "result": "total_text"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/set",
+          "args": {
+            "variable": "total",
+            "value": {
+              "expr": "toNumber($total_text)"
+            }
+          }
+        },
+        {
+          "id": "s27",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$total",
+              "right": "$o.expected_total"
+            }
+          },
+          "children": [
+            {
+              "id": "s25",
+              "action": "core/set",
+              "args": {
+                "variable": "verified",
+                "value": {
+                  "expr": "$verified + 1"
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s26",
+              "action": "core/log",
+              "args": {
+                "message": "Invoice ${order_no}: total ${total} differs from the expected ${o.expected_total}",
+                "level": "warning"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s28",
+          "action": "core/set",
+          "args": {
+            "variable": "grand_total",
+            "value": {
+              "expr": "$grand_total + $total"
+            }
+          }
+        },
+        {
+          "id": "s29",
+          "action": "core/set",
+          "args": {
+            "variable": "created",
+            "value": {
+              "expr": "$created + 1"
+            }
+          }
+        },
+        {
+          "id": "s30",
+          "action": "ooa.browser/click",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                "title": "Order admin",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "back-to-orders",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Back to orders",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[@id='back-to-orders']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "button#back-to-orders",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/5",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "section#order-detail",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "58",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "43",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "267",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "118",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/order-admin.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Back to orders",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button id=\"back-to-orders\">Back to orders</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 43,
+                "top": 267,
+                "width": 118,
+                "height": 33
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s32",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "#orders"
+      },
+      "out": {
+        "table": "order_list"
+      }
+    },
+    {
+      "id": "s33",
+      "action": "ooa.datatable/filter",
+      "args": {
+        "table": "$order_list",
+        "column": "Status",
+        "operator": "eq",
+        "value": "Ready"
+      },
+      "out": {
+        "count": "ready_orders"
+      }
+    },
+    {
+      "id": "s34",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s35",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$order_list",
+        "path": "${folder}/output/created-orders.csv"
+      }
+    }
+  ]
+}

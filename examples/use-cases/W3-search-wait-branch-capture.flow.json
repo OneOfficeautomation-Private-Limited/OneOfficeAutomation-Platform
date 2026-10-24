@@ -1,0 +1,337 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w3_search_capture",
+  "name": "W3 Search with waits, branches and error handling (Capture)",
+  "description": "Search a site, wait for the results, branch on whether anything was found, and keep a screenshot when something goes wrong. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "term",
+      "type": "String",
+      "direction": "input",
+      "default": "laptop",
+      "description": "What to search for."
+    },
+    {
+      "name": "results",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Number of results."
+    },
+    {
+      "name": "first_result",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Name of the first result."
+    },
+    {
+      "name": "status",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "found, no results or error."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s13",
+      "action": "core/try",
+      "children": [
+        {
+          "id": "s1",
+          "action": "ooa.browser/open",
+          "args": {
+            "url": "${folder}/site/search.html",
+            "headless": "$headless",
+            "engine": "playwright",
+            "keep_open": false
+          }
+        },
+        {
+          "id": "s2",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$term",
+            "press_enter": true,
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/search.html",
+                "title": "Demo search",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "q",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "Search products",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='q']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#q",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/form/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "form#f",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "8",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "32",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "107",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "280",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "31",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/search.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input id=\"q\" placeholder=\"Search products\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 32,
+                "top": 107,
+                "width": 280,
+                "height": 31
+              }
+            }
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#results tr, #none",
+            "state": "visible",
+            "timeout_ms": 8000
+          },
+          "description": "Results or a no-results note"
+        },
+        {
+          "id": "s9",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_visible",
+              "args": {
+                "selector": "#none"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s4",
+              "action": "core/set",
+              "args": {
+                "variable": "status",
+                "value": "no results"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s5",
+              "action": "ooa.browser/extract_table",
+              "args": {
+                "selector": "#results"
+              },
+              "out": {
+                "table": "results"
+              }
+            },
+            {
+              "id": "s6",
+              "action": "ooa.datatable/row_count",
+              "args": {
+                "table": "$results"
+              },
+              "out": {
+                "count": "found"
+              }
+            },
+            {
+              "id": "s7",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$results",
+                "row": 0,
+                "column": "Name"
+              },
+              "out": {
+                "value": "first_result"
+              }
+            },
+            {
+              "id": "s8",
+              "action": "core/set",
+              "args": {
+                "variable": "status",
+                "value": "found"
+              }
+            }
+          ]
+        }
+      ],
+      "catch": [
+        {
+          "codes": [],
+          "screenshot": true,
+          "children": [
+            {
+              "id": "s10",
+              "action": "ooa.browser/screenshot",
+              "args": {
+                "path": "${folder}/output/search-error.png"
+              }
+            },
+            {
+              "id": "s11",
+              "action": "core/set",
+              "args": {
+                "variable": "status",
+                "value": "error"
+              }
+            }
+          ]
+        }
+      ],
+      "finally": [
+        {
+          "id": "s12",
+          "action": "ooa.browser/close"
+        }
+      ]
+    }
+  ]
+}

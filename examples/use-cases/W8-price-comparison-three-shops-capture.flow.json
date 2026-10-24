@@ -1,0 +1,1684 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w8_price_comparison_capture",
+  "name": "W8 Price comparison across three shops (Capture)",
+  "description": "Search every product in three web shops with different page layouts, keep the cheapest offer, compare it with last week and report the changes. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "products",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "last",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "shop",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "raw",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "clean",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "price",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "best",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "best_shop",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "at",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "previous",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "changed",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "shops",
+      "type": "List",
+      "direction": "local",
+      "default": [
+        "Shop A",
+        "Shop B",
+        "Shop C"
+      ]
+    },
+    {
+      "name": "report",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Product",
+          "Cheapest shop",
+          "Best price",
+          "Last best",
+          "Changed"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "compared",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Products compared."
+    },
+    {
+      "name": "changes",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Products whose best price changed."
+    },
+    {
+      "name": "total_best",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Sum of the best prices."
+    },
+    {
+      "name": "chair_shop",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Cheapest shop for the office chair."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/price-products.csv"
+      },
+      "out": {
+        "table": "products"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/last-prices.csv",
+        "detect_types": true
+      },
+      "out": {
+        "table": "last"
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/shop-a.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open shop-a.html"
+    },
+    {
+      "id": "s45",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$products",
+        "as": "p"
+      },
+      "description": "Each product",
+      "children": [
+        {
+          "id": "s4",
+          "action": "core/set",
+          "args": {
+            "variable": "best",
+            "value": 999999
+          }
+        },
+        {
+          "id": "s5",
+          "action": "core/set",
+          "args": {
+            "variable": "best_shop",
+            "value": ""
+          }
+        },
+        {
+          "id": "s32",
+          "action": "core/loop",
+          "args": {
+            "iterator": "list",
+            "over": "$shops",
+            "as": "shop"
+          },
+          "description": "Each shop",
+          "children": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "raw",
+                "value": ""
+              }
+            },
+            {
+              "id": "s24",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "eq",
+                  "left": "$shop",
+                  "right": "Shop A"
+                }
+              },
+              "description": "Each shop has its own page layout",
+              "children": [
+                {
+                  "id": "s7",
+                  "action": "ooa.browser/navigate",
+                  "args": {
+                    "url": "${folder}/site/shop-a.html"
+                  }
+                },
+                {
+                  "id": "s8",
+                  "action": "ooa.browser/type_text",
+                  "args": {
+                    "text": "$p.Product",
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-a.html",
+                        "title": "Shop A",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "input",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Text box",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "search",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "placeholder",
+                          "value": "Search",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//input[@id='search']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "input#search",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/input",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "main.card",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "9",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "19",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "72",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "320",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "36",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "checked",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-a.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<input id=\"search\" placeholder=\"Search\">",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 19,
+                        "top": 72,
+                        "width": 320,
+                        "height": 36
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "s9",
+                  "action": "ooa.browser/click",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-a.html",
+                        "title": "Shop A",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "button",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Button",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "go",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "Search",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//button[@id='go']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "button#go",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/button",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "main.card",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "10",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "343",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "75",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "74",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "33",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-a.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "Search",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<button id=\"go\">Search</button>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 343,
+                        "top": 75,
+                        "width": 74,
+                        "height": 33
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "s10",
+                  "action": "ooa.browser/wait_for",
+                  "args": {
+                    "selector": "#results tbody tr, #none",
+                    "state": "visible"
+                  }
+                },
+                {
+                  "id": "s12",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "condition": "ooa.browser/element_exists",
+                      "args": {
+                        "selector": "#results tbody tr"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s11",
+                      "action": "ooa.browser/get_text",
+                      "args": {
+                        "selector": "#results tbody tr:first-child td:nth-child(2)"
+                      },
+                      "out": {
+                        "text": "raw"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "elseIf": [
+                {
+                  "condition": {
+                    "op": "eq",
+                    "left": "$shop",
+                    "right": "Shop B"
+                  },
+                  "children": [
+                    {
+                      "id": "s13",
+                      "action": "ooa.browser/navigate",
+                      "args": {
+                        "url": "${folder}/site/shop-b.html"
+                      }
+                    },
+                    {
+                      "id": "s14",
+                      "action": "ooa.browser/type_text",
+                      "args": {
+                        "text": "$p.Product",
+                        "press_enter": true,
+                        "object": {
+                          "technology": "web",
+                          "page": {
+                            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-b.html",
+                            "title": "Shop B",
+                            "url_match": "starts_with"
+                          },
+                          "frames": [],
+                          "search_by": "properties",
+                          "index": 0,
+                          "ignore_case": false,
+                          "properties": [
+                            {
+                              "name": "tag",
+                              "value": "input",
+                              "match": "equals",
+                              "use": true
+                            },
+                            {
+                              "name": "control_type",
+                              "value": "Text box",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "name",
+                              "value": "query",
+                              "match": "equals",
+                              "use": true
+                            },
+                            {
+                              "name": "placeholder",
+                              "value": "What are you looking for?",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "dom_xpath",
+                              "value": "//input[@name='query']",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "css",
+                              "value": "input[name=\"query\"]",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "xpath",
+                              "value": "/html/body/main/form/input",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "path",
+                              "value": "2/2/1/1",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "parent",
+                              "value": "form",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "tag_index",
+                              "value": "0",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "source_index",
+                              "value": "11",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "child_count",
+                              "value": "0",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "left",
+                              "value": "19",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "top",
+                              "value": "65",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "width",
+                              "value": "320",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "height",
+                              "value": "36",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "visible",
+                              "value": "true",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "enabled",
+                              "value": "true",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "checked",
+                              "value": "false",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "in_frame",
+                              "value": "false",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "frame_url",
+                              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-b.html",
+                              "match": "equals",
+                              "use": false
+                            },
+                            {
+                              "name": "outer_html",
+                              "value": "<input name=\"query\" placeholder=\"What are you looking for?\">",
+                              "match": "equals",
+                              "use": false
+                            }
+                          ],
+                          "rect": {
+                            "left": 19,
+                            "top": 65,
+                            "width": 320,
+                            "height": 36
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "id": "s15",
+                      "action": "ooa.browser/wait_for",
+                      "args": {
+                        "selector": ".product, .no-results",
+                        "state": "visible"
+                      }
+                    },
+                    {
+                      "id": "s17",
+                      "action": "core/if",
+                      "args": {
+                        "condition": {
+                          "condition": "ooa.browser/element_exists",
+                          "args": {
+                            "object": {
+                              "technology": "web",
+                              "page": {
+                                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-b.html",
+                                "title": "Shop B",
+                                "url_match": "starts_with"
+                              },
+                              "frames": [],
+                              "search_by": "properties",
+                              "index": 0,
+                              "ignore_case": false,
+                              "properties": [
+                                {
+                                  "name": "tag",
+                                  "value": "div",
+                                  "match": "equals",
+                                  "use": true
+                                },
+                                {
+                                  "name": "control_type",
+                                  "value": "Element",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "text",
+                                  "value": "Desk lamp 23,49 EUR",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "class",
+                                  "value": "product",
+                                  "match": "contains",
+                                  "use": true
+                                },
+                                {
+                                  "name": "dom_xpath",
+                                  "value": "//*[@id='grid']/div",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "css",
+                                  "value": "#grid > div",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "xpath",
+                                  "value": "/html/body/main/div/div",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "path",
+                                  "value": "2/2/2/1",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "parent",
+                                  "value": "div#grid",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "tag_index",
+                                  "value": "1",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "source_index",
+                                  "value": "13",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "child_count",
+                                  "value": "2",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "left",
+                                  "value": "27",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "top",
+                                  "value": "109",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "width",
+                                  "value": "91",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "height",
+                                  "value": "62",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "visible",
+                                  "value": "true",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "enabled",
+                                  "value": "true",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "in_frame",
+                                  "value": "false",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "frame_url",
+                                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-b.html",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "inner_html",
+                                  "value": "<div class=\"title\">Desk lamp</div><div class=\"price\">23,49 EUR</div>",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "outer_html",
+                                  "value": "<div class=\"product\"><div class=\"title\">Desk lamp</div><div class=\"price\">23,49 EUR</div></div>",
+                                  "match": "equals",
+                                  "use": false
+                                }
+                              ],
+                              "rect": {
+                                "left": 27,
+                                "top": 109,
+                                "width": 91,
+                                "height": 62
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "s16",
+                          "action": "ooa.browser/get_text",
+                          "args": {
+                            "object": {
+                              "technology": "web",
+                              "page": {
+                                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-b.html",
+                                "title": "Shop B",
+                                "url_match": "starts_with"
+                              },
+                              "frames": [],
+                              "search_by": "properties",
+                              "index": 0,
+                              "ignore_case": false,
+                              "properties": [
+                                {
+                                  "name": "tag",
+                                  "value": "div",
+                                  "match": "equals",
+                                  "use": true
+                                },
+                                {
+                                  "name": "control_type",
+                                  "value": "Element",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "text",
+                                  "value": "23,49 EUR",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "class",
+                                  "value": "price",
+                                  "match": "contains",
+                                  "use": true
+                                },
+                                {
+                                  "name": "dom_xpath",
+                                  "value": "//div[normalize-space()='23,49 EUR']",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "css",
+                                  "value": "#grid > div > div:nth-of-type(2)",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "xpath",
+                                  "value": "/html/body/main/div/div/div[2]",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "path",
+                                  "value": "2/2/2/1/2",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "parent",
+                                  "value": "div.product",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "tag_index",
+                                  "value": "3",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "source_index",
+                                  "value": "15",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "child_count",
+                                  "value": "0",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "left",
+                                  "value": "38",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "top",
+                                  "value": "140",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "width",
+                                  "value": "69",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "height",
+                                  "value": "20",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "visible",
+                                  "value": "true",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "enabled",
+                                  "value": "true",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "in_frame",
+                                  "value": "false",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "frame_url",
+                                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-b.html",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "inner_html",
+                                  "value": "23,49 EUR",
+                                  "match": "equals",
+                                  "use": false
+                                },
+                                {
+                                  "name": "outer_html",
+                                  "value": "<div class=\"price\">23,49 EUR</div>",
+                                  "match": "equals",
+                                  "use": false
+                                }
+                              ],
+                              "rect": {
+                                "left": 38,
+                                "top": 140,
+                                "width": 69,
+                                "height": 20
+                              }
+                            }
+                          },
+                          "out": {
+                            "text": "raw"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "else": [
+                {
+                  "id": "s18",
+                  "action": "ooa.browser/navigate",
+                  "args": {
+                    "url": "${folder}/site/shop-c.html"
+                  }
+                },
+                {
+                  "id": "s19",
+                  "action": "ooa.browser/type_text",
+                  "args": {
+                    "text": "$p.Product",
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-c.html",
+                        "title": "Shop C",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "input",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Text box",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "find",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//input[@id='find']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "input#find",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/input",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/1",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "main.card",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "9",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "19",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "72",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "320",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "36",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "checked",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-c.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<input id=\"find\">",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 19,
+                        "top": 72,
+                        "width": 320,
+                        "height": 36
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "s20",
+                  "action": "ooa.browser/click",
+                  "args": {
+                    "object": {
+                      "technology": "web",
+                      "page": {
+                        "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-c.html",
+                        "title": "Shop C",
+                        "url_match": "starts_with"
+                      },
+                      "frames": [],
+                      "search_by": "properties",
+                      "index": 0,
+                      "ignore_case": false,
+                      "properties": [
+                        {
+                          "name": "tag",
+                          "value": "button",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "control_type",
+                          "value": "Button",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "id",
+                          "value": "find-btn",
+                          "match": "equals",
+                          "use": true
+                        },
+                        {
+                          "name": "text",
+                          "value": "Find",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "dom_xpath",
+                          "value": "//button[@id='find-btn']",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "css",
+                          "value": "button#find-btn",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "xpath",
+                          "value": "/html/body/main/button",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "path",
+                          "value": "2/2/2",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "parent",
+                          "value": "main.card",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "tag_index",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "source_index",
+                          "value": "10",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "child_count",
+                          "value": "0",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "left",
+                          "value": "343",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "top",
+                          "value": "75",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "width",
+                          "value": "58",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "height",
+                          "value": "33",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "visible",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "enabled",
+                          "value": "true",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "in_frame",
+                          "value": "false",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "frame_url",
+                          "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/shop-c.html",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "inner_html",
+                          "value": "Find",
+                          "match": "equals",
+                          "use": false
+                        },
+                        {
+                          "name": "outer_html",
+                          "value": "<button id=\"find-btn\">Find</button>",
+                          "match": "equals",
+                          "use": false
+                        }
+                      ],
+                      "rect": {
+                        "left": 343,
+                        "top": 75,
+                        "width": 58,
+                        "height": 33
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "s21",
+                  "action": "ooa.browser/wait_for",
+                  "args": {
+                    "selector": "#hits li, .empty:not(.hidden)",
+                    "state": "visible"
+                  }
+                },
+                {
+                  "id": "s23",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "condition": "ooa.browser/element_exists",
+                      "args": {
+                        "selector": "#hits li"
+                      }
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s22",
+                      "action": "ooa.browser/get_attribute",
+                      "args": {
+                        "selector": "#hits li:first-child",
+                        "attribute": "data-price"
+                      },
+                      "out": {
+                        "value": "raw"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "s31",
+              "action": "core/if",
+              "args": {
+                "condition": {
+                  "op": "notEmpty",
+                  "left": "$raw"
+                }
+              },
+              "description": "The shop sells it: compare its price",
+              "children": [
+                {
+                  "id": "s25",
+                  "action": "ooa.string/replace",
+                  "args": {
+                    "text": "$raw",
+                    "find": "[^0-9,.]",
+                    "replace_with": "",
+                    "regex": true
+                  },
+                  "out": {
+                    "result": "clean"
+                  }
+                },
+                {
+                  "id": "s26",
+                  "action": "ooa.string/replace",
+                  "args": {
+                    "text": "$clean",
+                    "find": ",",
+                    "replace_with": "."
+                  },
+                  "out": {
+                    "result": "clean"
+                  }
+                },
+                {
+                  "id": "s27",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "price",
+                    "value": {
+                      "expr": "toNumber($clean)"
+                    }
+                  }
+                },
+                {
+                  "id": "s30",
+                  "action": "core/if",
+                  "args": {
+                    "condition": {
+                      "op": "lt",
+                      "left": "$price",
+                      "right": "$best"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "s28",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "best",
+                        "value": "$price"
+                      }
+                    },
+                    {
+                      "id": "s29",
+                      "action": "core/set",
+                      "args": {
+                        "variable": "best_shop",
+                        "value": "$shop"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "s33",
+          "action": "ooa.datatable/find",
+          "args": {
+            "table": "$last",
+            "value": "$p.Product",
+            "column": "Product"
+          },
+          "out": {
+            "found": "found",
+            "first_row": "at"
+          }
+        },
+        {
+          "id": "s34",
+          "action": "core/set",
+          "args": {
+            "variable": "previous",
+            "value": 0
+          }
+        },
+        {
+          "id": "s36",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$found",
+              "right": true
+            }
+          },
+          "children": [
+            {
+              "id": "s35",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$last",
+                "row": "$at",
+                "column": "LastBest"
+              },
+              "out": {
+                "value": "previous"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s37",
+          "action": "core/set",
+          "args": {
+            "variable": "changed",
+            "value": {
+              "expr": "$best != $previous"
+            }
+          }
+        },
+        {
+          "id": "s39",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$changed",
+              "right": true
+            }
+          },
+          "children": [
+            {
+              "id": "s38",
+              "action": "core/set",
+              "args": {
+                "variable": "changes",
+                "value": {
+                  "expr": "$changes + 1"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "s41",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$p.Product",
+              "right": "Office chair"
+            }
+          },
+          "children": [
+            {
+              "id": "s40",
+              "action": "core/set",
+              "args": {
+                "variable": "chair_shop",
+                "value": "$best_shop"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s42",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$report",
+            "values": [
+              "$p.Product",
+              "$best_shop",
+              "$best",
+              "$previous",
+              "$changed"
+            ]
+          },
+          "out": {
+            "table": "report"
+          }
+        },
+        {
+          "id": "s43",
+          "action": "core/set",
+          "args": {
+            "variable": "total_best",
+            "value": {
+              "expr": "$total_best + $best"
+            }
+          }
+        },
+        {
+          "id": "s44",
+          "action": "core/set",
+          "args": {
+            "variable": "compared",
+            "value": {
+              "expr": "$compared + 1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s46",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s47",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$report",
+        "path": "${folder}/output/price-report.csv"
+      }
+    }
+  ]
+}

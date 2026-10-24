@@ -1,0 +1,1557 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w1_portal_order_capture",
+  "name": "W1 Portal order entry (Capture)",
+  "description": "Sign in to a web portal, fill in an order form and read the confirmation number. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "portal_user",
+      "type": "String",
+      "direction": "input",
+      "default": "demo.user",
+      "description": "Portal user name."
+    },
+    {
+      "name": "portal_password",
+      "type": "String",
+      "direction": "input",
+      "default": "demo-pass",
+      "description": "Password of the demo portal (it accepts any). In a real process make this a Credential from the vault."
+    },
+    {
+      "name": "customer",
+      "type": "String",
+      "direction": "input",
+      "default": "Acme",
+      "description": "Customer to order for."
+    },
+    {
+      "name": "amount",
+      "type": "Number",
+      "direction": "input",
+      "default": 250,
+      "description": "Order amount."
+    },
+    {
+      "name": "kind",
+      "type": "String",
+      "direction": "input",
+      "default": "Express",
+      "description": "Delivery: Standard, Express or Return."
+    },
+    {
+      "name": "confirmation",
+      "type": "String",
+      "direction": "output",
+      "description": "Confirmation number shown by the portal."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/portal.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open the portal"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$portal_user",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "user",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "label",
+              "value": "User",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='user']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#user",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[1]/input[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#login-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "116",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "280",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "31",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input id=\"user\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 116,
+            "width": 280,
+            "height": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$portal_password",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Password box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "pass",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "label",
+              "value": "Password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='pass']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#pass",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[1]/input[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#login-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "11",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "181",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "280",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "31",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input id=\"pass\" type=\"password\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 181,
+            "width": 280,
+            "height": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "login",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Sign in",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='login']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[1]/button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/6",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#login-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "13",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "226",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "73",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "33",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Sign in",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button id=\"login\" type=\"button\">Sign in</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 226,
+            "width": 73,
+            "height": 33
+          }
+        }
+      },
+      "description": "Sign in"
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "timeout_ms": 10000,
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "form",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "order-form",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Customer Amount Delivery Standard Express Return Place order Confirmation:",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//form[@id='order-form']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "form#order-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "body",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "15",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "92",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "1216",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "267",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<label for=\"customer\">Customer</label><input id=\"customer\"><label for=\"amount\">Amount</label><input id=\"amount\" type=\"number\">\n<label for=\"kind\">Delivery</label><select id=\"kind\"><option>Standard</option><option>Express</option><option>Return</option></select>\n<br><button id=\"submit\" type=\"button\">Place order</button><p>Confirmation: <span id=\"confirmation\"></span></p>",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<form id=\"order-form\" class=\"\" onsubmit=\"return false\"><label for=\"customer\">Customer</label><input id=\"customer\"><label for=\"amount\">Amount</label><input id=\"amount\" type=\"number\">\n<label for=\"kind\">Delivery</label><select id=\"kind\"><option>Standard</option><option>Express</option><option>Return</option></select>\n<br><button id=\"submit\" type=\"button\">Place order</button><p>Confirmation: <span id=\"confirmation\"></span></p></form>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 92,
+            "width": 1216,
+            "height": 267
+          }
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$customer",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "customer",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "label",
+              "value": "Customer",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='customer']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#customer",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[2]/input[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/3/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#order-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "17",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "116",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "280",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "31",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input id=\"customer\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 116,
+            "width": 280,
+            "height": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "s7",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "${amount}",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "amount",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "number",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "label",
+              "value": "Amount",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='amount']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#amount",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[2]/input[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/3/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#order-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "19",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "181",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "280",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "31",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input id=\"amount\" type=\"number\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 181,
+            "width": 280,
+            "height": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "s8",
+      "action": "ooa.browser/select_option",
+      "args": {
+        "option": "$kind",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "select",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Drop-down list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "kind",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "label",
+              "value": "Delivery",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Standard Express Return",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "Standard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//select[@id='kind']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "select#kind",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[2]/select",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/3/6",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#order-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "21",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "246",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "260",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "31",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "selected",
+              "value": "Standard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<option>Standard</option><option>Express</option><option>Return</option>",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<select id=\"kind\"><option>Standard</option><option>Express</option><option>Return</option></select>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 246,
+            "width": 260,
+            "height": 31
+          }
+        }
+      }
+    },
+    {
+      "id": "s9",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "submit",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Place order",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='submit']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#submit",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[2]/button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/3/8",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form#order-form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "26",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "291",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "100",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "33",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Place order",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button id=\"submit\" type=\"button\">Place order</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 32,
+            "top": 291,
+            "width": 100,
+            "height": 33
+          }
+        }
+      },
+      "description": "Place the order"
+    },
+    {
+      "id": "s10",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+            "title": "Demo order portal",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "span",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "confirmation",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "CONF-ACME-250-EXPRESS",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//span[@id='confirmation']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "span#confirmation",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/form[2]/p/span",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/3/9/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "p",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "28",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "126",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "339",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "188",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/portal.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "CONF-ACME-250-EXPRESS",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<span id=\"confirmation\">CONF-ACME-250-EXPRESS</span>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 126,
+            "top": 339,
+            "width": 188,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "confirmation"
+      }
+    },
+    {
+      "id": "s11",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

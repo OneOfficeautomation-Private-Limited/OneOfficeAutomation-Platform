@@ -1,0 +1,2877 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w6_invoice_approval_capture",
+  "name": "W6 Invoice approval process (Capture)",
+  "description": "Sign in to the approval portal, work through the queue of pending invoices, apply the approval rules to each one and report the decisions. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "portal_user",
+      "type": "String",
+      "direction": "input",
+      "default": "ap.clerk",
+      "description": "Portal user."
+    },
+    {
+      "name": "portal_password",
+      "type": "String",
+      "direction": "input",
+      "default": "demo-pass",
+      "description": "Password of the demo portal (it accepts any). In a real process make this a Credential from the vault."
+    },
+    {
+      "name": "limit",
+      "type": "Number",
+      "direction": "input",
+      "default": 5000,
+      "description": "Invoices above this amount go to a manager (escalated)."
+    },
+    {
+      "name": "inv",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "supplier",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "po",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "amount_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "amount",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "decision",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "reason",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "decisions",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Invoice",
+          "Supplier",
+          "Amount",
+          "Decision",
+          "Reason"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "processed",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Invoices decided by the agent."
+    },
+    {
+      "name": "approved",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Approved, as counted by the portal."
+    },
+    {
+      "name": "rejected",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Rejected, as counted by the portal."
+    },
+    {
+      "name": "escalated",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Escalated, as counted by the portal."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/invoice-approvals.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open invoice-approvals.html"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$portal_user",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "user",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "label",
+              "value": "User",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='user']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#user",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[1]/input[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#login-view",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "12",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "43",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "119",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "320",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "36",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input id=\"user\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 43,
+            "top": 119,
+            "width": 320,
+            "height": 36
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$portal_password",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Password box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "pass",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "label",
+              "value": "Password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='pass']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#pass",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[1]/input[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#login-view",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "14",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "43",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "189",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "320",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "36",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input id=\"pass\" type=\"password\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 43,
+            "top": 189,
+            "width": 320,
+            "height": 36
+          }
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "login",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Sign in",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='login']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[1]/button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/6",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#login-view",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "16",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "43",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "235",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "73",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "33",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Sign in",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button id=\"login\">Sign in</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 43,
+            "top": 235,
+            "width": 73,
+            "height": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "section",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "queue-view",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Approved 0 · Rejected 0 · Escalated 0 Show All Pending Approved Rejected Escalated Invoice Supplier Amount Status INV-2001 Acme 1,200.00 Pending Open INV-2002 Globex 8,400.00 Pending Open INV-2003 Initech 300.00 Pending Open INV-2004 Umbrella 4,999.00 Pending Open Previous page 1 of 2 Next",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//section[@id='queue-view']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "section#queue-view",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "main",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "18",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "24",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "68",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "980",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "482",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<div class=\"card\">Approved <b id=\"count-approved\">0</b> · Rejected <b id=\"count-rejected\">0</b> · Escalated <b id=\"count-escalated\">0</b></div>\n <div class=\"card\"><label for=\"status-filter\">Show</label><select id=\"status-filter\"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Escalated</option></select>\n <table id=\"queue\"><thead><tr><th>Invoice</th><th>Supplier</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody><tr><td>INV-2001</t",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<section id=\"queue-view\" class=\"\">\n <div class=\"card\">Approved <b id=\"count-approved\">0</b> · Rejected <b id=\"count-rejected\">0</b> · Escalated <b id=\"count-escalated\">0</b></div>\n <div class=\"card\"><label for=\"status-filter\">Show</label><select id=\"status-filter\"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Escalated</option></select>\n <table id=\"queue\"><thead><tr><th>Invoice</th><th>Supplier</th><th>Amount</th><th>Status</th><th></th></t",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 24,
+            "top": 68,
+            "width": 980,
+            "height": 482
+          }
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/select_option",
+      "args": {
+        "option": "Pending",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "select",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Drop-down list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "status-filter",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "label",
+              "value": "Show",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "All Pending Approved Rejected Escalated",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "All",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//select[@id='status-filter']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "select#status-filter",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[2]/div[2]/select",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/2/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.card",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "25",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "5",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "43",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "187",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "300",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "36",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "selected",
+              "value": "All",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Escalated</option>",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<select id=\"status-filter\"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Escalated</option></select>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 43,
+            "top": 187,
+            "width": 300,
+            "height": 36
+          }
+        }
+      },
+      "description": "Show only pending invoices"
+    },
+    {
+      "id": "s26",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "condition": "ooa.browser/element_exists",
+          "args": {
+            "selector": "#queue tbody tr"
+          }
+        },
+        "max_iterations": 50
+      },
+      "description": "Until the queue is empty",
+      "children": [
+        {
+          "id": "s7",
+          "action": "ooa.browser/click",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Open",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "class",
+                  "value": "open",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "data-id",
+                  "value": "INV-2001",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[normalize-space()='Open']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "#queue > tbody > tr:nth-of-type(1) > td:nth-of-type(5) > button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[2]/div[2]/table/tbody/tr[1]/td[5]/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/2/2/3/2/1/5/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "td",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "46",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "781",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "275",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "65",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Open",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button class=\"open\" data-id=\"INV-2001\">Open</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 781,
+                "top": 275,
+                "width": 65,
+                "height": 33
+              }
+            }
+          },
+          "description": "Open the next pending invoice"
+        },
+        {
+          "id": "s8",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "section",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "detail-view",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Invoice INV-2001 Supplier: Acme Amount: 1,200.00 Purchase order: PO-77 Comment ApproveRejectEscalateBack",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "card",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//section[@id='detail-view']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "section#detail-view",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "main",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "72",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "12",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "24",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "68",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "980",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "351",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<h2>Invoice <span id=\"d-invoice\">INV-2001</span></h2><p>Supplier: <span id=\"d-supplier\">Acme</span></p><p>Amount: <span id=\"d-amount\" data-value=\"1200\">1,200.00</span></p><p>Purchase order: <span id=\"d-po\">PO-77</span></p>\n <label for=\"comment\">Comment</label><textarea id=\"comment\"></textarea><br>\n <button id=\"approve\">Approve</button><button id=\"reject\">Reject</button><button id=\"escalate\">Escalate</button><button id=\"back\">Back</button>\n <p id=\"detail-error\" class=\"error hidden\">Write a commen",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<section id=\"detail-view\" class=\"card\">\n <h2>Invoice <span id=\"d-invoice\">INV-2001</span></h2><p>Supplier: <span id=\"d-supplier\">Acme</span></p><p>Amount: <span id=\"d-amount\" data-value=\"1200\">1,200.00</span></p><p>Purchase order: <span id=\"d-po\">PO-77</span></p>\n <label for=\"comment\">Comment</label><textarea id=\"comment\"></textarea><br>\n <button id=\"approve\">Approve</button><button id=\"reject\">Reject</button><button id=\"escalate\">Escalate</button><button id=\"back\">Back</button>\n <p id=\"detail-e",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 24,
+                "top": 68,
+                "width": 980,
+                "height": 351
+              }
+            }
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "d-invoice",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "INV-2001",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='d-invoice']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#d-invoice",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/h2/span",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/1/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "h2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "74",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "125",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "104",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "101",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "30",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "INV-2001",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"d-invoice\">INV-2001</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 125,
+                "top": 104,
+                "width": 101,
+                "height": 30
+              }
+            }
+          },
+          "out": {
+            "text": "inv"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "d-supplier",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Acme",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='d-supplier']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#d-supplier",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/p[1]/span",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "76",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "105",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "152",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "37",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Acme",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"d-supplier\">Acme</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 105,
+                "top": 152,
+                "width": 37,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "text": "supplier"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "d-po",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "PO-77",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='d-po']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#d-po",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/p[3]/span",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/4/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "5",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "80",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "150",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "222",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "42",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "PO-77",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"d-po\">PO-77</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 150,
+                "top": 222,
+                "width": 42,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "text": "po"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "ooa.browser/get_attribute",
+          "args": {
+            "attribute": "data-value",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "d-amount",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "1,200.00",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "data-value",
+                  "value": "1200",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='d-amount']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#d-amount",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/p[2]/span",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/3/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "78",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "104",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "187",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "55",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "1,200.00",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"d-amount\" data-value=\"1200\">1,200.00</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 104,
+                "top": 187,
+                "width": 55,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "value": "amount_text"
+          }
+        },
+        {
+          "id": "s13",
+          "action": "core/set",
+          "args": {
+            "variable": "amount",
+            "value": {
+              "expr": "toNumber($amount_text)"
+            }
+          }
+        },
+        {
+          "id": "s20",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$po"
+            }
+          },
+          "description": "Approval rules",
+          "children": [
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "decision",
+                "value": "reject"
+              }
+            },
+            {
+              "id": "s15",
+              "action": "core/set",
+              "args": {
+                "variable": "reason",
+                "value": "Missing purchase order"
+              }
+            }
+          ],
+          "elseIf": [
+            {
+              "condition": {
+                "op": "gt",
+                "left": "$amount",
+                "right": "$limit"
+              },
+              "children": [
+                {
+                  "id": "s16",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "decision",
+                    "value": "escalate"
+                  }
+                },
+                {
+                  "id": "s17",
+                  "action": "core/set",
+                  "args": {
+                    "variable": "reason",
+                    "value": "Above the approval limit of ${limit}"
+                  }
+                }
+              ]
+            }
+          ],
+          "else": [
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "decision",
+                "value": "approve"
+              }
+            },
+            {
+              "id": "s19",
+              "action": "core/set",
+              "args": {
+                "variable": "reason",
+                "value": "Within limit, matches ${po}"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s21",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$reason",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "textarea",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "comment",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "label",
+                  "value": "Comment",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//textarea[@id='comment']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "textarea#comment",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[3]/textarea",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/3/6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "section#detail-view",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "82",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "43",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "281",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "318",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "74",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<textarea id=\"comment\"></textarea>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 43,
+                "top": 281,
+                "width": 318,
+                "height": 74
+              }
+            }
+          }
+        },
+        {
+          "id": "s22",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "#${decision}"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                "title": "Invoice approvals",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "section",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "queue-view",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Approved 1 · Rejected 0 · Escalated 0 Show All Pending Approved Rejected Escalated Invoice Supplier Amount Status INV-2002 Globex 8,400.00 Pending Open INV-2003 Initech 300.00 Pending Open INV-2004 Umbrella 4,999.00 Pending Open INV-2005 Hooli 5,000.00 Pending Open Previous page 1 of 2 Next",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//section[@id='queue-view']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "section#queue-view",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "main",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "18",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "24",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "68",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "980",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "482",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<div class=\"card\">Approved <b id=\"count-approved\">1</b> · Rejected <b id=\"count-rejected\">0</b> · Escalated <b id=\"count-escalated\">0</b></div>\n <div class=\"card\"><label for=\"status-filter\">Show</label><select id=\"status-filter\"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Escalated</option></select>\n <table id=\"queue\"><thead><tr><th>Invoice</th><th>Supplier</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody><tr><td>INV-2002</t",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<section id=\"queue-view\" class=\"\">\n <div class=\"card\">Approved <b id=\"count-approved\">1</b> · Rejected <b id=\"count-rejected\">0</b> · Escalated <b id=\"count-escalated\">0</b></div>\n <div class=\"card\"><label for=\"status-filter\">Show</label><select id=\"status-filter\"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Escalated</option></select>\n <table id=\"queue\"><thead><tr><th>Invoice</th><th>Supplier</th><th>Amount</th><th>Status</th><th></th></t",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 24,
+                "top": 68,
+                "width": 980,
+                "height": 482
+              }
+            }
+          }
+        },
+        {
+          "id": "s24",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$decisions",
+            "values": [
+              "$inv",
+              "$supplier",
+              "$amount",
+              "$decision",
+              "$reason"
+            ]
+          },
+          "out": {
+            "table": "decisions"
+          }
+        },
+        {
+          "id": "s25",
+          "action": "core/set",
+          "args": {
+            "variable": "processed",
+            "value": {
+              "expr": "$processed + 1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "b",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "count-approved",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//b[@id='count-approved']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "b#count-approved",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[2]/div[1]/b[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/2/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.card",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "112",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "85",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<b id=\"count-approved\">4</b>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 112,
+            "top": 85,
+            "width": 9,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "approved"
+      }
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "b",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "count-rejected",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//b[@id='count-rejected']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "b#count-rejected",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[2]/div[1]/b[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/2/1/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.card",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "21",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "193",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "85",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<b id=\"count-rejected\">2</b>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 193,
+            "top": 85,
+            "width": 9,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "rejected"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+            "title": "Invoice approvals",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "b",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "count-escalated",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//b[@id='count-escalated']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "b#count-escalated",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[2]/div[1]/b[3]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/2/1/3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.card",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "22",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "279",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "85",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/invoice-approvals.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<b id=\"count-escalated\">1</b>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 279,
+            "top": 85,
+            "width": 9,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "escalated"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s31",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$decisions",
+        "path": "${folder}/output/invoice-decisions.csv"
+      }
+    }
+  ]
+}

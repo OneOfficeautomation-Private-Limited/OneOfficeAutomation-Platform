@@ -1,0 +1,1718 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p5_quotes_authors_capture",
+  "name": "P5 Quotes and authors (quotes.toscrape.com) (Capture)",
+  "description": "Sign in, read every page of the JavaScript-rendered quotes, rank the authors by number of quotes and visit the top authors' pages for their birth details. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "quote_user",
+      "type": "String",
+      "direction": "input",
+      "default": "demo",
+      "description": "User name (the site accepts any)."
+    },
+    {
+      "name": "quote_password",
+      "type": "String",
+      "direction": "input",
+      "default": "demo",
+      "description": "Password (the site accepts any)."
+    },
+    {
+      "name": "top_n",
+      "type": "Number",
+      "direction": "input",
+      "default": 3,
+      "description": "How many top authors to look up."
+    },
+    {
+      "name": "page_quotes",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "page_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "quotes",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [],
+        "rows": []
+      }
+    },
+    {
+      "name": "more",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "ranking",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "a",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "slug",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "born",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "place",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "authors",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Author",
+          "Quotes",
+          "Born",
+          "Born in"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "quote_count",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Quotes read."
+    },
+    {
+      "name": "top_author",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Author with the most quotes."
+    },
+    {
+      "name": "top_author_born",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Birth date of that author."
+    },
+    {
+      "name": "signed_in",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The sign-in worked."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://quotes.toscrape.com/login",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://quotes.toscrape.com/login"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$quote_user",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://quotes.toscrape.com/login",
+            "title": "Quotes to Scrape",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "username",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "username",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "label",
+              "value": "Username",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "class",
+              "value": "form-control",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='username']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#username",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/form/div[1]/div/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/2/1/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form-group.col-xs-3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "70",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "146",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "263",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "40",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://quotes.toscrape.com/login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input type=\"text\" class=\"form-control\" id=\"username\" name=\"username\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 70,
+            "top": 146,
+            "width": 263,
+            "height": 40
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$quote_password",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://quotes.toscrape.com/login",
+            "title": "Quotes to Scrape",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Password box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "name",
+              "value": "password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "form-control",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='password']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/form/div[2]/div/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/3/1/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form-group.col-xs-3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "24",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "70",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "229",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "263",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "40",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://quotes.toscrape.com/login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input type=\"password\" class=\"form-control\" id=\"password\" name=\"password\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 70,
+            "top": 229,
+            "width": 263,
+            "height": 40
+          }
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://quotes.toscrape.com/login",
+            "title": "Quotes to Scrape",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "submit",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "class",
+              "value": "btn btn-primary",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "Login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "/html/body/div/form/input[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "html > body > div > form > input:nth-of-type(2)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/form/input[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "25",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "70",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "284",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "67",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "41",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://quotes.toscrape.com/login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input type=\"submit\" value=\"Login\" class=\"btn btn-primary\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 70,
+            "top": 284,
+            "width": 67,
+            "height": 41
+          }
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://quotes.toscrape.com/",
+            "title": "Quotes to Scrape",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "a",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Link",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Logout",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "href",
+              "value": "/logout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//a[normalize-space()='Logout']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "body > div > div:nth-of-type(1) > div:nth-of-type(2) > p > a",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div[1]/div[2]/p/a",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/1/2/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "p",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "14",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "8",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "80",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "46",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "17",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://quotes.toscrape.com/",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Logout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<a href=\"/logout\">Logout</a>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 8,
+            "top": 80,
+            "width": 46,
+            "height": 17
+          }
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "action": "core/set",
+      "args": {
+        "variable": "signed_in",
+        "value": true
+      }
+    },
+    {
+      "id": "s7",
+      "action": "ooa.browser/navigate",
+      "args": {
+        "url": "https://quotes.toscrape.com/js/"
+      }
+    },
+    {
+      "id": "s16",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "op": "eq",
+          "left": "$more",
+          "right": true
+        },
+        "max_iterations": 30
+      },
+      "description": "Every page (rendered by JavaScript)",
+      "children": [
+        {
+          "id": "s8",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://quotes.toscrape.com/js/",
+                "title": "Quotes to Scrape",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "div",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "“The world as we have created it is a process of our thinking. It cannot be changed without changing our thinking.” by Albert Einstein Tags: change deep-thoughts thinking world",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "quote",
+                  "match": "contains",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "/html/body/div/div[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "html > body > div > div:nth-of-type(2)",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/1/4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.container",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "17",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "70",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "118",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "1140",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "108",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://quotes.toscrape.com/js/",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<span class=\"text\">“The world as we have created it is a process of our thinking. It cannot be changed without changing our thinking.”</span><span>by <small class=\"author\">Albert Einstein</small></span><div class=\"tags\">Tags: <a class=\"tag\">change</a> <a class=\"tag\">deep-thoughts</a> <a class=\"tag\">thinking</a> <a class=\"tag\">world</a></div>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<div class=\"quote\"><span class=\"text\">“The world as we have created it is a process of our thinking. It cannot be changed without changing our thinking.”</span><span>by <small class=\"author\">Albert Einstein</small></span><div class=\"tags\">Tags: <a class=\"tag\">change</a> <a class=\"tag\">deep-thoughts</a> <a class=\"tag\">thinking</a> <a class=\"tag\">world</a></div></div>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 70,
+                "top": 118,
+                "width": 1140,
+                "height": 108
+              }
+            }
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.browser/run_javascript",
+          "args": {
+            "script": "Array.from(document.querySelectorAll('.quote')).map(q => ({Quote: q.querySelector('.text').textContent, Author: q.querySelector('.author').textContent, Tags: Array.from(q.querySelectorAll('.tag')).map(t => t.textContent).join(', ')}))"
+          },
+          "out": {
+            "result": "page_quotes"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "ooa.datatable/from_records",
+          "args": {
+            "records": "$page_quotes"
+          },
+          "out": {
+            "table": "page_table"
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.datatable/merge",
+          "args": {
+            "tables": [
+              "$quotes",
+              "$page_table"
+            ],
+            "columns": "union"
+          },
+          "out": {
+            "table": "quotes"
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://quotes.toscrape.com/js/",
+                    "title": "Quotes to Scrape",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "a",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Link",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "text",
+                      "value": "Next →",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "href",
+                      "value": "/js/page/2/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//a[normalize-space()='Next →']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "body > div > nav > ul > li > a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/nav/ul/li/a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/14/1/1/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "li.next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "100",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "1125",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "1502",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "85",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "35",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://quotes.toscrape.com/js/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Next <span aria-hidden=\"true\">→</span>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<a href=\"/js/page/2/\">Next <span aria-hidden=\"true\">→</span></a>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 1125,
+                    "top": 1502,
+                    "width": 85,
+                    "height": 35
+                  }
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s12",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "https://quotes.toscrape.com/js/",
+                    "title": "Quotes to Scrape",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "a",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Link",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "text",
+                      "value": "Next →",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "href",
+                      "value": "/js/page/2/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//a[normalize-space()='Next →']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "body > div > nav > ul > li > a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/nav/ul/li/a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/1/14/1/1/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "li.next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "100",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "1125",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "1502",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "85",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "35",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "https://quotes.toscrape.com/js/",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Next <span aria-hidden=\"true\">→</span>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<a href=\"/js/page/2/\">Next <span aria-hidden=\"true\">→</span></a>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 1125,
+                    "top": 1502,
+                    "width": 85,
+                    "height": 35
+                  }
+                }
+              }
+            },
+            {
+              "id": "s13",
+              "action": "core/delay",
+              "args": {
+                "seconds": 300,
+                "unit": "milliseconds"
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s14",
+              "action": "core/set",
+              "args": {
+                "variable": "more",
+                "value": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s17",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$quotes"
+      },
+      "out": {
+        "count": "quote_count"
+      }
+    },
+    {
+      "id": "s18",
+      "action": "ooa.datatable/aggregate",
+      "args": {
+        "table": "$quotes",
+        "group_by": [
+          "Author"
+        ],
+        "summaries": {
+          "Quotes": "count"
+        }
+      },
+      "out": {
+        "table": "ranking"
+      }
+    },
+    {
+      "id": "s19",
+      "action": "ooa.datatable/sort",
+      "args": {
+        "table": "$ranking",
+        "column": "Quotes",
+        "descending": true,
+        "then_by": [
+          "Author"
+        ]
+      },
+      "out": {
+        "table": "ranking"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$ranking",
+        "as": "a",
+        "to_index": {
+          "expr": "$top_n - 1"
+        }
+      },
+      "description": "The top authors' pages",
+      "children": [
+        {
+          "id": "s20",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$a.Author",
+            "find": "[^A-Za-z0-9]+",
+            "replace_with": "-",
+            "regex": true
+          },
+          "out": {
+            "result": "slug"
+          }
+        },
+        {
+          "id": "s21",
+          "action": "ooa.string/replace",
+          "args": {
+            "text": "$slug",
+            "find": "^-+|-+$",
+            "replace_with": "",
+            "regex": true
+          },
+          "out": {
+            "result": "slug"
+          }
+        },
+        {
+          "id": "s22",
+          "action": "ooa.browser/navigate",
+          "args": {
+            "url": "https://quotes.toscrape.com/author/${slug}/"
+          }
+        },
+        {
+          "id": "s23",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://quotes.toscrape.com/author/Albert-Einstein/",
+                "title": "Quotes to Scrape",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "March 14, 1879",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "author-born-date",
+                  "match": "contains",
+                  "use": true
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[normalize-space()='March 14, 1879']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "html > body > div > div:nth-of-type(2) > p:nth-of-type(1) > span:nth-of-type(1)",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div[2]/p[1]/span[1]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/1/2/2/2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "19",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "117",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "184",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "111",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "17",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://quotes.toscrape.com/author/Albert-Einstein/",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "March 14, 1879",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span class=\"author-born-date\">March 14, 1879</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 117,
+                "top": 184,
+                "width": 111,
+                "height": 17
+              }
+            }
+          },
+          "out": {
+            "text": "born"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "selector": ".author-born-location"
+          },
+          "out": {
+            "text": "place"
+          }
+        },
+        {
+          "id": "s25",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$authors",
+            "values": [
+              "$a.Author",
+              "$a.Quotes",
+              "$born",
+              {
+                "expr": "replace($place, \"in \", \"\")"
+              }
+            ]
+          },
+          "out": {
+            "table": "authors"
+          }
+        },
+        {
+          "id": "s28",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$top_author"
+            }
+          },
+          "children": [
+            {
+              "id": "s26",
+              "action": "core/set",
+              "args": {
+                "variable": "top_author",
+                "value": "$a.Author"
+              }
+            },
+            {
+              "id": "s27",
+              "action": "core/set",
+              "args": {
+                "variable": "top_author_born",
+                "value": "$born"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s30",
+      "action": "ooa.browser/navigate",
+      "args": {
+        "url": "https://quotes.toscrape.com/logout"
+      }
+    },
+    {
+      "id": "s31",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s32",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$quotes",
+        "path": "${folder}/output/quotes.csv"
+      }
+    },
+    {
+      "id": "s33",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$authors",
+        "path": "${folder}/output/top-authors.csv"
+      }
+    }
+  ]
+}
