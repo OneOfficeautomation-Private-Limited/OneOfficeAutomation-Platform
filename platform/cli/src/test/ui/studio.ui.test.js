@@ -306,8 +306,8 @@ function restoreWorkspace() {
   const kind = d.querySelector("#props .cond .cond-top select");
   check("condition types include values and package checks", [...kind.querySelectorAll("option")].some((o) => o.value === "ooa.file/exists") && [...kind.querySelectorAll("option")].some((o) => o.value === "ooa.datetime/is_weekend") && kind.querySelectorAll("option").length >= 20);
   change(kind, "ooa.file/exists");
-  await until(() => d.querySelector("#props .cond .cond-arg input"));
-  change(d.querySelector("#props .cond .cond-arg input"), "data/orders.json");
+  await until(() => d.querySelector("#props .cond [data-field=path] input"));
+  change(d.querySelector("#props .cond [data-field=path] input"), "data/orders.json");
   check("package condition is stored as {condition, args}", JSON.stringify(w.eval("state.flow.steps.find(x => x.id === 'c1').args.condition")) === JSON.stringify({ condition: "ooa.file/exists", args: { path: "data/orders.json" } }));
   click([...d.querySelectorAll("#props .cond button")].find((b) => b.textContent === "+ Condition"));
   const rows = d.querySelectorAll("#props .cond .cond-row");
@@ -690,9 +690,9 @@ function restoreWorkspace() {
     w.eval(`state.flow.steps.push({ id: "ts_ui", action: "ooa.browser/element_action", args: { action: "set_text", value: "hello", object: { technology: "web", properties: [] } } });
       state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
     await until(() => d.querySelector('#props .text-source'));
-    check("Set text shows Credential / Variable / Plain text, plain text chosen for typed text",
-      [...d.querySelectorAll('#props .text-source .seg button')].map((b) => b.textContent).join() === "Credential,Variable,Plain text"
-      && d.querySelector('#props .text-source .seg button[aria-checked="true"]').textContent === "Plain text");
+    check("Set text shows Credential / Variable / Text / Calculation, Text chosen for typed text",
+      [...d.querySelectorAll('#props .text-source .seg button')].map((b) => b.textContent).join() === "Credential,Variable,Text,Calculation"
+      && d.querySelector('#props .text-source .seg button[aria-checked="true"]').textContent === "Text");
     click([...d.querySelectorAll('#props .text-source .seg button')].find((b) => b.textContent === "Credential"));
     await until(() => d.querySelector('#props .text-source select[aria-label="Credential variable"]'));
     click([...d.querySelectorAll('#props .text-source button')].find((b) => b.textContent === "+ New"));
@@ -986,10 +986,12 @@ function restoreWorkspace() {
       { id: "cc_date", action: "ooa.datetime/add", args: { value: "2026-10-23T00:00:00", amount: 2 } }); renderAll(); selectById("cc_loop")`);
     check("Loop N times shows the count and start, not the list or while fields", await until(() => fields().includes("count") && fields().includes("start")
       && !fields().includes("over") && !fields().includes("condition") && !fields().includes("from_index") && !fields().includes("check_at_end")), fields().join());
+    check("the Loop starts with its kind: N times, For each or While", [...d.querySelectorAll("#props .loop-kind button")].map((b) => b.textContent).join() === "N times,For each,While");
+    click([...d.querySelectorAll("#props .loop-kind button")].find((b) => b.textContent === "For each"));
+    await until(() => d.querySelector('#props .field[data-field="iterator"] select'));
     const iter = d.querySelector('#props .field[data-field="iterator"] select');
     check("the Loop type list offers each key and each value of a dictionary", [...iter.options].some((o) => o.value === "dictionary_values") && [...iter.options].some((o) => o.value === "dictionary_keys"));
-    delete w.eval("state.flow.steps.find((s) => s.id === 'cc_loop').args").count;
-    change(iter, "list");
+    change(d.querySelector('#props .field[data-field="iterator"] select'), "list");
     check("switching the Loop to a list shows its range options and hides the counter", await until(() => fields().includes("over") && fields().includes("from_index") && fields().includes("reverse")
       && !fields().includes("count") && !fields().includes("start")), fields().join());
     check("a number with limits says so in its help", (d.querySelector('#props .field[data-field="from_index"] .info-tip') || {}).title.includes("Smallest value: 0"));

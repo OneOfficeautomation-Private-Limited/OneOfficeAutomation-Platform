@@ -350,14 +350,21 @@ public final class BrowserPackage {
     }
 
     @Action(id = "get_text", name = "Get text", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read the visible text of an element.")
-    @Output(name = "text", type = OoaType.STRING, description = "Element text.")
+    @Output(name = "text", type = OoaType.STRING, description = "Element text; empty when the element was not found and if_not_found is continue.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the element was not there in time (if_not_found = continue).")
     public Map<String, Object> getText(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"}, description = D_IF_NOT_FOUND) String ifNotFound) {
+        return orEmpty(ifNotFound, "text", () -> getText(ctx, object, sel, timeout, session, alternatives, window));
+    }
+
+    /** Get text that stops with an error when the element is not there. */
+    public Map<String, Object> getText(ActionContext ctx, Object object, String sel, double timeout, String session, Map<String, Object> alternatives, Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
         if (tab(ctx, session) != null) return Map.of("text", String.valueOf(onElement(ctx, tab(ctx, session), object, sel, "get_text", null, timeout, Map.of())));
         try { return Map.of("text", target(ctx, session, object, sel, alternatives, timeout).innerText(new Locator.InnerTextOptions().setTimeout(timeout)).strip()); }
@@ -366,13 +373,20 @@ public final class BrowserPackage {
 
     @Action(id = "get_attribute", name = "Get attribute", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read an attribute of an element, e.g. href or value.")
     @Output(name = "value", type = OoaType.STRING, description = "Attribute value, empty when missing.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the element was not there in time (if_not_found = continue).")
     public Map<String, Object> getAttribute(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "attribute", type = OoaType.STRING, example = "href", description = "Attribute name; use value for input fields.") String attr,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"error\"", enumValues = {"error", "continue"}, description = D_IF_NOT_FOUND) String ifNotFound) {
+        return orEmpty(ifNotFound, "value", () -> getAttribute(ctx, object, sel, attr, timeout, session, window));
+    }
+
+    /** Get attribute that stops with an error when the element is not there. */
+    public Map<String, Object> getAttribute(ActionContext ctx, Object object, String sel, String attr, double timeout, String session, Object window) {
         session = BrowserWindows.use(ctx, session, window, timeout);
         if (tab(ctx, session) != null) {
             Object v = onElement(ctx, tab(ctx, session), object, sel, attr.equals("value") ? "get_value" : "get_attribute", attr.equals("value") ? null : attr, timeout, Map.of());
@@ -1567,6 +1581,19 @@ public final class BrowserPackage {
 
     /** The actions shared with the browser connector (ooa-page.js): status, list counts, table cells, slider position. */
     static final String EXTRA_JS = "(el, q) => {\n" + WebObjects.LIB_JS + "\nreturn __extra(el, q.op, q.a);\n}";
+
+    static final String D_IF_NOT_FOUND = "When the element is not there in time: error stops with an error; continue leaves the result empty, sets found to false and carries on.";
+
+    /** Runs a read; with if_not_found = continue, an element that is not there gives an empty result and found = false. */
+    private static Map<String, Object> orEmpty(String ifNotFound, String key, java.util.function.Supplier<Map<String, Object>> read) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        try { out.putAll(read.get()); out.put("found", true); }
+        catch (ActionException e) {
+            if (!"continue".equals(ifNotFound) || !NOT_THERE.contains(e.code())) throw e;
+            out.put(key, ""); out.put("found", false);
+        }
+        return out;
+    }
 
     /** Errors that mean "the page or element was not there in time", which if_not_found = continue skips. */
     static final Set<String> NOT_THERE = Set.of("BROWSER.OBJECT_NOT_FOUND", "BROWSER.INDEX_OUT_OF_RANGE", "BROWSER.PAGE_TIMEOUT", "BROWSER.TIMEOUT",

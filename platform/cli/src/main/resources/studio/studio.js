@@ -802,6 +802,12 @@ function renderLibrary() {
     if (q && !(a.name + " " + a.id + " " + a.description + " " + p.name + " " + groupMeta(g).name + " " + (a.category || "")).toLowerCase().includes(q)) continue;
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push({ p, a, addr: p.id + "/" + a.id });
+    if (p.id === "core" && a.id === "try") {   // Catch and Finally sit next to Try, as their own entries
+      for (const [addr, meta] of Object.entries(BLOCK_COMMANDS)) {
+        if (q && !(meta.name + " " + meta.description + " error").toLowerCase().includes(q)) continue;
+        groups.get(g).push({ p, a: Object.assign({ id: addr.split("/")[1] }, meta), addr });
+      }
+    }
   }
   state.libGroupIds = [...groups.keys()];
   const out = [];
@@ -852,8 +858,53 @@ function insertionPoint() {
   return { list: state.flow.steps, index: state.flow.steps.length, path: ["steps"] };
 }
 
+/** Palette entries that are not actions of their own but blocks of a Try (as the reference product lists them). */
+const BLOCK_COMMANDS = {
+  "core/catch": { name: "Catch", description: "Steps that run when a step in the Try fails. Drop it on a Try (or after one); a Try is created when there is none.", category: "Logic" },
+  "core/finally": { name: "Finally", description: "Steps that always run at the end of a Try, error or not (close files, log out). Drop it on a Try (or after one).", category: "Logic" },
+};
+
+/** The Try a Catch or Finally belongs to: the selected Try, a Try around the selection, or the Try just before the insertion point. */
+function tryForBlock(at) {
+  const isTry = (s) => s && s.action === "core/try";
+  const sel = state.selected ? getAt(state.flow, state.selected) : null;
+  if (isTry(sel)) return state.selected;
+  for (let p = (state.selected || at.path).slice(); p.length > 1; p = p.slice(0, -1)) {
+    const s = getAt(state.flow, p);
+    if (s && typeof s === "object" && !Array.isArray(s) && isTry(s)) return p;
+  }
+  const before = at.index > 0 ? at.list[at.index - 1] : null;
+  return isTry(before) ? at.path.concat(at.index - 1) : null;
+}
+
+function addBlock(kind, at) {
+  at = at || insertionPoint();
+  let tryPath = tryForBlock(at);
+  const created = !tryPath;
+  if (created) { addStep("core/try", at); tryPath = findPathById(getAt(state.flow, state.selected).id); }
+  const t = getAt(state.flow, tryPath);
+  let target;
+  if (kind === "core/catch") {
+    t.catch = t.catch || [];
+    // an empty Catch that catches everything (as a new Try has) is used; otherwise another Catch block is added
+    const empty = t.catch.findIndex((c) => !(c.codes || []).length && !(c.children || []).length && !c.as && !c.message_to);
+    const k = empty >= 0 ? empty : t.catch.push({ codes: [], children: [] }) - 1;
+    target = tryPath.concat("catch", k, "children");
+    toast("Catch added to the Try: steps you add now go into it");
+  } else {
+    if (!Array.isArray(t.finally)) t.finally = [];
+    target = tryPath.concat("finally");
+    toast("Finally added to the Try: steps you add now go into it");
+  }
+  state.selected = tryPath; state.multi = new Set([t.id]); state.target = target;
+  noteRecent(kind);
+  changed();
+  renderProps();
+}
+
 function addStep(action, at) {
   if (!state.flow) { toast("Open or create an agent first (Explorer tab).", true); return; }
+  if (BLOCK_COMMANDS[action]) { addBlock(action, at); return; }
   const spec = state.specs.get(action);
   const step = { id: newStepId(), action };
   const args = {};
@@ -861,6 +912,9 @@ function addStep(action, at) {
     if (action === "core/loop" && name === "iterator") args.iterator = "list";
     else if ((spec.action.inputs.required || []).includes(name) && prop.examples) args[name] = prop.examples[0];
   }
+  // Close after this agent created or wrote the file: save the changes (the toolkit default is not to save)
+  const office = /^(ooa\.(?:excel|word|powerpoint))\/close$/.exec(action);
+  if (office && allSteps(state.flow.steps).some((s) => s.action.startsWith(office[1] + "/") && /create|write|set|insert|add|replace|append|delete|update|fill/.test(s.action.split("/")[1]))) args.save = true;
   if (Object.keys(args).length) step.args = args;
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally is added only when wanted
@@ -876,16 +930,121 @@ function addStep(action, at) {
   toast("Added " + spec.action.name);
 }
 
+/** A value as a person reads it on the canvas: expressions as their text (toString(x) as x), lists joined, objects shortened. */
+function plainValue(v, max) {
+  max = max || 60;
+  let t;
+  if (v === undefined || v === null) t = "";
+  else if (typeof v === "string") t = v;
+  else if (typeof v === "number" || typeof v === "boolean") t = String(v);
+  else if (Array.isArray(v)) t = v.map((x) => plainValue(x, max)).join(", ");
+  else if (typeof v.expr === "string") t = v.expr.replace(/^toString\((.*)\)$/s, "$1");
+  else if (v.source === "credential" || v.credential) t = "credential " + (v.name || v.credential || "");
+  else if (v.source === "variable" && v.variable) t = v.variable;
+  else { const keys = Object.keys(v); t = keys.length ? "{" + keys.slice(0, 3).join(", ") + (keys.length > 3 ? ", \u2026" : "") + "}" : "{}"; }
+  return t.length > max ? t.slice(0, max - 1) + "\u2026" : t;
+}
+
+/** A condition as a sentence: "$total is greater than 1000", "Element exists (#next)", joined with and/or. */
+function conditionText(c) {
+  if (c === undefined || c === null || c === "") return "(no condition)";
+  if (typeof c === "string") return c;
+  if (typeof c.expr === "string") return c.expr;
+  if (Array.isArray(c.all)) return c.all.map(conditionText).join(" and ");
+  if (Array.isArray(c.any)) return c.any.map(conditionText).join(" or ");
+  if (c.not !== undefined) return "not (" + conditionText(c.not) + ")";
+  if (c.condition) {
+    const pkgCond = conditionCatalog().find((x) => x.addr === c.condition);
+    const args = Object.values(c.args || {}).filter((v) => v !== undefined && v !== "").map((v) => plainValue(v, 40));
+    return (pkgCond ? pkgCond.name : c.condition) + (args.length ? " (" + args.join(", ") + ")" : "");
+  }
+  if (c.op) {
+    const opText = (OPS.find(([v]) => v === c.op) || [c.op, c.op])[1].replace(/ \(.*\)$/, "");
+    if (c.op === "eq" && typeof c.right === "boolean") return plainValue(c.left) + " is " + c.right;
+    return plainValue(c.left) + " " + opText + (c.right !== undefined ? " " + quoteIfText(c.right) : "");
+  }
+  return plainValue(c);
+}
+function quoteIfText(v) { return typeof v === "string" && !v.startsWith("$") && !/^-?\d/.test(v) ? "\u201C" + v + "\u201D" : plainValue(v); }
+
+/** What a loop goes through, in words. */
+function loopText(a) {
+  const it = a.iterator || "list";
+  const as = a.as ? " as $" + a.as : "";
+  if (it === "times") return (a.count !== undefined ? plainValue(a.count) : "?") + " times" + (a.index ? ", counter $" + a.index : "");
+  if (it === "while") return "while " + conditionText(a.condition);
+  const what = { list: "each item in ", table_rows: "each row in ", dictionary: "each key and value in ", dictionary_keys: "each key in ", dictionary_values: "each value in " }[it];
+  if (what) return what + (a.over !== undefined ? plainValue(a.over) : "?") + as;
+  const [pkgId, itId] = it.split("/");
+  const pkg = state.packages.find((p) => p.id === pkgId);
+  const spec = pkg && (pkg.iterators || []).find((x) => x.id === itId);
+  const args = Object.values(a.iterator_args || {}).filter((v) => v !== undefined && v !== "").slice(0, 2).map((v) => plainValue(v, 40));
+  return (spec ? spec.name.charAt(0).toLowerCase() + spec.name.slice(1) : it) + (args.length ? " (" + args.join(", ") + ")" : "") + as;
+}
+
+/** "Only the first N" of a loop, read back from to_index (N - 1) when it starts at the first item; null otherwise. */
+function firstCount(a) {
+  if (a.from_index !== undefined && a.from_index !== 0) return null;
+  const t = a.to_index;
+  if (typeof t === "number") return String(t + 1);
+  const m = t && typeof t.expr === "string" ? /^(.*\S)\s*-\s*1$/.exec(t.expr.trim()) : null;
+  return m ? m[1] : null;
+}
+
+/** The input fields that say the most about a step, by their labels: required ones first, then the ones that are set. */
+function keyArgs(step, n) {
+  const a = step.args || {};
+  const spec = state.specs.get(step.action);
+  const props = spec ? spec.action.inputs.properties || {} : {};
+  const required = spec ? spec.action.inputs.required || [] : [];
+  const skip = new Set(["window", "object", "session", "timeout_ms", "timeout_seconds", "alternatives", "headless", "engine", "keep_open"]);
+  const names = Object.keys(a).filter((k) => !skip.has(k) && a[k] !== undefined && a[k] !== "");
+  names.sort((x, y) => (required.includes(y) ? 1 : 0) - (required.includes(x) ? 1 : 0));
+  return names.slice(0, n || 2).map((k) => {
+    const label = props[k] && props[k]["x-ooa-label"] ? props[k]["x-ooa-label"] : k;
+    return label.toLowerCase() + " " + quoteIfText(a[k]);
+  });
+}
+
 function summary(step) {
   const a = step.args || {};
-  if (step.action === "core/set") return (a.variable || "?") + " = " + showValue(a.value);
-  if (step.action === "core/if") return "if " + showValue(a.condition);
-  if (step.action === "core/loop") return a.iterator + (a.over ? " over " + showValue(a.over) : a.count ? " x " + showValue(a.count) : "") + (a.as ? " as " + a.as : "");
+  const outs = Object.values(step.out || {}).filter(Boolean).map((v) => "$" + String(v).replace(/^\$/, ""));
+  const result = outs.length ? "  \u2192 " + outs.join(", ") : "";
+  const target = a.object && typeof a.object === "object" ? objectLabel(a.object) : a.selector ? plainValue(a.selector, 50) : "";
   const where = windowLabel(a.window);
-  const parts = Object.entries(a).filter(([k]) => k !== "window" && k !== "object").slice(0, 3).map(([k, v]) => k + ": " + showValue(v));
-  if (a.object && typeof a.object === "object") parts.unshift(objectLabel(a.object));
-  const outs = Object.entries(step.out || {}).map(([k, v]) => "-> " + v);
-  return (where ? "in \u201C" + where + "\u201D   " : "") + parts.concat(outs).join("   ");
+  const inWin = where ? " in \u201C" + where + "\u201D" : "";
+  switch (step.action) {
+    case "core/set": return "$" + String(a.variable || "?").replace(/^\$/, "") + " = " + plainValue(a.value, 80);
+    case "core/if": return "If " + conditionText(a.condition);
+    case "core/loop": {
+      const t = loopText(a);
+      const first = firstCount(a);
+      return "Repeat " + (/^(while|\S+ times)/.test(t) ? "" : "for ") + t + (first !== null ? ", first " + first : "");
+    }
+    case "core/wait_until": return "Until " + conditionText(a.condition) + (a.timeout_seconds ? " (up to " + a.timeout_seconds + " s)" : "");
+    case "core/try": return "Steps that may fail";
+    case "core/throw": return (a.code ? a.code + ": " : "") + plainValue(a.message, 80);
+    case "core/log": return plainValue(a.message, 90);
+    case "core/comment": return plainValue(a.text, 100);
+    case "core/delay": return "Wait " + plainValue(a.seconds) + " " + (a.unit || "seconds");
+    case "core/break": case "core/continue": return a.label ? "loop " + a.label : "innermost loop";
+    case "core/run_bot": return plainValue(a.bot || a.path || "") + result;
+    case "ooa.browser/open": case "ooa.browser/navigate": return plainValue(a.url, 80) + (a.browser ? " in " + a.browser : "");
+    case "ooa.browser/click": return (target || "?") + inWin;
+    case "ooa.browser/type_text": return quoteIfText(a.text) + " into " + (target || "?") + inWin;
+    case "ooa.browser/select_option": return quoteIfText(a.option) + " in " + (target || "?") + inWin;
+    case "ooa.browser/get_text": case "ooa.browser/get_attribute": return (target || "?") + inWin + (a.if_not_found === "continue" ? " (empty if not found)" : "") + result;
+    case "ooa.browser/element_action": return (a.action || "action").replace(/_/g, " ") + (a.value !== undefined ? " " + quoteIfText(a.value) : "") + " on " + (target || "?") + inWin + result;
+    case "ooa.browser/run_javascript": return (a.script_file ? "script file " + plainValue(a.script_file) : "script " + plainValue(a.script, 60)) + result;
+    case "ooa.browser/wait_for": return (target || "?") + (a.state ? " to be " + a.state : "") + inWin;
+    case "ooa.datatable/lookup": return plainValue(a.return_column || "?") + " where " + plainValue(a.column || "?") + " = " + quoteIfText(a.value) + " in " + plainValue(a.table || "?")
+      + (a.if_not_found !== undefined ? ", else " + quoteIfText(a.if_not_found) : "") + result;
+    default: {
+      const parts = keyArgs(step, 2);
+      if (target) parts.unshift(target);
+      return (where ? "in \u201C" + where + "\u201D  " : "") + parts.join(", ") + result;
+    }
+  }
 }
 
 /** Short name of a window choice: its title, variable or address; empty when the step uses the session's current tab. */
@@ -1702,16 +1861,166 @@ function controlsOtherFields(action, name) {
   return !!spec && Object.values(spec.action.inputs.properties).some((p) => p["x-ooa-visible-when"] && name in p["x-ooa-visible-when"]);
 }
 
+/** Text that reads as a calculation on variables: "$i + 2", "$total * 1.2", "$a != $b" (not text with ${...} in it). */
+function looksLikeCalc(text) {
+  const t = String(text || "").trim();
+  return !t.includes("${") && /^\(?\s*\$[A-Za-z_][\w.]*(\[[^\]]*\])*\s*([-+*\/%]|==|!=|<=|>=|<|>|&&|\|\|)/.test(t);
+}
+/** Is this a whole variable reference ($name, $row.Name, $row["First Name"], ${x})? Those keep their own type. */
+function isVarRef(text) {
+  const t = String(text || "").trim();
+  return /^\$[A-Za-z_][\w.]*(\[[^\]]*\])*$/.test(t) || /^\$\{[^}]*\}$/.test(t);
+}
+/** A Number field as typed: a number, a variable, or anything else as a calculation ({expr}), so "$n - 1" needs no JSON. */
+function numberFromText(text) {
+  const v = parseLoose(text);
+  if (typeof v !== "string" || isVarRef(v)) return v;
+  return { expr: v.trim().replace(/^=\s*/, "") };
+}
+function numberText(v) { return v && typeof v === "object" && typeof v.expr === "string" ? v.expr : showValue(v); }
+
+/**
+ * The value of Assign variable: Text or value (saved as typed; $name keeps the variable's type) or Calculation
+ * (worked out when the step runs). Text that looks like a calculation is saved as one, with a note, so "$i + 1" just works.
+ */
+function assignValueEditor(current, set, wantType) {
+  const isCalc = current && typeof current === "object" && !Array.isArray(current) && typeof current.expr === "string";
+  let mode = isCalc ? "calc" : "value";
+  const box = h("div", { class: "text-source value-editor" });
+  const render = () => {
+    const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Value is" },
+      [["value", "Text or value"], ["calc", "Calculation"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String(mode === k),
+        onclick: () => {
+          if (mode === k) return;
+          mode = k;
+          const cur = current;
+          // keep what was typed when switching
+          if (k === "calc" && typeof cur === "string" && cur.trim()) { current = { expr: cur.trim() }; set(current); }
+          else if (k === "value" && cur && typeof cur.expr === "string") { current = cur.expr; set(current); }
+          render();
+        } }, t)));
+    let body, help;
+    if (mode === "calc") {
+      body = withPicker(h("input", { type: "text", "aria-label": "Calculation", value: isCalcVal(current) ? current.expr : "", placeholder: "$count + 1",
+        onchange: (e) => { const t = e.target.value.trim().replace(/^=\s*/, ""); current = t ? { expr: t } : undefined; set(current); } }), wantType || "Any");
+      help = "Worked out when the step runs: + - * / %, comparisons (== != < > <= >=), && and ||, and functions such as round($x, 2), toNumber($text), upper($name).";
+    } else {
+      body = withPicker(h("textarea", { rows: 2, "aria-label": "Value", value: isCalcVal(current) ? "" : showValue(current), placeholder: wantType === "Number" ? "42 or $other" : "text, $variable or JSON",
+        onchange: (e) => {
+          const t = e.target.value;
+          if (looksLikeCalc(t)) { mode = "calc"; current = { expr: t.trim() }; set(current); render(); toast("Saved as a calculation: " + t.trim() + ". Choose Text or value to keep it as text."); return; }
+          current = parseLoose(t); set(current);
+        } }), wantType || "Any");
+      help = "Saved as typed. $name copies a variable (keeping its type); ${name} puts a value inside text: Invoice ${number}.";
+    }
+    box.replaceChildren(seg, body, h("div", { class: "help", text: help }));
+  };
+  render();
+  return box;
+}
+function isCalcVal(v) { return !!(v && typeof v === "object" && !Array.isArray(v) && typeof v.expr === "string"); }
+
+/** Plain-language labels for input names whose generated label is unclear ("Jdbc url", "Sql", "Imap host"). */
+const FIELD_LABELS = {
+  object: "Captured object", jdbc_url: "Database address (JDBC URL)", sql: "SQL statement", imap_host: "Incoming mail server (IMAP)",
+  smtp_host: "Outgoing mail server (SMTP)", api_key: "API key", base_url: "Endpoint address", mask_pii: "Hide personal data",
+  insecure_tls: "Allow untrusted certificates", wait_closed_seconds: "Wait until closed (seconds)", type_delay_ms: "Pause between keys (ms)",
+  timeout_ms: "Wait up to (ms)", html: "Body is HTML", include_original: "Include the original message", cc: "Cc", bcc: "Bcc",
+  access_token: "Access token", aws_access_key_id: "AWS access key id", aws_region: "AWS region", url: "Address (URL)",
+  id: "Id", if_not_found: "If not found", keep_open: "Keep the browser open after the run", press_enter: "Press Enter afterwards", detect_types: "Detect numbers and dates",
+  double_click: "Double-click", header: "First row is the header",
+};
+/** Labels that only make sense for one action. */
+const ACTION_FIELD_LABELS = {
+  "core/delay": { seconds: "How long", unit: "Unit", random_max: "Random, up to (same unit)" },
+  "core/set": { variable: "Variable", value: "Value" },
+  "ooa.excel/close": { save: "Save changes" }, "ooa.word/close": { save: "Save changes" }, "ooa.powerpoint/close": { save: "Save changes" },
+  "ooa.excel/create_workbook": { overwrite: "Replace the file if it exists" },
+};
+/** Plain words for the codes that drop-downs store (eq, not_contains, aws_bedrock …); the stored value does not change. */
+const ENUM_WORDS = {
+  eq: "equals", ne: "does not equal", gt: "is greater than", ge: "is greater than or equal to", gte: "is greater than or equal to",
+  lt: "is less than", le: "is less than or equal to", lte: "is less than or equal to", equal: "equals", not_equal: "does not equal",
+  equals: "equals", not_equals: "does not equal", contains: "contains", not_contains: "does not contain", starts_with: "starts with",
+  ends_with: "ends with", empty: "is empty", not_empty: "is not empty", non_empty: "is not empty", matches: "matches pattern (regex)",
+  between: "is between", error: "Stop with an error", fail: "Stop with an error", skip: "Skip it", ignore: "Ignore it",
+  overwrite: "Replace it", replace: "Replace it", rename: "Keep both (rename the new one)",
+  openai: "OpenAI", azure_openai: "Azure OpenAI", anthropic: "Anthropic", openai_compatible: "OpenAI-compatible server", huggingface: "Hugging Face",
+  aws_bedrock: "AWS Bedrock", aws_bedrock_sagemaker: "AWS Bedrock (SageMaker)", google_vertex: "Google Vertex AI",
+  edge: "Microsoft Edge", chrome: "Google Chrome", chromium: "Chromium", firefox: "Firefox", playwright: "Built-in automation browser",
+  connector: "My own browser (extension)", starttls: "STARTTLS", ssl: "SSL/TLS", imap: "IMAP", pop3: "POP3", ftp: "FTP", sftp: "SFTP", ftps: "FTPS",
+  csv: "CSV", json: "JSON", xml: "XML", html: "HTML", pdf: "PDF", crlf: "Windows (CRLF)", lf: "Unix (LF)", utf8: "UTF-8", utf16: "UTF-16",
+  ms: "milliseconds", asc: "ascending", desc: "descending", half_up: "half up (2.5 → 3)", half_even: "half even (2.5 → 2)",
+};
+/** Words that differ by action: "continue" skips an action but leaves a read empty. */
+const ACTION_ENUM_WORDS = {
+  "ooa.browser/get_text": { continue: "Leave it empty and go on" }, "ooa.browser/get_attribute": { continue: "Leave it empty and go on" },
+  "ooa.browser/element_action": { continue: "Skip this step and go on" }, "ooa.desktop_ui/object_action": { continue: "Skip this step and go on" },
+};
+function enumWord(action, v) {
+  const s = String(v);
+  const own = ACTION_ENUM_WORDS[action] && ACTION_ENUM_WORDS[action][s];
+  if (own) return own;
+  if (Object.prototype.hasOwnProperty.call(ENUM_WORDS, s)) return ENUM_WORDS[s];
+  // snake_case and single lower-case words read as words; codes such as UTF-8, SHA-256 or camelCase stay as they are
+  if (/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(s)) { const t = s.replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1); }
+  return s;
+}
+
+function fieldLabel(action, name, prop) {
+  const own = ACTION_FIELD_LABELS[action] && ACTION_FIELD_LABELS[action][name];
+  if (own) return own;
+  const given = prop && prop["x-ooa-label"];
+  const generated = name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ");
+  // a label written for the field wins; the one generated from the name gives way to a plainer one
+  if (given && given.toLowerCase() !== generated.toLowerCase()) return given;
+  return FIELD_LABELS[name] || given || generated;
+}
+
+/**
+ * Fields kept in view (not under More options) because they are the choice that matters for that action,
+ * though they have a default (wait for: visible or hidden; close: save).
+ */
+const KEY_FIELDS = {
+  "ooa.browser/wait_for": ["state", "timeout_ms"], "ooa.browser/type_text": ["press_enter"], "ooa.csv/read": ["detect_types"],
+  "ooa.excel/close": ["save"], "ooa.word/close": ["save"], "ooa.powerpoint/close": ["save"], "ooa.excel/create_workbook": ["overwrite"],
+  "ooa.genai/classify": ["provider", "connection", "model"], "core/delay": ["unit"],
+  "ooa.browser/get_text": ["if_not_found"], "ooa.browser/get_attribute": ["if_not_found"], "ooa.datatable/lookup": ["if_not_found"],
+};
+
+/**
+ * Collection actions return the changed table, list or dictionary instead of changing it in place. When the input is a
+ * variable and the same-named output is not stored yet, it is stored back into that variable, so the step is not lost.
+ */
+function mirrorOutput(step, name) {
+  if (!/^ooa\.(datatable|list|dictionary)\//.test(step.action)) return false;
+  const spec = state.specs.get(step.action);
+  const o = spec && (spec.action.outputs || {})[name];
+  const v = (step.args || {})[name];
+  if (!o || !["Table", "List", "Dictionary"].includes(o["x-ooa-type"]) || typeof v !== "string" || !/^\$[A-Za-z_]\w*$/.test(v.trim())) return false;
+  if (step.out && step.out[name]) return false;
+  step.out = Object.assign({}, step.out, { [name]: v.trim().slice(1) });
+  return true;
+}
+
 function inputControl(step, name, prop, required) {
   const args = step.args || (step.args = {});
   const type = prop["x-ooa-type"] || "Any";
   const current = args[name];
+  prop = Object.assign({}, prop, { "x-ooa-label": fieldLabel(step.action, name, prop) });
   const set = (v) => {
     if (v === undefined) delete args[name]; else { args[name] = v; step.args = args; }
     if (!Object.keys(args).length) delete step.args;
-    changed();
-    if (controlsOtherFields(step.action, name)) renderProps();
+    const mirrored = mirrorOutput(step, name);
+    if (mirrored) toast("The result is stored back in $" + step.out[name] + " (see Outputs).");
+    if (step._onSet) step._onSet(); else changed();
+    if (mirrored || controlsOtherFields(step.action, name)) renderProps();
   };
+  if (step.action === "core/set" && name === "value") {
+    const vdef = state.flow.variables.find((x) => x.name === String(args.variable || "").replace(/^\$/, ""));
+    return h("div", { class: "field", "data-field": name }, h("label", {}, "Value", required ? h("span", { class: "req", text: " *" }) : null,
+      infoTip(prop.description)), assignValueEditor(current, set, vdef ? vdef.type : "Any"));
+  }
   let control;
   if (step.action === "core/run_bot" && name === "automation") {
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Agent to run", required ? h("span", { class: "req", text: " *" }) : null,
@@ -1765,31 +2074,35 @@ function inputControl(step, name, prop, required) {
     control.value = current || "list";
   } else if (prop.enum) {
     control = h("select", { onchange: (e) => set(e.target.value === "" ? undefined : e.target.value) },
-      h("option", { value: "", text: prop.default !== undefined ? "(default: " + prop.default + ")" : "(choose)" }),
-      prop.enum.map((v) => h("option", { value: v, text: v })));
+      h("option", { value: "", text: prop.default !== undefined ? "(default: " + enumWord(step.action, prop.default) + ")" : "(choose)" }),
+      prop.enum.map((v) => h("option", { value: v, text: enumWord(step.action, v), title: String(v) })));
     control.value = current === undefined ? "" : String(current);
   } else if (type === "Boolean") {
     control = h("select", { onchange: (e) => set(e.target.value === "" ? undefined : e.target.value === "true" ? true : e.target.value === "false" ? false : e.target.value) },
       h("option", { value: "", text: prop.default !== undefined ? "(default: " + prop.default + ")" : "(not set)" }),
       h("option", { value: "true", text: "true" }), h("option", { value: "false", text: "false" }));
     control.value = current === true ? "true" : current === false ? "false" : "";
+  } else if (["List", "Dictionary", "Table", "Record"].includes(type) && name !== "condition" && name !== "value") {
+    return h("div", { class: "field", "data-field": name }, h("label", {}, prop["x-ooa-label"] || name, required ? h("span", { class: "req", text: " *" }) : null, typeChip(type),
+      infoTip(prop.description || "")), typedVarControl(current, type, name, set));
   } else if (["List", "Dictionary", "Table", "Record", "Any"].includes(type)) {
     control = h("textarea", { rows: name === "condition" || name === "value" ? 2 : 3, value: showValue(current),
       placeholder: name === "condition" ? "$amount > 1000" : type === "Any" ? "value, $variable or JSON" : "$variable or JSON",
       onchange: (e) => set(parseLoose(e.target.value)) });
   } else {
-    control = h("input", { type: "text", value: showValue(current),
-      placeholder: prop.default !== undefined ? "default: " + prop.default : type === "Credential" ? "$credential_variable" : type === "Number" ? "number or $variable" : "",
-      onchange: (e) => set(type === "Number" ? parseLoose(e.target.value) : (e.target.value === "" ? undefined : e.target.value)) });
+    control = h("input", { type: "text", value: type === "Number" ? numberText(current) : showValue(current),
+      placeholder: prop.default !== undefined ? "default: " + prop.default : type === "Credential" ? "$credential_variable" : type === "Number" ? "number, $variable or $n - 1" : "",
+      onchange: (e) => set(type === "Number" ? numberFromText(e.target.value) : (e.target.value === "" ? undefined : e.target.value)) });
   }
   if (control.tagName === "INPUT" || control.tagName === "TEXTAREA") { control.dataset.argName = name; control = withPicker(control, type); }
   if (name === "selector" && step.action.startsWith("ooa.browser/")) {
     // Pick records the full captured object (all properties, editable match rules) when the action accepts one; otherwise just the selector.
-    const takesObject = !!(state.specs.get(step.action) && state.specs.get(step.action).action.inputs.properties.object);
+    const own = state.specs.get(step.action) ? state.specs.get(step.action).action : (conditionCatalog().find((c) => c.addr === step.action) || {}).spec;
+    const takesObject = !!(own && own.inputs.properties.object);
     const pick = h("button", { type: "button", title: takesObject ? "Open the page and click the element: all its properties are captured, and you choose which to match"
         : "Open the page and click the element to capture its selector",
       onclick: () => pickSelector((sel, el, obj) => {
-        if (takesObject && obj) { args.object = obj; delete args[name]; fillWindowFromCapture(step, obj); changed(); }
+        if (takesObject && obj) { args.object = obj; delete args[name]; fillWindowFromCapture(step, obj); if (step._onSet) step._onSet(); else changed(); }
         else set(sel);
         renderProps();
       }, null, step) }, takesObject ? "Capture" : "Pick");
@@ -2001,11 +2314,17 @@ function conditionEditor(value, onChange) {
     } else {
       const c = catalog.find((x) => x.addr === r.addr);
       if (!c) fields.push(h("div", { class: "help", text: "Unknown condition " + r.addr + " (is its toolkit installed?)" }));
-      else for (const [name, prop] of Object.entries(c.spec.inputs.properties)) {
-        const req = (c.spec.inputs.required || []).includes(name);
-        fields.push(h("label", { class: "cond-arg" }, h("span", {}, name, req ? h("span", { class: "req", text: " *" }) : null),
-          withPicker(h("input", { type: "text", value: showValue(r.args[name]), placeholder: prop.default !== undefined ? "default: " + prop.default : prop["x-ooa-type"] || "",
-            title: prop.description || "", onchange: (e) => { const v = parseLoose(e.target.value); if (v === undefined || e.target.value === "") delete r.args[name]; else r.args[name] = v; commit(); } }), prop["x-ooa-type"] || "Any")));
+      else {
+        // the same fields as in an action (labels, Capture and Pick, the window editor); the session only when set
+        const pseudo = { id: "cond", action: r.addr, args: r.args, _onSet: () => onChange(serializeCondition(model)) };
+        const req = c.spec.inputs.required || [];
+        for (const [name, prop] of Object.entries(c.spec.inputs.properties)) {
+          if (["session", "alternatives"].includes(name) && r.args[name] === undefined) continue;
+          if (name === "selector" && r.args.object) continue;
+          fields.push(inputControl(pseudo, name, prop, req.includes(name)));
+        }
+        if (r.addr === "ooa.browser/element_exists" || r.addr === "ooa.browser/element_visible")
+          fields.push(h("div", { class: "help", text: "Checked once, straight away. To wait for the element first, put a Wait for element step before the If, or use Wait until." }));
       }
     }
     return h("div", { class: "cond-row" },
@@ -2033,6 +2352,157 @@ function conditionEditor(value, onChange) {
   }
   render();
   return box;
+}
+
+/**
+ * A field that takes a Table, List, Dictionary or Record: a list of the variables of that type (and "+ New variable"),
+ * with "Enter a value" for JSON or an expression. Saves "$name" for a variable.
+ */
+function typedVarControl(current, type, name, set) {
+  const known = state.flow.variables.filter((v) => holds(v.type, type));
+  const curName = typeof current === "string" && /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(current.trim()) ? current.trim().slice(1) : null;
+  const asValue = current !== undefined && !(curName && known.some((v) => v.name === curName));
+  const sel = h("select", { "aria-label": "Variable", onchange: (e) => {
+    const v = e.target.value;
+    if (v === "__new") { const n = addVariable(uniqueVarName(name === "table" || type === "Table" ? "table" : name), type); renderVariables(); set("$" + n); toast("Created variable " + n); renderProps(); return; }
+    if (v === "__value") { set(current === undefined || curName ? (type === "List" ? [] : type === "Table" ? "$" : {}) : current); renderProps(); return; }
+    set(v ? "$" + v : undefined);
+  } }, h("option", { value: "", text: "(choose a " + type.toLowerCase() + " variable)" }),
+    known.map((v) => h("option", { value: v.name, text: "$" + v.name + "  (" + v.type + ")" })),
+    h("option", { value: "__new", text: "+ New " + type + " variable" }),
+    h("option", { value: "__value", text: "Enter a value or expression…" }));
+  sel.value = asValue ? "__value" : curName || "";
+  if (!asValue) return sel;
+  const box = withPicker(h("textarea", { rows: 2, value: showValue(current), placeholder: type === "List" ? '["a", "b"] or $variable' : "$variable or JSON",
+    onchange: (e) => set(parseLoose(e.target.value)) }), type);
+  return h("div", {}, sel, box);
+}
+
+/** What each built-in "for each" goes through: the label of the collection field, the type it holds and what each pass receives. */
+const LOOP_KINDS = {
+  list: { over: "List to go through", want: "List", as: "Store each item in", asType: "Any" },
+  table_rows: { over: "Table to go through", want: "Table", as: "Store each row in", asType: "Record" },
+  dictionary: { over: "Dictionary to go through", want: "Dictionary", as: "Store each key and value in", asType: "Dictionary" },
+  dictionary_keys: { over: "Dictionary to go through", want: "Dictionary", as: "Store each key in", asType: "String" },
+  dictionary_values: { over: "Dictionary or record to go through", want: "Dictionary", as: "Store each value in", asType: "Any" },
+};
+
+/**
+ * The Loop settings: first the kind of loop (N times, For each, While), then only the fields that kind uses, with plain labels,
+ * variable lists of the right type and the toolkit iterator's own fields (no JSON). Rarely needed settings go under More options.
+ */
+function loopPanel(step) {
+  const args = step.args || (step.args = {});
+  const it = args.iterator || "list";
+  const mode = it === "times" ? "times" : it === "while" ? "while" : "each";
+  const props = state.specs.get("core/loop").action.inputs.properties;
+  const set = (name, v, redraw) => {
+    if (v === undefined || v === "") delete args[name]; else args[name] = v;
+    changed(); if (redraw) renderProps();
+  };
+  const field = (label, control, tip, required, name) => h("div", { class: "field", "data-field": name || null }, h("label", {}, label, required ? h("span", { class: "req", text: " *" }) : null, tip ? infoTip(tip) : null), control);
+  const textBox = (name, placeholder, type) => withPicker(h("input", { type: "text", value: type === "Number" ? numberText(args[name]) : showValue(args[name]), placeholder: placeholder || "",
+    onchange: (e) => set(name, type === "Number" ? numberFromText(e.target.value) : e.target.value || undefined, type === "Number") }), type || "Any");
+  // "Only the first N": saved as the last position (N - 1, positions count from 0)
+  const firstBox = () => withPicker(h("input", { type: "text", value: firstCount(args) || "", placeholder: "all",
+    onchange: (e) => {
+      const v = numberFromText(e.target.value);
+      if (v === undefined) { set("to_index", undefined, true); return; }
+      if (typeof v === "number") { set("to_index", Math.max(0, v - 1), true); return; }
+      set("to_index", { expr: (typeof v === "string" ? v : v.expr) + " - 1" }, true);
+    } }), "Number");
+  // a variable list of the right type with "+ New variable"; the current value stays when it is an expression
+  const varPick = (name, want, newName, allowValue) => {
+    const cur = args[name];
+    const curName = typeof cur === "string" ? cur.replace(/^\$/, "") : "";
+    const known = state.flow.variables.filter((v) => holds(v.type, want));
+    const sel = h("select", { onchange: (e) => {
+      const v = e.target.value;
+      if (v === "__new") { const n = addVariable(uniqueVarName(newName), want === "Any" ? "Any" : want); renderVariables(); set(name, allowValue ? "$" + n : n, true); toast("Created variable " + n); return; }
+      if (v === "__expr") { set(name, allowValue ? "$" : undefined, true); return; }
+      set(name, v === "" ? undefined : allowValue ? "$" + v : v, true);
+    } }, h("option", { value: "", text: "(choose a " + (want === "Any" ? "variable" : want.toLowerCase() + " variable") + ")" }),
+      known.map((v) => h("option", { value: v.name, text: "$" + v.name + "  (" + v.type + ")" })),
+      h("option", { value: "__new", text: "+ New " + (want === "Any" ? "" : want + " ") + "variable" }),
+      allowValue ? h("option", { value: "__expr", text: "Other value or expression…" }) : null);
+    const isVar = curName && known.some((v) => v.name === curName) && (!allowValue || /^\$[A-Za-z0-9_]+$/.test(String(cur)));
+    if (cur === undefined) sel.value = "";
+    else if (isVar) sel.value = curName;
+    else if (allowValue) { sel.value = "__expr"; return h("div", {}, sel, textBox(name, "$variable, list or expression")); }
+    return sel;
+  };
+
+  const kind = h("div", { class: "seg loop-kind", role: "radiogroup", "aria-label": "Kind of loop" },
+    [["times", "N times"], ["each", "For each"], ["while", "While"]].map(([m, t]) => h("button", { type: "button", class: m === mode ? "on" : "", "aria-pressed": String(m === mode),
+      onclick: () => {
+        if (m === mode) return;
+        for (const k of ["over", "count", "condition", "iterator_args", "from_index", "to_index", "reverse", "check_at_end", "start"]) delete args[k];
+        args.iterator = m === "each" ? "table_rows" : m;
+        changed(); renderProps();
+      } }, t)));
+  const nodes = [field("Kind of loop", kind)];
+  const more = [];
+
+  if (mode === "times") {
+    nodes.push(field("Number of times", textBox("count", "e.g. 3 or $count", "Number"), "How many times the steps inside repeat.", true, "count"));
+    nodes.push(field("Counter (optional)", varPick("index", "Number", "counter"), "A Number variable that holds 0, 1, 2 … on each pass.", false, "index"));
+    more.push(field("Start counting at", textBox("start", "0", "Number"), null, false, "start"), field("Count up by", textBox("step", "1", "Number"), null, false, "step"));
+  } else if (mode === "while") {
+    nodes.push(field("Repeat while", conditionEditor(args.condition, (v) => set("condition", v)), "Checked before each pass; the loop ends when it is false.", true, "condition"));
+    const atEnd = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!args.check_at_end, onchange: (e) => set("check_at_end", e.target.checked || undefined) }),
+      "Check after each pass (the steps run at least once)");
+    nodes.push(h("div", { class: "field", "data-field": "check_at_end" }, atEnd));
+  } else {
+    const iters = [];
+    for (const p of state.packages) for (const x of p.iterators || []) iters.push({ addr: p.id + "/" + x.id, name: x.name, pkg: p.name, spec: x });
+    const pick = h("select", { onchange: (e) => {
+      for (const k of ["over", "iterator_args"]) delete args[k];
+      args.iterator = e.target.value; changed(); renderProps();
+    } },
+      h("optgroup", { label: "Variables" }, Object.keys(LOOP_KINDS).map((k) => h("option", { value: k, text: { list: "Each item in a list", table_rows: "Each row in a table", dictionary: "Each key and value in a dictionary", dictionary_keys: "Each key in a dictionary", dictionary_values: "Each value in a dictionary or record" }[k] }))),
+      ...[...new Set(iters.map((x) => x.pkg))].map((pkg) => h("optgroup", { label: pkg }, iters.filter((x) => x.pkg === pkg).map((x) => h("option", { value: x.addr, text: x.name })))));
+    pick.value = it;
+    nodes.push(field("Go through", pick, null, false, "iterator"));
+    const k = LOOP_KINDS[it];
+    if (k) {
+      nodes.push(field(k.over, varPick("over", k.want, k.want === "Table" ? "rows" : k.want === "List" ? "items" : "values", true), null, true, "over"));
+      nodes.push(field(k.as, varPick("as", k.asType, it === "table_rows" ? "row" : it === "dictionary_keys" ? "key" : "item"), "Each pass puts the current " + (it === "table_rows" ? "row (columns by name: $row.Name or $row[\"First Name\"])" : "item") + " in this variable.", false, "as"));
+    } else {
+      const x = iters.find((y) => y.addr === it);
+      const iargs = args.iterator_args || {};
+      const setArg = (n, v) => { const a2 = Object.assign({}, args.iterator_args || {}); if (v === undefined || v === "") delete a2[n]; else a2[n] = v; set("iterator_args", Object.keys(a2).length ? a2 : undefined); };
+      if (!x) nodes.push(h("div", { class: "help", text: "Unknown iterator " + it + " (is its toolkit installed?)" }));
+      else {
+        if (x.spec.description) nodes.push(h("p", { class: "help", text: x.spec.description }));
+        const req = x.spec.inputs.required || [];
+        for (const [n, p] of Object.entries(x.spec.inputs.properties || {})) {
+          const label = p["x-ooa-label"] || n;
+          let control;
+          if (p.enum) { control = h("select", { onchange: (e) => setArg(n, e.target.value || undefined) }, h("option", { value: "", text: p.default !== undefined ? "(default: " + enumWord(it, p.default) + ")" : "(choose)" }), p.enum.map((v) => h("option", { value: v, text: enumWord(it, v), title: String(v) }))); control.value = iargs[n] === undefined ? "" : String(iargs[n]); }
+          else if (p["x-ooa-type"] === "Boolean") { control = h("select", { onchange: (e) => setArg(n, e.target.value === "" ? undefined : e.target.value === "true") }, h("option", { value: "", text: p.default !== undefined ? "(default: " + p.default + ")" : "(not set)" }), h("option", { value: "true", text: "Yes" }), h("option", { value: "false", text: "No" })); control.value = iargs[n] === undefined ? "" : String(iargs[n]); }
+          else control = withPicker(h("input", { type: "text", value: showValue(iargs[n]), placeholder: p.default !== undefined ? "default: " + p.default : "", onchange: (e) => setArg(n, parseLoose(e.target.value)) }), p["x-ooa-type"] || "Any");
+          const node = field(label, control, p.description, req.includes(n));
+          (req.includes(n) || ["path", "folder", "sheet"].includes(n) ? nodes : more).push(node);
+        }
+        nodes.push(field("Store each " + (/row/i.test(x.name) ? "row" : "item") + " in", varPick("as", /row/i.test(x.name) ? "Record" : "Any", /row/i.test(x.name) ? "row" : "item"), "Each pass puts the current item in this variable."));
+      }
+    }
+    nodes.push(field("Only the first (optional)", firstBox(), "Go through only this many items or rows: a number or a $variable. Empty goes through all of them.", false, "first"));
+    nodes.push(field("Position (optional)", varPick("index", "Number", "position"), "A Number variable that holds the position of the current item: 0 for the first, 1 for the second …", false, "index"));
+    more.push(field("Start at position", textBox("from_index", "0 (first)", "Number"), "Positions count from 0 (the first item). Smallest value: 0.", false, "from_index"), field("Stop after position (0 = first)", textBox("to_index", "the last one", "Number"), "The last position visited, included. Smallest value: 0.", false, "to_index"),
+      field("Take every", textBox("step", "1", "Number"), "2 visits every second item.", false, "step"),
+      h("div", { class: "field", "data-field": "reverse" }, h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!args.reverse, onchange: (e) => set("reverse", e.target.checked || undefined) }), "Go through in reverse order")));
+  }
+  more.push(field("Loop name", textBox("label", "e.g. rows"), "Lets Exit loop and Continue loop inside nested loops name this loop.", false, "label"),
+    field("Safety limit", textBox("max_iterations", "default: " + props.max_iterations.default, "Number"), "The agent stops with an error when the loop runs this many times.", false, "max_iterations"));
+  const setCount = ["start", "step", "from_index", "to_index", "reverse", "label", "max_iterations"].filter((n) => args[n] !== undefined).length
+    + Object.keys(args.iterator_args || {}).length;
+  const d = h("details", { class: "more-opts" }, h("summary", {}, "More options ", h("span", { class: "n", text: String(more.length) }),
+    setCount ? h("span", { class: "muted", text: " · " + setCount + " changed" }) : null), h("div", { class: "more-body" }, more));
+  d.open = !!state.moreOpen;
+  d.addEventListener("toggle", () => { state.moreOpen = d.open; });
+  nodes.push(d);
+  return nodes;
 }
 
 function renderProps() {
@@ -2065,7 +2535,8 @@ function renderProps() {
         onchange: (e) => { if (e.target.value) step.description = e.target.value; else delete step.description; changed(); } })),
   ];
 
-  if (spec) {
+  if (spec && step.action === "core/loop") parts.push(acc("Inputs", loopPanel(step), true));
+  else if (spec) {
     const props = spec.action.inputs.properties, req = spec.action.inputs.required || [];
     // Rarely used inputs (not required, with a default) after the first few go under "More options".
     const main = [], more = [], moreNames = [];
@@ -2085,8 +2556,11 @@ function renderProps() {
       const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
       if (shown && ["timeout_ms", "timeout_seconds", "wait_for_page_ms", "if_not_found"].includes(name)) { timeoutBox.push([name, prop]); continue; }
       // Advanced inputs (self-healing alternatives, session names) always go under More options.
-      const advanced = ["alternatives", "session"].includes(name) && !req.includes(name);
-      const rare = advanced || (name !== "window" && !req.includes(name) && prop.default !== undefined && main.length >= 3);
+      const advanced = (["alternatives", "session"].includes(name) || prop["x-ooa-advanced"]) && !req.includes(name);
+      // Key choices of an action stay in view; other optional inputs (with or without a default) go under More options
+      // once the first few fields are shown, so long forms (Reply, Classify, REST) open short.
+      const key = (KEY_FIELDS[step.action] || []).includes(name);
+      const rare = advanced || (!key && name !== "window" && !req.includes(name) && main.length >= 3);
       (rare ? more : main).push(inputControl(step, name, prop, req.includes(name)));
       if (rare) moreNames.push(name);
     }
@@ -2098,7 +2572,8 @@ function renderProps() {
       const d = h("details", { class: "more-opts" }, h("summary", {}, "More options ", h("span", { class: "n", text: String(more.length) }),
         setCount ? h("span", { class: "muted", text: " · " + setCount + " changed" }) : null), h("div", { class: "more-body" }, more));
       d.open = setCount > 0 || !!state.moreOpen;
-      d.addEventListener("toggle", () => { state.moreOpen = d.open; });
+      // opened because it holds changed fields is not the user's choice, so it is not remembered for other steps
+      d.addEventListener("toggle", () => { if (!setCount) state.moreOpen = d.open; });
       inputs.push(d);
     }
     if (inputs.length) parts.push(acc("Inputs", inputs, true));
@@ -2119,7 +2594,7 @@ function renderProps() {
           changed(); renderProps(); renderVariables();
           toast("Created variable " + n);
         } }, "+ New");
-        return h("div", { class: "field" }, h("label", {}, oname, typeChip(o["x-ooa-type"] || "Any"), infoTip(o.description)),
+        return h("div", { class: "field" }, h("label", {}, "Save " + oname.replace(/_/g, " ") + " in", typeChip(o["x-ooa-type"] || "Any"), infoTip(o.description)),
           h("div", { class: "field-row" }, sel, mk));
       });
       parts.push(acc("Outputs", nodes, true));
@@ -4600,21 +5075,24 @@ function elementActionSelect(step, prop) {
   return h("div", { class: "field-row" }, sel, ct ? h("span", { class: "chip ct-chip", title: "Control type of the captured element", text: ct }) : null);
 }
 
-/** The value of Set text: Credential (a Credential variable), Variable, or Plain text. */
+/** The value of Set text: Credential (a Credential variable), Variable, Text (with $name and ${name} in it) or Calculation. */
 function textSourceEditor(value, set) {
   const isVar = typeof value === "string" && /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value.trim());
   const vname = isVar ? value.trim().slice(1) : "";
   const vdef = vname ? state.flow.variables.find((v) => v.name === vname) : null;
-  let mode = isVar ? (vdef && vdef.type === "Credential" ? "credential" : "variable") : "plain";
+  let mode = isVar ? (vdef && vdef.type === "Credential" ? "credential" : "variable") : isCalcVal(value) ? "calc" : "plain";
   const box = h("div", { class: "text-source" });
   const render = () => {
     const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Text comes from" },
-      [["credential", "Credential"], ["variable", "Variable"], ["plain", "Plain text"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String(mode === k),
+      [["credential", "Credential"], ["variable", "Variable"], ["plain", "Text"], ["calc", "Calculation"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String(mode === k),
         onclick: () => { mode = k; render(); } }, t)));
     let body;
-    if (mode === "plain") {
-      body = h("div", { class: "field-row" }, h("input", { type: "text", "aria-label": "Plain text", value: isVar ? "" : (value == null ? "" : String(value)),
-        onchange: (e) => set(e.target.value === "" ? undefined : e.target.value) }));
+    if (mode === "calc") {
+      body = withPicker(h("input", { type: "text", "aria-label": "Calculation", value: isCalcVal(value) ? value.expr : "", placeholder: "upper($row.Name) or $qty * 2",
+        onchange: (e) => { const t = e.target.value.trim(); value = t ? { expr: t } : undefined; set(value); } }), "Any");
+    } else if (mode === "plain") {
+      body = withPicker(h("input", { type: "text", "aria-label": "Text", value: isVar || isCalcVal(value) ? "" : (value == null ? "" : String(value)),
+        onchange: (e) => { value = e.target.value === "" ? undefined : e.target.value; set(value); } }), "String");
     } else {
       const want = mode === "credential" ? "Credential" : null;
       const vars = state.flow.variables.filter((v) => (want ? v.type === want : v.type !== "Credential"));
@@ -4631,7 +5109,9 @@ function textSourceEditor(value, set) {
         } }, "+ New");
       body = h("div", { class: "field-row" }, sel, add);
     }
-    box.replaceChildren(seg, body, mode === "plain" ? h("div", { class: "help", text: "Saved in the agent as typed; use a credential for passwords." }) : null);
+    const help = mode === "plain" ? "Typed as written; $row.Name or ${amount} put a variable's value in the text (numbers too). Use a credential for passwords."
+      : mode === "calc" ? "Worked out when the step runs, then typed: functions such as upper(), round($x, 2), or $a + $b." : null;
+    box.replaceChildren(seg, body, help ? h("div", { class: "help", text: help }) : null);
   };
   render();
   return box;

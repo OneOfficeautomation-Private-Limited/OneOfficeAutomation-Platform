@@ -659,6 +659,8 @@ table.list td { padding: 7px 12px; }
 .win-editor { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-15); border: 1px solid var(--border-2); border-radius: var(--radius-md); }
 .win-editor .seg { align-self: flex-start; }
 .win-editor .seg > button { padding: 1px 10px; font-size: var(--text-sm); }
+.loop-kind { align-self: flex-start; }
+.loop-kind > button { padding: 2px 14px; font-size: var(--text-sm); }
 .win-row { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
 .win-row > .var-field { flex: 1; min-width: 0; }
 .win-lbl { flex: 0 0 52px; font-size: var(--text-xs); color: var(--text-2); }

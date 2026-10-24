@@ -20,6 +20,13 @@ public final class DataTablePackage {
 
     static int col(Map<String, Object> t, String name) {
         int i = cols(t).indexOf(name);
+        // databases often change the case of column names (CITY for city): one match that differs only in case is used
+        if (i < 0 && name != null) {
+            for (int k = 0; k < cols(t).size(); k++) if (cols(t).get(k) != null && cols(t).get(k).equalsIgnoreCase(name.strip())) {
+                if (i >= 0) { i = -1; break; }
+                i = k;
+            }
+        }
         if (i < 0) throw new ActionException("TABLE.NO_COLUMN", "Column '" + name + "' not found", "Columns: " + String.join(", ", cols(t)) + ".");
         return i;
     }
@@ -630,6 +637,25 @@ public final class DataTablePackage {
         }
         return Out.of("rows", hits, "count", BigDecimal.valueOf(hits.size()), "found", !hits.isEmpty(), "cells", cells,
                 "first_row", hits.isEmpty() ? BigDecimal.valueOf(-1) : hits.get(0));
+    }
+
+    @Action(id = "lookup", name = "Look up value", category = "Table", idempotent = true,
+            description = "Find the first row whose column holds a value and return another column of that row, or a fallback value when no row matches.")
+    @Output(name = "value", description = "The value from the return column, or the fallback when nothing matches.")
+    @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a row matches.")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Zero-based number of the matching row, or -1.")
+    public Map<String, Object> lookup(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Table to look in.") Map<String, Object> table,
+            @Input(name = "column", type = OoaType.STRING, label = "Look in column", example = "Order", description = "Column that holds the value to look for.") String column,
+            @Input(name = "value", label = "Value to look for", description = "Numbers compare by value; text by equality.") Object value,
+            @Input(name = "return_column", type = OoaType.STRING, label = "Return the value of column", example = "Status", description = "Column whose value is returned from the matching row.") String returnColumn,
+            @Input(name = "if_not_found", required = false, label = "Value when not found", description = "Returned when no row matches; empty when not set.") Object fallback,
+            @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Compare text with upper/lower case taken into account.") boolean matchCase) {
+        int c = col(table, column), rc = col(table, returnColumn);
+        List<List<Object>> rs = rows(table);
+        for (int r = 0; r < rs.size(); r++)
+            if (matches(cell(rs.get(r), c), "eq", value, matchCase)) return Out.of("value", cell(rs.get(r), rc), "found", true, "row", BigDecimal.valueOf(r));
+        return Out.of("value", fallback == null ? "" : fallback, "found", false, "row", BigDecimal.valueOf(-1));
     }
 
     @Action(id = "write_to_file", name = "Write to file", category = "Table", capabilities = "filesystem",
