@@ -45,8 +45,8 @@ The fixes below keep every option but put the common path first.
 | **Table actions** (Add row, Sort, Set value, Change column type) | Change a table in place (W5–W9, O1, O5) | Before: they return a new table, so the change was lost unless the output was set to the same variable | **Fixed:** choosing the input variable also stores the result back in it (shown under Outputs, with a note) |
 | **Close** (Excel, Word, PowerPoint) | After *Create* and writes (O1, O3, W7) | Before: *Save* was off by default, so the work was lost unless it was ticked | **Fixed:** added after a create or write step, Close has *Save changes* ticked |
 | **Get text** | Labels and links (P1, P2), an optional value (P6: 6 steps with each XPath written twice) | Before: no "if not found, leave empty" option | **Fixed:** *If not found*: stop with an error, or leave it empty and go on (output *found*) |
-| **Click** | A normal click, and a JavaScript click when an advert covers the button (P4) | The JavaScript click is only in *Capture: element action*, so the step had to be replaced | Open (P2) |
-| **Window** (desktop) | The same title typed in up to 9 steps (D1); "equals" in objects but "contains" in Window commands | | Open (P2): a window variable chosen once |
+| **Click** | A normal click, and a JavaScript click when an advert covers the button (P4) | The JavaScript click is only in *Capture: element action*, so the step had to be replaced | Fixed: Click element has a click method (mouse or JavaScript) |
+| **Window** (desktop) | The same title typed in up to 9 steps (D1); "equals" in objects but "contains" in Window commands | | Partly fixed: Window commands take the process id from Start program (O11) |
 | **Excel / Word sessions** | Custom session names (`report`, `letter`) typed in 3–6 steps | | Open (P3): fill in the open session |
 
 ## Web steps with Capture: P1 pilot
@@ -180,9 +180,9 @@ emptying a field, and XPaths that are not one element with one test.
 
 | # | Gap | Fix | Pri |
 | --- | --- | --- | --- |
-| C10 | Converting selectors to captured objects needs a script | Studio: "Convert selectors to captured objects" after a run with recording on | P2 |
-| C11 | A captured object can't say "the n-th match" or "in the row where …" | Object index in the editor ("which match: first / last / n-th"), and objects relative to an anchor (a row, a label) | P2 |
-| C12 | A captured object can't say "either A or B" | "Any of these objects" for Wait for and conditions | P3 |
+| C10 | ~~Converting selectors to captured objects needs a script~~ | Fixed: *Selectors to objects* on the canvas toolbar runs the agent with recording on and puts the captured objects in | - |
+| C11 | ~~A captured object can't say "the n-th match" or "in the row where …"~~ | Fixed: *Which match* (first, last, a number); *Anchor* (an element next to a label or row) was already in the object editor | - |
+| C12 | ~~A captured object can't say "either A or B"~~ | Fixed: Wait for element takes *any of* several elements and says which appeared | - |
 
 ## Fixed on 2026-10-24
 
@@ -205,35 +205,35 @@ emptying a field, and XPaths that are not one element with one test.
 | N11 | **Column names ignore case** when only one column matches that way (`city` finds `CITY`, as in O4), for every table action | `DataTablePackage.col` |
 | N12 | **Plain words in drop-downs.** Codes are shown as words; the saved value is unchanged and shown on hover. Operators read "equals", "does not contain", "is greater than"; providers "OpenAI", "AWS Bedrock"; *If not found* reads "Stop with an error" / "Leave it empty and go on" (and "Skip this step and go on" for element actions); other `snake_case` codes become words | `enumWord`, `ENUM_WORDS` |
 
-## Open: next fixes
+## Open items, with what was done on 2026-10-25
 
 | # | Gap | Evidence | Fix | Pri |
 | --- | --- | --- | --- | --- |
 | O1 | ~~Get text / Get attribute: "if not found"~~ | | Fixed (N9) | - |
 | O2 | ~~Look up a value in a table in one step~~ | | Fixed (N10) | - |
-| O3 | **Element conditions have no wait** | W7 and W9 add fixed 300 ms delays before *Element visible* | *Wait up to (seconds)* on Element exists and Element visible | P2 |
-| O4 | **Element text condition** | W10 polls with 4 steps (Assign, While, Delay, Get text) for "status is Ready" | Condition *Element text is / contains*, so *Wait until* does it in one step | P2 |
+| O3 | ~~Element conditions have no wait~~ | | Fixed: *Wait up to (seconds)* on Element exists and Element is visible | - |
+| O4 | ~~Element text condition~~ | | Fixed: new condition *Element text is* (equals, contains, starts with, matches; with a wait) | - |
 | O5 | ~~Drop-downs show codes~~ | | Fixed (N12) | - |
-| O6 | **Row editors instead of JSON** | Merge tables, Add row, Group and summarise (`sum:Amount`), Start program arguments (D1–D5) | Merge: two table pickers. Add row: one box per column. Summaries: rows of new column, function and column. Arguments: one line of text | P2 |
-| O7 | **Click method on Click element** | P4 had to switch to *Capture: element action* to get the JavaScript click | *Click method* under More options; rename *Capture: element action* to "Element action" | P2 |
-| O8 | **One element field** | Every web step shows *Captured object* and *Selector* | One "Element" field: Capture by default, "Use a selector instead" | P2 |
-| O9 | **Open browser defaults** | Every unattended agent changes *Engine* and *Keep open* | A *Run mode* choice (watch / unattended) that sets both | P2 |
-| O10 | **Get text into a Number variable** | W6 and W9 store read amounts in Number variables; the runtime converts, but Studio does not offer them | Offer Number and Boolean variables for text results, with a "converted" note | P2 |
-| O11 | **Window variable** (desktop and web) | D1 types the window title 7 times; D5 has two windows | Choose a window once and pick it in every step; also "the window of process `$pid`" | P2 |
+| O6 | ~~Row editors instead of JSON~~ | | Fixed: Merge = list of table variables; Group by = column names; Summaries = rows of new column, function, column; program arguments = one command line. Add row already takes column names (a Dictionary) | - |
+| O7 | ~~Click method on Click element~~ | | Fixed: *Click method* (mouse / JavaScript) and *Force* on Click element | - |
+| O8 | ~~One element field~~ | | Fixed: one element field (Capture by default, *Use a selector instead*) | - |
+| O9 | ~~Open browser defaults~~ | | Fixed: *Run mode* on Open browser (watch while building / unattended / custom); engine, headless and keep open under More options | - |
+| O10 | ~~Get text into a Number variable~~ | | Fixed: text results can be saved in Number and Yes/No variables (converted when stored) | - |
+| O11 | ~~Window variable~~ | | Partly fixed: Window commands take a *process id* (from Start program); web steps already take a window variable. Desktop objects still give the title per step | - |
 | O12 | ~~Desktop step labels~~ | | Fixed (C6) | - |
-| O13 | **Database Connect** | A JDBC URL typed by hand (O4) | Database type list with server, database and file fields that build the URL | P2 |
+| O13 | ~~Database Connect~~ | | Fixed: *Database type*, server, port, database or file build the JDBC URL (SQL Server, PostgreSQL, MySQL, Oracle, SQLite, H2, Access) | - |
 | O14 | ~~Column names ignore case~~ | | Fixed (N11) | - |
-| O15 | **Nested AND/OR groups and type-aware operators** in conditions | AA has groups and per-type operators (match case, dates) | Add groups; *match case* for text; date comparison | P2 |
-| O16 | **Loop iterators** | Mail (O2) and SQL rows take two steps | "Each email in a mailbox", "Each row of a SQL query" | P2 |
-| O17 | **Extract a repeated list** | P2, P3, P5 and P6 read product cards with JavaScript | "Extract list": capture the repeating item and the fields inside it, giving a Table | P2 |
-| O18 | **Next-page pattern** | The same 5 steps and a flag in P3, P5, W2 | Iterator "Each page (click Next until it is gone)" | P3 |
-| O19 | **Throw: default code** | W7 has to type `BUSINESS.REFUSED` | Default `BUSINESS.ERROR`; codes as a list | P3 |
-| O20 | **Find with a group; Extract text up to the end of the line** | O3 needs two steps and two regexes per value | *Return group* on Find; an "end of line" choice | P3 |
-| O21 | **Get window details: separate outputs** | D3 needs two Assign steps for width and height | Outputs `width`, `height`, `x`, `y`, `state` | P3 |
-| O22 | **Table variable columns** | An empty table needs `{"columns": [...], "rows": []}` (O5) | A column list editor in the Variables panel | P3 |
+| O15 | ~~Nested AND/OR groups and type-aware operators~~ | | Fixed: groups in the If builder (A and (B or C)); text options per comparison: ignore case, spaces, line breaks | - |
+| O16 | ~~Loop iterators~~ | | Fixed: loops *Each row of a SQL query* and *Each email in a mailbox* | - |
+| O17 | ~~Extract a repeated list~~ | | Fixed: new action *Extract list* (repeated item + fields inside it, with @attribute) into a table | - |
+| O18 | ~~Next-page pattern~~ | | Fixed: new loop *Each page (click Next until it is gone)* | - |
+| O19 | ~~Throw: default code~~ | | Fixed: Throw starts with BUSINESS.ERROR and offers the common codes | - |
+| O20 | ~~Find with a group; Extract text up to the end of the line~~ | | Fixed: Find has *Return group*; Extract text has *until* (marker, end of line, end of text) | - |
+| O21 | ~~Get window details: separate outputs~~ | | Fixed: Get window details also returns width, height, x, y and state | - |
+| O22 | ~~Table variable columns~~ | | Already there: the Variables panel edits a table as rows and columns | - |
 | O23 | **Samples use the simpler actions** | Samples use Assign for counters, Replace + `toNumber`, and Read text + Parse | Use Number Increment, Text to number, Read JSON file and Extract text in `examples/use-cases` | P3 |
-| O24 | **Live validation** | Required fields that are empty show only after Validate | A marker on the step and under the field as soon as it is empty | P2 |
-| O25 | **Excel desktop: macros, refresh, save as PDF**; SharePoint and OneDrive paths | AA drives real Excel | Grow *Excel desktop* | P2 |
+| O24 | ~~Live validation~~ | | Fixed: an empty required field says *Required* under it; the canvas already flags steps with problems as you edit | - |
+| O25 | ~~Excel desktop: macros, refresh, save as PDF~~ | | Already there: Excel desktop has Run macro, Refresh all data (now also recalculates) and Export to PDF. SharePoint/OneDrive paths remain open | - |
 
 ## Ours is better: keep
 
@@ -285,12 +285,12 @@ emptying a field, and XPaths that are not one element with one test.
 | C1 | Try / Catch / Finally | AA has separate palette entries | Fixed |
 | C2 | Catch: continue with next action | Ours has it per step ("Continue the agent if this step fails") | Same |
 | C3 | Loop type first, then that type's fields | | Fixed |
-| C4 | Loop: map each column to its own variable | AA option; ours reads columns by name (`$row.Name`) | Open (P3) |
+| C4 | Loop: map each column to its own variable | AA option; ours reads columns by name (`$row.Name`) | Fixed: *Columns into variables* in the Loop panel (`columns_to`) |
 | C5 | Loop iterators for mailbox, SQL rows, record values | | Open (O16) |
 | C6 | If: nested groups, type-aware operators | | Open (O15) |
-| C7 | If: previous agent run succeeded, script succeeded | | Open (P3) |
+| C7 | If: previous agent run succeeded, script succeeded | Run agent returns `status` (success or failed) | Same: an If on that output |
 | C8 | Throw | Ours has code, suggested fix, details and retryable | Keep |
-| C9 | Delay: random from a lower bound | | Open (P3) |
+| C9 | Delay: random from a lower bound | Seconds is the lower bound, Random max the upper | Same |
 | C10 | Exit / Continue loop by label | | Same |
 
 ### Data, files and Office
@@ -299,15 +299,15 @@ emptying a field, and XPaths that are not one element with one test.
 | --- | --- | --- |
 | D1 | One *Assign variable* for every type (AA has one per type) | Keep; now with the Calculation switch |
 | D2 | String replace | Same |
-| D3 | Text compare: "ignore line breaks" | Open (P3) |
+| D3 | Text compare: "ignore line breaks" | Fixed (If builder text options; String Compare) |
 | D4, D6, D8, D9 | Number to text, Sort, Group by, JSON by value | Keep |
 | D5 | Dictionary put / get | Same |
-| D7 | Write table with a custom row delimiter | Open (P3) |
-| F1 | CSV: regional list separator | Open (P3) |
+| D7 | Write table with a custom row delimiter | Fixed (*row_delimiter*) |
+| F1 | CSV: regional list separator | Already there (*regional*), now described |
 | F2, F3 | Excel: SharePoint paths, real Excel (macros, refresh) | Open (O25) |
 | F4, F5, F6 | Excel header row, text file types, log to file | Keep |
 | F7, F8 | Word, PDF text | Same |
-| F9 | Size and date filters on file copy, move and delete | Open (P3) |
+| F9 | Size and date filters on file copy, move and delete | Fixed where several files are chosen: File delete (dates), Folder copy (size and dates) |
 
 ### Browser and desktop
 
@@ -315,10 +315,10 @@ emptying a field, and XPaths that are not one element with one test.
 | --- | --- | --- |
 | B1 | Actions after a Capture suit the control type | Done earlier: the actions for the captured control come first, the rest under "Other actions". Open: group the list when only a selector is used (P3) |
 | B2 | Wait settings grouped as one "System time-out" (Basic / Advanced) | Done earlier |
-| B3 | Debugger click for pages that block scripts | Open (P3) |
+| B3 | Debugger click for pages that block scripts | Same: our mouse click goes through the browser's own input, not a page script |
 | B4 | Window variable | Open (O11) |
 | B5, B6 | Run JavaScript with variables; Download | Keep |
-| B7 | Key picker for special keys | Open (P3) |
+| B7 | Key picker for special keys | Fixed (*+ key* next to the keys field) |
 | B8 | Desktop objects by ID or name | Same |
 
 ### Run
