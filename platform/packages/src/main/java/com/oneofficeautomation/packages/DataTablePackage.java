@@ -643,12 +643,15 @@ public final class DataTablePackage {
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "format=csv", description = "Write the column names as the first CSV line.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding, e.g. utf-8, utf-8-bom, ansi (windows-1252), utf-16.") String encoding,
             @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "format=csv", description = "Add the rows to the end of an existing CSV file (no header is repeated).") boolean append,
-            @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, visibleWhen = "format=csv", description = "Line ending of CSV rows.") String lineEnding) {
+            @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, visibleWhen = "format=csv", description = "Line ending of CSV rows.") String lineEnding,
+            @Input(name = "row_delimiter", type = OoaType.STRING, required = false, visibleWhen = "format=csv", example = "|",
+                    description = "Text written after each CSV row instead of the line ending, e.g. | or ;\\n (\\n, \\r and \\t are understood).") String rowDelimiter) {
         String fmt = format == null ? "csv" : format.toLowerCase(Locale.ROOT);
         java.nio.file.Path p = ctx.resolvePath(path);
         boolean appending = append && fmt.equals("csv") && java.nio.file.Files.exists(p);
         if (appending) header = false;
-        String eol = "lf".equals(lineEnding) ? "\n" : "\r\n";
+        String eol = rowDelimiter != null && !rowDelimiter.isEmpty() ? rowDelimiter.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t")
+                : "lf".equals(lineEnding) ? "\n" : "\r\n";
         String text;
         if (fmt.equals("json")) {
             text = JsonLite.write(Values.toJsonable(toRecords(ctx, table).get("records")));
@@ -673,6 +676,11 @@ public final class DataTablePackage {
             else java.nio.file.Files.write(p, bytes);
         } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot write " + p + ": " + e.getMessage(), null, true); }
         return Out.of("path", p.toString());
+    }
+
+    public Map<String, Object> writeToFile(ActionContext ctx, Map<String, Object> table, String path, String format, String delimiter, boolean header,
+            String encoding, boolean append, String lineEnding) {
+        return writeToFile(ctx, table, path, format, delimiter, header, encoding, append, lineEnding, null);
     }
 
     private static String csvLine(List<Object> values, char d, String eol) {
