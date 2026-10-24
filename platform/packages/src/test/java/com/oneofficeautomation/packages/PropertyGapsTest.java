@@ -297,9 +297,9 @@ class PropertyGapsTest {
         ActionContext c = ctx(w);
         DatabasePackage db = new DatabasePackage();
         String url = "jdbc:h2:mem:props" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1";
-        assertEquals("DB.BAD_DRIVER", code(() -> db.connect(c, url, null, null, "db", "not a class", 0, null, false, true)));
-        assertEquals("DB.NO_DRIVER", code(() -> db.connect(c, url, null, null, "db", "com.example.NoSuchDriver", 0, null, false, true)));
-        db.connect(c, url, "sa", null, "db", "org.h2.Driver", 5, Map.of("IGNORECASE", "TRUE"), false, false);
+        assertEquals("DB.BAD_DRIVER", code(() -> db.connect(c, url, null, null, null, null, null, null, null, "db", "not a class", 0, null, false, true)));
+        assertEquals("DB.NO_DRIVER", code(() -> db.connect(c, url, null, null, null, null, null, null, null, "db", "com.example.NoSuchDriver", 0, null, false, true)));
+        db.connect(c, url, null, null, null, null, null, "sa", null, "db", "org.h2.Driver", 5, Map.of("IGNORECASE", "TRUE"), false, false);
         try {
             db.execute(c, "CREATE TABLE t(id INT, name VARCHAR(20))", null, "db", 10);
             db.execute(c, "INSERT INTO t VALUES (1, 'Ann')", null, "db", 10);
@@ -313,7 +313,7 @@ class PropertyGapsTest {
             assertEquals("keep", Files.readString(w.resolve("t.csv")));
             eqNum("1", db.exportToFile(c, "SELECT * FROM t", "t.csv", null, ",", true, "utf-8", "db", 5, true).get("row_count"));
         } finally { db.disconnect(c, "db"); }
-        db.connect(c, url, "sa", null, "ro", null, 0, null, true, true);
+        db.connect(c, url, null, null, null, null, null, "sa", null, "ro", null, 0, null, true, true);
         try { eqNum("1", db.query(c, "SELECT * FROM t", null, 10, "ro", 0).get("row_count")); }
         finally { db.disconnect(c, "ro"); }
     }

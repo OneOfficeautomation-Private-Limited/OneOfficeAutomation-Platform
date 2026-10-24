@@ -30,7 +30,13 @@ public final class DatabasePackage {
 
     @Action(id = "connect", name = "Connect", category = "Database", capabilities = "network", description = "Open a database connection as a named session.")
     public Map<String, Object> connect(ActionContext ctx,
-            @Input(name = "jdbc_url", type = OoaType.STRING, pattern = "^jdbc:", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp or jdbc:postgresql://host/db.") String url,
+            @Input(name = "jdbc_url", type = OoaType.STRING, required = false, pattern = "^(jdbc:|$)", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below.") String jdbcUrl,
+            @Input(name = "database_type", type = OoaType.STRING, required = false, enumValues = {"sqlserver", "postgresql", "mysql", "oracle", "sqlite", "h2", "access"},
+                    description = "Kind of database, used to build the URL when jdbc_url is empty.") String type,
+            @Input(name = "server", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", example = "dbserver01", description = "Database server name or address.") String server,
+            @Input(name = "port", type = OoaType.NUMBER, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", min = 1, max = 65535, description = "Server port; the database's usual port when empty.") Integer port,
+            @Input(name = "database", type = OoaType.STRING, required = false, visibleWhen = "database_type=sqlserver|postgresql|mysql|oracle", description = "Database name (service name for Oracle).") String database,
+            @Input(name = "file", type = OoaType.FILE, required = false, visibleWhen = "database_type=sqlite|h2|access", description = "Database file for SQLite, H2 or Access.") String file,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "User name.") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault.") Object password,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name for later steps.") String session,
@@ -39,6 +45,8 @@ public final class DatabasePackage {
             @Input(name = "properties", type = OoaType.DICTIONARY, required = false, description = "Extra driver properties, e.g. {\"encrypt\": \"true\"}; Credential values are revealed only to the driver.") Map<String, Object> properties,
             @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Open the connection read-only, so the agent cannot change data by mistake (when the driver supports it).") boolean readOnly,
             @Input(name = "auto_commit", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Save each statement at once; false starts in a transaction that needs Commit.") boolean autoCommit) {
+        String url = jdbcUrl != null && !jdbcUrl.isBlank() ? jdbcUrl.strip()
+                : jdbcUrl(type, server, port, database, file == null || file.isBlank() ? null : ctx.resolvePath(file).toString());
         if (driverClass != null && !driverClass.isBlank()) {
             if (!driverClass.strip().matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+"))
                 throw new ActionException("DB.BAD_DRIVER", "Invalid driver class '" + driverClass + "'", "Give the full class name, e.g. org.postgresql.Driver.");
@@ -68,6 +76,35 @@ public final class DatabasePackage {
             throw new ActionException("DB.CONNECT_FAILED", "Cannot connect: " + e.getMessage(), "Check the URL, network access and credentials.", true);
         }
         return Map.of();
+    }
+
+    /** JDBC URL in each driver's usual form; server databases use server/port/database, file databases the file path. */
+    static String jdbcUrl(String type, String server, Integer port, String database, String file) {
+        if (type == null || type.isBlank())
+            throw new ActionException("DB.BAD_INPUT", "Give a jdbc_url or a database_type", "Choose the database type and fill in its server or file, or type the full JDBC URL.");
+        String t = type.strip().toLowerCase(Locale.ROOT);
+        boolean fileDb = t.equals("sqlite") || t.equals("h2") || t.equals("access");
+        if (fileDb) {
+            if (file == null || file.isBlank()) throw new ActionException("DB.BAD_INPUT", t + " needs a database file", "Fill in file with the path of the database file.");
+            return switch (t) {
+                case "sqlite" -> "jdbc:sqlite:" + file;
+                case "h2" -> "jdbc:h2:" + file.replaceFirst("(?i)\\.mv\\.db$", "");  // H2 adds .mv.db itself
+                default -> "jdbc:ucanaccess://" + file;
+            };
+        }
+        if (server == null || server.isBlank()) throw new ActionException("DB.BAD_INPUT", t + " needs a server", "Fill in server with the database server name or address.");
+        String host = server.strip(), db = database == null || database.isBlank() ? null : database.strip();
+        String hp = host + (port != null ? ":" + port : "");
+        return switch (t) {
+            case "sqlserver" -> "jdbc:sqlserver://" + hp + (db != null ? ";databaseName=" + db : "");
+            case "postgresql" -> "jdbc:postgresql://" + hp + "/" + (db != null ? db : "");
+            case "mysql" -> "jdbc:mysql://" + hp + "/" + (db != null ? db : "");
+            case "oracle" -> {
+                if (db == null) throw new ActionException("DB.BAD_INPUT", "oracle needs a database (service name)", "Fill in database with the Oracle service name, e.g. ORCLPDB1.");
+                yield "jdbc:oracle:thin:@//" + host + ":" + (port != null ? port : 1521) + "/" + db;
+            }
+            default -> throw new ActionException("DB.BAD_INPUT", "Unknown database_type '" + type + "'", "Use sqlserver, postgresql, mysql, oracle, sqlite, h2 or access.");
+        };
     }
 
     private static PreparedStatement prepare(Connection c, String sql, List<Object> params) throws SQLException {
@@ -108,6 +145,27 @@ public final class DatabasePackage {
                 return Out.of("table", Values.table(cols, rows), "row_count", BigDecimal.valueOf(rows.size()));
             }
         } catch (SQLException e) { throw sql(e); }
+    }
+
+    @LoopIterator(id = "query_rows", name = "Each row of a SQL query", description = "Run a SELECT with ? parameters and yield each row as a record keyed by column name.")
+    @SuppressWarnings("unchecked")
+    public Iterable<Object> queryRows(ActionContext ctx,
+            @Input(name = "sql", type = OoaType.STRING, description = "SELECT statement with ? placeholders.") String sql,
+            @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1, description = "Safety limit on rows read.") int maxRows,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
+        // rows are read before the loop starts, so steps inside it can use the same session freely
+        Map<String, Object> t = query(ctx, sql, params, maxRows, session, queryTimeout);
+        Map<String, Object> table = (Map<String, Object>) t.get("table");
+        List<String> cols = DataTablePackage.cols(table);
+        List<Object> out = new ArrayList<>();
+        for (List<Object> r : DataTablePackage.rows(table)) {
+            Map<String, Object> rec = new LinkedHashMap<>();
+            for (int i = 0; i < cols.size(); i++) rec.put(cols.get(i), DataTablePackage.cell(r, i));
+            out.add(rec);
+        }
+        return out;
     }
 
     static Object value(Object v) throws SQLException {

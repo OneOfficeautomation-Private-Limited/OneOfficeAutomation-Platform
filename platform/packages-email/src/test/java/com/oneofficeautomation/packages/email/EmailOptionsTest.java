@@ -151,4 +151,18 @@ class EmailOptionsTest {
         assertEquals(f, EmailPackage.emlTarget(f, false, "s", true));
         assertEquals(dir.resolve("a (2).eml"), EmailPackage.emlTarget(f, false, "s", false));
     }
+
+    @Test void eachEmailGivesTheFindEmailsRowAsADictionary() throws Exception {
+        MimeMessage m = original("");
+        Map<String, Object> e = EmailPackage.summary(42, m);
+        assertEquals(EmailPackage.SUMMARY_COLUMNS, new ArrayList<>(e.keySet()), "same columns, in the same order, as Find emails");
+        assertEquals(0, BigDecimal.valueOf(42).compareTo((BigDecimal) e.get("id")));
+        assertEquals("ann@acme.com", e.get("from"));
+        assertEquals("Invoice 7", e.get("subject"));
+        assertEquals(LocalDateTime.of(2026, 10, 19, 9, 0), e.get("received"), "sent date when the server gives no received date");
+        assertEquals(true, e.get("unread"));
+        assertEquals(true, e.get("has_attachments"));
+        m.setFlag(Flags.Flag.SEEN, true);
+        assertEquals(false, EmailPackage.summary(42, m).get("unread"));
+    }
 }
