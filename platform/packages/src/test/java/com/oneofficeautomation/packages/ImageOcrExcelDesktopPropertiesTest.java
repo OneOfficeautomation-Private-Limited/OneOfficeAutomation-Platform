@@ -174,6 +174,7 @@ class ImageOcrExcelDesktopPropertiesTest {
         assertNull(ExcelDesktopPackage.formatCode("docx"));
 
         assertTrue(ExcelDesktopPackage.refreshScript("C:\\a.xlsx", false, null).args().contains("0"));
+        assertTrue(ExcelDesktopPackage.refreshScript("C:\\a.xlsx", true, null).body().contains("CalculateUntilAsyncQueriesDone()\n  $xl.Calculate()"), "recalculates after the refresh");
         ExcelDesktopPackage.Script links = ExcelDesktopPackage.updateLinksScript("C:\\a.xlsx", true, null);
         assertTrue(links.body().contains("$wb.UpdateLink($l, 1)"));
         assertEquals(List.of("C:\\a.xlsx", "1"), links.args());
