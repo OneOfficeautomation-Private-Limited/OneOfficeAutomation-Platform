@@ -6,6 +6,101 @@
       "runtimeExecutable": "C:\\OOA\\oneofficeautomation\\platform\\scripts\\start-ooa.bat",
       "runtimeArgs": [],
       "port": 8720
+    },
+    {
+      "name": "ooa-studio-test",
+      "runtimeExecutable": "C:\\OOA\\oneofficeautomation\\platform\\cli\\build\\install\\ooa\\bin\\ooa.bat",
+      "runtimeArgs": [
+        "studio",
+        "--workspace",
+        "C:\\Users\\virup\\AppData\\Local\\Temp\\claude\\C--OOA-oneofficeautomation\\872b9c47-20fc-41a9-b354-212133691fc9\\scratchpad\\ws",
+        "--port",
+        "8742"
+      ],
+      "port": 8742
+    },
+    {
+      "name": "ooa-cr-test",
+      "runtimeExecutable": "C:\\OOA\\oneofficeautomation\\platform\\cli\\build\\install\\ooa\\bin\\ooa.bat",
+      "runtimeArgs": [
+        "control-room",
+        "--port",
+        "8760",
+        "--data",
+        "C:\\Users\\virup\\AppData\\Local\\Temp\\claude\\C--OOA-oneofficeautomation\\872b9c47-20fc-41a9-b354-212133691fc9\\scratchpad\\crtest"
+      ],
+      "port": 8760
+    },
+    {
+      "name": "ooa-design-server",
+      "runtimeExecutable": "C:\\OOA\\oneofficeautomation\\platform\\cli\\build\\install\\ooa\\bin\\ooa.bat",
+      "runtimeArgs": [
+        "server",
+        "--port",
+        "8765",
+        "--workspace",
+        "C:\\Users\\virup\\AppData\\Local\\Temp\\claude\\C--OOA-oneofficeautomation\\2b6195e9-1780-4f7d-ad00-6342e08a00da\\scratchpad\\ws",
+        "--data",
+        "C:\\Users\\virup\\AppData\\Local\\Temp\\claude\\C--OOA-oneofficeautomation\\2b6195e9-1780-4f7d-ad00-6342e08a00da\\scratchpad\\crdata",
+        "--no-agent",
+        "--no-browser"
+      ],
+      "port": 8765
+    },
+    {
+      "name": "ooa-design-proxy",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:\\Users\\virup\\AppData\\Local\\Temp\\claude\\C--OOA-oneofficeautomation\\2b6195e9-1780-4f7d-ad00-6342e08a00da\\scratchpad\\devproxy.js"
+      ],
+      "port": 8766
+    },
+    {
+      "name": "ooa-studio-cmdcheck",
+      "runtimeExecutable": "C:/OOA/oneofficeautomation/platform/cli/build/install/ooa/bin/ooa.bat",
+      "runtimeArgs": [
+        "studio",
+        "--workspace",
+        "C:/Users/virup/AppData/Local/Temp/claude/C--OOA-oneofficeautomation/576297cd-8019-41b4-92ae-f5bc151a579a/scratchpad/ws",
+        "--port",
+        "8741"
+      ],
+      "port": 8741,
+      "cwd": "C:/OOA/oneofficeautomation/platform"
+    },
+    {
+      "name": "ooa-formmock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/virup/AppData/Local/Temp/claude/C--OOA-oneofficeautomation/576297cd-8019-41b4-92ae-f5bc151a579a/scratchpad/formmock.js"
+      ],
+      "port": 8743
+    },
+    {
+      "name": "ooa-cr-cmdcheck",
+      "runtimeExecutable": "C:/OOA/oneofficeautomation/platform/cli/build/install/ooa/bin/ooa.bat",
+      "runtimeArgs": [
+        "control-room",
+        "--port",
+        "8762",
+        "--data",
+        "C:/Users/virup/AppData/Local/Temp/claude/C--OOA-oneofficeautomation/576297cd-8019-41b4-92ae-f5bc151a579a/scratchpad/crdata"
+      ],
+      "port": 8762,
+      "cwd": "C:/OOA/oneofficeautomation/platform"
+    },
+    {
+      "name": "ooa-cr-uitest",
+      "runtimeExecutable": "C:/OOA/oneofficeautomation/platform/cli/build/install/ooa/bin/ooa.bat",
+      "runtimeArgs": [
+        "control-room",
+        "--port",
+        "8763",
+        "--data",
+        "C:/Users/virup/AppData/Local/Temp/claude/C--OOA-oneofficeautomation/576297cd-8019-41b4-92ae-f5bc151a579a/scratchpad/crui"
+      ],
+      "port": 8763,
+      "cwd": "C:/OOA/oneofficeautomation/platform"
     }
   ]
 }
