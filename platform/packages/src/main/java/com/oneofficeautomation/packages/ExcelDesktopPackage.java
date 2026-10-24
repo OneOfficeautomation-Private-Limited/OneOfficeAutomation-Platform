@@ -123,14 +123,14 @@ public final class ExcelDesktopPackage {
     }
 
     static Script refreshScript(String file, boolean save, Object password) {
-        return new Script(open(false, secret(password) != null) + "  $wb.RefreshAll()\n  $xl.CalculateUntilAsyncQueriesDone()\n"
+        return new Script(open(false, secret(password) != null) + "  $wb.RefreshAll()\n  $xl.CalculateUntilAsyncQueriesDone()\n  $xl.Calculate()\n"
                 + "  if ($args[1] -eq '1') { $wb.Save() }\n", List.of(file, save ? "1" : "0"), env(password), false);
     }
 
     public Map<String, Object> refreshAll(ActionContext ctx, String path, int timeout) { return refreshAll(ctx, path, timeout, true, null); }
 
     @Action(id = "refresh_all", name = "Refresh all data", category = "Data", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Refresh every query, connection and pivot table in the workbook, wait for completion and save unless told not to.")
+            description = "Refresh every query, connection and pivot table in the workbook, wait for completion, recalculate and save unless told not to.")
     public Map<String, Object> refreshAll(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook.") String path,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "900", description = "Maximum time.") int timeout,
