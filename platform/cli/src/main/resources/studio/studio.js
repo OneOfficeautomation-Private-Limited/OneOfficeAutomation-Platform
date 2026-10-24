@@ -188,6 +188,7 @@ const state = {
   selected: null,     // path of the selected step, e.g. ["steps", 0, "children", 1]
   target: null,       // path of a list chosen as insertion point (a container section)
   problems: [], dirty: false, lastRun: null, validateTimer: null,
+  useSelector: new Set(),   // web steps whose element is given by a selector instead of a captured object
 };
 
 // ---------- small DOM helper ----------
@@ -915,6 +916,8 @@ function addStep(action, at) {
   // Close after this agent created or wrote the file: save the changes (the toolkit default is not to save)
   const office = /^(ooa\.(?:excel|word|powerpoint))\/close$/.exec(action);
   if (office && allSteps(state.flow.steps).some((s) => s.action.startsWith(office[1] + "/") && /create|write|set|insert|add|replace|append|delete|update|fill/.test(s.action.split("/")[1]))) args.save = true;
+  // a Throw raises a business error unless another code is chosen (a Catch for BUSINESS.* handles refusals)
+  if (action === "core/throw" && args.code === undefined) args.code = "BUSINESS.ERROR";
   if (Object.keys(args).length) step.args = args;
   if (action === "core/if") { step.children = []; step.else = []; }
   else if (action === "core/try") { step.children = []; step.catch = [{ codes: [], children: [] }]; }   // Finally is added only when wanted
@@ -2025,6 +2028,8 @@ function inputControl(step, name, prop, required) {
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Value", required ? h("span", { class: "req", text: " *" }) : null,
       infoTip(prop.description)), assignValueEditor(current, set, vdef ? vdef.type : "Any"));
   }
+  const rowsField = rowsEditor(step, name, prop, required, current, set);
+  if (rowsField) return rowsField;
   let control;
   if (step.action === "core/run_bot" && name === "automation") {
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Agent to run", required ? h("span", { class: "req", text: " *" }) : null,
@@ -2098,7 +2103,13 @@ function inputControl(step, name, prop, required) {
       placeholder: prop.default !== undefined ? "default: " + prop.default : type === "Credential" ? "$credential_variable" : type === "Number" ? "number, $variable or $n - 1" : "",
       onchange: (e) => set(type === "Number" ? numberFromText(e.target.value) : (e.target.value === "" ? undefined : e.target.value)) });
   }
+  const plainInput = control.tagName === "INPUT" ? control : null;
+  if (plainInput && step.action === "core/throw" && name === "code") {
+    plainInput.setAttribute("list", "throw-codes");
+    if (!$("throw-codes")) document.body.appendChild(h("datalist", { id: "throw-codes" }, THROW_CODES.map((c) => h("option", { value: c }))));
+  }
   if (control.tagName === "INPUT" || control.tagName === "TEXTAREA") { control.dataset.argName = name; control = withPicker(control, type); }
+  if (plainInput && name === "keys" && type === "String") { plainInput.dataset.keyJoin = "+"; control = h("div", { class: "field-row" }, control, keyPicker(plainInput)); }
   if (name === "selector" && step.action.startsWith("ooa.browser/")) {
     // Pick records the full captured object (all properties, editable match rules) when the action accepts one; otherwise just the selector.
     const own = state.specs.get(step.action) ? state.specs.get(step.action).action : (conditionCatalog().find((c) => c.addr === step.action) || {}).spec;
@@ -2122,9 +2133,116 @@ function inputControl(step, name, prop, required) {
     });
   }
   const help = [prop.description, range, prop.examples ? "Example: " + showValue(prop.examples[0]) : null].filter(Boolean).join("  ");
-  return h("div", { class: "field", "data-field": name },
+  return requiredMark(h("div", { class: "field", "data-field": name },
     h("label", {}, (prop["x-ooa-label"] || name), required ? h("span", { class: "req", text: " *" }) : null, typeChip(type), infoTip(help)),
-    control);
+    control), required, current);
+}
+
+/**
+ * Open browser: one choice for how the agent is run, instead of three settings changed in every agent.
+ * Watch uses the browser on the desktop and leaves it open; Unattended uses the built-in browser without a window and closes it.
+ */
+const BROWSER_MODES = { watch: { engine: undefined, headless: undefined, keep_open: undefined }, unattended: { engine: "playwright", headless: true, keep_open: false } };
+function browserRunMode(step) {
+  const a = step.args || {};
+  const is = (m) => Object.entries(BROWSER_MODES[m]).every(([k, v]) => a[k] === v);
+  const mode = is("watch") ? "watch" : is("unattended") ? "unattended" : "custom";
+  const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Run mode" },
+    [["watch", "Watch while building"], ["unattended", "Unattended"], ["custom", "Custom"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String(mode === k), class: mode === k ? "on" : "",
+      onclick: () => {
+        if (k === "custom") { state.moreOpen = true; renderProps(); return; }
+        step.args = Object.assign({}, step.args);
+        for (const [n, v] of Object.entries(BROWSER_MODES[k])) { if (v === undefined) delete step.args[n]; else step.args[n] = v; }
+        changed(); renderProps();
+      } }, t)));
+  const help = mode === "watch" ? "Edge or Chrome on the desktop; it stays open after the run so you can look at the page."
+    : mode === "unattended" ? "The built-in browser without a window; closed when the agent ends. For Command Center and scheduled runs."
+    : "Engine, headless and keep open are set by hand under More options.";
+  return h("div", { class: "field", "data-field": "run_mode" }, h("label", {}, "Run mode", infoTip("Sets the engine, whether the browser shows, and whether it stays open, together.")), seg, h("div", { class: "help", text: help }));
+}
+
+/** A required field that is still empty says so under it, before Validate is pressed. */
+function requiredMark(field, required, value) {
+  const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && !value.length);
+  if (required && empty) { field.classList.add("missing"); field.appendChild(h("div", { class: "missing-note", text: "Required" })); }
+  return field;
+}
+
+/** Keys for a keys field, as the Press keys action spells them. */
+const SPECIAL_KEYS = ["ENTER", "TAB", "ESC", "BACKSPACE", "DELETE", "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PAGEUP", "PAGEDOWN", "SPACE", "F1", "F2", "F5", "F12",
+  "CTRL+A", "CTRL+C", "CTRL+V", "CTRL+X", "CTRL+S", "CTRL+Z", "ALT+F4", "ALT+TAB", "SHIFT+TAB", "WIN+R"];
+function keyPicker(input) {
+  const sel = h("select", { class: "key-pick", "aria-label": "Insert a key", title: "Insert a key or a combination",
+    onchange: (e) => { if (!e.target.value) return; const v = input.value.trim(); input.value = v ? v + (input.dataset.keyJoin || " ") + e.target.value : e.target.value; input.dispatchEvent(new Event("change", { bubbles: true })); e.target.value = ""; } },
+    h("option", { value: "", text: "+ key" }), SPECIAL_KEYS.map((k) => h("option", { value: k, text: k })));
+  return sel;
+}
+
+/** Error codes to raise from a Throw; the BUSINESS family is what a Catch for business refusals looks for. */
+const THROW_CODES = ["BUSINESS.ERROR", "BUSINESS.REFUSED", "BUSINESS.NOT_FOUND", "BUSINESS.DUPLICATE", "BUSINESS.LIMIT", "DATA.INVALID", "DATA.MISSING"];
+
+/**
+ * Field editors that replace JSON for lists and summaries: tables to merge, columns to group by, summaries as
+ * rows of [new column] [function] [column], and program arguments as one command line.
+ */
+function rowsEditor(step, name, prop, required, current, set) {
+  const field = (control, tip) => requiredMark(h("div", { class: "field", "data-field": name },
+    h("label", {}, prop["x-ooa-label"] || name, required ? h("span", { class: "req", text: " *" }) : null, infoTip(tip || prop.description || "")), control), required, current);
+  const tableVars = () => state.flow.variables.filter((v) => holds(v.type, "Table"));
+  if (step.action === "ooa.datatable/merge" && name === "tables") {
+    const list = Array.isArray(current) ? current.slice() : [];
+    const rows = list.map((t, i) => {
+      const sel = h("select", { "aria-label": "Table " + (i + 1), onchange: (e) => { list[i] = "$" + e.target.value; set(list); } },
+        h("option", { value: "", text: "(choose a table variable)" }), tableVars().map((v) => h("option", { value: v.name, text: "$" + v.name })));
+      sel.value = typeof t === "string" ? t.replace(/^\$/, "") : "";
+      return h("div", { class: "field-row" }, sel, h("button", { type: "button", class: "link-btn", onclick: () => { list.splice(i, 1); set(list.length ? list : undefined); renderProps(); } }, "Remove"));
+    });
+    return field(h("div", { class: "rows-editor" }, rows, h("button", { type: "button", onclick: () => { list.push(""); set(list); renderProps(); } }, "+ Table")),
+      "The tables whose rows are put together, in this order.");
+  }
+  if (step.action === "ooa.datatable/aggregate" && name === "group_by") {
+    const text = Array.isArray(current) ? current.join(", ") : typeof current === "string" ? current : "";
+    return field(withPicker(h("input", { type: "text", value: text, placeholder: "Customer, Region", "aria-label": "Columns to group by",
+      onchange: (e) => { const t = e.target.value.trim(); set(!t ? undefined : t.startsWith("$") ? t : t.split(",").map((x) => x.trim()).filter(Boolean)); } }), "List"),
+      "Column names, separated by commas. Empty makes one group of all rows.");
+  }
+  if (step.action === "ooa.datatable/aggregate" && name === "summaries") {
+    const FNS = ["sum", "count", "avg", "min", "max", "first", "last", "count_distinct"];
+    const entries = current && typeof current === "object" && !Array.isArray(current) ? Object.entries(current) : [];
+    const save = (rows) => { const o = {}; for (const [n, fn, col] of rows) if (n) o[n] = col ? fn + ":" + col : fn; set(Object.keys(o).length ? o : undefined); };
+    const model = entries.map(([n, spec]) => { const s = String(spec); const i = s.indexOf(":"); return [n, i < 0 ? s : s.slice(0, i), i < 0 ? "" : s.slice(i + 1)]; });
+    const rows = model.map((r, i) => {
+      const nm = h("input", { type: "text", value: r[0], placeholder: "New column", "aria-label": "New column", onchange: (e) => { r[0] = e.target.value.trim(); save(model); } });
+      const fn = h("select", { "aria-label": "Function", onchange: (e) => { r[1] = e.target.value; save(model); } }, FNS.map((x) => h("option", { value: x, text: x })));
+      fn.value = FNS.includes(r[1]) ? r[1] : "sum";
+      const col = h("input", { type: "text", value: r[2], placeholder: "Column", "aria-label": "Column", onchange: (e) => { r[2] = e.target.value.trim(); save(model); } });
+      return h("div", { class: "field-row summary-row" }, nm, fn, col, h("button", { type: "button", class: "link-btn", onclick: () => { model.splice(i, 1); save(model); renderProps(); } }, "Remove"));
+    });
+    return field(h("div", { class: "rows-editor" }, rows, h("button", { type: "button", onclick: () => { model.push(["", "sum", ""]); save(model); renderProps(); } }, "+ Summary")),
+      "One row per result column: its name, how it is worked out, and from which column (count needs no column).");
+  }
+  if (/^ooa\.(desktop|application)\/start_program$/.test(step.action) && name === "arguments") {
+    const quote = (a) => (/[\s"]/.test(a) ? '"' + a.replace(/"/g, '\\"') + '"' : a);
+    const text = Array.isArray(current) ? current.map((a) => quote(String(a))).join(" ") : typeof current === "string" ? current : "";
+    return field(withPicker(h("input", { type: "text", value: text, placeholder: "--port 8080 \"C:\\My Files\\in.txt\"", "aria-label": "Arguments",
+      onchange: (e) => { const t = e.target.value.trim(); set(!t ? undefined : t.startsWith("$") && !/\s/.test(t) ? t : splitArgs(t)); } }), "String"),
+      "The command line after the program: separated by spaces; put an argument with spaces in double quotes.");
+  }
+  return null;
+}
+
+/** A command line split into arguments: spaces separate, double quotes keep spaces, \" is a quote. */
+function splitArgs(text) {
+  const out = []; let cur = "", q = false, any = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\\" && text[i + 1] === '"') { cur += '"'; i++; any = true; }
+    else if (c === '"') { q = !q; any = true; }
+    else if (/\s/.test(c) && !q) { if (any) out.push(cur); cur = ""; any = false; }
+    else { cur += c; any = true; }
+  }
+  if (any) out.push(cur);
+  return out;
 }
 
 /** An ⓘ that shows a field's help text on hover or keyboard focus, instead of printing it under every field. */
@@ -2257,19 +2375,29 @@ function conditionCatalog() {
   return out;
 }
 
+/** Text options of a comparison, as the runner reads them on the condition. */
+const COND_TEXT_OPTS = [["ignoreCase", "Ignore case"], ["trim", "Ignore spaces around"], ["ignoreLineBreaks", "Ignore line breaks"]];
+
 function parseCondRow(c) {
   let not = false;
   if (c && typeof c === "object" && "not" in c && Object.keys(c).length === 1) { not = true; c = c.not; }
+  if (c && typeof c === "object" && !Array.isArray(c) && (Array.isArray(c.all) || Array.isArray(c.any))) {
+    const match = Array.isArray(c.all) ? "all" : "any";
+    const rows = c[match].map(parseCondRow);
+    return rows.every(Boolean) ? { kind: "group", match, rows, not } : null;
+  }
   if (c && typeof c === "object" && c.op) {
     if (c.op === "eq" && (c.right === true || c.right === false)) return { kind: "bool", left: showValue(c.left), truth: c.right, not };
-    return { kind: "compare", left: showValue(c.left), op: c.op, right: showValue(c.right), not };
+    const opts = {};
+    for (const [k] of COND_TEXT_OPTS) if (c[k] === true) opts[k] = true;
+    return { kind: "compare", left: showValue(c.left), op: c.op, right: showValue(c.right), not, opts };
   }
   if (c && typeof c === "object" && typeof c.condition === "string") return { kind: "pkg", addr: c.condition, args: Object.assign({}, c.args || {}), not };
   return null;
 }
 
 function parseCondition(c) {
-  if (c === undefined || c === null || c === "") return { mode: "builder", match: "all", rows: [{ kind: "compare", left: "", op: "eq", right: "", not: false }] };
+  if (c === undefined || c === null || c === "") return { mode: "builder", match: "all", rows: [{ kind: "compare", left: "", op: "eq", right: "", not: false, opts: {} }] };
   if (typeof c === "object" && !Array.isArray(c)) {
     const key = Array.isArray(c.all) ? "all" : Array.isArray(c.any) ? "any" : null;
     const items = key ? c[key] : [c];
@@ -2279,27 +2407,50 @@ function parseCondition(c) {
   return { mode: "expr", text: typeof c === "string" ? c : typeof c === "object" && c.expr ? c.expr : JSON.stringify(c) };
 }
 
+function serializeCondRow(r) {
+  let c;
+  if (r.kind === "group") c = { [r.match]: r.rows.map(serializeCondRow) };
+  else if (r.kind === "bool") c = { op: "eq", left: parseLoose(r.left), right: r.truth };
+  else if (r.kind === "pkg") c = { condition: r.addr, args: r.args };
+  else {
+    c = { op: r.op, left: parseLoose(r.left) };
+    if (!["empty", "notEmpty"].includes(r.op)) c.right = parseLoose(r.right);
+    for (const [k] of COND_TEXT_OPTS) if (r.opts && r.opts[k]) c[k] = true;
+  }
+  return r.not ? { not: c } : c;
+}
+
 function serializeCondition(m) {
   if (m.mode === "expr") { const t = (m.text || "").trim(); if (!t) return undefined; try { const j = JSON.parse(t); if (typeof j === "object") return j; } catch (_) { /* expression text */ } return t; }
-  const items = m.rows.map((r) => {
-    let c;
-    if (r.kind === "bool") c = { op: "eq", left: parseLoose(r.left), right: r.truth };
-    else if (r.kind === "pkg") c = { condition: r.addr, args: r.args };
-    else { c = { op: r.op, left: parseLoose(r.left) }; if (!["empty", "notEmpty"].includes(r.op)) c.right = parseLoose(r.right); }
-    return r.not ? { not: c } : c;
-  });
+  const items = m.rows.map(serializeCondRow);
   return items.length === 1 ? items[0] : { [m.match]: items };
 }
 
+/** The If builder: rows of conditions combined with AND or OR, groups of rows for mixed AND/OR, or an expression. */
 function conditionEditor(value, onChange) {
   const model = parseCondition(value);
   const box = h("div", { class: "cond" });
   const commit = () => { onChange(serializeCondition(model)); render(); };
   const catalog = conditionCatalog();
-  function rowEl(r, i) {
+  const newRow = () => ({ kind: "compare", left: "", op: "eq", right: "", not: false, opts: {} });
+  const matchSelect = (holder, label) => {
+    const s = h("select", { "aria-label": label, onchange: (e) => { holder.match = e.target.value; commit(); } },
+      h("option", { value: "all", text: "All of these are true (AND)" }), h("option", { value: "any", text: "Any of these is true (OR)" }));
+    s.value = holder.match;
+    return s;
+  };
+  function rowEl(r, i, list) {
+    const remove = list.length > 1 ? h("button", { type: "button", class: "link-btn", "aria-label": "Remove condition", onclick: () => { list.splice(i, 1); commit(); } }, "Remove") : null;
+    const notBox = h("label", { class: "check", title: "Reverse this condition" }, h("input", { type: "checkbox", checked: r.not, onchange: (e) => { r.not = e.target.checked; commit(); } }), "Not");
+    if (r.kind === "group") {
+      return h("div", { class: "cond-group" },
+        h("div", { class: "cond-top" }, h("strong", { text: "Group" }), matchSelect(r, "Combine the conditions of this group"), notBox, remove),
+        ...r.rows.map((x, k) => rowEl(x, k, r.rows)),
+        h("div", { class: "row-actions" }, h("button", { type: "button", onclick: () => { r.rows.push(newRow()); commit(); } }, "+ Condition in group")));
+    }
     const kindSel = h("select", { "aria-label": "Condition type", onchange: (e) => {
       const v = e.target.value;
-      if (v === "compare") Object.assign(r, { kind: "compare", op: r.op || "eq", left: r.left || "", right: r.right || "" });
+      if (v === "compare") Object.assign(r, { kind: "compare", op: r.op || "eq", left: r.left || "", right: r.right || "", opts: r.opts || {} });
       else if (v === "true" || v === "false") Object.assign(r, { kind: "bool", truth: v === "true", left: r.left || "" });
       else Object.assign(r, { kind: "pkg", addr: v, args: {} });
       commit();
@@ -2313,6 +2464,13 @@ function conditionEditor(value, onChange) {
       op.value = r.op;
       fields.push(withPicker(h("input", { type: "text", value: r.left, placeholder: "$variable or value", "aria-label": "Left value", onchange: (e) => { r.left = e.target.value; commit(); } }), "Any"), op);
       if (!["empty", "notEmpty"].includes(r.op)) fields.push(withPicker(h("input", { type: "text", value: r.right, placeholder: r.op === "in" ? '["a","b"]' : r.op === "matches" ? "^INV-\\d+$" : "value or $variable", "aria-label": "Right value", onchange: (e) => { r.right = e.target.value; commit(); } }), "Any"));
+      // text options: case, spaces and line breaks (text read from pages and files often differs only in these)
+      r.opts = r.opts || {};
+      const set = COND_TEXT_OPTS.filter(([k]) => r.opts[k]).length;
+      const d = h("details", { class: "cond-opts" }, h("summary", { text: "Text options" + (set ? " (" + set + ")" : "") }),
+        ...COND_TEXT_OPTS.map(([k, t]) => h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!r.opts[k], onchange: (e) => { if (e.target.checked) r.opts[k] = true; else delete r.opts[k]; commit(); } }), t)));
+      d.open = set > 0;
+      fields.push(d);
     } else if (r.kind === "bool") {
       fields.push(withPicker(h("input", { type: "text", value: r.left, placeholder: "$variable", "aria-label": "Value", onchange: (e) => { r.left = e.target.value; commit(); } }), "Boolean"));
     } else {
@@ -2327,15 +2485,9 @@ function conditionEditor(value, onChange) {
           if (name === "selector" && r.args.object) continue;
           fields.push(inputControl(pseudo, name, prop, req.includes(name)));
         }
-        if (r.addr === "ooa.browser/element_exists" || r.addr === "ooa.browser/element_visible")
-          fields.push(h("div", { class: "help", text: "Checked once, straight away. To wait for the element first, put a Wait for element step before the If, or use Wait until." }));
       }
     }
-    return h("div", { class: "cond-row" },
-      h("div", { class: "cond-top" }, kindSel,
-        h("label", { class: "check", title: "Reverse this condition" }, h("input", { type: "checkbox", checked: r.not, onchange: (e) => { r.not = e.target.checked; commit(); } }), "Not"),
-        model.rows.length > 1 ? h("button", { type: "button", class: "link-btn", "aria-label": "Remove condition", onclick: () => { model.rows.splice(i, 1); commit(); } }, "Remove") : null),
-      h("div", { class: "cond-fields" }, fields));
+    return h("div", { class: "cond-row" }, h("div", { class: "cond-top" }, kindSel, notBox, remove), h("div", { class: "cond-fields" }, fields));
   }
   function render() {
     if (model.mode === "expr") {
@@ -2344,14 +2496,13 @@ function conditionEditor(value, onChange) {
         h("div", { class: "row-actions" }, h("button", { type: "button", class: "link-btn", onclick: () => { Object.assign(model, parseCondition(undefined)); commit(); } }, "Use the condition builder")));
       return;
     }
-    const match = h("select", { "aria-label": "Combine conditions", onchange: (e) => { model.match = e.target.value; commit(); } },
-      h("option", { value: "all", text: "All of these are true (AND)" }), h("option", { value: "any", text: "Any of these is true (OR)" }));
-    match.value = model.match;
     box.replaceChildren(
-      model.rows.length > 1 ? match : null,
-      ...model.rows.map(rowEl),
+      model.rows.length > 1 ? matchSelect(model, "Combine conditions") : null,
+      ...model.rows.map((r, i) => rowEl(r, i, model.rows)),
       h("div", { class: "row-actions" },
-        h("button", { type: "button", onclick: () => { model.rows.push({ kind: "compare", left: "", op: "eq", right: "", not: false }); commit(); } }, "+ Condition"),
+        h("button", { type: "button", onclick: () => { model.rows.push(newRow()); commit(); } }, "+ Condition"),
+        h("button", { type: "button", title: "Conditions combined the other way inside this group, e.g. A and (B or C)",
+          onclick: () => { model.rows.push({ kind: "group", match: model.match === "all" ? "any" : "all", rows: [newRow(), newRow()], not: false }); commit(); } }, "+ Group"),
         h("button", { type: "button", class: "link-btn", onclick: () => { model.mode = "expr"; model.text = ""; onChange(undefined); render(); } }, "Write an expression instead")));
   }
   render();
@@ -2491,6 +2642,23 @@ function loopPanel(step) {
         nodes.push(field("Store each " + (/row/i.test(x.name) ? "row" : "item") + " in", varPick("as", /row/i.test(x.name) ? "Record" : "Any", /row/i.test(x.name) ? "row" : "item"), "Each pass puts the current item in this variable."));
       }
     }
+    // columns of each row straight into their own variables, instead of $row.Column everywhere
+    const cols = args.columns_to && typeof args.columns_to === "object" ? Object.entries(args.columns_to) : [];
+    // unfinished rows are kept too (a row without a variable is skipped when the agent runs)
+    const saveCols = (list) => { const o = {}; for (const [c, v] of list) o[c] = v; set("columns_to", list.length ? o : undefined); };
+    const colRows = cols.map((pair, i) => {
+      const col = h("input", { type: "text", value: pair[0], placeholder: "Column", "aria-label": "Column", onchange: (e) => { pair[0] = e.target.value.trim(); saveCols(cols); } });
+      const v = h("select", { "aria-label": "Variable", onchange: (e) => {
+        if (e.target.value === "__new") { const n = addVariable(uniqueVarName((pair[0] || "value").toLowerCase()), "Any"); renderVariables(); pair[1] = n; saveCols(cols); renderProps(); return; }
+        pair[1] = e.target.value; saveCols(cols); } },
+        h("option", { value: "", text: "(choose a variable)" }), state.flow.variables.map((x) => h("option", { value: x.name, text: "$" + x.name })), h("option", { value: "__new", text: "+ New variable" }));
+      v.value = pair[1] || "";
+      return h("div", { class: "field-row" }, col, h("span", { class: "muted", text: "→" }), v,
+        h("button", { type: "button", class: "link-btn", onclick: () => { cols.splice(i, 1); saveCols(cols); renderProps(); } }, "Remove"));
+    });
+    nodes.push(field("Columns into variables (optional)", h("div", { class: "rows-editor" }, colRows,
+      h("button", { type: "button", onclick: () => { if (!cols.some(([c]) => !c)) cols.push(["", ""]); saveCols(cols); renderProps(); } }, "+ Column")),
+      "Each pass puts these columns of the current row in their own variables, so later steps can use $customer instead of $row.Customer.", false, "columns_to"));
     nodes.push(field("Only the first (optional)", firstBox(), "Go through only this many items or rows: a number or a $variable. Empty goes through all of them.", false, "first"));
     nodes.push(field("Position (optional)", varPick("index", "Number", "position"), "A Number variable that holds the position of the current item: 0 for the first, 1 for the second …", false, "index"));
     more.push(field("Start at position", textBox("from_index", "0 (first)", "Number"), "Positions count from 0 (the first item). Smallest value: 0.", false, "from_index"), field("Stop after position (0 = first)", textBox("to_index", "the last one", "Number"), "The last position visited, included. Smallest value: 0.", false, "to_index"),
@@ -2552,15 +2720,25 @@ function renderProps() {
     // connector steps can take their address and sign-in from a saved connection; those inputs are then not asked here
     const connInputs = connectionInputs(spec.pkg.id);
     const fromConn = step.connection && connInputs.size && !state.showConnInputs;
+    // one element field: the captured object, or the selector when the step uses one (or the developer asks for it)
+    const bySelector = props.object && props.selector && step.action.startsWith("ooa.browser/")
+      ? ((step.args || {}).object === undefined && ((step.args || {}).selector !== undefined || state.useSelector.has(step.id))) : null;
+    const elementSwitch = () => h("button", { type: "button", class: "link-btn element-switch",
+      onclick: () => { if (bySelector) state.useSelector.delete(step.id); else state.useSelector.add(step.id); renderProps(); } },
+      bySelector ? "Capture the element instead" : "Use a selector instead");
     for (const [name, prop0] of entries) {
       if (shown && !shown.has(name)) continue;
+      if (bySelector === true && name === "object") continue;
+      if (bySelector === false && name === "selector") { main.push(elementSwitch()); continue; }
+      if (bySelector === true && name === "selector") { main.push(inputControl(step, name, prop0, req.includes(name)), elementSwitch()); continue; }
       if (fromConn && connInputs.has(name) && (step.args || {})[name] === undefined) continue;
       // Options that do not apply to the current choices are hidden (a value already set stays visible so it can be cleared).
       if (!fieldApplies(prop0, step.args || {}, props) && (step.args || {})[name] === undefined) continue;
       const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
       if (shown && ["timeout_ms", "timeout_seconds", "wait_for_page_ms", "if_not_found"].includes(name)) { timeoutBox.push([name, prop]); continue; }
       // Advanced inputs (self-healing alternatives, session names) always go under More options.
-      const advanced = (["alternatives", "session"].includes(name) || prop["x-ooa-advanced"]) && !req.includes(name);
+      const advanced = (["alternatives", "session"].includes(name) || prop["x-ooa-advanced"]
+        || (step.action === "ooa.browser/open" && ["engine", "headless", "keep_open"].includes(name))) && !req.includes(name);
       // Key choices of an action stay in view; other optional inputs (with or without a default) go under More options
       // once the first few fields are shown, so long forms (Reply, Classify, REST) open short.
       const key = (KEY_FIELDS[step.action] || []).includes(name);
@@ -2570,6 +2748,7 @@ function renderProps() {
     }
     const inputs = main;
     if (connInputs.size) inputs.unshift(connectionPicker(step, spec.pkg, connInputs));
+    if (step.action === "ooa.browser/open") inputs.unshift(browserRunMode(step));
     if (timeoutBox.length) inputs.push(timeoutEditor(step, timeoutBox, req));
     if (more.length) {
       const setCount = moreNames.filter((n) => step.args && step.args[n] !== undefined).length;
@@ -2741,7 +2920,10 @@ function outputOptions(want, current) {
   const vars = state.flow.variables;
   const opt = (v, note) => h("option", { value: v.name, text: v.name + "  (" + v.type + (note || "") + ")" });
   const out = vars.filter((v) => holds(v.type, want)).map((v) => opt(v));
-  const cur = current && vars.find((v) => v.name === current && !holds(v.type, want));
+  // text read from a page or a file often holds a number or yes/no: the run converts it when it is stored
+  const converts = (v) => want === "String" && (v.type === "Number" || v.type === "Boolean");
+  for (const v of vars) if (converts(v)) out.push(opt(v, ", converted from text"));
+  const cur = current && vars.find((v) => v.name === current && !holds(v.type, want) && !converts(v));
   if (cur) out.push(opt(cur, ": does not match " + want));
   return out;
 }
@@ -3226,6 +3408,67 @@ async function runBot() {
   return runFlow(state.flow, collectInputs());
 }
 
+/**
+ * Selectors to objects: runs the agent once while every element its web steps find by selector is captured, then puts
+ * those captured objects in place of the selectors. A selector stays when it is meant to find a different element each
+ * time (a variable in it, the n-th match, a list of alternatives) or when the run met several different elements for it.
+ */
+async function selectorsToObjects() {
+  if (!state.flow) { toast("Open an agent first.", true); return; }
+  const web = allSteps(state.flow.steps).filter((s) => s.action.startsWith("ooa.browser/") && s.args && s.args.selector && !s.args.object).length;
+  if (!web && !confirm("No web step uses a selector yet. Run anyway?")) return;
+  if (!confirm("The agent runs once now (with the inputs of the Run panel) so the elements can be captured. Continue?")) return;
+  state.recordRunId = null;
+  await runFlow(state.flow, collectInputs(), { recordObjects: true });
+  if (!state.recordRunId) return;
+  let r;
+  try { r = await api("GET", "runs/" + state.recordRunId + "/objects"); } catch (e) { toast(e.message, true); return; }
+  const report = applyRecordedObjects(state.flow, r.objects || []);
+  changed(); renderAll();
+  const kept = report.filter((x) => x.kept);
+  const why = [...new Set(kept.map((x) => x.kept))];
+  toast(report.length - kept.length + " step(s) now use captured objects" + (kept.length ? "; " + kept.length + " kept their selector (" + why.join(", ") + ")" : "") + ". Save to keep the change.");
+}
+
+/** The recorded objects in place of the selectors; returns what happened to each selector. */
+function applyRecordedObjects(flow, lines) {
+  const key = (o) => JSON.stringify((o.properties || []).filter((p) => p.use).map((p) => [p.name, p.value]));
+  const byStep = new Map();
+  for (const l of lines) {
+    const k = l.step + "\u0000" + l.selector;
+    if (!byStep.has(k)) byStep.set(k, { object: l.object, keys: new Set() });
+    byStep.get(k).keys.add(key(l.object));
+  }
+  const report = [];
+  const decide = (stepId, sel) => {
+    const why = /\$/.test(sel) ? "has a variable" : />>\s*nth=|:nth-|nth-child|nth-of-type/.test(sel) ? "picks the n-th match"
+      : /,/.test(sel) && !/^xpath=/.test(sel) ? "lists alternatives" : null;
+    const rec = byStep.get(stepId + "\u0000" + sel);
+    if (why) { report.push({ step: stepId, kept: why }); return null; }
+    if (!rec) { report.push({ step: stepId, kept: "not reached in the run" }); return null; }
+    if (rec.keys.size > 1) { report.push({ step: stepId, kept: "met several elements" }); return null; }
+    const o = JSON.parse(JSON.stringify(rec.object)); delete o.screenshot;
+    report.push({ step: stepId });
+    return o;
+  };
+  const fixCond = (c, id) => {
+    if (!c || typeof c !== "object") return;
+    if (Array.isArray(c)) { c.forEach((x) => fixCond(x, id)); return; }
+    if (typeof c.condition === "string" && c.condition.startsWith("ooa.browser/") && c.args && c.args.selector) {
+      const o = decide(id, c.args.selector); if (o) { delete c.args.selector; c.args.object = o; }
+    }
+    for (const v of Object.values(c)) if (v && typeof v === "object") fixCond(v, id);
+  };
+  for (const s of allSteps(flow.steps)) {
+    if (s.action.startsWith("ooa.browser/") && s.args && s.args.selector && !s.args.object) {
+      const o = decide(s.id, s.args.selector); if (o) { delete s.args.selector; s.args.object = o; }
+    }
+    if (s.args && s.args.condition) fixCond(s.args.condition, s.id);
+    for (const br of s.elseIf || []) fixCond(br.condition, s.id);
+  }
+  return report;
+}
+
 /** Runs a Flow in Studio and follows it live in the Run dock (bots, and script test runs). */
 async function runFlow(flow, inputs, opts = {}) {
   if (state.running) return;
@@ -3247,8 +3490,10 @@ async function runFlow(flow, inputs, opts = {}) {
     if (opts.onlyStep) body.only_step = opts.onlyStep; else if (opts.startAt) body.start_at = opts.startAt;
     // the run window on the desktop stays on top of the applications the agent brings forward
     if (prefs().desktopRunWindow !== false) body.run_window = true;
+    if (opts.recordObjects) body.record_objects = true;
     const start = await api("POST", "runs", body);
     state.live.id = start.run_id;
+    if (opts.recordObjects) state.recordRunId = start.run_id;
     while (true) {
       const r = await api("GET", "runs/" + state.live.id + "?after=" + state.live.seq);
       for (const e of r.events) applyLiveEvent(e);
@@ -5280,11 +5525,17 @@ function captureEditor(step, value, set, nested) {
     if (tabs && tab === "anchor") { wrap.replaceChildren(head, tabs, anchorPane()); return; }
     const shot = obj.screenshot ? h("figure", { class: "cap-preview" }, h("figcaption", { text: "Preview" }), h("img", { class: "cap-shot", alt: "Captured element", src: "data:image/png;base64," + obj.screenshot })) : null;
     const by = sel(desktop ? [["properties", "Properties"]] : [["properties", "Ticked properties"], ["css", "CSS selector"], ["xpath", "XPath (DOM, then full)"]], obj.search_by || "properties", (v) => { obj.search_by = v; save(); render(); }, "Search by");
-    const idx = h("input", { type: "number", min: "0", value: String(obj.index || 0), "aria-label": "Index", onchange: (e) => { obj.index = Math.max(0, parseInt(e.target.value || "0", 10) || 0); save(); } });
+    // which of several matches: the first, the last (lists whose length changes), or a numbered one (1 = first)
+    const cur = obj.index || 0;
+    const which = sel([["first", "First"], ["last", "Last"], ["nth", "Number…"]], cur === 0 ? "first" : cur === -1 ? "last" : "nth",
+      (v) => { obj.index = v === "first" ? 0 : v === "last" ? -1 : Math.max(1, cur); save(); render(); }, "Which match");
+    const num = cur > 0 ? h("input", { type: "number", min: "1", value: String(cur + 1), "aria-label": "Match number", class: "cap-index",
+      onchange: (e) => { obj.index = Math.max(0, (parseInt(e.target.value || "1", 10) || 1) - 1); save(); } }) : null;
+    const idx = h("span", { class: "cap-which" }, which, num);
     const ic = h("input", { type: "checkbox", checked: !!obj.ignore_case, onchange: (e) => { obj.ignore_case = e.target.checked; save(); } });
     const heal = h("input", { type: "checkbox", checked: obj.self_heal !== false, onchange: (e) => { obj.self_heal = e.target.checked; save(); } });
     const opts = h("div", { class: "cap-opts" },
-      h("label", {}, "Search by ", by), h("label", { title: "When several elements match: 0 is the first" }, "Index ", idx),
+      h("label", {}, "Search by ", by), h("label", { title: "When several elements match: which one the step uses" }, "Which match ", idx),
       h("label", { class: "check" }, ic, "Ignore case"), desktop ? null : h("label", { class: "check", title: "Try the captured CSS selector and XPath when the search finds nothing" }, heal, "Self-heal"));
     const frames = !desktop && Array.isArray(obj.frames) && obj.frames.length ? h("div", { class: "cap-frames" }, "Inside iframe: ", h("code", { text: obj.frames.join("  ›  ") })) : null;
     let place = null;
@@ -5427,6 +5678,7 @@ function wire() {
   $("btn-share-paste").addEventListener("click", pasteFromShared);
   $("btn-capture").addEventListener("click", captureStep);
   if ($("btn-capture-desktop")) $("btn-capture-desktop").addEventListener("click", captureDesktopStep);
+  if ($("btn-to-objects")) $("btn-to-objects").addEventListener("click", selectorsToObjects);
   $("btn-checkin").addEventListener("click", crCheckin);
   $("tree-search").addEventListener("input", onTreeSearch);
   document.addEventListener("focusin", (e) => { if (e.target.closest && e.target.closest("#props, #item-editor") && /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== "search") state.lastInput = e.target; });

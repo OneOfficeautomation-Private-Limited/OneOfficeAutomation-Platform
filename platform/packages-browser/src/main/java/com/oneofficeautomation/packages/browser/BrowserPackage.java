@@ -288,14 +288,28 @@ public final class BrowserPackage {
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "click_method", type = OoaType.STRING, required = false, defaultValue = "\"mouse\"", enumValues = {"mouse", "javascript"},
+                    description = "mouse: a real click (scrolls the element into view and waits until it can be clicked); javascript: fire the click on the element itself, for elements covered by an advert or a banner.") String clickMethod,
+            @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Mouse click without waiting until nothing covers the element.") boolean force) {
         session = BrowserWindows.use(ctx, session, window, timeout);
-        if (tab(ctx, session) != null) { onElement(ctx, tab(ctx, session), object, sel, dbl ? "double_click" : "click", null, timeout, Map.of()); return Map.of(); }
+        boolean js = "javascript".equals(clickMethod);
+        if (tab(ctx, session) != null) { onElement(ctx, tab(ctx, session), object, sel, dbl ? "double_click" : "click", null, timeout, Map.of("click_method", js ? "javascript" : "mouse")); return Map.of(); }
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
-            if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout)); else l.click(new Locator.ClickOptions().setTimeout(timeout));
+            if (js) {
+                l.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.ATTACHED));
+                l.evaluate(dbl ? "e => { e.click(); e.click(); e.dispatchEvent(new MouseEvent('dblclick', {bubbles: true})); }" : "e => e.click()");
+            } else if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout).setForce(force));
+            else l.click(new Locator.ClickOptions().setTimeout(timeout).setForce(force));
         } catch (PlaywrightException e) { throw pw(e, "Clicking " + what(object, sel)); }
         return Map.of();
+    }
+
+    /** Click with a mouse click, as before the click method existed. */
+    public Map<String, Object> click(ActionContext ctx, Object object, String sel, boolean dbl, double timeout, String session, Map<String, Object> alternatives, Object window) {
+        return click(ctx, object, sel, dbl, timeout, session, alternatives, window, "mouse", false);
     }
 
     @Action(id = "type_text", name = "Set text", category = "Elements", timeoutSeconds = 120, capabilities = "browser",
@@ -402,14 +416,19 @@ public final class BrowserPackage {
     }
 
     @Action(id = "wait_for", name = "Wait for element", category = "Elements", timeoutSeconds = 600, capabilities = "browser", description = "Wait until an element appears, becomes visible, hidden or is removed.")
+    @Output(name = "which", type = OoaType.NUMBER, description = "With any_of: which element was found, 0 for the element, 1 for the first of the others.")
     public Map<String, Object> waitFor(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "state", type = OoaType.STRING, required = false, defaultValue = "\"visible\"", enumValues = {"visible", "attached", "hidden", "detached"}, description = "State to wait for.") String state,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "any_of", type = OoaType.LIST, required = false,
+                    description = "Other elements (captured objects or selectors): the wait ends when the element or any of these is visible (or there). Output which tells which one: 0 for the element, 1 for the first of these, and so on.") List<Object> anyOf) {
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (anyOf != null && !anyOf.isEmpty() && !"hidden".equals(state) && !"detached".equals(state) && tab(ctx, session) == null)
+            return waitForAny(ctx, session, object, sel, anyOf, "visible".equals(state), timeout);
         if (tab(ctx, session) != null) {
             String how = switch (state) { case "hidden" -> "wait_to_disappear"; case "detached" -> "wait_detached"; default -> "wait_to_appear"; };
             onElement(ctx, tab(ctx, session), object, sel, how, null, timeout, Map.of());
@@ -438,15 +457,50 @@ public final class BrowserPackage {
                 }
             }
         } catch (PlaywrightException e) { throw pw(e, "Waiting for " + what(object, sel)); }
-        return Map.of();
+        return Map.of("which", BigDecimal.ZERO);
     }
 
-    @Condition(id = "element_exists", name = "Element exists", description = "True when at least one element matches the selector right now.")
+    /** Wait for element without the any-of choice. */
+    public Map<String, Object> waitFor(ActionContext ctx, Object object, String sel, String state, double timeout, String session, Object window) {
+        return waitFor(ctx, object, sel, state, timeout, session, window, null);
+    }
+
+    /** Waits until the element or one of the others is there (and visible): the number of the first one found, 0 for the element. */
+    private Map<String, Object> waitForAny(ActionContext ctx, String session, Object object, String sel, List<Object> anyOf, boolean visible, double timeout) {
+        List<Object> all = new ArrayList<>();
+        all.add(object != null ? object : sel);
+        all.addAll(anyOf);
+        long end = System.currentTimeMillis() + (long) timeout;
+        try {
+            while (true) {
+                ctx.checkCancelled();
+                UiGuard.before(ctx);
+                for (int i = 0; i < all.size(); i++) {
+                    Object one = all.get(i);
+                    if (one == null || (one instanceof String str && str.isBlank())) continue;
+                    Locator[] found = one instanceof String str ? new Locator[]{ s(ctx, session).page.locator(str).first() }
+                            : WebObjects.findAll(s(ctx, session).page, WebObjects.object(one));
+                    for (Locator l : found) if (l.count() > 0 && (!visible || l.isVisible())) return Map.of("which", BigDecimal.valueOf(i));
+                }
+                if (System.currentTimeMillis() >= end)
+                    throw new ActionException("BROWSER.TIMEOUT", "None of the " + all.size() + " elements appeared within " + (long) timeout + " ms", "Raise timeout_ms, or check the elements.", true);
+                s(ctx, session).page.waitForTimeout(250);
+            }
+        } catch (PlaywrightException e) { throw pw(e, "Waiting for any of " + all.size() + " elements"); }
+    }
+
+    @Condition(id = "element_exists", name = "Element exists", description = "True when at least one element matches the selector (right away, or within the wait).")
     public boolean exists(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_COND_WAIT) double waitSeconds) {
+        return waitUntil(ctx, waitSeconds, () -> exists(ctx, object, sel, session, window));
+    }
+
+    /** Element exists right now. */
+    public boolean exists(ActionContext ctx, Object object, String sel, String session, Object window) {
         try { session = BrowserWindows.use(ctx, session, window, 0); } catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
         if (tab(ctx, session) != null) return ((Number) onElement(ctx, tab(ctx, session), object, sel, "count", null, 0, Map.of())).intValue() > 0;
         try { return countNow(ctx, session, object, sel) > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
@@ -1624,22 +1678,183 @@ public final class BrowserPackage {
         return out;
     }
 
-    @Condition(id = "element_visible", name = "Element is visible", description = "True when the captured element (or one matching the selector) is visible now.")
+    @Condition(id = "element_visible", name = "Element is visible", description = "True when the captured element (or one matching the selector) is visible (right away, or within the wait).")
     public boolean elementVisible(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_COND_WAIT) double waitSeconds) {
+        return waitUntil(ctx, waitSeconds, () -> elementVisible(ctx, object, sel, session, window));
+    }
+
+    /** Element is visible right now. */
+    public boolean elementVisible(ActionContext ctx, Object object, String sel, String session, Object window) {
         try { session = BrowserWindows.use(ctx, session, window, 0); } catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
         try {
             if (tab(ctx, session) != null) return Boolean.TRUE.equals(onElement(ctx, tab(ctx, session), object, sel, "is_visible", null, 0, Map.of()));
             if (object != null) { Map<String, Object> o = WebObjects.object(object); int idx = o.get("index") instanceof Number n ? n.intValue() : 0;
-                Locator[] f = WebObjects.findAll(s(ctx, session).page, o); return f.length > idx && f[idx].isVisible(); }
+                Locator[] f = WebObjects.findAll(s(ctx, session).page, o); int at = idx < 0 ? f.length + idx : idx; return at >= 0 && f.length > at && f[at].isVisible(); }
             if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector");
             boolean visible = s(ctx, session).page.locator(sel).first().isVisible();
             if (visible) ObjectRecorder.note(ctx, s(ctx, session).page.locator(sel).first(), sel, 0);
             return visible;
         } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
+    }
+
+    @Condition(id = "element_text", name = "Element text is", description = "True when the element's text (or a field's value) equals, contains, starts with or matches the text (right away, or within the wait).")
+    public boolean elementText(ActionContext ctx,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
+            @Input(name = "text", type = OoaType.STRING, description = "Text to compare with.") String text,
+            @Input(name = "match", type = OoaType.STRING, required = false, defaultValue = "\"equals\"", enumValues = {"equals", "contains", "starts_with", "matches"},
+                    description = "How the text is compared; matches takes a regular expression.") String match,
+            @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Upper and lower case count as the same.") boolean ignoreCase,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_COND_WAIT) double waitSeconds,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        return waitUntil(ctx, waitSeconds, () -> {
+            String s2;
+            try { s2 = session == null ? "browser" : BrowserWindows.use(ctx, session, window, 0); }
+            catch (ActionException e) { if ("BROWSER.WINDOW_NOT_FOUND".equals(e.code())) return false; throw e; }
+            if (countNowSafe(ctx, s2, object, sel) == 0) return false;
+            String actual;
+            try {
+                Locator l = target(ctx, s2, object, sel, null, 1000);
+                actual = String.valueOf(l.evaluate("e => (e.value !== undefined && /^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName)) ? e.value : e.innerText")).strip();
+            } catch (PlaywrightException | ActionException e) { return false; }
+            return textMatches(actual, text, match, ignoreCase);
+        });
+    }
+
+    static boolean textMatches(String actual, String want, String match, boolean ignoreCase) {
+        String a = actual == null ? "" : actual, w = want == null ? "" : want;
+        if ("matches".equals(match)) return java.util.regex.Pattern.compile(w, ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0).matcher(a).find();
+        if (ignoreCase) { a = a.toLowerCase(Locale.ROOT); w = w.toLowerCase(Locale.ROOT); }
+        return switch (match == null ? "equals" : match) { case "contains" -> a.contains(w); case "starts_with" -> a.startsWith(w); default -> a.equals(w); };
+    }
+
+    private static int countNowSafe(ActionContext ctx, String session, Object object, String sel) {
+        try { return countNow(ctx, session, object, sel); } catch (PlaywrightException e) { return 0; }
+    }
+
+    static final String D_COND_WAIT = "Wait up to this many seconds for it to become true (0 checks once, right away).";
+
+    /** Checks the condition until it is true or the wait runs out (0: once). */
+    static boolean waitUntil(ActionContext ctx, double seconds, java.util.function.BooleanSupplier check) {
+        long end = System.currentTimeMillis() + (long) (seconds * 1000);
+        while (true) {
+            if (check.getAsBoolean()) return true;
+            if (System.currentTimeMillis() >= end) return false;
+            ctx.checkCancelled();
+            try { Thread.sleep(250); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false; }
+        }
+    }
+
+    @Action(id = "extract_list", name = "Extract list", category = "Data", timeoutSeconds = 120, capabilities = "browser",
+            description = "Read repeated items (product cards, search results, list entries) into a table: one row per item, one column per field found inside it.")
+    @Output(name = "table", type = OoaType.TABLE, description = "One row per item.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
+    public Map<String, Object> extractList(ActionContext ctx,
+            @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = "A captured item (one card or row): every element like it is read.") Object object,
+            @Input(name = "selector", type = OoaType.STRING, required = false, example = ".product", description = "Selector of the repeated item, used when no captured item is given.") String sel,
+            @Input(name = "fields", type = OoaType.DICTIONARY, example = "{\"Name\": \"h3 a\", \"Price\": \".price\", \"Link\": \"h3 a@href\"}",
+                    description = "Column name to a selector inside the item; add @attribute to read an attribute (a@href); an empty selector reads the item's own text.") Map<String, Object> fields,
+            @Input(name = "max_items", type = OoaType.NUMBER, required = false, min = 0, description = "Read at most this many items (all when empty).") Integer maxItems,
+            @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+        session = BrowserWindows.use(ctx, session, window, timeout);
+        if (fields == null || fields.isEmpty()) throw new ActionException("BROWSER.NO_FIELDS", "Name at least one field to read from each item", "Fields: {\"Name\": \"h3\", \"Price\": \".price\"}");
+        List<String> cols = new ArrayList<>(fields.keySet());
+        List<Object> specs = new ArrayList<>();
+        for (String c : cols) specs.add(Values.text(fields.get(c)));
+        try {
+            Locator[] items;
+            if (object != null) {
+                target(ctx, session, object, null, null, timeout);
+                Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object));
+                o.remove("index");
+                items = WebObjects.findAll(s(ctx, session).page, o);
+            } else {
+                if (sel == null || sel.isBlank()) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured item or a selector");
+                Locator all = s(ctx, session).page.locator(sel);
+                all.first().waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.ATTACHED));
+                int n = all.count();
+                items = new Locator[n];
+                for (int i = 0; i < n; i++) items[i] = all.nth(i);
+            }
+            List<Object> rows = new ArrayList<>();
+            for (Locator item : items) {
+                if (maxItems != null && maxItems > 0 && rows.size() >= maxItems) break;
+                Object r = item.evaluate(EXTRACT_ITEM_JS, specs);
+                rows.add(r instanceof List<?> l ? new ArrayList<>(l) : new ArrayList<>());
+            }
+            return Map.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
+        } catch (PlaywrightException e) { throw pw(e, "Reading the list"); }
+    }
+
+    /** One item's fields: "selector", "selector@attribute", "@attribute" (the item's own) or "" (the item's text). */
+    static final String EXTRACT_ITEM_JS = """
+        (item, specs) => specs.map((spec) => {
+          spec = String(spec || '');
+          const at = spec.lastIndexOf('@');
+          const css = (at >= 0 ? spec.slice(0, at) : spec).trim(), attr = at >= 0 ? spec.slice(at + 1).trim() : '';
+          const el = css ? item.querySelector(css) : item;
+          if (!el) return '';
+          if (attr) { const v = attr === 'href' || attr === 'src' ? el[attr] : el.getAttribute(attr); return v == null ? '' : String(v); }
+          return (el.value !== undefined && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) ? el.value : el.innerText || '').trim();
+        })
+        """;
+
+    @LoopIterator(id = "pages", name = "Each page (click Next until it is gone)",
+            description = "One pass per page: the first pass is the page as it is, then Next is clicked and the loop waits for the page to change, until Next is no longer there (or is disabled). Gives the page number, from 1.")
+    public Iterable<Object> pages(ActionContext ctx,
+            @Input(name = "next_object", type = OoaType.DICTIONARY, required = false, description = "The captured Next button or link.") Object nextObject,
+            @Input(name = "next_selector", type = OoaType.STRING, required = false, example = "li.next a", description = "Selector of the Next button or link, used when no captured object is given.") String nextSel,
+            @Input(name = "max_pages", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = "Stop after this many pages.") int maxPages,
+            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "10000", min = 0, description = "How long to wait for the next page after clicking Next.") double waitMs,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
+        if (nextObject == null && (nextSel == null || nextSel.isBlank())) throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured Next button or its selector");
+        return () -> new Iterator<>() {
+            int page = 0;
+            boolean done = false, ready = false;   // ready: the next page is showing and not yet handed out
+            public boolean hasNext() {
+                if (ready) return true;
+                if (done || page >= maxPages) return false;
+                if (page == 0) return ready = true;
+                // the next page exists when Next is there and not disabled; clicking it must change the page
+                Page p = s(ctx, session).page;
+                Locator next = nextObject != null ? firstOrNull(WebObjects.findAll(p, WebObjects.object(nextObject))) : p.locator(nextSel).first();
+                if (next == null || next.count() == 0 || !next.isVisible() || isDisabled(next)) { done = true; return false; }
+                String before = pageMark(p);
+                // a banner or an advert over Next: the click goes to the element itself
+                try { next.click(new Locator.ClickOptions().setTimeout(Math.min(waitMs, 3000))); }
+                catch (PlaywrightException covered) { next.evaluate("e => e.click()"); }
+                long end = System.currentTimeMillis() + (long) waitMs;
+                while (pageMark(p).equals(before)) {
+                    if (System.currentTimeMillis() >= end) { done = true; return false; }
+                    ctx.checkCancelled();
+                    p.waitForTimeout(200);
+                }
+                try { p.waitForLoadState(LoadState.DOMCONTENTLOADED, new Page.WaitForLoadStateOptions().setTimeout(waitMs)); } catch (PlaywrightException ignored) { }
+                return ready = true;
+            }
+            public Object next() { if (!hasNext()) throw new NoSuchElementException(); ready = false; page++; return BigDecimal.valueOf(page); }
+        };
+    }
+
+    private static Locator firstOrNull(Locator[] found) { return found.length == 0 ? null : found[0]; }
+
+    private static boolean isDisabled(Locator l) {
+        try { return Boolean.TRUE.equals(l.evaluate("e => e.disabled === true || e.getAttribute('aria-disabled') === 'true' || /(^|\\s)disabled(\\s|$)/.test(e.className || '') || /(^|\\s)disabled(\\s|$)/.test((e.parentElement && e.parentElement.className) || '')")); }
+        catch (PlaywrightException e) { return false; }
+    }
+
+    /** What changes when another page shows: the address, plus the start of the page text for pages that load in place. */
+    private static String pageMark(Page p) {
+        try { return p.url() + "|" + String.valueOf(p.evaluate("() => (document.body ? document.body.innerText : '').slice(0, 2000)")).hashCode(); }
+        catch (PlaywrightException e) { return p.url(); }
     }
 
     @Condition(id = "text_on_page", name = "Page contains text", description = "True when the visible page text contains the text.")

@@ -193,7 +193,8 @@ public final class WebObjects {
      */
     static Locator locate(ActionContext ctx, BrowserPackage.BrowserSession bs, Map<String, Object> object, double timeoutMs, boolean useCapturedPage) {
         int index = object.get("index") instanceof Number n ? n.intValue() : 0;
-        if (index < 0) throw new ActionException("BROWSER.BAD_OBJECT", "The index must be 0 or more");
+        // -1 is the last match (-2 the one before it), for lists whose length changes
+        if (index < -1000) throw new ActionException("BROWSER.BAD_OBJECT", "The index must be 0 or more, or -1 for the last match");
         long end = System.currentTimeMillis() + (long) timeoutMs;
         String primary = String.valueOf(object.getOrDefault("search_by", "properties"));
         List<String> order = new ArrayList<>(List.of(primary));
@@ -203,7 +204,7 @@ public final class WebObjects {
             if (!order.contains("xpath") && (property(object, "dom_xpath") != null || property(object, "xpath") != null)) order.add("xpath");
         }
         Map<String, Object> anchor = object.get("anchor") instanceof Map<?, ?> am ? object(am) : null;
-        boolean explicitIndex = object.get("index") instanceof Number n && n.intValue() > 0;
+        boolean explicitIndex = object.get("index") instanceof Number n && n.intValue() != 0;
         while (true) {
             UiGuard.before(ctx);
             ctx.checkCancelled();
@@ -218,9 +219,10 @@ public final class WebObjects {
                     Locator near = nearAnchor(page, object, anchor, found);
                     if (near != null) return near;
                 }
-                if (found.length > index) {
+                int at = index < 0 ? found.length + index : index;
+                if (at >= 0 && found.length > at) {
                     if (!by.equals(primary)) ctx.warn("Captured object found by its " + by + " instead of its " + primary + " (self-healing)");
-                    return found[index];
+                    return found[at];
                 }
                 if (found.length > 0 && by.equals(primary) && index > 0 && System.currentTimeMillis() >= end)
                     throw new ActionException("BROWSER.INDEX_OUT_OF_RANGE", found.length + " element(s) match, so index " + index + " does not exist", "Lower the index or loosen the properties.");

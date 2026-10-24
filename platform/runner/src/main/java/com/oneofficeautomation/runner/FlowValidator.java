@@ -101,6 +101,11 @@ public final class FlowValidator {
                     p.add(sid, "args/iterator", "Unknown iterator '" + s + "'", "Use one of " + new TreeSet<>(CorePackage.BUILTIN_ITERATORS) + " or package/iterator.");
                 for (String k : List.of("as", "index"))
                     if (args.get(k) instanceof String v && !declared.containsKey(v)) p.add(sid, "args/" + k, "Loop variable '" + v + "' is not declared", null);
+                if (args.get("columns_to") instanceof Map<?, ?> cols)
+                    cols.forEach((col, var) -> {
+                        String v = String.valueOf(var).trim(); if (v.startsWith("$")) v = v.substring(1);
+                        if (!v.isEmpty() && !declared.containsKey(v)) p.add(sid, "args/columns_to/" + col, "Loop variable '" + v + "' is not declared", "Declare variable '" + v + "'.");
+                    });
             }
             if (act.equals("core/run_bot") && args.get("output_map") instanceof Map<?, ?> om)
                 om.forEach((o, var) -> {

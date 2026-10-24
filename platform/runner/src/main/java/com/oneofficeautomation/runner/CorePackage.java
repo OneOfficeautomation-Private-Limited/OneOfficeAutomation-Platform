@@ -32,6 +32,8 @@ public final class CorePackage {
                     visibleWhen = "iterator!=times|while|list|dictionary|dictionary_keys|dictionary_values|table_rows", description = "Arguments for a toolkit iterator.") Object args,
             @Input(name = "as", type = OoaType.STRING, required = false, description = "Declared variable that receives the current item.") String as,
             @Input(name = "index", type = OoaType.STRING, required = false, description = "Declared Number variable that receives the zero-based index.") String index,
+            @Input(name = "columns_to", type = OoaType.DICTIONARY, required = false, visibleWhen = "iterator!=times|while",
+                    description = "Column name to a declared variable: each pass puts that column of the current row (or key of the current record) in the variable.") Object columnsTo,
             @Input(name = "max_iterations", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1,
                     description = "Safety limit; the loop fails with LOOP.LIMIT when reached.") Object max,
             @Input(name = "from_index", type = OoaType.NUMBER, required = false, visibleWhen = "iterator!=times|while", min = 0,

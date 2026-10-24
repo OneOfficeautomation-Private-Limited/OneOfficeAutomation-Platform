@@ -19,10 +19,14 @@ import java.util.Map;
  * what to match) and written to that file, one JSON line per step and element. Studio or a script can then put the
  * captured objects in place of the selectors. Off unless the variable is set; recording never changes what the step does.
  */
-final class ObjectRecorder {
+public final class ObjectRecorder {
     private ObjectRecorder() {}
 
-    private static final String FILE = System.getenv("OOA_RECORD_OBJECTS");
+    private static final String FROM_ENV = System.getenv("OOA_RECORD_OBJECTS");
+    private static volatile String file = FROM_ENV;
+
+    /** Records to this file from now on (Studio's "Convert selectors to captured objects"); null goes back to OOA_RECORD_OBJECTS. */
+    public static void recordTo(String path) { file = path == null ? FROM_ENV : path; }
 
     static final String DESCRIBE_JS = "(el) => {\n" + WebObjects.LIB_JS + "\n"
             + "const lab = __labelOf(el);\n"
@@ -33,6 +37,7 @@ final class ObjectRecorder {
     /** Notes the element the locator finds (waiting up to the step's timeout for it), and returns the locator unchanged. */
     @SuppressWarnings("unchecked")
     static Locator note(ActionContext ctx, Locator l, String selector, double timeoutMs) {
+        String FILE = file;
         if (FILE == null || FILE.isBlank() || l == null) return l;
         try {
             if (timeoutMs > 0) l.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.ATTACHED).setTimeout(timeoutMs));

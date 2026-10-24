@@ -728,9 +728,13 @@ function restoreWorkspace() {
     check("dragging one of several selected steps moves all of them, in order", order === "mv_b,mv_d,mv_a,mv_c", order);
     // Every web action (not only the element action) offers the captured object and a Capture button by its selector.
     w.eval(`state.flow.steps.push({ id: "click_ui", action: "ooa.browser/click", args: {} }); state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
-    check("Click element offers a captured object with a Capture button", await until(() => d.querySelector(".cap-editor .cap-empty")
+    check("Click element offers a captured object with a Capture button, and a selector on request", await until(() => d.querySelector(".cap-editor .cap-empty")
       && [...d.querySelectorAll("#props button")].some((x) => x.textContent === "Capture element")
-      && [...d.querySelectorAll("#props .field-row button")].some((x) => x.textContent === "Capture")));
+      && !d.querySelector('#props .field[data-field="selector"]')
+      && [...d.querySelectorAll("#props button")].some((x) => x.textContent === "Use a selector instead")));
+    click([...d.querySelectorAll("#props button")].find((x) => x.textContent === "Use a selector instead"));
+    check("Use a selector instead shows the selector with its Pick button", await until(() => d.querySelector('#props .field[data-field="selector"]')
+      && !d.querySelector(".cap-editor") && [...d.querySelectorAll("#props .field-row button")].some((x) => x.textContent === "Capture")));
     w.eval("state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
   }
 

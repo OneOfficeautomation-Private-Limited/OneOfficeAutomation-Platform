@@ -855,6 +855,14 @@ public final class Runner {
                 Object[] cur = items.next();
                 if (a.get("as") instanceof String as) scope.set(as, cur[0]);
                 if (a.get("index") instanceof String idx) scope.set(idx, cur[1]);
+                // chosen columns of the current row straight into their own variables
+                if (a.get("columns_to") instanceof Map<?, ?> cols && cur[0] instanceof Map<?, ?> row)
+                    for (Map.Entry<?, ?> e : cols.entrySet()) {
+                        String var = String.valueOf(e.getValue()).trim(); if (var.startsWith("$")) var = var.substring(1);
+                        if (var.isEmpty()) continue;
+                        if (!row.containsKey(e.getKey())) throw new OoaException("LOOP.NO_COLUMN", "The current row has no column '" + e.getKey() + "'", "Columns: " + row.keySet() + ".");
+                        scope.set(var, row.get(e.getKey()));
+                    }
                 i++;
                 try { execSteps(list(step, "children"), false); }
                 catch (ContinueSignal c) { if (c.label != null && !c.label.equals(label)) throw c; }
