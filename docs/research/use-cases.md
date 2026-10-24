@@ -7,7 +7,8 @@ Twenty-six automations: fifteen everyday ones, five larger web processes on demo
 
 How the comparison was made: each agent was built and run in One Agent Studio. The AA column describes how the same
 task is built from AA's actions (from the action-by-action comparison in `command-comparison.md`), in our own words.
-Nothing was built or saved in AA (AA access rule: open forms and cancel, never save).
+On 2026-10-24 the same 26 cases were also built as bots in the user's AA Community Edition (folder **Bots\Use cases**)
+and run on the user's Bot Agent; see [Built and run in AA](#built-and-run-in-aa).
 
 Status on 2026-10-24: **27 of 27 runs pass** (P1-P6 against the live sites). The desktop cases (D1-D5) run with `OOA_DESKTOP_SAMPLES=1` because they
 open a window on the screen.
@@ -80,6 +81,72 @@ What the real sites added:
   the country article by name; DemoQA forgets records added in the same visit once one is deleted, so the agent deletes
   first. Both are written in the agents' descriptions.
 - **Polite pacing** between page visits on Wikipedia.
+
+## Built and run in AA
+
+All 26 cases exist as Task Bots in AA Community Edition (**Bots\Use cases**). 24 were run on the user's Bot Agent on
+2026-10-24 and give the same results as our agents; O2 and O5 are built but need secrets to run. Each AA bot writes its
+result to `Use cases/output/aa-<case>-result.txt` (and its CSV or Excel output next to it, prefixed `aa-`).
+
+| # | AA bot result | Same as ours |
+| --- | --- | --- |
+| P1 | 100% (70 of 70 fields) in 5.9 s (ours 1.4 s) | yes |
+| P2 | Prices seen 33.97 = shop item total; order completed; signed out | yes |
+| P3 | 32 books, 290 in stock; Excel with a By rating sheet (5 ratings, by Excel formulas) | yes |
+| P4 | Legal deleted, 3 added, Kumar's salary 58,000, 5 records | yes |
+| P5 | 100 quotes; Albert Einstein first, born March 14, 1879 | yes |
+| P6 | 10 countries; India's capital New Delhi | yes |
+| W1 | CONF-ACME-250-EXPRESS | yes |
+| W2 | 7 products, 554.10 | yes |
+| W3 | laptop: 2 found, first Laptop Pro 14; printer: no results | yes |
+| W4 | 3 registered, REG-2 in D3 | yes |
+| W5 | 5 checked, 2 differences (SO-502, SO-505) | yes |
+| W6 | 7 decided: 4 approved, 2 rejected, 1 escalated; portal counters agree | yes |
+| W7 | 2 onboarded, 2 refused with the portal's message | yes |
+| W8 | 3 products, 2 changes, 203.29, chair cheapest in Shop C | yes |
+| W9 | 2 approved, 3 declined, Ann has 5 days left, dashboard matches | yes |
+| W10 | 2 orders, 2 invoices verified, 384.50 | yes |
+| D1 | 3 orders saved (urgent box set for Globex) | yes |
+| D2 | 4 rows, 3 open | yes |
+| D3 | Resized, minimised, restored, closed | yes (AA cannot read the size back) |
+| D4 | Note identical after the clipboard and the field | yes |
+| D5 | Pop-up "Amount must be a number" read and closed; then saved | yes |
+| O1 | 3 customers, 2,605.50 | yes |
+| O2 | Built, not run: needs a mailbox (credential inputs) | - |
+| O3 | 2 letters with customer and total filled in | yes |
+| O4 | Live API: 10 users into SQLite, 10 cities (our test uses a 4-user mock) | yes |
+| O5 | Built, not run: needs an OpenAI API key (credential input) | - |
+
+How the AA bots are built:
+
+- **Web pages are driven with Run JavaScript** (click, set value with input events, read text, wait for an element).
+  Recorder objects made without the recorder failed in ways a recording would avoid: false "not found" after a page
+  re-renders, a fallback that clicked the wrong item, an "object exists" condition that was always false. Normal AA
+  practice is to record each object; the scripts keep the bots repeatable here.
+- **Desktop steps use Recorder objects** (UI Automation), found by the control's ID or Name; these worked first time.
+- **Everything else uses AA's own actions**: CSV/TXT, Excel advanced, Data table, Dictionary, List, String, Number, Loop,
+  If, Error handler (Try/Catch/Finally, Throw), Log to file, Window, Clipboard, PDF, Word, REST, JSON, Database (SQLite),
+  Generative AI, Email.
+- W1-W10 open the demo pages from `http://127.0.0.1:8781/`: AA's Chrome extension has no access to `file://` pages
+  unless that is switched on in Chrome. Start a local web server on the `site` folder before running them, for
+  example `python -m http.server 8781 --directory "<workspace>\Use cases\site"`.
+
+What building them in AA showed (in addition to the differences below):
+
+- **Browser choice matters.** On this PC AA could not link an Edge window to its tab (the title holds the profile name
+  and an invisible character), so the bots use Chrome.
+- **Run JavaScript takes one expression** and no variables in its script box; a script that needs values is written to
+  a file with Log to file first and run from that file. Ours passes values to scripts directly.
+- **Stale windows confuse AA.** A window left open by an earlier run with the same title is picked up instead of the new
+  one; the bots close their window in Finally. Leftover browser processes (even headless ones) with the AA extension
+  also answer AA's lookups.
+- **Excel**: a workbook opened with "contains header" refuses writes to row 1; looping over rows with Excel's own row
+  loop broke later browser steps, so the bots read the sheet into a table and close Excel first. Text file actions read
+  only `.txt` files (W10 copies the JSON to `.txt`).
+- **No group-by**: counts and sums per key use a Dictionary loop (O1, P5); ours has Aggregate.
+- **Password boxes** take only Credential Vault values; Sauce Demo's public demo password is set by script.
+- **Runs are tied to the editor page**: navigating away or pressing Run twice cancels a running bot.
+- **Speed**: the same steps take longer in AA (P1 5.9 s against 1.4 s; P2 about 40 s).
 
 ## Differences found while building them
 
