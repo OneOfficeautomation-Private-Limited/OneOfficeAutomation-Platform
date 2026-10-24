@@ -1,0 +1,6 @@
+[
+  {"command": "core/loop", "name": "columns of each row into their own variables", "vars": {"t": {"columns": ["Name", "Amount"], "rows": [["Ann", 10], ["Bo", 25]]}, "who": "", "amt": 0, "total": 0, "names": ""},
+   "steps": [{"action": "core/loop", "args": {"iterator": "table_rows", "over": "$t", "columns_to": {"Name": "who", "Amount": "amt"}}, "children": [
+     {"action": "core/set", "args": {"variable": "total", "value": {"expr": "$total + $amt"}}},
+     {"action": "core/set", "args": {"variable": "names", "value": "${names}${who};"}}]}], "expect": {"total": 35, "names": "Ann;Bo;", "who": "Bo"}}
+]

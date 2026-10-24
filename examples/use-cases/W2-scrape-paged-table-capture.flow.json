@@ -1,0 +1,656 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w2_scrape_products_capture",
+  "name": "W2 Scrape a paged product list (Capture)",
+  "description": "Read a product table across several pages (following Next) into one table and save it as CSV. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "all_products",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [],
+        "rows": []
+      }
+    },
+    {
+      "name": "page_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "more",
+      "type": "Boolean",
+      "direction": "local",
+      "default": true
+    },
+    {
+      "name": "product_count",
+      "type": "Number",
+      "direction": "output",
+      "description": "Products found on all pages."
+    },
+    {
+      "name": "total_value",
+      "type": "Number",
+      "direction": "output",
+      "description": "Sum of all prices."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/products-1.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      }
+    },
+    {
+      "id": "s8",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "op": "eq",
+          "left": "$more",
+          "right": true
+        },
+        "max_iterations": 20
+      },
+      "description": "Every page",
+      "children": [
+        {
+          "id": "s2",
+          "action": "ooa.browser/extract_table",
+          "args": {
+            "selector": "#products"
+          },
+          "out": {
+            "table": "page_table"
+          }
+        },
+        {
+          "id": "s3",
+          "action": "ooa.datatable/merge",
+          "args": {
+            "tables": [
+              "$all_products",
+              "$page_table"
+            ],
+            "columns": "union"
+          },
+          "out": {
+            "table": "all_products"
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/products-1.html",
+                    "title": "Products page 1",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "a",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Link",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "next",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "href",
+                      "value": "products-2.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//a[@id='next']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "a#next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/p/a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/3/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "p",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "23",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "232",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "31",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "20",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/products-1.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<a id=\"next\" href=\"products-2.html\">Next</a>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 32,
+                    "top": 232,
+                    "width": 31,
+                    "height": 20
+                  }
+                }
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s4",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/products-1.html",
+                    "title": "Products page 1",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "a",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Link",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "next",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "href",
+                      "value": "products-2.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//a[@id='next']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "a#next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/p/a",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/3/1",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "p",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "23",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "232",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "31",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "20",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/products-1.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Next",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<a id=\"next\" href=\"products-2.html\">Next</a>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 32,
+                    "top": 232,
+                    "width": 31,
+                    "height": 20
+                  }
+                }
+              }
+            },
+            {
+              "id": "s5",
+              "action": "ooa.browser/wait_for",
+              "args": {
+                "state": "visible",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/products-2.html",
+                    "title": "Products page 2",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "table",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Table",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "products",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Name Price Monitor 27\" 219.00 USB-C hub 39.90 Keyboard 54.00",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//table[@id='products']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "table#products",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/table",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "body",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "7",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "2",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "32",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "92",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "166",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "125",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/products-2.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "<thead><tr><th>Name</th><th>Price</th></tr></thead><tbody><tr><td>Monitor 27\"</td><td>219.00</td></tr><tr><td>USB-C hub</td><td>39.90</td></tr><tr><td>Keyboard</td><td>54.00</td></tr></tbody>",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<table id=\"products\"><thead><tr><th>Name</th><th>Price</th></tr></thead><tbody><tr><td>Monitor 27\"</td><td>219.00</td></tr><tr><td>USB-C hub</td><td>39.90</td></tr><tr><td>Keyboard</td><td>54.00</td></tr></tbody></table>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 32,
+                    "top": 92,
+                    "width": 166,
+                    "height": 125
+                  }
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s6",
+              "action": "core/set",
+              "args": {
+                "variable": "more",
+                "value": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s9",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s10",
+      "action": "ooa.datatable/change_column_type",
+      "args": {
+        "table": "$all_products",
+        "column": "Price",
+        "type": "Number"
+      },
+      "out": {
+        "table": "all_products"
+      }
+    },
+    {
+      "id": "s11",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$all_products",
+        "path": "${folder}/output/products.csv"
+      }
+    },
+    {
+      "id": "s12",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$all_products"
+      },
+      "out": {
+        "count": "product_count"
+      }
+    },
+    {
+      "id": "s13",
+      "action": "ooa.datatable/sum_column",
+      "args": {
+        "table": "$all_products",
+        "column": "Price"
+      },
+      "out": {
+        "total": "total_value"
+      }
+    }
+  ]
+}

@@ -1,0 +1,3875 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p2_saucedemo_checkout_capture",
+  "name": "P2 Web shop checkout (saucedemo.com) (Capture)",
+  "description": "Sign in to the demo shop, sort by price, put the cheapest products in the cart, check out, check the item total against the prices seen, finish and sign out. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "shop_user",
+      "type": "String",
+      "direction": "input",
+      "default": "standard_user",
+      "description": "Demo user (printed on the shop's sign-in page)."
+    },
+    {
+      "name": "shop_password",
+      "type": "String",
+      "direction": "input",
+      "default": "secret_sauce",
+      "description": "Demo password (printed on the shop's sign-in page). Real shops: use a Credential from the vault."
+    },
+    {
+      "name": "items_to_buy",
+      "type": "Number",
+      "direction": "input",
+      "default": 3,
+      "description": "How many of the cheapest products to buy."
+    },
+    {
+      "name": "first_name",
+      "type": "String",
+      "direction": "input",
+      "default": "Ann",
+      "description": "Checkout: first name."
+    },
+    {
+      "name": "last_name",
+      "type": "String",
+      "direction": "input",
+      "default": "Lee",
+      "description": "Checkout: last name."
+    },
+    {
+      "name": "postal_code",
+      "type": "String",
+      "direction": "input",
+      "default": "1011AB",
+      "description": "Checkout: postal code."
+    },
+    {
+      "name": "products",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "p",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "i",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "label",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "cart",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "expected",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Sum of the prices of the products put in the cart."
+    },
+    {
+      "name": "item_total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Item total shown at checkout."
+    },
+    {
+      "name": "order_total",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Total with tax."
+    },
+    {
+      "name": "total_matches",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The shop's item total equals the prices seen."
+    },
+    {
+      "name": "cart_count",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Products in the cart at checkout."
+    },
+    {
+      "name": "confirmation",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Message after finishing the order."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://www.saucedemo.com/",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://www.saucedemo.com/"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$shop_user",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "user-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "user-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "username",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "Username",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Username",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "input_error form_input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocorrect",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocapitalize",
+              "value": "none",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='user-name']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#user-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div[2]/div[1]/div/div/form/div[1]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/2/1/1/1/1/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form_group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "26",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "494",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "154",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "292",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "37",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"input_error form_input\" placeholder=\"Username\" aria-label=\"Username\" data-test=\"username\" id=\"user-name\" autocorrect=\"off\" autocapitalize=\"none\" type=\"text\" value=\"\" name=\"user-name\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 494,
+            "top": 154,
+            "width": 292,
+            "height": 37
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$shop_password",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Password box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "password",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "Password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "input_error form_input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocorrect",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocapitalize",
+              "value": "none",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='password']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#password",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div[2]/div[1]/div/div/form/div[2]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/2/1/1/1/1/2/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form_group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "28",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "494",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "206",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "292",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "37",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"input_error form_input\" placeholder=\"Password\" aria-label=\"Password\" data-test=\"password\" id=\"password\" autocorrect=\"off\" autocapitalize=\"none\" type=\"password\" value=\"\" name=\"password\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 494,
+            "top": 206,
+            "width": 292,
+            "height": 37
+          }
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "login-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "login-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "login-button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "submit",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "class",
+              "value": "submit-button btn_action",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "Login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='login-button']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#login-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div[2]/div[1]/div/div/form/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/2/1/1/1/1/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "30",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "494",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "298",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "292",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "46",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"submit-button btn_action\" data-test=\"login-button\" id=\"login-button\" type=\"submit\" value=\"Login\" name=\"login-button\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 494,
+            "top": 298,
+            "width": 292,
+            "height": 46
+          }
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/inventory.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "div",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "inventory-list",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Sauce Labs Backpack carry.allTheThings() with the sleek, streamlined Sly Pack that melds uncompromising style with unequaled laptop and tablet protection. $29.99 Add to cart Sauce Labs Bike Light A red light isn't the desired state in testing but it sure helps when riding your bike at night. Water-resistant with 3 lighting modes, 1 AAA battery included. $9.99 Add to cart Sauce Labs Bolt T-Shirt Get your testing superhero on with the Sauce Labs bolt T-shirt. From American Apparel, 100% ringspun combed cotton, heather gray with red bolt. $15.99 Add to cart Sauce Labs Fleece Jacket It's not every day that you come across a midweight quarter-zip fleece jacket capable of handling everything from a relaxing day outdoors to a busy day at the office. $49.99 Add to cart Sauce Labs Onesie Rib snap infant onesie for the junior automation engineer in development. Reinforced 3-snap bottom closure, two-needle hemmed sleeved and bottom won't unravel. $7.99 Add to cart Test.allTheThings() T-Shirt (Red",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "inventory_list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//*[@id='inventory_container']/div",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#inventory_container > div",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/div/div",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div#inventory_container",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "58",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "6",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "95",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "154",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "1090",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "786",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/inventory.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<div class=\"inventory_item\" data-test=\"inventory-item\"><div class=\"inventory_item_img\"><a href=\"#\" id=\"item_4_img_link\" data-test=\"item-4-img-link\" role=\"button\" aria-label=\"View details for Sauce Labs Backpack\"><img alt=\"Sauce Labs Backpack\" class=\"inventory_item_img\" data-test=\"inventory-item-sauce-labs-backpack-img\" src=\"/assets/sauce-backpack-1200x1500-CjRW-Djj.jpg\"></a></div><div class=\"inventory_item_description\" data-test=\"inventory-item-description\"><div class=\"inventory_item_label\"><a h",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<div class=\"inventory_list\" data-test=\"inventory-list\"><div class=\"inventory_item\" data-test=\"inventory-item\"><div class=\"inventory_item_img\"><a href=\"#\" id=\"item_4_img_link\" data-test=\"item-4-img-link\" role=\"button\" aria-label=\"View details for Sauce Labs Backpack\"><img alt=\"Sauce Labs Backpack\" class=\"inventory_item_img\" data-test=\"inventory-item-sauce-labs-backpack-img\" src=\"/assets/sauce-backpack-1200x1500-CjRW-Djj.jpg\"></a></div><div class=\"inventory_item_description\" data-test=\"inventory-i",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 95,
+            "top": 154,
+            "width": 1090,
+            "height": 786
+          }
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "action": "ooa.browser/select_option",
+      "args": {
+        "option": "lohi",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/inventory.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "select",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Drop-down list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "product-sort-container",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "Sort products",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Name (A to Z) Name (Z to A) Price (low to high) Price (high to low)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "product_sort_container",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "az",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//select[@aria-label='Sort products']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#header_container > div:nth-of-type(2) > div > span > select",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/header/div[2]/div/span/select",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/1/2/2/1/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "span.select_container",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "50",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1036",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "70",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "223",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "30",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "selected",
+              "value": "Name (A to Z)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/inventory.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<option value=\"az\">Name (A to Z)</option><option value=\"za\">Name (Z to A)</option><option value=\"lohi\">Price (low to high)</option><option value=\"hilo\">Price (high to low)</option>",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<select class=\"product_sort_container\" aria-label=\"Sort products\" data-test=\"product-sort-container\"><option value=\"az\">Name (A to Z)</option><option value=\"za\">Name (Z to A)</option><option value=\"lohi\">Price (low to high)</option><option value=\"hilo\">Price (high to low)</option></select>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1036,
+            "top": 70,
+            "width": 223,
+            "height": 30
+          }
+        }
+      },
+      "description": "Sort by price, low to high"
+    },
+    {
+      "id": "s7",
+      "action": "ooa.browser/run_javascript",
+      "args": {
+        "script": "Array.from(document.querySelectorAll('.inventory_item')).map(x => ({name: x.querySelector('.inventory_item_name').textContent, price: Number(x.querySelector('.inventory_item_price').textContent.replace('$', ''))}))"
+      },
+      "out": {
+        "result": "products"
+      },
+      "description": "Read the product list in the order shown"
+    },
+    {
+      "id": "s10",
+      "action": "core/loop",
+      "args": {
+        "iterator": "list",
+        "over": "$products",
+        "as": "p",
+        "index": "i",
+        "to_index": {
+          "expr": "$items_to_buy - 1"
+        }
+      },
+      "description": "The cheapest products",
+      "children": [
+        {
+          "id": "s8",
+          "action": "ooa.browser/click",
+          "args": {
+            "selector": "button[data-test^='add-to-cart'] >> nth=0"
+          },
+          "description": "Its Add button (added ones turn into Remove)"
+        },
+        {
+          "id": "s9",
+          "action": "core/set",
+          "args": {
+            "variable": "expected",
+            "value": {
+              "expr": "$expected + $p.price"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s11",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/inventory.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "a",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "shopping-cart-link",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "Cart, 3 items",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "role",
+              "value": "button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "shopping_cart_link",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//a[@aria-label='Cart, 3 items']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#shopping_cart_container > a",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/header/div[1]/div[3]/a",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/1/1/3/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div#shopping_cart_container",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "5",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "44",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1220",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "10",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "40",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "40",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/inventory.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<span class=\"shopping_cart_badge\" data-test=\"shopping-cart-badge\">3</span>",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<a class=\"shopping_cart_link\" data-test=\"shopping-cart-link\" role=\"button\" aria-label=\"Cart, 3 items\"><span class=\"shopping_cart_badge\" data-test=\"shopping-cart-badge\">3</span></a>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1220,
+            "top": 10,
+            "width": 40,
+            "height": 40
+          }
+        }
+      }
+    },
+    {
+      "id": "s12",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/cart.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "div",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "cart-list",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "QTYDescription 1 Sauce Labs Onesie Rib snap infant onesie for the junior automation engineer in development. Reinforced 3-snap bottom closure, two-needle hemmed sleeved and bottom won't unravel. $7.99 Remove 1 Sauce Labs Bike Light A red light isn't the desired state in testing but it sure helps when riding your bike at night. Water-resistant with 3 lighting modes, 1 AAA battery included. $9.99 Remove 1 Sauce Labs Bolt T-Shirt Get your testing superhero on with the Sauce Labs bolt T-shirt. From American Apparel, 100% ringspun combed cotton, heather gray with red bolt. $15.99 Remove",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "cart_list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//*[@id='cart_contents_container']/div/div[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#cart_contents_container > div > div:nth-of-type(1)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/div[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "18",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "50",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "5",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "15",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "114",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "1250",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "626",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/cart.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<div class=\"cart_quantity_label\" data-test=\"cart-quantity-label\">QTY</div><div class=\"cart_desc_label\" data-test=\"cart-desc-label\">Description</div><div class=\"cart_item\" data-test=\"inventory-item\"><div class=\"cart_quantity\" data-test=\"item-quantity\">1</div><div class=\"cart_item_label\"><a href=\"#\" id=\"item_2_title_link\" data-test=\"item-2-title-link\" role=\"button\" aria-label=\"View details for Sauce Labs Onesie\"><div class=\"inventory_item_name\" data-test=\"inventory-item-name\">Sauce Labs Onesie</di",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<div class=\"cart_list\" data-test=\"cart-list\"><div class=\"cart_quantity_label\" data-test=\"cart-quantity-label\">QTY</div><div class=\"cart_desc_label\" data-test=\"cart-desc-label\">Description</div><div class=\"cart_item\" data-test=\"inventory-item\"><div class=\"cart_quantity\" data-test=\"item-quantity\">1</div><div class=\"cart_item_label\"><a href=\"#\" id=\"item_2_title_link\" data-test=\"item-2-title-link\" role=\"button\" aria-label=\"View details for Sauce Labs Onesie\"><div class=\"inventory_item_name\" data-tes",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 15,
+            "top": 114,
+            "width": 1250,
+            "height": 626
+          }
+        }
+      }
+    },
+    {
+      "id": "s13",
+      "action": "ooa.browser/run_javascript",
+      "args": {
+        "script": "Array.from(document.querySelectorAll('.cart_item .inventory_item_name')).map(x => x.textContent)"
+      },
+      "out": {
+        "result": "cart"
+      }
+    },
+    {
+      "id": "s14",
+      "action": "core/set",
+      "args": {
+        "variable": "cart_count",
+        "value": {
+          "expr": "len($cart)"
+        }
+      }
+    },
+    {
+      "id": "s15",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/cart.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "checkout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "checkout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "checkout",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Checkout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "btn btn_action btn_medium checkout_button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='checkout']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#checkout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/div[2]/button[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.cart_footer",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "6",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "83",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1045",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "800",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "220",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "34",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/cart.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Checkout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button class=\"btn btn_action btn_medium checkout_button \" data-test=\"checkout\" id=\"checkout\" name=\"checkout\">Checkout</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1045,
+            "top": 800,
+            "width": 220,
+            "height": 34
+          }
+        }
+      }
+    },
+    {
+      "id": "s16",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$first_name",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-one.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "first-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "firstName",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "firstName",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "First Name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "First Name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "input_error form_input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocorrect",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocapitalize",
+              "value": "none",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='first-name']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#first-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/form/div[1]/div[1]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/1/1/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form_group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "53",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "450",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "255",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "380",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "39",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-one.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"input_error form_input\" placeholder=\"First Name\" aria-label=\"First Name\" data-test=\"firstName\" id=\"first-name\" autocorrect=\"off\" autocapitalize=\"none\" type=\"text\" value=\"\" name=\"firstName\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 450,
+            "top": 255,
+            "width": 380,
+            "height": 39
+          }
+        }
+      }
+    },
+    {
+      "id": "s17",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$last_name",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-one.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "last-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "lastName",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "lastName",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "Last Name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Last Name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "input_error form_input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocorrect",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocapitalize",
+              "value": "none",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='last-name']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#last-name",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/form/div[1]/div[2]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/1/1/2/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form_group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "55",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "450",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "309",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "380",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "39",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-one.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"input_error form_input\" placeholder=\"Last Name\" aria-label=\"Last Name\" data-test=\"lastName\" id=\"last-name\" autocorrect=\"off\" autocapitalize=\"none\" type=\"text\" value=\"\" name=\"lastName\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 450,
+            "top": 309,
+            "width": 380,
+            "height": 39
+          }
+        }
+      }
+    },
+    {
+      "id": "s18",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$postal_code",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-one.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "postal-code",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "postalCode",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "postalCode",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "aria-label",
+              "value": "Zip/Postal Code",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Zip/Postal Code",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "input_error form_input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocorrect",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocapitalize",
+              "value": "none",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='postal-code']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#postal-code",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/form/div[1]/div[3]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/1/1/3/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.form_group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "57",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "450",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "363",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "380",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "39",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-one.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"input_error form_input\" placeholder=\"Zip/Postal Code\" aria-label=\"Zip/Postal Code\" data-test=\"postalCode\" id=\"postal-code\" autocorrect=\"off\" autocapitalize=\"none\" type=\"text\" value=\"\" name=\"postalCode\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 450,
+            "top": 363,
+            "width": 380,
+            "height": 39
+          }
+        }
+      }
+    },
+    {
+      "id": "s19",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-one.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "continue",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "continue",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "continue",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "submit",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "class",
+              "value": "submit-button btn btn_primary cart_button btn_action",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "Continue",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='continue']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#continue",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/form/div[2]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/1/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.checkout_buttons",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "62",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1045",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "599",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "220",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "41",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-one.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"submit-button btn btn_primary cart_button btn_action\" data-test=\"continue\" id=\"continue\" type=\"submit\" value=\"Continue\" name=\"continue\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1045,
+            "top": 599,
+            "width": 220,
+            "height": 41
+          }
+        }
+      }
+    },
+    {
+      "id": "s20",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-two.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "div",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "subtotal-label",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Item total: $33.97",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "summary_subtotal_label",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//div[normalize-space()='Item total: $33.97']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#checkout_summary_container > div > div:nth-of-type(2) > div:nth-of-type(6)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/div[2]/div[6]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/2/6",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.summary_info",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "48",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "83",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "15",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "942",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "1250",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-two.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Item total: $33.97",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<div class=\"summary_subtotal_label\" data-test=\"subtotal-label\">Item total: $33.97</div>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 15,
+            "top": 942,
+            "width": 1250,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "label"
+      }
+    },
+    {
+      "id": "s21",
+      "action": "core/set",
+      "args": {
+        "variable": "item_total",
+        "value": {
+          "expr": "toNumber(regexExtract($label, \"[0-9.]+\"))"
+        }
+      }
+    },
+    {
+      "id": "s22",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-two.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "div",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "total-label",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Total: $36.69",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "summary_total_label",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//div[normalize-space()='Total: $36.69']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#checkout_summary_container > div > div:nth-of-type(2) > div:nth-of-type(8)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/div[2]/div[8]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/2/8",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.summary_info",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "50",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "85",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "15",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "982",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "1250",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "40",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-two.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Total: $36.69",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<div class=\"summary_total_label\" data-test=\"total-label\">Total: $36.69</div>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 15,
+            "top": 982,
+            "width": 1250,
+            "height": 40
+          }
+        }
+      },
+      "out": {
+        "text": "label"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "core/set",
+      "args": {
+        "variable": "order_total",
+        "value": {
+          "expr": "toNumber(regexExtract($label, \"[0-9.]+\"))"
+        }
+      }
+    },
+    {
+      "id": "s24",
+      "action": "core/set",
+      "args": {
+        "variable": "total_matches",
+        "value": {
+          "expr": "round($item_total, 2) == round($expected, 2)"
+        }
+      }
+    },
+    {
+      "id": "s25",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-step-two.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "finish",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "finish",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "finish",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Finish",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "btn btn_action btn_medium cart_button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='finish']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#finish",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div/div[2]/div[9]/button[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/1/2/9/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.cart_footer",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "89",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1045",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "1070",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "220",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "34",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-step-two.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Finish",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button class=\"btn btn_action btn_medium cart_button\" data-test=\"finish\" id=\"finish\" name=\"finish\">Finish</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1045,
+            "top": 1070,
+            "width": 220,
+            "height": 34
+          }
+        }
+      }
+    },
+    {
+      "id": "s26",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-complete.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "h2",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "complete-header",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Thank you for your order!",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "complete-header",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//h2[normalize-space()='Thank you for your order!']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#checkout_complete_container > h2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/h2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div#checkout_complete_container",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "49",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "460",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "224",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "360",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "32",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-complete.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Thank you for your order!",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<h2 class=\"complete-header\" data-test=\"complete-header\">Thank you for your order!</h2>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 460,
+            "top": 224,
+            "width": 360,
+            "height": 32
+          }
+        }
+      },
+      "out": {
+        "text": "confirmation"
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-complete.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "react-burger-menu-btn",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Open Menu",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='react-burger-menu-btn']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#react-burger-menu-btn",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/header/div[1]/div[1]/div/div[1]/div/button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/1/1/1/1/1/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.bm-burger-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "26",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-complete.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Open Menu",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button type=\"button\" id=\"react-burger-menu-btn\" style=\"position: absolute; left: 0px; top: 0px; z-index: 1; width: 100%; height: 100%; margin: 0px; padding: 0px; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; font-size: 0px; background: transparent; cursor: pointer;\">Open Menu</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 20,
+            "top": 20,
+            "width": 20,
+            "height": 20
+          }
+        }
+      },
+      "description": "Sign out"
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-complete.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "a",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "logout_sidebar_link",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "logout-sidebar-link",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Logout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "role",
+              "value": "button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "bm-item menu-item",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "href",
+              "value": "#",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tabindex",
+              "value": "-1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//a[@id='logout_sidebar_link']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "a#logout_sidebar_link",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/header/div[1]/div[1]/div/div[2]/div[1]/nav/a[4]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/1/1/1/1/2/1/1/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "nav.bm-item-list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "35",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "-276",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "184",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "252",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "41",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-complete.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Logout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<a id=\"logout_sidebar_link\" class=\"bm-item menu-item\" href=\"#\" data-test=\"logout-sidebar-link\" role=\"button\" tabindex=\"-1\" style=\"display: block;\">Logout</a>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": -276,
+            "top": 184,
+            "width": 252,
+            "height": 41
+          }
+        }
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/checkout-complete.html",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "a",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "logout_sidebar_link",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "logout-sidebar-link",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Logout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "role",
+              "value": "button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "bm-item menu-item",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "href",
+              "value": "#",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//a[@id='logout_sidebar_link']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "a#logout_sidebar_link",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/header/div[1]/div[1]/div/div[2]/div[1]/nav/a[4]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/1/1/1/1/1/2/1/1/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "nav.bm-item-list",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "35",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "-276",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "184",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "252",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "41",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/checkout-complete.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Logout",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<a id=\"logout_sidebar_link\" class=\"bm-item menu-item\" href=\"#\" data-test=\"logout-sidebar-link\" role=\"button\" style=\"display: block;\">Logout</a>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": -276,
+            "top": 184,
+            "width": 252,
+            "height": 41
+          }
+        }
+      }
+    },
+    {
+      "id": "s30",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://www.saucedemo.com/",
+            "title": "Swag Labs",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "login-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "name",
+              "value": "login-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-test",
+              "value": "login-button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "submit",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "class",
+              "value": "submit-button btn_action",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "Login",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='login-button']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#login-button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div[2]/div[1]/div/div/form/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/1/2/1/1/1/1/4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "30",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "494",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "302",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "292",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "49",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://www.saucedemo.com/",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input class=\"submit-button btn_action\" data-test=\"login-button\" id=\"login-button\" type=\"submit\" value=\"Login\" name=\"login-button\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 494,
+            "top": 302,
+            "width": 292,
+            "height": 49
+          }
+        }
+      }
+    },
+    {
+      "id": "s31",
+      "action": "ooa.browser/close"
+    }
+  ]
+}

@@ -1,0 +1,3285 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p4_demoqa_tables_capture",
+  "name": "P4 Maintain records in a web table (demoqa.com) (Capture)",
+  "description": "Delete the Legal department's records, add employees from a CSV through the table's pop-up form, search for one and raise the salary, and check the table. (Deletes come first: the demo site forgets records added in the same visit once one is deleted.) Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "employees",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "e",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "start_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "end_table",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "raise_for",
+      "type": "String",
+      "direction": "input",
+      "default": "Kumar",
+      "description": "Last name of the employee whose salary is raised."
+    },
+    {
+      "name": "new_salary",
+      "type": "Number",
+      "direction": "input",
+      "default": 58000,
+      "description": "New salary."
+    },
+    {
+      "name": "rows_before",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records at the start."
+    },
+    {
+      "name": "rows_after",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records at the end."
+    },
+    {
+      "name": "salary_now",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Salary shown for the employee after the raise."
+    },
+    {
+      "name": "deleted",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Records deleted."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.csv/read",
+      "args": {
+        "path": "${folder}/data/demoqa-employees.csv"
+      },
+      "out": {
+        "table": "employees"
+      }
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://demoqa.com/webtables",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://demoqa.com/webtables"
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://demoqa.com/webtables",
+            "title": "demosite",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "tr",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Cierra Vega 39 cierra@example.com 10000 Insurance",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//tr[normalize-space()='CierraVega39cierra@example.com10000Insurance']",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "css",
+              "value": "div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(2) > table > tbody > tr:nth-of-type(1)",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/table/tbody/tr[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/1/1/2/1/2/3/2/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "tbody",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "304",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "7",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "246",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "251",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "683",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "43",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://demoqa.com/webtables",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<td>Cierra</td><td>Vega</td><td>39</td><td>cierra@example.com</td><td>10000</td><td>Insurance</td><td><div class=\"action-buttons\"><span class=\"mr-2\" data-toggle=\"tooltip\" title=\"Edit\" id=\"edit-record-1\"><svg stroke=\"currentColor\" fill=\"currentColor\" stroke-width=\"0\" viewBox=\"0 0 1024 1024\" height=\"1em\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M880 836H144c-17.7 0-32 14.3-32 32v36c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-36c0-17.7-14.3-32-32-32zm-622.3-84c2 0 4-.2 6-.5L431.9 722c2-.4 3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<tr><td>Cierra</td><td>Vega</td><td>39</td><td>cierra@example.com</td><td>10000</td><td>Insurance</td><td><div class=\"action-buttons\"><span class=\"mr-2\" data-toggle=\"tooltip\" title=\"Edit\" id=\"edit-record-1\"><svg stroke=\"currentColor\" fill=\"currentColor\" stroke-width=\"0\" viewBox=\"0 0 1024 1024\" height=\"1em\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M880 836H144c-17.7 0-32 14.3-32 32v36c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-36c0-17.7-14.3-32-32-32zm-622.3-84c2 0 4-.2 6-.5L431.9 722c2-",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 246,
+            "top": 251,
+            "width": 683,
+            "height": 43
+          }
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "table"
+      },
+      "out": {
+        "table": "start_table"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.datatable/row_count",
+      "args": {
+        "table": "$start_table"
+      },
+      "out": {
+        "count": "rows_before"
+      }
+    },
+    {
+      "id": "s9",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "condition": "ooa.browser/element_exists",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "delete-record-3",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "title",
+                  "value": "Delete",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "data-toggle",
+                  "value": "tooltip",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='delete-record-3']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#delete-record-3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/table/tbody/tr[3]/td[7]/div/span[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/1/2/1/1/2/1/2/3/2/3/7/1/2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.action-buttons",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "51",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "346",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "890",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "422",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "24",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "21",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<svg stroke=\"currentColor\" fill=\"currentColor\" stroke-width=\"0\" viewBox=\"0 0 1024 1024\" height=\"1em\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M864 256H736v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32zm-200 0H360v-72h304v72z\"></path></svg>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"delete-record-3\" data-toggle=\"tooltip\" title=\"Delete\"><svg stroke=\"currentColor\" fill=\"currentColor\" stroke-width=\"0\" viewBox=\"0 0 1024 1024\" height=\"1em\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M864 256H736v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32zm-200 0H360v-72h304v72z\"></path></svg></span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 890,
+                "top": 422,
+                "width": 24,
+                "height": 21
+              }
+            }
+          }
+        },
+        "max_iterations": 20
+      },
+      "description": "Delete every Legal record",
+      "children": [
+        {
+          "id": "s6",
+          "action": "ooa.browser/element_action",
+          "args": {
+            "action": "click",
+            "click_method": "javascript",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "delete-record-3",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "title",
+                  "value": "Delete",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "data-toggle",
+                  "value": "tooltip",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='delete-record-3']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#delete-record-3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/table/tbody/tr[3]/td[7]/div/span[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/1/2/1/1/2/1/2/3/2/3/7/1/2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.action-buttons",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "51",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "346",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "890",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "422",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "24",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "21",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<svg stroke=\"currentColor\" fill=\"currentColor\" stroke-width=\"0\" viewBox=\"0 0 1024 1024\" height=\"1em\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M864 256H736v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32zm-200 0H360v-72h304v72z\"></path></svg>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"delete-record-3\" data-toggle=\"tooltip\" title=\"Delete\"><svg stroke=\"currentColor\" fill=\"currentColor\" stroke-width=\"0\" viewBox=\"0 0 1024 1024\" height=\"1em\" width=\"1em\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M864 256H736v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32zm-200 0H360v-72h304v72z\"></path></svg></span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 890,
+                "top": 422,
+                "width": 24,
+                "height": 21
+              }
+            }
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "deleted",
+            "value": {
+              "expr": "$deleted + 1"
+            }
+          }
+        },
+        {
+          "id": "s8",
+          "action": "core/delay",
+          "args": {
+            "seconds": 300,
+            "unit": "milliseconds"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s20",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$employees",
+        "as": "e"
+      },
+      "description": "Add each employee",
+      "children": [
+        {
+          "id": "s10",
+          "action": "ooa.browser/element_action",
+          "args": {
+            "action": "click",
+            "click_method": "javascript",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "addNewRecordButton",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "type",
+                  "value": "button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Add",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "btn btn-primary",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[@id='addNewRecordButton']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "button#addNewRecordButton",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/div[2]/div[1]/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/1/2/1/1/2/1/2/2/1/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-7",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "286",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "246",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "231",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "55",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Add",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button type=\"button\" id=\"addNewRecordButton\" class=\"btn btn-primary\">Add</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 246,
+                "top": 231,
+                "width": 55,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "form",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "userForm",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "First Name Last Name Email Age Salary Department Submit",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//form[@id='userForm']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "form#userForm",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.modal-body",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "378",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "7",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "257",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "81",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "766",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "330",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<div id=\"firstName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"firstName-label\">First Name</label></div><div class=\"col-md-6 col-sm-6\"><input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"First Name\" id=\"firstName\" class=\" mr-sm-2 form-control\" type=\"text\"></div></div><div id=\"lastName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"lastName-label\">Last Name</label></div><div class=\"col-md-6 col-sm-6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<form novalidate=\"\" id=\"userForm\" class=\"\"><div id=\"firstName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"firstName-label\">First Name</label></div><div class=\"col-md-6 col-sm-6\"><input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"First Name\" id=\"firstName\" class=\" mr-sm-2 form-control\" type=\"text\"></div></div><div id=\"lastName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"lastName-label\">Last Name",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 257,
+                "top": 81,
+                "width": 766,
+                "height": 330
+              }
+            }
+          }
+        },
+        {
+          "id": "s12",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$e.FirstName",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "firstName",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "text",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "First Name",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "First Name",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "mr-sm-2 form-control",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "maxlength",
+                  "value": "25",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "autocomplete",
+                  "value": "off",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='firstName']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#firstName",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[1]/div[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/1/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-6.col-sm-6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "383",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "455",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "89",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "371",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"First Name\" id=\"firstName\" class=\" mr-sm-2 form-control\" type=\"text\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 455,
+                "top": 89,
+                "width": 371,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s13",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$e.LastName",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "lastName",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "text",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "Last Name",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "Last Name",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "mr-sm-2 form-control",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "maxlength",
+                  "value": "25",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "autocomplete",
+                  "value": "off",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='lastName']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#lastName",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[2]/div[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/2/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-6.col-sm-6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "390",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "455",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "158",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "371",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"Last Name\" id=\"lastName\" class=\" mr-sm-2 form-control\" type=\"text\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 455,
+                "top": 158,
+                "width": 371,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s14",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$e.Email",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "userEmail",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "text",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "Email",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "name@example.com",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "mr-sm-2 form-control",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "autocomplete",
+                  "value": "off",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "pattern",
+                  "value": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='userEmail']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#userEmail",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[3]/div[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/3/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-9.col-sm-12",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "395",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "455",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "208",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "569",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input required=\"\" autocomplete=\"off\" pattern=\"^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$\" placeholder=\"name@example.com\" id=\"userEmail\" class=\"mr-sm-2 form-control\" type=\"text\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 455,
+                "top": 208,
+                "width": 569,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s15",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "${e.Age}",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "age",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "text",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "Age",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "Age",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "mr-sm-2 form-control",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "autocomplete",
+                  "value": "off",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "pattern",
+                  "value": "\\d*",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "minlength",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "maxlength",
+                  "value": "2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='age']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#age",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[4]/div[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/4/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-2.col-sm-12",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "4",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "400",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "455",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "258",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "108",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input required=\"\" autocomplete=\"off\" pattern=\"\\d*\" minlength=\"1\" maxlength=\"2\" placeholder=\"Age\" id=\"age\" class=\" mr-sm-2 form-control\" type=\"text\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 455,
+                "top": 258,
+                "width": 108,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s16",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "${e.Salary}",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "salary",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "text",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "Salary",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "Salary",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "mr-sm-2 form-control",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "autocomplete",
+                  "value": "off",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "pattern",
+                  "value": "\\d*",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "minlength",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "maxlength",
+                  "value": "10",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='salary']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#salary",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[5]/div[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/5/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-9.col-sm-12",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "5",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "415",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "455",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "306",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "569",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input required=\"\" autocomplete=\"off\" pattern=\"\\d*\" minlength=\"1\" maxlength=\"10\" placeholder=\"Salary\" id=\"salary\" class=\" mr-sm-2 form-control\" type=\"text\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 455,
+                "top": 306,
+                "width": 569,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s17",
+          "action": "ooa.browser/type_text",
+          "args": {
+            "text": "$e.Department",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "input",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Text box",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "department",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "type",
+                  "value": "text",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "label",
+                  "value": "Department",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "placeholder",
+                  "value": "Department",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "mr-sm-2 form-control",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "maxlength",
+                  "value": "25",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "autocomplete",
+                  "value": "off",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//input[@id='department']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "input#department",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[6]/div[2]/input",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/6/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.col-md-6.col-sm-6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "6",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "420",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "455",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "352",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "371",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "checked",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"Department\" id=\"department\" class=\" mr-sm-2 form-control\" type=\"text\">",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 455,
+                "top": 352,
+                "width": 371,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s18",
+          "action": "ooa.browser/element_action",
+          "args": {
+            "action": "click",
+            "click_method": "javascript",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://demoqa.com/webtables",
+                "title": "demosite",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "submit",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "type",
+                  "value": "submit",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Submit",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "btn btn-primary",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[@id='submit']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "button#submit",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div/div[2]/form/div[7]/div/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/1/2/1/7/1/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "div.text-right.col-md-2",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "8",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "423",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "915",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "414",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "76",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "38",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://demoqa.com/webtables",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Submit",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button type=\"submit\" id=\"submit\" class=\"btn btn-primary\">Submit</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 915,
+                "top": 414,
+                "width": 76,
+                "height": 38
+              }
+            }
+          }
+        },
+        {
+          "id": "s19",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#userForm",
+            "state": "hidden"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s21",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "$raise_for",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://demoqa.com/webtables",
+            "title": "demosite",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "searchBox",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Type to search",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "form-control",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocomplete",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='searchBox']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#searchBox",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/div[2]/div[2]/div/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/1/1/2/1/2/2/2/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.mb-3.input-group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "304",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "659",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "231",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "230",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "38",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://demoqa.com/webtables",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input autocomplete=\"off\" placeholder=\"Type to search\" id=\"searchBox\" class=\"form-control\" type=\"text\" value=\"\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 659,
+            "top": 231,
+            "width": 230,
+            "height": 38
+          }
+        }
+      },
+      "description": "Find the employee"
+    },
+    {
+      "id": "s22",
+      "action": "ooa.browser/element_action",
+      "args": {
+        "selector": "xpath=//tr[td[normalize-space()='${raise_for}']]//*[starts-with(@id,'edit-record')]",
+        "action": "click",
+        "click_method": "javascript"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://demoqa.com/webtables",
+            "title": "demosite",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "form",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "userForm",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "First Name Last Name Email Age Salary Department Submit",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//form[@id='userForm']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "form#userForm",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div[3]/div/div/div[2]/form",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/7/1/1/2/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.modal-body",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "381",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "7",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "257",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "72",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "766",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "330",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://demoqa.com/webtables",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<div id=\"firstName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"firstName-label\">First Name</label></div><div class=\"col-md-6 col-sm-6\"><input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"First Name\" id=\"firstName\" class=\" mr-sm-2 form-control\" type=\"text\" value=\"Ravi\"></div></div><div id=\"lastName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"lastName-label\">Last Name</label></div><div class=\"col-",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<form novalidate=\"\" id=\"userForm\" class=\"\"><div id=\"firstName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"firstName-label\">First Name</label></div><div class=\"col-md-6 col-sm-6\"><input required=\"\" maxlength=\"25\" autocomplete=\"off\" placeholder=\"First Name\" id=\"firstName\" class=\" mr-sm-2 form-control\" type=\"text\" value=\"Ravi\"></div></div><div id=\"lastName-wrapper\" class=\"mt-2 row\"><div class=\"col-md-3 col-sm-12\"><label class=\"form-label\" id=\"lastName-lab",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 257,
+            "top": 72,
+            "width": 766,
+            "height": 330
+          }
+        }
+      }
+    },
+    {
+      "id": "s24",
+      "action": "ooa.browser/type_text",
+      "args": {
+        "text": "${new_salary}",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://demoqa.com/webtables",
+            "title": "demosite",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "salary",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "label",
+              "value": "Salary",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "placeholder",
+              "value": "Salary",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "mr-sm-2 form-control",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "54000",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocomplete",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "pattern",
+              "value": "\\d*",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "minlength",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "maxlength",
+              "value": "10",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='salary']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#salary",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div[3]/div/div/div[2]/form/div[5]/div[2]/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/7/1/1/2/1/5/2/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.col-md-9.col-sm-12",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "5",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "406",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "455",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "256",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "569",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "38",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://demoqa.com/webtables",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input required=\"\" autocomplete=\"off\" pattern=\"\\d*\" minlength=\"1\" maxlength=\"10\" placeholder=\"Salary\" id=\"salary\" class=\" mr-sm-2 form-control\" type=\"text\" value=\"54000\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 455,
+            "top": 256,
+            "width": 569,
+            "height": 38
+          }
+        }
+      }
+    },
+    {
+      "id": "s25",
+      "action": "ooa.browser/element_action",
+      "args": {
+        "action": "click",
+        "click_method": "javascript",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://demoqa.com/webtables",
+            "title": "demosite",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "submit",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "submit",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "Submit",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "btn btn-primary",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='submit']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#submit",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div[3]/div/div/div[2]/form/div[7]/div/button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/7/1/1/2/1/7/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.text-right.col-md-2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "8",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "414",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "915",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "377",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "76",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "38",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://demoqa.com/webtables",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Submit",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button type=\"submit\" id=\"submit\" class=\"btn btn-primary\">Submit</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 915,
+            "top": 377,
+            "width": 76,
+            "height": 38
+          }
+        }
+      }
+    },
+    {
+      "id": "s26",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "selector": "#userForm",
+        "state": "hidden"
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "selector": "xpath=//tr[td[normalize-space()='${raise_for}']]/td[5]"
+      },
+      "out": {
+        "text": "salary_now"
+      }
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/element_action",
+      "args": {
+        "action": "clear",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://demoqa.com/webtables",
+            "title": "demosite",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "input",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Text box",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "searchBox",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "type",
+              "value": "text",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Type to search",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "form-control",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "value",
+              "value": "Kumar",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "autocomplete",
+              "value": "off",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//input[@id='searchBox']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "input#searchBox",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div/div/div/div/div[2]/div[1]/div[2]/div[2]/div[2]/div/input",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/1/1/2/1/2/2/2/1/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "div.mb-3.input-group",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "304",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "659",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "231",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "230",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "38",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "checked",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://demoqa.com/webtables",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<input autocomplete=\"off\" placeholder=\"Type to search\" id=\"searchBox\" class=\"form-control\" type=\"text\" value=\"Kumar\">",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 659,
+            "top": 231,
+            "width": 230,
+            "height": 38
+          }
+        }
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "table"
+      },
+      "out": {
+        "table": "end_table"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "ooa.datatable/filter",
+      "args": {
+        "table": "$end_table",
+        "column": "Email",
+        "operator": "not_empty"
+      },
+      "out": {
+        "count": "rows_after"
+      }
+    },
+    {
+      "id": "s31",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s32",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$end_table",
+        "path": "${folder}/output/demoqa-table.csv"
+      }
+    }
+  ]
+}

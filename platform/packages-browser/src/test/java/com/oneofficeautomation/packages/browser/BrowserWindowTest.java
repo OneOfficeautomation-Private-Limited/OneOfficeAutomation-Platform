@@ -104,6 +104,15 @@ class BrowserWindowTest {
             ActionException app = assertThrows(ActionException.class, () -> b.getText(c, null, "#h", 300, "browser", null, win("source", "application", "title", "Untitled - Notepad")));
             assertEquals("BROWSER.WINDOW_NOT_FOUND", app.code());
             assertTrue(String.valueOf(app.toMap()).contains("Desktop objects"), String.valueOf(app.toMap()));
+
+            // if not found = continue: an element that is not there gives an empty text and found = false
+            Map<String, Object> none = b.getText(c, null, "#no-such-element", 300, "browser", null, null, "continue");
+            assertEquals("", none.get("text"));
+            assertEquals(false, none.get("found"));
+            Map<String, Object> some = b.getText(c, null, "#h", 3000, "browser", null, null, "continue");
+            assertEquals(true, some.get("found"));
+            assertEquals(false, b.getAttribute(c, null, "#no-such-element", "href", 300, "browser", null, "continue").get("found"));
+            assertTrue(BrowserPackage.NOT_THERE.contains(assertThrows(ActionException.class, () -> b.getText(c, null, "#no-such-element", 300, "browser", null, null, "error")).code()));
         } finally {
             for (String n : List.of("browser", "other")) try { b.close(c, n, "session", null); } catch (RuntimeException ignored) { }
             s.stop(0);

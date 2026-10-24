@@ -1,0 +1,669 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_p6_wikipedia_countries_capture",
+  "name": "P6 Country facts from Wikipedia (en.wikipedia.org) (Capture)",
+  "description": "Read the largest countries from Wikipedia's population list, open each country's article and read its capital and currency from the information box; write an Excel report. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace (results go to its output folder)."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "top_n",
+      "type": "Number",
+      "direction": "input",
+      "default": 10,
+      "description": "How many of the largest countries to look up."
+    },
+    {
+      "name": "rows",
+      "type": "List",
+      "direction": "local"
+    },
+    {
+      "name": "countries",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "c",
+      "type": "Dictionary",
+      "direction": "local"
+    },
+    {
+      "name": "capital",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "currency",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "facts",
+      "type": "Table",
+      "direction": "local",
+      "default": {
+        "columns": [
+          "Country",
+          "Population",
+          "Capital",
+          "Currency"
+        ],
+        "rows": []
+      }
+    },
+    {
+      "name": "looked_up",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Countries looked up."
+    },
+    {
+      "name": "first_country",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "The most populous country."
+    },
+    {
+      "name": "first_capital",
+      "type": "String",
+      "direction": "output",
+      "default": "",
+      "description": "Its capital."
+    },
+    {
+      "name": "total_population",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Population of the countries looked up."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/wait_for",
+      "args": {
+        "state": "visible",
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population",
+            "title": "List of countries and dependencies by population - Wikipedia",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "table",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Table",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "mwQg",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "text",
+              "value": "List of countries and territories by total population Location Population % of world Date Source (official or from the United Nations) Notes World 8,232,000,000 100% 13 Jun 2025 UN projection[1][3] India 1,429,404,000 17.3% 1 Jul 2026 Official projection[4] [b] China 1,404,890,000 17.0% 31 Dec 2025 Official estimate[5] [c] United States 341,784,857 4.1% 1 Jul 2025 Official estimate[6] [d] Indonesia 290,125,073 3.5% 30 Jun 2026 National annual projection[7] Pakistan 241,499,431 2.9% 1 Mar 2023 2023 census result[8] [e] Nigeria 223,800,000 2.7% 1 Jul 2023 Official projection[9] Brazil 214,211,951 2.6% 1 Jul 2026 Official estimate[10] Bangladesh 169,828,911 2.1% 14 Jun 2022 2022 census result[11] [f] Russia 146,028,325 1.8% 1 Jan 2025 Official estimate[13] [g] Mexico 131,231,919 1.6% 30 Jun 2026 National quarterly estimate[14] Japan 122,690,000 1.5% 1 Oct 2026 Monthly national estimate[15] Democratic Republic of the Congo 116,452,162 1.4% 1 Jul 2026 UN projection[16] Philippines 114,849,4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "class",
+              "value": "wikitable",
+              "match": "contains",
+              "use": true
+            },
+            {
+              "name": "about",
+              "value": "#mwt37",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "typeof",
+              "value": "mw:ExpandedAttrs",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "data-mw",
+              "value": "{\"attribs\":[[{\"txt\":\"style\",\"html\":\"<span about=\\\"#mwt36\\\" typeof=\\\"mw:Transclusion\\\" id=\\\"mwQQ\\\" data-mw='{\\\"parts\\\":[{\\\"template\\\":{\\\"target\\\":{\\\"wt\\\":\\\"right\\\",\\\"href\\\":\\\"./Template:Right\\\"},\\\"params\\\":{},\\\"i\\\":0}}]}'>style=\\\"text-align:right\\\"|</span>\"},{\"html\":\"\"}]]}",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//*[@id='mw-content-text']/div[1]/section[3]/table",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "#mw-content-text > div:nth-of-type(1) > section:nth-of-type(3) > table",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/div[3]/div/div[3]/main/div[3]/div[2]/div[1]/section[3]/table",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/4/1/3/1/4/2/1/3/8",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#mwNw",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "974",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "4",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "264",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "1419",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "752",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "11697",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "https://en.wikipedia.org/wiki/List_of_countries_and_dependencies_by_population",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "<caption id=\"mwQw\">List of countries and territories by total population</caption>\n\n<thead><tr id=\"mwRQ\"><th id=\"mwRg\" class=\"headerSort\" tabindex=\"0\" role=\"columnheader button\" title=\"Sort ascending\">Location</th>\n<th id=\"mwRw\" class=\"headerSort\" tabindex=\"0\" role=\"columnheader button\" title=\"Sort ascending\">Population</th>\n<th style=\"width:2em\" id=\"mwSA\" class=\"headerSort\" tabindex=\"0\" role=\"columnheader button\" title=\"Sort ascending\">% of<br about=\"#mwt38\" typeof=\"mw:Transclusion\" id=\"mwSQ\" d",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<table class=\"wikitable sortable mw-datatable sort-under static-row-numbers sticky-header col1left col5left jquery-tablesorter\" style=\"text-align:right\" about=\"#mwt37\" typeof=\"mw:ExpandedAttrs\" id=\"mwQg\" data-mw=\"{&quot;attribs&quot;:[[{&quot;txt&quot;:&quot;style&quot;,&quot;html&quot;:&quot;&lt;span about=\\&quot;#mwt36\\&quot; typeof=\\&quot;mw:Transclusion\\&quot; id=\\&quot;mwQQ\\&quot; data-mw='{\\&quot;parts\\&quot;:[{\\&quot;template\\&quot;:{\\&quot;target\\&quot;:{\\&quot;wt\\&quot;:\\&quot;right\\&qu",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 264,
+            "top": 1419,
+            "width": 752,
+            "height": 11697
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/run_javascript",
+      "args": {
+        "script": "Array.from(document.querySelector('table.wikitable').querySelectorAll('tbody tr')).map(r => { const c = r.children; const a = c[0] && Array.from(c[0].querySelectorAll('a')).find(x => !x.closest('.flagicon') && !/^(#|File:)/.test(x.getAttribute('href') || '')); return a && c[1] ? {Country: a.textContent.trim(), Population: Number(c[1].textContent.replace(/[^0-9]/g, '')), Url: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(a.textContent.trim().replace(/ /g, '_'))} : null; }).filter(x => x && x.Country !== 'World' && x.Population > 0)"
+      },
+      "out": {
+        "result": "rows"
+      },
+      "description": "The list, without the World row (its links go to demographics articles, so the country article is addressed by name)"
+    },
+    {
+      "id": "s4",
+      "action": "ooa.datatable/from_records",
+      "args": {
+        "records": "$rows"
+      },
+      "out": {
+        "table": "countries"
+      }
+    },
+    {
+      "id": "s20",
+      "action": "core/loop",
+      "args": {
+        "iterator": "table_rows",
+        "over": "$countries",
+        "as": "c",
+        "to_index": {
+          "expr": "$top_n - 1"
+        }
+      },
+      "description": "Each of the largest countries",
+      "children": [
+        {
+          "id": "s5",
+          "action": "ooa.browser/navigate",
+          "args": {
+            "url": "$c.Url"
+          }
+        },
+        {
+          "id": "s6",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "timeout_ms": 20000,
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "https://en.wikipedia.org/wiki/India",
+                "title": "India - Wikipedia",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "table",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Table",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Republic of India Bhārat Gaṇarājya Flag State emblem Motto: Satyameva Jayate (Sanskrit) \"Truth Alone Triumphs\"[1] Anthem: \"Jana Gana Mana\" (Hindi)[a][2][3] \"Thou Art the Ruler of the Minds of All People\"[4][2] Duration: 1 minute and 4 seconds. 1:04 National song: \"Vande Mataram\" (Sanskrit)[b] \"I Bow to Thee, Mother\"[c][1][2] Duration: 2 minutes and 26 seconds. 2:26 Territory controlled by India Territory claimed but not controlled Capital New Delhi 28°36′50″N 77°12′30″E Largest city by city proper population Mumbai Largest city by metropolitan area population Delhi Official languages HindiEnglish[d][8] Recognised regional languages show State level and Eighth Schedule[9] Native languages 424 languages[g] Religion (2011)[11][12] 79.8% Hinduism 14.2% Islam 2.3% Christianity 1.7% Sikhism 0.7% Buddhism 0.4% Jainism 0.23% unaffiliated 0.65% other Demonyms Indianothers Government Federal parliamentary republic • President Droupadi Murmu • Vice President C. P. Radhakrishnan • Prime Minister N",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "infobox",
+                  "match": "contains",
+                  "use": true
+                },
+                {
+                  "name": "about",
+                  "value": "#mwt12",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//*[@id='mw-content-text']/div[1]/section[1]/table",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "#mw-content-text > div:nth-of-type(1) > section:nth-of-type(1) > table",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div[3]/div/div[3]/main/div[3]/div[2]/div[1]/section[1]/table",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/4/1/3/1/4/2/1/1/7",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "section#mwAQ",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "1704",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "706",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "253",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "310",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "2106",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "https://en.wikipedia.org/wiki/India",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<tbody><tr><th colspan=\"2\" class=\"infobox-above adr\"><div class=\"fn org country-name\">Republic of India</div><div class=\"ib-country-names\"><span title=\"ISO 15919 Indic (Hindi language) transliteration\"><i lang=\"hi-Latn\">Bhārat Gaṇarājya</i></span><span style=\"display:none\" data-plural=\"0\"></span></div></th></tr><tr><td colspan=\"2\" class=\"infobox-image\"><div class=\"noresize\" style=\"display:table; width:100%;\">\n        <div style=\"display:table-cell; vertical-align:middle; padding-left:5px;\">\n    ",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<table class=\"infobox ib-country vcard\" about=\"#mwt12\"><tbody><tr><th colspan=\"2\" class=\"infobox-above adr\"><div class=\"fn org country-name\">Republic of India</div><div class=\"ib-country-names\"><span title=\"ISO 15919 Indic (Hindi language) transliteration\"><i lang=\"hi-Latn\">Bhārat Gaṇarājya</i></span><span style=\"display:none\" data-plural=\"0\"></span></div></th></tr><tr><td colspan=\"2\" class=\"infobox-image\"><div class=\"noresize\" style=\"display:table; width:100%;\">\n        <div style=\"display:tabl",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 706,
+                "top": 253,
+                "width": 310,
+                "height": 2106
+              }
+            }
+          }
+        },
+        {
+          "id": "s7",
+          "action": "core/set",
+          "args": {
+            "variable": "capital",
+            "value": ""
+          }
+        },
+        {
+          "id": "s8",
+          "action": "core/set",
+          "args": {
+            "variable": "currency",
+            "value": ""
+          }
+        },
+        {
+          "id": "s10",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Capital')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s9",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Capital')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              },
+              "out": {
+                "text": "capital"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s12",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "condition": "ooa.browser/element_exists",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Currency')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              }
+            }
+          },
+          "children": [
+            {
+              "id": "s11",
+              "action": "ooa.browser/get_text",
+              "args": {
+                "selector": "xpath=(//table[contains(@class,'infobox')]//tr[th[starts-with(normalize-space(.),'Currency')]]/td//a[not(starts-with(@href,'#'))])[1]"
+              },
+              "out": {
+                "text": "currency"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s13",
+          "action": "ooa.datatable/add_row",
+          "args": {
+            "table": "$facts",
+            "values": [
+              "$c.Country",
+              "$c.Population",
+              "$capital",
+              "$currency"
+            ]
+          },
+          "out": {
+            "table": "facts"
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/set",
+          "args": {
+            "variable": "looked_up",
+            "value": {
+              "expr": "$looked_up + 1"
+            }
+          }
+        },
+        {
+          "id": "s15",
+          "action": "core/set",
+          "args": {
+            "variable": "total_population",
+            "value": {
+              "expr": "$total_population + $c.Population"
+            }
+          }
+        },
+        {
+          "id": "s18",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "empty",
+              "left": "$first_country"
+            }
+          },
+          "children": [
+            {
+              "id": "s16",
+              "action": "core/set",
+              "args": {
+                "variable": "first_country",
+                "value": "$c.Country"
+              }
+            },
+            {
+              "id": "s17",
+              "action": "core/set",
+              "args": {
+                "variable": "first_capital",
+                "value": "$capital"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s19",
+          "action": "core/delay",
+          "args": {
+            "seconds": 500,
+            "unit": "milliseconds"
+          },
+          "description": "Be polite to the site"
+        }
+      ]
+    },
+    {
+      "id": "s21",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s22",
+      "action": "ooa.excel/create_workbook",
+      "args": {
+        "path": "${folder}/output/country-facts.xlsx",
+        "sheet": "Countries",
+        "overwrite": true,
+        "session": "report"
+      }
+    },
+    {
+      "id": "s23",
+      "action": "ooa.excel/write_table",
+      "args": {
+        "table": "$facts",
+        "session": "report"
+      }
+    },
+    {
+      "id": "s24",
+      "action": "ooa.excel/close",
+      "args": {
+        "session": "report",
+        "save": true
+      }
+    }
+  ]
+}

@@ -87,6 +87,27 @@ class CaptureObjectTest {
         assertEquals("BROWSER.BAD_MODIFIER", assertThrows(ActionException.class, () -> BrowserPackage.modifiers("hyper")).code());
     }
 
+    /** Which property finds the element, by what the page offers (found on the 26 use cases). */
+    @Test void capturedObjectChoosesWhatStaysTheSame() {
+        // a test attribute wins over id; a label wins for a field when it is unique on the page
+        assertEquals(List.of("tag", "data-test"), ticked(Map.of("tag", "a", "id", "cart", "data-test", "shopping-cart-link", "aria-label", "Cart, 3 items"), false));
+        assertEquals(List.of("tag", "type", "label"), ticked(Map.of("tag", "input", "id", "UeWWS", "name", "UeWWS", "label", "First Name", "type", "text"), true));
+        // text and labels with numbers in them are data, not names: the class is used instead
+        assertEquals(List.of("tag", "class"), ticked(Map.of("tag", "div", "text", "Item total: $33.97", "class", "summary_subtotal_label ng-star"), false));
+        // nothing names the element: its place in the page
+        assertEquals(List.of("tag", "dom_xpath"), ticked(Map.of("tag", "div", "dom_xpath", "//*[@id='main']/div[2]"), false));
+    }
+
+    private static List<String> ticked(Map<String, Object> props, boolean labelUnique) {
+        Map<String, Object> picked = new HashMap<>();
+        picked.put("props", props);
+        picked.put("label_unique", labelUnique);
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> p : (List<Map<String, Object>>) BrowserPackage.capturedObject(picked).get("properties"))
+            if (Boolean.TRUE.equals(p.get("use"))) out.add((String) p.get("name"));
+        return out;
+    }
+
     /** End to end with the installed Edge (headless); skipped when no browser can be started here. */
     @SuppressWarnings("unchecked")
     @Test void elementActionsOnCapturedObjects() throws Exception {

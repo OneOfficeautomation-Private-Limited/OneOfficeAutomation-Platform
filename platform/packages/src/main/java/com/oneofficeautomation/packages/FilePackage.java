@@ -50,6 +50,13 @@ public final class FilePackage {
         return new Filter(min == null ? null : min.longValue(), max == null ? null : max.longValue(), within == null ? null : within.intValue(), older == null ? null : older.intValue());
     }
 
+    /** True when the file was last changed after 'after' and before 'before' (local time); an empty limit always passes. */
+    static boolean modifiedBetween(Path p, LocalDateTime after, LocalDateTime before) {
+        if (after == null && before == null) return true;
+        LocalDateTime t = LocalDateTime.ofInstant(Instant.ofEpochMilli(modified(p)), ZoneId.systemDefault());
+        return (after == null || t.isAfter(after)) && (before == null || t.isBefore(before));
+    }
+
     @Action(id = "read_text", name = "Read text", category = "Files", idempotent = true, capabilities = "filesystem", description = "Read a text file.")
     @Output(name = "text", type = OoaType.STRING, description = "File content.")
     public Map<String, Object> readText(ActionContext ctx,
@@ -86,17 +93,24 @@ public final class FilePackage {
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With pattern, also delete matching files in sub-folders.") boolean sub,
             @Input(name = "older_than_days", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files last changed more than this many days ago.") Integer older,
             @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at least this large.") Long min,
-            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at most this large.") Long max) {
+            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With pattern, only files at most this large.") Long max,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed after this date and time (local time).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, visibleWhen = "pattern!=", description = "With pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
         Path p = ctx.resolvePath(path);
         if (pattern == null || pattern.isBlank()) {
             try { return Map.of("deleted", BigDecimal.valueOf(Files.deleteIfExists(p) ? 1 : 0)); } catch (IOException e) { throw io("delete", p, e); }
         }
         int n = 0;
         for (String f : files(p, pattern, sub, filter(min, max, null, older))) {
+            if (!modifiedBetween(Path.of(f), after, before)) continue;
             ctx.checkCancelled();
             try { if (Files.deleteIfExists(Path.of(f))) n++; } catch (IOException e) { throw io("delete", Path.of(f), e); }
         }
         return Map.of("deleted", BigDecimal.valueOf(n));
+    }
+
+    public Map<String, Object> delete(ActionContext ctx, String path, String pattern, boolean sub, Integer older, Long min, Long max) {
+        return delete(ctx, path, pattern, sub, older, min, max, null, null);
     }
 
     @Action(id = "list", name = "List files", category = "Folders", idempotent = true, capabilities = "filesystem",

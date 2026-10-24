@@ -43,6 +43,7 @@ public final class StudioServer {
         final java.util.concurrent.atomic.AtomicBoolean pause = new java.util.concurrent.atomic.AtomicBoolean();
         volatile RunResult result; volatile long finishedAt; final long startedAt = System.currentTimeMillis();
         volatile StudioDebugger debugger;
+        volatile Path objectsFile;   // with record_objects: the captured objects of the elements the run found
         LiveRun(String id) { this.id = id; }
     }
     private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -288,11 +289,17 @@ public final class StudioServer {
             // Step menu: "Run this step only" (only_step) and "Run from here" (start_at); see Runner.RunOptions.
             if (req.get("only_step") instanceof String only && !only.isBlank()) opts.onlyStep(only);
             else if (req.get("start_at") instanceof String from && !from.isBlank()) opts.startAt(from);
+            // "Convert selectors to captured objects": the run notes every element its web steps find by selector
+            if (Boolean.TRUE.equals(req.get("record_objects"))) {
+                try { lr.objectsFile = Files.createTempFile("ooa-objects-", ".jsonl"); }
+                catch (IOException e) { throw new OoaException("STUDIO.IO", "Cannot create the file for recorded objects: " + e.getMessage()); }
+                recordObjects(lr.objectsFile.toString());
+            }
             live.put(id, lr);
             Thread t = new Thread(() -> {
                 try { lr.result = runner(lr.sink).run(flow, inputs, opts); }
                 catch (RuntimeException e) { lr.result = new RunResult(id, null, "failed", Map.of(), Map.of("code", "STUDIO.RUN_CRASHED", "message", String.valueOf(e.getMessage())), System.currentTimeMillis() - lr.startedAt, null, 0); }
-                finally { lr.finishedAt = System.currentTimeMillis(); }
+                finally { lr.finishedAt = System.currentTimeMillis(); if (lr.objectsFile != null) recordObjects(null); }
             }, "ooa-studio-run-" + id);
             t.setDaemon(true);
             t.start();
@@ -306,6 +313,12 @@ public final class StudioServer {
                         a -> names.getOrDefault(a, a));
             }
             sendJson(ex, 202, Map.of("run_id", id));
+        } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}/objects")) {
+            LiveRun lr = live.get(route.substring(5, route.indexOf("/objects")));
+            if (lr == null || lr.objectsFile == null) throw new OoaException("STUDIO.NOT_FOUND", "This run did not record objects");
+            List<Object> lines = new ArrayList<>();
+            for (String line : Files.readAllLines(lr.objectsFile, StandardCharsets.UTF_8)) if (!line.isBlank()) lines.add(json.parse(line));
+            sendJson(ex, 200, Map.of("objects", lines, "finished", lr.result != null));
         } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}")) {
             LiveRun lr = live.get(route.substring(5));
             if (lr == null) throw new OoaException("STUDIO.NOT_FOUND", "Unknown or expired run");
@@ -833,6 +846,12 @@ public final class StudioServer {
             throw new OoaException("REPO.NOT_FOUND", "Automation '" + automationId + "' not found in the workspace",
                     "Save the child agent anywhere in the workspace; its agent id must match.");
         }
+    }
+
+    /** Turns object recording on (a file) or off (null) in the browser toolkit, when that module is installed. */
+    private static void recordObjects(String file) {
+        try { Class.forName("com.oneofficeautomation.packages.browser.ObjectRecorder").getMethod("recordTo", String.class).invoke(null, file); }
+        catch (ReflectiveOperationException e) { throw new OoaException("STUDIO.NO_BROWSER_MODULE", "The Browser module is not installed", "Add packages-browser to ooa.optionalModules in gradle.properties."); }
     }
 
     private Object body(HttpExchange ex) throws IOException {

@@ -63,5 +63,11 @@
   {"command": "ooa.datatable/row_count_is", "name": "condition", "vars": {"t": {"columns": ["a"], "rows": [["x"]]}, "ok": false},
    "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datatable/row_count_is", "args": {"table": "$t", "operator": "gt", "count": 0}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
   {"command": "ooa.datatable/column_count_is", "name": "condition", "vars": {"t": {"columns": ["a"], "rows": []}, "ok": false},
-   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datatable/column_count_is", "args": {"table": "$t", "count": 1}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}}
+   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datatable/column_count_is", "args": {"table": "$t", "count": 1}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
+  {"command": "ooa.datatable/lookup", "name": "value from the matching row", "vars": {"t": {"columns": ["Order", "Status", "Amount"], "rows": [["A-1", "open", 10], ["A-2", "paid", 25]]}},
+   "steps": [{"action": "ooa.datatable/lookup", "args": {"table": "$t", "column": "Order", "value": "A-2", "return_column": "Status"}, "out": {"value": "v", "found": "f", "row": "r"}}], "expect": {"v": "paid", "f": true, "r": 1}},
+  {"command": "ooa.datatable/lookup", "name": "fallback when nothing matches", "vars": {"t": {"columns": ["Order", "Amount"], "rows": [["A-1", 10]]}},
+   "steps": [{"action": "ooa.datatable/lookup", "args": {"table": "$t", "column": "Order", "value": "B-9", "return_column": "Amount", "if_not_found": 0}, "out": {"value": "v", "found": "f", "row": "r"}}], "expect": {"v": 0, "f": false, "r": -1}},
+  {"command": "ooa.datatable/get_value", "name": "column name in another case", "vars": {"t": {"columns": ["CITY"], "rows": [["Pune"]]}},
+   "steps": [{"action": "ooa.datatable/get_value", "args": {"table": "$t", "row": 0, "column": "city"}, "out": {"value": "v"}}], "expect": {"v": "Pune"}}
 ]

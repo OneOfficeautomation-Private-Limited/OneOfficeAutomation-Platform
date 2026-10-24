@@ -1,0 +1,37 @@
+[
+  {"command": "ooa.database/connect", "name": "URL built from database_type and file", "vars": {"n": 0},
+   "steps": [
+     {"action": "ooa.database/connect", "args": {"database_type": "h2", "file": "{tmp}/erp"}},
+     {"action": "ooa.database/execute", "args": {"sql": "CREATE TABLE t(id INT)"}},
+     {"action": "ooa.database/execute", "args": {"sql": "INSERT INTO t VALUES (1), (2)"}},
+     {"action": "ooa.database/query", "args": {"sql": "SELECT id FROM t"}, "out": {"row_count": "n"}},
+     {"action": "ooa.database/disconnect", "args": {}}],
+   "expect": {"n": 2}},
+  {"command": "ooa.database/connect", "name": "file database without a file", "steps": [{"action": "ooa.database/connect", "args": {"database_type": "sqlite"}}], "error": "DB.BAD_INPUT"},
+  {"command": "ooa.database/query_rows", "name": "loop iterator with parameters", "vars": {"sum": 0, "ids": ""},
+   "steps": [
+     {"action": "ooa.database/connect", "args": {"jdbc_url": "jdbc:h2:mem:rows;DB_CLOSE_DELAY=-1"}},
+     {"action": "ooa.database/execute", "args": {"sql": "CREATE TABLE inv(id VARCHAR(10), amount DECIMAL(10,2))"}},
+     {"action": "ooa.database/execute", "args": {"sql": "INSERT INTO inv VALUES ('A', 10), ('B', 20.5), ('C', 99)"}},
+     {"action": "core/loop", "args": {"iterator": "ooa.database/query_rows", "iterator_args": {"sql": "SELECT id, amount FROM inv WHERE amount < ? ORDER BY id", "parameters": [50]}, "as": "row"},
+      "children": [
+        {"action": "core/set", "args": {"variable": "sum", "value": {"expr": "$sum + $row.AMOUNT"}}},
+        {"action": "core/set", "args": {"variable": "ids", "value": "${ids}${row.ID}"}}]},
+     {"action": "ooa.database/disconnect", "args": {}}],
+   "expect": {"sum": 30.5, "ids": "AB"}},
+  {"command": "ooa.email/emails", "name": "loop over matching emails and mark each read by its id", "requires": "mail",
+   "credentials": {"pw": "test/mail/password"}, "vars": {"subjects": "", "n": 0},
+   "steps": [
+     {"action": "ooa.email/connect", "args": {"imap_host": "127.0.0.1", "port": "{imap_port}", "user": "bot@sample.test", "password": "$pw", "security": "none",
+                                              "smtp_host": "127.0.0.1", "smtp_port": "{smtp_port}", "smtp_security": "none"}},
+     {"action": "ooa.email/send", "args": {"to": "bot@sample.test", "subject": "Invoice 1", "body": "a"}},
+     {"action": "ooa.email/send", "args": {"to": "bot@sample.test", "subject": "Hello", "body": "b"}},
+     {"action": "ooa.email/send", "args": {"to": "bot@sample.test", "subject": "Invoice 2", "body": "c"}},
+     {"action": "core/loop", "args": {"iterator": "ooa.email/emails", "iterator_args": {"subject_contains": "Invoice", "unread_only": true, "oldest_first": true}, "as": "mail"},
+      "children": [
+        {"action": "core/set", "args": {"variable": "subjects", "value": "${subjects}${mail.subject};"}},
+        {"action": "ooa.email/mark", "args": {"id": "$mail.id"}}]},
+     {"action": "ooa.email/list", "args": {"unread_only": true}, "out": {"count": "n"}},
+     {"action": "ooa.email/disconnect", "args": {}}],
+   "expect": {"subjects": "Invoice 1;Invoice 2;", "n": 1}}
+]

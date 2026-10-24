@@ -270,24 +270,64 @@ public final class EmailPackage {
             @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
             @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return the oldest emails first instead of the newest.") boolean oldestFirst,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
+        List<Object> rows = new ArrayList<>();
+        for (Map<String, Object> e : find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max))
+            rows.add(new ArrayList<>(e.values()));
+        return Map.of("table", Values.table(SUMMARY_COLUMNS, rows), "count", BigDecimal.valueOf(rows.size()));
+    }
+
+    static final List<String> SUMMARY_COLUMNS = List.of("id", "from", "subject", "received", "unread", "has_attachments");
+
+    /** The emails matching the Find emails filters, newest first unless oldest_first, each as id, from, subject, received, unread, has_attachments. */
+    static List<Map<String, Object>> find(MailSession s, String folder, boolean unread, boolean readOnly, String from, String subject, LocalDateTime since,
+                                          LocalDateTime before, String to, String bodyText, boolean withAtts, boolean oldestFirst, int max) {
         try {
-            MailSession s = ms(ctx, session);
             Folder f = s.folder(folder);
             Message[] msgs = matching(f, filter(unread, readOnly, from, subject, since, before, to, bodyText, s.pop3));
             FetchProfile fp = new FetchProfile();
             fp.add(FetchProfile.Item.ENVELOPE); fp.add(FetchProfile.Item.FLAGS); fp.add(FetchProfile.Item.CONTENT_INFO); fp.add(UIDFolder.FetchProfileItem.UID);
             f.fetch(msgs, fp);
-            List<Object> rows = new ArrayList<>();
-            for (int k = 0; k < msgs.length && rows.size() < max; k++) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (int k = 0; k < msgs.length && out.size() < max; k++) {
                 Message m = msgs[oldestFirst ? k : msgs.length - 1 - k];
-                boolean atts = m.isMimeType("multipart/mixed");
-                if (withAtts && !atts) continue;
-                Date d = m.getReceivedDate() != null ? m.getReceivedDate() : m.getSentDate();
-                rows.add(new ArrayList<>(Arrays.asList(BigDecimal.valueOf(idOf(f, m)), fromText(m), Objects.toString(m.getSubject(), ""),
-                        d == null ? null : LocalDateTime.ofInstant(d.toInstant(), ZoneOffset.UTC), !m.isSet(Flags.Flag.SEEN), atts)));
+                if (withAtts && !m.isMimeType("multipart/mixed")) continue;
+                out.add(summary(idOf(f, m), m));
             }
-            return Map.of("table", Values.table(List.of("id", "from", "subject", "received", "unread", "has_attachments"), rows), "count", BigDecimal.valueOf(rows.size()));
+            return out;
         } catch (MessagingException e) { throw mail(e); }
+    }
+
+    /** One row of Find emails, keyed by SUMMARY_COLUMNS. */
+    static Map<String, Object> summary(long id, Message m) throws MessagingException {
+        Date d = m.getReceivedDate() != null ? m.getReceivedDate() : m.getSentDate();
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("id", BigDecimal.valueOf(id));
+        e.put("from", fromText(m));
+        e.put("subject", Objects.toString(m.getSubject(), ""));
+        e.put("received", d == null ? null : LocalDateTime.ofInstant(d.toInstant(), ZoneOffset.UTC));
+        e.put("unread", !m.isSet(Flags.Flag.SEEN));
+        e.put("has_attachments", m.isMimeType("multipart/mixed"));
+        return e;
+    }
+
+    @LoopIterator(id = "emails", name = "Each email in a mailbox",
+            description = "Yield each email matching the Find emails filters as a dictionary: id, from, subject, received, unread, has_attachments.")
+    public Iterable<Object> emails(ActionContext ctx,
+            @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
+            @Input(name = "unread_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only unread emails.") boolean unread,
+            @Input(name = "from_contains", type = OoaType.STRING, required = false, description = "Sender contains this text; separate several with ; to match any of them.") String from,
+            @Input(name = "subject_contains", type = OoaType.STRING, required = false, description = "Subject contains this text; separate several with ; to match any of them.") String subject,
+            @Input(name = "since", type = OoaType.DATETIME, required = false, description = "Received on or after this date.") LocalDateTime since,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = "Stop after this many emails.") int max,
+            @Input(name = "before", type = OoaType.DATETIME, required = false, description = "Received before this date.") LocalDateTime before,
+            @Input(name = "read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails already read.") boolean readOnly,
+            @Input(name = "to_contains", type = OoaType.STRING, required = false, description = "A To recipient contains this text.") String to,
+            @Input(name = "body_contains", type = OoaType.STRING, required = false, description = "The body contains this text (searched by the server).") String bodyText,
+            @Input(name = "has_attachments_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Only emails that have attachments.") boolean withAtts,
+            @Input(name = "oldest_first", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Give the oldest emails first instead of the newest.") boolean oldestFirst,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = D_SESSION) String session) {
+        // the list is taken before the loop starts, so emails can be moved or deleted inside it
+        return new ArrayList<>(find(ms(ctx, session), folder, unread, readOnly, from, subject, since, before, to, bodyText, withAtts, oldestFirst, max));
     }
 
     private static void collect(Part p, StringBuilder text, StringBuilder html, List<Part> attachments) throws MessagingException, IOException {

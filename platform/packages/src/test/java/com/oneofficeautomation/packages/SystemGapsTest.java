@@ -389,7 +389,7 @@ class SystemGapsTest {
         Path w = tmp();
         ActionContext c = ctx(w);
         DatabasePackage db = new DatabasePackage();
-        db.connect(c, "jdbc:h2:mem:gaps" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1", null, null, "db", null, 0, null, false, true);
+        db.connect(c, "jdbc:h2:mem:gaps" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1", null, null, null, null, null, null, null, "db", null, 0, null, false, true);
         try {
             db.execute(c, "CREATE TABLE invoices(id VARCHAR(20) NOT NULL, vendor VARCHAR(100), amount DECIMAL(12,2))", null, "db", 0);
             db.execute(c, "CREATE VIEW big_invoices AS SELECT * FROM invoices WHERE amount > 1000", null, "db", 0);

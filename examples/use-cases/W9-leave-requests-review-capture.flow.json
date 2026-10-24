@@ -1,0 +1,2722 @@
+{
+  "$schema": "https://schemas.oneofficeautomation.com/flow/v1.json",
+  "kind": "TaskBot",
+  "id": "uc_w9_leave_requests_capture",
+  "name": "W9 Leave requests against remaining balances (Capture)",
+  "description": "Read the remaining leave per employee, review each pending request in its pop-up, approve it when enough days are left (updating the balance) or decline it with a note, then check the dashboard. Web steps use captured objects (recorded with OOA Capture) instead of typed selectors where the element is fixed.",
+  "variables": [
+    {
+      "name": "folder",
+      "type": "String",
+      "direction": "input",
+      "default": "Use cases",
+      "description": "Folder of these use cases, relative to the workspace."
+    },
+    {
+      "name": "headless",
+      "type": "Boolean",
+      "direction": "input",
+      "default": false,
+      "description": "Run the browser without a window (for unattended runs)."
+    },
+    {
+      "name": "balances",
+      "type": "Table",
+      "direction": "local"
+    },
+    {
+      "name": "who",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "days_text",
+      "type": "String",
+      "direction": "local"
+    },
+    {
+      "name": "days",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "left",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "at",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "found",
+      "type": "Boolean",
+      "direction": "local"
+    },
+    {
+      "name": "d_approved",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "d_declined",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "d_pending",
+      "type": "Number",
+      "direction": "local"
+    },
+    {
+      "name": "approved",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Requests approved by the agent."
+    },
+    {
+      "name": "declined",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Requests declined by the agent."
+    },
+    {
+      "name": "ann_left",
+      "type": "Number",
+      "direction": "output",
+      "default": 0,
+      "description": "Days Ann has left after the approvals."
+    },
+    {
+      "name": "dashboard_matches",
+      "type": "Boolean",
+      "direction": "output",
+      "default": false,
+      "description": "The portal dashboard shows the same numbers."
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "action": "ooa.browser/open",
+      "args": {
+        "url": "${folder}/site/leave-manager.html",
+        "headless": "$headless",
+        "engine": "playwright",
+        "keep_open": false
+      },
+      "description": "Open leave-manager.html"
+    },
+    {
+      "id": "s2",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+            "title": "Leave manager",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "tab-balances",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Balances",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='tab-balances']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#tab-balances",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/header/nav/button[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "nav",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "10",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1056",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "22",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "87",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "33",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Balances",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button id=\"tab-balances\">Balances</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1056,
+            "top": 22,
+            "width": 87,
+            "height": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "action": "ooa.browser/extract_table",
+      "args": {
+        "selector": "#balances-table"
+      },
+      "out": {
+        "table": "balances"
+      }
+    },
+    {
+      "id": "s4",
+      "action": "ooa.datatable/change_column_type",
+      "args": {
+        "table": "$balances",
+        "column": "Remaining",
+        "type": "Number"
+      },
+      "out": {
+        "table": "balances"
+      }
+    },
+    {
+      "id": "s5",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+            "title": "Leave manager",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "tab-requests",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Requests",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='tab-requests']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#tab-requests",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/header/nav/button[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "nav",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "960",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "22",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "88",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "33",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Requests",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button id=\"tab-requests\" class=\"\">Requests</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 960,
+            "top": 22,
+            "width": 88,
+            "height": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "s25",
+      "action": "core/loop",
+      "args": {
+        "iterator": "while",
+        "condition": {
+          "condition": "ooa.browser/element_exists",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                "title": "Leave manager",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Review",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "class",
+                  "value": "review",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "data-i",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[normalize-space()='Review']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "#requests-table > tbody > tr:nth-of-type(2) > td:nth-of-type(5) > button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[1]/table/tbody/tr[2]/td[5]/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/1/1/2/2/5/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "td",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "35",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "752",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "191",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "76",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Review",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button class=\"review\" data-i=\"1\">Review</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 752,
+                "top": 191,
+                "width": 76,
+                "height": 33
+              }
+            }
+          }
+        },
+        "max_iterations": 50
+      },
+      "description": "Each pending request",
+      "children": [
+        {
+          "id": "s6",
+          "action": "ooa.browser/click",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                "title": "Leave manager",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "button",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "text",
+                  "value": "Review",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "class",
+                  "value": "review",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "data-i",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//button[normalize-space()='Review']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "#requests-table > tbody > tr:nth-of-type(2) > td:nth-of-type(5) > button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/main/section[1]/table/tbody/tr[2]/td[5]/button",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/2/1/1/2/2/5/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "td",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "35",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "752",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "191",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "76",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "33",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Review",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<button class=\"review\" data-i=\"1\">Review</button>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 752,
+                "top": 191,
+                "width": 76,
+                "height": 33
+              }
+            }
+          }
+        },
+        {
+          "id": "s7",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "state": "visible",
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                "title": "Leave manager",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "div",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "modal",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Review request Ann: Holiday, 5 days Note to the employee ApproveDeclineClose",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "role",
+                  "value": "dialog",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "class",
+                  "value": "modal",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "aria-modal",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//div[@id='modal']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "div#modal",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "body",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "90",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "1280",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "720",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "<div><h2>Review request</h2><p><b id=\"m-employee\">Ann</b>: <span id=\"m-type\">Holiday</span>, <span id=\"m-days\">5</span> days</p>\n<label for=\"m-reason\">Note to the employee</label><textarea id=\"m-reason\"></textarea><br><button id=\"m-approve\">Approve</button><button id=\"m-decline\">Decline</button><button id=\"m-close\">Close</button></div>",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<div id=\"modal\" class=\"modal\" role=\"dialog\" aria-modal=\"true\"><div><h2>Review request</h2><p><b id=\"m-employee\">Ann</b>: <span id=\"m-type\">Holiday</span>, <span id=\"m-days\">5</span> days</p>\n<label for=\"m-reason\">Note to the employee</label><textarea id=\"m-reason\"></textarea><br><button id=\"m-approve\">Approve</button><button id=\"m-decline\">Decline</button><button id=\"m-close\">Close</button></div></div>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 0,
+                "top": 0,
+                "width": 1280,
+                "height": 720
+              }
+            }
+          }
+        },
+        {
+          "id": "s8",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                "title": "Leave manager",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "b",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "m-employee",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "Ann",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//b[@id='m-employee']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "b#m-employee",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div/p/b",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/2/1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "94",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "430",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "304",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "29",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "Ann",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<b id=\"m-employee\">Ann</b>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 430,
+                "top": 304,
+                "width": 29,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "text": "who"
+          }
+        },
+        {
+          "id": "s9",
+          "action": "ooa.browser/get_text",
+          "args": {
+            "object": {
+              "technology": "web",
+              "page": {
+                "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                "title": "Leave manager",
+                "url_match": "starts_with"
+              },
+              "frames": [],
+              "search_by": "properties",
+              "index": 0,
+              "ignore_case": false,
+              "properties": [
+                {
+                  "name": "tag",
+                  "value": "span",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "control_type",
+                  "value": "Element",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "id",
+                  "value": "m-days",
+                  "match": "equals",
+                  "use": true
+                },
+                {
+                  "name": "text",
+                  "value": "5",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "dom_xpath",
+                  "value": "//span[@id='m-days']",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "css",
+                  "value": "span#m-days",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "xpath",
+                  "value": "/html/body/div/div/p/span[2]",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "path",
+                  "value": "2/3/1/2/3",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "parent",
+                  "value": "p",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "tag_index",
+                  "value": "1",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "source_index",
+                  "value": "96",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "child_count",
+                  "value": "0",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "left",
+                  "value": "524",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "top",
+                  "value": "304",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "width",
+                  "value": "8",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "height",
+                  "value": "20",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "visible",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "enabled",
+                  "value": "true",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "in_frame",
+                  "value": "false",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "frame_url",
+                  "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "inner_html",
+                  "value": "5",
+                  "match": "equals",
+                  "use": false
+                },
+                {
+                  "name": "outer_html",
+                  "value": "<span id=\"m-days\">5</span>",
+                  "match": "equals",
+                  "use": false
+                }
+              ],
+              "rect": {
+                "left": 524,
+                "top": 304,
+                "width": 8,
+                "height": 20
+              }
+            }
+          },
+          "out": {
+            "text": "days_text"
+          }
+        },
+        {
+          "id": "s10",
+          "action": "core/set",
+          "args": {
+            "variable": "days",
+            "value": {
+              "expr": "toNumber($days_text)"
+            }
+          }
+        },
+        {
+          "id": "s11",
+          "action": "ooa.datatable/find",
+          "args": {
+            "table": "$balances",
+            "value": "$who",
+            "column": "Employee"
+          },
+          "out": {
+            "found": "found",
+            "first_row": "at"
+          }
+        },
+        {
+          "id": "s12",
+          "action": "core/set",
+          "args": {
+            "variable": "left",
+            "value": 0
+          }
+        },
+        {
+          "id": "s14",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "eq",
+              "left": "$found",
+              "right": true
+            }
+          },
+          "children": [
+            {
+              "id": "s13",
+              "action": "ooa.datatable/get_value",
+              "args": {
+                "table": "$balances",
+                "row": "$at",
+                "column": "Remaining"
+              },
+              "out": {
+                "value": "left"
+              }
+            }
+          ]
+        },
+        {
+          "id": "s22",
+          "action": "core/if",
+          "args": {
+            "condition": {
+              "op": "le",
+              "left": "$days",
+              "right": "$left"
+            }
+          },
+          "description": "Enough days left?",
+          "children": [
+            {
+              "id": "s15",
+              "action": "ooa.datatable/set_value",
+              "args": {
+                "table": "$balances",
+                "row": "$at",
+                "column": "Remaining",
+                "value": {
+                  "expr": "$left - $days"
+                }
+              },
+              "out": {
+                "table": "balances"
+              }
+            },
+            {
+              "id": "s16",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "Approved. ${days} days booked.",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                    "title": "Leave manager",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "textarea",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "m-reason",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Note to the employee",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//textarea[@id='m-reason']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "textarea#m-reason",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/textarea",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/3/1/4",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "98",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "430",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "363",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "318",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "74",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<textarea id=\"m-reason\"></textarea>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 430,
+                    "top": 363,
+                    "width": 318,
+                    "height": 74
+                  }
+                }
+              }
+            },
+            {
+              "id": "s17",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                    "title": "Leave manager",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "m-approve",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Approve",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='m-approve']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#m-approve",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/button[1]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/3/1/6",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "8",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "100",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "430",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "451",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "82",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Approve",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"m-approve\">Approve</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 430,
+                    "top": 451,
+                    "width": 82,
+                    "height": 33
+                  }
+                }
+              }
+            },
+            {
+              "id": "s18",
+              "action": "core/set",
+              "args": {
+                "variable": "approved",
+                "value": {
+                  "expr": "$approved + 1"
+                }
+              }
+            }
+          ],
+          "else": [
+            {
+              "id": "s19",
+              "action": "ooa.browser/type_text",
+              "args": {
+                "text": "Not enough leave left (${left} days).",
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                    "title": "Leave manager",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "textarea",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Text box",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "m-reason",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "label",
+                      "value": "Note to the employee",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//textarea[@id='m-reason']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "textarea#m-reason",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/textarea",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/3/1/4",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "97",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "430",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "363",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "318",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "74",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<textarea id=\"m-reason\"></textarea>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 430,
+                    "top": 363,
+                    "width": 318,
+                    "height": 74
+                  }
+                }
+              }
+            },
+            {
+              "id": "s20",
+              "action": "ooa.browser/click",
+              "args": {
+                "object": {
+                  "technology": "web",
+                  "page": {
+                    "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                    "title": "Leave manager",
+                    "url_match": "starts_with"
+                  },
+                  "frames": [],
+                  "search_by": "properties",
+                  "index": 0,
+                  "ignore_case": false,
+                  "properties": [
+                    {
+                      "name": "tag",
+                      "value": "button",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "control_type",
+                      "value": "Button",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "id",
+                      "value": "m-decline",
+                      "match": "equals",
+                      "use": true
+                    },
+                    {
+                      "name": "text",
+                      "value": "Decline",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "dom_xpath",
+                      "value": "//button[@id='m-decline']",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "css",
+                      "value": "button#m-decline",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "xpath",
+                      "value": "/html/body/div/div/button[2]",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "path",
+                      "value": "2/3/1/7",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "parent",
+                      "value": "div",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "tag_index",
+                      "value": "8",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "source_index",
+                      "value": "100",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "child_count",
+                      "value": "0",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "left",
+                      "value": "520",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "top",
+                      "value": "451",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "width",
+                      "value": "76",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "height",
+                      "value": "33",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "visible",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "enabled",
+                      "value": "true",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "in_frame",
+                      "value": "false",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "frame_url",
+                      "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "inner_html",
+                      "value": "Decline",
+                      "match": "equals",
+                      "use": false
+                    },
+                    {
+                      "name": "outer_html",
+                      "value": "<button id=\"m-decline\">Decline</button>",
+                      "match": "equals",
+                      "use": false
+                    }
+                  ],
+                  "rect": {
+                    "left": 520,
+                    "top": 451,
+                    "width": 76,
+                    "height": 33
+                  }
+                }
+              }
+            },
+            {
+              "id": "s21",
+              "action": "core/set",
+              "args": {
+                "variable": "declined",
+                "value": {
+                  "expr": "$declined + 1"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "s23",
+          "action": "ooa.browser/wait_for",
+          "args": {
+            "selector": "#modal",
+            "state": "hidden"
+          }
+        },
+        {
+          "id": "s24",
+          "action": "core/delay",
+          "args": {
+            "seconds": 300,
+            "unit": "milliseconds"
+          }
+        }
+      ]
+    },
+    {
+      "id": "s26",
+      "action": "ooa.browser/click",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+            "title": "Leave manager",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "button",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Button",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "tab-dashboard",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "Dashboard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//button[@id='tab-dashboard']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "button#tab-dashboard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/header/nav/button[3]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/1/2/3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "nav",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "11",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "1151",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "22",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "97",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "33",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "Dashboard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<button id=\"tab-dashboard\">Dashboard</button>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 1151,
+            "top": 22,
+            "width": 97,
+            "height": 33
+          }
+        }
+      }
+    },
+    {
+      "id": "s27",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+            "title": "Leave manager",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "b",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "d-approved",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//b[@id='d-approved']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "b#d-approved",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[3]/b[1]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/3/1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#dashboard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "82",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "116",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "104",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<b id=\"d-approved\">3</b>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 116,
+            "top": 104,
+            "width": 9,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "d_approved"
+      }
+    },
+    {
+      "id": "s28",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+            "title": "Leave manager",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "b",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "d-declined",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//b[@id='d-declined']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "b#d-declined",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[3]/b[2]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/3/2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#dashboard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "1",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "83",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "201",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "104",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<b id=\"d-declined\">3</b>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 201,
+            "top": 104,
+            "width": 9,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "d_declined"
+      }
+    },
+    {
+      "id": "s29",
+      "action": "ooa.browser/get_text",
+      "args": {
+        "object": {
+          "technology": "web",
+          "page": {
+            "url": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+            "title": "Leave manager",
+            "url_match": "starts_with"
+          },
+          "frames": [],
+          "search_by": "properties",
+          "index": 0,
+          "ignore_case": false,
+          "properties": [
+            {
+              "name": "tag",
+              "value": "b",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "control_type",
+              "value": "Element",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "id",
+              "value": "d-pending",
+              "match": "equals",
+              "use": true
+            },
+            {
+              "name": "text",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "dom_xpath",
+              "value": "//b[@id='d-pending']",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "css",
+              "value": "b#d-pending",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "xpath",
+              "value": "/html/body/main/section[3]/b[3]",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "path",
+              "value": "2/2/3/3",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "parent",
+              "value": "section#dashboard",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "tag_index",
+              "value": "2",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "source_index",
+              "value": "84",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "child_count",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "left",
+              "value": "282",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "top",
+              "value": "104",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "width",
+              "value": "9",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "height",
+              "value": "20",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "visible",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "enabled",
+              "value": "true",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "in_frame",
+              "value": "false",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "frame_url",
+              "value": "file:///C:/Users/virup/OOA%20Workspace/Use%20cases/site/leave-manager.html",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "inner_html",
+              "value": "0",
+              "match": "equals",
+              "use": false
+            },
+            {
+              "name": "outer_html",
+              "value": "<b id=\"d-pending\">0</b>",
+              "match": "equals",
+              "use": false
+            }
+          ],
+          "rect": {
+            "left": 282,
+            "top": 104,
+            "width": 9,
+            "height": 20
+          }
+        }
+      },
+      "out": {
+        "text": "d_pending"
+      }
+    },
+    {
+      "id": "s30",
+      "action": "core/set",
+      "args": {
+        "variable": "dashboard_matches",
+        "value": {
+          "expr": "$d_approved == $approved + 1 && $d_declined == $declined && $d_pending == 0"
+        }
+      },
+      "description": "Eve was approved before the agent started"
+    },
+    {
+      "id": "s31",
+      "action": "ooa.datatable/find",
+      "args": {
+        "table": "$balances",
+        "value": "Ann",
+        "column": "Employee"
+      },
+      "out": {
+        "first_row": "at"
+      }
+    },
+    {
+      "id": "s32",
+      "action": "ooa.datatable/get_value",
+      "args": {
+        "table": "$balances",
+        "row": "$at",
+        "column": "Remaining"
+      },
+      "out": {
+        "value": "ann_left"
+      }
+    },
+    {
+      "id": "s33",
+      "action": "ooa.browser/close"
+    },
+    {
+      "id": "s34",
+      "action": "ooa.csv/write",
+      "args": {
+        "table": "$balances",
+        "path": "${folder}/output/leave-balances.csv"
+      }
+    }
+  ]
+}
