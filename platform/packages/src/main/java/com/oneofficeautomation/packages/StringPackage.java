@@ -22,16 +22,20 @@ public final class StringPackage {
             @Input(name = "if_not_found", type = OoaType.STRING, required = false, defaultValue = "\"empty\"", enumValues = {"empty", "source"},
                     description = "Result when a marker is missing: empty text, or the whole source text.") String ifNotFound,
             @Input(name = "max_length", type = OoaType.NUMBER, required = false, min = 0, description = "Keep at most this many characters of the result.") Integer maxLength,
-            @Input(name = "remove_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove line breaks from the result.") boolean removeLineBreaks) {
+            @Input(name = "remove_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Remove line breaks from the result.") boolean removeLineBreaks,
+            @Input(name = "until", type = OoaType.STRING, required = false, defaultValue = "\"marker\"", enumValues = {"marker", "end_of_line", "end_of_text"},
+                    description = "Where the result ends when the 'before' marker is empty or not found: as before (marker), at the end of the line, or at the end of the text.") String until) {
         if (afterOccurrence < 1 || beforeOccurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1", "Use 1 for the first match.");
+        String stop = until == null ? "marker" : until;
+        if (!List.of("marker", "end_of_line", "end_of_text").contains(stop))
+            throw new ActionException("STRING.BAD_OPTION", "Unknown until option '" + until + "'", "Use marker, end_of_line or end_of_text.");
         String out = text;
         boolean missing = false;
         if (after != null) { int i = nth(out, after, afterOccurrence, ignoreCase); if (i >= 0) out = out.substring(i + after.length()); else { out = ""; missing = true; } }
-        if (before != null && !missing) {
-            int i = nth(out, before, beforeOccurrence, ignoreCase);
-            if (i >= 0) out = out.substring(0, i);
-            else if (after == null) { out = ""; missing = true; }
-        }
+        int cut = before == null || missing ? -1 : nth(out, before, beforeOccurrence, ignoreCase);
+        if (cut >= 0) out = out.substring(0, cut);
+        else if (!missing && stop.equals("end_of_line")) { int nl = out.indexOf('\n'), cr = out.indexOf('\r'); int e = nl < 0 ? cr : cr < 0 ? nl : Math.min(nl, cr); if (e >= 0) out = out.substring(0, e); }
+        else if (before != null && !missing && after == null && stop.equals("marker")) { out = ""; missing = true; }
         if (missing && "source".equals(ifNotFound)) out = text;
         if (removeLineBreaks) out = out.replace("\r", "").replace("\n", "");
         if (trim) out = out.strip();
@@ -40,6 +44,11 @@ public final class StringPackage {
             if (out.length() > maxLength) out = out.substring(0, maxLength);
         }
         return Map.of("result", out);
+    }
+
+    public Map<String, Object> extractText(ActionContext ctx, String text, String before, String after, boolean trim, int afterOccurrence, int beforeOccurrence,
+            boolean ignoreCase, String ifNotFound, Integer maxLength, boolean removeLineBreaks) {
+        return extractText(ctx, text, before, after, trim, afterOccurrence, beforeOccurrence, ignoreCase, ifNotFound, maxLength, removeLineBreaks, "marker");
     }
 
     /** Position of the n-th (1-based) occurrence of a marker, or -1. */
@@ -152,8 +161,11 @@ public final class StringPackage {
             @Input(name = "text", type = OoaType.STRING, description = "First text.") String text,
             @Input(name = "other", type = OoaType.STRING, description = "Second text.") String other,
             @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"exact\"", enumValues = {"exact", "ignore_case", "natural"},
-                    description = "exact, ignore_case, or natural (file2 before file10, case ignored).") String mode) {
+                    description = "exact, ignore_case, or natural (file2 before file10, case ignored).") String mode,
+            @Input(name = "ignore_line_breaks", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Treat each line break (\\r\\n or \\n) as a space, so text wrapped onto several lines still matches.") boolean ignoreLineBreaks) {
         String a = text == null ? "" : text, b = other == null ? "" : other;
+        if (ignoreLineBreaks) { a = a.replaceAll("\\r\\n|\\r|\\n", " "); b = b.replaceAll("\\r\\n|\\r|\\n", " "); }
         int r = switch (mode == null ? "exact" : mode) {
             case "ignore_case" -> a.compareToIgnoreCase(b);
             case "natural" -> naturalCompare(a, b);
@@ -162,6 +174,8 @@ public final class StringPackage {
         };
         return Out.of("result", java.math.BigDecimal.valueOf(Integer.signum(r)), "equal", r == 0);
     }
+
+    public Map<String, Object> compare(ActionContext ctx, String text, String other, String mode) { return compare(ctx, text, other, mode, false); }
 
     /** Natural order: runs of digits compare by numeric value, the rest compares without case. */
     static int naturalCompare(String a, String b) {
@@ -187,7 +201,7 @@ public final class StringPackage {
             description = "Find where a text (or regular expression) first appears, starting from a position.")
     @Output(name = "index", type = OoaType.NUMBER, description = "Zero-based position of the match, or -1 when not found.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a match was found.")
-    @Output(name = "match", type = OoaType.STRING, description = "The matched text, empty when not found.")
+    @Output(name = "match", type = OoaType.STRING, description = "The matched text (or the chosen group), empty when not found.")
     @Output(name = "position", type = OoaType.NUMBER, description = "One-based position of the match, or 0 when not found.")
     @Output(name = "groups", type = OoaType.LIST, description = "Regular expression: the capture groups of the returned match (group 1 first); empty otherwise.")
     @Output(name = "named_groups", type = OoaType.DICTIONARY, description = "Regular expression: named groups (?<name>...) of the returned match.")
@@ -199,7 +213,9 @@ public final class StringPackage {
             @Input(name = "regex", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Treat 'find' as a regular expression.") boolean regex,
             @Input(name = "start", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Zero-based position to start searching from.") int start,
             @Input(name = "ignore_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Ignore upper/lower case.") boolean ignoreCase,
-            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which match to return (1 = first, 2 = second ...).") int occurrence) {
+            @Input(name = "occurrence", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "Which match to return (1 = first, 2 = second ...).") int occurrence,
+            @Input(name = "group", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, visibleWhen = "regex=true",
+                    description = "Regular expression: return this capture group in match and all_matches instead of the whole match, e.g. 1 for the number in Total: (\\d+).") int group) {
         if (start < 0 || start > text.length())
             throw new ActionException("STRING.BAD_POSITION", "Start position " + start + " is outside the text (length " + text.length() + ")", "Use a position from 0 to the text length.");
         if (occurrence < 1) throw new ActionException("STRING.BAD_OCCURRENCE", "Occurrences start at 1, got " + occurrence, "Use 1 for the first match.");
@@ -207,15 +223,18 @@ public final class StringPackage {
             java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex ? find : java.util.regex.Pattern.quote(find),
                     ignoreCase ? java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE : 0);
             java.util.regex.Matcher m = p.matcher(text);
+            int pick = regex ? group : 0;
+            if (pick < 0 || pick > m.groupCount())
+                throw new ActionException("STRING.BAD_GROUP", "The expression has " + m.groupCount() + " capture group(s), group " + group + " was asked for", "Use 0 for the whole match or a group number that exists.");
             List<Object> all = new ArrayList<>();
             List<Object> groups = new ArrayList<>();
             Map<String, Object> named = new LinkedHashMap<>();
             int index = -1;
             String match = "";
             if (m.find(start)) do {
-                all.add(m.group());
+                all.add(m.group(pick) == null ? "" : m.group(pick));
                 if (all.size() == occurrence) {
-                    index = m.start(); match = m.group();
+                    index = m.start(); match = (String) all.get(all.size() - 1);
                     if (regex) {
                         for (int g = 1; g <= m.groupCount(); g++) groups.add(m.group(g) == null ? "" : m.group(g));
                         for (String name : p.namedGroups().keySet()) named.put(name, m.group(name) == null ? "" : m.group(name));
@@ -228,6 +247,10 @@ public final class StringPackage {
         } catch (PatternSyntaxException e) {
             throw new ActionException("STRING.BAD_REGEX", "Invalid regular expression: " + e.getDescription(), "Escape special characters such as ( ) [ ] . *");
         }
+    }
+
+    public Map<String, Object> find(ActionContext ctx, String text, String find, boolean regex, int start, boolean ignoreCase, int occurrence) {
+        return find(ctx, text, find, regex, start, ignoreCase, occurrence, 0);
     }
 
     @Action(id = "length", name = "Get length", category = "Text", idempotent = true, description = "Count the characters in a text.")

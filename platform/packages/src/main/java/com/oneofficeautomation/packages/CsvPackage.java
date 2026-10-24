@@ -131,7 +131,7 @@ public final class CsvPackage {
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
     public Map<String, Object> read(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
-            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | or tab.") String d,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab, or regional (the Windows list separator: ; when the machine's decimal separator is a comma, otherwise ,).") String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, utf-8-bom, ansi, unicode, utf-16, windows-1251 ...") String enc,
             @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
@@ -149,7 +149,7 @@ public final class CsvPackage {
     @LoopIterator(id = "rows", name = "Each row in CSV/TXT", description = "Yield each data row of a CSV or delimited text file as a record keyed by column name.")
     public Iterable<Object> rows(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
-            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab or regional.") String d,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab, or regional (the Windows list separator: ; when the machine's decimal separator is a comma, otherwise ,).") String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding.") String enc,
             @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
@@ -173,7 +173,7 @@ public final class CsvPackage {
     public Map<String, Object> write(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Table to write.") Map<String, Object> table,
             @Input(name = "path", type = OoaType.FILE, description = "Target path.") String path,
-            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter.") String d,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field delimiter: , ; | tab, or regional (the Windows list separator: ; when the machine's decimal separator is a comma, otherwise ,).") String d,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Write column names first (not when appending to an existing file).") boolean header,
             @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Append rows to an existing file.") boolean append,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, utf-8-bom, ansi, unicode, utf-16 ...") String enc,

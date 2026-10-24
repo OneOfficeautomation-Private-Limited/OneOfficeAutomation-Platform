@@ -64,14 +64,18 @@ public final class FolderPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
     }
 
-    @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files.")
+    @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files by name, size or date.")
     @Output(name = "copied", type = OoaType.NUMBER, description = "Number of files copied.")
     public Map<String, Object> copy(ActionContext ctx,
             @Input(name = "source", type = OoaType.FILE, description = "Source folder.") String source,
             @Input(name = "target", type = OoaType.FILE, description = "Target folder.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist in the target; when false they are kept.") boolean overwrite,
             @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.pdf", description = "Only copy files whose names match this glob pattern; all files when empty.") String pattern,
-            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "overwrite=true", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer) {
+            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "overwrite=true", description = "Copy a file only when it is newer than the one already in the target.") boolean onlyNewer,
+            @Input(name = "larger_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files larger than this many KB (1 KB = 1024 bytes).") java.math.BigDecimal largerKb,
+            @Input(name = "smaller_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = "Only copy files smaller than this many KB.") java.math.BigDecimal smallerKb,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only copy files last changed after this date and time (local time).") java.time.LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only copy files last changed before this date and time (local time).") java.time.LocalDateTime before) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
         if (!Files.isDirectory(s)) throw new ActionException("FILE.NOT_FOUND", "Folder not found: " + s, "Check the source path.");
         PathMatcher m = FileSystems.getDefault().getPathMatcher("glob:" + (pattern == null || pattern.isBlank() ? "*" : pattern));
@@ -80,7 +84,11 @@ public final class FolderPackage {
             for (Path x : w.toList()) {
                 Path dst = t.resolve(s.relativize(x).toString());
                 if (Files.isDirectory(x)) { Files.createDirectories(dst); continue; }
-                if (!m.matches(x.getFileName())) continue;
+                if (!m.matches(x.getFileName()) || !FilePackage.modifiedBetween(x, after, before)) continue;
+                if (largerKb != null || smallerKb != null) {
+                    java.math.BigDecimal kb = java.math.BigDecimal.valueOf(Files.size(x)).divide(java.math.BigDecimal.valueOf(1024));
+                    if (largerKb != null && kb.compareTo(largerKb) <= 0 || smallerKb != null && kb.compareTo(smallerKb) >= 0) continue;
+                }
                 if (Files.exists(dst)) {
                     if (!overwrite) continue;
                     if (onlyNewer && Files.getLastModifiedTime(x).compareTo(Files.getLastModifiedTime(dst)) <= 0) continue;
@@ -91,6 +99,10 @@ public final class FolderPackage {
             }
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot copy " + s + ": " + e.getMessage(), null, true); }
         return Map.of("copied", java.math.BigDecimal.valueOf(n));
+    }
+
+    public Map<String, Object> copy(ActionContext ctx, String source, String target, boolean overwrite, String pattern, boolean onlyNewer) {
+        return copy(ctx, source, target, overwrite, pattern, onlyNewer, null, null, null, null);
     }
 
     @Action(id = "rename_folder", name = "Rename folder", category = "Folders", capabilities = "filesystem",
