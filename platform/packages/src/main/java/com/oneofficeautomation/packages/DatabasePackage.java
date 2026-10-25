@@ -28,7 +28,8 @@ public final class DatabasePackage {
                 "Check the SQL and that parameters match the ? placeholders.", transientErr);
     }
 
-    @Action(id = "connect", name = "Connect", category = "Database", capabilities = "network", description = "Open a database connection as a named session.")
+    @Action(id = "connect", name = "Connect", category = "Database", capabilities = "network", description = "Open a database connection as a named session.",
+            panel = "(Connect using: Connection details = database_type, server, port, database, file / A JDBC address = jdbc_url), user, password | session, [Load a specific driver class: driver_class], login_timeout_seconds, properties, read_only, auto_commit")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "jdbc_url", type = OoaType.STRING, required = false, pattern = "^(jdbc:|$)", description = "JDBC URL, e.g. jdbc:sqlserver://host;databaseName=erp; when empty it is built from database_type and the fields below.") String jdbcUrl,
             @Input(name = "database_type", type = OoaType.STRING, required = false, enumValues = {"sqlserver", "postgresql", "mysql", "oracle", "sqlite", "h2", "access"},
@@ -119,7 +120,8 @@ public final class DatabasePackage {
     }
 
     @Action(id = "query", name = "Read from (query)", category = "Database", capabilities = "network",
-            description = "Run a SELECT with ? parameters and return the rows as a table.")
+            description = "Run a SELECT with ? parameters and return the rows as a table.",
+            panel = "sql, parameters, max_rows, query_timeout_seconds | session")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows.")
     public Map<String, Object> query(ActionContext ctx,
@@ -178,7 +180,8 @@ public final class DatabasePackage {
     }
 
     @Action(id = "execute", name = "Insert/update/delete", category = "Database", capabilities = "network",
-            description = "Run an INSERT, UPDATE, DELETE or DDL statement with ? parameters.")
+            description = "Run an INSERT, UPDATE, DELETE or DDL statement with ? parameters.",
+            panel = "sql, parameters, query_timeout_seconds | session")
     @Output(name = "rows_affected", type = OoaType.NUMBER, description = "Rows changed.")
     public Map<String, Object> execute(ActionContext ctx,
             @Input(name = "sql", type = OoaType.STRING, description = "Statement with ? placeholders.") String sql,
@@ -192,19 +195,22 @@ public final class DatabasePackage {
         } catch (SQLException e) { throw sql(e); }
     }
 
-    @Action(id = "begin_transaction", name = "Begin transaction", category = "Transactions", description = "Start a transaction; changes are kept only after Commit.")
+    @Action(id = "begin_transaction", name = "Begin transaction", category = "Transactions", description = "Start a transaction; changes are kept only after Commit.",
+            panel = "session")
     public Map<String, Object> begin(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
         try { ctx.session(session, DbSession.class).conn.setAutoCommit(false); } catch (SQLException e) { throw sql(e); }
         return Map.of();
     }
 
-    @Action(id = "commit", name = "Commit", category = "Transactions", description = "Save the changes made since Begin transaction.")
+    @Action(id = "commit", name = "Commit", category = "Transactions", description = "Save the changes made since Begin transaction.",
+            panel = "session")
     public Map<String, Object> commit(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
         try { Connection c = ctx.session(session, DbSession.class).conn; c.commit(); c.setAutoCommit(true); } catch (SQLException e) { throw sql(e); }
         return Map.of();
     }
 
-    @Action(id = "rollback", name = "Roll back", category = "Transactions", description = "Undo the changes made since Begin transaction.")
+    @Action(id = "rollback", name = "Roll back", category = "Transactions", description = "Undo the changes made since Begin transaction.",
+            panel = "session")
     public Map<String, Object> rollback(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
         try { Connection c = ctx.session(session, DbSession.class).conn; c.rollback(); c.setAutoCommit(true); } catch (SQLException e) { throw sql(e); }
         return Map.of();
@@ -242,21 +248,77 @@ public final class DatabasePackage {
     }
 
     @Action(id = "bulk_insert", name = "Bulk insert", category = "Database", timeoutSeconds = 3600, capabilities = "network",
-            description = "Insert every row of a Data Table into a database table in batches, all or nothing.")
+            description = "Insert every row of a Data Table, or of a delimited text file read line by line, into a database table in batches, all or nothing.",
+            panel = "table, (Rows from: A Data Table = data / A delimited file = source_file, delimiter, start_row, has_header, encoding), columns, batch_size | session")
     @Output(name = "rows_inserted", type = OoaType.NUMBER, description = "Rows inserted.")
     public Map<String, Object> bulkInsert(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, example = "dbo.invoices", description = "Database table to insert into.") String tableName,
-            @Input(name = "data", type = OoaType.TABLE, description = "Data Table whose rows are inserted.") Map<String, Object> data,
-            @Input(name = "columns", type = OoaType.LIST, required = false, description = "Database column for each Data Table column, in order; the Data Table's column names when empty.") List<Object> columns,
+            @Input(name = "data", type = OoaType.TABLE, required = false, description = "Data Table whose rows are inserted (or use source_file).") Map<String, Object> data,
+            @Input(name = "columns", type = OoaType.LIST, required = false, description = "Database column for each Data Table or file column, in order; the Data Table's column names (or the file's header) when empty.") List<Object> columns,
             @Input(name = "batch_size", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, max = 100000, description = "Rows sent to the database per batch.") int batchSize,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
+            @Input(name = "source_file", type = OoaType.FILE, required = false, example = "input/invoices.csv",
+                    description = "Delimited text file (CSV) whose rows are inserted instead of a Data Table; it is read as it goes, so large files fit. Empty fields are inserted as NULL.") String sourceFile,
+            @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", visibleWhen = "source_file!=", description = "Field separator of the file: one character, or tab.") String delimiter,
+            @Input(name = "start_row", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, visibleWhen = "source_file!=",
+                    description = "Line of the file where reading starts (1 = the first line); lines above it, such as a title, are skipped.") int startRow,
+            @Input(name = "has_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "source_file!=",
+                    description = "The first line read holds the column names, used as database columns when columns is empty.") boolean hasHeader,
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", visibleWhen = "source_file!=", description = "Text encoding of the file, e.g. utf-8 or windows-1252.") String encoding) {
         String t = identifier(tableName, "table");
-        List<String> srcCols = DataTablePackage.cols(data);
+        boolean fromFile = sourceFile != null && !sourceFile.isBlank();
+        if (fromFile == (data != null))
+            throw new ActionException("DB.BAD_INPUT", fromFile ? "Both data and source_file are given" : "No rows to insert", "Give either a Data Table in data or a file in source_file.");
+        if (!fromFile) {
+            List<String> srcCols = DataTablePackage.cols(data);
+            List<String> cols = columnNames(columns, srcCols);
+            if (cols.isEmpty()) throw new ActionException("DB.NO_COLUMNS", "The Data Table has no columns", "Give a Data Table with at least one column.");
+            if (cols.size() != srcCols.size())
+                throw new ActionException("DB.COLUMN_MISMATCH", "columns lists " + cols.size() + " names but the Data Table has " + srcCols.size() + " columns", "Give one database column per Data Table column.");
+            Iterator<List<Object>> it = DataTablePackage.rows(data).iterator();
+            return insertBatches(ctx, t, cols, () -> it.hasNext() ? it.next() : null, batchSize, session);
+        }
+        String d = delimiter == null || delimiter.isEmpty() ? "," : delimiter;
+        char dc = d.equalsIgnoreCase("tab") || d.equals("\\t") ? '\t' : d.length() == 1 ? d.charAt(0) : 0;
+        if (dc == 0 || dc == '"' || dc == '\r' || dc == '\n') throw new ActionException("DB.BAD_DELIMITER", "The delimiter must be one character, got '" + d + "'", "Use , ; | or tab.");
+        if (startRow < 1) throw new ActionException("DB.BAD_INPUT", "start_row must be 1 or more", "Lines are counted from 1.");
+        java.nio.file.Path p = ctx.resolvePath(sourceFile);
+        if (!java.nio.file.Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path of source_file.");
+        java.nio.charset.Charset cs = CsvPackage.encoding(encoding).charset();
+        try (java.io.BufferedReader r = java.nio.file.Files.newBufferedReader(p, cs)) {
+            DelimitedReader in = new DelimitedReader(r, dc);
+            for (int i = 1; i < startRow; i++) if (!in.skipLine()) break;
+            List<String> header = hasHeader ? in.next() : null;
+            List<String> cols = columnNames(columns, header == null ? List.of() : header);
+            if (cols.isEmpty()) throw new ActionException("DB.NO_COLUMNS", "No database columns", hasHeader ? "The file has no header line at start_row; fill in columns." : "Fill in columns with the database column of each field.");
+            return insertBatches(ctx, t, cols, () -> {
+                List<String> row;
+                try { row = in.next(); }
+                catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+                if (row == null) return null;
+                if (row.size() > cols.size())
+                    throw new ActionException("DB.COLUMN_MISMATCH", "Line " + in.line + " has " + row.size() + " fields but " + cols.size() + " columns are inserted", "Give one database column per field in columns, or check the delimiter.");
+                List<Object> vals = new ArrayList<>();
+                for (String v : row) vals.add(v.isEmpty() ? null : v);
+                return vals;
+            }, batchSize, session);
+        } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), null, true); }
+    }
+
+    public Map<String, Object> bulkInsert(ActionContext ctx, String tableName, Map<String, Object> data, List<Object> columns, int batchSize, String session) {
+        return bulkInsert(ctx, tableName, data, columns, batchSize, session, null, ",", 1, true, "utf-8");
+    }
+
+    private static List<String> columnNames(List<Object> columns, List<String> fallback) {
         List<String> cols = new ArrayList<>();
-        for (Object c : columns == null || columns.isEmpty() ? new ArrayList<Object>(srcCols) : columns) cols.add(identifier(Values.text(c), "column"));
-        if (cols.isEmpty()) throw new ActionException("DB.NO_COLUMNS", "The Data Table has no columns", "Give a Data Table with at least one column.");
-        if (cols.size() != srcCols.size())
-            throw new ActionException("DB.COLUMN_MISMATCH", "columns lists " + cols.size() + " names but the Data Table has " + srcCols.size() + " columns", "Give one database column per Data Table column.");
+        for (Object c : columns == null || columns.isEmpty() ? new ArrayList<Object>(fallback) : columns) cols.add(identifier(Values.text(c).strip(), "column"));
+        return cols;
+    }
+
+    /** Next row to insert, or null at the end. */
+    private interface RowSource { List<Object> next(); }
+
+    private static Map<String, Object> insertBatches(ActionContext ctx, String t, List<String> cols, RowSource rows, int batchSize, String session) {
         String sql = "INSERT INTO " + t + " (" + String.join(", ", cols) + ") VALUES (" + String.join(", ", Collections.nCopies(cols.size(), "?")) + ")";
         Connection c = ctx.session(session, DbSession.class).conn;
         int size = Math.max(1, Math.min(10_000, batchSize)), done = 0;
@@ -265,7 +327,7 @@ public final class DatabasePackage {
             if (auto) c.setAutoCommit(false);
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 int pending = 0;
-                for (List<Object> row : DataTablePackage.rows(data)) {
+                for (List<Object> row = rows.next(); row != null; row = rows.next()) {
                     for (int i = 0; i < cols.size(); i++) bind(ps, i + 1, i < row.size() ? row.get(i) : null);
                     ps.addBatch();
                     if (++pending == size) { ps.executeBatch(); done += pending; pending = 0; ctx.checkCancelled(); }
@@ -282,23 +344,128 @@ public final class DatabasePackage {
         return Map.of("rows_inserted", BigDecimal.valueOf(done));
     }
 
+    /** Reads RFC 4180 delimited rows one at a time (quoted fields may hold delimiters, quotes and line breaks). */
+    static final class DelimitedReader {
+        private final java.io.Reader in;
+        private final char d;
+        private int peeked = -2;
+        /** Line number where the last row returned by next() started (1-based). */
+        int line;
+        private int at = 1;
+        private boolean first = true;
+
+        DelimitedReader(java.io.Reader in, char d) { this.in = in; this.d = d; }
+
+        private int read() throws java.io.IOException {
+            int c = peeked != -2 ? peeked : in.read();
+            peeked = -2;
+            if (first) { first = false; if (c == '\uFEFF') return read(); }
+            return c;
+        }
+
+        private void endOfLine(int c) throws java.io.IOException {
+            at++;
+            if (c == '\r') { int n = in.read(); if (n != '\n') peeked = n; }
+        }
+
+        /** Skips one physical line; false at the end of the file. */
+        boolean skipLine() throws java.io.IOException {
+            int c = read();
+            if (c == -1) return false;
+            while (c != -1 && c != '\n' && c != '\r') c = read();
+            if (c != -1) endOfLine(c);
+            return true;
+        }
+
+        /** The next row's fields, skipping empty lines; null at the end of the file. */
+        List<String> next() throws java.io.IOException {
+            while (true) {
+                int c = read();
+                if (c == -1) return null;
+                if (c == '\n' || c == '\r') { endOfLine(c); continue; }
+                line = at;
+                List<String> row = new ArrayList<>();
+                StringBuilder f = new StringBuilder();
+                boolean quoted = false;
+                while (true) {
+                    if (c == -1) {
+                        if (quoted) throw new ActionException("DB.BAD_FILE", "A quoted field that starts on line " + line + " is not closed", "Check for a missing closing quote.");
+                        row.add(f.toString());
+                        return row;
+                    }
+                    if (quoted) {
+                        if (c == '"') {
+                            int n = read();
+                            if (n == '"') f.append('"'); else { quoted = false; c = n; continue; }
+                        } else { if (c == '\n') at++; f.append((char) c); }
+                    } else if (c == '"') quoted = true;
+                    else if (c == d) { row.add(f.toString()); f.setLength(0); }
+                    else if (c == '\n' || c == '\r') { endOfLine(c); row.add(f.toString()); return row; }
+                    else f.append((char) c);
+                    c = read();
+                }
+            }
+        }
+    }
+
+    public Map<String, Object> callProcedure(ActionContext ctx, String procedure, List<Object> params, int maxRows, String session, int queryTimeout) {
+        return callProcedure(ctx, procedure, params, maxRows, session, queryTimeout, false, null);
+    }
+
+    /** SQL types an output parameter can be registered with. */
+    private static final Map<String, Integer> OUT_TYPES = Map.of("varchar", Types.VARCHAR, "integer", Types.INTEGER, "bigint", Types.BIGINT,
+            "decimal", Types.DECIMAL, "double", Types.DOUBLE, "boolean", Types.BOOLEAN, "date", Types.DATE, "timestamp", Types.TIMESTAMP);
+
     @Action(id = "call_procedure", name = "Run stored procedure", category = "Database", timeoutSeconds = 600, capabilities = "network",
-            description = "Call a stored procedure or function with input parameters and return the rows it produces.")
+            description = "Call a stored procedure or function with input, output and in-out parameters; return the rows it produces, its output values and a function's return value.",
+            panel = "procedure, parameters, [It is a function that returns a value: returns_value, return_type], max_rows, query_timeout_seconds | session")
     @Output(name = "table", type = OoaType.TABLE, description = "First result set, or an empty table.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Rows in the result table.")
     @Output(name = "rows_affected", type = OoaType.NUMBER, description = "Rows changed, when the database reports it; otherwise -1.")
+    @Output(name = "out_parameters", type = OoaType.DICTIONARY, description = "Output and in-out values by parameter name (or position 1, 2 ... when unnamed); the function's value as \"return\".")
     public Map<String, Object> callProcedure(ActionContext ctx,
             @Input(name = "procedure", type = OoaType.STRING, example = "dbo.close_period", description = "Procedure name, optionally schema.name.") String procedure,
-            @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Input values, in the procedure's parameter order.") List<Object> params,
+            @Input(name = "parameters", type = OoaType.LIST, required = false,
+                    description = "Parameters in the procedure's order: a plain value is an input; {\"value\": v, \"direction\": \"out\" or \"inout\", \"type\": \"varchar|integer|bigint|decimal|double|boolean|date|timestamp\", \"name\": \"p_total\"} declares an output.") List<Object> params,
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "100000", min = 1, description = "Safety limit on rows returned.") int maxRows,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
-            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout) {
+            @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout,
+            @Input(name = "returns_value", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Call it as a function ({? = call ...}) and return its value as out_parameters.return.") boolean returnsValue,
+            @Input(name = "return_type", type = OoaType.STRING, required = false, enumValues = {"varchar", "integer", "bigint", "decimal", "double", "boolean", "date", "timestamp"},
+                    description = "SQL type of the function's value; varchar when empty.") String returnType) {
         String name = identifier(procedure, "procedure");
         int n = params == null ? 0 : params.size();
-        String call = "{call " + name + "(" + String.join(", ", Collections.nCopies(n, "?")) + ")}";
+        int shift = returnsValue ? 1 : 0;
+        String call = "{" + (returnsValue ? "? = " : "") + "call " + name + "(" + String.join(", ", Collections.nCopies(n, "?")) + ")}";
+        // directions and types are checked before the database is asked anything
+        if (returnsValue) sqlType(returnType);
+        for (int i = 0; i < n; i++)
+            if (params.get(i) instanceof Map<?, ?> m && m.containsKey("direction")) {
+                String dir = String.valueOf(m.get("direction")).strip().toLowerCase(Locale.ROOT);
+                if (!dir.equals("in") && !dir.equals("out") && !dir.equals("inout"))
+                    throw new ActionException("DB.BAD_PARAMETER", "Parameter " + (i + 1) + " has direction '" + m.get("direction") + "'", "Use in, out or inout.");
+                if (!dir.equals("in")) sqlType(m.get("type") == null ? null : String.valueOf(m.get("type")));
+            }
         Connection c = ctx.session(session, DbSession.class).conn;
         try (CallableStatement cs = c.prepareCall(call)) {
-            for (int i = 0; i < n; i++) bind(cs, i + 1, params.get(i));
+            // index -> output name, in the order the values are read back
+            Map<Integer, String> outs = new LinkedHashMap<>();
+            if (returnsValue) { cs.registerOutParameter(1, sqlType(returnType)); outs.put(1, "return"); }
+            for (int i = 0; i < n; i++) {
+                Object p = params.get(i);
+                int at = i + 1 + shift;
+                if (p instanceof Map<?, ?> m && m.containsKey("direction")) {
+                    String dir = String.valueOf(m.get("direction")).strip().toLowerCase(Locale.ROOT);
+                    if (!dir.equals("in") && !dir.equals("out") && !dir.equals("inout"))
+                        throw new ActionException("DB.BAD_PARAMETER", "Parameter " + (i + 1) + " has direction '" + m.get("direction") + "'", "Use in, out or inout.");
+                    if (!dir.equals("out")) bind(cs, at, m.get("value"));
+                    if (!dir.equals("in")) {
+                        cs.registerOutParameter(at, sqlType(m.get("type") == null ? null : String.valueOf(m.get("type"))));
+                        outs.put(at, m.get("name") == null || String.valueOf(m.get("name")).isBlank() ? String.valueOf(i + 1) : String.valueOf(m.get("name")));
+                    }
+                } else bind(cs, at, p);
+            }
             if (queryTimeout > 0) cs.setQueryTimeout(queryTimeout);
             boolean hasRs = cs.execute();
             Map<String, Object> table = Values.table(List.of(), new ArrayList<>());
@@ -313,16 +480,36 @@ public final class DatabasePackage {
                 }
                 hasRs = cs.getMoreResults();
             }
-            return Out.of("table", table, "row_count", BigDecimal.valueOf(DataTablePackage.rows(table).size()), "rows_affected", BigDecimal.valueOf(affected));
+            // output values are read after the result sets, as JDBC asks; some drivers (H2) hand a function's value back as a
+            // one-cell result set instead, which then stands for it
+            Map<String, Object> outValues = new LinkedHashMap<>();
+            for (Map.Entry<Integer, String> o : outs.entrySet()) {
+                try { outValues.put(o.getValue(), value(cs.getObject(o.getKey()))); }
+                catch (SQLException e) {
+                    List<List<Object>> rows = DataTablePackage.rows(table);
+                    if (!"return".equals(o.getValue()) || rows.size() != 1 || rows.get(0).size() != 1) throw e;
+                    outValues.put("return", rows.get(0).get(0));
+                }
+            }
+            return Out.of("table", table, "row_count", BigDecimal.valueOf(DataTablePackage.rows(table).size()), "rows_affected", BigDecimal.valueOf(affected),
+                    "out_parameters", outValues);
         } catch (SQLException e) { throw sql(e); }
     }
 
+    private static int sqlType(String name) {
+        if (name == null || name.isBlank()) return Types.VARCHAR;
+        Integer t = OUT_TYPES.get(name.strip().toLowerCase(Locale.ROOT));
+        if (t == null) throw new ActionException("DB.BAD_PARAMETER", "Unknown parameter type '" + name + "'", "Use one of " + String.join(", ", new TreeSet<>(OUT_TYPES.keySet())) + ".");
+        return t;
+    }
+
     @Action(id = "export_to_file", name = "Export to CSV file", category = "Database", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
-            description = "Run a SELECT with ? parameters and write all its rows to a CSV file without loading them into memory.")
+            description = "Run a SELECT or a stored procedure with ? parameters and write its rows to a CSV file without loading them into memory.",
+            panel = "(Rows from: A SELECT = sql / A stored procedure = procedure), parameters, path, encoding, header | delimiter, overwrite, max_rows, query_timeout_seconds, session")
     @Output(name = "path", type = OoaType.FILE, description = "Written file.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Rows written.")
     public Map<String, Object> exportToFile(ActionContext ctx,
-            @Input(name = "sql", type = OoaType.STRING, description = "SELECT statement with ? placeholders.") String sql,
+            @Input(name = "sql", type = OoaType.STRING, required = false, description = "SELECT statement with ? placeholders (or use procedure).") String sql,
             @Input(name = "path", type = OoaType.FILE, description = "CSV file to create.") String path,
             @Input(name = "parameters", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order.") List<Object> params,
             @Input(name = "delimiter", type = OoaType.STRING, required = false, defaultValue = "\",\"", description = "Field separator, e.g. , or ; or tab.") String delimiter,
@@ -330,16 +517,26 @@ public final class DatabasePackage {
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding of the file.") String encoding,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session,
             @Input(name = "query_timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Cancel the statement after this many seconds; 0 waits as long as the step allows.") int queryTimeout,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing file; when false an existing file stops the step.") boolean overwrite,
+            @Input(name = "procedure", type = OoaType.STRING, required = false, example = "dbo.month_report",
+                    description = "Stored procedure whose first result set is written, used instead of sql; parameters are its input values in order.") String procedure,
+            @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Stop after writing this many rows; 0 writes them all.") int maxRows) {
+        boolean byProc = procedure != null && !procedure.isBlank(), bySql = sql != null && !sql.isBlank();
+        if (byProc == bySql)
+            throw new ActionException("DB.BAD_INPUT", byProc ? "Both sql and procedure are given" : "No SELECT or procedure given", "Fill in either sql or procedure.");
+        if (maxRows < 0) throw new ActionException("DB.BAD_INPUT", "max_rows cannot be negative", "Use 0 for all rows, or a positive limit.");
+        String proc = byProc ? identifier(procedure, "procedure") : null;
         char d = delimiter == null || delimiter.isEmpty() ? ',' : delimiter.equalsIgnoreCase("tab") ? '\t' : delimiter.charAt(0);
         java.nio.file.Path p = ctx.resolvePath(path);
         if (!overwrite && java.nio.file.Files.exists(p)) throw new ActionException("DB.FILE_EXISTS", "File already exists: " + p, "Set overwrite to true or choose another name.");
         Connection c = ctx.session(session, DbSession.class).conn;
         long count = 0;
-        try (PreparedStatement ps = prepare(c, sql, params)) {
+        try (PreparedStatement ps = byProc ? c.prepareCall("{call " + proc + "(" + String.join(", ", Collections.nCopies(params == null ? 0 : params.size(), "?")) + ")}") : prepare(c, sql, params)) {
+            if (byProc && params != null) for (int i = 0; i < params.size(); i++) bind(ps, i + 1, params.get(i));
             ps.setFetchSize(1000);
+            if (maxRows > 0) ps.setMaxRows(maxRows);
             if (queryTimeout > 0) ps.setQueryTimeout(queryTimeout);
-            try (ResultSet rs = ps.executeQuery()) {
+            try (ResultSet rs = byProc ? firstResultSet(ps, proc) : ps.executeQuery()) {
                 if (p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent());
                 try (java.io.BufferedWriter w = java.nio.file.Files.newBufferedWriter(p, FilePackage.charset(encoding))) {
                     ResultSetMetaData md = rs.getMetaData();
@@ -348,7 +545,7 @@ public final class DatabasePackage {
                         for (int i = 1; i <= n; i++) { if (i > 1) w.write(d); w.write(CsvPackage.quote(md.getColumnLabel(i), d)); }
                         w.write("\r\n");
                     }
-                    while (rs.next()) {
+                    while ((maxRows == 0 || count < maxRows) && rs.next()) {
                         for (int i = 1; i <= n; i++) { if (i > 1) w.write(d); w.write(CsvPackage.quote(Values.text(value(rs.getObject(i))), d)); }
                         w.write("\r\n");
                         if (++count % 10_000 == 0) ctx.checkCancelled();
@@ -360,8 +557,25 @@ public final class DatabasePackage {
         return Out.of("path", p.toString(), "row_count", BigDecimal.valueOf(count));
     }
 
+    public Map<String, Object> exportToFile(ActionContext ctx, String sql, String path, List<Object> params, String delimiter, boolean header, String encoding,
+            String session, int queryTimeout, boolean overwrite) {
+        return exportToFile(ctx, sql, path, params, delimiter, header, encoding, session, queryTimeout, overwrite, null, 0);
+    }
+
+    /** Runs the procedure call and returns its first result set, skipping update counts before it. */
+    private static ResultSet firstResultSet(PreparedStatement ps, String proc) throws SQLException {
+        boolean hasRs = ps.execute();
+        while (!hasRs) {
+            if (ps.getUpdateCount() == -1)
+                throw new ActionException("DB.NO_RESULT", "The procedure " + proc + " returned no rows to export", "Choose a procedure that ends with a SELECT, or use Run stored procedure.");
+            hasRs = ps.getMoreResults();
+        }
+        return ps.getResultSet();
+    }
+
     @Action(id = "list_tables", name = "List tables", category = "Schema", idempotent = true, capabilities = "network",
-            description = "List the tables and views the connection can see, optionally in one schema.")
+            description = "List the tables and views the connection can see, optionally in one schema.",
+            panel = "[Only one schema: schema], include_views | session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: schema, name, type.")
     public Map<String, Object> listTables(ActionContext ctx,
             @Input(name = "schema", type = OoaType.STRING, required = false, description = "Only this schema; all schemas when empty.") String schema,
@@ -377,7 +591,8 @@ public final class DatabasePackage {
     }
 
     @Action(id = "describe_table", name = "Describe table", category = "Schema", idempotent = true, capabilities = "network",
-            description = "Return the columns of a table with their types, sizes and whether they accept empty values.")
+            description = "Return the columns of a table with their types, sizes and whether they accept empty values.",
+            panel = "table | session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: name, type, size, nullable, position.")
     public Map<String, Object> describeTable(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, description = "Table name, optionally schema.table.") String tableName,
@@ -404,7 +619,8 @@ public final class DatabasePackage {
         return Map.of("table", Values.table(List.of("name", "type", "size", "nullable", "position"), rows));
     }
 
-    @Action(id = "disconnect", name = "Disconnect", category = "Database", description = "Close the session. Uncommitted changes are rolled back.")
+    @Action(id = "disconnect", name = "Disconnect", category = "Database", description = "Close the session. Uncommitted changes are rolled back.",
+            panel = "session")
     public Map<String, Object> disconnect(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"db\"", description = "Session name.") String session) {
         Object s = ctx.sessions().remove(session);
         if (s instanceof DbSession d) try { d.close(); } catch (SQLException e) { throw sql(e); }

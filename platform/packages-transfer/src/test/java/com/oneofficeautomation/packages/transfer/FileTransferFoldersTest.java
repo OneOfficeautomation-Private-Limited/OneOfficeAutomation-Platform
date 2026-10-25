@@ -115,6 +115,30 @@ class FileTransferFoldersTest {
         assertEquals("/file", FileTransferPackage.join("/", "file"));
     }
 
+    @Test void downloadFolderByChangeDate() throws Exception {
+        Path w = Files.createTempDirectory("ooa-transfer-dates");
+        MemoryConn conn = new MemoryConn();
+        conn.dirs.add("/d");
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
+        conn.files.put("/d/today.csv", "t".getBytes()); conn.times.put("/d/today.csv", now);   // not a few minutes back: just after midnight UTC that would be yesterday
+        conn.files.put("/d/lastweek.csv", "w".getBytes()); conn.times.put("/d/lastweek.csv", now.minusDays(6));
+        conn.files.put("/d/old.csv", "o".getBytes()); conn.times.put("/d/old.csv", java.time.LocalDateTime.of(2020, 3, 1, 12, 0));
+        conn.files.put("/d/notime.csv", "n".getBytes());   // the server reports no time for it
+        ActionContext ctx = ctx(w, conn);
+        FileTransferPackage p = new FileTransferPackage();
+        java.util.function.Function<Object, List<String>> names = r -> ((List<?>) r).stream().map(x -> Path.of(String.valueOf(x)).getFileName().toString()).sorted().toList();
+
+        assertEquals(List.of("today.csv"), names.apply(p.downloadFolder(ctx, "/d", "a", "transfer", "*", false, true, false, 0, null, null).get("files")));
+        assertEquals(List.of("lastweek.csv", "today.csv"), names.apply(p.downloadFolder(ctx, "/d", "b", "transfer", "*", false, true, false, 7, null, null).get("files")));
+        assertEquals(List.of("old.csv"), names.apply(p.downloadFolder(ctx, "/d", "c", "transfer", "*", false, true, false, null,
+                java.time.LocalDateTime.of(2020, 1, 1, 0, 0), java.time.LocalDateTime.of(2021, 1, 1, 0, 0)).get("files")));
+        assertEquals(4, ((List<?>) p.downloadFolder(ctx, "/d", "e", "transfer", "*", false, true, false, null, null, null).get("files")).size(), "no filter takes every file");
+        assertEquals("TRANSFER.BAD_FILTER", assertThrows(ActionException.class, () -> p.downloadFolder(ctx, "/d", "f", "transfer", "*", false, true, false, 3,
+                java.time.LocalDateTime.of(2020, 1, 1, 0, 0), null)).code());
+        assertEquals("TRANSFER.BAD_FILTER", assertThrows(ActionException.class, () -> p.downloadFolder(ctx, "/d", "f", "transfer", "*", false, true, false, null,
+                java.time.LocalDateTime.of(2021, 1, 1, 0, 0), java.time.LocalDateTime.of(2020, 1, 1, 0, 0))).code());
+    }
+
     @Test void newActionsAreRegistered() {
         var reg = FirstPartyPackages.registry();
         assertNotNull(reg);

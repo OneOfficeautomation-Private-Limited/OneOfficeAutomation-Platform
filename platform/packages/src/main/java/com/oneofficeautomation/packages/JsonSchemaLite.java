@@ -15,8 +15,15 @@ import java.util.regex.PatternSyntaxException;
  * multipleOf, min/maxProperties, allOf, anyOf, oneOf, not and local $ref (#/$defs/..., #/definitions/...).
  * Unknown keywords, such as format, are ignored, as the specification allows.
  */
-final class JsonSchemaLite {
+public final class JsonSchemaLite {
     private JsonSchemaLite() {}
+
+    /** Problems of a value against a JSON Schema (draft-07 subset), one line each; empty when it is valid. */
+    public static List<Object> validate(Object schema, Object value) {
+        List<Object> errors = new ArrayList<>();
+        check(schema, schema, com.oneofficeautomation.runner.Values.toJsonable(value), "$", errors);
+        return errors;
+    }
 
     @SuppressWarnings("unchecked")
     static void check(Object root, Object schema, Object v, String at, List<Object> errors) {

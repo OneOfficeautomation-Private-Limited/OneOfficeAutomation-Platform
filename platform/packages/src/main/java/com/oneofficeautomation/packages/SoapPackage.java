@@ -16,7 +16,8 @@ public final class SoapPackage {
     private static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
 
     @Action(id = "send", name = "Send SOAP request", category = "SOAP", timeoutSeconds = 120, capabilities = "network",
-            description = "Send a SOAP envelope (or just the body, which is wrapped for you) and return the response.")
+            description = "Send a SOAP envelope (or just the body, which is wrapped for you) and return the response.",
+            panel = "url, version, soap_action, body, [Sign in with a user name: basic_user, basic_password], headers, timeout_seconds, [Use a client certificate: client_certificate, client_certificate_password], output_file, xpath | fail_on_error, insecure_tls, [Use a proxy server: proxy, proxy_user, proxy_password]")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "response", type = OoaType.STRING, description = "Response XML.")
     @Output(name = "body", description = "The first element inside the SOAP Body, as a dictionary.")

@@ -52,7 +52,8 @@ public final class DateTimePackage {
         return Out.of("value", LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS));
     }
 
-    @Action(id = "add", name = "Add to date", category = "Date and time", idempotent = true, description = "Add (or subtract, with a negative amount) a duration to a date.")
+    @Action(id = "add", name = "Add to date", category = "Date and time", idempotent = true, description = "Add (or subtract, with a negative amount) a duration to a date.",
+            panel = "value, amount, unit, holidays")
     @Output(name = "result", type = OoaType.DATETIME, description = "New date and time.")
     public Map<String, Object> add(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
@@ -76,7 +77,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "difference", name = "Difference between dates", category = "Date and time", idempotent = true,
-            description = "Return end minus start in the chosen unit (may be fractional).")
+            description = "Return end minus start in the chosen unit (may be fractional).",
+            panel = "start, end, unit, holidays | absolute")
     @Output(name = "result", type = OoaType.NUMBER, description = "Difference.")
     public Map<String, Object> difference(ActionContext ctx,
             @Input(name = "start", type = OoaType.DATETIME, description = "Earlier date.") LocalDateTime start,
@@ -113,7 +115,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "format", name = "Format date", category = "Date and time", idempotent = true,
-            description = "Format a date as text in a time zone, using a pattern such as dd/MM/yyyy HH:mm.")
+            description = "Format a date as text in a time zone, using a pattern such as dd/MM/yyyy HH:mm.",
+            panel = "value, (Format: A standard format = standard / My own pattern = pattern) | time_zone, locale")
     @Output(name = "text", type = OoaType.STRING, description = "Formatted date.")
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to format (UTC).") LocalDateTime value,
@@ -133,7 +136,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "parse", name = "Text to date", category = "Date and time", idempotent = true,
-            description = "Read a date from text using a pattern, interpreting it in a time zone; the result is UTC.")
+            description = "Read a date from text using a pattern, interpreting it in a time zone; the result is UTC.",
+            panel = "text, (Format: A standard format = standard / My own pattern = pattern) | time_zone, locale")
     @Output(name = "value", type = OoaType.DATETIME, description = "Parsed date (UTC).")
     public Map<String, Object> parse(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text such as 18/10/2026.") String text,
@@ -167,7 +171,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "convert_time_zone", name = "Convert time zone", category = "Date and time", idempotent = true,
-            description = "Show a UTC date as local time in another zone, as ISO text with offset.")
+            description = "Show a UTC date as local time in another zone, as ISO text with offset.",
+            panel = "value, time_zone")
     @Output(name = "text", type = OoaType.STRING, description = "Local time with offset, e.g. 2026-10-18T20:00+05:30.")
     public Map<String, Object> convertTimeZone(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date (UTC).") LocalDateTime value,
@@ -259,7 +264,8 @@ public final class DateTimePackage {
         return v;
     }
 
-    @Action(id = "is_after", name = "Is after", category = "Date and time", idempotent = true, description = "Check whether the first date is later than the second.")
+    @Action(id = "is_after", name = "Is after", category = "Date and time", idempotent = true, description = "Check whether the first date is later than the second.",
+            panel = "value, other | include_time, time_zone")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the first date is later.")
     public Map<String, Object> isAfterAction(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
@@ -269,7 +275,8 @@ public final class DateTimePackage {
         return Out.of("result", isAfter(ctx, value, other, includeTime, tz));
     }
 
-    @Action(id = "is_before", name = "Is before", category = "Date and time", idempotent = true, description = "Check whether the first date is earlier than the second.")
+    @Action(id = "is_before", name = "Is before", category = "Date and time", idempotent = true, description = "Check whether the first date is earlier than the second.",
+            panel = "value, other | include_time, time_zone")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the first date is earlier.")
     public Map<String, Object> isBeforeAction(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
@@ -279,7 +286,8 @@ public final class DateTimePackage {
         return Out.of("result", isBefore(ctx, value, other, includeTime, tz));
     }
 
-    @Action(id = "is_equal", name = "Is equal", category = "Date and time", idempotent = true, description = "Check whether two dates are the same moment.")
+    @Action(id = "is_equal", name = "Is equal", category = "Date and time", idempotent = true, description = "Check whether two dates are the same moment.",
+            panel = "value, other | include_time, time_zone")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True when the dates are equal.")
     public Map<String, Object> isEqualAction(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date to check.") LocalDateTime value,
@@ -290,7 +298,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "is_leap_year", name = "Is leap year", category = "Date and time", idempotent = true,
-            description = "Check whether the year of a date, or a year number, is a leap year.")
+            description = "Check whether the year of a date, or a year number, is a leap year.",
+            panel = "(Check: A date = value / A year number = year)")
     @Output(name = "result", type = OoaType.BOOLEAN, description = "True for a leap year.")
     public Map<String, Object> isLeapYear(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, required = false, description = "Date whose year to check.") LocalDateTime value,
@@ -299,7 +308,8 @@ public final class DateTimePackage {
         return Out.of("result", Year.isLeap(value != null ? value.getYear() : year));
     }
 
-    @Action(id = "subtract", name = "Subtract from date", category = "Date and time", idempotent = true, description = "Subtract an amount of time from a date.")
+    @Action(id = "subtract", name = "Subtract from date", category = "Date and time", idempotent = true, description = "Subtract an amount of time from a date.",
+            panel = "value, amount, unit, holidays")
     @Output(name = "result", type = OoaType.DATETIME, description = "New date and time.")
     public Map<String, Object> subtract(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Start date.") LocalDateTime value,
@@ -342,7 +352,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "get_part", name = "Get part of date", category = "Date and time", idempotent = true,
-            description = "Return one part of a date, such as the year, month, day of week, week of year or quarter, in a time zone.")
+            description = "Return one part of a date, such as the year, month, day of week, week of year or quarter, in a time zone.",
+            panel = "value, part | time_zone, locale")
     @Output(name = "result", description = "The part: a Number, or text for day_name and month_name.")
     public Map<String, Object> getPart(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date (UTC).") LocalDateTime value,
@@ -380,7 +391,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "start_of", name = "Start of period", category = "Date and time", idempotent = true,
-            description = "Return midnight at the start of the day, week (Monday), month or year containing a date.")
+            description = "Return midnight at the start of the day, week (Monday), month or year containing a date.",
+            panel = "value, unit")
     @Output(name = "result", type = OoaType.DATETIME, description = "Start of the period.")
     public Map<String, Object> startOf(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date.") LocalDateTime value,
@@ -389,7 +401,8 @@ public final class DateTimePackage {
     }
 
     @Action(id = "end_of", name = "End of period", category = "Date and time", idempotent = true,
-            description = "Return the last second (23:59:59) of the day, week (Sunday), month or year containing a date.")
+            description = "Return the last second (23:59:59) of the day, week (Sunday), month or year containing a date.",
+            panel = "value, unit")
     @Output(name = "result", type = OoaType.DATETIME, description = "End of the period.")
     public Map<String, Object> endOf(ActionContext ctx,
             @Input(name = "value", type = OoaType.DATETIME, description = "Date.") LocalDateTime value,

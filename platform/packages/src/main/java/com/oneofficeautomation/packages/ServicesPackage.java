@@ -44,13 +44,15 @@ public final class ServicesPackage {
         }
     }
 
-    @Action(id = "get_status", name = "Get service status", category = "Services", idempotent = true, description = "Return RUNNING, STOPPED, PAUSED, START_PENDING or STOP_PENDING.")
+    @Action(id = "get_status", name = "Get service status", category = "Services", idempotent = true, description = "Return RUNNING, STOPPED, PAUSED, START_PENDING or STOP_PENDING.",
+            panel = "name")
     @Output(name = "status", type = OoaType.STRING, description = "Service state.")
     public Map<String, Object> getStatus(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, example = "Spooler", description = "Service name.") String name) {
         return Map.of("status", status(ctx, name));
     }
 
-    @Action(id = "start", name = "Start service", category = "Services", timeoutSeconds = 180, description = "Start a service and wait until it is running.")
+    @Action(id = "start", name = "Start service", category = "Services", timeoutSeconds = 180, description = "Start a service and wait until it is running.",
+            panel = "name | wait, timeout_seconds")
     public Map<String, Object> start(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
@@ -58,7 +60,8 @@ public final class ServicesPackage {
         control(ctx, "start", name, "RUNNING", wait ? t : -1); return Map.of();
     }
 
-    @Action(id = "stop", name = "Stop service", category = "Services", timeoutSeconds = 180, description = "Stop a service and wait until it has stopped.")
+    @Action(id = "stop", name = "Stop service", category = "Services", timeoutSeconds = 180, description = "Stop a service and wait until it has stopped.",
+            panel = "name | wait, timeout_seconds")
     public Map<String, Object> stop(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
@@ -66,7 +69,8 @@ public final class ServicesPackage {
         control(ctx, "stop", name, "STOPPED", wait ? t : -1); return Map.of();
     }
 
-    @Action(id = "restart", name = "Restart service", category = "Services", timeoutSeconds = 360, description = "Stop then start a service.")
+    @Action(id = "restart", name = "Restart service", category = "Services", timeoutSeconds = 360, description = "Stop then start a service.",
+            panel = "name | timeout_seconds")
     public Map<String, Object> restart(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "How long to wait for each phase.") int t) {
@@ -102,7 +106,8 @@ public final class ServicesPackage {
     }
 
     @Action(id = "pause", name = "Pause service", category = "Services", timeoutSeconds = 180,
-            description = "Pause a running service that supports pausing and wait until it is paused.")
+            description = "Pause a running service that supports pausing and wait until it is paused.",
+            panel = "name | wait, timeout_seconds")
     public Map<String, Object> pause(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,
@@ -111,7 +116,8 @@ public final class ServicesPackage {
     }
 
     @Action(id = "resume", name = "Resume service", category = "Services", timeoutSeconds = 180,
-            description = "Continue a paused service and wait until it is running again.")
+            description = "Continue a paused service and wait until it is running again.",
+            panel = "name | wait, timeout_seconds")
     public Map<String, Object> resume(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Service name.") String name,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", visibleWhen = "wait=true", min = 1, description = "How long to wait.") int t,

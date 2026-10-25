@@ -75,7 +75,8 @@ public final class PdfPackage {
     }
 
     @Action(id = "extract_text", name = "Extract text", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Extract the text of a PDF, of a page range or of chosen pages, as plain or layout-ordered text, optionally into a .txt file. Scanned PDFs (images) need OCR instead.")
+            description = "Extract the text of a PDF, of a page range or of chosen pages, as plain or layout-ordered text, optionally into a .txt file. Scanned PDFs (images) need OCR instead.",
+            panel = "path, [The file has a password: password], mode, (Pages: All pages = / A page range = from_page, to_page / Listed pages = pages), [Save the text to a file: output_file, overwrite]")
     @Output(name = "text", type = OoaType.STRING, description = "Extracted text.")
     @Output(name = "page_count", type = OoaType.NUMBER, description = "Total pages in the document.")
     public Map<String, Object> extractText(ActionContext ctx,
@@ -113,7 +114,8 @@ public final class PdfPackage {
     }
 
     @Action(id = "extract_area_text", name = "Extract text from area", category = "Text", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Read the text inside a rectangle of one page, e.g. an invoice number box that is not a form field.")
+            description = "Read the text inside a rectangle of one page, e.g. an invoice number box that is not a form field.",
+            panel = "path, [The file has a password: password], page, x, y, width, height")
     @Output(name = "text", type = OoaType.STRING, description = "Text found inside the rectangle, trimmed.")
     public Map<String, Object> extractAreaText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
@@ -135,7 +137,8 @@ public final class PdfPackage {
         } catch (IOException e) { throw new ActionException("PDF.TEXT_FAILED", e.getMessage()); }
     }
 
-    @Action(id = "page_count", name = "Get page count", category = "Document", idempotent = true, capabilities = "filesystem", description = "Return the number of pages.")
+    @Action(id = "page_count", name = "Get page count", category = "Document", idempotent = true, capabilities = "filesystem", description = "Return the number of pages.",
+            panel = "path, [The file has a password: password]")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pages.")
     public Map<String, Object> pageCount(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
@@ -166,7 +169,8 @@ public final class PdfPackage {
     }
 
     @Action(id = "merge", name = "Merge PDFs", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Combine several PDFs (a list, or every PDF in a folder), or chosen pages of each, in order, into one file; protected sources can be opened with passwords.")
+            description = "Combine several PDFs (a list, or every PDF in a folder), or chosen pages of each, in order, into one file; protected sources can be opened with passwords.",
+            panel = "(Files to merge: Listed files = files / Every PDF in a folder = folder, pattern, sort_by), target, overwrite | pages, passwords")
     @Output(name = "page_count", type = OoaType.NUMBER, description = "Pages in the merged file.")
     @Output(name = "files", type = OoaType.LIST, description = "The PDFs that were merged, in order.")
     public Map<String, Object> merge(ActionContext ctx,
@@ -205,21 +209,31 @@ public final class PdfPackage {
 
     public Map<String, Object> split(ActionContext ctx, String path, String folder, int n) { return split(ctx, path, folder, n, "pages_per_file", null, null, true, null); }
 
+    public Map<String, Object> split(ActionContext ctx, String path, String folder, int n, String mode, String pages, String prefix, boolean overwrite, Object password) {
+        return split(ctx, path, folder, n, mode, pages, prefix, overwrite, password, 1);
+    }
+
     @Action(id = "split", name = "Split PDF", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Split a PDF into files of N pages each, into one file per page range, or into one file holding chosen pages.")
+            description = "Split a PDF into files of N pages each, into one file per page range, into one file holding chosen pages, at blank separator pages, or at its bookmarks.",
+            panel = "path, [The file has a password: password], mode, pages_per_file, pages, bookmark_level, target_folder, file_prefix, overwrite")
     @Output(name = "files", type = OoaType.LIST, description = "Created files.")
     public Map<String, Object> split(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target_folder", type = OoaType.FILE, description = "Folder for the parts.") String folder,
             @Input(name = "pages_per_file", type = OoaType.NUMBER, required = false, defaultValue = "1", description = "Pages in each part, for mode pages_per_file.") int n,
-            @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"pages_per_file\"", enumValues = {"pages_per_file", "ranges", "selected_pages"},
-                    description = "pages_per_file cuts every N pages; ranges makes one file per comma-separated range in pages; selected_pages puts all pages listed in pages into one file.") String mode,
+            @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"pages_per_file\"", enumValues = {"pages_per_file", "ranges", "selected_pages", "blank_page", "bookmarks"},
+                    description = "pages_per_file cuts every N pages; ranges makes one file per comma-separated range in pages; selected_pages puts all pages listed in pages into one file; "
+                            + "blank_page starts a new file after each blank page (blank pages are left out); bookmarks starts a new file at each bookmark down to bookmark_level.") String mode,
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1-3,4,5-9", description = "Page ranges for modes ranges and selected_pages.") String pages,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each part's file name, followed by _part1, _part2 and so on; the source file name when empty.") String prefix,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace parts that already exist; false stops with PDF.EXISTS.") boolean overwrite,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "bookmark_level", type = OoaType.NUMBER, required = false, defaultValue = "1",
+                    description = "For mode bookmarks: the deepest bookmark level that starts a new file (1 = top-level bookmarks only, 2 = also their sub-bookmarks).") int bookmarkLevel) {
         List<Object> created = new ArrayList<>();
         String m = mode == null ? "pages_per_file" : mode.toLowerCase(Locale.ROOT);
+        if ("bookmarks".equals(m) && bookmarkLevel < 1)
+            throw new ActionException("PDF.BAD_BOOKMARK_LEVEL", "bookmark_level must be 1 or more, not " + bookmarkLevel, "Use 1 for top-level bookmarks, 2 to include their sub-bookmarks.");
         try (PDDocument d = load(ctx, path, password)) {
             String base = prefix != null && !prefix.isBlank() ? prefix : Path.of(path).getFileName().toString().replaceFirst("(?i)\\.pdf$", "");
             List<List<Integer>> groups = new ArrayList<>();
@@ -240,7 +254,31 @@ public final class PdfPackage {
                     if (pages == null || pages.isBlank()) throw new ActionException("PDF.BAD_PAGES", "Mode selected_pages needs pages, e.g. 1,3,5-7", "Set pages.");
                     groups.add(pages(pages, d.getNumberOfPages()));
                 }
-                default -> throw new ActionException("PDF.BAD_MODE", "Unknown split mode '" + mode + "'", "Use pages_per_file, ranges or selected_pages.");
+                case "blank_page" -> {
+                    List<Integer> g = new ArrayList<>();
+                    for (int pg = 1; pg <= d.getNumberOfPages(); pg++) {
+                        ctx.checkCancelled();
+                        if (isBlankPage(d, pg)) { if (!g.isEmpty()) groups.add(g); g = new ArrayList<>(); }
+                        else g.add(pg);
+                    }
+                    if (!g.isEmpty()) groups.add(g);
+                    if (groups.isEmpty()) throw new ActionException("PDF.NO_PAGES", "Every page of the PDF is blank", "Check the file, or use another split mode.");
+                }
+                case "bookmarks" -> {
+                    TreeSet<Integer> starts = new TreeSet<>();
+                    bookmarkStarts(d, d.getDocumentCatalog().getDocumentOutline(), 1, bookmarkLevel, starts);
+                    if (starts.isEmpty())
+                        throw new ActionException("PDF.NO_BOOKMARKS", "The PDF has no bookmarks pointing to pages", "Use another split mode, or add bookmarks to the PDF.");
+                    starts.add(1);
+                    List<Integer> cuts = new ArrayList<>(starts);
+                    for (int i = 0; i < cuts.size(); i++) {
+                        int end = i + 1 < cuts.size() ? cuts.get(i + 1) - 1 : d.getNumberOfPages();
+                        List<Integer> g = new ArrayList<>();
+                        for (int pg = cuts.get(i); pg <= end; pg++) g.add(pg);
+                        if (!g.isEmpty()) groups.add(g);
+                    }
+                }
+                default -> throw new ActionException("PDF.BAD_MODE", "Unknown split mode '" + mode + "'", "Use pages_per_file, ranges, selected_pages, blank_page or bookmarks.");
             }
             for (int i = 0; i < groups.size(); i++) {
                 ctx.checkCancelled();
@@ -255,7 +293,33 @@ public final class PdfPackage {
         return Map.of("files", created);
     }
 
-    @Action(id = "read_form", name = "Read form fields", category = "Forms", idempotent = true, capabilities = "filesystem", description = "Read the names and values of all form fields.")
+    /** A page is blank when it has no text and, drawn at low resolution, almost no dark pixels (allows scanner specks). */
+    static boolean isBlankPage(PDDocument d, int page) throws IOException {
+        PDFTextStripper s = new PDFTextStripper();
+        s.setStartPage(page); s.setEndPage(page);
+        if (!s.getText(d).isBlank()) return false;
+        java.awt.image.BufferedImage img = new PDFRenderer(d).renderImageWithDPI(page - 1, 36, org.apache.pdfbox.rendering.ImageType.GRAY);
+        long dark = 0, total = (long) img.getWidth() * img.getHeight();
+        var raster = img.getRaster();
+        for (int y = 0; y < img.getHeight(); y++)
+            for (int x = 0; x < img.getWidth(); x++)
+                if (raster.getSample(x, y, 0) < 200) dark++;
+        return total == 0 || dark * 1000 <= total * 2;
+    }
+
+    /** Adds the 1-based start page of every bookmark down to maxLevel (walking the outline tree). */
+    private static void bookmarkStarts(PDDocument d, org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode node,
+                                       int level, int maxLevel, Set<Integer> starts) throws IOException {
+        if (node == null || level > maxLevel) return;
+        for (var item : node.children()) {
+            PDPage p = item.findDestinationPage(d);
+            if (p != null) { int i = d.getPages().indexOf(p); if (i >= 0) starts.add(i + 1); }
+            bookmarkStarts(d, item, level + 1, maxLevel, starts);
+        }
+    }
+
+    @Action(id = "read_form", name = "Read form fields", category = "Forms", idempotent = true, capabilities = "filesystem", description = "Read the names and values of all form fields.",
+            panel = "path, [The form has a password: password]")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
     public Map<String, Object> readForm(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF form.") String path,
@@ -273,7 +337,8 @@ public final class PdfPackage {
     }
 
     @Action(id = "fill_form", name = "Fill form fields", category = "Forms", capabilities = "filesystem",
-            description = "Fill form fields by name and save a new PDF; optionally flatten so values can no longer be edited.")
+            description = "Fill form fields by name and save a new PDF; optionally flatten so values can no longer be edited.",
+            panel = "path, [The form has a password: password], values, target, flatten")
     @Output(name = "filled", type = OoaType.NUMBER, description = "Number of fields filled.")
     public Map<String, Object> fillForm(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF form.") String path,
@@ -305,7 +370,8 @@ public final class PdfPackage {
     }
 
     @Action(id = "encrypt", name = "Encrypt PDF", category = "Security", capabilities = "filesystem",
-            description = "Protect a PDF with an open password and an owner password, choosing the AES key length and what readers may do (print, copy, edit, annotate, fill forms, assemble).")
+            description = "Protect a PDF with an open password and an owner password, choosing the AES key length and what readers may do (print, copy, edit, annotate, fill forms, assemble).",
+            panel = "path, user_password, owner_password, allow_printing, allow_modify, allow_copy, allow_fill_forms, allow_assembly, allow_annotations, allow_accessibility, key_length, target, overwrite")
     public Map<String, Object> encrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted PDF to create.") String target,
@@ -343,7 +409,8 @@ public final class PdfPackage {
 
     public Map<String, Object> decrypt(ActionContext ctx, String path, SecureString password, String target) { return decrypt(ctx, path, password, target, true); }
 
-    @Action(id = "decrypt", name = "Decrypt PDF", category = "Security", capabilities = "filesystem", description = "Remove password protection (needs the open or owner password).")
+    @Action(id = "decrypt", name = "Decrypt PDF", category = "Security", capabilities = "filesystem", description = "Remove password protection (needs the open or owner password).",
+            panel = "path, password, target, overwrite")
     public Map<String, Object> decrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Protected PDF.") String path,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password from the vault.") SecureString password,
@@ -383,7 +450,8 @@ public final class PdfPackage {
     public Map<String, Object> toImages(ActionContext ctx, String path, String folder, int dpi) { return toImages(ctx, path, folder, dpi, "png", "color", null, null, null); }
 
     @Action(id = "to_images", name = "Convert to images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Save each page, or chosen pages, as an image (PNG, JPEG, BMP, GIF or TIFF) in colour, grey or black and white, for OCR or previews.")
+            description = "Save each page, or chosen pages, as an image (PNG, JPEG, BMP, GIF or TIFF) in colour, grey or black and white, for OCR or previews.",
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, dpi, color | file_prefix")
     @Output(name = "files", type = OoaType.LIST, description = "Created images.")
     public Map<String, Object> toImages(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
@@ -423,7 +491,8 @@ public final class PdfPackage {
     }
 
     @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.")
+            description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.",
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color | min_size")
     @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
     public Map<String, Object> extractImages(ActionContext ctx,
@@ -481,7 +550,8 @@ public final class PdfPackage {
     public Map<String, Object> getProperties(ActionContext ctx, String path, Object password) { return getProperties(ctx, path, password, false); }
 
     @Action(id = "get_properties", name = "Get document properties", category = "Document", idempotent = true, capabilities = "filesystem",
-            description = "Return the title, author, subject, keywords, creator, producer, dates, page count, PDF version and encryption of a PDF.")
+            description = "Return the title, author, subject, keywords, creator, producer, dates, page count, PDF version and encryption of a PDF.",
+            panel = "path, [The file has a password: password] | include_custom")
     @Output(name = "properties", type = OoaType.DICTIONARY,
             description = "title, author, subject, keywords, creator, producer, created, modified, page_count, pdf_version, encrypted, and with include_custom also file_name and custom.")
     public Map<String, Object> getProperties(ActionContext ctx,

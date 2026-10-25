@@ -194,7 +194,8 @@ public final class BrowserPackage {
     }
 
     @Action(id = "open", name = "Open browser", category = "Browser", timeoutSeconds = 180, capabilities = "browser",
-            description = "Start a browser, optionally open a URL, as a named session.")
+            description = "Start a browser, optionally open a URL, as a named session.",
+            panel = "open_in, window, browser, url | download_folder, headless, keep_open, engine, session, timeout_ms")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, required = false, description = "Page to open.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium", "firefox"},
@@ -246,15 +247,28 @@ public final class BrowserPackage {
             BrowserWindows.openWindow(ctx, which, url, session, 30000);
             return Map.of();
         }
+        launchPlaywright(ctx, which, headless, downloads, session, url, null, null);
+        return Map.of();
+    }
+
+    /**
+     * Starts a browser with Playwright as the named session and opens the address. proxy (or null) routes its traffic
+     * through a proxy server; executable (or null) starts that browser program instead of the installed or downloaded one.
+     */
+    static void launchPlaywright(ActionContext ctx, String which, boolean headless, String downloads, String session, String url,
+            com.microsoft.playwright.options.Proxy proxy, Path executable) {
+        boolean installed = which.equals("edge") || which.equals("chrome");
         Map<String, String> env = new HashMap<>();
-        if (installed) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
+        if (installed || executable != null) env.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
         Playwright pw = null;
         try {
             pw = Playwright.create(new Playwright.CreateOptions().setEnv(browserEnv(env)));
             BrowserType type = which.equals("firefox") ? pw.firefox() : pw.chromium();
             BrowserType.LaunchOptions lo = new BrowserType.LaunchOptions().setHeadless(headless);
-            if (which.equals("edge")) lo.setChannel("msedge");
-            if (which.equals("chrome")) lo.setChannel("chrome");
+            if (executable != null) lo.setExecutablePath(executable);
+            else if (which.equals("edge")) lo.setChannel("msedge");
+            else if (which.equals("chrome")) lo.setChannel("chrome");
+            if (proxy != null) lo.setProxy(proxy);
             if (downloads != null) lo.setDownloadsPath(ctx.resolvePath(downloads));
             com.microsoft.playwright.Browser b = type.launch(lo);
             BrowserContext c = b.newContext(new com.microsoft.playwright.Browser.NewContextOptions().setAcceptDownloads(true));
@@ -267,10 +281,10 @@ public final class BrowserPackage {
             if (pw != null) pw.close();
             throw pw(e, "Opening the browser");
         }
-        return Map.of();
     }
 
-    @Action(id = "navigate", name = "Go to URL", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Open a URL in the current tab and wait for it to load.")
+    @Action(id = "navigate", name = "Go to URL", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Open a URL in the current tab and wait for it to load.",
+            panel = "url | session")
     public Map<String, Object> navigate(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Address to open.") String url,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
@@ -280,7 +294,8 @@ public final class BrowserPackage {
         return Map.of();
     }
 
-    @Action(id = "click", name = "Click element", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Click an element (waits until it is visible and enabled).")
+    @Action(id = "click", name = "Click element", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Click an element (waits until it is visible and enabled).",
+            panel = "window, object, selector, double_click | click_method, force, alternatives, session, timeout_ms")
     public Map<String, Object> click(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
@@ -313,7 +328,8 @@ public final class BrowserPackage {
     }
 
     @Action(id = "type_text", name = "Set text", category = "Elements", timeoutSeconds = 120, capabilities = "browser",
-            description = "Fill a text field (replacing its content); Credential values are typed without ever being logged.")
+            description = "Fill a text field (replacing its content); Credential values are typed without ever being logged.",
+            panel = "window, object, selector, text, press_enter | alternatives, session, timeout_ms")
     public Map<String, Object> typeText(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
@@ -342,7 +358,8 @@ public final class BrowserPackage {
         return Map.of();
     }
 
-    @Action(id = "select_option", name = "Select item", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Choose an option in a drop-down list by its value or visible text.")
+    @Action(id = "select_option", name = "Select item", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Choose an option in a drop-down list by its value or visible text.",
+            panel = "window, object, selector, option | alternatives, session, timeout_ms")
     public Map<String, Object> select(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
@@ -365,7 +382,8 @@ public final class BrowserPackage {
         return Map.of();
     }
 
-    @Action(id = "get_text", name = "Get text", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read the visible text of an element.")
+    @Action(id = "get_text", name = "Get text", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read the visible text of an element.",
+            panel = "window, object, selector | alternatives, session, timeout_ms, if_not_found")
     @Output(name = "text", type = OoaType.STRING, description = "Element text; empty when the element was not found and if_not_found is continue.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the element was not there in time (if_not_found = continue).")
     public Map<String, Object> getText(ActionContext ctx,
@@ -387,7 +405,8 @@ public final class BrowserPackage {
         catch (PlaywrightException e) { throw pw(e, "Reading " + what(object, sel)); }
     }
 
-    @Action(id = "get_attribute", name = "Get attribute", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read an attribute of an element, e.g. href or value.")
+    @Action(id = "get_attribute", name = "Get attribute", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Read an attribute of an element, e.g. href or value.",
+            panel = "window, object, selector, attribute | session, timeout_ms, if_not_found")
     @Output(name = "value", type = OoaType.STRING, description = "Attribute value, empty when missing.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the element was not there in time (if_not_found = continue).")
     public Map<String, Object> getAttribute(ActionContext ctx,
@@ -415,7 +434,8 @@ public final class BrowserPackage {
         } catch (PlaywrightException e) { throw pw(e, "Reading " + attr + " of " + what(object, sel)); }
     }
 
-    @Action(id = "wait_for", name = "Wait for element", category = "Elements", timeoutSeconds = 600, capabilities = "browser", description = "Wait until an element appears, becomes visible, hidden or is removed.")
+    @Action(id = "wait_for", name = "Wait for element", category = "Elements", timeoutSeconds = 600, capabilities = "browser", description = "Wait until an element appears, becomes visible, hidden or is removed.",
+            panel = "window, object, selector, state | any_of, session, timeout_ms")
     @Output(name = "which", type = OoaType.NUMBER, description = "With any_of: which element was found, 0 for the element, 1 for the first of the others.")
     public Map<String, Object> waitFor(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
@@ -506,27 +526,56 @@ public final class BrowserPackage {
         try { return countNow(ctx, session, object, sel) > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
-    @Action(id = "extract_table", name = "Extract table", category = "Data", timeoutSeconds = 120, capabilities = "browser", description = "Read an HTML table into a Data Table (first row as column names).")
+    @Action(id = "extract_table", name = "Extract table", category = "Data", timeoutSeconds = 600, capabilities = "browser", description = "Read an HTML table into a Data Table (first row as column names).",
+            panel = "window, object, selector, lazy_load | session, timeout_ms, retries, retry_wait_ms")
     @Output(name = "table", type = OoaType.TABLE, description = "Table content.")
     public Map<String, Object> extractTable(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, defaultValue = "\"table\"", description = "Selector of the table element, used when no captured object is given.") String sel,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "30000", min = 0, description = D_TIMEOUT) double timeout,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "lazy_load", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "The page adds rows as you scroll: scroll to the end and read again until no more rows appear.") boolean lazyLoad,
+            @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 1, max = 500,
+                    description = "With lazy_load: the most times to scroll and read again.") double retries,
+            @Input(name = "retry_wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0, max = 60000,
+                    description = "With lazy_load: how long to wait after each scroll for new rows, in milliseconds.") double retryWaitMs) {
+        checkLazyLoad(lazyLoad, retries, retryWaitMs);
         session = BrowserWindows.use(ctx, session, window, timeout);
         if (tab(ctx, session) != null) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> t = (Map<String, Object>) onElement(ctx, tab(ctx, session), object, object == null ? sel : null, "get_table", null, timeout, Map.of());
+            ExtensionBridge.TabSession t = tab(ctx, session);
+            Map<String, Object> tb = tabTable(ctx, t, object, sel, timeout);
+            if (lazyLoad) {
+                int before = ((List<?>) tb.get("rows")).size();
+                for (int i = 0; i < (int) retries; i++) {
+                    onTab(t, "run_js", Map.of("code", SCROLL_TO_END_JS.replace("$T", "null")), 30000);
+                    sleep(ctx, retryWaitMs);
+                    tb = tabTable(ctx, t, object, sel, timeout);
+                    int now = ((List<?>) tb.get("rows")).size();
+                    if (now <= before) break;
+                    before = now;
+                }
+            }
             List<String> cols = new ArrayList<>();
-            for (Object h : (List<?>) t.get("columns")) cols.add(String.valueOf(h));
+            for (Object h : (List<?>) tb.get("columns")) cols.add(String.valueOf(h));
             List<Object> rows = new ArrayList<>();
-            for (Object r : (List<?>) t.get("rows")) { List<Object> g = new ArrayList<>((List<?>) r); while (g.size() < cols.size()) g.add(""); rows.add(g); }
+            for (Object r : (List<?>) tb.get("rows")) { List<Object> g = new ArrayList<>((List<?>) r); while (g.size() < cols.size()) g.add(""); rows.add(g); }
             return Map.of("table", Values.table(cols, rows));
         }
         try {
             Locator l = object != null ? target(ctx, session, object, null, null, timeout) : s(ctx, session).page.locator(sel).first();
             l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
+            if (lazyLoad) {
+                int before = ((Number) l.evaluate(ROW_COUNT_JS)).intValue();
+                for (int i = 0; i < (int) retries; i++) {
+                    l.evaluate("t => { " + SCROLL_TO_END_JS.replace("$T", "t") + " }");
+                    sleep(ctx, retryWaitMs);
+                    int now = ((Number) l.evaluate(ROW_COUNT_JS)).intValue();
+                    if (now <= before) break;
+                    before = now;
+                }
+            }
             Object raw = l.evaluate("t => Array.from((t.closest('table') || t).rows).map(r => Array.from(r.cells).map(c => c.innerText.trim()))");
             List<List<Object>> grid = new ArrayList<>();
             if (raw instanceof List<?> rows) for (Object r : rows) grid.add(new ArrayList<>((List<?>) r));
@@ -538,19 +587,84 @@ public final class BrowserPackage {
         } catch (PlaywrightException e) { throw pw(e, "Reading table " + what(object, sel)); }
     }
 
+    /** Extract table without the lazy-loading options (the signature before they were added). */
+    public Map<String, Object> extractTable(ActionContext ctx, Object object, String sel, double timeout, String session, Object window) {
+        return extractTable(ctx, object, sel, timeout, session, window, false, 10, 1000);
+    }
+
+    /** The lazy-loading options are checked before the browser is touched. */
+    static void checkLazyLoad(boolean lazyLoad, double retries, double retryWaitMs) {
+        if (!lazyLoad) return;
+        if (Double.isNaN(retries) || retries < 1 || retries > 500)
+            throw new ActionException("BROWSER.BAD_INPUT", "retries must be between 1 and 500, not " + retries, "Give how many times to scroll and read again, e.g. 10.");
+        if (Double.isNaN(retryWaitMs) || retryWaitMs < 0 || retryWaitMs > 60000)
+            throw new ActionException("BROWSER.BAD_INPUT", "retry_wait_ms must be between 0 and 60000, not " + retryWaitMs, "Give the wait after each scroll in milliseconds, e.g. 1000.");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> tabTable(ActionContext ctx, ExtensionBridge.TabSession t, Object object, String sel, double timeout) {
+        return (Map<String, Object>) onElement(ctx, t, object, object == null ? sel : null, "get_table", null, timeout, Map.of());
+    }
+
+    /** Rows of the table now (the element itself, or the table around it). */
+    static final String ROW_COUNT_JS = "t => { const x = t.closest('table') || t; return x.rows ? x.rows.length : 0; }";
+
+    /**
+     * Scrolls every scrollable box around the table ($T, or nothing) to its end, then the window: pages that load rows
+     * on scroll listen on one of them.
+     */
+    static final String SCROLL_TO_END_JS = "const t0 = $T; if (t0) { t0.scrollIntoView({block: 'end'}); for (let e = t0.parentElement; e; e = e.parentElement) "
+            + "{ if (e.scrollHeight > e.clientHeight) e.scrollTop = e.scrollHeight; } } "
+            + "const se = document.scrollingElement || document.documentElement; se.scrollTop = se.scrollHeight; window.scrollTo(0, se.scrollHeight);";
+
+    /** Waits, stopping early when the run is cancelled. */
+    private static void sleep(ActionContext ctx, double ms) {
+        long end = System.currentTimeMillis() + (long) ms;
+        do {
+            ctx.checkCancelled();
+            long left = end - System.currentTimeMillis();
+            if (left <= 0) break;
+            try { Thread.sleep(Math.min(100, left)); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        } while (true);
+    }
+
     @Action(id = "run_javascript", name = "Run JavaScript", category = "Page", timeoutSeconds = 120, capabilities = "browser",
-            description = "Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).")
+            description = "Run JavaScript in the page and return its result (use a return-value expression, e.g. document.title).",
+            panel = "window, (Script: Type it here = script / Run a file = script_file) | frame, session")
     @Output(name = "result", description = "Value returned by the script.")
     public Map<String, Object> runJs(ActionContext ctx,
             @Input(name = "script", type = OoaType.STRING, required = false, example = "document.querySelectorAll('.item').length", visibleWhen = "script_file=", description = "JavaScript expression or function, typed here.") String script,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "script_file", type = OoaType.FILE, required = false, visibleWhen = "script=", description = "Or a .js file to run (UTF-8), used instead of the typed script.") String scriptFile,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "Run the script inside this iframe instead of the main page: the captured iframe element.") Object frame) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         script = scriptText(ctx, script, scriptFile);
-        if (tab(ctx, session) != null) return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), 60000)));
-        try { return Out(Values.toJsonable(s(ctx, session).page.evaluate(script))); }
+        if (tab(ctx, session) != null) {
+            if (frame != null) throw frameNotOnTab();
+            return Out(Values.toJsonable(onTab(tab(ctx, session), "run_js", Map.of("code", script), 60000)));
+        }
+        try { return Out(Values.toJsonable(frame != null ? frameOf(ctx, session, frame).evaluate(script) : s(ctx, session).page.evaluate(script))); }
         catch (PlaywrightException e) { throw pw(e, "Running JavaScript"); }
+    }
+
+    /** Run JavaScript on the main page (the signature before the frame input was added). */
+    public Map<String, Object> runJs(ActionContext ctx, String script, String session, String scriptFile, Object window) {
+        return runJs(ctx, script, session, scriptFile, window, null);
+    }
+
+    /** The content of a captured iframe element. */
+    static Frame frameOf(ActionContext ctx, String session, Object frame) {
+        ElementHandle fe = target(ctx, session, frame, null, null, 30000).elementHandle();
+        Frame f = fe == null ? null : fe.contentFrame();
+        if (f == null) throw new ActionException("BROWSER.NOT_A_FRAME", "The captured element is not an iframe", "Capture the iframe itself.");
+        return f;
+    }
+
+    private static ActionException frameNotOnTab() {
+        return new ActionException("BROWSER.NOT_SUPPORTED", "Running a script inside an iframe is not available for a tab driven through the browser connector",
+                "Open the browser with engine playwright, or run the script on the main page.");
     }
 
     /** The script to run: the typed one, or the file's content. */
@@ -582,7 +696,8 @@ public final class BrowserPackage {
     private static Map<String, Object> Out(Object v) { Map<String, Object> m = new LinkedHashMap<>(); m.put("result", v); return m; }
 
     @Action(id = "get_page_source", name = "Get page source", category = "Page", timeoutSeconds = 120, capabilities = "browser",
-            description = "Return the current HTML of the page (after scripts have run), and optionally save it to a file.")
+            description = "Return the current HTML of the page (after scripts have run), and optionally save it to a file.",
+            panel = "window, (Read from: The whole page = / One iframe = frame), [Also save it to a file: path] | session")
     @Output(name = "source", type = OoaType.STRING, description = "HTML of the page.")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file, or empty.")
     public Map<String, Object> getPageSource(ActionContext ctx,
@@ -625,7 +740,8 @@ public final class BrowserPackage {
             }""";
 
     @Action(id = "call_javascript_function", name = "Call JavaScript function", category = "Page", timeoutSeconds = 120, capabilities = "browser",
-            description = "Call a function defined by the page (e.g. app.calculateTotal) with arguments and return its result.")
+            description = "Call a function defined by the page (e.g. app.calculateTotal) with arguments and return its result.",
+            panel = "window, function, arguments, return_type | frame, session")
     @Output(name = "result", description = "Value returned by the function (awaited when it returns a promise).")
     public Map<String, Object> callJsFunction(ActionContext ctx,
             @Input(name = "function", type = OoaType.STRING, example = "app.calculateTotal", description = "Function name, reachable from window; dots for nested objects.") String function,
@@ -633,15 +749,28 @@ public final class BrowserPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "return_type", type = OoaType.STRING, required = false, defaultValue = "\"any\"", enumValues = {"any", "none", "text", "number", "boolean", "list", "dictionary"},
                     description = "What the function returns: the result is checked and converted (none ignores it).") String returnType,
-            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window) {
+            @Input(name = "window", type = OoaType.DICTIONARY, required = false, description = BrowserWindows.D_WINDOW) Object window,
+            @Input(name = "frame", type = OoaType.DICTIONARY, required = false, description = "Call the function inside this iframe instead of the main page: the captured iframe element.") Object frame) {
         session = BrowserWindows.use(ctx, session, window, 30000);
         if (function == null || !function.matches("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$"))
             throw new ActionException("BROWSER.BAD_FUNCTION", "Invalid JavaScript function name '" + function + "'", "Give a name such as calculateTotal or app.utils.calculateTotal.");
         List<Object> plain = new ArrayList<>();
         if (args != null) for (Object a : args) plain.add(jsValue(Values.toJsonable(a)));
-        if (tab(ctx, session) != null) return Out(asReturnType(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), 60000)), returnType));
-        try { return Out(asReturnType(Values.toJsonable(s(ctx, session).page.evaluate(CALL_FUNCTION_JS, List.of(function, plain))), returnType)); }
+        if (tab(ctx, session) != null) {
+            if (frame != null) throw frameNotOnTab();
+            return Out(asReturnType(Values.toJsonable(onTab(tab(ctx, session), "call_function", Map.of("name", function, "args", plain), 60000)), returnType));
+        }
+        try {
+            Object v = frame != null ? frameOf(ctx, session, frame).evaluate(CALL_FUNCTION_JS, List.of(function, plain))
+                    : s(ctx, session).page.evaluate(CALL_FUNCTION_JS, List.of(function, plain));
+            return Out(asReturnType(Values.toJsonable(v), returnType));
+        }
         catch (PlaywrightException e) { throw pw(e, "Calling " + function); }
+    }
+
+    /** Call a JavaScript function on the main page (the signature before the frame input was added). */
+    public Map<String, Object> callJsFunction(ActionContext ctx, String function, List<Object> args, String session, String returnType, Object window) {
+        return callJsFunction(ctx, function, args, session, returnType, window, null);
     }
 
     /** Playwright serialises Integer and Double (not Long or BigDecimal): whole numbers in int range become Integer, others Double. */
@@ -748,7 +877,8 @@ public final class BrowserPackage {
     }
 
     @Action(id = "download_url", name = "Download file from address", category = "Page", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
-            description = "Download a file from its address and save it, signing in with Windows (NTLM/Kerberos) or a user name and password when the server asks.")
+            description = "Download a file from its address and save it, signing in with Windows (NTLM/Kerberos) or a user name and password when the server asks.",
+            panel = "url, save_to, overwrite | [The server asks to sign in: username, password], timeout_ms")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     @Output(name = "size", type = OoaType.NUMBER, description = "Size in bytes.")
     public Map<String, Object> downloadUrl(ActionContext ctx,
@@ -787,7 +917,8 @@ public final class BrowserPackage {
 
     @Action(id = "find_broken_links", name = "Find broken links", category = "Page", timeoutSeconds = 3600, capabilities = {"browser", "network"},
             description = "Collect the links on the current page (or on a page or whole site given by its address) and check each one, reporting those that fail "
-                    + "or return an HTTP error; optionally save the list to a CSV file.")
+                    + "or return an HTTP error; optionally save the list to a CSV file.",
+            panel = "url, scope, max_pages, [Save the list to a CSV file: csv_path, append, encoding], threads | only_broken, same_site_only, max_links, timeout_ms, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: url, status (0 when unreachable), ok, error.")
     @Output(name = "broken_count", type = OoaType.NUMBER, description = "Number of links that failed.")
     @Output(name = "checked_count", type = OoaType.NUMBER, description = "Number of distinct links checked.")
@@ -856,7 +987,8 @@ public final class BrowserPackage {
     }
 
     @Action(id = "download", name = "Download file", category = "Page", timeoutSeconds = 600, capabilities = {"browser", "filesystem"},
-            description = "Click a link or button that starts a download and save the file into a folder.")
+            description = "Click a link or button that starts a download and save the file into a folder.",
+            panel = "window, object, selector, folder | session, timeout_ms")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> download(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
@@ -893,7 +1025,8 @@ public final class BrowserPackage {
         } catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
     }
 
-    @Action(id = "screenshot", name = "Take screenshot", category = "Page", timeoutSeconds = 120, capabilities = {"browser", "filesystem"}, description = "Save a PNG screenshot of the page or one element.")
+    @Action(id = "screenshot", name = "Take screenshot", category = "Page", timeoutSeconds = 120, capabilities = {"browser", "filesystem"}, description = "Save a PNG screenshot of the page or one element.",
+            panel = "window, object, selector, path, full_page | session")
     @Output(name = "path", type = OoaType.FILE, description = "Saved image.")
     public Map<String, Object> screenshot(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PNG file to create.") String path,
@@ -925,7 +1058,8 @@ public final class BrowserPackage {
         return Map.of("path", p.toString());
     }
 
-    @Action(id = "page_info", name = "Get URL and title", category = "Page", idempotent = true, capabilities = "browser", description = "Return the current page's URL and title.")
+    @Action(id = "page_info", name = "Get URL and title", category = "Page", idempotent = true, capabilities = "browser", description = "Return the current page's URL and title.",
+            panel = "session")
     @Output(name = "url", type = OoaType.STRING, description = "Current URL.")
     @Output(name = "title", type = OoaType.STRING, description = "Page title.")
     public Map<String, Object> pageInfo(ActionContext ctx,
@@ -939,7 +1073,8 @@ public final class BrowserPackage {
         return Map.of("url", p.url(), "title", p.title());
     }
 
-    @Action(id = "history", name = "Back, forward or refresh", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Go back, go forward or reload the page.")
+    @Action(id = "history", name = "Back, forward or refresh", category = "Browser", timeoutSeconds = 120, capabilities = "browser", description = "Go back, go forward or reload the page.",
+            panel = "window, action, steps, error_if_too_many | session")
     public Map<String, Object> history(ActionContext ctx,
             @Input(name = "action", type = OoaType.STRING, enumValues = {"back", "forward", "refresh"}, description = "What to do.") String action,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
@@ -966,7 +1101,8 @@ public final class BrowserPackage {
         return Map.of();
     }
 
-    @Action(id = "switch_tab", name = "Switch tab", category = "Browser", capabilities = "browser", description = "Make another tab current, by number (0 = first) or by title text; new tabs opened by links are included.")
+    @Action(id = "switch_tab", name = "Switch tab", category = "Browser", capabilities = "browser", description = "Make another tab current, by number (0 = first) or by title text; new tabs opened by links are included.",
+            panel = "(Find the tab: By position = index / By title = title_contains) | session")
     @Output(name = "title", type = OoaType.STRING, description = "Title of the tab now current.")
     public Map<String, Object> switchTab(ActionContext ctx,
             @Input(name = "index", type = OoaType.NUMBER, required = false, description = "Tab number, starting at 0; -1 for the newest.") Integer index,
@@ -998,7 +1134,8 @@ public final class BrowserPackage {
         return Map.of("title", target.title(), "count", BigDecimal.valueOf(pages.size()));
     }
 
-    @Action(id = "close", name = "Close browser", category = "Browser", description = "Close the browser session.")
+    @Action(id = "close", name = "Close browser", category = "Browser", description = "Close the browser session.",
+            panel = "what, window | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
             @Input(name = "what", type = OoaType.STRING, required = false, defaultValue = "\"session\"", enumValues = {"session", "tab", "window", "all"},
@@ -1051,7 +1188,8 @@ public final class BrowserPackage {
     @Action(id = "attach", name = "Attach to open browser", category = "Browser", timeoutSeconds = 120, capabilities = "browser",
             description = "Connect to an Edge or Chrome that is already running, through its DevTools debugging port, and use it as a named session. "
                     + "Only a browser started with a debugging port can be reached (use Start browser for automation, or start it with --remote-debugging-port); "
-                    + "a browser opened the usual way has none. Closing the session later only disconnects; the browser stays open.")
+                    + "a browser opened the usual way has none. Closing the session later only disconnects; the browser stays open.",
+            panel = "endpoint, browser | session, timeout_ms")
     @Output(name = "title", type = OoaType.STRING, description = "Title of the session's current tab.")
     @Output(name = "url", type = OoaType.STRING, description = "Address of the session's current tab.")
     @Output(name = "tab_count", type = OoaType.NUMBER, description = "Number of open tabs in the browser.")
@@ -1071,7 +1209,8 @@ public final class BrowserPackage {
             description = "Start Edge or Chrome with a debugging port and its own profile folder in the workspace, so this agent, later agents and Attach to open browser "
                     + "can all reach it. When a browser already listens on the port it is reused instead. A browser opened the usual way cannot be reached, "
                     + "because it has no debugging port; recent browsers also refuse a debugging port on the everyday profile, which is why a separate profile is used. "
-                    + "The browser keeps running after the agent ends.")
+                    + "The browser keeps running after the agent ends.",
+            panel = "browser, url, port | profile_folder, headless, attach, session, executable, timeout_ms")
     @Output(name = "title", type = OoaType.STRING, description = "Title of the current tab (when attached).")
     @Output(name = "url", type = OoaType.STRING, description = "Address of the current tab (when attached).")
     @Output(name = "tab_count", type = OoaType.NUMBER, description = "Number of open tabs (when attached).")
@@ -1131,7 +1270,8 @@ public final class BrowserPackage {
 
     @Action(id = "list_windows", name = "List windows (design time)", category = "Browser", timeoutSeconds = 60, idempotent = true, capabilities = "browser",
             description = "List the browser tabs an agent can reach (in this run's sessions and in browsers with a debugging port) and, on Windows, the titles of "
-                    + "open desktop windows. Used by Agent Studio to offer windows to choose from.")
+                    + "open desktop windows. Used by Agent Studio to offer windows to choose from.",
+            panel = "endpoints, include_desktop")
     @Output(name = "windows", type = OoaType.LIST, description = "One entry per window: source (browser or application), title, url and browser.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows listed.")
     public Map<String, Object> listWindows(ActionContext ctx,
@@ -1219,7 +1359,8 @@ public final class BrowserPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "record", name = "Record web actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "browser",
             description = "Open a browser, record your clicks, typing and selections as steps, and return them when you press Stop recording or close the browser. "
-                    + "Edge and Chrome stay open afterwards (on the agents' debugging port), so the page can be captured again. Passwords are never recorded.")
+                    + "Edge and Chrome stay open afterwards (on the agents' debugging port), so the page can be captured again. Passwords are never recorded.",
+            panel = "url, browser | timeout_minutes, tab_id")
     @Output(name = "steps", type = OoaType.LIST, description = "Recorded steps, ready to insert into an agent.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of steps.")
     public Map<String, Object> record(ActionContext ctx,
@@ -1410,7 +1551,8 @@ public final class BrowserPackage {
     @SuppressWarnings("unchecked")
     @Action(id = "element_action", name = "Capture: element action", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
             description = "Do one action on a captured element: click, type, read text, attributes or all properties, select, check, hover, drag, upload, wait and more. "
-                    + "The element is the captured object (properties you choose, each with its own match rule) or a selector.")
+                    + "The element is the captured object (properties you choose, each with its own match rule) or a selector.",
+            panel = "window, object, selector, action, value, row, column, run_in_background | typing, key_delay_ms, clear_first, click_method, modifiers, offset_x, offset_y, force, wait_after_ms, use_captured_page, alternatives, session, timeout_ms, wait_for_page_ms, if_not_found")
     @Output(name = "result", description = "Value returned by get, is, count, wait and coordinate actions.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the element was not found (if_not_found = continue).")
     public Map<String, Object> elementAction(ActionContext ctx,
@@ -1752,7 +1894,8 @@ public final class BrowserPackage {
     }
 
     @Action(id = "extract_list", name = "Extract list", category = "Data", timeoutSeconds = 120, capabilities = "browser",
-            description = "Read repeated items (product cards, search results, list entries) into a table: one row per item, one column per field found inside it.")
+            description = "Read repeated items (product cards, search results, list entries) into a table: one row per item, one column per field found inside it.",
+            panel = "window, object, selector, fields, max_items | session, timeout_ms")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per item.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> extractList(ActionContext ctx,
@@ -1930,7 +2073,8 @@ public final class BrowserPackage {
 
     @SuppressWarnings("unchecked")
     @Action(id = "pick_element", name = "Pick element (design time)", category = "Capture", timeoutSeconds = 900, capabilities = "browser",
-            description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by Agent Studio's Pick button.")
+            description = "Open a page and let a person click one element; returns a robust selector and the element's details. Used by Agent Studio's Pick button.",
+            panel = "url, browser | timeout_minutes, endpoint, tab_title, tab_url, tab_id")
     @Output(name = "selector", type = OoaType.STRING, description = "Selector for the clicked element.")
     @Output(name = "element", type = OoaType.DICTIONARY, description = "tag, text, type, name and id of the element.")
     @Output(name = "alternatives", type = OoaType.DICTIONARY, description = "Self-healing fallbacks for the element; pass them as alternatives to element actions.")
@@ -2188,7 +2332,8 @@ public final class BrowserPackage {
             "left", "top", "width", "height", "visible", "enabled", "checked", "selected", "in_frame", "frame_url", "inner_html", "outer_html");
 
     @Action(id = "test_object", name = "Test captured object (design time)", category = "Capture", timeoutSeconds = 300, capabilities = "browser",
-            description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by Agent Studio's Test button.")
+            description = "Open a page, find every element that matches a captured object, outline them for a few seconds and report how many match. Used by Agent Studio's Test button.",
+            panel = "url, object, browser | wait_seconds, show_seconds")
     @Output(name = "count", type = OoaType.NUMBER, description = "How many elements match.")
     @Output(name = "first", type = OoaType.DICTIONARY, description = "All properties of the element at the object's index, when it exists.")
     public Map<String, Object> testObject(ActionContext ctx,

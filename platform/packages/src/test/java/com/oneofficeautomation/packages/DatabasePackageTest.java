@@ -41,6 +41,41 @@ class DatabasePackageTest {
         assertEquals("x'); DROP TABLE invoices; --", rows.get(1).get(0));
     }
 
+    @SuppressWarnings("unchecked")
+    @Test void procedureOutputParametersAndFunctionValues() throws Exception {
+        // HSQLDB (test dependency) has stored procedures with OUT and INOUT parameters; H2 answers {? = call f(?)}
+        Map<String, Object> flow = (Map<String, Object>) JsonLite.parse("""
+            {"kind":"TaskBot","id":"proc","name":"proc",
+             "variables":[{"name":"o","type":"Dictionary","direction":"output"},{"name":"f","type":"Dictionary","direction":"output"}],
+             "steps":[
+               {"id":"c","action":"ooa.database/connect","args":{"jdbc_url":"jdbc:hsqldb:mem:proc","user":"SA"}},
+               {"id":"p","action":"ooa.database/execute","args":{"sql":"CREATE PROCEDURE totals(IN qty INT, IN price DECIMAL(10,2), OUT total DECIMAL(12,2), INOUT counter INT) BEGIN ATOMIC SET total = qty * price; SET counter = counter + 1; END"}},
+               {"id":"call","action":"ooa.database/call_procedure","args":{"procedure":"totals","parameters":[3, 2.5,
+                   {"direction":"out","type":"decimal","name":"total"}, {"direction":"inout","type":"integer","value":41,"name":"counter"}]},
+                "out":{"out_parameters":"o"}},
+               {"id":"d","action":"ooa.database/disconnect","args":{}},
+               {"id":"c2","action":"ooa.database/connect","args":{"jdbc_url":"jdbc:h2:mem:fn"}},
+               {"id":"call2","action":"ooa.database/call_procedure","args":{"procedure":"ABS","parameters":[-42],"returns_value":true,"return_type":"integer"},
+                "out":{"out_parameters":"f"}},
+               {"id":"d2","action":"ooa.database/disconnect","args":{}}
+             ]}""");
+        RunResult r = Runner.builder(FirstPartyPackages.registry()).workDir(Files.createTempDirectory("ooa-proc")).build().run(flow, Map.of());
+        assertTrue(r.ok(), String.valueOf(r.error()));
+        Map<String, Object> o = (Map<String, Object>) r.outputs().get("o");
+        assertEquals(0, new BigDecimal("7.50").compareTo(new BigDecimal(String.valueOf(o.get("total")))), String.valueOf(o));
+        assertEquals(0, BigDecimal.valueOf(42).compareTo(new BigDecimal(String.valueOf(o.get("counter")))), String.valueOf(o));
+        assertEquals(0, BigDecimal.valueOf(42).compareTo(new BigDecimal(String.valueOf(((Map<String, Object>) r.outputs().get("f")).get("return")))));
+
+        Map<String, Object> bad = (Map<String, Object>) JsonLite.parse("""
+            {"kind":"TaskBot","id":"bad","name":"bad","variables":[],
+             "steps":[
+               {"id":"c","action":"ooa.database/connect","args":{"jdbc_url":"jdbc:hsqldb:mem:proc2","user":"SA"}},
+               {"id":"call","action":"ooa.database/call_procedure","args":{"procedure":"p","parameters":[{"direction":"out","type":"money"}]}}
+             ]}""");
+        RunResult b = Runner.builder(FirstPartyPackages.registry()).workDir(Files.createTempDirectory("ooa-proc")).build().run(bad, Map.of());
+        assertEquals("DB.BAD_PARAMETER", b.error().get("code"));
+    }
+
     @Test void connectBuildsTheUrlFromTheDatabaseType() {
         assertEquals("jdbc:sqlserver://db01:1433;databaseName=erp", DatabasePackage.jdbcUrl("sqlserver", "db01", 1433, "erp", null));
         assertEquals("jdbc:sqlserver://db01\\SQLEXPRESS", DatabasePackage.jdbcUrl("sqlserver", "db01\\SQLEXPRESS", null, null, null));

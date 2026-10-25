@@ -31,7 +31,8 @@ public final class DllPackage {
     }
 
     @Action(id = "call", name = "Call DLL function", category = "DLL", timeoutSeconds = 120, capabilities = "desktop",
-            description = "Call an exported function, e.g. user32.dll MessageBeep, with typed arguments; returns its value.")
+            description = "Call an exported function, e.g. user32.dll MessageBeep, with typed arguments; returns its value.",
+            panel = "(Library: By name or path = library / An open session = session), function, arguments, return_type | calling_convention")
     @Output(name = "result", description = "Return value (number or text; empty for void).")
     public Map<String, Object> call(ActionContext ctx,
             @Input(name = "library", type = OoaType.STRING, required = false, example = "user32", description = "Library name or full path of the DLL (or use session).") String library,
@@ -90,7 +91,8 @@ public final class DllPackage {
     }
 
     @Action(id = "open", name = "Open DLL", category = "DLL", capabilities = "desktop",
-            description = "Load a trusted native library once as a named session, so several Call DLL function steps can use it.")
+            description = "Load a trusted native library once as a named session, so several Call DLL function steps can use it.",
+            panel = "library | session")
     @Output(name = "path", type = OoaType.STRING, description = "Name or path the library was loaded from.")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "library", type = OoaType.STRING, example = "C:/Tools/calc.dll", description = "Library name or full path of the DLL.") String library,
@@ -102,7 +104,8 @@ public final class DllPackage {
         return Map.of("path", lib.getFile() == null ? lib.getName() : lib.getFile().toString());
     }
 
-    @Action(id = "close", name = "Close DLL", category = "DLL", capabilities = "desktop", description = "Unload a library opened with Open DLL.")
+    @Action(id = "close", name = "Close DLL", category = "DLL", capabilities = "desktop", description = "Unload a library opened with Open DLL.",
+            panel = "session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"dll\"", description = "Session name.") String session) {
         if (ctx.sessions().remove(session) instanceof DllSession d) d.close();

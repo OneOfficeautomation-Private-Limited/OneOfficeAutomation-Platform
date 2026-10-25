@@ -73,7 +73,8 @@ public final class WorkloadPackage {
         return it;
     }
 
-    @Action(id = "add_item", name = "Add work item", category = "Queue", description = "Add one item (a Dictionary of fields) to a queue.")
+    @Action(id = "add_item", name = "Add work item", category = "Queue", description = "Add one item (a Dictionary of fields) to a queue.",
+            panel = "queue, data")
     @Output(name = "item_id", type = OoaType.STRING, description = "New item id.")
     public Map<String, Object> addItem(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, example = "invoices", description = "Queue name.") String queue,
@@ -81,7 +82,8 @@ public final class WorkloadPackage {
         return Map.of("item_id", update(ctx, queue, true, items -> { Map<String, Object> it = newItem(data); items.add(it); return it.get("id"); }));
     }
 
-    @Action(id = "add_items", name = "Add work items from table", category = "Queue", description = "Add one item per table row (columns become fields).")
+    @Action(id = "add_items", name = "Add work items from table", category = "Queue", description = "Add one item per table row (columns become fields).",
+            panel = "queue, table")
     @Output(name = "count", type = OoaType.NUMBER, description = "Items added.")
     public Map<String, Object> addItems(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
@@ -101,7 +103,8 @@ public final class WorkloadPackage {
     }
 
     @Action(id = "get_next", name = "Get next item", category = "Queue",
-            description = "Take the oldest available item (new, or deferred and due) and mark it in progress; found is false when the queue is empty.")
+            description = "Take the oldest available item (new, or deferred and due) and mark it in progress; found is false when the queue is empty.",
+            panel = "queue")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when an item was taken.")
     @Output(name = "item_id", type = OoaType.STRING, description = "Item id.")
     @Output(name = "data", type = OoaType.DICTIONARY, description = "Item fields.")
@@ -120,7 +123,8 @@ public final class WorkloadPackage {
         });
     }
 
-    @Action(id = "complete", name = "Mark completed", category = "Item", description = "Mark an item completed, optionally storing result fields.")
+    @Action(id = "complete", name = "Mark completed", category = "Item", description = "Mark an item completed, optionally storing result fields.",
+            panel = "queue, item_id, result")
     public Map<String, Object> complete(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
             @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
@@ -130,7 +134,8 @@ public final class WorkloadPackage {
     }
 
     @Action(id = "fail", name = "Mark failed", category = "Item",
-            description = "Record a failure; the item goes back to the queue for another attempt until max_attempts is reached.")
+            description = "Record a failure; the item goes back to the queue for another attempt until max_attempts is reached.",
+            panel = "queue, item_id, error | max_attempts")
     @Output(name = "will_retry", type = OoaType.BOOLEAN, description = "True when the item was put back for another attempt.")
     public Map<String, Object> fail(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
@@ -146,7 +151,8 @@ public final class WorkloadPackage {
         return Map.of("will_retry", retry);
     }
 
-    @Action(id = "defer", name = "Defer item", category = "Item", description = "Put an item aside until a date and time (UTC), e.g. when a supplier system is closed.")
+    @Action(id = "defer", name = "Defer item", category = "Item", description = "Put an item aside until a date and time (UTC), e.g. when a supplier system is closed.",
+            panel = "queue, item_id, until")
     public Map<String, Object> defer(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
             @Input(name = "item_id", type = OoaType.STRING, description = "Item id.") String id,
@@ -159,7 +165,8 @@ public final class WorkloadPackage {
     static final String HOLD_FOREVER = "9999-12-31T23:59:59";
 
     @Action(id = "update_item", name = "Update work item", category = "Item",
-            description = "Change the fields of a work item and optionally send it back for processing or put it on hold (until a time or indefinitely).")
+            description = "Change the fields of a work item and optionally send it back for processing or put it on hold (until a time or indefinitely).",
+            panel = "queue, item_id, data, status, on_hold_until | replace_data, result")
     @Output(name = "status", type = OoaType.STRING, description = "The item's status after the change.")
     public Map<String, Object> updateItem(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
@@ -191,7 +198,8 @@ public final class WorkloadPackage {
         return Map.of("status", after);
     }
 
-    @Action(id = "get_item", name = "Get work item", category = "Item", idempotent = true, description = "Read one work item's fields, status, attempts and result.")
+    @Action(id = "get_item", name = "Get work item", category = "Item", idempotent = true, description = "Read one work item's fields, status, attempts and result.",
+            panel = "queue, item_id")
     @Output(name = "item", type = OoaType.DICTIONARY, description = "id, status, attempts, data, result, error, created, updated, defer_until.")
     public Map<String, Object> getItem(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,
@@ -199,7 +207,8 @@ public final class WorkloadPackage {
         return Map.of("item", update(ctx, queue, false, items -> new LinkedHashMap<>(find(items, id))));
     }
 
-    @Action(id = "counts", name = "Get queue counts", category = "Queue", idempotent = true, description = "Count items by status.")
+    @Action(id = "counts", name = "Get queue counts", category = "Queue", idempotent = true, description = "Count items by status.",
+            panel = "queue")
     @Output(name = "counts", type = OoaType.DICTIONARY, description = "new, in_progress, completed, failed, deferred, total.")
     public Map<String, Object> counts(ActionContext ctx, @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue) {
         return Map.of("counts", update(ctx, queue, false, items -> {
@@ -210,7 +219,8 @@ public final class WorkloadPackage {
         }));
     }
 
-    @Action(id = "list_items", name = "List items", category = "Queue", idempotent = true, description = "List items, optionally only one status, as a table.")
+    @Action(id = "list_items", name = "List items", category = "Queue", idempotent = true, description = "List items, optionally only one status, as a table.",
+            panel = "queue, status")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, status, attempts, updated, error, data.")
     public Map<String, Object> listItems(ActionContext ctx,
             @Input(name = "queue", type = OoaType.STRING, description = "Queue name.") String queue,

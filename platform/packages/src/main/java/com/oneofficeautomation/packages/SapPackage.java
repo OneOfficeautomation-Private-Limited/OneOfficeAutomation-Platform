@@ -83,7 +83,8 @@ public final class SapPackage {
     }
 
     @Action(id = "log_on", name = "Open system and log on", category = "Session", timeoutSeconds = 180, capabilities = "desktop",
-            description = "Open a system from SAP Logon by its description and log on with client, user, password and language.")
+            description = "Open a system from SAP Logon by its description and log on with client, user, password and language.",
+            panel = "system, client, user, password, language | system_type, multiple_logon, [Start SAP Logon first: logon_path], start_timeout_seconds")
     @Output(name = "connection", type = OoaType.NUMBER, description = "Connection number for later actions.")
     public Map<String, Object> logOn(ActionContext ctx,
             @Input(name = "system", type = OoaType.STRING, example = "PRD - Live production", description = "System description exactly as in SAP Logon.") String system,
@@ -159,7 +160,8 @@ public final class SapPackage {
     }
 
     @Action(id = "open_connection", name = "Open system (single sign-on)", category = "Session", timeoutSeconds = 180, capabilities = "desktop",
-            description = "Open a system from SAP Logon that signs on by itself (SSO or SNC), with no user or password.")
+            description = "Open a system from SAP Logon that signs on by itself (SSO or SNC), with no user or password.",
+            panel = "system | system_type, [Start SAP Logon first: logon_path], start_timeout_seconds")
     @Output(name = "connection", type = OoaType.NUMBER, description = "Connection number for later actions.")
     public Map<String, Object> openConnection(ActionContext ctx,
             @Input(name = "system", type = OoaType.STRING, example = "PRD - Live production", description = "System description exactly as in SAP Logon, or a connection string.") String system,
@@ -185,7 +187,8 @@ public final class SapPackage {
     /** Fails the action when the status bar shows an error or abort message (used by the fail_on_error options). */
     private static final String STATUS_CHECK = "\r\nIf a(a.Count - 1) = \"1\" Then\r\n  If sess.findById(\"wnd[0]/sbar\").MessageType = \"E\" Or sess.findById(\"wnd[0]/sbar\").MessageType = \"A\" Then Fail \"SAP reported: \" & sess.findById(\"wnd[0]/sbar\").Text\r\nEnd If";
 
-    @Action(id = "run_transaction", name = "Run transaction", category = "Session", timeoutSeconds = 120, capabilities = "desktop", description = "Start a transaction code, e.g. VA01 or /nME23N.")
+    @Action(id = "run_transaction", name = "Run transaction", category = "Session", timeoutSeconds = 120, capabilities = "desktop", description = "Start a transaction code, e.g. VA01 or /nME23N.",
+            panel = "tcode | new_window, fail_on_error_message, connection, session")
     public Map<String, Object> runTransaction(ActionContext ctx,
             @Input(name = "tcode", type = OoaType.STRING, example = "VA01", description = "Transaction code.") String tcode,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
@@ -203,7 +206,8 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before the window and error options. */
     public Map<String, Object> runTransaction(ActionContext ctx, String tcode, int c, int s) { return runTransaction(ctx, tcode, c, s, false, false); }
 
-    @Action(id = "set_field", name = "Set field", category = "Fields", capabilities = "desktop", description = "Type a value into a field (Credentials are passed without logging).")
+    @Action(id = "set_field", name = "Set field", category = "Fields", capabilities = "desktop", description = "Type a value into a field (Credentials are passed without logging).",
+            panel = "id, value, append | press_enter, connection, session")
     public Map<String, Object> setField(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "value", description = "Value, or a Credential variable.") Object value,
@@ -222,7 +226,8 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before append and press_enter. */
     public Map<String, Object> setField(ActionContext ctx, String elementId, Object value, int c, int s) { return setField(ctx, elementId, value, c, s, false, false); }
 
-    @Action(id = "get_field", name = "Get field", category = "Fields", idempotent = true, capabilities = "desktop", description = "Read the text (or another property) of a field, label or the status bar.")
+    @Action(id = "get_field", name = "Get field", category = "Fields", idempotent = true, capabilities = "desktop", description = "Read the text (or another property) of a field, label or the status bar.",
+            panel = "id | property, connection, session")
     @Output(name = "text", type = OoaType.STRING, description = "Field text, or the value of the chosen property.")
     public Map<String, Object> getField(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -243,7 +248,8 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before the property option. */
     public Map<String, Object> getField(ActionContext ctx, String elementId, int c, int s) { return getField(ctx, elementId, c, s, "text"); }
 
-    @Action(id = "press", name = "Press button", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Press a toolbar or screen button by its id.")
+    @Action(id = "press", name = "Press button", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Press a toolbar or screen button by its id.",
+            panel = "id | fail_on_error_message, connection, session")
     public Map<String, Object> press(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, example = "wnd[0]/tbar[1]/btn[8]", description = D_ID) String elementId,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
@@ -257,7 +263,8 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before fail_on_error_message. */
     public Map<String, Object> press(ActionContext ctx, String elementId, int c, int s) { return press(ctx, elementId, c, s, false); }
 
-    @Action(id = "send_key", name = "Send key", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Send a virtual key: 0 Enter, 3 Back (F3), 8 Execute (F8), 11 Save (Ctrl+S), 12 Cancel (F12).")
+    @Action(id = "send_key", name = "Send key", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Send a virtual key: 0 Enter, 3 Back (F3), 8 Execute (F8), 11 Save (Ctrl+S), 12 Cancel (F12).",
+            panel = "vkey | window, fail_on_error_message, connection, session")
     public Map<String, Object> sendKey(ActionContext ctx,
             @Input(name = "vkey", type = OoaType.NUMBER, defaultValue = "0", required = false, description = "SAP virtual key number.") int vkey,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
@@ -275,7 +282,8 @@ public final class SapPackage {
     public Map<String, Object> sendKey(ActionContext ctx, int vkey, int c, int s) { return sendKey(ctx, vkey, c, s, 0, false); }
 
     @Action(id = "get_status_bar", name = "Get status bar", category = "Fields", idempotent = true, capabilities = "desktop",
-            description = "Read the status bar message and type (S success, W warning, E error, I info), with its message class and number.")
+            description = "Read the status bar message and type (S success, W warning, E error, I info), with its message class and number.",
+            panel = "window | connection, session")
     @Output(name = "text", type = OoaType.STRING, description = "Message text.")
     @Output(name = "type", type = OoaType.STRING, description = "S, W, E, I, A or empty.")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message class (work area), e.g. V1.")
@@ -302,7 +310,8 @@ public final class SapPackage {
     public Map<String, Object> statusBar(ActionContext ctx, int c, int s) { return statusBar(ctx, c, s, 0); }
 
     @Action(id = "read_grid", name = "Read grid", category = "Tables", idempotent = true, timeoutSeconds = 300, capabilities = "desktop",
-            description = "Read an ALV grid (GuiGridView) into a table, using the column titles as names.")
+            description = "Read an ALV grid (GuiGridView) into a table, using the column titles as names.",
+            panel = "id | max_rows, technical_names, connection, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Grid content.")
     public Map<String, Object> readGrid(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, example = "wnd[0]/usr/cntlGRID1/shellcont/shell", description = D_ID) String elementId,
@@ -333,7 +342,8 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before technical_names. */
     public Map<String, Object> readGrid(ActionContext ctx, String elementId, int max, int c, int s) { return readGrid(ctx, elementId, max, c, s, false); }
 
-    @Action(id = "close", name = "Close connection", category = "Session", capabilities = "desktop", description = "Log off and close an SAP connection.")
+    @Action(id = "close", name = "Close connection", category = "Session", capabilities = "desktop", description = "Log off and close an SAP connection.",
+            panel = "connection")
     public Map<String, Object> close(ActionContext ctx, @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c) {
         run(ctx, "Set conn = app.Children(CInt(a(0))): Check \"No SAP connection\"\r\nconn.CloseConnection\r\nWScript.StdOut.WriteLine \"{}\"", List.of(String.valueOf(c)), null);
         return Map.of();
@@ -395,7 +405,8 @@ public final class SapPackage {
             WScript.StdOut.WriteLine "{}"
             """;
 
-    @Action(id = "click", name = "Click", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Click an element: buttons are pressed, tabs and radio buttons selected, check boxes toggled, other elements focused.")
+    @Action(id = "click", name = "Click", category = "Fields", timeoutSeconds = 120, capabilities = "desktop", description = "Click an element: buttons are pressed, tabs and radio buttons selected, check boxes toggled, other elements focused.",
+            panel = "id | connection, session")
     public Map<String, Object> click(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
@@ -423,7 +434,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "double_click", name = "Double-click", category = "Fields", timeoutSeconds = 120, capabilities = "desktop",
-            description = "Double-click an element, a grid cell or a tree node (fields get F2, which SAP treats as a double-click).")
+            description = "Double-click an element, a grid cell or a tree node (fields get F2, which SAP treats as a double-click).",
+            panel = "id | item, column, connection, session")
     public Map<String, Object> doubleClick(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "item", type = OoaType.STRING, required = false, description = "Grid row (0-based) or tree node key; empty for the current cell or a plain element.") String item,
@@ -455,7 +467,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "right_click", name = "Right-click (context menu)", category = "Fields", timeoutSeconds = 120, capabilities = "desktop",
-            description = "Open the context menu of an element, grid cell or tree node and optionally choose an entry.")
+            description = "Open the context menu of an element, grid cell or tree node and optionally choose an entry.",
+            panel = "id, menu_item | item, column, connection, session")
     public Map<String, Object> rightClick(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "item", type = OoaType.STRING, required = false, description = "Grid row (0-based) or tree node key.") String item,
@@ -493,7 +506,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "click_menu", name = "Choose menu entry", category = "Menus", timeoutSeconds = 120, capabilities = "desktop",
-            description = "Choose an entry from the window's menu bar by its path of texts, e.g. System > User Profile > Own Data, by positions, or by its element id.")
+            description = "Choose an entry from the window's menu bar by its path of texts, e.g. System > User Profile > Own Data, by positions, or by its element id.",
+            panel = "match_by, menu_path | window, connection, session")
     public Map<String, Object> clickMenu(ActionContext ctx,
             @Input(name = "menu_path", type = OoaType.STRING, example = "System > User Profile > Own Data", description = "Menu texts separated by > (or /), or a menu element id such as wnd[0]/mbar/menu[3]/menu[2].") String path,
             @Input(name = "window", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Window number whose menu bar to use (0 = main window).") int window,
@@ -516,7 +530,8 @@ public final class SapPackage {
     static final String CHECK_BOX = "Attach a(0), a(1)\n" + find("Check box")
             + "If a(3) = \"toggle\" Then e.Selected = Not e.Selected Else e.Selected = (a(3) = \"1\")\nCheck \"Check box \" & a(2)\nWScript.StdOut.WriteLine \"{}\"\n";
 
-    @Action(id = "check_box", name = "Set check box", category = "Fields", capabilities = "desktop", description = "Tick, clear or toggle a check box.")
+    @Action(id = "check_box", name = "Set check box", category = "Fields", capabilities = "desktop", description = "Tick, clear or toggle a check box.",
+            panel = "id, checked, toggle | connection, session")
     public Map<String, Object> checkBox(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "checked", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "True to tick, false to clear.") boolean checked,
@@ -537,7 +552,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "get_status", name = "Get check box or radio state", category = "Fields", idempotent = true, capabilities = "desktop",
-            description = "Read whether a check box is ticked or a radio button is selected.")
+            description = "Read whether a check box is ticked or a radio button is selected.",
+            panel = "id | connection, session")
     @Output(name = "selected", type = OoaType.BOOLEAN, description = "True when ticked or selected.")
     public Map<String, Object> getStatus(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -548,7 +564,8 @@ public final class SapPackage {
 
     static final String SELECT_RADIO = "Attach a(0), a(1)\n" + find("Radio button") + "e.Select: Check \"Radio button \" & a(2)\nWScript.StdOut.WriteLine \"{}\"\n";
 
-    @Action(id = "select_radio", name = "Select radio button", category = "Fields", capabilities = "desktop", description = "Select a radio button option.")
+    @Action(id = "select_radio", name = "Select radio button", category = "Fields", capabilities = "desktop", description = "Select a radio button option.",
+            panel = "id | connection, session")
     public Map<String, Object> selectRadio(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
@@ -595,7 +612,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "select_item", name = "Select list item", category = "Fields", capabilities = "desktop",
-            description = "Choose an entry of a drop-down list, a tab of a tab strip, or a node of a tree, by key, displayed text or position.")
+            description = "Choose an entry of a drop-down list, a tab of a tab strip, or a node of a tree, by key, displayed text or position.",
+            panel = "id, match_by, value | connection, session")
     public Map<String, Object> selectItem(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "value", type = OoaType.STRING, description = "Key, displayed text or 0-based position of the entry.") String value,
@@ -615,7 +633,8 @@ public final class SapPackage {
             WScript.StdOut.WriteLine "{}"
             """;
 
-    @Action(id = "expand_node", name = "Expand tree node", category = "Trees", timeoutSeconds = 120, capabilities = "desktop", description = "Expand a node of a tree control by its node key, text or position, optionally selecting it.")
+    @Action(id = "expand_node", name = "Expand tree node", category = "Trees", timeoutSeconds = 120, capabilities = "desktop", description = "Expand a node of a tree control by its node key, text or position, optionally selecting it.",
+            panel = "id, match_by, node_key, select | connection, session")
     public Map<String, Object> expandNode(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, example = "wnd[0]/usr/cntlTREE/shellcont/shell", description = D_ID) String elementId,
             @Input(name = "node_key", type = OoaType.STRING, description = "Node key as shown by the script recorder (keep any leading spaces), or the node text or position (see match_by).") String key,
@@ -658,7 +677,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "get_selected_item", name = "Get selected item", category = "Fields", idempotent = true, capabilities = "desktop",
-            description = "Read what is selected in a drop-down list, tab strip, tree or grid.")
+            description = "Read what is selected in a drop-down list, tab strip, tree or grid.",
+            panel = "id | connection, session")
     @Output(name = "key", type = OoaType.STRING, description = "Key of the entry, id of the tab, node key, or the selected grid rows (e.g. 0,3-5).")
     @Output(name = "text", type = OoaType.STRING, description = "Displayed text of the selection.")
     @Output(name = "index", type = OoaType.NUMBER, description = "0-based position of the entry or tab; -1 when it does not apply.")
@@ -683,7 +703,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "press_toolbar_button", name = "Press grid or tree toolbar button", category = "Tables", timeoutSeconds = 120, capabilities = "desktop",
-            description = "Press a button in the toolbar of an ALV grid or tree (e.g. &MB_EXPORT), optionally choosing an entry of its drop-down menu.")
+            description = "Press a button in the toolbar of an ALV grid or tree (e.g. &MB_EXPORT), optionally choosing an entry of its drop-down menu.",
+            panel = "id, button_id, [Then choose a drop-down entry: menu_item] | connection, session")
     public Map<String, Object> pressToolbarButton(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, example = "wnd[0]/usr/cntlGRID1/shellcont/shell", description = D_ID) String elementId,
             @Input(name = "button_id", type = OoaType.STRING, example = "&MB_EXPORT", description = "Button id as shown by the script recorder.") String button,
@@ -706,7 +727,8 @@ public final class SapPackage {
             WScript.StdOut.WriteLine out & "]}"
             """;
 
-    @Action(id = "get_children", name = "Get children", category = "Fields", idempotent = true, capabilities = "desktop", description = "List the elements inside a container with their ids, types, names and texts.")
+    @Action(id = "get_children", name = "Get children", category = "Fields", idempotent = true, capabilities = "desktop", description = "List the elements inside a container with their ids, types, names and texts.",
+            panel = "id | connection, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, name, text.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of child elements.")
     public Map<String, Object> getChildren(ActionContext ctx,
@@ -734,7 +756,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "get_item_count", name = "Get item count", category = "Fields", idempotent = true, capabilities = "desktop",
-            description = "Count the entries of a drop-down list, the rows of a grid or table, the nodes of a tree, or the elements in a container.")
+            description = "Count the entries of a drop-down list, the rows of a grid or table, the nodes of a tree, or the elements in a container.",
+            panel = "id | connection, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> itemCount(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -756,7 +779,8 @@ public final class SapPackage {
             WScript.StdOut.WriteLine "{""count"":" & n & "}"
             """;
 
-    @Action(id = "table_row_count", name = "Get table row count", category = "Tables", idempotent = true, capabilities = "desktop", description = "Count the rows of an ALV grid or a table control.")
+    @Action(id = "table_row_count", name = "Get table row count", category = "Tables", idempotent = true, capabilities = "desktop", description = "Count the rows of an ALV grid or a table control.",
+            panel = "id | connection, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
     public Map<String, Object> rowCount(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -765,7 +789,8 @@ public final class SapPackage {
         return Map.of("count", Values.toNumber(run(ctx, TABLE_LIB + TABLE_SIZE, args(c, s, id(elementId), "rows"), null).getOrDefault("count", BigDecimal.ZERO)));
     }
 
-    @Action(id = "table_column_count", name = "Get table column count", category = "Tables", idempotent = true, capabilities = "desktop", description = "Count the columns of an ALV grid or a table control.")
+    @Action(id = "table_column_count", name = "Get table column count", category = "Tables", idempotent = true, capabilities = "desktop", description = "Count the columns of an ALV grid or a table control.",
+            panel = "id | connection, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of columns.")
     public Map<String, Object> columnCount(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -781,7 +806,8 @@ public final class SapPackage {
             WScript.StdOut.WriteLine "{""text"":" & Q(t) & "}"
             """;
 
-    @Action(id = "get_table_cell", name = "Get table cell", category = "Tables", idempotent = true, capabilities = "desktop", description = "Read one cell of an ALV grid or table control.")
+    @Action(id = "get_table_cell", name = "Get table cell", category = "Tables", idempotent = true, capabilities = "desktop", description = "Read one cell of an ALV grid or table control.",
+            panel = "id, row, column | connection, session")
     @Output(name = "text", type = OoaType.STRING, description = "Cell value.")
     public Map<String, Object> getCell(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -804,17 +830,44 @@ public final class SapPackage {
             WScript.StdOut.WriteLine "{}"
             """;
 
-    @Action(id = "set_table_cell", name = "Set table cell", category = "Tables", capabilities = "desktop", description = "Type a value into an editable cell of an ALV grid or table control.")
+    /** Earlier signature, kept for callers written before find_text. */
+    public Map<String, Object> setCell(ActionContext ctx, String elementId, int row, String column, Object value, int c, int s) {
+        return setCell(ctx, elementId, Integer.valueOf(row), column, value, c, s, null);
+    }
+
+    @Action(id = "set_table_cell", name = "Set table cell", category = "Tables", capabilities = "desktop",
+            description = "Type a value into an editable cell of an ALV grid or table control, chosen by row and column or found by the text it holds.",
+            panel = "id, (Find the cell: By row = row / By the text it holds = find_text), column, value | connection, session")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Row (0-based) of the cell that was changed.")
+    @Output(name = "column", type = OoaType.STRING, description = "Column of the cell that was changed, as given or as found.")
     public Map<String, Object> setCell(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
-            @Input(name = "row", type = OoaType.NUMBER, description = "Row (0-based, counted from the top of the whole table).") int row,
-            @Input(name = "column", type = OoaType.STRING, description = "Column: 0-based position, title, or technical field name.") String column,
+            @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row (0-based, counted from the top of the whole table); not used with find_text.") Integer row,
+            @Input(name = "column", type = OoaType.STRING, required = false,
+                    description = "Column: 0-based position, title, or technical field name. With find_text, only this column is searched (all columns when empty).") String column,
             @Input(name = "value", description = "New value, or a Credential variable.") Object value,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
-            @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s) {
-        if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0");
-        run(ctx, TABLE_LIB + SET_CELL, args(c, s, id(elementId), String.valueOf(row)), line(column) + line(secret(value)));
-        return Map.of();
+            @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
+            @Input(name = "find_text", type = OoaType.STRING, required = false,
+                    description = "Find the cell by the text it holds now (surrounding spaces and case ignored) and write into the first match, searching top to bottom; row is then not used.") String findText) {
+        int r;
+        String col;
+        if (findText != null && !findText.isBlank()) {
+            Map<String, Object> hit = findCell(ctx, elementId, findText, column, c, s, false, false);
+            if (!Boolean.TRUE.equals(hit.get("found")))
+                throw new ActionException("SAP.TEXT_NOT_FOUND", "No cell of " + elementId + " holds '" + findText + "'" + (column == null || column.isBlank() ? "" : " in column " + column),
+                        "Check the text, or leave column empty to search every column.");
+            r = Values.toNumber(hit.get("row")).intValue();
+            col = String.valueOf(hit.get("column"));
+        } else {
+            if (row == null) throw new ActionException("SAP.BAD_ROW", "Give the row of the cell, or find_text to find the cell by its text");
+            if (row < 0) throw new ActionException("SAP.BAD_ROW", "Rows start at 0");
+            if (column == null || column.isBlank()) throw new ActionException("SAP.BAD_COLUMN", "Give the column of the cell", "Use a 0-based position, the column title or the technical field name.");
+            r = row;
+            col = column;
+        }
+        run(ctx, TABLE_LIB + SET_CELL, args(c, s, id(elementId), String.valueOf(r)), line(col) + line(secret(value)));
+        return Out.of("row", BigDecimal.valueOf(r), "column", col);
     }
 
     static final String FIND_CELL = "Attach a(0), a(1)\n" + find("Table") + """
@@ -865,7 +918,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "get_table_cell_index", name = "Find value in table", category = "Tables", idempotent = true, timeoutSeconds = 300, capabilities = "desktop",
-            description = "Find the first cell (or every cell) holding a value, ignoring surrounding spaces, and return its row and column.")
+            description = "Find the first cell (or every cell) holding a value, ignoring surrounding spaces, and return its row and column.",
+            panel = "id, value, case_sensitive, all_occurrences | [Search one column only: column], connection, session")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the value was found.")
     @Output(name = "row", type = OoaType.NUMBER, description = "Row (0-based), or -1 when not found.")
     @Output(name = "column", type = OoaType.STRING, description = "Column name (grid) or title (table control) of the match.")
@@ -889,7 +943,8 @@ public final class SapPackage {
     /** Earlier signature, kept for callers written before case_sensitive and all_occurrences. */
     public Map<String, Object> findCell(ActionContext ctx, String elementId, String value, String column, int c, int s) { return findCell(ctx, elementId, value, column, c, s, false, false); }
 
-    @Action(id = "table_cell_count", name = "Get table cell count", category = "Tables", idempotent = true, capabilities = "desktop", description = "Count the cells (rows times columns) of an ALV grid or a table control.")
+    @Action(id = "table_cell_count", name = "Get table cell count", category = "Tables", idempotent = true, capabilities = "desktop", description = "Count the cells (rows times columns) of an ALV grid or a table control.",
+            panel = "id | connection, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells.")
     public Map<String, Object> cellCount(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
@@ -929,7 +984,8 @@ public final class SapPackage {
             """;
 
     @Action(id = "export_table", name = "Export table", category = "Tables", idempotent = true, timeoutSeconds = 600, capabilities = "desktop",
-            description = "Read an ALV grid or a classic table control into a table, scrolling through all rows.")
+            description = "Read an ALV grid or a classic table control into a table, scrolling through all rows.",
+            panel = "id, [Save the rows to a CSV file: csv_path, encoding, include_header, append, delimiter] | max_rows, connection, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Table content with the column titles as names.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows read.")
     @Output(name = "path", type = OoaType.FILE, description = "The CSV file written, when csv_path was given.")

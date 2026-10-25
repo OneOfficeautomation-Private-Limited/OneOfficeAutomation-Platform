@@ -9,14 +9,16 @@ import java.util.*;
 @OoaPackage(id = "ooa.json", name = "JSON", version = "1.0.0", description = "Parse, query and write JSON documents.")
 public final class JsonPackage {
 
-    @Action(id = "parse", name = "Parse JSON", category = "JSON", idempotent = true, description = "Parse JSON text into a Dictionary or List.")
+    @Action(id = "parse", name = "Parse JSON", category = "JSON", idempotent = true, description = "Parse JSON text into a Dictionary or List.",
+            panel = "text")
     @Output(name = "value", description = "Parsed value.")
     public Map<String, Object> parse(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "JSON text.") String text) {
         try { return Collections.singletonMap("value", JsonLite.parse(text)); }
         catch (IllegalArgumentException e) { throw new ActionException("JSON.INVALID", e.getMessage(), "Check the JSON syntax."); }
     }
 
-    @Action(id = "stringify", name = "Convert to JSON text", category = "JSON", idempotent = true, description = "Serialise a value to JSON text.")
+    @Action(id = "stringify", name = "Convert to JSON text", category = "JSON", idempotent = true, description = "Serialise a value to JSON text.",
+            panel = "value, pretty | indent")
     @Output(name = "text", type = OoaType.STRING, description = "JSON text.")
     public Map<String, Object> stringify(ActionContext ctx, @Input(name = "value", description = "Value to serialise.") Object value,
             @Input(name = "pretty", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Spread the JSON over several indented lines for reading.") boolean pretty,
@@ -54,7 +56,8 @@ public final class JsonPackage {
         } else sb.append(JsonLite.write(v));
     }
 
-    @Action(id = "get_node", name = "Get node value", category = "JSON", idempotent = true, description = "Read a value by dotted path, e.g. order.items[0].sku.")
+    @Action(id = "get_node", name = "Get node value", category = "JSON", idempotent = true, description = "Read a value by dotted path, e.g. order.items[0].sku.",
+            panel = "value, path | default, fail_if_missing")
     @Output(name = "result", description = "Value at the path, or the default when the path is missing.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the path exists.")
     public Map<String, Object> getNode(ActionContext ctx,
@@ -77,7 +80,8 @@ public final class JsonPackage {
     }
 
     @Action(id = "get_nodes", name = "Get several node values", category = "JSON", idempotent = true,
-            description = "Read several paths at once into one dictionary, e.g. {\"id\": \"order.id\", \"email\": \"customer.email\"}.")
+            description = "Read several paths at once into one dictionary, e.g. {\"id\": \"order.id\", \"email\": \"customer.email\"}.",
+            panel = "value, paths")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value; missing paths give empty values.")
     @Output(name = "missing", type = OoaType.LIST, description = "Names whose path does not exist.")
     @SuppressWarnings("unchecked")
@@ -98,7 +102,8 @@ public final class JsonPackage {
         return Out.of("values", out, "missing", missing);
     }
 
-    @Action(id = "read_file", name = "Read JSON file", category = "JSON", idempotent = true, capabilities = "filesystem", description = "Read and parse a JSON file.")
+    @Action(id = "read_file", name = "Read JSON file", category = "JSON", idempotent = true, capabilities = "filesystem", description = "Read and parse a JSON file.",
+            panel = "path | encoding")
     @Output(name = "value", description = "Parsed content.")
     public Map<String, Object> readFile(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Path to a .json file.") String path,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding of the file, e.g. utf-8, utf-16, ansi.") String encoding) {
@@ -113,7 +118,8 @@ public final class JsonPackage {
         catch (IllegalArgumentException e) { throw new ActionException("JSON.INVALID", p + ": " + e.getMessage(), "Check the JSON syntax."); }
     }
 
-    @Action(id = "write_file", name = "Write JSON file", category = "JSON", capabilities = "filesystem", description = "Write a value to a JSON file atomically.")
+    @Action(id = "write_file", name = "Write JSON file", category = "JSON", capabilities = "filesystem", description = "Write a value to a JSON file atomically.",
+            panel = "path, value, pretty | encoding")
     public Map<String, Object> writeFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Target path.") String path,
             @Input(name = "value", description = "Value to write.") Object value,
@@ -188,7 +194,8 @@ public final class JsonPackage {
     }
 
     @Action(id = "insert_node", name = "Insert node", category = "JSON", idempotent = true,
-            description = "Add a new key to a dictionary, or insert an item into a list, at a path such as order.items[1] or /order/items/-.")
+            description = "Add a new key to a dictionary, or insert an item into a list, at a path such as order.items[1] or /order/items/-.",
+            panel = "value, path, node, if_exists | create_parents")
     @Output(name = "value", description = "Updated document.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> insertNode(ActionContext ctx,
@@ -220,7 +227,8 @@ public final class JsonPackage {
         return Collections.singletonMap("value", doc);
     }
 
-    @Action(id = "update_node", name = "Update node", category = "JSON", idempotent = true, description = "Replace the value of an existing node at a path.")
+    @Action(id = "update_node", name = "Update node", category = "JSON", idempotent = true, description = "Replace the value of an existing node at a path.",
+            panel = "value, path, node | create_if_missing")
     @Output(name = "value", description = "Updated document.")
     @Output(name = "previous", description = "The value that was replaced.")
     @SuppressWarnings("unchecked")
@@ -242,7 +250,8 @@ public final class JsonPackage {
         return Out.of("value", doc, "previous", prev);
     }
 
-    @Action(id = "delete_node", name = "Delete node", category = "JSON", idempotent = true, description = "Remove the node at a path.")
+    @Action(id = "delete_node", name = "Delete node", category = "JSON", idempotent = true, description = "Remove the node at a path.",
+            panel = "value, path")
     @Output(name = "value", description = "Updated document.")
     @Output(name = "removed", description = "The value that was removed.")
     public Map<String, Object> deleteNode(ActionContext ctx,
@@ -261,7 +270,8 @@ public final class JsonPackage {
         return Out.of("value", doc, "removed", removed);
     }
 
-    @Action(id = "get_node_array", name = "Get node list", category = "JSON", idempotent = true, description = "Return the list found at a path, ready to loop over.")
+    @Action(id = "get_node_array", name = "Get node list", category = "JSON", idempotent = true, description = "Return the list found at a path, ready to loop over.",
+            panel = "value, path")
     @Output(name = "items", type = OoaType.LIST, description = "Items of the list.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> getNodeArray(ActionContext ctx,
@@ -273,7 +283,8 @@ public final class JsonPackage {
     }
 
     @Action(id = "to_table", name = "Convert to table", category = "JSON", idempotent = true,
-            description = "Turn a JSON array of objects into a table; each key becomes a column.")
+            description = "Turn a JSON array of objects into a table; each key becomes a column.",
+            panel = "value, path | flatten")
     @Output(name = "table", type = OoaType.TABLE, description = "Table with one row per object.")
     public Map<String, Object> toTable(ActionContext ctx,
             @Input(name = "value", description = "List of dictionaries, or JSON text.") Object value,
@@ -298,7 +309,8 @@ public final class JsonPackage {
     }
 
     @Action(id = "validate", name = "Validate JSON", category = "JSON", idempotent = true,
-            description = "Check that JSON is well-formed, that required paths exist and, optionally, that it matches a JSON Schema (common keywords).")
+            description = "Check that JSON is well-formed, that required paths exist and, optionally, that it matches a JSON Schema (common keywords).",
+            panel = "json, required_keys, (Schema: No schema = / Schema text = schema / Schema file = schema_path)")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the JSON parses and every required path exists.")
     @Output(name = "errors", type = OoaType.LIST, description = "Problems found, each with the path where it was found.")
     @Output(name = "level", type = OoaType.STRING, description = "What was checked: syntax (the text did not parse), structure or schema.")

@@ -108,7 +108,8 @@ public final class ExcelDesktopPackage {
     }
 
     @Action(id = "run_macro", name = "Run macro", category = "Macros", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Open a macro-enabled workbook, optionally password-protected, run a VBA macro with up to 10 arguments and optionally save.")
+            description = "Open a macro-enabled workbook, optionally password-protected, run a VBA macro with up to 10 arguments and optionally save.",
+            panel = "path, macro, arguments, save | timeout_seconds, password, visible")
     @Output(name = "result", type = OoaType.STRING, description = "Value returned by the macro (for Functions), as text.")
     public Map<String, Object> runMacro(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook (.xlsm/.xlsb/.xls).") String path,
@@ -130,7 +131,8 @@ public final class ExcelDesktopPackage {
     public Map<String, Object> refreshAll(ActionContext ctx, String path, int timeout) { return refreshAll(ctx, path, timeout, true, null); }
 
     @Action(id = "refresh_all", name = "Refresh all data", category = "Data", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Refresh every query, connection and pivot table in the workbook, wait for completion, recalculate and save unless told not to.")
+            description = "Refresh every query, connection and pivot table in the workbook, wait for completion, recalculate and save unless told not to.",
+            panel = "path, save | timeout_seconds, password")
     public Map<String, Object> refreshAll(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook.") String path,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "900", description = "Maximum time.") int timeout,
@@ -149,7 +151,8 @@ public final class ExcelDesktopPackage {
     }
 
     @Action(id = "update_links", name = "Update workbook links", category = "Data", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Open the workbook in Excel, refresh the values taken from every linked workbook and save.")
+            description = "Open the workbook in Excel, refresh the values taken from every linked workbook and save.",
+            panel = "path, save | password, timeout_seconds")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of linked workbooks updated.")
     public Map<String, Object> updateLinks(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook.") String path,
@@ -182,7 +185,8 @@ public final class ExcelDesktopPackage {
     }
 
     @Action(id = "export_pdf", name = "Export to PDF", category = "Convert", timeoutSeconds = 600, capabilities = "desktop",
-            description = "Export the whole workbook, or one sheet, to PDF, choosing quality, page range, print areas and document properties.")
+            description = "Export the whole workbook, or one sheet, to PDF, choosing quality, page range, print areas and document properties.",
+            panel = "path, (Sheets: The whole workbook = / One sheet = sheet), target, overwrite | quality, include_properties, ignore_print_areas, from_page, to_page, password")
     public Map<String, Object> exportPdf(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "PDF file to create.") String target,
@@ -221,7 +225,8 @@ public final class ExcelDesktopPackage {
     public Map<String, Object> convert(ActionContext ctx, String path, String target) { return convert(ctx, path, target, true, null, null); }
 
     @Action(id = "convert", name = "Convert workbook", category = "Convert", timeoutSeconds = 600, capabilities = "desktop",
-            description = "Save a workbook in another format, e.g. .xls to .xlsx or .csv to .xlsx, optionally with a password on the new file.")
+            description = "Save a workbook in another format, e.g. .xls to .xlsx or .csv to .xlsx, optionally with a password on the new file.",
+            panel = "path, target, overwrite, [The workbook has a password: password], [Protect the new file with a password: new_password]")
     public Map<String, Object> convert(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Source file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Target file; the format follows its extension (.xlsx, .xlsm, .xlsb, .xls, .csv, .txt, .ods, .xltx, .xltm).") String target,

@@ -50,13 +50,15 @@ public final class DataTablePackage {
 
     private static final String COL_INDEX = "Zero-based column index; used when 'column' is empty.";
 
-    @Action(id = "from_records", name = "Create from records", category = "Table", idempotent = true, description = "Build a table from a list of dictionaries.")
+    @Action(id = "from_records", name = "Create from records", category = "Table", idempotent = true, description = "Build a table from a list of dictionaries.",
+            panel = "records")
     @Output(name = "table", type = OoaType.TABLE, description = "New table.")
     public Map<String, Object> fromRecords(ActionContext ctx, @Input(name = "records", type = OoaType.LIST, description = "List of dictionaries.") List<Object> records) {
         return Out.of("table", Values.coerce(records, "Table", "records"));
     }
 
-    @Action(id = "to_records", name = "Convert to records", category = "Table", idempotent = true, description = "Turn each row into a dictionary keyed by column name.")
+    @Action(id = "to_records", name = "Convert to records", category = "Table", idempotent = true, description = "Turn each row into a dictionary keyed by column name.",
+            panel = "table")
     @Output(name = "records", type = OoaType.LIST, description = "List of dictionaries.")
     public Map<String, Object> toRecords(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table) {
         List<Object> out = new ArrayList<>();
@@ -68,7 +70,8 @@ public final class DataTablePackage {
         return Out.of("records", out);
     }
 
-    @Action(id = "filter", name = "Filter rows", category = "Table", idempotent = true, description = "Keep rows where a column satisfies a comparison.")
+    @Action(id = "filter", name = "Filter rows", category = "Table", idempotent = true, description = "Keep rows where a column satisfies a comparison.",
+            panel = "table, column, operator, value, match_case")
     @Output(name = "table", type = OoaType.TABLE, description = "Filtered table.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows kept.")
     public Map<String, Object> filter(ActionContext ctx,
@@ -104,7 +107,8 @@ public final class DataTablePackage {
         }
     }
 
-    @Action(id = "sort", name = "Sort", category = "Table", idempotent = true, description = "Sort rows by a column.")
+    @Action(id = "sort", name = "Sort", category = "Table", idempotent = true, description = "Sort rows by a column.",
+            panel = "table, (Sort by column: Name = column / Position = column_index), descending | ignore_case, then_by")
     @Output(name = "table", type = OoaType.TABLE, description = "Sorted table.")
     public Map<String, Object> sort(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -125,7 +129,8 @@ public final class DataTablePackage {
         return Out.of("table", copy(table, rs));
     }
 
-    @Action(id = "get_value", name = "Get value", category = "Table", idempotent = true, description = "Read one cell by zero-based row number and column name.")
+    @Action(id = "get_value", name = "Get value", category = "Table", idempotent = true, description = "Read one cell by zero-based row number and column name.",
+            panel = "table, row, (Column: By name = column / By position = column_index)")
     @Output(name = "value", description = "Cell value.")
     public Map<String, Object> getValue(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -137,7 +142,8 @@ public final class DataTablePackage {
         return Out.of("value", cell(rows(table).get(row), c));
     }
 
-    @Action(id = "set_value", name = "Set value", category = "Table", idempotent = true, description = "Change one cell.")
+    @Action(id = "set_value", name = "Set value", category = "Table", idempotent = true, description = "Change one cell.",
+            panel = "table, row, (Column: By name = column / By position = column_index), value")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> setValue(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -155,7 +161,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "add_row", name = "Add row", category = "Table", idempotent = true,
-            description = "Append a row: a Dictionary of column values, or a List of values in column order.")
+            description = "Append a row: a Dictionary of column values, or a List of values in column order.",
+            panel = "table, values")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> addRow(ActionContext ctx,
@@ -178,7 +185,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "remove_duplicates", name = "Remove duplicate rows", category = "Table", idempotent = true,
-            description = "Keep the first row for each distinct value of the chosen columns (all columns when empty).")
+            description = "Keep the first row for each distinct value of the chosen columns (all columns when empty).",
+            panel = "table, columns")
     @Output(name = "table", type = OoaType.TABLE, description = "Table without duplicates.")
     public Map<String, Object> removeDuplicates(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -196,13 +204,21 @@ public final class DataTablePackage {
         return Out.of("table", copy(table, kept));
     }
 
-    @Action(id = "row_count", name = "Row count", category = "Table", idempotent = true, description = "Number of rows.")
+    @Action(id = "row_count", name = "Row count", category = "Table", idempotent = true, description = "Number of rows.",
+            panel = "table, non_empty_only")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
-    public Map<String, Object> rowCount(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table) {
-        return Out.of("count", BigDecimal.valueOf(rows(table).size()));
+    public Map<String, Object> rowCount(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
+            @Input(name = "non_empty_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Count only rows with at least one value; rows whose cells are all empty are skipped.") boolean nonEmptyOnly) {
+        if (!nonEmptyOnly) return Out.of("count", BigDecimal.valueOf(rows(table).size()));
+        int n = 0;
+        for (List<Object> r : rows(table)) if (r.stream().anyMatch(v -> !matches(v, "empty", null))) n++;
+        return Out.of("count", BigDecimal.valueOf(n));
     }
 
-    @Action(id = "sum_column", name = "Sum column", category = "Table", idempotent = true, description = "Add up the numeric values in a column; empty cells are ignored.")
+    public Map<String, Object> rowCount(ActionContext ctx, Map<String, Object> table) { return rowCount(ctx, table, false); }
+
+    @Action(id = "sum_column", name = "Sum column", category = "Table", idempotent = true, description = "Add up the numeric values in a column; empty cells are ignored.",
+            panel = "table, column")
     @Output(name = "total", type = OoaType.NUMBER, description = "Sum.")
     public Map<String, Object> sumColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -214,7 +230,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "aggregate", name = "Group and summarise", category = "Table", idempotent = true,
-            description = "Group rows by one or more columns and compute count, sum, average, minimum, maximum, first or last per group; without group columns, one summary row.")
+            description = "Group rows by one or more columns and compute count, sum, average, minimum, maximum, first or last per group; without group columns, one summary row.",
+            panel = "table, group_by, summaries | sort_groups")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per group: the group columns, then one column per summary.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of groups.")
     public Map<String, Object> aggregate(ActionContext ctx,
@@ -349,7 +366,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "insert_row", name = "Insert row", category = "Table", idempotent = true,
-            description = "Insert a row, given as a dictionary of column values, at a zero-based position.")
+            description = "Insert a row, given as a dictionary of column values, at a zero-based position.",
+            panel = "table, (Insert at: The end = / A position = row), values")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> insertRow(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -364,7 +382,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "delete_row", name = "Delete rows", category = "Table", idempotent = true,
-            description = "Delete the row at a position, or every row where a column equals a value.")
+            description = "Delete the row at a position, or every row where a column equals a value.",
+            panel = "table, (Rows to delete: The row at a position = row / Rows where a column matches = column, value)")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows deleted.")
     public Map<String, Object> deleteRow(ActionContext ctx,
@@ -385,31 +404,75 @@ public final class DataTablePackage {
     }
 
     @Action(id = "insert_column", name = "Insert column", category = "Table", idempotent = true,
-            description = "Add a column, filled with a default value, at the end or at a zero-based position.")
+            description = "Add a column at the end or at a zero-based position, filled with a default value or with the values of a column of another table.",
+            panel = "table, (Insert at: The end = / A position = position), name, (Fill with: A default value = default_value / A column of another table = source_table, source_column, source_column_index) | column_type")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
+    @SuppressWarnings("unchecked")
     public Map<String, Object> insertColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "name", type = OoaType.STRING, description = "New column name.") String name,
             @Input(name = "default_value", required = false, description = "Value for every existing row; empty when not set.") Object def,
-            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based column position; at the end when empty.") Integer position) {
+            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based column position; at the end when empty.") Integer position,
+            @Input(name = "source_table", type = OoaType.TABLE, required = false, description = "Table whose column is copied into the new column, row by row; rows it does not have get the default value.") Map<String, Object> sourceTable,
+            @Input(name = "source_column", type = OoaType.STRING, required = false, description = "Name of the column of source_table to copy.") String sourceColumn,
+            @Input(name = "source_column_index", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based index of the column of source_table to copy; used when source_column is empty.") Integer sourceColumnIndex,
+            @Input(name = "column_type", type = OoaType.STRING, required = false, enumValues = {"String", "Number", "DateTime", "Boolean"},
+                    description = "Convert the new column's values to this type; kept as they are when empty.") String columnType) {
         if (name == null || name.isBlank()) throw new ActionException("TABLE.BAD_COLUMN_NAME", "Column name is empty", "Give the new column a name.");
         if (cols(table).contains(name)) throw new ActionException("TABLE.COLUMN_EXISTS", "Column '" + name + "' already exists", "Choose a different name.");
+        boolean typed = columnType != null && !columnType.isBlank();
+        if (typed && !List.of("String", "Number", "DateTime", "Boolean").contains(columnType))
+            throw new ActionException("TABLE.BAD_TYPE", "Unknown column type '" + columnType + "'", "Use String, Number, DateTime or Boolean.");
         int width = cols(table).size();
         int at = position == null ? width : position;
         if (at < 0 || at > width) throw new ActionException("TABLE.BAD_POSITION", "Column position " + at + " is outside 0.." + width, "Use a position from 0 to " + width + ".");
+        List<Object> source = null;
+        if (sourceTable != null) {
+            boolean byName = sourceColumn != null && !sourceColumn.isBlank();
+            if (!byName && sourceColumnIndex == null)
+                throw new ActionException("TABLE.NO_COLUMN", "No column of source_table chosen", "Fill in 'source_column' or 'source_column_index'.");
+            int sc = col(sourceTable, sourceColumn, sourceColumnIndex);
+            source = new ArrayList<>();
+            for (List<Object> r : rows(sourceTable)) source.add(cell(r, sc));
+        }
         List<String> newCols = new ArrayList<>(cols(table));
         newCols.add(at, name);
         List<Object> rs = new ArrayList<>();
-        for (List<Object> r : rows(table)) {
-            List<Object> nr = new ArrayList<>(r);
+        List<List<Object>> old = rows(table);
+        int count = source == null ? old.size() : Math.max(old.size(), source.size());
+        for (int i = 0; i < count; i++) {
+            List<Object> nr = new ArrayList<>(i < old.size() ? old.get(i) : List.of());
             while (nr.size() < width) nr.add(null);
-            nr.add(at, def);
+            nr.add(at, source != null && i < source.size() ? source.get(i) : def);
             rs.add(nr);
         }
-        return Out.of("table", Values.table(newCols, rs));
+        Map<String, Object> out = Values.table(newCols, rs);
+        if (typed) out = (Map<String, Object>) changeColumnType(ctx, out, name, columnType, null, null).get("table");
+        return Out.of("table", out);
     }
 
-    @Action(id = "delete_column", name = "Delete column", category = "Table", idempotent = true, description = "Remove a column and its values.")
+    public Map<String, Object> insertColumn(ActionContext ctx, Map<String, Object> table, String name, Object def, Integer position) {
+        return insertColumn(ctx, table, name, def, position, null, null, null, null);
+    }
+
+    @Action(id = "add_column_from_list", name = "Add column from list", category = "Table", idempotent = true,
+            description = "Add a column at the start, the end or a zero-based position, filled with the items of a list row by row; a longer list adds rows.",
+            panel = "table, list, name, (Insert at: The end = / A position = position)")
+    @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
+    public Map<String, Object> addColumnFromList(ActionContext ctx,
+            @Input(name = "table", type = OoaType.TABLE, description = "Table to add the column to.") Map<String, Object> table,
+            @Input(name = "list", type = OoaType.LIST, description = "Items for the new column: the first item goes in the first row, and so on. Rows beyond the list stay empty.") List<Object> list,
+            @Input(name = "name", type = OoaType.STRING, description = "New column name.") String name,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, min = 0, description = "Zero-based column position (0 = first); at the end when empty.") Integer position) {
+        if (list == null) throw new ActionException("TABLE.NO_LIST", "No list given", "Pass the list whose items fill the new column.");
+        List<Object> asRows = new ArrayList<>();
+        for (Object x : list) asRows.add(new ArrayList<>(Collections.singletonList(x)));
+        Map<String, Object> source = Values.table(new ArrayList<>(List.of("items")), asRows);
+        return insertColumn(ctx, table, name, null, position, source, null, 0, null);
+    }
+
+    @Action(id = "delete_column", name = "Delete column", category = "Table", idempotent = true, description = "Remove a column and its values.",
+            panel = "table, (Column to delete: By name = column / By position = column_index)")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> deleteColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -423,7 +486,8 @@ public final class DataTablePackage {
         return Out.of("table", Values.table(newCols, rs));
     }
 
-    @Action(id = "column_count", name = "Column count", category = "Table", idempotent = true, description = "Number of columns.")
+    @Action(id = "column_count", name = "Column count", category = "Table", idempotent = true, description = "Number of columns.",
+            panel = "table, non_empty_only")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of columns.")
     public Map<String, Object> columnCount(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
             @Input(name = "non_empty_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Count only columns with at least one value.") boolean nonEmptyOnly) {
@@ -433,7 +497,8 @@ public final class DataTablePackage {
         return Out.of("count", BigDecimal.valueOf(n));
     }
 
-    @Action(id = "column_name", name = "Column name", category = "Table", idempotent = true, description = "Return the name of the column at a zero-based index.")
+    @Action(id = "column_name", name = "Column name", category = "Table", idempotent = true, description = "Return the name of the column at a zero-based index.",
+            panel = "table, column_index")
     @Output(name = "name", type = OoaType.STRING, description = "Column name.")
     public Map<String, Object> columnName(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -441,7 +506,8 @@ public final class DataTablePackage {
         return Out.of("name", cols(table).get(col(table, null, index)));
     }
 
-    @Action(id = "rename_column", name = "Rename column", category = "Table", idempotent = true, description = "Give a column a new name; its values stay as they are.")
+    @Action(id = "rename_column", name = "Rename column", category = "Table", idempotent = true, description = "Give a column a new name; its values stay as they are.",
+            panel = "table, (Column: By name = column / By position = column_index), new_name")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> renameColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -457,14 +523,16 @@ public final class DataTablePackage {
         return Out.of("table", out);
     }
 
-    @Action(id = "column_names", name = "Column names", category = "Table", idempotent = true, description = "List the column names in order.")
+    @Action(id = "column_names", name = "Column names", category = "Table", idempotent = true, description = "List the column names in order.",
+            panel = "table")
     @Output(name = "names", type = OoaType.LIST, description = "Column names.")
     public Map<String, Object> columnNames(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table) {
         return Out.of("names", new ArrayList<Object>(cols(table)));
     }
 
     @Action(id = "change_column_type", name = "Change column type", category = "Table", idempotent = true,
-            description = "Convert every value in a column to String, Number, DateTime or Boolean; empty cells stay empty.")
+            description = "Convert every value in a column to String, Number, DateTime or Boolean; empty cells stay empty.",
+            panel = "table, (Column: By name = column / By position = column_index), type, date_format")
     @Output(name = "table", type = OoaType.TABLE, description = "Updated table.")
     public Map<String, Object> changeColumnType(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table,
@@ -504,7 +572,8 @@ public final class DataTablePackage {
         return Out.of("table", out);
     }
 
-    @Action(id = "clear", name = "Clear rows", category = "Table", idempotent = true, description = "Remove every row but keep the columns.")
+    @Action(id = "clear", name = "Clear rows", category = "Table", idempotent = true, description = "Remove every row but keep the columns.",
+            panel = "table")
     @Output(name = "table", type = OoaType.TABLE, description = "Empty table with the same columns.")
     public Map<String, Object> clear(ActionContext ctx, @Input(name = "table", type = OoaType.TABLE, description = "Source table.") Map<String, Object> table) {
         return Out.of("table", copy(table, List.of()));
@@ -513,7 +582,8 @@ public final class DataTablePackage {
     // ---- Combining tables ----
 
     @Action(id = "join", name = "Join tables", category = "Table", idempotent = true,
-            description = "Combine two tables on matching key columns; inner keeps matches only, left keeps every row of the first table.")
+            description = "Combine two tables on matching key columns; inner keeps matches only, left keeps every row of the first table.",
+            panel = "table, key_columns, other, other_key_columns, join_type")
     @Output(name = "table", type = OoaType.TABLE, description = "Joined table: first table columns, then the second table's other columns.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows in the result.")
     public Map<String, Object> join(ActionContext ctx,
@@ -576,7 +646,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "merge", name = "Merge tables", category = "Table", idempotent = true,
-            description = "Stack the rows of several tables; columns are matched by name, using the union of all columns or requiring the same ones.")
+            description = "Stack the rows of several tables; columns are matched by name, using the union of all columns or requiring the same ones.",
+            panel = "tables | columns")
     @Output(name = "table", type = OoaType.TABLE, description = "Merged table.")
     public Map<String, Object> merge(ActionContext ctx,
             @Input(name = "tables", type = OoaType.LIST, description = "Tables to merge, in order.") List<Object> tables,
@@ -608,7 +679,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "find", name = "Find value", category = "Table", idempotent = true,
-            description = "Return the zero-based numbers of rows containing a value, in one column or in any column.")
+            description = "Return the zero-based numbers of rows containing a value, in one column or in any column.",
+            panel = "table, value, match_case | column, match")
     @Output(name = "rows", type = OoaType.LIST, description = "Zero-based row numbers that match.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching rows.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when at least one row matches.")
@@ -640,7 +712,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "lookup", name = "Look up value", category = "Table", idempotent = true,
-            description = "Find the first row whose column holds a value and return another column of that row, or a fallback value when no row matches.")
+            description = "Find the first row whose column holds a value and return another column of that row, or a fallback value when no row matches.",
+            panel = "table, column, value, return_column, if_not_found | match_case")
     @Output(name = "value", description = "The value from the return column, or the fallback when nothing matches.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a row matches.")
     @Output(name = "row", type = OoaType.NUMBER, description = "Zero-based number of the matching row, or -1.")
@@ -659,7 +732,8 @@ public final class DataTablePackage {
     }
 
     @Action(id = "write_to_file", name = "Write to file", category = "Table", capabilities = "filesystem",
-            description = "Save a table as a CSV file or as a JSON list of records, replacing the file.")
+            description = "Save a table as a CSV file or as a JSON list of records, replacing the file.",
+            panel = "table, path, append, row_delimiter, delimiter, encoding | format, header, line_ending, create_folders")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
     public Map<String, Object> writeToFile(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Table to save.") Map<String, Object> table,
@@ -671,9 +745,13 @@ public final class DataTablePackage {
             @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "format=csv", description = "Add the rows to the end of an existing CSV file (no header is repeated).") boolean append,
             @Input(name = "line_ending", type = OoaType.STRING, required = false, defaultValue = "\"crlf\"", enumValues = {"crlf", "lf"}, visibleWhen = "format=csv", description = "Line ending of CSV rows.") String lineEnding,
             @Input(name = "row_delimiter", type = OoaType.STRING, required = false, visibleWhen = "format=csv", example = "|",
-                    description = "Text written after each CSV row instead of the line ending, e.g. | or ;\\n (\\n, \\r and \\t are understood).") String rowDelimiter) {
+                    description = "Text written after each CSV row instead of the line ending, e.g. | or ;\\n (\\n, \\r and \\t are understood).") String rowDelimiter,
+            @Input(name = "create_folders", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Create the file's folder when it does not exist; when off, a missing folder is an error.") boolean createFolders) {
         String fmt = format == null ? "csv" : format.toLowerCase(Locale.ROOT);
         java.nio.file.Path p = ctx.resolvePath(path);
+        if (!createFolders && p.getParent() != null && !java.nio.file.Files.isDirectory(p.getParent()))
+            throw new ActionException("TABLE.NO_FOLDER", "The folder " + p.getParent() + " does not exist", "Create the folder first, or turn on create_folders.");
         boolean appending = append && fmt.equals("csv") && java.nio.file.Files.exists(p);
         if (appending) header = false;
         String eol = rowDelimiter != null && !rowDelimiter.isEmpty() ? rowDelimiter.replace("\\r", "\r").replace("\\n", "\n").replace("\\t", "\t")
@@ -696,7 +774,7 @@ public final class DataTablePackage {
         } else throw new ActionException("TABLE.BAD_FORMAT", "Unknown file format '" + format + "'", "Use csv or json.");
         CsvPackage.Enc enc = CsvPackage.encoding(encoding);
         try {
-            if (p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent());
+            if (createFolders && p.getParent() != null) java.nio.file.Files.createDirectories(p.getParent());
             byte[] bytes = (enc.bom() && !appending ? "\uFEFF" + text : text).getBytes(enc.charset());
             if (appending) java.nio.file.Files.write(p, bytes, java.nio.file.StandardOpenOption.APPEND);
             else java.nio.file.Files.write(p, bytes);
@@ -706,7 +784,12 @@ public final class DataTablePackage {
 
     public Map<String, Object> writeToFile(ActionContext ctx, Map<String, Object> table, String path, String format, String delimiter, boolean header,
             String encoding, boolean append, String lineEnding) {
-        return writeToFile(ctx, table, path, format, delimiter, header, encoding, append, lineEnding, null);
+        return writeToFile(ctx, table, path, format, delimiter, header, encoding, append, lineEnding, null, true);
+    }
+
+    public Map<String, Object> writeToFile(ActionContext ctx, Map<String, Object> table, String path, String format, String delimiter, boolean header,
+            String encoding, boolean append, String lineEnding, String rowDelimiter) {
+        return writeToFile(ctx, table, path, format, delimiter, header, encoding, append, lineEnding, rowDelimiter, true);
     }
 
     private static String csvLine(List<Object> values, char d, String eol) {

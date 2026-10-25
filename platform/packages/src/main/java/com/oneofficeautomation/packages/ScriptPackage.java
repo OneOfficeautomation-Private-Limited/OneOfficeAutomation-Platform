@@ -80,7 +80,8 @@ public final class ScriptPackage {
     private static final String D_ARGS = "Arguments passed to the script, one list item each.";
     private static final String D_INPUT = "Text sent to the script's standard input (e.g. JSON).";
 
-    @Action(id = "run_powershell", name = "Run PowerShell", category = "Scripts", timeoutSeconds = 3600, description = "Run a PowerShell script (PowerShell 7 if installed, otherwise Windows PowerShell).")
+    @Action(id = "run_powershell", name = "Run PowerShell", category = "Scripts", timeoutSeconds = 3600, description = "Run a PowerShell script (PowerShell 7 if installed, otherwise Windows PowerShell).",
+            panel = "(Script: Type it here = script / Use a file = file), arguments | input, timeout_seconds, fail_on_error, working_folder, environment, interpreter")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
@@ -98,7 +99,8 @@ public final class ScriptPackage {
         return run(ctx, interpreters(interpreter, List.of("pwsh", "powershell")), List.of("-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"), ".ps1", script, file, args, input, timeout, fail, workingFolder, environment);
     }
 
-    @Action(id = "run_python", name = "Run Python", category = "Scripts", timeoutSeconds = 3600, description = "Run a Python 3 script.")
+    @Action(id = "run_python", name = "Run Python", category = "Scripts", timeoutSeconds = 3600, description = "Run a Python 3 script.",
+            panel = "(Script: Type it here = script / Use a file = file), arguments, fail_on_error | input, timeout_seconds, working_folder, environment, interpreter")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
@@ -117,7 +119,8 @@ public final class ScriptPackage {
         return run(ctx, interp, List.of(), ".py", script, file, args, input, timeout, fail, workingFolder, environment);
     }
 
-    @Action(id = "run_javascript", name = "Run JavaScript", category = "Scripts", timeoutSeconds = 3600, description = "Run a JavaScript file with Node.js.")
+    @Action(id = "run_javascript", name = "Run JavaScript", category = "Scripts", timeoutSeconds = 3600, description = "Run a JavaScript file with Node.js.",
+            panel = "(Script: Type it here = script / Use a file = file), arguments | input, timeout_seconds, fail_on_error, working_folder, environment, interpreter")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
@@ -135,7 +138,8 @@ public final class ScriptPackage {
         return run(ctx, interpreters(interpreter, List.of("node")), List.of(), ".js", script, file, args, input, timeout, fail, workingFolder, environment);
     }
 
-    @Action(id = "run_vbscript", name = "Run VBScript", category = "Scripts", timeoutSeconds = 3600, description = "Run a VBScript with Windows Script Host (Windows only).")
+    @Action(id = "run_vbscript", name = "Run VBScript", category = "Scripts", timeoutSeconds = 3600, description = "Run a VBScript with Windows Script Host (Windows only).",
+            panel = "(Script: Type it here = script / Use a file = file), arguments | input, timeout_seconds, fail_on_error, working_folder, environment")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code.")
@@ -205,7 +209,8 @@ public final class ScriptPackage {
     }
 
     @Action(id = "run_python_function", name = "Run Python function", category = "Scripts", timeoutSeconds = 3600,
-            description = "Call one function in a Python file with JSON-compatible arguments and return what it returns.")
+            description = "Call one function in a Python file with JSON-compatible arguments and return what it returns.",
+            panel = "(Code: Use a file = file / Type it here = script), function, arguments, keyword_arguments, fail_on_error | timeout_seconds, interpreter, environment")
     @Output(name = "result", description = "Value returned by the function (numbers, text, lists and dictionaries).")
     @Output(name = "output", type = OoaType.STRING, description = "Text the function printed.")
     @Output(name = "error", type = OoaType.STRING, description = "Error raised by the function when fail_on_error is false; empty on success.")
@@ -299,7 +304,8 @@ public final class ScriptPackage {
             """;
 
     @Action(id = "run_javascript_function", name = "Run JavaScript function", category = "Scripts", timeoutSeconds = 3600,
-            description = "Call one function in a JavaScript file with Node.js, passing JSON-compatible arguments, and return what it returns (promises are awaited).")
+            description = "Call one function in a JavaScript file with Node.js, passing JSON-compatible arguments, and return what it returns (promises are awaited).",
+            panel = "(Code: Use a file = file / Type it here = script), function, arguments | timeout_seconds, fail_on_error, interpreter")
     @Output(name = "result", description = "Value returned by the function (numbers, text, lists and dictionaries).")
     @Output(name = "output", type = OoaType.STRING, description = "Text the function printed.")
     @Output(name = "error", type = OoaType.STRING, description = "Error thrown by the function when fail_on_error is false; empty on success.")
@@ -355,7 +361,8 @@ public final class ScriptPackage {
             "End If", "");
 
     @Action(id = "run_vbscript_function", name = "Run VBScript function", category = "Scripts", timeoutSeconds = 3600,
-            description = "Call one function in a VBScript file with text arguments and return its result as text (Windows only).")
+            description = "Call one function in a VBScript file with text arguments and return its result as text (Windows only).",
+            panel = "(Code: Use a file = file / Type it here = script), function, arguments | timeout_seconds, fail_on_error")
     @Output(name = "result", type = OoaType.STRING, description = "Value returned by the function, as text.")
     @Output(name = "output", type = OoaType.STRING, description = "Other text the script wrote.")
     @Output(name = "error", type = OoaType.STRING, description = "Error raised by the function when fail_on_error is false; empty on success.")

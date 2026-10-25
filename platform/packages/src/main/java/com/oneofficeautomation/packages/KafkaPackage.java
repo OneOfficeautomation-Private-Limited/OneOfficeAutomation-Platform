@@ -49,7 +49,8 @@ public final class KafkaPackage {
     private static String b64(String s) { return Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8)); }
 
     @Action(id = "produce_message", name = "Send message", category = "Messages", capabilities = "network",
-            description = "Write one message to a topic, with an optional key and headers.")
+            description = "Write one message to a topic, with an optional key and headers.",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topic, [Write to one partition: partition], key, value | headers, value_format, cluster_id")
     @Output(name = "partition", type = OoaType.NUMBER, description = "Partition the message was written to.")
     @Output(name = "offset", type = OoaType.NUMBER, description = "Position of the message in that partition.")
     @Output(name = "timestamp", type = OoaType.STRING, description = "Time Kafka recorded for the message.")
@@ -86,7 +87,8 @@ public final class KafkaPackage {
         return Out.of("partition", r.get("partition_id"), "offset", r.get("offset"), "timestamp", r.get("timestamp") == null ? null : Values.text(r.get("timestamp")));
     }
 
-    @Action(id = "list_topics", name = "List topics", category = "Topics", idempotent = true, capabilities = "network", description = "Return the topics in the cluster.")
+    @Action(id = "list_topics", name = "List topics", category = "Topics", idempotent = true, capabilities = "network", description = "Return the topics in the cluster.",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), include_internal | cluster_id")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: topic, partitions, replication_factor, internal.")
     @Output(name = "names", type = OoaType.LIST, description = "Topic names only.")
     public Map<String, Object> listTopics(ActionContext ctx,
@@ -116,7 +118,8 @@ public final class KafkaPackage {
     }
 
     @Action(id = "create_topic", name = "Create topic", category = "Topics", capabilities = "network",
-            description = "Create a topic with a number of partitions and optional settings such as how long messages are kept.")
+            description = "Create a topic with a number of partitions and optional settings such as how long messages are kept.",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topic, partitions, replication_factor | settings, fail_if_exists, cluster_id")
     @Output(name = "created", type = OoaType.BOOLEAN, description = "True if the topic was created, false if it was already there.")
     public Map<String, Object> createTopic(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -149,7 +152,8 @@ public final class KafkaPackage {
     }
 
     @Action(id = "get_topic", name = "Get topic info", category = "Topics", idempotent = true, capabilities = "network",
-            description = "Read a topic's partition count, replication and settings.")
+            description = "Read a topic's partition count, replication and settings.",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topic | cluster_id")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "topic, partitions, replication_factor, internal.")
     @Output(name = "settings", type = OoaType.DICTIONARY, description = "Topic settings, e.g. retention.ms and cleanup.policy.")
     public Map<String, Object> getTopic(ActionContext ctx,
@@ -174,7 +178,8 @@ public final class KafkaPackage {
 
     @Action(id = "read_messages", name = "Read messages", category = "Messages", timeoutSeconds = 900, capabilities = "network",
             description = "Read new messages from one or more topics as a consumer group, so the next read carries on where this one stopped. "
-                    + "Needs a REST Proxy that supports consumer instances (self-managed Confluent REST Proxy).")
+                    + "Needs a REST Proxy that supports consumer instances (self-managed Confluent REST Proxy).",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), topics, consumer_group, max_messages, wait_seconds, start_from, mark_as_read | value_format")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: topic, partition, offset, key, value. JSON values are shown as text.")
     @Output(name = "messages", type = OoaType.LIST, description = "Each message as a dictionary; JSON values stay structured.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages read.")
@@ -237,5 +242,44 @@ public final class KafkaPackage {
             catch (RuntimeException e) { ctx.warn("Could not close the Kafka reader: " + e.getMessage()); }
         }
         return Out.of("table", Values.table(List.of("topic", "partition", "offset", "key", "value"), rows), "messages", messages, "count", BigDecimal.valueOf(messages.size()));
+    }
+
+    @Action(id = "commit_offsets", name = "Mark messages as read up to an offset", category = "Messages", capabilities = "network",
+            description = "Record, for a consumer group, that one partition of a topic has been handled up to and including an offset, so the next read starts after it. "
+                    + "Use it with Read messages and mark_as_read off to mark messages only once they are processed, or to skip ahead or go back. "
+                    + "Run it while no other reader of the group is active. Needs a REST Proxy that supports consumer instances.",
+            panel = "base_url, (Sign in with: API key and secret = api_key, api_secret / A bearer token = access_token / No sign-in =), consumer_group, topic, partition, offset")
+    @Output(name = "next_offset", type = OoaType.NUMBER, description = "Offset the group reads next in that partition (offset + 1).")
+    public Map<String, Object> commitOffsets(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
+            @Input(name = "consumer_group", type = OoaType.STRING, example = "ooa-order-agent", description = "Reader group whose position is changed.") String group,
+            @Input(name = "topic", type = OoaType.STRING, example = "orders", description = "Topic of the messages.") String t,
+            @Input(name = "partition", type = OoaType.NUMBER, description = "Partition number, as shown in the partition column of Read messages.") Integer partition,
+            @Input(name = "offset", type = OoaType.NUMBER, description = "Offset of the last message handled in that partition; the group carries on with the message after it.") Long offset,
+            @Input(name = "api_key", type = OoaType.STRING, required = false, description = D_KEY) String apiKey,
+            @Input(name = "api_secret", type = OoaType.CREDENTIAL, required = false, description = D_SECRET) Object secret,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_BEARER) Object bearer) {
+        if (group == null || !GROUP.matcher(group.trim()).matches()) throw new ActionException(P + ".BAD_GROUP", "Invalid consumer group '" + group + "'", "Use letters, digits, dot, underscore and dash.");
+        String tp = topic(t);
+        if (partition == null || partition < 0) throw new ActionException(P + ".BAD_PARTITION", "A partition number of 0 or more is required", "Use the partition column from Read messages.");
+        if (offset == null || offset < 0) throw new ActionException(P + ".BAD_OFFSET", "An offset of 0 or more is required", "Use the offset column from Read messages.");
+        String groupUrl = root(base) + "/consumers/" + HttpJson.enc(group.trim());
+        Map<String, Object> create = new LinkedHashMap<>();
+        create.put("name", "ooa-" + UUID.randomUUID().toString().substring(0, 12));
+        create.put("format", "json");
+        create.put("auto.commit.enable", "false");
+        Map<String, Object> inst = req("POST", groupUrl, apiKey, secret, bearer).json(create).header("Content-Type", V2).header("Accept", V2).send(ctx).map();
+        String instUrl = groupUrl + "/instances/" + HttpJson.enc(Values.text(inst.get("instance_id")));
+        try {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("topic", tp);
+            entry.put("partition", partition);
+            entry.put("offset", offset);
+            req("POST", instUrl + "/offsets", apiKey, secret, bearer).json(Map.of("offsets", List.of(entry))).header("Content-Type", V2).header("Accept", V2).send(ctx);
+        } finally {
+            try { req("DELETE", instUrl, apiKey, secret, bearer).header("Content-Type", V2).header("Accept", V2).send(ctx); }
+            catch (RuntimeException e) { ctx.warn("Could not close the Kafka reader: " + e.getMessage()); }
+        }
+        return Out.of("next_offset", BigDecimal.valueOf(offset + 1));
     }
 }

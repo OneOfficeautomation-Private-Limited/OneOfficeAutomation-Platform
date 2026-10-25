@@ -42,6 +42,8 @@ final class FormWindow {
         final Map<String, Map<String, Object>> elements = new LinkedHashMap<>();
         final Map<String, String> errors = new LinkedHashMap<>();
         String focus;
+        /** Asked to stay above other windows (Display form's always_on_top). */
+        boolean alwaysOnTop;
         long version = 1;
         boolean closed;
         final BlockingQueue<Map<String, Object>> events = new LinkedBlockingQueue<>();
@@ -103,7 +105,11 @@ final class FormWindow {
     }
 
     /** Opens the form in a small app-style browser window (Edge or Chrome), or the default browser. */
-    static void show(Session s, int width, int height) {
+    static void show(Session s, int width, int height) { show(s, width, height, false); }
+
+    /** Opens the window; with onTop, also keeps it above other windows (Windows only). */
+    static void show(Session s, int width, int height, boolean onTop) {
+        s.alwaysOnTop = onTop;
         if (!openWindows) return;
         if (java.awt.GraphicsEnvironment.isHeadless())
             throw new ActionException("FORMS.NO_DESKTOP", "Forms need a runner with a desktop and a signed-in person", "Run this agent attended, on a runner where someone is signed in.");
@@ -115,13 +121,43 @@ final class FormWindow {
                 : List.of("/usr/bin/microsoft-edge", "/usr/bin/google-chrome", "/usr/bin/chromium");
         for (String b : browsers) {
             if (!Files.isRegularFile(Path.of(b))) continue;
-            try { new ProcessBuilder(b, "--app=" + url, "--window-size=" + width + "," + height, "--new-window").start(); return; }
+            try { new ProcessBuilder(b, "--app=" + url, "--window-size=" + width + "," + height, "--new-window").start(); if (onTop) keepOnTop(s); return; }
             catch (IOException ignored) { /* try the next one */ }
         }
         try {
-            if (ProcessRunner.WINDOWS) new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
+            if (ProcessRunner.WINDOWS) { new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start(); if (onTop) keepOnTop(s); }
             else java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
         } catch (Exception e) { throw new ActionException("FORMS.NO_BROWSER", "Cannot open a window for the form: " + e.getMessage(), "Install Microsoft Edge or Google Chrome on the runner."); }
+    }
+
+    /**
+     * Waits (up to 15 s) for the window whose title is the form's title and marks it topmost with SetWindowPos.
+     * The title goes to PowerShell in an environment variable, never inside the script text.
+     */
+    static final String TOPMOST_SCRIPT = String.join("\n",
+            "Add-Type -Namespace OoaForms -Name W -MemberDefinition '[DllImport(\"user32.dll\", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string c, string t); [DllImport(\"user32.dll\")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int cx, int cy, uint f);'",
+            "for ($i = 0; $i -lt 60; $i++) {",
+            "  $h = [OoaForms.W]::FindWindow($null, $env:OOA_FORM_TITLE)",
+            "  if ($h -ne [IntPtr]::Zero) { [void][OoaForms.W]::SetWindowPos($h, [IntPtr](-1), 0, 0, 0, 0, 0x13); exit 0 }",
+            "  Start-Sleep -Milliseconds 250",
+            "}",
+            "exit 1");
+
+    private static void keepOnTop(Session s) {
+        if (!ProcessRunner.WINDOWS) return;
+        Thread t = new Thread(() -> {
+            try {
+                // encoded, so the quotes in the script survive the Windows command line
+                String encoded = Base64.getEncoder().encodeToString(TOPMOST_SCRIPT.getBytes(StandardCharsets.UTF_16LE));
+                ProcessBuilder pb = new ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded);
+                pb.environment().put("OOA_FORM_TITLE", s.title == null ? "" : s.title);
+                pb.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD);
+                pb.start().waitFor(30, TimeUnit.SECONDS);
+            } catch (IOException ignored) { /* the form still works, only not on top */ }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }, "ooa-forms-topmost");
+        t.setDaemon(true);
+        t.start();
     }
 
     @SuppressWarnings("unchecked")

@@ -17,7 +17,8 @@ public final class RestPackage {
             .followRedirects(HttpClient.Redirect.NORMAL).build();
 
     @Action(id = "request", name = "Send request", category = "HTTP", timeoutSeconds = 120, capabilities = "network",
-            description = "Send an HTTP request and return status, headers and body (parsed as JSON when possible).")
+            description = "Send an HTTP request and return status, headers and body (parsed as JSON when possible).",
+            panel = "url, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, (Body: None = / JSON = json / Form fields = form / Multipart form = multipart / Text = body / A file = body_file), timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | content_type, query, fail_on_error, insecure_tls, accept_cookies, follow_redirects")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "body", type = OoaType.STRING, description = "Response text.")
     @Output(name = "json", description = "Parsed JSON body, or empty.")
@@ -35,7 +36,7 @@ public final class RestPackage {
             @Input(name = "bearer_token", type = OoaType.CREDENTIAL, required = false, description = "Bearer token from the vault.") Object bearer,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Response timeout.") int timeout,
             @Input(name = "fail_on_error", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Raise REST.HTTP_ERROR on 4xx/5xx.") boolean failOnError,
-            @Input(name = "content_type", type = OoaType.STRING, required = false, example = "application/xml", visibleWhen = "body!=", description = "Content-Type of a raw body, e.g. application/xml or text/plain.") String contentType,
+            @Input(name = "content_type", type = OoaType.STRING, required = false, example = "application/xml", description = "Content-Type of a text or file body, e.g. application/xml, text/plain or application/pdf.") String contentType,
             @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate (self-signed or expired); for test systems only.") boolean insecure,
             @Input(name = "proxy", type = OoaType.STRING, required = false, example = "proxy.example.com:8080", description = "Proxy server as host:port; the runner's settings when empty.") String proxy,
             @Input(name = "proxy_user", type = OoaType.STRING, required = false, visibleWhen = "proxy!=", description = "Proxy user name, when the proxy needs a sign-in.") String proxyUser,
@@ -43,8 +44,14 @@ public final class RestPackage {
             @Input(name = "client_certificate", type = OoaType.FILE, required = false, description = "Client certificate (.p12 or .pfx) for servers that require mutual TLS.") String clientCert,
             @Input(name = "client_certificate_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "client_certificate!=", description = "Password of the client certificate file.") Object clientCertPassword,
             @Input(name = "accept_cookies", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Keep cookies the server sets and send them back on later requests of this run.") boolean cookies,
-            @Input(name = "follow_redirects", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Follow redirects (3xx) automatically.") boolean redirects) {
+            @Input(name = "follow_redirects", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Follow redirects (3xx) automatically.") boolean redirects,
+            @Input(name = "multipart", type = OoaType.DICTIONARY, required = false, visibleWhen = "method!=GET",
+                    description = "Multipart form (multipart/form-data): field name to text, or to {\"file\": path, \"content_type\": type} for a file part.") Map<String, Object> multipart,
+            @Input(name = "body_file", type = OoaType.FILE, required = false, visibleWhen = "method!=GET",
+                    description = "File sent as the raw body, byte for byte; content_type gives its type.") String bodyFile) {
         HttpOptions opts = new HttpOptions(insecure, proxy, proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects);
+        long bodies = java.util.stream.Stream.of(json, form, multipart, body, bodyFile).filter(Objects::nonNull).count();
+        if (bodies > 1) throw new ActionException("REST.BAD_BODY", "More than one body was given", "Give only one of json, form, multipart, body or body_file.");
         StringBuilder u = new StringBuilder(url);
         if (query != null && !query.isEmpty()) u.append(url.contains("?") ? "&" : "?").append(encode(query));
         HttpRequest.Builder b;
@@ -54,8 +61,19 @@ public final class RestPackage {
         HttpRequest.BodyPublisher pub = HttpRequest.BodyPublishers.noBody();
         if (json != null) { pub = HttpRequest.BodyPublishers.ofString(JsonLite.write(json)); b.header("Content-Type", "application/json"); }
         else if (form != null) { pub = HttpRequest.BodyPublishers.ofString(encode(form)); b.header("Content-Type", "application/x-www-form-urlencoded"); }
-        else if (body != null) {
-            pub = HttpRequest.BodyPublishers.ofString(body);
+        else if (multipart != null) {
+            Object[] mp = HttpJson.multipart("form-data", multipartParts(ctx, multipart));
+            pub = HttpRequest.BodyPublishers.ofByteArray((byte[]) mp[0]);
+            b.header("Content-Type", (String) mp[1]);
+        } else if (body != null || bodyFile != null) {
+            if (body != null) pub = HttpRequest.BodyPublishers.ofString(body);
+            else {
+                java.nio.file.Path f = ctx.resolvePath(bodyFile);
+                if (!java.nio.file.Files.isRegularFile(f)) throw new ActionException("REST.FILE_NOT_FOUND", "File not found: " + f, "Check the body_file path.");
+                try { pub = HttpRequest.BodyPublishers.ofFile(f); }
+                catch (IOException e) { throw new ActionException("REST.FILE_ERROR", "Cannot read " + f + ": " + e.getMessage(), "Check the file is not locked."); }
+                if (contentType == null || contentType.isBlank()) b.header("Content-Type", "application/octet-stream");
+            }
             if (contentType != null && !contentType.isBlank()) {
                 if (contentType.matches(".*[\\r\\n].*")) throw new ActionException("REST.BAD_HEADER", "content_type may not contain line breaks");
                 b.header("Content-Type", contentType.strip());
@@ -81,6 +99,37 @@ public final class RestPackage {
         Map<String, Object> hdrs = new LinkedHashMap<>();
         resp.headers().map().forEach((k, v) -> hdrs.put(k, String.join(", ", v)));
         return Out.of("status", BigDecimal.valueOf(status), "body", resp.body(), "json", parsed, "headers", hdrs);
+    }
+
+    public Map<String, Object> request(ActionContext ctx, String url, String method, Map<String, Object> query, Map<String, Object> headers, Object json,
+            Map<String, Object> form, String body, String basicUser, Object basicPassword, Object bearer, int timeout, boolean failOnError, String contentType,
+            boolean insecure, String proxy, String proxyUser, Object proxyPassword, String clientCert, Object clientCertPassword, boolean cookies, boolean redirects) {
+        return request(ctx, url, method, query, headers, json, form, body, basicUser, basicPassword, bearer, timeout, failOnError, contentType, insecure, proxy,
+                proxyUser, proxyPassword, clientCert, clientCertPassword, cookies, redirects, null, null);
+    }
+
+    /** Multipart parts from {field: text | {"file": path, "content_type": type}}. */
+    private static List<Object[]> multipartParts(ActionContext ctx, Map<String, Object> fields) {
+        List<Object[]> parts = new ArrayList<>();
+        for (Map.Entry<String, Object> e : fields.entrySet()) {
+            String name = e.getKey().replaceAll("[\"\\r\\n]", "_");
+            if (e.getValue() instanceof Map<?, ?> m && m.get("file") != null) {
+                java.nio.file.Path f = ctx.resolvePath(String.valueOf(m.get("file")));
+                if (!java.nio.file.Files.isRegularFile(f)) throw new ActionException("REST.FILE_NOT_FOUND", "File not found for part '" + e.getKey() + "': " + f, "Check the file path.");
+                String type = m.get("content_type") == null ? null : String.valueOf(m.get("content_type")).replaceAll("[\\r\\n]", "");
+                byte[] data;
+                try { data = java.nio.file.Files.readAllBytes(f); if (type == null) type = java.nio.file.Files.probeContentType(f); }
+                catch (IOException x) { throw new ActionException("REST.FILE_ERROR", "Cannot read " + f + ": " + x.getMessage(), "Check the file is not locked."); }
+                String fileName = HttpJson.safeName(f.getFileName().toString()).replace("\"", "_");
+                parts.add(new Object[]{"Content-Disposition: form-data; name=\"" + name + "\"; filename=\"" + fileName + "\"\r\nContent-Type: "
+                        + (type == null ? "application/octet-stream" : type), data});
+            } else {
+                Object v = e.getValue();
+                parts.add(new Object[]{"Content-Disposition: form-data; name=\"" + name + "\"",
+                        (v instanceof SecureString sv ? sv.reveal() : com.oneofficeautomation.runner.Values.text(v)).getBytes(StandardCharsets.UTF_8)});
+            }
+        }
+        return parts;
     }
 
     /** Builder with URL, query, headers and authentication set the same way as Send request. */
@@ -113,7 +162,8 @@ public final class RestPackage {
     }
 
     @Action(id = "download_file", name = "Download file", category = "HTTP", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
-            description = "Download a URL straight to a file (any file type, including large binaries), with the same headers and authentication as Send request.")
+            description = "Download a URL straight to a file (any file type, including large binaries), with the same headers and authentication as Send request.",
+            panel = "url, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, path, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | query, overwrite, insecure_tls")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "size_bytes", type = OoaType.NUMBER, description = "File size in bytes.")
@@ -177,7 +227,8 @@ public final class RestPackage {
     }
 
     @Action(id = "upload_file", name = "Upload file", category = "HTTP", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
-            description = "Send a file to a URL as a multipart form upload, optionally with extra form fields.")
+            description = "Send a file to a URL as a multipart form upload, optionally with extra form fields.",
+            panel = "url, path, field_name, form, method, [Use a specific proxy: proxy, proxy_user, proxy_password], (Sign in: No sign-in = / User name and password = basic_user, basic_password / Bearer token = bearer_token), headers, timeout_seconds, [Send a client certificate: client_certificate, client_certificate_password] | query, fail_on_error, insecure_tls")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "body", type = OoaType.STRING, description = "Response text.")
     @Output(name = "json", description = "Parsed JSON body, or empty.")

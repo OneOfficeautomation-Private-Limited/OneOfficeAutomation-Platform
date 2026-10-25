@@ -27,7 +27,8 @@ public final class ConnectorPackage {
     // ---------- import and browse ----------
 
     @Action(id = "import_connector", name = "Import connector", category = "Connectors", capabilities = "filesystem",
-            description = "Create or replace a custom connector from an OpenAPI 3.x or Swagger 2.0 document (JSON, or YAML where a YAML parser is installed) or a Postman v2.1 collection.")
+            description = "Create or replace a custom connector from an OpenAPI 3.x or Swagger 2.0 document (JSON, or YAML where a YAML parser is installed) or a Postman v2.1 collection.",
+            panel = "(API description: A file = spec_file / Pasted text = spec_text), name | server, overwrite")
     @Output(name = "connector", type = OoaType.STRING, description = "Name of the saved connector.")
     @Output(name = "operations", type = OoaType.NUMBER, description = "Number of operations imported.")
     @Output(name = "path", type = OoaType.STRING, description = "Workspace path of the connector definition.")
@@ -59,7 +60,8 @@ public final class ConnectorPackage {
     }
 
     @Action(id = "list_operations", name = "List operations", category = "Connectors", idempotent = true,
-            description = "List the operations of a custom connector: id, name, method, path and description.")
+            description = "List the operations of a custom connector: id, name, method, path and description.",
+            panel = "connector, search")
     @Output(name = "operations", type = OoaType.LIST, description = "One dictionary per operation: id, name, method, path, description, tags.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of operations listed.")
     public Map<String, Object> listOperations(ActionContext ctx,
@@ -80,7 +82,8 @@ public final class ConnectorPackage {
     }
 
     @Action(id = "describe_operation", name = "Describe operation", category = "Connectors", idempotent = true,
-            description = "Show one operation of a custom connector: parameters, request body, responses and authentication.")
+            description = "Show one operation of a custom connector: parameters, request body, responses and authentication.",
+            panel = "connector, operation")
     @Output(name = "operation", type = OoaType.DICTIONARY, description = "The full operation definition.")
     @Output(name = "example_parameters", type = OoaType.DICTIONARY, description = "Parameter names with their default or example value, ready to edit.")
     @Output(name = "auth", type = OoaType.LIST, description = "Authentication schemes this operation accepts.")
@@ -102,7 +105,8 @@ public final class ConnectorPackage {
     // ---------- call ----------
 
     @Action(id = "call_operation", name = "Call operation", category = "Connectors", timeoutSeconds = 300, capabilities = "network",
-            description = "Call an operation of a custom connector. Checks required parameters, encodes path and query values, signs the request and returns status, headers and the parsed body, or saves a file.")
+            description = "Call an operation of a custom connector. Checks required parameters, encodes path and query values, signs the request and returns status, headers and the parsed body, or saves a file.",
+            panel = "connector, operation, parameters, body, credential, auth | output_file, base_url, headers, timeout_seconds, fail_on_error")
     @Output(name = "status", type = OoaType.NUMBER, description = "HTTP status code.")
     @Output(name = "headers", type = OoaType.DICTIONARY, description = "Response headers.")
     @Output(name = "body", description = "Response body: parsed JSON, or text; empty when saved to a file.")

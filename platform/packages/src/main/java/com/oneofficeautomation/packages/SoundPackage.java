@@ -12,7 +12,8 @@ import java.util.Map;
 @OoaPackage(id = "ooa.sound", name = "Play sound", version = "1.1.0", description = "Beep or play a WAV file, e.g. to alert an attended user.")
 public final class SoundPackage {
 
-    @Action(id = "beep", name = "Beep", category = "Sound", capabilities = "desktop", description = "Play the system beep, once or several times.")
+    @Action(id = "beep", name = "Beep", category = "Sound", capabilities = "desktop", description = "Play the system beep, once or several times.",
+            panel = "times, interval_ms")
     public Map<String, Object> beep(ActionContext ctx,
             @Input(name = "times", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 100, description = "How many beeps (1 to 20).") int times,
             @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 0, description = "Pause between beeps.") int interval) {
@@ -32,7 +33,8 @@ public final class SoundPackage {
     }
 
     @Action(id = "play", name = "Play sound file", category = "Sound", capabilities = "desktop", timeoutSeconds = 600,
-            description = "Play a WAV, AIFF or AU sound file, waiting until it ends or continuing while it plays.")
+            description = "Play a WAV, AIFF or AU sound file, waiting until it ends or continuing while it plays.",
+            panel = "path | wait, volume_percent, repeat")
     public Map<String, Object> play(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Sound file (WAV recommended).") String path,
             @Input(name = "wait", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Wait until the sound has finished; false continues while it plays.") boolean wait,
             @Input(name = "volume_percent", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 0, max = 100, description = "Playback volume from 1 to 100 percent of the file's level.") int volume,

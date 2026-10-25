@@ -109,7 +109,8 @@ public final class AzureDevOpsPackage {
     // ---------------------------------------------------------------- projects
 
     @Action(id = "list_projects", name = "List projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the projects in the organization or collection.")
+            description = "List the projects in the organization or collection.",
+            panel = "organization_url, personal_access_token | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, visibility, description, last_update.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of projects returned.")
     public Map<String, Object> listProjects(ActionContext ctx,
@@ -120,7 +121,8 @@ public final class AzureDevOpsPackage {
         return result(HttpJson.table(recs, "id", "name", "state", "visibility", "description", "last_update=lastUpdateTime"), recs.size());
     }
 
-    @Action(id = "get_project", name = "Get project", category = "Projects", idempotent = true, capabilities = "network", description = "Read a project's details.")
+    @Action(id = "get_project", name = "Get project", category = "Projects", idempotent = true, capabilities = "network", description = "Read a project's details.",
+            panel = "organization_url, personal_access_token, project")
     @Output(name = "project", type = OoaType.DICTIONARY, description = "id, name, description, state, visibility, default_team, url.")
     public Map<String, Object> getProject(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -134,7 +136,8 @@ public final class AzureDevOpsPackage {
     // ---------------------------------------------------------------- work items
 
     @Action(id = "create_work_item", name = "Create work item", category = "Work items", capabilities = "network",
-            description = "Create a work item such as a Bug, Task or User Story.")
+            description = "Create a work item such as a Bug, Task or User Story.",
+            panel = "organization_url, personal_access_token, project, type, title, description, assigned_to | area_path, iteration_path, tags, parent_id, fields")
     @Output(name = "id", type = OoaType.NUMBER, description = "Work item id, e.g. 4711.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the work item.")
     public Map<String, Object> createWorkItem(ActionContext ctx,
@@ -166,7 +169,8 @@ public final class AzureDevOpsPackage {
         return Out.of("id", r.get("id"), "url", HttpJson.path(r, "_links.html.href"));
     }
 
-    @Action(id = "get_work_item", name = "Get work item", category = "Work items", idempotent = true, capabilities = "network", description = "Read a work item by id.")
+    @Action(id = "get_work_item", name = "Get work item", category = "Work items", idempotent = true, capabilities = "network", description = "Read a work item by id.",
+            panel = "organization_url, personal_access_token, id")
     @Output(name = "work_item", type = OoaType.DICTIONARY, description = "id, rev, type, title, state, reason, assigned_to, area_path, iteration_path, tags, priority, description, created_by, created_date, changed_date, url, fields (all fields).")
     @Output(name = "state", type = OoaType.STRING, description = "Current state, e.g. Active.")
     public Map<String, Object> getWorkItem(ActionContext ctx,
@@ -178,7 +182,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "update_work_item", name = "Update work item", category = "Work items", capabilities = "network",
-            description = "Change fields of a work item, such as its state or assignee. Only the inputs you fill in are changed.")
+            description = "Change fields of a work item, such as its state or assignee. Only the inputs you fill in are changed.",
+            panel = "organization_url, personal_access_token, id, title, iteration_path, state | assigned_to, description, tags, fields")
     @Output(name = "rev", type = OoaType.NUMBER, description = "New revision number.")
     public Map<String, Object> updateWorkItem(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -206,7 +211,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "delete_work_item", name = "Delete work item", category = "Work items", capabilities = "network",
-            description = "Move a work item to the Recycle Bin, or remove it for good.")
+            description = "Move a work item to the Recycle Bin, or remove it for good.",
+            panel = "organization_url, personal_access_token, id | permanently")
     public Map<String, Object> deleteWorkItem(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -217,7 +223,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "query_work_items", name = "Query work items (WIQL)", category = "Work items", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Find work items with a WIQL query and return their main fields as a table.")
+            description = "Find work items with a WIQL query and return their main fields as a table.",
+            panel = "organization_url, personal_access_token, project, wiql | extra_fields, max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, title, state, assigned_to, changed_date, then any extra fields asked for.")
     @Output(name = "ids", type = OoaType.LIST, description = "Ids of the work items found.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of work items returned.")
@@ -256,7 +263,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "add_work_item_comment", name = "Add work item comment", category = "Work items", capabilities = "network",
-            description = "Add a comment to a work item's discussion.")
+            description = "Add a comment to a work item's discussion.",
+            panel = "organization_url, personal_access_token, project, id, text")
     @Output(name = "comment_id", type = OoaType.NUMBER, description = "Id of the new comment.")
     public Map<String, Object> addComment(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -270,7 +278,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "list_work_item_comments", name = "List work item comments", category = "Work items", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Read the comments in a work item's discussion, newest first.")
+            description = "Read the comments in a work item's discussion, newest first.",
+            panel = "organization_url, personal_access_token, project, id | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, text, created_by, created_date.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of comments returned.")
     public Map<String, Object> listComments(ActionContext ctx,
@@ -294,7 +303,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "attach_file_to_work_item", name = "Attach file to work item", category = "Work items", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Upload a local file and attach it to a work item.")
+            description = "Upload a local file and attach it to a work item.",
+            panel = "organization_url, personal_access_token, project, id, path, comment")
     @Output(name = "attachment_url", type = OoaType.STRING, description = "Address of the uploaded file.")
     public Map<String, Object> attachFile(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -319,7 +329,8 @@ public final class AzureDevOpsPackage {
     // ---------------------------------------------------------------- repos and pull requests
 
     @Action(id = "list_repositories", name = "List repositories", category = "Repos", idempotent = true, capabilities = "network",
-            description = "List the Git repositories of a project.")
+            description = "List the Git repositories of a project.",
+            panel = "organization_url, personal_access_token, project")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, default_branch, size, web_url, remote_url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of repositories.")
     public Map<String, Object> listRepositories(ActionContext ctx,
@@ -331,7 +342,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "list_pull_requests", name = "List pull requests", category = "Repos", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List pull requests of a repository, filtered by status and target branch.")
+            description = "List pull requests of a repository, filtered by status and target branch.",
+            panel = "organization_url, personal_access_token, project, repository, status, target_branch | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, status, is_draft, created_by, source_branch, target_branch, created, merge_status.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pull requests returned.")
     public Map<String, Object> listPullRequests(ActionContext ctx,
@@ -360,7 +372,8 @@ public final class AzureDevOpsPackage {
                 "source_branch=sourceRefName", "target_branch=targetRefName", "created=creationDate", "merge_status=mergeStatus"), recs.size());
     }
 
-    @Action(id = "get_pull_request", name = "Get pull request", category = "Repos", idempotent = true, capabilities = "network", description = "Read a pull request by id.")
+    @Action(id = "get_pull_request", name = "Get pull request", category = "Repos", idempotent = true, capabilities = "network", description = "Read a pull request by id.",
+            panel = "organization_url, personal_access_token, project, repository, pull_request_id")
     @Output(name = "pull_request", type = OoaType.DICTIONARY, description = "id, title, description, status, is_draft, merge_status, created_by, source_branch, target_branch, created, closed, repository, last_source_commit.")
     @Output(name = "status", type = OoaType.STRING, description = "active, completed or abandoned.")
     public Map<String, Object> getPullRequest(ActionContext ctx,
@@ -374,7 +387,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "create_pull_request", name = "Create pull request", category = "Repos", capabilities = "network",
-            description = "Propose merging one branch into another, optionally linking work items.")
+            description = "Propose merging one branch into another, optionally linking work items.",
+            panel = "organization_url, personal_access_token, project, repository, source_branch, target_branch, title, description | draft, work_item_ids")
     @Output(name = "pull_request_id", type = OoaType.NUMBER, description = "Id of the new pull request.")
     public Map<String, Object> createPullRequest(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -403,7 +417,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "complete_pull_request", name = "Complete pull request", category = "Repos", capabilities = "network",
-            description = "Merge an active pull request into its target branch.")
+            description = "Merge an active pull request into its target branch.",
+            panel = "organization_url, personal_access_token, project, repository, pull_request_id, merge_strategy, delete_source_branch | merge_commit_message")
     @Output(name = "status", type = OoaType.STRING, description = "Status after the request, normally completed.")
     @Output(name = "merge_status", type = OoaType.STRING, description = "Merge result, e.g. succeeded, queued or conflicts.")
     public Map<String, Object> completePullRequest(ActionContext ctx,
@@ -433,7 +448,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "add_pull_request_comment", name = "Comment on pull request", category = "Repos", capabilities = "network",
-            description = "Start a new comment thread on a pull request.")
+            description = "Start a new comment thread on a pull request.",
+            panel = "organization_url, personal_access_token, project, repository, pull_request_id, text")
     @Output(name = "thread_id", type = OoaType.NUMBER, description = "Id of the new thread.")
     public Map<String, Object> commentPullRequest(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -451,7 +467,8 @@ public final class AzureDevOpsPackage {
     // ---------------------------------------------------------------- pipelines and builds
 
     @Action(id = "list_pipelines", name = "List pipelines", category = "Pipelines", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the pipelines of a project.")
+            description = "List the pipelines of a project.",
+            panel = "organization_url, personal_access_token, project, max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, folder, revision.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pipelines returned.")
     public Map<String, Object> listPipelines(ActionContext ctx,
@@ -461,6 +478,36 @@ public final class AzureDevOpsPackage {
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "200", description = D_MAX) int max) {
         List<Map<String, Object>> recs = pages(ctx, proj(org, project) + "/_apis/pipelines", pat, max);
         return result(HttpJson.table(recs, "id", "name", "folder", "revision"), recs.size());
+    }
+
+    @Action(id = "list_pipeline_runs", name = "List pipeline runs", category = "Pipelines", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "List the recent runs of one pipeline, newest first, optionally only those in a given state or with a given result.",
+            panel = "organization_url, personal_access_token, project, pipeline_id, state, result | max_results")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, result, created, finished, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of runs returned.")
+    public Map<String, Object> listPipelineRuns(ActionContext ctx,
+            @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
+            @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
+            @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
+            @Input(name = "pipeline_id", type = OoaType.NUMBER, example = "12", description = "Pipeline id, from List pipelines.") int pipeline,
+            @Input(name = "state", type = OoaType.STRING, required = false, enumValues = {"inProgress", "canceling", "completed"},
+                    description = "Only runs in this state.") String state,
+            @Input(name = "result", type = OoaType.STRING, required = false, enumValues = {"succeeded", "failed", "canceled"},
+                    description = "Only completed runs with this result.") String result,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = D_MAX) int max) {
+        // the service returns the latest runs of the pipeline in one page, newest first; the filters apply here
+        HttpJson.Response r = send(req("GET", withVersion(proj(org, project) + "/_apis/pipelines/" + pipeline + "/runs", V), pat).timeout(120), ctx);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> run : HttpJson.maps(r.map().get("value"))) {
+            if (state != null && !state.isBlank() && !state.equalsIgnoreCase(String.valueOf(run.get("state")))) continue;
+            if (result != null && !result.isBlank() && !result.equalsIgnoreCase(String.valueOf(run.get("result")))) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", run.get("id")); row.put("name", run.get("name")); row.put("state", run.get("state")); row.put("result", run.get("result"));
+            row.put("created", run.get("createdDate")); row.put("finished", run.get("finishedDate")); row.put("url", HttpJson.path(run, "_links.web.href"));
+            rows.add(row);
+            if (rows.size() >= max) break;
+        }
+        return result(HttpJson.table(rows, "id", "name", "state", "result", "created", "finished", "url"), rows.size());
     }
 
     // ---------------------------------------------------------------- test plans, suites, cases, points and runs
@@ -473,7 +520,8 @@ public final class AzureDevOpsPackage {
                 "root_suite_id", HttpJson.path(p, "rootSuite.id"), "owner", who(p.get("owner")), "start_date", p.get("startDate"), "end_date", p.get("endDate"));
     }
 
-    @Action(id = "list_test_plans", name = "List test plans", category = "Test plans", idempotent = true, capabilities = "network", description = "List the test plans of a project.")
+    @Action(id = "list_test_plans", name = "List test plans", category = "Test plans", idempotent = true, capabilities = "network", description = "List the test plans of a project.",
+            panel = "organization_url, personal_access_token, project, active_only")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, area_path, iteration, root_suite_id.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of plans.")
     public Map<String, Object> listTestPlans(ActionContext ctx,
@@ -486,7 +534,8 @@ public final class AzureDevOpsPackage {
         return Out.of("table", HttpJson.table(rows, "id", "name", "state", "area_path", "iteration", "root_suite_id"), "count", BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "get_test_plan", name = "Get test plan details", category = "Test plans", idempotent = true, capabilities = "network", description = "Read one test plan.")
+    @Action(id = "get_test_plan", name = "Get test plan details", category = "Test plans", idempotent = true, capabilities = "network", description = "Read one test plan.",
+            panel = "organization_url, personal_access_token, project, plan_id")
     @Output(name = "plan", type = OoaType.DICTIONARY, description = "Keys: id, name, state, area_path, iteration, root_suite_id, owner, start_date, end_date.")
     public Map<String, Object> getTestPlan(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -496,7 +545,30 @@ public final class AzureDevOpsPackage {
         return Out.of("plan", plan(call(ctx, "GET", proj(org, project) + "/_apis/testplan/plans/" + planId, pat, null)));
     }
 
-    @Action(id = "create_test_plan", name = "Create test plan", category = "Test plans", capabilities = "network", description = "Create a test plan; its root suite is created with it.")
+    /** A date input as the ISO 8601 UTC text the test plan service expects; null when empty. */
+    static String isoDate(String what, Object v) {
+        if (v == null || Values.text(v).isBlank()) return null;
+        try { return Values.toDateTime(v).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")); }
+        catch (RuntimeException e) {
+            throw new ActionException(P + ".BAD_DATE", "The " + what + " '" + Values.text(v) + "' is not a date", "Use a date such as 2026-11-01 or 2026-11-01T09:00:00Z.");
+        }
+    }
+
+    static void putDates(Map<String, Object> body, Object start, Object end) {
+        String s = isoDate("start_date", start), e = isoDate("end_date", end);
+        if (s != null && e != null && e.compareTo(s) < 0)
+            throw new ActionException(P + ".BAD_DATES", "The end date " + e + " is before the start date " + s, "Choose an end date on or after the start date.");
+        if (s != null) body.put("startDate", s);
+        if (e != null) body.put("endDate", e);
+    }
+
+    /** Earlier signature, kept for callers written before start_date and end_date. */
+    public Map<String, Object> createTestPlan(ActionContext ctx, String org, Object pat, String project, String name, String area, String iteration, String desc) {
+        return createTestPlan(ctx, org, pat, project, name, area, iteration, desc, null, null);
+    }
+
+    @Action(id = "create_test_plan", name = "Create test plan", category = "Test plans", capabilities = "network", description = "Create a test plan; its root suite is created with it.",
+            panel = "organization_url, personal_access_token, project, name, plan_description, area_path, iteration, [Set the plan's dates: start_date, end_date]")
     @Output(name = "plan_id", type = OoaType.NUMBER, description = "Id of the new plan.")
     @Output(name = "root_suite_id", type = OoaType.NUMBER, description = "Id of the plan's root suite, for Create test suite.")
     public Map<String, Object> createTestPlan(ActionContext ctx,
@@ -506,16 +578,25 @@ public final class AzureDevOpsPackage {
             @Input(name = "name", type = OoaType.STRING, description = "Plan name, e.g. Release 3.2 regression.") String name,
             @Input(name = "area_path", type = OoaType.STRING, required = false, description = "Area path; the project's root area when empty.") String area,
             @Input(name = "iteration", type = OoaType.STRING, required = false, description = "Iteration path, e.g. Finance Portal\\Sprint 12.") String iteration,
-            @Input(name = "plan_description", type = OoaType.STRING, required = false, description = "Description.") String desc) {
+            @Input(name = "plan_description", type = OoaType.STRING, required = false, description = "Description.") String desc,
+            @Input(name = "start_date", type = OoaType.DATETIME, required = false, example = "2026-11-01", description = "First day of the testing period (UTC); the service picks today when empty.") Object start,
+            @Input(name = "end_date", type = OoaType.DATETIME, required = false, example = "2026-11-14", description = "Last day of the testing period (UTC); on or after the start date.") Object end) {
         Map<String, Object> b = new LinkedHashMap<>(Map.of("name", name));
         if (area != null && !area.isBlank()) b.put("areaPath", area);
         if (iteration != null && !iteration.isBlank()) b.put("iteration", iteration);
         if (desc != null && !desc.isBlank()) b.put("description", desc);
+        putDates(b, start, end);
         Map<String, Object> r = call(ctx, "POST", proj(org, project) + "/_apis/testplan/plans", pat, b);
         return Out.of("plan_id", r.get("id"), "root_suite_id", HttpJson.path(r, "rootSuite.id"));
     }
 
-    @Action(id = "update_test_plan", name = "Edit test plan", category = "Test plans", capabilities = "network", description = "Rename a test plan, change its state, description, area or iteration; empty inputs are kept.")
+    /** Earlier signature, kept for callers written before start_date and end_date. */
+    public Map<String, Object> updateTestPlan(ActionContext ctx, String org, Object pat, String project, int planId, String name, String state, String desc, String area, String iteration) {
+        return updateTestPlan(ctx, org, pat, project, planId, name, state, desc, area, iteration, null, null);
+    }
+
+    @Action(id = "update_test_plan", name = "Edit test plan", category = "Test plans", capabilities = "network", description = "Rename a test plan, change its state, description, area, iteration or dates; empty inputs are kept.",
+            panel = "organization_url, personal_access_token, project, plan_id, name, plan_description, area_path, iteration, state, [Change the plan's dates: start_date, end_date]")
     public Map<String, Object> updateTestPlan(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -525,19 +606,23 @@ public final class AzureDevOpsPackage {
             @Input(name = "state", type = OoaType.STRING, required = false, enumValues = {"Active", "Inactive"}, description = "Plan state.") String state,
             @Input(name = "plan_description", type = OoaType.STRING, required = false, description = "New description.") String desc,
             @Input(name = "area_path", type = OoaType.STRING, required = false, description = "New area path.") String area,
-            @Input(name = "iteration", type = OoaType.STRING, required = false, description = "New iteration path.") String iteration) {
+            @Input(name = "iteration", type = OoaType.STRING, required = false, description = "New iteration path.") String iteration,
+            @Input(name = "start_date", type = OoaType.DATETIME, required = false, description = "New first day of the testing period (UTC).") Object start,
+            @Input(name = "end_date", type = OoaType.DATETIME, required = false, description = "New last day of the testing period (UTC).") Object end) {
         Map<String, Object> b = new LinkedHashMap<>();
         if (name != null && !name.isBlank()) b.put("name", name);
         if (state != null && !state.isBlank()) b.put("state", state);
         if (desc != null) b.put("description", desc);
         if (area != null && !area.isBlank()) b.put("areaPath", area);
         if (iteration != null && !iteration.isBlank()) b.put("iteration", iteration);
+        putDates(b, start, end);
         if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in at least one field.");
         call(ctx, "PATCH", proj(org, project) + "/_apis/testplan/plans/" + planId, pat, b);
         return Map.of();
     }
 
-    @Action(id = "delete_test_plan", name = "Delete test plan", category = "Test plans", capabilities = "network", description = "Delete a test plan with its suites (test cases stay as work items). Needs confirm.")
+    @Action(id = "delete_test_plan", name = "Delete test plan", category = "Test plans", capabilities = "network", description = "Delete a test plan with its suites (test cases stay as work items). Needs confirm.",
+            panel = "organization_url, personal_access_token, project, plan_id, confirm")
     public Map<String, Object> deleteTestPlan(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -550,7 +635,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "create_test_suite", name = "Create test suite", category = "Test plans", capabilities = "network",
-            description = "Create a static, requirement-based or query-based suite inside a plan's suite.")
+            description = "Create a static, requirement-based or query-based suite inside a plan's suite.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_type, requirement_id, query, parent_suite_id, name")
     @Output(name = "suite_id", type = OoaType.NUMBER, description = "Id of the new suite.")
     public Map<String, Object> createTestSuite(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -578,7 +664,8 @@ public final class AzureDevOpsPackage {
         return Out.of("suite_id", call(ctx, "POST", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites", pat, b).get("id"));
     }
 
-    @Action(id = "update_test_suite", name = "Edit test suite", category = "Test plans", capabilities = "network", description = "Rename a suite or move it under another suite of the plan.")
+    @Action(id = "update_test_suite", name = "Edit test suite", category = "Test plans", capabilities = "network", description = "Rename a suite or move it under another suite of the plan.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id, parent_suite_id, name")
     public Map<String, Object> updateTestSuite(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -595,7 +682,8 @@ public final class AzureDevOpsPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_test_suite", name = "Delete test suite", category = "Test plans", capabilities = "network", description = "Delete a suite and its child suites (test cases stay as work items).")
+    @Action(id = "delete_test_suite", name = "Delete test suite", category = "Test plans", capabilities = "network", description = "Delete a suite and its child suites (test cases stay as work items).",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id")
     public Map<String, Object> deleteTestSuite(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -606,7 +694,8 @@ public final class AzureDevOpsPackage {
         return Map.of();
     }
 
-    @Action(id = "add_test_cases_to_suite", name = "Add test cases to suite", category = "Test plans", capabilities = "network", description = "Add existing test case work items to a static suite.")
+    @Action(id = "add_test_cases_to_suite", name = "Add test cases to suite", category = "Test plans", capabilities = "network", description = "Add existing test case work items to a static suite.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id, test_case_ids")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of test cases added.")
     public Map<String, Object> addTestCases(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -622,7 +711,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "remove_test_cases_from_suite", name = "Remove test cases from suite", category = "Test plans", capabilities = "network",
-            description = "Take test cases out of a suite; the test case work items are kept.")
+            description = "Take test cases out of a suite; the test case work items are kept.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id, test_case_ids")
     public Map<String, Object> removeTestCases(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -646,8 +736,15 @@ public final class AzureDevOpsPackage {
         return out;
     }
 
+    /** Earlier signature, kept for callers written before area_path, iteration_path, priority and automation_status. */
+    public Map<String, Object> createTestCase(ActionContext ctx, String org, Object pat, String project, String title, List<Object> steps,
+            Map<String, Object> fields, Integer planId, Integer suiteId) {
+        return createTestCase(ctx, org, pat, project, title, steps, fields, planId, suiteId, null, null, null, null);
+    }
+
     @Action(id = "create_test_case", name = "Create test case", category = "Test plans", capabilities = "network",
-            description = "Create a Test Case work item with numbered steps (action and expected result), optionally added to a suite.")
+            description = "Create a Test Case work item with numbered steps (action and expected result), optionally added to a suite.",
+            panel = "organization_url, personal_access_token, project, title, steps, area_path, iteration_path, priority | automation_status, fields, plan_id, suite_id")
     @Output(name = "id", type = OoaType.NUMBER, description = "Work item id of the test case.")
     public Map<String, Object> createTestCase(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -658,11 +755,27 @@ public final class AzureDevOpsPackage {
                     description = "Steps in order: text, or {\"action\": ..., \"expected\": ...}, e.g. [{\"action\": \"Open the invoice\", \"expected\": \"Total shows 120.50\"}].") List<Object> steps,
             @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "Other fields, e.g. {\"priority\": 2, \"area_path\": \"Finance Portal\"}.") Map<String, Object> fields,
             @Input(name = "plan_id", type = OoaType.NUMBER, required = false, min = 1, description = "Add the new test case to this plan's suite (with suite_id).") Integer planId,
-            @Input(name = "suite_id", type = OoaType.NUMBER, required = false, min = 1, visibleWhen = "plan_id!=", description = "Suite to add it to.") Integer suiteId) {
+            @Input(name = "suite_id", type = OoaType.NUMBER, required = false, min = 1, visibleWhen = "plan_id!=", description = "Suite to add it to.") Integer suiteId,
+            @Input(name = "area_path", type = OoaType.STRING, required = false, example = "Finance Portal\\Payments", description = "Area path; the project's root area when empty.") String area,
+            @Input(name = "iteration_path", type = OoaType.STRING, required = false, example = "Finance Portal\\Sprint 42", description = "Iteration (sprint) path; the project's root iteration when empty.") String iteration,
+            @Input(name = "priority", type = OoaType.NUMBER, required = false, min = 1, max = 4, description = "Priority from 1 (highest) to 4 (lowest).") Integer priority,
+            @Input(name = "automation_status", type = OoaType.STRING, required = false, enumValues = {"Not Automated", "Planned", "Automated"},
+                    description = "Whether the test is automated: Not Automated, Planned or Automated.") String automation) {
+        if (priority != null && (priority < 1 || priority > 4))
+            throw new ActionException(P + ".BAD_PRIORITY", "Priority " + priority + " is out of range", "Use a whole number from 1 (highest) to 4 (lowest).");
+        if (automation != null && !automation.isBlank() && !Set.of("Not Automated", "Planned", "Automated").contains(automation.strip()))
+            throw new ActionException(P + ".BAD_AUTOMATION_STATUS", "Unknown automation status '" + automation + "'", "Use Not Automated, Planned or Automated.");
+        // named inputs win over the same field given in the fields dictionary
+        Map<String, Object> byRef = new LinkedHashMap<>();
+        if (fields != null) fields.forEach((k, v) -> byRef.put(FRIENDLY.getOrDefault(k, k), v));
+        if (area != null && !area.isBlank()) byRef.put("System.AreaPath", area.strip());
+        if (iteration != null && !iteration.isBlank()) byRef.put("System.IterationPath", iteration.strip());
+        if (priority != null) byRef.put("Microsoft.VSTS.Common.Priority", priority);
+        if (automation != null && !automation.isBlank()) byRef.put("Microsoft.VSTS.TCM.AutomationStatus", automation.strip());
         List<Object> ops = new ArrayList<>();
         ops.add(Map.of("op", "add", "path", "/fields/System.Title", "value", title));
         if (steps != null && !steps.isEmpty()) ops.add(Map.of("op", "add", "path", "/fields/Microsoft.VSTS.TCM.Steps", "value", stepsXml(steps)));
-        if (fields != null) fields.forEach((k, v) -> ops.add(Map.of("op", "add", "path", "/fields/" + FRIENDLY.getOrDefault(k, k), "value", v)));
+        byRef.forEach((k, v) -> ops.add(Map.of("op", "add", "path", "/fields/" + k, "value", v)));
         HttpJson.Req r = req("POST", withVersion(proj(org, project) + "/_apis/wit/workitems/$Test%20Case", V), pat).bytes(JsonLite.write(ops).getBytes(java.nio.charset.StandardCharsets.UTF_8), "application/json-patch+json");
         Object id = send(r, ctx).map().get("id");
         if (planId != null && suiteId != null && id != null)
@@ -690,7 +803,8 @@ public final class AzureDevOpsPackage {
     private static String xml(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
 
     @Action(id = "list_test_points", name = "List test points", category = "Test plans", idempotent = true, capabilities = "network",
-            description = "List the test points of a suite (one per test case and configuration) with their latest outcome.")
+            description = "List the test points of a suite (one per test case and configuration) with their latest outcome.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, test_case_id, test_case, configuration, tester, outcome, state.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of points.")
     public Map<String, Object> listTestPoints(ActionContext ctx,
@@ -707,8 +821,49 @@ public final class AzureDevOpsPackage {
         return Out.of("table", HttpJson.table(rows, "id", "test_case_id", "test_case", "configuration", "tester", "outcome", "state"), "count", BigDecimal.valueOf(rows.size()));
     }
 
+    private static final java.util.regex.Pattern GUID = java.util.regex.Pattern.compile("^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$");
+
+    /** Address of the identity service: a separate host for the cloud service, the collection itself for Azure DevOps Server. */
+    static String identityBase(String org) {
+        String o = org(org);
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^https://dev\\.azure\\.com/([^/]+)$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(o);
+        if (m.matches()) return "https://vssps.dev.azure.com/" + m.group(1);
+        m = java.util.regex.Pattern.compile("^https://([^./]+)\\.visualstudio\\.com(/.*)?$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(o);
+        if (m.matches()) return "https://" + m.group(1) + ".vssps.visualstudio.com";
+        return o;
+    }
+
+    /** Turns an identity id, sign-in email or display name into the reference the test point service stores. */
+    static Map<String, Object> identityRef(ActionContext ctx, String org, Object pat, String person) {
+        String p = person.strip();
+        if (GUID.matcher(p).matches()) return Map.of("id", p);
+        String url = identityBase(org) + "/_apis/identities?searchFilter=General&filterValue=" + HttpJson.enc(p) + "&queryMembership=None";
+        List<Map<String, Object>> found = new ArrayList<>();
+        for (Map<String, Object> i : HttpJson.maps(call(ctx, "GET", url, pat, null).get("value")))
+            if (!Boolean.TRUE.equals(i.get("isContainer")) && i.get("id") != null) found.add(i);
+        if (found.size() > 1) {
+            List<Map<String, Object>> exact = new ArrayList<>();
+            for (Map<String, Object> i : found)
+                for (Object v : new Object[]{i.get("providerDisplayName"), HttpJson.path(i, "properties.Mail.$value"), HttpJson.path(i, "properties.Account.$value")})
+                    if (v != null && p.equalsIgnoreCase(Values.text(v))) { exact.add(i); break; }
+            if (exact.size() == 1) found = exact;
+        }
+        if (found.isEmpty()) throw new ActionException(P + ".TESTER_NOT_FOUND", "No user matches the tester '" + p + "'", "Use the person's sign-in email as shown in Azure DevOps.");
+        if (found.size() > 1) throw new ActionException(P + ".AMBIGUOUS_TESTER", found.size() + " users match the tester '" + p + "'", "Use the person's sign-in email instead of the display name.");
+        Map<String, Object> ref = new LinkedHashMap<>();
+        ref.put("id", Values.text(found.get(0).get("id")));
+        if (found.get(0).get("providerDisplayName") != null) ref.put("displayName", Values.text(found.get(0).get("providerDisplayName")));
+        return ref;
+    }
+
+    /** Earlier signature, kept for callers written before tester. */
+    public Map<String, Object> updateTestPoint(ActionContext ctx, String org, Object pat, String project, int planId, int suiteId, List<Object> points, String outcome) {
+        return updateTestPoint(ctx, org, pat, project, planId, suiteId, points, outcome, null);
+    }
+
     @Action(id = "update_test_point", name = "Update test point", category = "Test plans", capabilities = "network",
-            description = "Set the outcome of test points (passed, failed, blocked, not applicable), or reset them to active, e.g. after a manual check done by an agent.")
+            description = "Set the outcome of test points (passed, failed, blocked, not applicable), reset them to active, or assign them to a tester, e.g. after a manual check done by an agent.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id, point_ids, outcome, tester")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of points updated.")
     public Map<String, Object> updateTestPoint(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -717,16 +872,36 @@ public final class AzureDevOpsPackage {
             @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
             @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
             @Input(name = "point_ids", type = OoaType.LIST, description = "Test point ids, from List test points.") List<Object> points,
-            @Input(name = "outcome", type = OoaType.STRING, enumValues = {"passed", "failed", "blocked", "notApplicable", "active"}, description = "New outcome; active resets the point.") String outcome) {
+            @Input(name = "outcome", type = OoaType.STRING, required = false, enumValues = {"passed", "failed", "blocked", "notApplicable", "active"},
+                    description = "New outcome; active resets the point. Leave empty to only change the tester.") String outcome,
+            @Input(name = "tester", type = OoaType.STRING, required = false, example = "ana@contoso.com",
+                    description = "Person to assign the points to: sign-in email, display name or identity id. Needs the token to read identities.") String tester) {
+        boolean hasOutcome = outcome != null && !outcome.isBlank(), hasTester = tester != null && !tester.isBlank();
+        if (!hasOutcome && !hasTester) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Neither an outcome nor a tester was given", "Fill in outcome, tester, or both.");
+        if (hasOutcome && !Set.of("passed", "failed", "blocked", "notApplicable", "active").contains(outcome))
+            throw new ActionException(P + ".BAD_OUTCOME", "Unknown outcome '" + outcome + "'", "Use passed, failed, blocked, notApplicable or active.");
+        List<Integer> ids = testCaseIds(points);
+        Map<String, Object> who = hasTester ? identityRef(ctx, org, pat, tester) : null;
         List<Object> body = new ArrayList<>();
-        for (int id : testCaseIds(points))
-            body.add("active".equals(outcome) ? Map.of("id", id, "resetToActive", true) : Map.of("id", id, "results", Map.of("outcome", outcome)));
+        for (int id : ids) {
+            Map<String, Object> u = new LinkedHashMap<>();
+            u.put("id", id);
+            if (hasOutcome) { if ("active".equals(outcome)) u.put("resetToActive", true); else u.put("results", Map.of("outcome", outcome)); }
+            if (who != null) u.put("tester", who);
+            body.add(u);
+        }
         call(ctx, "PATCH", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestPoint", pat, body);
         return Out.of("count", BigDecimal.valueOf(body.size()));
     }
 
+    /** Earlier signature, kept for callers written before automated and build_id. */
+    public Map<String, Object> createTestRun(ActionContext ctx, String org, Object pat, String project, int planId, String name, List<Object> points) {
+        return createTestRun(ctx, org, pat, project, planId, name, points, false, null);
+    }
+
     @Action(id = "create_test_run", name = "Create test run", category = "Test plans", capabilities = "network",
-            description = "Start a manual test run for test points of a plan, so their results can be recorded.")
+            description = "Start a test run for test points of a plan, so their results can be recorded; manual by default, or automated and linked to a build.",
+            panel = "organization_url, personal_access_token, project, plan_id, name, point_ids | automated, build_id")
     @Output(name = "run_id", type = OoaType.NUMBER, description = "Id of the new run.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the run.")
     public Map<String, Object> createTestRun(ActionContext ctx,
@@ -735,15 +910,23 @@ public final class AzureDevOpsPackage {
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
             @Input(name = "name", type = OoaType.STRING, description = "Run name.") String name,
-            @Input(name = "point_ids", type = OoaType.LIST, required = false, description = "Test points to include; the run starts empty when none are given.") List<Object> points) {
-        Map<String, Object> b = new LinkedHashMap<>(Map.of("name", name, "plan", Map.of("id", String.valueOf(planId)), "automated", false));
+            @Input(name = "point_ids", type = OoaType.LIST, required = false, description = "Test points to include; the run starts empty when none are given.") List<Object> points,
+            @Input(name = "automated", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Mark the run as automated instead of manual.") boolean automated,
+            @Input(name = "build_id", type = OoaType.NUMBER, required = false, min = 1, description = "Id of the build the run tests, from Queue build or List builds.") Integer buildId) {
+        if (buildId != null && buildId < 1) throw new ActionException(P + ".BAD_ID", "'" + buildId + "' is not a build id", "Use the build's id, a whole number such as 77.");
+        Map<String, Object> b = new LinkedHashMap<>();
+        b.put("name", name);
+        b.put("plan", Map.of("id", String.valueOf(planId)));
+        b.put("automated", automated);
+        if (buildId != null) b.put("build", Map.of("id", String.valueOf(buildId)));
         if (points != null && !points.isEmpty()) b.put("pointIds", testCaseIds(points));
         Map<String, Object> r = call(ctx, "POST", proj(org, project) + "/_apis/test/runs", pat, b);
         return Out.of("run_id", r.get("id"), "url", r.get("webAccessUrl"));
     }
 
     @Action(id = "get_test_run", name = "Get test run details", category = "Test plans", idempotent = true, capabilities = "network",
-            description = "Read a test run: state, counts of passed, failed and incomplete tests, dates.")
+            description = "Read a test run: state, counts of passed, failed and incomplete tests, dates.",
+            panel = "organization_url, personal_access_token, project, run_id")
     @Output(name = "run", type = OoaType.DICTIONARY, description = "Keys: id, name, state, total_tests, passed_tests, failed_tests, incomplete_tests, started, completed, url.")
     public Map<String, Object> getTestRun(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -759,7 +942,8 @@ public final class AzureDevOpsPackage {
     // ---------------------------------------------------------------- pipeline definitions
 
     @Action(id = "get_pipeline", name = "Get pipeline details", category = "Pipelines", idempotent = true, capabilities = "network",
-            description = "Read a pipeline: name, folder, YAML file and repository.")
+            description = "Read a pipeline: name, folder, YAML file and repository.",
+            panel = "organization_url, personal_access_token, project, pipeline_id")
     @Output(name = "pipeline", type = OoaType.DICTIONARY, description = "Keys: id, name, folder, yaml_path, repository, url.")
     public Map<String, Object> getPipeline(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -773,7 +957,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "create_pipeline", name = "Create pipeline", category = "Pipelines", capabilities = "network",
-            description = "Create a YAML pipeline from a file in an Azure Repos Git repository.")
+            description = "Create a YAML pipeline from a file in an Azure Repos Git repository.",
+            panel = "organization_url, personal_access_token, project, name, repository_id, yaml_path | folder")
     @Output(name = "pipeline_id", type = OoaType.NUMBER, description = "Id of the new pipeline.")
     public Map<String, Object> createPipeline(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -788,28 +973,59 @@ public final class AzureDevOpsPackage {
         return Out.of("pipeline_id", call(ctx, "POST", proj(org, project) + "/_apis/pipelines", pat, b).get("id"));
     }
 
+    /** Earlier signature, kept for callers written before yaml_path and repository_id. */
+    public Map<String, Object> updatePipeline(ActionContext ctx, String org, Object pat, String project, int pipeline, String name, String folder) {
+        return updatePipeline(ctx, org, pat, project, pipeline, name, folder, null, null);
+    }
+
     @Action(id = "update_pipeline", name = "Edit pipeline", category = "Pipelines", capabilities = "network",
-            description = "Rename a pipeline or move it to another folder (its YAML is changed in the repository, not here).")
+            description = "Rename a pipeline, move it to another folder, or point it at a different YAML file or Azure Repos repository (the YAML content itself is changed in the repository).",
+            panel = "organization_url, personal_access_token, project, pipeline_id | name, folder, yaml_path, repository_id")
     public Map<String, Object> updatePipeline(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "pipeline_id", type = OoaType.NUMBER, min = 1, description = "Pipeline id.") int pipeline,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
-            @Input(name = "folder", type = OoaType.STRING, required = false, description = "New folder, e.g. \\Finance.") String folder) {
-        if ((name == null || name.isBlank()) && (folder == null || folder.isBlank()))
-            throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name or folder.");
+            @Input(name = "folder", type = OoaType.STRING, required = false, description = "New folder, e.g. \\Finance.") String folder,
+            @Input(name = "yaml_path", type = OoaType.STRING, required = false, example = "/pipelines/release.yml", description = "New path of the YAML file in the repository.") String yaml,
+            @Input(name = "repository_id", type = OoaType.STRING, required = false, description = "Id (a GUID, from List repositories) of another Azure Repos Git repository that holds the YAML file.") String repo) {
+        boolean hasName = name != null && !name.isBlank(), hasFolder = folder != null && !folder.isBlank();
+        boolean hasYaml = yaml != null && !yaml.isBlank(), hasRepo = repo != null && !repo.isBlank();
+        if (!hasName && !hasFolder && !hasYaml && !hasRepo)
+            throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name, folder, yaml_path or repository_id.");
+        if (hasRepo && !GUID.matcher(repo.strip()).matches())
+            throw new ActionException(P + ".BAD_REPOSITORY_ID", "'" + repo + "' is not a repository id", "Use the repository's id (a GUID) from List repositories.");
         String url = proj(org, project) + "/_apis/build/definitions/" + pipeline;
         Map<String, Object> def = new LinkedHashMap<>(call(ctx, "GET", url, pat, null));   // the full definition is sent back with the change
         if (def.isEmpty()) throw new ActionException(P + ".NOT_FOUND", "Pipeline " + pipeline + " was not found", "Check the id with List pipelines.");
-        if (name != null && !name.isBlank()) def.put("name", name);
-        if (folder != null && !folder.isBlank()) def.put("path", folder);
+        if (hasName) def.put("name", name);
+        if (hasFolder) def.put("path", folder);
+        if (hasYaml || hasRepo) {
+            // a YAML pipeline's definition has process type 2 with the file in yamlFilename
+            Map<String, Object> process = def.get("process") instanceof Map<?, ?> m ? new LinkedHashMap<>(castMap(m)) : new LinkedHashMap<>();
+            if (!"2".equals(Values.text(process.get("type") == null ? "" : process.get("type")).replaceFirst("\\.0+$", "")))
+                throw new ActionException(P + ".NOT_YAML", "Pipeline " + pipeline + " is a classic pipeline, not a YAML one", "Only YAML pipelines can be pointed at another YAML file or repository.");
+            if (hasYaml) { process.put("yamlFilename", yaml.strip()); def.put("process", process); }
+            if (hasRepo) {
+                Map<String, Object> r = def.get("repository") instanceof Map<?, ?> m ? new LinkedHashMap<>(castMap(m)) : new LinkedHashMap<>();
+                r.put("id", repo.strip());
+                r.put("type", "TfsGit");
+                r.remove("name");   // the name and address belonged to the old repository; the service fills them from the id
+                r.remove("url");
+                def.put("repository", r);
+            }
+        }
         call(ctx, "PUT", url, pat, def);
         return Map.of();
     }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> castMap(Map<?, ?> m) { return (Map<String, Object>) m; }
+
     @Action(id = "delete_pipeline", name = "Delete pipeline", category = "Pipelines", capabilities = "network",
-            description = "Delete a pipeline and its run history. Needs confirm.")
+            description = "Delete a pipeline and its run history. Needs confirm.",
+            panel = "organization_url, personal_access_token, project, pipeline_id, confirm")
     public Map<String, Object> deletePipeline(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -821,8 +1037,15 @@ public final class AzureDevOpsPackage {
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before stages_to_skip. */
+    public Map<String, Object> runPipeline(ActionContext ctx, String org, Object pat, String project, int pipeline, String branch,
+            Map<String, Object> params, Map<String, Object> vars) {
+        return runPipeline(ctx, org, pat, project, pipeline, branch, params, vars, null);
+    }
+
     @Action(id = "run_pipeline", name = "Run pipeline", category = "Pipelines", capabilities = "network",
-            description = "Start a pipeline run on a branch, with optional parameters and variables.")
+            description = "Start a pipeline run on a branch, with optional parameters and variables, optionally skipping some stages.",
+            panel = "organization_url, personal_access_token, project, pipeline_id, parameters, variables | branch, stages_to_skip")
     @Output(name = "run_id", type = OoaType.NUMBER, description = "Id of the new run; use it with Get pipeline run.")
     @Output(name = "state", type = OoaType.STRING, description = "State right after starting, normally inProgress.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the run.")
@@ -833,8 +1056,16 @@ public final class AzureDevOpsPackage {
             @Input(name = "pipeline_id", type = OoaType.NUMBER, example = "12", description = "Pipeline id, from List pipelines.") int pipeline,
             @Input(name = "branch", type = OoaType.STRING, required = false, example = "main", description = "Branch to run on. Empty uses the pipeline's default branch.") String branch,
             @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, description = "Template parameters, e.g. {\"environment\": \"test\"}.") Map<String, Object> params,
-            @Input(name = "variables", type = OoaType.DICTIONARY, required = false, description = "Variables settable at queue time, e.g. {\"releaseNote\": \"Hotfix\"}.") Map<String, Object> vars) {
+            @Input(name = "variables", type = OoaType.DICTIONARY, required = false, description = "Variables settable at queue time, e.g. {\"releaseNote\": \"Hotfix\"}.") Map<String, Object> vars,
+            @Input(name = "stages_to_skip", type = OoaType.LIST, required = false, description = "Names of YAML stages not to run, as written after 'stage:' in the YAML, e.g. [\"DeployProd\"].") List<Object> skip) {
+        List<String> stages = new ArrayList<>();
+        if (skip != null) for (Object s : skip) {
+            String n = s == null ? "" : Values.text(s).strip();
+            if (n.isEmpty()) throw new ActionException(P + ".BAD_STAGE", "A stage name in stages_to_skip is empty", "List the stage names as written in the YAML, e.g. [\"DeployProd\"].");
+            if (!stages.contains(n)) stages.add(n);
+        }
         Map<String, Object> b = new LinkedHashMap<>();
+        if (!stages.isEmpty()) b.put("stagesToSkip", stages);
         if (branch != null && !branch.isBlank()) b.put("resources", Map.of("repositories", Map.of("self", Map.of("refName", ref(branch)))));
         if (params != null && !params.isEmpty()) b.put("templateParameters", params);
         if (vars != null && !vars.isEmpty()) {
@@ -847,7 +1078,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "get_pipeline_run", name = "Get pipeline run", category = "Pipelines", idempotent = true, capabilities = "network",
-            description = "Read the state and result of a pipeline run.")
+            description = "Read the state and result of a pipeline run.",
+            panel = "organization_url, personal_access_token, project, pipeline_id, run_id")
     @Output(name = "state", type = OoaType.STRING, description = "inProgress, canceling or completed.")
     @Output(name = "result", type = OoaType.STRING, description = "Once completed: succeeded, failed or canceled.")
     @Output(name = "run", type = OoaType.DICTIONARY, description = "id, name, state, result, created, finished, url.")
@@ -873,7 +1105,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "queue_build", name = "Queue build", category = "Builds", capabilities = "network",
-            description = "Queue a build of a build definition (classic or YAML) on a branch.")
+            description = "Queue a build of a build definition (classic or YAML) on a branch.",
+            panel = "organization_url, personal_access_token, project, definition_id, branch | parameters")
     @Output(name = "build_id", type = OoaType.NUMBER, description = "Id of the queued build.")
     @Output(name = "build_number", type = OoaType.STRING, description = "Build number, e.g. 20261020.3.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the build.")
@@ -892,7 +1125,8 @@ public final class AzureDevOpsPackage {
         return Out.of("build_id", r.get("id"), "build_number", r.get("buildNumber"), "url", HttpJson.path(r, "_links.web.href"));
     }
 
-    @Action(id = "get_build", name = "Get build", category = "Builds", idempotent = true, capabilities = "network", description = "Read the status and result of a build.")
+    @Action(id = "get_build", name = "Get build", category = "Builds", idempotent = true, capabilities = "network", description = "Read the status and result of a build.",
+            panel = "organization_url, personal_access_token, project, build_id")
     @Output(name = "status", type = OoaType.STRING, description = "notStarted, inProgress, cancelling or completed.")
     @Output(name = "result", type = OoaType.STRING, description = "Once completed: succeeded, partiallySucceeded, failed or canceled.")
     @Output(name = "build", type = OoaType.DICTIONARY, description = "id, build_number, status, result, definition, branch, requested_for, queued, started, finished, url.")
@@ -909,7 +1143,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "list_builds", name = "List builds", category = "Builds", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List recent builds, newest first, optionally for one definition, branch, status or result.")
+            description = "List recent builds, newest first, optionally for one definition, branch, status or result.",
+            panel = "organization_url, personal_access_token, project, definition_id, branch | status, result, max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, build_number, status, result, definition, branch, queued, finished.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of builds returned.")
     public Map<String, Object> listBuilds(ActionContext ctx,
@@ -935,7 +1170,8 @@ public final class AzureDevOpsPackage {
     // ---------------------------------------------------------------- boards
 
     @Action(id = "list_iterations", name = "List sprints (iterations)", category = "Boards", idempotent = true, capabilities = "network",
-            description = "List a team's sprints, or only the current one.")
+            description = "List a team's sprints, or only the current one.",
+            panel = "organization_url, personal_access_token, project, current_only | team")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, path, start_date, finish_date, time_frame.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of sprints.")
     public Map<String, Object> listIterations(ActionContext ctx,
@@ -950,7 +1186,8 @@ public final class AzureDevOpsPackage {
     }
 
     @Action(id = "list_iteration_work_items", name = "List sprint work items", category = "Boards", idempotent = true, capabilities = "network",
-            description = "Return the ids of the work items planned in a sprint; read details with Get work item or Query work items.")
+            description = "Return the ids of the work items planned in a sprint; read details with Get work item or Query work items.",
+            panel = "organization_url, personal_access_token, project, iteration_id | team")
     @Output(name = "ids", type = OoaType.LIST, description = "Work item ids in the sprint.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of work items.")
     public Map<String, Object> iterationWorkItems(ActionContext ctx,

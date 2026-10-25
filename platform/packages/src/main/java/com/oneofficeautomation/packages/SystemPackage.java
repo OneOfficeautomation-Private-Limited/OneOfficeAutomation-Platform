@@ -11,7 +11,8 @@ import java.util.*;
 public final class SystemPackage {
 
     @Action(id = "get_environment_variable", name = "Get environment variable", category = "System", idempotent = true,
-            description = "Read an environment variable of the runner; variables that look like secrets are refused.")
+            description = "Read an environment variable of the runner; variables that look like secrets are refused.",
+            panel = "name, [Use a fallback value: default]")
     @Output(name = "value", type = OoaType.STRING, description = "Value, or the default when not set.")
     public Map<String, Object> getEnv(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Variable name, e.g. COMPUTERNAME.") String name,
@@ -54,7 +55,8 @@ public final class SystemPackage {
     static final String SET_USER_ENV_SCRIPT = "[Environment]::SetEnvironmentVariable($env:OOA_ENV_NAME, $env:OOA_ENV_VALUE, 'User')";
 
     @Action(id = "set_environment_variable", name = "Set environment variable", category = "System",
-            description = "Set an environment variable for programs this run starts (process scope) or permanently for the runner's user (user scope, Windows).")
+            description = "Set an environment variable for programs this run starts (process scope) or permanently for the runner's user (user scope, Windows).",
+            panel = "name, value, scope")
     @SuppressWarnings("unchecked")
     public Map<String, Object> setEnv(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, example = "REPORT_FOLDER", description = "Variable name: letters, digits and underscores.") String name,
@@ -128,18 +130,21 @@ public final class SystemPackage {
         return Map.of();
     }
 
-    @Action(id = "lock", name = "Lock computer", category = "Power", capabilities = "desktop", description = "Lock the screen of the current session.")
+    @Action(id = "lock", name = "Lock computer", category = "Power", capabilities = "desktop", description = "Lock the screen of the current session.",
+            panel = "confirm")
     public Map<String, Object> lock(ActionContext ctx, @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to lock.") boolean confirm) {
         return power(ctx, confirm, "Lock", List.of("rundll32.exe", "user32.dll,LockWorkStation"), null);
     }
 
-    @Action(id = "log_off", name = "Sign out", category = "Power", capabilities = "desktop", description = "Sign out the current Windows user (open programs are closed).")
+    @Action(id = "log_off", name = "Sign out", category = "Power", capabilities = "desktop", description = "Sign out the current Windows user (open programs are closed).",
+            panel = "confirm | force")
     public Map<String, Object> logOff(ActionContext ctx, @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to sign out.") boolean confirm,
             @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Close programs without asking them to save (unsaved work is lost).") boolean force) {
         return power(ctx, confirm, "Sign out", force ? List.of("shutdown.exe", "/l", "/f") : List.of("shutdown.exe", "/l"), null);
     }
 
-    @Action(id = "restart", name = "Restart computer", category = "Power", description = "Restart the runner after a delay.")
+    @Action(id = "restart", name = "Restart computer", category = "Power", description = "Restart the runner after a delay.",
+            panel = "confirm | delay_seconds, force, message")
     public Map<String, Object> restart(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to restart.") boolean confirm,
             @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, max = 315360000, description = "Seconds before restarting.") int delay,
@@ -148,7 +153,8 @@ public final class SystemPackage {
         return power(ctx, confirm, "Restart", powerCommand("/r", delay, force, message, true), powerCommand("-r", delay, force, message, false));
     }
 
-    @Action(id = "shut_down", name = "Shut down computer", category = "Power", description = "Shut the runner down after a delay.")
+    @Action(id = "shut_down", name = "Shut down computer", category = "Power", description = "Shut the runner down after a delay.",
+            panel = "confirm | delay_seconds, force, message")
     public Map<String, Object> shutDown(ActionContext ctx,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to shut down.") boolean confirm,
             @Input(name = "delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "30", min = 0, max = 315360000, description = "Seconds before shutting down.") int delay,

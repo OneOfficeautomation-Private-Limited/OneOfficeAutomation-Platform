@@ -189,6 +189,8 @@ const state = {
   target: null,       // path of a list chosen as insertion point (a container section)
   problems: [], dirty: false, lastRun: null, validateTimer: null,
   useSelector: new Set(),   // web steps whose element is given by a selector instead of a captured object
+  ticks: new Set(),         // "stepId|label" of panel tick boxes ticked before any of their fields has a value
+  choices: new Map(),       // "stepId|label" of panel choices -> the option picked before any of its fields has a value
 };
 
 // ---------- small DOM helper ----------
@@ -2726,12 +2728,66 @@ function renderProps() {
     const elementSwitch = () => h("button", { type: "button", class: "link-btn element-switch",
       onclick: () => { if (bySelector) state.useSelector.delete(step.id); else state.useSelector.add(step.id); renderProps(); } },
       bySelector ? "Capture the element instead" : "Use a selector instead");
+    // A toolkit may lay out its panel (x-ooa-panel): the order, the fields under More options, tick boxes that reveal
+    // fields, and choices that show only the chosen option's fields.
+    const layout = spec.action["x-ooa-panel"];
+    const place = new Map();
+    if (layout) {
+      const order = [];
+      for (const [part, more] of [[layout.main || [], false], [layout.more || [], true]])
+        for (const it of part) {
+          if (typeof it === "string") { order.push(it); place.set(it, { more }); }
+          else if (it.tick) {
+            const g = { tick: it.tick, fields: it.fields, more };
+            for (const f of it.fields) { order.push(f); place.set(f, { more, group: g }); }
+          } else {
+            const c = { choice: it.choice, options: it.options, more };
+            it.options.forEach((o, k) => o.fields.forEach((f) => { order.push(f); place.set(f, { more, choice: c, opt: k }); }));
+          }
+        }
+      entries.sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]));
+    }
+    const has = (f) => (step.args || {})[f] !== undefined;
+    const clear = (fields) => { if (!step.args) return; for (const f of fields) delete step.args[f]; if (!Object.keys(step.args).length) delete step.args; };
+    const groupTicked = (g) => state.ticks.has(step.id + "|" + g.tick) || g.fields.some(has);
+    const groupBox = (g) => h("label", { class: "check tick-group" }, h("input", { type: "checkbox", checked: groupTicked(g), "aria-label": g.tick,
+      onchange: (e) => {
+        const key = step.id + "|" + g.tick;
+        if (e.target.checked) state.ticks.add(key); else { state.ticks.delete(key); clear(g.fields); changed(); }
+        renderProps();
+      } }), g.tick);
+    // the chosen option: the one whose fields hold a value, else the one picked last, else the first
+    const chosen = (c) => { const k = c.options.findIndex((o) => o.fields.some(has)); return k >= 0 ? k : (state.choices.get(step.id + "|" + c.choice) || 0); };
+    const choiceBox = (c) => {
+      const k = chosen(c);
+      return h("div", { class: "field choice-field" }, h("label", { text: c.choice }),
+        h("div", { class: "seg", role: "radiogroup", "aria-label": c.choice }, c.options.map((o, j) =>
+          h("button", { type: "button", role: "radio", "aria-checked": String(j === k),
+            onclick: () => {
+              if (j === k) return;
+              state.choices.set(step.id + "|" + c.choice, j);
+              clear(c.options.filter((_, x) => x !== j).flatMap((x) => x.fields)); changed(); renderProps();
+            } }, o.label || fieldLabel(step.action, o.fields[0], props[o.fields[0]])))));
+    };
+    const drawn = new Set();
     for (const [name, prop0] of entries) {
       if (shown && !shown.has(name)) continue;
       if (bySelector === true && name === "object") continue;
       if (bySelector === false && name === "selector") { main.push(elementSwitch()); continue; }
       if (bySelector === true && name === "selector") { main.push(inputControl(step, name, prop0, req.includes(name)), elementSwitch()); continue; }
       if (fromConn && connInputs.has(name) && (step.args || {})[name] === undefined) continue;
+      const pl = place.get(name);
+      // a tick box or a choice is drawn where its first field stands, even when that field is hidden for now
+      const box = pl && (pl.group || pl.choice);
+      if (box && !drawn.has(box)) {
+        drawn.add(box);
+        box.box = h("div", { class: pl.group ? "tick-fields" : "choice-fields" });
+        const into = pl.more ? more : main;
+        if (pl.group) { into.push(groupBox(box)); if (groupTicked(box)) into.push(box.box); }
+        else into.push(choiceBox(box), box.box);
+      }
+      if (pl && pl.choice && pl.opt !== chosen(pl.choice)) continue;
+      if (pl && pl.group && !groupTicked(pl.group)) continue;
       // Options that do not apply to the current choices are hidden (a value already set stays visible so it can be cleared).
       if (!fieldApplies(prop0, step.args || {}, props) && (step.args || {})[name] === undefined) continue;
       const prop = shown ? Object.assign({}, prop0, ELEMENT_FIELD_LABELS(step, name) || {}) : prop0;
@@ -2742,8 +2798,9 @@ function renderProps() {
       // Key choices of an action stay in view; other optional inputs (with or without a default) go under More options
       // once the first few fields are shown, so long forms (Reply, Classify, REST) open short.
       const key = (KEY_FIELDS[step.action] || []).includes(name);
-      const rare = advanced || (!key && name !== "window" && !req.includes(name) && main.length >= 3);
-      (rare ? more : main).push(inputControl(step, name, prop, req.includes(name)));
+      const rare = pl ? pl.more : advanced || (!key && name !== "window" && !req.includes(name) && main.length >= 3);
+      const control = inputControl(step, name, prop, req.includes(name));
+      if (box) box.box.append(control); else (rare ? more : main).push(control);
       if (rare) moreNames.push(name);
     }
     const inputs = main;

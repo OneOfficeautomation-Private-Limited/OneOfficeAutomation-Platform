@@ -8,6 +8,8 @@ import com.oneofficeautomation.sdk.*;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -75,23 +77,78 @@ public final class WebAgentPackage {
     private static Map<String, Object> str(String d) { return Map.of("type", "string", "description", d); }
 
     @Action(id = "start_session", name = "Start web agent session", category = "Web goal agent", timeoutSeconds = 300, capabilities = "browser",
-            description = "Open a browser for the web goal agent (the same session works with every Browser action).")
+            description = "Open a browser for the web goal agent (the same session works with every Browser action).",
+            panel = "url, browser, headless | [Go through a proxy server: proxy_server, proxy_username, proxy_password], browser_path, session")
     public Map<String, Object> startSession(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, description = "Page to start on.") String url,
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium", "firefox"}, description = "Browser to use.") String which,
             @Input(name = "headless", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Run without a visible window (for unattended agents).") boolean headless,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
-        return new BrowserPackage().open(ctx, url, which, headless, null, session, false, "playwright", "new_window", null, 240000);
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session,
+            @Input(name = "proxy_server", type = OoaType.STRING, required = false, example = "http://proxy.example.com:3128",
+                    description = "Send the browser's traffic through this proxy: host:port, or with http://, https://, socks4:// or socks5:// in front.") String proxyServer,
+            @Input(name = "proxy_username", type = OoaType.STRING, required = false, description = "User name for a proxy that asks for one.") String proxyUser,
+            @Input(name = "proxy_password", type = OoaType.CREDENTIAL, required = false, description = "Password for the proxy, from the vault; never logged.") Object proxyPassword,
+            @Input(name = "browser_path", type = OoaType.FILE, required = false, example = "C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe",
+                    description = "Start this browser program instead of the installed one (a Chromium-based browser, or Firefox when browser is firefox).") String browserPath) {
+        boolean hasProxy = proxyServer != null && !proxyServer.isBlank();
+        boolean hasPath = browserPath != null && !browserPath.isBlank();
+        if (!hasProxy && ((proxyUser != null && !proxyUser.isBlank()) || proxyPassword != null))
+            throw new ActionException(P + ".BAD_PROXY", "A proxy user name or password was given without a proxy server", "Fill in proxy_server, e.g. http://proxy.example.com:3128.");
+        if (!hasProxy && !hasPath) return new BrowserPackage().open(ctx, url, which, headless, null, session, false, "playwright", "new_window", null, 240000);
+        com.microsoft.playwright.options.Proxy proxy = hasProxy ? proxy(proxyServer, proxyUser, proxyPassword) : null;
+        Path exe = null;
+        if (hasPath) {
+            exe = ctx.resolvePath(browserPath.strip());
+            if (!Files.isRegularFile(exe)) throw new ActionException(P + ".BROWSER_NOT_FOUND", "There is no browser program at " + exe, "Give the full path of the browser's .exe file.");
+        }
+        BrowserPackage.launchPlaywright(ctx, which == null || which.isBlank() ? "edge" : which, headless, null, session, BrowserPackage.localPage(ctx, url), proxy, exe);
+        ctx.info("Started the web agent's browser" + (hasProxy ? " through the proxy " + proxy.server : "") + (exe != null ? " from " + exe : ""));
+        return Map.of();
     }
 
-    @Action(id = "end_session", name = "End web agent session", category = "Web goal agent", description = "Close the browser the web agent session opened.")
+    /** Start web agent session without proxy and browser path (the signature before they were added). */
+    public Map<String, Object> startSession(ActionContext ctx, String url, String which, boolean headless, String session) {
+        return startSession(ctx, url, which, headless, session, null, null, null, null);
+    }
+
+    /** The proxy settings, checked: host:port with an optional http, https, socks4 or socks5 scheme. */
+    static com.microsoft.playwright.options.Proxy proxy(String server, String user, Object password) {
+        String sv = server.strip();
+        if (!sv.matches("(?i)^((https?|socks[45])://)?[A-Za-z0-9.\\-\\[\\]:]+?(:\\d{1,5})?/?$") || sv.contains(" "))
+            throw new ActionException(P + ".BAD_PROXY", "Not a proxy address: " + sv, "Write it as host:port or http://host:port, e.g. http://proxy.example.com:3128.");
+        com.microsoft.playwright.options.Proxy p = new com.microsoft.playwright.options.Proxy(sv);
+        if (user != null && !user.isBlank()) p.setUsername(user.strip());
+        if (password != null) {
+            if (!(password instanceof SecureString ss)) throw new ActionException(P + ".BAD_SECRET", "proxy_password must be a Credential", "Map it to a Credential variable from the vault.");
+            if (user == null || user.isBlank()) throw new ActionException(P + ".BAD_PROXY", "A proxy password was given without a user name", "Fill in proxy_username too.");
+            p.setPassword(ss.reveal());
+        }
+        return p;
+    }
+
+    @Action(id = "end_session", name = "End web agent session", category = "Web goal agent", description = "Close the browser the web agent session opened.",
+            panel = "session")
     public Map<String, Object> endSession(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"browser\"", description = "Session name.") String session) {
         return new BrowserPackage().close(ctx, session, "session", null);
     }
 
+    public Map<String, Object> run(ActionContext ctx, String goal, String session, int maxSteps, List<Object> allowedSites, Map<String, Object> secrets,
+            String instructions, String provider, String connection, String model, Object key, String base, boolean mask, Object awsKeyId, String awsRegion, int timeout) {
+        return run(ctx, goal, session, maxSteps, allowedSites, secrets, instructions, provider, connection, model, key, base, mask, awsKeyId, awsRegion, timeout, null, null, null);
+    }
+
+    /** Reach a goal without saving the steps to a file (the signature before save_trajectory_to was added). */
+    public Map<String, Object> run(ActionContext ctx, String goal, String session, int maxSteps, List<Object> allowedSites, Map<String, Object> secrets,
+            String instructions, String provider, String connection, String model, Object key, String base, boolean mask, Object awsKeyId, String awsRegion, int timeout,
+            String startUrl, Map<String, Object> outputSchema, String outputPath) {
+        return run(ctx, goal, session, maxSteps, allowedSites, secrets, instructions, provider, connection, model, key, base, mask, awsKeyId, awsRegion, timeout,
+                startUrl, outputSchema, outputPath, null);
+    }
+
     @Action(id = "run", name = "Reach a goal", category = "Web goal agent", timeoutSeconds = 1800, capabilities = {"browser", "network", "ai"},
-            description = "Describe the goal in plain words; the AI model works the page in a browser session until the goal is reached, cannot be reached, or the step limit.")
+            description = "Describe the goal in plain words; the AI model works the page in a browser session until the goal is reached, cannot be reached, or the step limit. Can start from an address and return its findings in a given shape (JSON Schema), also as a file.",
+            panel = "start_url, goal, secrets, (Model: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), [Return the findings in a fixed shape: output_schema, output_path], timeout_seconds | session, max_steps, allowed_sites, instructions, mask_pii, save_trajectory_to")
     @Output(name = "success", type = OoaType.BOOLEAN, description = "Whether the model reports the goal reached.")
     @Output(name = "answer", type = OoaType.STRING, description = "What was done or found.")
     @Output(name = "data", type = OoaType.DICTIONARY, description = "Values the goal asked for, if any.")
@@ -114,9 +171,19 @@ public final class WebAgentPackage {
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = AiBridge.D_MASK) boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = AiBridge.D_AWS_KEY_ID) Object awsKeyId,
             @Input(name = "aws_region", type = OoaType.STRING, required = false, description = AiBridge.D_AWS_REGION) String awsRegion,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Seconds to wait for the model on each step; 180 when 0.") int timeout) {
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Seconds to wait for the model on each step; 180 when 0.") int timeout,
+            @Input(name = "start_url", type = OoaType.STRING, required = false, example = "https://portal.example.com/invoices",
+                    description = "Open this address before the first step; the page already open when empty.") String startUrl,
+            @Input(name = "output_schema", type = OoaType.DICTIONARY, required = false,
+                    example = "{\"type\": \"object\", \"required\": [\"total\"], \"properties\": {\"total\": {\"type\": \"number\"}, \"due\": {\"type\": \"string\"}}}",
+                    description = "JSON Schema the data output must match; the model is shown it and asked to correct an answer that does not match.") Map<String, Object> outputSchema,
+            @Input(name = "output_path", type = OoaType.FILE, required = false, description = "Also write the data output to this JSON file when the goal is reached.") String outputPath,
+            @Input(name = "save_trajectory_to", type = OoaType.FILE, required = false, example = "logs/web-agent-run.json",
+                    description = "Keep a record of the run in this JSON file: each step's action, the model's reasoning and a screenshot (saved in a folder next to it). Secrets appear only as placeholders.") String trajectoryPath) {
         if (goal == null || goal.isBlank()) throw new ActionException(P + ".NO_GOAL", "Describe the goal");
         if (maxSteps < 1 || maxSteps > 60) throw new ActionException(P + ".BAD_OPTION", "max_steps must be between 1 and 60");
+        if (trajectoryPath != null && !trajectoryPath.isBlank() && !trajectoryPath.strip().toLowerCase(Locale.ROOT).endsWith(".json"))
+            throw new ActionException(P + ".BAD_OPTION", "save_trajectory_to must be a .json file: " + trajectoryPath, "Example: logs/web-agent-run.json");
         if (ctx.sessions().get(session) instanceof ExtensionBridge.TabSession)
             throw new ActionException(P + ".NOT_SUPPORTED", "The web goal agent needs a browser it starts itself", "Use Start web agent session, or Open browser with engine playwright.");
         Page page = ctx.session(session, BrowserPackage.BrowserSession.class).page;
@@ -131,6 +198,13 @@ public final class WebAgentPackage {
             if (ss.passwordOnly()) passwordOnly.add(k);
         });
         AiBridge.Settings settings = new AiBridge.Settings(connection, provider, model, key, base, 0, 1024, mask, awsKeyId, awsRegion, timeout);
+        if (startUrl != null && !startUrl.isBlank()) {
+            String u = startUrl.strip();
+            if (!u.matches("^https?://.+")) throw new ActionException(P + ".BAD_URL", "start_url must be an http or https address: " + u, "Example: https://portal.example.com/");
+            if (!sites.isEmpty() && !allowed(host(u), sites)) throw new ActionException(P + ".NOT_ALLOWED", host(u) + " is not one of the allowed sites", "Add it to allowed_sites or start elsewhere.");
+            try { page.navigate(u); settle(page); }
+            catch (PlaywrightException e) { throw new ActionException(P + ".OPEN_FAILED", "Cannot open " + u + ": " + firstLine(e.getMessage()), "Check the address and the network.", true); }
+        }
 
         StringBuilder system = new StringBuilder("You operate a web browser to reach the user's goal. Each turn you get the page: address, title, visible text and numbered controls. "
                 + "Use exactly one tool per turn. Use only control numbers from the latest page. When the goal is reached, or cannot be reached, call finish. "
@@ -138,11 +212,15 @@ public final class WebAgentPackage {
         if (!secretValues.isEmpty()) system.append(" Secrets you may type (write the placeholder, not a value): ").append(String.join(", ", secretValues.keySet().stream().map(n -> "{{secret:" + n + "}}").toList())).append('.');
         if (!sites.isEmpty()) system.append(" Stay on these sites: ").append(String.join(", ", sites)).append('.');
         if (instructions != null && !instructions.isBlank()) system.append(" Rules from the agent's author: ").append(instructions.strip());
+        if (outputSchema != null && !outputSchema.isEmpty())
+            system.append(" When you call finish with success, its data must be a JSON object that matches this JSON Schema: ").append(JsonLite.write(outputSchema));
+        int schemaRetries = 0;
 
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", system.toString()));
         messages.add(new LinkedHashMap<>(Map.of("role", "user", "content", "Goal: " + goal.strip() + "\n\n" + snapshot(page, secretValues))));
         List<Object> steps = new ArrayList<>();
+        Trajectory trail = trajectoryPath == null || trajectoryPath.isBlank() ? null : new Trajectory(ctx.resolvePath(trajectoryPath.strip()), goal.strip(), secretValues);
         int in = 0, out = 0, nudges = 0;
         for (int step = 0; step < maxSteps; step++) {
             ctx.checkCancelled();
@@ -150,7 +228,7 @@ public final class WebAgentPackage {
             in += (int) r.get("input_tokens"); out += (int) r.get("output_tokens");
             @SuppressWarnings("unchecked") List<Map<String, Object>> calls = (List<Map<String, Object>>) r.get("tool_calls");
             if (calls.isEmpty()) {
-                if (++nudges > 2) return result(false, r.get("text") == null ? "The model stopped without finishing." : String.valueOf(r.get("text")), Map.of(), steps, page, in, out);
+                if (++nudges > 2) return Trajectory.end(trail, result(false, r.get("text") == null ? "The model stopped without finishing." : String.valueOf(r.get("text")), Map.of(), steps, page, in, out));
                 messages.add(Map.of("role", "assistant", "content", r.get("text") == null ? "" : r.get("text")));
                 messages.add(Map.of("role", "user", "content", "Answer with one of the tools."));
                 step--;
@@ -171,14 +249,34 @@ public final class WebAgentPackage {
                     boolean ok = Boolean.TRUE.equals(args.get("success"));
                     String answer = args.get("answer") == null ? "" : String.valueOf(args.get("answer"));
                     steps.add("finish: " + answer);
+                    if (trail != null) trail.step(step + 1, name, args, r.get("text"), answer, page);
                     @SuppressWarnings("unchecked") Map<String, Object> data = args.get("data") instanceof Map<?, ?> d ? (Map<String, Object>) d : Map.of();
-                    return result(ok, answer, data, steps, page, in, out);
+                    if (ok && outputSchema != null && !outputSchema.isEmpty()) {
+                        List<Object> errors = com.oneofficeautomation.packages.JsonSchemaLite.validate(outputSchema, data);
+                        if (!errors.isEmpty()) {
+                            if (++schemaRetries > 2)
+                                return Trajectory.end(trail, result(false, "The findings did not match the output schema: " + String.join("; ", errors.stream().map(String::valueOf).toList()), data, steps, page, in, out));
+                            // the model is told what is wrong and finishes again
+                            Map<String, Object> fix = new LinkedHashMap<>();
+                            fix.put("role", "tool"); fix.put("tool_call_id", call.get("id")); fix.put("name", name);
+                            fix.put("content", "The data does not match the required JSON Schema: " + String.join("; ", errors.stream().map(String::valueOf).toList()) + ". Call finish again with corrected data.");
+                            messages.add(fix);
+                            continue;
+                        }
+                    }
+                    if (ok && outputPath != null && !outputPath.isBlank()) {
+                        Path f = ctx.resolvePath(outputPath);
+                        try { if (f.getParent() != null) Files.createDirectories(f.getParent()); Files.writeString(f, JsonLite.write(data)); }
+                        catch (java.io.IOException e) { throw new ActionException(P + ".WRITE_FAILED", "Cannot write " + f + ": " + e.getMessage(), "Check the folder exists and is writable."); }
+                    }
+                    return Trajectory.end(trail, result(ok, answer, data, steps, page, in, out));
                 }
                 String done;
                 try { done = act(page, name, args, secretValues, passwordOnly, sites); }
                 catch (PlaywrightException | ActionException e) { done = "Failed: " + firstLine(e.getMessage()); }
                 steps.add(name + " " + describe(args) + " -> " + done);
                 ctx.info("Web agent step " + (step + 1) + ": " + name + " " + describe(args) + " -> " + done);
+                if (trail != null) trail.step(step + 1, name, args, i == 0 ? r.get("text") : null, done, page);
                 String outside = outside(page, sites);
                 if (outside != null) {
                     page.goBack();
@@ -192,7 +290,72 @@ public final class WebAgentPackage {
                 messages.add(toolMsg);
             }
         }
-        return result(false, "Stopped after " + maxSteps + " steps without reaching the goal.", Map.of(), steps, page, in, out);
+        return Trajectory.end(trail, result(false, "Stopped after " + maxSteps + " steps without reaching the goal.", Map.of(), steps, page, in, out));
+    }
+
+    /**
+     * The run's record for save_trajectory_to: one entry per step (action, arguments as the model gave them, the model's
+     * own words, what happened, the address and a screenshot), rewritten after every step so it survives a failed run.
+     */
+    static final class Trajectory {
+        final Path file; final Path shots; final Map<String, Object> doc = new LinkedHashMap<>(); final List<Object> entries = new ArrayList<>();
+        final Map<String, String> secrets;
+
+        Trajectory(Path file, String goal, Map<String, String> secrets) {
+            this.file = file; this.secrets = secrets;
+            String name = file.getFileName().toString();
+            shots = file.resolveSibling(name.substring(0, name.length() - ".json".length()) + "_screenshots");
+            doc.put("goal", mask(goal));
+            doc.put("started", java.time.OffsetDateTime.now().toString());
+            doc.put("steps", entries);
+            save();
+        }
+
+        void step(int n, String action, Map<String, Object> args, Object reasoning, String result, Page page) {
+            Map<String, Object> e = new LinkedHashMap<>();
+            e.put("step", BigDecimal.valueOf(n));
+            e.put("action", action);
+            e.put("args", Values.toJsonable(args));
+            e.put("reasoning", reasoning == null ? "" : mask(String.valueOf(reasoning)));
+            e.put("result", mask(result));
+            String url = "", shot = "";
+            try { url = page.url(); } catch (PlaywrightException ignored) { }
+            try {
+                Files.createDirectories(shots);
+                Path f = shots.resolve(String.format("step-%02d-%d.png", n, entries.size() + 1));
+                page.screenshot(new Page.ScreenshotOptions().setPath(f));
+                shot = f.toString();
+            } catch (PlaywrightException | java.io.IOException ignored) { /* the record is kept without the picture */ }
+            e.put("url", url);
+            e.put("screenshot", shot);
+            entries.add(e);
+            save();
+        }
+
+        static Map<String, Object> end(Trajectory t, Map<String, Object> result) {
+            if (t == null) return result;
+            t.doc.put("finished", java.time.OffsetDateTime.now().toString());
+            t.doc.put("success", result.get("success"));
+            t.doc.put("answer", t.mask(String.valueOf(result.get("answer"))));
+            t.doc.put("url", result.get("url"));
+            t.save();
+            return result;
+        }
+
+        String mask(String text) {
+            String m = text == null ? "" : text;
+            for (String v : secrets.values()) if (v != null && v.length() >= 3) m = m.replace(v, SecureString.MASK);
+            return m;
+        }
+
+        void save() {
+            try {
+                if (file.getParent() != null) Files.createDirectories(file.getParent());
+                Files.writeString(file, JsonLite.write(doc), java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException e) {
+                throw new ActionException(P + ".WRITE_FAILED", "Cannot write the trajectory file " + file + ": " + e.getMessage(), "Check the folder exists and is writable.");
+            }
+        }
     }
 
     static Map<String, Object> result(boolean ok, String answer, Map<String, Object> data, List<Object> steps, Page page, int in, int out) {

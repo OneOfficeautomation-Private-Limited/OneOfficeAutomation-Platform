@@ -69,7 +69,8 @@ public final class PgpPackage {
 
     private static final String D_HOME = "Separate GnuPG key folder for this agent; the runner user's keyring when empty.";
 
-    @Action(id = "import_key", name = "Import key", category = "Keys", capabilities = "filesystem", description = "Import a public or private key file (.asc or .gpg).")
+    @Action(id = "import_key", name = "Import key", category = "Keys", capabilities = "filesystem", description = "Import a public or private key file (.asc or .gpg).",
+            panel = "path, [The key has a passphrase: passphrase] | gnupg_home")
     @Output(name = "fingerprints", type = OoaType.LIST, description = "Fingerprints of imported keys.")
     public Map<String, Object> importKey(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Key file.") String path,
@@ -86,7 +87,38 @@ public final class PgpPackage {
         return Map.of("fingerprints", new ArrayList<>(fprs));
     }
 
-    @Action(id = "encrypt", name = "Encrypt file", category = "Encryption", timeoutSeconds = 300, capabilities = "filesystem", description = "Encrypt a file for one or more recipients' public keys.")
+    public Map<String, Object> encrypt(ActionContext ctx, String path, String target, Object recipients, boolean armor, String home, String publicKeyFile, boolean overwrite) {
+        return encrypt(ctx, path, target, recipients, armor, home, publicKeyFile, overwrite, null, null, null);
+    }
+
+    /** gpg --cipher-algo names, by the names offered in the panel. */
+    private static final Map<String, String> CIPHERS = Map.ofEntries(
+            Map.entry("aes128", "AES"), Map.entry("aes192", "AES192"), Map.entry("aes256", "AES256"),
+            Map.entry("camellia128", "CAMELLIA128"), Map.entry("camellia192", "CAMELLIA192"), Map.entry("camellia256", "CAMELLIA256"),
+            Map.entry("twofish", "TWOFISH"), Map.entry("cast5", "CAST5"), Map.entry("3des", "3DES"), Map.entry("blowfish", "BLOWFISH"));
+
+    /** gpg --compress-algo names. */
+    private static final Map<String, String> COMPRESSIONS = Map.of("none", "none", "zip", "zip", "zlib", "zlib", "bzip2", "bzip2");
+
+    /** The gpg name for a cipher, or null for the default (the recipients' preferences, or AES-128 for a passphrase). */
+    static String cipher(String cipher) {
+        if (cipher == null || cipher.isBlank() || cipher.equalsIgnoreCase("default")) return null;
+        String g = CIPHERS.get(cipher.strip().toLowerCase(Locale.ROOT).replace("-", ""));
+        if (g == null) throw new ActionException("PGP.BAD_CIPHER", "Unknown cipher '" + cipher + "'", "Use AES256, AES192, AES128, CAMELLIA256, TWOFISH or leave it empty for the default.");
+        return g;
+    }
+
+    /** The gpg name for a compression, or null for gpg's default. */
+    static String compression(String compression) {
+        if (compression == null || compression.isBlank() || compression.equalsIgnoreCase("default")) return null;
+        String g = COMPRESSIONS.get(compression.strip().toLowerCase(Locale.ROOT));
+        if (g == null) throw new ActionException("PGP.BAD_COMPRESSION", "Unknown compression '" + compression + "'", "Use none, zip, zlib or bzip2, or leave it empty for the default.");
+        return g;
+    }
+
+    @Action(id = "encrypt", name = "Encrypt file", category = "Encryption", timeoutSeconds = 300, capabilities = "filesystem",
+            description = "Encrypt a file for one or more recipients' public keys, or with a passphrase only (symmetric), choosing the cipher and compression.",
+            panel = "(Encrypt for: Keys in the keyring = recipients / A public key file = public_key_file / A passphrase only = passphrase), path, target, overwrite, armor | cipher, compression, gnupg_home")
     public Map<String, Object> encrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to encrypt.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted file to create, e.g. report.csv.pgp.") String target,
@@ -94,11 +126,23 @@ public final class PgpPackage {
             @Input(name = "armor", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "ASCII-armored output (text) instead of binary.") boolean armor,
             @Input(name = "gnupg_home", type = OoaType.FILE, required = false, description = D_HOME) String home,
             @Input(name = "public_key_file", type = OoaType.FILE, required = false, description = "Recipient's public key file (.asc or .gpg) to encrypt for, without importing it into a keyring first.") String publicKeyFile,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing target file.") boolean overwrite,
+            @Input(name = "cipher", type = OoaType.STRING, required = false, defaultValue = "\"default\"",
+                    enumValues = {"default", "AES256", "AES192", "AES128", "CAMELLIA256", "CAMELLIA192", "CAMELLIA128", "TWOFISH", "CAST5", "3DES", "BLOWFISH"},
+                    description = "Symmetric cipher for the data; default lets GnuPG choose from the recipients' key preferences (AES-128 for a passphrase). Older ciphers (CAST5, 3DES, BLOWFISH) only for old partners.") String cipher,
+            @Input(name = "compression", type = OoaType.STRING, required = false, defaultValue = "\"default\"", enumValues = {"default", "none", "zip", "zlib", "bzip2"},
+                    description = "Compression before encryption; none for files that are already compressed, such as .zip or .jpg.") String compression,
+            @Input(name = "passphrase", type = OoaType.CREDENTIAL, required = false,
+                    description = "Passphrase that can decrypt the file. Alone it gives passphrase-only (symmetric) encryption; with recipients either the keys or the passphrase can decrypt.") Object passphrase) {
+        String cipherName = cipher(cipher), compressName = compression(compression);
+        if (passphrase != null && !(passphrase instanceof SecureString))
+            throw new ActionException("PGP.BAD_PASSPHRASE_INPUT", "The passphrase must come from the credential vault", "Pick a credential for passphrase.");
+        if (passphrase instanceof SecureString s && s.reveal().isEmpty())
+            throw new ActionException("PGP.EMPTY_PASSPHRASE", "The passphrase is empty", "Store a non-empty passphrase in the vault.");
         if (!overwrite && Files.exists(ctx.resolvePath(target))) throw new ActionException("FILE.EXISTS", "File already exists: " + ctx.resolvePath(target), "Set overwrite to true or choose another name.");
         KeyHome kh = keyHome(ctx, home, publicKeyFile, null);
         try {
-            return encryptWith(ctx, path, target, recipients, armor, kh);
+            return encryptWith(ctx, path, target, recipients, armor, kh, cipherName, compressName, (SecureString) passphrase);
         } finally { kh.close(ctx); }
     }
 
@@ -141,21 +185,32 @@ public final class PgpPackage {
         }
     }
 
-    private Map<String, Object> encryptWith(ActionContext ctx, String path, String target, Object recipients, boolean armor, KeyHome kh) {
+    private Map<String, Object> encryptWith(ActionContext ctx, String path, String target, Object recipients, boolean armor, KeyHome kh,
+                                            String cipher, String compression, SecureString passphrase) {
         String home = kh.home();
         List<String> args = new ArrayList<>(List.of("--trust-model", "always"));
         List<String> rc = new ArrayList<>(recipients == null ? List.of() : HttpJson.addressList(recipients));
         rc.addAll(kh.fingerprints());
-        if (rc.isEmpty()) throw new ActionException("PGP.NO_RECIPIENT", "Give at least one recipient", "Fill in recipients or public_key_file.");
+        if (rc.isEmpty() && passphrase == null) throw new ActionException("PGP.NO_RECIPIENT", "Give at least one recipient or a passphrase", "Fill in recipients, public_key_file or passphrase.");
         for (String r : rc) { if (r.startsWith("-")) throw new ActionException("PGP.BAD_RECIPIENT", "Invalid recipient '" + r + "'"); args.addAll(List.of("-r", r)); }
         if (armor) args.add("--armor");
-        args.addAll(List.of("-o", out(ctx, target), "-e", file(ctx, path)));
-        ProcessRunner.Result r = gpg(ctx, home, args, null);
-        if (r.exitCode() != 0) throw new ActionException("PGP.ENCRYPT_FAILED", "Encryption failed: " + ApplicationPackage.tail(r.stderr()), "Import the recipient's public key first.");
+        if (cipher != null) args.addAll(List.of("--cipher-algo", cipher));
+        if (compression != null) args.addAll(List.of("--compress-algo", compression));
+        String stdin = null;
+        // The passphrase goes through standard input and is not kept in gpg-agent's cache.
+        if (passphrase != null) { args.addAll(List.of("--pinentry-mode", "loopback", "--passphrase-fd", "0", "--no-symkey-cache")); stdin = passphrase.reveal() + "\n"; }
+        args.addAll(List.of("-o", out(ctx, target)));
+        if (!rc.isEmpty()) args.add("-e");
+        if (passphrase != null) args.add("-c");
+        args.add(file(ctx, path));
+        ProcessRunner.Result r = gpg(ctx, home, args, stdin);
+        if (r.exitCode() != 0) throw new ActionException("PGP.ENCRYPT_FAILED", "Encryption failed: " + ApplicationPackage.tail(r.stderr()),
+                rc.isEmpty() ? "Check GnuPG is installed and the target folder is writable." : "Import the recipient's public key first.");
         return Map.of();
     }
 
-    @Action(id = "decrypt", name = "Decrypt file", category = "Encryption", timeoutSeconds = 300, capabilities = "filesystem", description = "Decrypt a file with your private key.")
+    @Action(id = "decrypt", name = "Decrypt file", category = "Encryption", timeoutSeconds = 300, capabilities = "filesystem", description = "Decrypt a file with your private key.",
+            panel = "[Use a private key file: private_key_file], passphrase, path, target, overwrite | gnupg_home")
     public Map<String, Object> decrypt(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Encrypted file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Decrypted file to create.") String target,
@@ -179,7 +234,8 @@ public final class PgpPackage {
         return Map.of();
     }
 
-    @Action(id = "sign", name = "Sign file", category = "Signing", timeoutSeconds = 300, capabilities = "filesystem", description = "Create a detached signature (.sig) proving the file came from you.")
+    @Action(id = "sign", name = "Sign file", category = "Signing", timeoutSeconds = 300, capabilities = "filesystem", description = "Create a detached signature (.sig) proving the file came from you.",
+            panel = "path, signature, (Signing key: The default key = / A specific key = key), passphrase | gnupg_home")
     public Map<String, Object> sign(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to sign.") String path,
             @Input(name = "signature", type = OoaType.FILE, description = "Signature file to create, e.g. report.csv.sig.") String sig,
@@ -195,7 +251,8 @@ public final class PgpPackage {
     }
 
     @Action(id = "verify", name = "Verify signature", category = "Signing", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Check a detached signature; returns the result instead of failing.")
+            description = "Check a detached signature; returns the result instead of failing.",
+            panel = "path, signature | gnupg_home")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the signature is good.")
     @Output(name = "signer", type = OoaType.STRING, description = "Signer's user id when valid.")
     @Output(name = "fingerprint", type = OoaType.STRING, description = "Signing key fingerprint when valid.")
@@ -242,7 +299,8 @@ public final class PgpPackage {
     }
 
     @Action(id = "create_keys", name = "Create key pair", category = "Keys", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Generate a new OpenPGP key pair (signing key plus encryption subkey) and optionally export it to armored key files.")
+            description = "Generate a new OpenPGP key pair (signing key plus encryption subkey) and optionally export it to armored key files.",
+            panel = "public_key_file, private_key_file, algorithm, passphrase, name, email | comment, expires, gnupg_home")
     @Output(name = "fingerprint", type = OoaType.STRING, description = "Fingerprint of the new key.")
     @Output(name = "user_id", type = OoaType.STRING, description = "User id stored in the key, e.g. Finance Agent <agent@example.com>.")
     @Output(name = "public_key_file", type = OoaType.FILE, description = "Exported public key, or empty.")

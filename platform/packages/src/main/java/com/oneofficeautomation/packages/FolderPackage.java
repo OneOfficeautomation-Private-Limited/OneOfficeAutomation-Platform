@@ -10,7 +10,8 @@ import java.util.stream.Stream;
 @OoaPackage(id = "ooa.folder", name = "Folder", version = "1.0.0", description = "Create, list, copy and delete folders.")
 public final class FolderPackage {
 
-    @Action(id = "create", name = "Create folder", category = "Folders", idempotent = true, capabilities = "filesystem", description = "Create a folder and any missing parents.")
+    @Action(id = "create", name = "Create folder", category = "Folders", idempotent = true, capabilities = "filesystem", description = "Create a folder and any missing parents.",
+            panel = "path, fail_if_exists")
     public Map<String, Object> create(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path,
             @Input(name = "fail_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop when the folder already exists instead of continuing.") boolean failIfExists) {
         Path p = ctx.resolvePath(path);
@@ -20,7 +21,8 @@ public final class FolderPackage {
     }
 
     @Action(id = "delete", name = "Delete folder", category = "Folders", capabilities = "filesystem",
-            description = "Delete a folder. Non-empty folders are deleted only when recursive is true.")
+            description = "Delete a folder. Non-empty folders are deleted only when recursive is true.",
+            panel = "path, recursive")
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path,
             @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete everything inside.") boolean recursive) {
@@ -41,7 +43,8 @@ public final class FolderPackage {
         return Map.of();
     }
 
-    @Action(id = "list_subfolders", name = "List subfolders", category = "Folders", idempotent = true, capabilities = "filesystem", description = "List the folders directly inside a folder.")
+    @Action(id = "list_subfolders", name = "List subfolders", category = "Folders", idempotent = true, capabilities = "filesystem", description = "List the folders directly inside a folder.",
+            panel = "path")
     @Output(name = "folders", type = OoaType.LIST, description = "Sorted folder paths.")
     public Map<String, Object> listSubfolders(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path) {
         Path p = ctx.resolvePath(path);
@@ -64,7 +67,8 @@ public final class FolderPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage()); }
     }
 
-    @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files by name, size or date.")
+    @Action(id = "copy", name = "Copy folder", category = "Folders", capabilities = "filesystem", description = "Copy a folder and its contents, optionally only some files by name, size or date.",
+            panel = "source, target, overwrite, [Filter by size: larger_than_kb, smaller_than_kb], [Filter by date: modified_after, modified_before] | pattern, only_newer")
     @Output(name = "copied", type = OoaType.NUMBER, description = "Number of files copied.")
     public Map<String, Object> copy(ActionContext ctx,
             @Input(name = "source", type = OoaType.FILE, description = "Source folder.") String source,
@@ -106,7 +110,8 @@ public final class FolderPackage {
     }
 
     @Action(id = "rename_folder", name = "Rename folder", category = "Folders", capabilities = "filesystem",
-            description = "Give a folder a new name in the same parent folder.")
+            description = "Give a folder a new name in the same parent folder.",
+            panel = "path, new_name")
     @Output(name = "path", type = OoaType.FILE, description = "New full path of the folder.")
     public Map<String, Object> renameFolder(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Folder to rename.") String path,
@@ -127,7 +132,8 @@ public final class FolderPackage {
     }
 
     @Action(id = "open_folder", name = "Open folder", category = "Folders", capabilities = {"desktop", "filesystem"},
-            description = "Show a folder in the file manager (File Explorer on Windows).")
+            description = "Show a folder in the file manager (File Explorer on Windows).",
+            panel = "path")
     public Map<String, Object> openFolder(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "Folder to show.") String path) {
         Path p = ctx.resolvePath(path).toAbsolutePath().normalize();
         if (!Files.isDirectory(p)) throw new ActionException("FOLDER.NOT_FOUND", "Folder not found: " + p, "Check the folder path.");
@@ -145,7 +151,8 @@ public final class FolderPackage {
     }
 
     @Action(id = "create_shortcut", name = "Create folder shortcut", category = "Folders", capabilities = "filesystem",
-            description = "Create a shortcut that opens a folder: a .lnk file on Windows, a .desktop file or symbolic link elsewhere.")
+            description = "Create a shortcut that opens a folder: a .lnk file on Windows, a .desktop file or symbolic link elsewhere.",
+            panel = "path, shortcut | comment, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Created shortcut.")
     public Map<String, Object> createShortcut(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Folder the shortcut opens.") String path,
@@ -156,7 +163,8 @@ public final class FolderPackage {
     }
 
     @Action(id = "create_symbolic_link", name = "Create folder symbolic link", category = "Folders", capabilities = "filesystem",
-            description = "Create a symbolic link that points to a folder; on Windows this needs Developer Mode or administrator rights.")
+            description = "Create a symbolic link that points to a folder; on Windows this needs Developer Mode or administrator rights.",
+            panel = "path, link | overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Created link.")
     public Map<String, Object> createSymbolicLink(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Folder the link points to.") String path,

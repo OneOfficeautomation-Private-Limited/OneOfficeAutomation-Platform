@@ -21,7 +21,8 @@ public final class InsightsPackage {
         return ctx.workDir().resolve("insights").resolve(category + ".jsonl");
     }
 
-    @Action(id = "tag_values", name = "Tag business values", category = "Insights", description = "Record a set of values for a category, e.g. invoices: {amount, supplier, minutes_saved}.")
+    @Action(id = "tag_values", name = "Tag business values", category = "Insights", description = "Record a set of values for a category, e.g. invoices: {amount, supplier, minutes_saved}.",
+            panel = "category, values")
     public Map<String, Object> tag(ActionContext ctx,
             @Input(name = "category", type = OoaType.STRING, example = "invoices", description = "Category (dashboard) name.") String category,
             @Input(name = "values", type = OoaType.DICTIONARY, description = "Values to record; Credentials are refused.") Map<String, Object> values) {
@@ -39,7 +40,8 @@ public final class InsightsPackage {
     }
 
     @SuppressWarnings("unchecked")
-    @Action(id = "read_values", name = "Read business values", category = "Insights", idempotent = true, description = "Read recorded values for a category as a table, optionally for a time range or one transaction name.")
+    @Action(id = "read_values", name = "Read business values", category = "Insights", idempotent = true, description = "Read recorded values for a category as a table, optionally for a time range or one transaction name.",
+            panel = "category, since, until | transaction, max_records")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per record.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     public Map<String, Object> read(ActionContext ctx,
@@ -78,7 +80,8 @@ public final class InsightsPackage {
     }
 
     @Action(id = "open_transaction", name = "Open transaction", category = "Insights",
-            description = "Mark the start of a business transaction (e.g. one invoice); Close transaction records its values and how long it took.")
+            description = "Mark the start of a business transaction (e.g. one invoice); Close transaction records its values and how long it took.",
+            panel = "transaction, category")
     public Map<String, Object> openTransaction(ActionContext ctx,
             @Input(name = "transaction", type = OoaType.STRING, example = "Invoice", description = "Transaction name; Close transaction must use the same name.") String name,
             @Input(name = "category", type = OoaType.STRING, example = "invoices", description = "Category (dashboard) the values go to.") String category) {
@@ -88,7 +91,8 @@ public final class InsightsPackage {
     }
 
     @Action(id = "close_transaction", name = "Close transaction", category = "Insights",
-            description = "End a transaction opened with Open transaction and record its values, outcome and duration for dashboards.")
+            description = "End a transaction opened with Open transaction and record its values, outcome and duration for dashboards.",
+            panel = "transaction, outcome, values")
     @Output(name = "duration_seconds", type = OoaType.NUMBER, description = "Seconds between Open and Close.")
     public Map<String, Object> closeTransaction(ActionContext ctx,
             @Input(name = "transaction", type = OoaType.STRING, description = "Name used in Open transaction.") String name,

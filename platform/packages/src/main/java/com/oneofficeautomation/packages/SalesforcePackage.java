@@ -23,7 +23,8 @@ public final class SalesforcePackage {
     private static String id(String id) { if (!ID.matcher(id).matches()) throw new ActionException(P + ".BAD_ID", "Invalid record id '" + id + "'", "Salesforce ids are 15 or 18 characters."); return id; }
 
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
-            description = "Get an access token from Salesforce with a connected app (client credentials, or user name and password) for the other Salesforce actions.")
+            description = "Get an access token from Salesforce with a connected app (client credentials, or user name and password) for the other Salesforce actions.",
+            panel = "grant_type, client_id, client_secret, username, password, login_url | security_token")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "instance_url", type = OoaType.STRING, description = "Instance URL returned by Salesforce; map it to instance_url of later actions.")
     public Map<String, Object> authenticate(ActionContext ctx,
@@ -53,7 +54,8 @@ public final class SalesforcePackage {
         return Out.of("access_token", EnterpriseAuth.credential(r, "salesforce/session"), "instance_url", r.get("instance_url"));
     }
 
-    @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access token so it can no longer be used.")
+    @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access token so it can no longer be used.",
+            panel = "instance_url, access_token")
     public Map<String, Object> revoke(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = "The token to revoke.") Object token) {
@@ -64,7 +66,8 @@ public final class SalesforcePackage {
     }
 
     @Action(id = "query", name = "Query (SOQL)", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Run a SOQL query and return all matching records as a table (all result pages are read).")
+            description = "Run a SOQL query and return all matching records as a table (all result pages are read).",
+            panel = "soql, include_deleted, instance_url, access_token | max_records, batch_size, api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Records.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "total_size", type = OoaType.NUMBER, description = "Number of matching records Salesforce reports, which can be more than were read.")
@@ -109,21 +112,39 @@ public final class SalesforcePackage {
         return out;
     }
 
-    @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network", description = "Read one record by id.")
+    /** Earlier signature, kept for callers written before external_id_field. */
+    public Map<String, Object> get(ActionContext ctx, String instance, Object token, String obj, String rid, List<Object> fields, String version) {
+        return get(ctx, instance, token, obj, rid, fields, version, null);
+    }
+
+    @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network",
+            description = "Read one record by its Salesforce id, or by the value of an external id field.",
+            panel = "object, id, fields, instance_url, access_token | external_id_field, api_version")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "Field values.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "object", type = OoaType.STRING, example = "Account", description = "Object API name.") String obj,
-            @Input(name = "id", type = OoaType.STRING, description = "Record id.") String rid,
+            @Input(name = "id", type = OoaType.STRING, description = "Record id, or the external id value when external_id_field is filled in.") String rid,
             @Input(name = "fields", type = OoaType.LIST, required = false, description = "Fields to return; all when empty.") List<Object> fields,
-            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version) {
-        String url = base(instance, version) + "/sobjects/" + object(obj) + "/" + id(rid);
+            @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version,
+            @Input(name = "external_id_field", type = OoaType.STRING, required = false, example = "ERP_Number__c",
+                    description = "API name of an external id field; when filled in, the record whose field has the value in id is read.") String externalField) {
+        String url;
+        if (externalField != null && !externalField.isBlank()) {
+            if (rid == null || rid.isBlank()) throw new ActionException(P + ".NO_EXTERNAL_ID", "The external id value is empty", "Put the external id value in id.");
+            url = base(instance, version) + "/sobjects/" + object(obj) + "/" + object(externalField.strip()) + "/" + HttpJson.enc(rid.strip());
+        } else url = base(instance, version) + "/sobjects/" + object(obj) + "/" + id(rid);
         if (fields != null && !fields.isEmpty()) { StringJoiner j = new StringJoiner(","); for (Object f : fields) j.add(object(Values.text(f).replace(".", "_x_")).replace("_x_", ".")); url += "?fields=" + HttpJson.enc(j.toString()); }
-        return Map.of("record", flatten("", HttpJson.req(P, "GET", url).bearer(token).send(ctx).map()));
+        HttpJson.Response resp = HttpJson.req(P, "GET", url).bearer(token).send(ctx);
+        if (resp.status() == 300 || resp.json() instanceof List<?>)   // several records share the external id value
+            throw new ActionException(P + ".AMBIGUOUS_EXTERNAL_ID", "More than one " + obj + " record has " + externalField + " = " + rid,
+                    "Use a field whose values are unique, or read the record by its Salesforce id.");
+        return Map.of("record", flatten("", resp.map()));
     }
 
-    @Action(id = "create_record", name = "Create record", category = "Records", capabilities = "network", description = "Create a record and return its id.")
+    @Action(id = "create_record", name = "Create record", category = "Records", capabilities = "network", description = "Create a record and return its id.",
+            panel = "object, fields, instance_url, access_token | api_version")
     @Output(name = "id", type = OoaType.STRING, description = "New record id.")
     public Map<String, Object> create(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
@@ -135,7 +156,8 @@ public final class SalesforcePackage {
         return Out.of("id", r.get("id"));
     }
 
-    @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of an existing record.")
+    @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of an existing record.",
+            panel = "object, id, fields, instance_url, access_token | api_version")
     public Map<String, Object> update(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -147,7 +169,8 @@ public final class SalesforcePackage {
         return Map.of();
     }
 
-    @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record (it goes to the Salesforce recycle bin).")
+    @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record (it goes to the Salesforce recycle bin).",
+            panel = "object, id, instance_url, access_token | api_version")
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -174,7 +197,8 @@ public final class SalesforcePackage {
     }
 
     @Action(id = "upsert_by_external_id", name = "Upsert by external id", category = "Records", idempotent = true, capabilities = "network",
-            description = "Update the record whose external id field matches, or create it when none matches.")
+            description = "Update the record whose external id field matches, or create it when none matches.",
+            panel = "object, external_id_field, external_id_value, fields, instance_url, access_token | api_version")
     @Output(name = "id", type = OoaType.STRING, description = "Record id (empty when Salesforce does not return it for an update).")
     @Output(name = "created", type = OoaType.BOOLEAN, description = "True when a new record was created.")
     public Map<String, Object> upsert(ActionContext ctx,
@@ -194,7 +218,8 @@ public final class SalesforcePackage {
     }
 
     @Action(id = "get_attachments", name = "Get attachments", category = "Files", idempotent = true, timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "List the files and classic attachments on a record, and optionally download them to a folder.")
+            description = "List the files and classic attachments on a record, and optionally download them to a folder.",
+            panel = "record_id, download_folder, kind, [Only files with matching names: name_pattern], instance_url, access_token | overwrite, api_version")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, size, content_type, kind (file or attachment), path.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of files.")
     @Output(name = "files", type = OoaType.LIST, description = "Paths of downloaded files (empty when not downloading).")
@@ -247,34 +272,46 @@ public final class SalesforcePackage {
     }
 
     @Action(id = "upload_attachment", name = "Upload attachment", category = "Files", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Upload a local file and link it to a record as a Salesforce File.")
+            description = "Upload a local file and link it to a record as a Salesforce File, or upload it as a new version of an existing file.",
+            panel = "record_id, path, title, visibility, instance_url, access_token | content_document_id, description, api_version")
     @Output(name = "content_version_id", type = OoaType.STRING, description = "Id of the new file version.")
-    @Output(name = "content_document_id", type = OoaType.STRING, description = "Id of the file itself (filled when visibility is set).")
+    @Output(name = "content_document_id", type = OoaType.STRING, description = "Id of the file itself (filled when visibility or content_document_id is set).")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "record_id", type = OoaType.STRING, description = "Id of the record to attach the file to.") String rid,
+            @Input(name = "record_id", type = OoaType.STRING, required = false, description = "Id of the record to attach the file to. Not needed when content_document_id is filled in.") String rid,
             @Input(name = "path", type = OoaType.FILE, description = "File to upload.") String path,
             @Input(name = "title", type = OoaType.STRING, required = false, description = "Title shown in Salesforce; the file name when empty.") String title,
             @Input(name = "api_version", type = OoaType.STRING, required = false, defaultValue = "\"v61.0\"", description = "REST API version.") String version,
             @Input(name = "visibility", type = OoaType.STRING, required = false, enumValues = {"AllUsers", "InternalUsers", "SharedUsers"},
                     description = "Who can see the file on the record (AllUsers includes community users); Salesforce's default when empty.") String visibility,
-            @Input(name = "description", type = OoaType.STRING, required = false, description = "Description stored with the file.") String description) {
-        Path p = ctx.resolvePath(path);
-        byte[] data;
-        try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
+            @Input(name = "description", type = OoaType.STRING, required = false, description = "Description stored with the file.") String description,
+            @Input(name = "content_document_id", type = OoaType.STRING, required = false, example = "069000000000001AAA",
+                    description = "Id of an existing file (starts with 069); the upload becomes its new version and keeps the file's links and sharing.") String documentId) {
+        boolean newVersion = documentId != null && !documentId.isBlank();
         if (visibility != null && !visibility.isBlank() && !Set.of("AllUsers", "InternalUsers", "SharedUsers").contains(visibility))
             throw new ActionException(P + ".BAD_VISIBILITY", "Unknown visibility '" + visibility + "'", "Use AllUsers, InternalUsers or SharedUsers.");
         boolean link = visibility != null && !visibility.isBlank();
+        if (newVersion) {
+            if (!ID.matcher(documentId.strip()).matches() || !documentId.strip().startsWith("069"))
+                throw new ActionException(P + ".BAD_ID", "Invalid file id '" + documentId + "'", "A file (ContentDocument) id starts with 069 and has 15 or 18 characters.");
+            if (link) throw new ActionException(P + ".VISIBILITY_WITH_VERSION", "Visibility cannot be set when uploading a new version",
+                    "Leave visibility empty: a new version keeps the sharing of the existing file.");
+        } else if (rid == null || rid.isBlank())
+            throw new ActionException(P + ".NO_RECORD", "No record id given", "Fill in record_id, or content_document_id to upload a new version of a file.");
+        Path p = ctx.resolvePath(path);
+        byte[] data;
+        try { data = Files.readAllBytes(p); } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + p, "Check the path."); }
         String fname = p.getFileName().toString();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("Title", title == null || title.isBlank() ? fname.replaceFirst("\\.[^.]*$", "") : title);
         body.put("PathOnClient", fname);
         body.put("VersionData", Base64.getEncoder().encodeToString(data));
         if (description != null && !description.isBlank()) body.put("Description", description);
-        if (!link) body.put("FirstPublishLocationId", id(rid)); else id(rid);
+        if (newVersion) body.put("ContentDocumentId", documentId.strip());
+        else if (!link) body.put("FirstPublishLocationId", id(rid)); else id(rid);
         Map<String, Object> r = HttpJson.req(P, "POST", base(instance, version) + "/sobjects/ContentVersion").bearer(token).json(body).timeout(600).send(ctx).map();
-        Object docId = null;
+        Object docId = newVersion ? documentId.strip() : null;
         if (link) {
             // A file without a first location is linked explicitly, which is the only way to choose its visibility.
             Map<String, Object> v = HttpJson.req(P, "GET", base(instance, version) + "/sobjects/ContentVersion/" + id(String.valueOf(r.get("id"))) + "?fields=ContentDocumentId").bearer(token).send(ctx).map();
@@ -288,5 +325,11 @@ public final class SalesforcePackage {
     /** Earlier signature, kept for callers written before visibility and description. */
     public Map<String, Object> upload(ActionContext ctx, String instance, Object token, String rid, String path, String title, String version) {
         return upload(ctx, instance, token, rid, path, title, version, null, null);
+    }
+
+    /** Earlier signature, kept for callers written before content_document_id. */
+    public Map<String, Object> upload(ActionContext ctx, String instance, Object token, String rid, String path, String title, String version,
+            String visibility, String description) {
+        return upload(ctx, instance, token, rid, path, title, version, visibility, description, null);
     }
 }

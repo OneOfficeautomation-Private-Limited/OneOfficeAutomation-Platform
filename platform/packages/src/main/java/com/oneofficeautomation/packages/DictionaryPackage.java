@@ -8,7 +8,8 @@ import java.util.*;
 @OoaPackage(id = "ooa.dictionary", name = "Dictionary", version = "1.0.0", description = "Put, get and remove key/value pairs.")
 public final class DictionaryPackage {
 
-    @Action(id = "put", name = "Put", category = "Dictionary", idempotent = true, description = "Add or replace the value for a key.")
+    @Action(id = "put", name = "Put", category = "Dictionary", idempotent = true, description = "Add or replace the value for a key.",
+            panel = "dictionary, key, value | only_if_missing")
     @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Updated dictionary.")
     @Output(name = "previous", description = "The value the key had before, empty when the key is new.")
     @Output(name = "existed", type = OoaType.BOOLEAN, description = "True when the key was already there.")
@@ -24,7 +25,8 @@ public final class DictionaryPackage {
         return Out.of("dictionary", out, "previous", prev, "existed", existed);
     }
 
-    @Action(id = "get", name = "Get", category = "Dictionary", idempotent = true, description = "Read the value for a key, or a default when the key is missing.")
+    @Action(id = "get", name = "Get", category = "Dictionary", idempotent = true, description = "Read the value for a key, or a default when the key is missing.",
+            panel = "dictionary, key | default, ignore_case, fail_if_missing")
     @Output(name = "value", description = "Value or default.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the key exists.")
     public Map<String, Object> get(ActionContext ctx,
@@ -45,7 +47,8 @@ public final class DictionaryPackage {
         return null;
     }
 
-    @Action(id = "remove", name = "Remove", category = "Dictionary", idempotent = true, description = "Remove a key.")
+    @Action(id = "remove", name = "Remove", category = "Dictionary", idempotent = true, description = "Remove a key.",
+            panel = "dictionary, key | fail_if_missing")
     @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Updated dictionary.")
     @Output(name = "removed", description = "The value that was removed, empty when the key was not there.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the key was there.")
@@ -60,13 +63,15 @@ public final class DictionaryPackage {
         return Out.of("dictionary", out, "removed", removed, "found", found);
     }
 
-    @Action(id = "keys", name = "Get keys", category = "Dictionary", idempotent = true, description = "List all keys.")
+    @Action(id = "keys", name = "Get keys", category = "Dictionary", idempotent = true, description = "List all keys.",
+            panel = "dictionary")
     @Output(name = "keys", type = OoaType.LIST, description = "Keys in insertion order.")
     public Map<String, Object> keys(ActionContext ctx, @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict) {
         return Out.of("keys", new ArrayList<Object>(dict.keySet()));
     }
 
-    @Action(id = "values", name = "Get values", category = "Dictionary", idempotent = true, description = "List all values.")
+    @Action(id = "values", name = "Get values", category = "Dictionary", idempotent = true, description = "List all values.",
+            panel = "dictionary")
     @Output(name = "values", type = OoaType.LIST, description = "Values in insertion order.")
     public Map<String, Object> values(ActionContext ctx, @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict) {
         return Out.of("values", new ArrayList<>(dict.values()));
@@ -99,14 +104,16 @@ public final class DictionaryPackage {
         return dict.isEmpty();
     }
 
-    @Action(id = "size", name = "Get size", category = "Dictionary", idempotent = true, description = "Number of keys.")
+    @Action(id = "size", name = "Get size", category = "Dictionary", idempotent = true, description = "Number of keys.",
+            panel = "dictionary")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of keys.")
     public Map<String, Object> size(ActionContext ctx, @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "Source dictionary.") Map<String, Object> dict) {
         return Out.of("count", java.math.BigDecimal.valueOf(dict.size()));
     }
 
     @Action(id = "merge", name = "Merge", category = "Dictionary", idempotent = true,
-            description = "Combine two dictionaries; for keys in both, keep the second value unless overwrite is off.")
+            description = "Combine two dictionaries; for keys in both, keep the second value unless overwrite is off.",
+            panel = "dictionary, other, overwrite")
     @Output(name = "dictionary", type = OoaType.DICTIONARY, description = "Merged dictionary.")
     public Map<String, Object> merge(ActionContext ctx,
             @Input(name = "dictionary", type = OoaType.DICTIONARY, description = "First dictionary.") Map<String, Object> dict,

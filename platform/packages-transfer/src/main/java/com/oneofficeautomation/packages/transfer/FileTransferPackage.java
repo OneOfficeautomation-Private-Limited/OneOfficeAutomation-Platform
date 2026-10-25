@@ -88,7 +88,15 @@ public final class FileTransferPackage {
         return new ActionException("TRANSFER.FAILED", what + ": " + m, null);
     }
 
-    @Action(id = "connect", name = "Connect", category = "Connection", timeoutSeconds = 120, capabilities = "network", description = "Connect and sign in to an FTP, FTPS or SFTP server.")
+    public Map<String, Object> connect(ActionContext ctx, String protocol, String host, Integer port, String user, Object password, String key, Object keyPass,
+                                       String fingerprint, String session, boolean passive, boolean implicit, String mode, int timeout) {
+        return connect(ctx, protocol, host, port, user, password, key, keyPass, fingerprint, session, passive, implicit, mode, timeout, 0, 5, null);
+    }
+
+    @Action(id = "connect", name = "Connect", category = "Connection", timeoutSeconds = 600, capabilities = "network",
+            description = "Connect and sign in to an FTP, FTPS or SFTP server, optionally trying again when the server cannot be reached and starting in a chosen folder.",
+            panel = "host, port, protocol, user, password, private_key, key_passphrase, host_key_fingerprint, passive_mode, implicit_tls, transfer_mode, session"
+                    + " | timeout_seconds, [Try again when connecting fails: retry_attempts, retry_delay_seconds], start_folder")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "protocol", type = OoaType.STRING, enumValues = {"sftp", "ftps", "ftp"}, description = "sftp (SSH), ftps (FTP over TLS) or plain ftp.") String protocol,
             @Input(name = "host", type = OoaType.STRING, description = "Server name or address.") String host,
@@ -103,11 +111,62 @@ public final class FileTransferPackage {
             @Input(name = "implicit_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "protocol=ftps", description = "FTPS: use implicit TLS (usually port 990) instead of explicit TLS after connecting.") boolean implicit,
             @Input(name = "transfer_mode", type = OoaType.STRING, required = false, defaultValue = "\"binary\"", enumValues = {"binary", "ascii"},
                     visibleWhen = "protocol=ftp|ftps", description = "FTP/FTPS: binary copies files byte for byte; ascii converts line endings of text files.") String mode,
-            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "20", description = "How long to wait when connecting and for each server reply.") int timeout) {
-        String pw = password instanceof SecureString s ? s.reveal() : null;
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "20", description = "How long to wait when connecting and for each server reply.") int timeout,
+            @Input(name = "retry_attempts", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 20,
+                    description = "How many more times to try when the server cannot be reached or drops the connection; 0 tries once. A wrong password or server fingerprint is never retried.") int retryAttempts,
+            @Input(name = "retry_delay_seconds", type = OoaType.NUMBER, required = false, defaultValue = "5", min = 0, max = 600,
+                    description = "Seconds to wait between tries.") double retryDelay,
+            @Input(name = "start_folder", type = OoaType.STRING, required = false, example = "/outgoing",
+                    description = "Remote folder to change to right after signing in; later relative paths start from it.") String startFolder) {
         String tm = mode == null || mode.isBlank() ? "binary" : mode.strip().toLowerCase(Locale.ROOT);
         if (!tm.equals("binary") && !tm.equals("ascii")) throw new ActionException("TRANSFER.BAD_MODE", "Unknown transfer_mode '" + mode + "'", "Use binary or ascii.");
         if (implicit && !protocol.equals("ftps")) throw new ActionException("TRANSFER.BAD_OPTION", "implicit_tls applies to ftps only", "Set protocol to ftps or turn off implicit_tls.");
+        if (retryAttempts < 0 || retryAttempts > 20) throw new ActionException("TRANSFER.BAD_OPTION", "retry_attempts must be from 0 to 20, not " + retryAttempts, "Use 0 to try once, or a small number such as 3.");
+        if (retryDelay < 0 || retryDelay > 600 || Double.isNaN(retryDelay))
+            throw new ActionException("TRANSFER.BAD_OPTION", "retry_delay_seconds must be from 0 to 600, not " + retryDelay, "Use a delay such as 5 seconds.");
+        for (int attempt = 0; ; attempt++) {
+            try {
+                Conn c = connectOnce(ctx, protocol, host, port, user, password, key, keyPass, fingerprint, passive, implicit, tm, timeout);
+                if (startFolder != null && !startFolder.isBlank()) {
+                    try { c.cd(startFolder.strip()); }
+                    catch (Exception e) { c.close(); throw fail(e, "Changing folder to " + startFolder.strip()); }
+                }
+                ctx.sessions().put(session, c);
+                return Map.of();
+            } catch (ActionException e) {
+                if (attempt >= retryAttempts || !retryable(e)) {
+                    if (attempt > 0) throw new ActionException(e.code(), e.getMessage() + " (after " + (attempt + 1) + " tries)", e.suggestedFix(), e.retryable());
+                    throw e;
+                }
+                ctx.warn("Connecting to " + host + " failed (try " + (attempt + 1) + " of " + (retryAttempts + 1) + "): " + e.getMessage() + "; trying again in " + retryDelay + " s.");
+                pause(ctx, retryDelay);
+            }
+        }
+    }
+
+    /** Connection problems are worth another try; a refused sign-in, a wrong fingerprint or a missing start folder are not. */
+    static boolean retryable(ActionException e) {
+        return switch (e.code()) {
+            case "TRANSFER.AUTH_FAILED", "TRANSFER.HOST_KEY_MISMATCH", "TRANSFER.NOT_FOUND", "TRANSFER.ACCESS_DENIED", "TRANSFER.BAD_MODE", "TRANSFER.BAD_OPTION" -> false;
+            default -> e.getMessage() == null || !e.getMessage().startsWith("Changing folder to ");
+        };
+    }
+
+    private static void pause(ActionContext ctx, double seconds) {
+        long end = System.nanoTime() + (long) (seconds * 1e9);
+        while (true) {
+            ctx.checkCancelled();
+            long left = end - System.nanoTime();
+            if (left <= 0) return;
+            try { Thread.sleep(Math.min(250, Math.max(1, left / 1_000_000))); }
+            catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new ActionException("TRANSFER.CANCELLED", "Stopped while waiting to connect again", null); }
+        }
+    }
+
+    /** One connection and sign-in; the caller stores the session. */
+    private static Conn connectOnce(ActionContext ctx, String protocol, String host, Integer port, String user, Object password, String key, Object keyPass,
+                                    String fingerprint, boolean passive, boolean implicit, String tm, int timeout) {
+        String pw = password instanceof SecureString s ? s.reveal() : null;
         int ms = (int) Math.max(1000, Math.min(600_000L, timeout * 1000L));
         try {
             Conn c;
@@ -142,13 +201,13 @@ public final class FileTransferPackage {
                 if (protocol.equals("ftp")) ctx.warn("Plain FTP sends passwords unencrypted; prefer SFTP or FTPS.");
                 c = new Ftp(f);
             }
-            ctx.sessions().put(session, c);
+            return c;
         } catch (ActionException e) { throw e;
         } catch (Exception e) { throw fail(e, "Connecting to " + host); }
-        return Map.of();
     }
 
-    @Action(id = "list", name = "List files", category = "Files", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List a remote folder.")
+    @Action(id = "list", name = "List files", category = "Files", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List a remote folder.",
+            panel = "session, folder, pattern, kind")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: name, is_folder, size, modified.")
     public Map<String, Object> list(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\".\"", description = "Remote folder.") String dir,
@@ -170,7 +229,8 @@ public final class FileTransferPackage {
         catch (Exception e) { throw fail(e, "Listing " + dir); }
     }
 
-    @Action(id = "download", name = "Download", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"}, description = "Download a remote file.")
+    @Action(id = "download", name = "Download", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"}, description = "Download a remote file.",
+            panel = "session, remote_path, local_path | overwrite")
     public Map<String, Object> download(ActionContext ctx,
             @Input(name = "remote_path", type = OoaType.STRING, description = "Remote file.") String remote,
             @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
@@ -183,7 +243,8 @@ public final class FileTransferPackage {
         return Map.of();
     }
 
-    @Action(id = "upload", name = "Upload", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"}, description = "Upload a local file.")
+    @Action(id = "upload", name = "Upload", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"}, description = "Upload a local file.",
+            panel = "session, local_path, remote_path | overwrite")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "local_path", type = OoaType.FILE, description = "File to upload.") String local,
             @Input(name = "remote_path", type = OoaType.STRING, description = "Remote path including the file name.") String remote,
@@ -197,7 +258,8 @@ public final class FileTransferPackage {
         return Map.of();
     }
 
-    @Action(id = "delete", name = "Delete", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Delete a remote file.")
+    @Action(id = "delete", name = "Delete", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Delete a remote file.",
+            panel = "session, remote_path")
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "remote_path", type = OoaType.STRING, description = "Remote file.") String remote,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session) {
@@ -205,7 +267,8 @@ public final class FileTransferPackage {
         return Map.of();
     }
 
-    @Action(id = "rename", name = "Rename or move", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Rename or move a remote file.")
+    @Action(id = "rename", name = "Rename or move", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Rename or move a remote file.",
+            panel = "session, from, to")
     public Map<String, Object> rename(ActionContext ctx,
             @Input(name = "from", type = OoaType.STRING, description = "Current path.") String from,
             @Input(name = "to", type = OoaType.STRING, description = "New path.") String to,
@@ -214,7 +277,8 @@ public final class FileTransferPackage {
         return Map.of();
     }
 
-    @Action(id = "create_folder", name = "Create folder", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Create a remote folder.")
+    @Action(id = "create_folder", name = "Create folder", category = "Files", timeoutSeconds = 120, capabilities = "network", description = "Create a remote folder.",
+            panel = "session, folder")
     public Map<String, Object> mkdir(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, description = "Remote folder.") String dir,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session) {
@@ -267,7 +331,8 @@ public final class FileTransferPackage {
     }
 
     @Action(id = "delete_files", name = "Delete files", category = "Files", timeoutSeconds = 3600, capabilities = "network",
-            description = "Delete the files in a remote folder whose names match a wildcard such as *.tmp.")
+            description = "Delete the files in a remote folder whose names match a wildcard such as *.tmp.",
+            panel = "session, folder, pattern")
     @Output(name = "deleted", type = OoaType.LIST, description = "Remote paths of the deleted files.")
     public Map<String, Object> deleteFiles(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, description = "Remote folder.") String dir,
@@ -292,7 +357,8 @@ public final class FileTransferPackage {
     }
 
     @Action(id = "change_folder", name = "Change folder", category = "Folders", timeoutSeconds = 120, capabilities = "network",
-            description = "Change the session's current remote folder; later relative paths start from it.")
+            description = "Change the session's current remote folder; later relative paths start from it.",
+            panel = "session, folder")
     @Output(name = "folder", type = OoaType.STRING, description = "Current remote folder after the change.")
     public Map<String, Object> changeFolder(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, example = "/outgoing/invoices", description = "Remote folder, absolute or relative to the current one.") String dir,
@@ -302,7 +368,8 @@ public final class FileTransferPackage {
     }
 
     @Action(id = "delete_folder", name = "Delete folder", category = "Folders", timeoutSeconds = 3600, capabilities = "network",
-            description = "Delete a remote folder; a folder with contents is deleted only when recursive is true.")
+            description = "Delete a remote folder; a folder with contents is deleted only when recursive is true.",
+            panel = "session, folder | recursive")
     @Output(name = "deleted_files", type = OoaType.NUMBER, description = "Files deleted inside the folder.")
     public Map<String, Object> deleteFolder(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, description = "Remote folder to delete.") String dir,
@@ -335,7 +402,8 @@ public final class FileTransferPackage {
     }
 
     @Action(id = "upload_folder", name = "Upload folder", category = "Folders", timeoutSeconds = 7200, capabilities = {"network", "filesystem"},
-            description = "Upload a local folder with all its files and sub-folders, creating remote folders as needed.")
+            description = "Upload a local folder with all its files and sub-folders, creating remote folders as needed.",
+            panel = "session, local_folder, pattern, remote_folder | include_subfolders, overwrite, only_newer")
     @Output(name = "files", type = OoaType.LIST, description = "Remote paths of the uploaded files.")
     public Map<String, Object> uploadFolder(ActionContext ctx,
             @Input(name = "local_folder", type = OoaType.FILE, description = "Local folder to upload.") String local,
@@ -361,7 +429,11 @@ public final class FileTransferPackage {
     }
 
     /** Options of Upload folder and Download folder. */
-    record Copy(java.util.function.Predicate<String> match, boolean subfolders, boolean overwrite, boolean onlyNewer) {
+    record Copy(java.util.function.Predicate<String> match, boolean subfolders, boolean overwrite, boolean onlyNewer,
+                java.util.function.Predicate<Object> when) {
+        Copy(java.util.function.Predicate<String> match, boolean subfolders, boolean overwrite, boolean onlyNewer) {
+            this(match, subfolders, overwrite, onlyNewer, t -> true);
+        }
         static final Copy ALL = new Copy(n -> true, true, true, false);
     }
 
@@ -386,8 +458,13 @@ public final class FileTransferPackage {
         }
     }
 
+    public Map<String, Object> downloadFolder(ActionContext ctx, String remote, String local, String session, String pattern, boolean sub, boolean overwrite, boolean onlyNewer) {
+        return downloadFolder(ctx, remote, local, session, pattern, sub, overwrite, onlyNewer, null, null, null);
+    }
+
     @Action(id = "download_folder", name = "Download folder", category = "Folders", timeoutSeconds = 7200, capabilities = {"network", "filesystem"},
-            description = "Download a remote folder with all its files and sub-folders into a local folder.")
+            description = "Download a remote folder with all its files and sub-folders into a local folder; optionally only files changed in the last days or between two dates.",
+            panel = "session, remote_folder, pattern, local_folder, (Changed: Any time = / In the last days = modified_within_days / Between dates = modified_after, modified_before) | include_subfolders, overwrite, only_newer")
     @Output(name = "files", type = OoaType.LIST, description = "Local paths of the downloaded files.")
     public Map<String, Object> downloadFolder(ActionContext ctx,
             @Input(name = "remote_folder", type = OoaType.STRING, description = "Remote folder to download.") String remote,
@@ -396,8 +473,21 @@ public final class FileTransferPackage {
             @Input(name = "pattern", type = OoaType.STRING, required = false, defaultValue = "\"*\"", example = "*.csv", description = "Only files whose names match this wildcard (* and ?).") String pattern,
             @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also copy sub-folders and their files.") boolean sub,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist; when false they are skipped.") boolean overwrite,
-            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Copy a file only when it is newer than the existing copy (by modified time).") boolean onlyNewer) {
-        Copy opts = new Copy(wildcard(pattern), sub, overwrite, onlyNewer);
+            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Copy a file only when it is newer than the existing copy (by modified time).") boolean onlyNewer,
+            @Input(name = "modified_within_days", type = OoaType.NUMBER, required = false, min = 0,
+                    description = "Only files the server reports as changed in this many days up to now (0 = today, from midnight UTC).") Integer withinDays,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "Only files changed at or after this time (UTC).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "Only files changed before this time (UTC).") LocalDateTime before) {
+        if (withinDays != null && (after != null || before != null))
+            throw new ActionException("TRANSFER.BAD_FILTER", "Both a number of days and dates were given", "Filter by the last days or by dates, not both.");
+        if (after != null && before != null && !before.isAfter(after))
+            throw new ActionException("TRANSFER.BAD_FILTER", "modified_before (" + before + ") is not after modified_after (" + after + ")", "Give a later end date.");
+        LocalDateTime from = withinDays != null ? LocalDateTime.now(ZoneOffset.UTC).toLocalDate().minusDays(withinDays).atStartOfDay() : after;
+        boolean filtered = from != null || before != null;
+        // a file whose time the server does not report cannot be shown to match, so a date filter leaves it out
+        java.util.function.Predicate<Object> when = !filtered ? t -> true
+                : t -> t instanceof LocalDateTime m && (from == null || !m.isBefore(from)) && (before == null || m.isBefore(before));
+        Copy opts = new Copy(wildcard(pattern), sub, overwrite, onlyNewer, when);
         Path l = ctx.resolvePath(local).toAbsolutePath().normalize();
         Conn c = conn(ctx, session);
         List<Object> done = new ArrayList<>();
@@ -417,14 +507,15 @@ public final class FileTransferPackage {
             Path target = local.resolve(name).normalize();
             if (!target.startsWith(local)) throw new ActionException("TRANSFER.UNSAFE_NAME", "The server listed an unsafe file name '" + name + "'", null);
             if (Boolean.TRUE.equals(row.get(1))) { if (o.subfolders()) downloadTree(ctx, c, join(remote, name), target, done, depth + 1, o); continue; }
-            if (!o.match().test(name)) continue;
+            if (!o.match().test(name) || !o.when().test(row.get(3))) continue;
             if (Files.exists(target) && (!o.overwrite() || (o.onlyNewer() && !newer(row.get(3), target)))) continue;
             c.download(join(remote, name), target);
             done.add(target.toString());
         }
     }
 
-    @Action(id = "disconnect", name = "Disconnect", category = "Connection", description = "Close the connection.")
+    @Action(id = "disconnect", name = "Disconnect", category = "Connection", description = "Close the connection.",
+            panel = "session")
     public Map<String, Object> disconnect(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"transfer\"", description = "Session name.") String session) {
         Object o = ctx.sessions().remove(session);

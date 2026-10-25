@@ -89,7 +89,8 @@ public final class PowerPointPackage {
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
     @Action(id = "open", name = "Open presentation", category = "Presentation", capabilities = "filesystem",
-            description = "Open a .pptx presentation, or create a new empty one, as a named session; can open password-protected files and open read-only.")
+            description = "Open a .pptx presentation, or create a new empty one, as a named session; can open password-protected files and open read-only.",
+            panel = "path, read_only, [The file has a password: password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Presentation path.") String path,
             @Input(name = "create", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the presentation when it does not exist.") boolean create,
@@ -118,7 +119,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "create_presentation", name = "Create presentation", category = "Presentation", capabilities = "filesystem",
-            description = "Create a new .pptx file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.")
+            description = "Create a new .pptx file on disk, empty or as a copy of a template presentation, optionally password-protected, and open it as a named session.",
+            panel = "path, [Require a password to open the file: password] | overwrite, template, session")
     public Map<String, Object> createPresentation(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new presentation.") String path,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
@@ -145,7 +147,8 @@ public final class PowerPointPackage {
     public Map<String, Object> save(ActionContext ctx, String path, String session) { return save(ctx, path, session, null); }
 
     @Action(id = "save", name = "Save", category = "Presentation", capabilities = "filesystem",
-            description = "Save the presentation to the file it was opened from, or to another path; password-protected files stay protected.")
+            description = "Save the presentation to the file it was opened from, or to another path; password-protected files stay protected.",
+            panel = "session | path, password")
     public Map<String, Object> save(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "Other path to write to; the opened file when empty.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
@@ -160,7 +163,8 @@ public final class PowerPointPackage {
     public Map<String, Object> saveAs(ActionContext ctx, String path, String format, String session) { return saveAs(ctx, path, format, session, true, null); }
 
     @Action(id = "save_as", name = "Save as", category = "Presentation", capabilities = "filesystem",
-            description = "Save the presentation to a new .pptx file, optionally password-protected, and continue the session on that file; PDF and image export are not available.")
+            description = "Save the presentation to a new .pptx file, optionally password-protected, and continue the session on that file; PDF and image export are not available.",
+            panel = "path, overwrite | format, password, session")
     public Map<String, Object> saveAs(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Target file path.") String path,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"pptx\"", enumValues = {"pptx"}, description = "File format; only pptx is supported.") String format,
@@ -184,7 +188,8 @@ public final class PowerPointPackage {
 
     public Map<String, Object> close(ActionContext ctx, String session) { return close(ctx, session, false); }
 
-    @Action(id = "close", name = "Close", category = "Presentation", capabilities = "filesystem", description = "Close the presentation session, saving the changes first when asked.")
+    @Action(id = "close", name = "Close", category = "Presentation", capabilities = "filesystem", description = "Close the presentation session, saving the changes first when asked.",
+            panel = "save | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
@@ -194,7 +199,8 @@ public final class PowerPointPackage {
         return Map.of();
     }
 
-    @Action(id = "slide_count", name = "Get slide count", category = "Slides", idempotent = true, description = "Count the slides in the presentation.")
+    @Action(id = "slide_count", name = "Get slide count", category = "Slides", idempotent = true, description = "Count the slides in the presentation.",
+            panel = "session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of slides.")
     public Map<String, Object> slideCount(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session) {
@@ -223,7 +229,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "add_slide", name = "Add slide", category = "Slides",
-            description = "Add a slide with a chosen layout, optionally filling its title and body, at the end or at a given position.")
+            description = "Add a slide with a chosen layout, optionally filling its title and body, at the end or at a given position.",
+            panel = "layout, (Position: At the end = / At a slide number = position) | title, body, session")
     @Output(name = "slide", type = OoaType.NUMBER, description = "1-based number of the new slide.")
     public Map<String, Object> addSlide(ActionContext ctx,
             @Input(name = "layout", type = OoaType.STRING, required = false, defaultValue = "\"title_and_content\"",
@@ -261,7 +268,8 @@ public final class PowerPointPackage {
 
     public Map<String, Object> deleteSlide(ActionContext ctx, int slide, String session) { return deleteSlide(ctx, slide, session, 1); }
 
-    @Action(id = "delete_slide", name = "Delete slide", category = "Slides", description = "Remove one slide, or several slides in a row, from the presentation.")
+    @Action(id = "delete_slide", name = "Delete slide", category = "Slides", description = "Remove one slide, or several slides in a row, from the presentation.",
+            panel = "slide | count, session")
     public Map<String, Object> deleteSlide(ActionContext ctx,
             @Input(name = "slide", type = OoaType.NUMBER, description = "1-based slide number.") int slide,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
@@ -277,7 +285,8 @@ public final class PowerPointPackage {
     public Map<String, Object> copySlide(ActionContext ctx, int slide, Integer position, String session) { return copySlide(ctx, slide, position, session, null); }
 
     @Action(id = "copy_slide", name = "Copy slide", category = "Slides",
-            description = "Duplicate a slide, including its text, pictures and tables, from this or another open presentation, and place the copy at a position.")
+            description = "Duplicate a slide, including its text, pictures and tables, from this or another open presentation, and place the copy at a position.",
+            panel = "slide, (Put the copy: Right after the original = / At a slide number = position) | session, source_session")
     @Output(name = "slide", type = OoaType.NUMBER, description = "1-based number of the copy.")
     public Map<String, Object> copySlide(ActionContext ctx,
             @Input(name = "slide", type = OoaType.NUMBER, description = "1-based number of the slide to copy.") int slide,
@@ -308,7 +317,8 @@ public final class PowerPointPackage {
     // ------------------------------------------------------------------------------------------------
 
     @Action(id = "insert_text", name = "Insert text", category = "Text",
-            description = "Put text into a slide's title or body placeholder, or add it as a new text box at a position given in points.")
+            description = "Put text into a slide's title or body placeholder, or add it as a new text box at a position given in points.",
+            panel = "(Slide: The last slide = / A slide number = slide), text, x, y, [Format the text: font, font_size, color, bold, italic, underline] | placeholder, width, height, alignment, session")
     public Map<String, Object> insertText(ActionContext ctx,
             @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; each line becomes a paragraph.") String text,
@@ -398,7 +408,8 @@ public final class PowerPointPackage {
     private static final String D_WHOLE_WORD = "Only match the text as a whole word, not inside a longer word.";
     private static final String D_OCCURRENCE = "Which occurrences to change, in slide order: all, the first or the last.";
 
-    @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true, description = "Return the text of every slide, one entry per slide in slide order.")
+    @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true, description = "Return the text of every slide, one entry per slide in slide order.",
+            panel = "session")
     @Output(name = "slides", type = OoaType.LIST, description = "Text of each slide; shapes are separated by line breaks.")
     @Output(name = "text", type = OoaType.STRING, description = "All slide texts joined, separated by blank lines.")
     public Map<String, Object> readText(ActionContext ctx,
@@ -419,7 +430,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "find_replace_text", name = "Find and replace text", category = "Text",
-            description = "Replace text on every slide, including tables and grouped shapes, e.g. fill {{name}} placeholders; can ignore case, match whole words or change only the first or last occurrence.")
+            description = "Replace text on every slide, including tables and grouped shapes, e.g. fill {{name}} placeholders; can ignore case, match whole words or change only the first or last occurrence.",
+            panel = "find, match_case, whole_word, (Look in: All slides = / One slide = slide), replace_with, occurrence | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
     public Map<String, Object> findReplaceText(ActionContext ctx,
             @Input(name = "find", type = OoaType.STRING, example = "{{customer}}", description = "Text to find.") String find,
@@ -481,7 +493,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "format_text", name = "Format text", category = "Text",
-            description = "Apply bold, italic, underline, strikethrough, size, colour or font to occurrences of a text on the slides; inputs left empty are not changed.")
+            description = "Apply bold, italic, underline, strikethrough, size, colour or font to occurrences of a text on the slides; inputs left empty are not changed.",
+            panel = "text, match_case, whole_word, (Look in: All slides = / One slide = slide), occurrence, font, size, color, bold, italic, underline | strikethrough, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of occurrences formatted.")
     public Map<String, Object> formatText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to format wherever it appears.") String text,
@@ -599,7 +612,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "insert_picture", name = "Insert picture", category = "Pictures", capabilities = "filesystem",
-            description = "Place an image file on a slide at a position in points, optionally scaled to a width, a height or both.")
+            description = "Place an image file on a slide at a position in points, optionally scaled to a width, a height or both.",
+            panel = "(Slide: The last slide = / A slide number = slide), image, x, y, width, height | alt_text, session")
     @Output(name = "shape", type = OoaType.STRING, description = "Name of the new picture shape.")
     public Map<String, Object> insertPicture(ActionContext ctx,
             @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,
@@ -628,7 +642,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "find_replace_picture", name = "Find and replace picture", category = "Pictures", capabilities = "filesystem",
-            description = "Swap pictures, found by alternative text or by their order across the slides, for a new image file, keeping the position and, unless a new size is given, the size.")
+            description = "Swap pictures, found by alternative text or by their order across the slides, for a new image file, keeping the position and, unless a new size is given, the size.",
+            panel = "(Find the picture by: Its alt text = alt_text, occurrence / Its position = index), (Look in: All slides = / One slide = slide), image, new_alt_text, width, height, keep_aspect_ratio | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pictures replaced.")
     public Map<String, Object> findReplacePicture(ActionContext ctx,
             @Input(name = "image", type = OoaType.FILE, description = "New image file.") String image,
@@ -683,7 +698,8 @@ public final class PowerPointPackage {
     }
 
     @Action(id = "insert_table", name = "Insert table", category = "Tables",
-            description = "Add a table to a slide from a Data Table, with the column names as an optional bold header row, at a position and size in points.")
+            description = "Add a table to a slide from a Data Table, with the column names as an optional bold header row, at a position and size in points.",
+            panel = "(Slide: The last slide = / A slide number = slide), x, y, width, row_height, column_widths, table, include_header | font_size, session")
     @Output(name = "shape", type = OoaType.STRING, description = "Name of the new table shape.")
     public Map<String, Object> insertTable(ActionContext ctx,
             @Input(name = "slide", type = OoaType.NUMBER, required = false, min = 1, description = "1-based slide number; the last slide (usually the one just added) when empty.") Integer slide,

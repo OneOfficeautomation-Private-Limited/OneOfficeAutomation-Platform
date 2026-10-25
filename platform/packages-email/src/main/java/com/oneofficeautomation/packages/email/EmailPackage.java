@@ -126,7 +126,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "send", name = "Send email", category = "Send", timeoutSeconds = 120, capabilities = "network",
-            description = "Send an email (plain text or HTML) with optional CC, BCC and attachments through an SMTP server.")
+            description = "Send an email (plain text or HTML) with optional CC, BCC and attachments through an SMTP server.",
+            panel = "to, cc, bcc, reply_to, importance, subject, attachments, body, html, [Send through a specific server: smtp_host, port, security, user, password, access_token] | from, read_receipt, inline_images, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the sent email.")
     public Map<String, Object> send(ActionContext ctx,
             @Input(name = "smtp_host", type = OoaType.STRING, required = false, example = "smtp.office365.com", description = D_SMTP) String host,
@@ -189,7 +190,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "connect", name = "Connect to mailbox", category = "Mailbox", capabilities = "network",
-            description = "Sign in to a mailbox over IMAP or POP3 as a named session, optionally opening a shared mailbox.")
+            description = "Sign in to a mailbox over IMAP or POP3 as a named session, optionally opening a shared mailbox.",
+            panel = "imap_host, user, (Sign in with: A password = password / An access token = access_token), protocol, security, port, [Keep an outgoing server for sending: smtp_host, smtp_port, smtp_security] | shared_mailbox, timeout_seconds, session")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "imap_host", type = OoaType.STRING, example = "outlook.office365.com", description = "Mail server that the agent reads from (IMAP or POP3 host).") String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "993", description = "Server port: 993 IMAP over SSL, 143 IMAP, 995 POP3 over SSL, 110 POP3. Left at 993, the usual port of the chosen protocol and security is used.") int port,
@@ -253,7 +255,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "list", name = "Find emails", category = "Mailbox", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List emails in a folder, newest first, filtered by unread, sender, subject and date; loop over the table to process them.")
+            description = "List emails in a folder, newest first, filtered by unread, sender, subject and date; loop over the table to process them.",
+            panel = "folder, unread_only, read_only, from_contains, subject_contains, since, before, max_results | to_contains, body_contains, has_attachments_only, oldest_first, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, from, subject, received, unread, has_attachments.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails.")
     public Map<String, Object> list(ActionContext ctx,
@@ -338,7 +341,8 @@ public final class EmailPackage {
         else if (p.isMimeType("multipart/*")) { Multipart mp = (Multipart) p.getContent(); for (int i = 0; i < mp.getCount(); i++) collect(mp.getBodyPart(i), text, html, attachments); }
     }
 
-    @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network", description = "Read one email: sender, recipients, subject, text, HTML and attachment names.")
+    @Action(id = "get", name = "Read email", category = "Mailbox", idempotent = true, capabilities = "network", description = "Read one email: sender, recipients, subject, text, HTML and attachment names.",
+            panel = "id, folder, mark_read | session")
     @Output(name = "email", type = OoaType.DICTIONARY, description = "id, from, to, cc, subject, received, text, html, attachments, reply_to, sent, message_id, importance, flagged, size.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
@@ -401,7 +405,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "save_attachments", name = "Save attachments", category = "Mailbox", capabilities = {"network", "filesystem"},
-            description = "Save an email's attachments to a folder, optionally only names matching a pattern such as *.pdf.")
+            description = "Save an email's attachments to a folder, optionally only names matching a pattern such as *.pdf.",
+            panel = "id, target_folder, overwrite | name_pattern, folder, include_inline, session")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
     public Map<String, Object> saveAttachments(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
@@ -440,7 +445,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "save_all_attachments", name = "Save attachments of all matching emails", category = "Mailbox", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save the attachments of every email in a folder that matches the filters, optionally marking those emails as read.")
+            description = "Save the attachments of every email in a folder that matches the filters, optionally marking those emails as read.",
+            panel = "unread_only, mark_read, folder, target_folder, overwrite | name_pattern, from_contains, subject_contains, since, before, session")
     @Output(name = "files", type = OoaType.LIST, description = "Saved file paths.")
     @Output(name = "email_count", type = OoaType.NUMBER, description = "Number of emails that matched.")
     public Map<String, Object> saveAllAttachments(ActionContext ctx,
@@ -471,7 +477,8 @@ public final class EmailPackage {
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", e.getMessage(), null, true); }
     }
 
-    @Action(id = "mark", name = "Mark read or unread", category = "Mailbox", capabilities = "network", description = "Mark an email as read or unread, and optionally set or clear its follow-up flag.")
+    @Action(id = "mark", name = "Mark read or unread", category = "Mailbox", capabilities = "network", description = "Mark an email as read or unread, and optionally set or clear its follow-up flag.",
+            panel = "id, read, folder | flagged, session")
     public Map<String, Object> mark(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
             @Input(name = "read", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "True = read, false = unread.") boolean read,
@@ -488,7 +495,8 @@ public final class EmailPackage {
         return Map.of();
     }
 
-    @Action(id = "move", name = "Move email", category = "Mailbox", capabilities = "network", description = "Move an email to another folder, e.g. Processed.")
+    @Action(id = "move", name = "Move email", category = "Mailbox", capabilities = "network", description = "Move an email to another folder, e.g. Processed.",
+            panel = "id, folder, to_folder | create_folder, session")
     public Map<String, Object> move(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder.") String to,
@@ -517,7 +525,8 @@ public final class EmailPackage {
         return dst;
     }
 
-    @Action(id = "delete", name = "Delete email", category = "Mailbox", capabilities = "network", description = "Delete an email (moved to Trash/Deleted Items when that folder exists), or delete it for good.")
+    @Action(id = "delete", name = "Delete email", category = "Mailbox", capabilities = "network", description = "Delete an email (moved to Trash/Deleted Items when that folder exists), or delete it for good.",
+            panel = "id, folder | permanent, session")
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id.") long id,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
@@ -536,7 +545,8 @@ public final class EmailPackage {
         return Map.of();
     }
 
-    @Action(id = "get_folders", name = "Get folders", category = "Mailbox", idempotent = true, capabilities = "network", description = "List all mail folders.")
+    @Action(id = "get_folders", name = "Get folders", category = "Mailbox", idempotent = true, capabilities = "network", description = "List all mail folders.",
+            panel = "session")
     @Output(name = "folders", type = OoaType.LIST, description = "Folder names.")
     public Map<String, Object> getFolders(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
@@ -547,7 +557,8 @@ public final class EmailPackage {
         } catch (MessagingException e) { throw mail(e); }
     }
 
-    @Action(id = "disconnect", name = "Disconnect", category = "Mailbox", description = "Close the mailbox session.")
+    @Action(id = "disconnect", name = "Disconnect", category = "Mailbox", description = "Close the mailbox session.",
+            panel = "session")
     public Map<String, Object> disconnect(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"mail\"", description = "Session name.") String session) {
         Object o = ctx.sessions().remove(session);
@@ -839,7 +850,8 @@ public final class EmailPackage {
     private static String sender(String from, String user) { return from != null && !from.isBlank() ? from : user; }
 
     @Action(id = "forward", name = "Forward email", category = "Send", timeoutSeconds = 120, capabilities = "network",
-            description = "Forward an email from the open mailbox with a note, either inline with its attachments or attached as an .eml file.")
+            description = "Forward an email from the open mailbox with a note, either inline with its attachments or attached as an .eml file.",
+            panel = "id, to, cc, bcc, reply_to, attachments, importance, note, html, [Send through another server: smtp_host, port, security, user, password, access_token] | as_attachment, from, folder, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the sent email.")
     public Map<String, Object> forward(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
@@ -889,7 +901,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "reply", name = "Reply to email", category = "Send", timeoutSeconds = 120, capabilities = "network",
-            description = "Reply to the sender of an email in the open mailbox, keeping it in the same conversation and quoting the original.")
+            description = "Reply to the sender of an email in the open mailbox, keeping it in the same conversation and quoting the original.",
+            panel = "id, cc, bcc, reply_to, attachments, importance, body, html, [Send through another server: smtp_host, port, security, user, password, access_token] | include_original, from, folder, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the reply.")
     public Map<String, Object> reply(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
@@ -914,7 +927,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "reply_all", name = "Reply to all", category = "Send", timeoutSeconds = 120, capabilities = "network",
-            description = "Reply to the sender and all other recipients of an email, keeping it in the same conversation and quoting the original.")
+            description = "Reply to the sender and all other recipients of an email, keeping it in the same conversation and quoting the original.",
+            panel = "id, cc, bcc, reply_to, exclude_sender, importance, attachments, body, html, [Send through another server: smtp_host, port, security, user, password, access_token] | include_original, from, folder, session")
     @Output(name = "message_id", type = OoaType.STRING, description = "Message-ID of the reply.")
     public Map<String, Object> replyAll(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,
@@ -940,7 +954,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "delete_all", name = "Delete all matching emails", category = "Mailbox", timeoutSeconds = 600, capabilities = "network",
-            description = "Delete every email in a folder that matches the filters (all emails when no filter is set).")
+            description = "Delete every email in a folder that matches the filters (all emails when no filter is set).",
+            panel = "folder, unread_only, read_only, subject_contains, from_contains, since, before | permanent, expunge, to_contains, body_contains, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails deleted.")
     public Map<String, Object> deleteAll(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, required = false, defaultValue = "\"INBOX\"", description = "Mail folder.") String folder,
@@ -972,7 +987,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "move_all", name = "Move all matching emails", category = "Mailbox", timeoutSeconds = 600, capabilities = "network",
-            description = "Move every email in a folder that matches the filters to another folder.")
+            description = "Move every email in a folder that matches the filters to another folder.",
+            panel = "to_folder, unread_only, read_only, folder, subject_contains, from_contains, since, before | to_contains, body_contains, create_folder, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of emails moved.")
     public Map<String, Object> moveAll(ActionContext ctx,
             @Input(name = "to_folder", type = OoaType.STRING, description = "Destination folder.") String to,
@@ -1003,7 +1019,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "folder_exists", name = "Check folder exists", category = "Mailbox", idempotent = true, capabilities = "network",
-            description = "Check whether a mail folder exists in the open mailbox.")
+            description = "Check whether a mail folder exists in the open mailbox.",
+            panel = "folder | session")
     @Output(name = "exists", type = OoaType.BOOLEAN, description = "True when the folder exists.")
     public Map<String, Object> folderExists(ActionContext ctx,
             @Input(name = "folder", type = OoaType.STRING, example = "Processed", description = "Folder name; use / or the server's separator for subfolders.") String folder,
@@ -1014,7 +1031,8 @@ public final class EmailPackage {
     }
 
     @Action(id = "save_email_as_eml", name = "Save email as .eml", category = "Mailbox", capabilities = {"network", "filesystem"},
-            description = "Save a complete email, with attachments, as an .eml file that mail programs can open.")
+            description = "Save a complete email, with attachments, as an .eml file that mail programs can open.",
+            panel = "id, folder, local_path, overwrite | session")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> saveEml(ActionContext ctx,
             @Input(name = "id", type = OoaType.NUMBER, description = "Email id from Find emails.") long id,

@@ -112,7 +112,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "execute_sql", name = "Run SQL statement", category = "SQL", timeoutSeconds = 3600, capabilities = "network",
-            description = "Run SQL on a SQL warehouse and return the rows as a data table. Use :name in the SQL for values passed in parameters.")
+            description = "Run SQL on a SQL warehouse and return the rows as a data table. Use :name in the SQL for values passed in parameters.",
+            panel = "workspace_url, access_token, warehouse_id, sql, parameters, max_rows, wait_seconds | catalog, schema")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows (empty for statements that return no rows).")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "statement_id", type = OoaType.STRING, description = "Id of the statement, for status, results or cancel.")
@@ -155,7 +156,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "get_statement_status", name = "Get statement status", category = "SQL", idempotent = true, capabilities = "network",
-            description = "Check whether a SQL statement that was left running has finished.")
+            description = "Check whether a SQL statement that was left running has finished.",
+            panel = "workspace_url, access_token, statement_id")
     @Output(name = "status", type = OoaType.STRING, description = "PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED or CLOSED.")
     @Output(name = "message", type = OoaType.STRING, description = "Error text when the statement failed.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the result once it succeeded.")
@@ -169,7 +171,8 @@ public final class DatabricksPackage {
         return Out.of("status", state(st), "message", msg, "total_rows", total);
     }
 
-    @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a SQL statement that is still running.")
+    @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a SQL statement that is still running.",
+            panel = "workspace_url, access_token, statement_id")
     public Map<String, Object> cancelStatement(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "statement_id", type = OoaType.STRING, description = "Id from Run SQL statement.") String id,
@@ -179,7 +182,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "fetch_results", name = "Get statement results", category = "SQL", idempotent = true, timeoutSeconds = 3600, capabilities = "network",
-            description = "Read the rows of a finished SQL statement into a data table, chunk by chunk.")
+            description = "Read the rows of a finished SQL statement into a data table, chunk by chunk.",
+            panel = "workspace_url, access_token, statement_id, max_rows")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the full result, which can be more than max_rows.")
@@ -198,7 +202,8 @@ public final class DatabricksPackage {
     // ----- jobs -----
 
     @Action(id = "list_jobs", name = "List jobs", category = "Jobs", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Return the jobs in the workspace, optionally only those with a given name.")
+            description = "Return the jobs in the workspace, optionally only those with a given name.",
+            panel = "workspace_url, access_token, max_results | name")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: job_id, name, creator, created_time.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of jobs returned.")
     public Map<String, Object> listJobs(ActionContext ctx,
@@ -248,7 +253,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "run_job", name = "Run job now", category = "Jobs", timeoutSeconds = 86400, capabilities = "network",
-            description = "Start a job right away, optionally with parameters, and wait for it to finish if you like.")
+            description = "Start a job right away, optionally with parameters, and wait for it to finish if you like.",
+            panel = "workspace_url, access_token, job_id, job_parameters | wait_until_finished, wait_seconds, fail_if_run_fails")
     @Output(name = "run_id", type = OoaType.STRING, description = "Id of the job run.")
     @Output(name = "life_cycle_state", type = OoaType.STRING, description = "Where the run is, e.g. PENDING, RUNNING or TERMINATED.")
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once it has finished; empty before that.")
@@ -278,7 +284,8 @@ public final class DatabricksPackage {
         return Out.of("run_id", runId, "life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run_page_url", s.get("run_page_url"));
     }
 
-    @Action(id = "get_run", name = "Get job run", category = "Jobs", idempotent = true, capabilities = "network", description = "Check the progress and outcome of a job run.")
+    @Action(id = "get_run", name = "Get job run", category = "Jobs", idempotent = true, capabilities = "network", description = "Check the progress and outcome of a job run.",
+            panel = "workspace_url, access_token, run_id")
     @Output(name = "life_cycle_state", type = OoaType.STRING, description = "Where the run is, e.g. PENDING, RUNNING or TERMINATED.")
     @Output(name = "result_state", type = OoaType.STRING, description = "SUCCESS, FAILED, TIMEDOUT or CANCELED once finished.")
     @Output(name = "run", type = OoaType.DICTIONARY, description = "run_id, life_cycle_state, result_state, state_message, run_page_url, start_time, end_time.")
@@ -290,7 +297,8 @@ public final class DatabricksPackage {
         return Out.of("life_cycle_state", s.get("life_cycle_state"), "result_state", s.get("result_state"), "run", s);
     }
 
-    @Action(id = "cancel_run", name = "Cancel job run", category = "Jobs", capabilities = "network", description = "Stop a job run that is queued or running.")
+    @Action(id = "cancel_run", name = "Cancel job run", category = "Jobs", capabilities = "network", description = "Stop a job run that is queued or running.",
+            panel = "workspace_url, access_token, run_id")
     public Map<String, Object> cancelRun(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "run_id", type = OoaType.STRING, description = "Run id from Run job now.") String runId,
@@ -301,7 +309,8 @@ public final class DatabricksPackage {
 
     // ----- clusters -----
 
-    @Action(id = "list_clusters", name = "List clusters", category = "Clusters", idempotent = true, capabilities = "network", description = "Return the workspace's clusters and their state.")
+    @Action(id = "list_clusters", name = "List clusters", category = "Clusters", idempotent = true, capabilities = "network", description = "Return the workspace's clusters and their state.",
+            panel = "workspace_url, access_token")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: cluster_id, name, state, spark_version, node_type, creator.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of clusters.")
     public Map<String, Object> listClusters(ActionContext ctx,
@@ -326,7 +335,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "start_cluster", name = "Start cluster", category = "Clusters", timeoutSeconds = 3600, capabilities = "network",
-            description = "Start a stopped cluster, and wait until it is running if you like. Nothing happens if it is already running.")
+            description = "Start a stopped cluster, and wait until it is running if you like. Nothing happens if it is already running.",
+            panel = "workspace_url, access_token, cluster_id | wait_until_running, wait_seconds")
     @Output(name = "state", type = OoaType.STRING, description = "Cluster state afterwards, e.g. PENDING or RUNNING.")
     public Map<String, Object> startCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
@@ -350,7 +360,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "terminate_cluster", name = "Stop cluster", category = "Clusters", capabilities = "network",
-            description = "Stop a running cluster to save cost. Its settings are kept so it can be started again.")
+            description = "Stop a running cluster to save cost. Its settings are kept so it can be started again.",
+            panel = "workspace_url, access_token, cluster_id")
     public Map<String, Object> terminateCluster(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "cluster_id", type = OoaType.STRING, description = "Cluster to stop.") String clusterId,
@@ -374,7 +385,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "upload_file", name = "Upload file", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
-            description = "Copy a local file into a Unity Catalog volume, the workspace, or DBFS.")
+            description = "Copy a local file into a Unity Catalog volume, the workspace, or DBFS.",
+            panel = "workspace_url, access_token, local_path, remote_path, overwrite")
     @Output(name = "remote_path", type = OoaType.STRING, description = "Where the file was written.")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
@@ -400,7 +412,8 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "delete_file", name = "Delete file", category = "Files", capabilities = "network",
-            description = "Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder with recursive).")
+            description = "Delete a file from a Unity Catalog volume, the workspace, or DBFS (a DBFS folder with recursive).",
+            panel = "workspace_url, access_token, remote_path | recursive")
     public Map<String, Object> deleteFile(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/inbox/old.csv", description = "File to delete.") String remotePath,
@@ -413,15 +426,20 @@ public final class DatabricksPackage {
     }
 
     @Action(id = "download_file", name = "Download file", category = "Files", timeoutSeconds = 3600, capabilities = {"network", "filesystem"},
-            description = "Save a file from a Unity Catalog volume, the workspace, or DBFS to this machine.")
+            description = "Save a file from a Unity Catalog volume, the workspace, or DBFS to this machine.",
+            panel = "workspace_url, access_token, remote_path, save_as | overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved file.")
     @Output(name = "size", type = OoaType.NUMBER, description = "File size in bytes.")
     public Map<String, Object> download(ActionContext ctx,
             @Input(name = "workspace_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String url,
             @Input(name = "remote_path", type = OoaType.STRING, example = "/Volumes/main/finance/outbox/result.csv", description = "File to download, e.g. /Volumes/catalog/schema/volume/file.csv or dbfs:/FileStore/file.csv.") String remotePath,
             @Input(name = "save_as", type = OoaType.FILE, description = "Where to save it on this machine. Missing folders are created.") String saveAs,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a file already at save_as; when off, the action stops instead and nothing is downloaded.") boolean overwrite) {
         String r = remote(remotePath);
+        Path target = ctx.resolvePath(saveAs);
+        if (!overwrite && java.nio.file.Files.exists(target))
+            throw new ActionException(P + ".FILE_EXISTS", "A file already exists at " + target, "Choose another save_as, delete the file first, or turn on overwrite.");
         byte[] data;
         if (filesApi(r)) {
             data = req("GET", ws(url) + "/api/2.0/fs/files/" + HttpJson.encPath(r), token).binaryResponse().timeout(3600).send(ctx).bytes();
@@ -440,8 +458,12 @@ public final class DatabricksPackage {
             }
             data = out.toByteArray();
         }
-        Path p = ctx.resolvePath(saveAs);
-        HttpJson.writeFile(p, data);
-        return Out.of("path", p.toString(), "size", BigDecimal.valueOf(data.length));
+        HttpJson.writeFile(target, data);
+        return Out.of("path", target.toString(), "size", BigDecimal.valueOf(data.length));
+    }
+
+    /** Earlier signature, kept for callers written before overwrite. */
+    public Map<String, Object> download(ActionContext ctx, String url, String remotePath, String saveAs, Object token) {
+        return download(ctx, url, remotePath, saveAs, token, true);
     }
 }

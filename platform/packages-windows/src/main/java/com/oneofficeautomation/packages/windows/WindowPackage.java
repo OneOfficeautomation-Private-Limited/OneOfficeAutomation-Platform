@@ -173,7 +173,8 @@ public final class WindowPackage {
         return Map.of("titles", t);
     }
 
-    @Action(id = "activate", name = "Activate window", category = "Window", capabilities = "desktop", description = "Bring a window to the front (restoring it if minimised).")
+    @Action(id = "activate", name = "Activate window", category = "Window", capabilities = "desktop", description = "Bring a window to the front (restoring it if minimised).",
+            panel = "title | alternatives, timeout_seconds, process_id")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the activated window.")
     public Map<String, Object> activate(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
@@ -235,21 +236,24 @@ public final class WindowPackage {
         return Map.of("title", w.title());
     }
 
-    @Action(id = "maximize", name = "Maximise window", category = "Window", capabilities = "desktop", description = "Maximise a window.")
+    @Action(id = "maximize", name = "Maximise window", category = "Window", capabilities = "desktop", description = "Maximise a window.",
+            panel = "title | alternatives, timeout_seconds, process_id")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> maximize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) { return show(ctx, title, processId, alternatives, wait, SW_MAXIMIZE); }
 
-    @Action(id = "minimize", name = "Minimise window", category = "Window", capabilities = "desktop", description = "Minimise a window.")
+    @Action(id = "minimize", name = "Minimise window", category = "Window", capabilities = "desktop", description = "Minimise a window.",
+            panel = "title | alternatives, timeout_seconds, process_id")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> minimize(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = D_WAIT) double wait,
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) { return show(ctx, title, processId, alternatives, wait, SW_MINIMIZE); }
 
-    @Action(id = "restore", name = "Restore window", category = "Window", capabilities = "desktop", description = "Restore a minimised or maximised window to its normal size.")
+    @Action(id = "restore", name = "Restore window", category = "Window", capabilities = "desktop", description = "Restore a minimised or maximised window to its normal size.",
+            panel = "title | alternatives, timeout_seconds, process_id")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window.")
     public Map<String, Object> restore(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
@@ -257,7 +261,8 @@ public final class WindowPackage {
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, description = D_PID) Long processId) { return show(ctx, title, processId, alternatives, wait, SW_RESTORE); }
 
     @Action(id = "move_resize", name = "Move and resize window", category = "Window", capabilities = "desktop",
-            description = "Set a window's position and/or size in pixels; values left empty keep the window's current ones.")
+            description = "Set a window's position and/or size in pixels; values left empty keep the window's current ones.",
+            panel = "title, x, y, width, height | alternatives, timeout_seconds, process_id")
     public Map<String, Object> moveResize(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = "Left; unchanged when empty.") Integer x,
@@ -283,7 +288,8 @@ public final class WindowPackage {
     }
 
     @Action(id = "get_info", name = "Get window details", category = "Window", idempotent = true, capabilities = "desktop",
-            description = "Find a window and return its title, program, class, position, size and state, e.g. to keep it in a variable for later steps.")
+            description = "Find a window and return its title, program, class, position, size and state, e.g. to keep it in a variable for later steps.",
+            panel = "title | alternatives, timeout_seconds, process_id")
     @Output(name = "window", type = OoaType.DICTIONARY, description = "title, process_name, class_name, x, y, width, height, state (normal, minimized or maximized), active.")
     @Output(name = "width", type = OoaType.NUMBER, description = "Width in pixels.")
     @Output(name = "height", type = OoaType.NUMBER, description = "Height in pixels.")
@@ -326,7 +332,8 @@ public final class WindowPackage {
 
     static String state(int showCmd) { return switch (showCmd) { case 2, 6, 7 -> "minimized"; case 3 -> "maximized"; default -> "normal"; }; }
 
-    @Action(id = "close", name = "Close window", category = "Window", capabilities = "desktop", description = "Ask a window to close (like clicking its X; the program may ask to save).")
+    @Action(id = "close", name = "Close window", category = "Window", capabilities = "desktop", description = "Ask a window to close (like clicking its X; the program may ask to save).",
+            panel = "title | alternatives, timeout_seconds, wait_closed_seconds, process_id")
     @Output(name = "closed", type = OoaType.BOOLEAN, description = "True when the window was gone by the end of wait_closed_seconds (always true when not waiting).")
     public Map<String, Object> close(ActionContext ctx, @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
             @Input(name = "alternatives", type = OoaType.DICTIONARY, required = false, description = D_ALT) Map<String, Object> alternatives,
@@ -361,7 +368,8 @@ public final class WindowPackage {
     public Map<String, Object> closeAll(ActionContext ctx, String title, boolean regex) { return closeAll(ctx, title, regex, null); }
 
     @Action(id = "close_all", name = "Close all matching windows", category = "Window", capabilities = "desktop",
-            description = "Ask every visible window whose title matches to close (like clicking each X); programs may still ask to save.")
+            description = "Ask every visible window whose title matches to close (like clicking each X); programs may still ask to save.",
+            panel = "title, keep | use_regex")
     @Output(name = "closed", type = OoaType.LIST, description = "Titles of the windows asked to close.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of windows asked to close.")
     public Map<String, Object> closeAll(ActionContext ctx,
@@ -398,7 +406,8 @@ public final class WindowPackage {
     }
 
     @Action(id = "set_title", name = "Set window title", category = "Window", capabilities = "desktop",
-            description = "Change the title bar text of a window, e.g. to tell several copies of the same program apart.")
+            description = "Change the title bar text of a window, e.g. to tell several copies of the same program apart.",
+            panel = "title, new_title | alternatives, timeout_seconds, process_id")
     @Output(name = "previous_title", type = OoaType.STRING, description = "Title before the change.")
     public Map<String, Object> setTitle(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,
@@ -433,7 +442,8 @@ public final class WindowPackage {
     }
 
     @Action(id = "wait_for", name = "Wait for window", category = "Window", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Wait until a window whose title contains the text (or the main window of a process) opens, or until it has closed.")
+            description = "Wait until a window whose title contains the text (or the main window of a process) opens, or until it has closed.",
+            panel = "state, title, timeout_seconds, fail_on_timeout | alternatives, process_id")
     @Output(name = "title", type = OoaType.STRING, description = "Full title of the window that opened (or that was open when waiting for it to close).")
     @Output(name = "met", type = OoaType.BOOLEAN, description = "True when the window opened or closed in time.")
     public Map<String, Object> waitFor(ActionContext ctx,
@@ -477,7 +487,8 @@ public final class WindowPackage {
         return all().stream().anyMatch(w -> w.title().toLowerCase(Locale.ROOT).contains(q));
     }
 
-    @Action(id = "capture", name = "Capture window", category = "Window", capabilities = {"desktop", "filesystem"}, description = "Save a PNG screenshot of one window.")
+    @Action(id = "capture", name = "Capture window", category = "Window", capabilities = {"desktop", "filesystem"}, description = "Save a PNG screenshot of one window.",
+            panel = "title, path, overwrite | activate, alternatives, timeout_seconds, process_id")
     @Output(name = "path", type = OoaType.FILE, description = "Saved image.")
     public Map<String, Object> capture(ActionContext ctx,
             @Input(name = "title", type = OoaType.STRING, required = false, description = D_TITLE) String title,

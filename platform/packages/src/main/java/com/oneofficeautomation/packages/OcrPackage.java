@@ -209,7 +209,8 @@ public final class OcrPackage {
     }
 
     @Action(id = "read_image", name = "Read text from image", category = "OCR", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Extract text from an image file (PNG, JPG, TIFF, BMP), or from a region of it, optionally keeping only the text between two markers.")
+            description = "Extract text from an image file (PNG, JPG, TIFF, BMP), or from a region of it, optionally keeping only the text between two markers.",
+            panel = "path, [Keep only part of the text: after_text, before_text], trim, language | [Read only an area: x, y, width, height], page_mode, scale, image_mode")
     @Output(name = "text", type = OoaType.STRING, description = "Recognised text.")
     public Map<String, Object> readImage(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Image file.") String path,
@@ -252,7 +253,8 @@ public final class OcrPackage {
     }
 
     @Action(id = "read_url", name = "Read text from image URL", category = "OCR", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Download an image from an http or https address and extract its text, optionally keeping only the text between two markers.")
+            description = "Download an image from an http or https address and extract its text, optionally keeping only the text between two markers.",
+            panel = "url, [Keep only part of the text: after_text, before_text], trim, language | page_mode, scale, image_mode, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Recognised text.")
     public Map<String, Object> readUrl(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, example = "https://example.com/scan.png", description = "Address of the image.") String url,
@@ -273,8 +275,15 @@ public final class OcrPackage {
         return readScreen(ctx, x, y, w, h, lang, psm, null, null, true, 2, "none", 0);
     }
 
+    /** Read text from screen without a window (the signature before window was added). */
+    public Map<String, Object> readScreen(ActionContext ctx, Integer x, Integer y, Integer w, Integer h, String lang, int psm,
+            String after, String before, boolean trim, double scale, String mode, int waitMs) {
+        return readScreen(ctx, x, y, w, h, lang, psm, after, before, trim, scale, mode, waitMs, null);
+    }
+
     @Action(id = "read_screen", name = "Read text from screen", category = "OCR", timeoutSeconds = 300, capabilities = "desktop",
-            description = "Capture the screen (or a region) and extract its text, optionally keeping only the text between two markers; for Citrix and applications without accessible controls.")
+            description = "Capture the screen (or a region) and extract its text, optionally keeping only the text between two markers; for Citrix and applications without accessible controls.",
+            panel = "(Read from: The whole screen = / One window = window), [Read only an area: x, y, width, height], wait_ms, [Keep only part of the text: after_text, before_text], trim, language | page_mode, scale, image_mode")
     @Output(name = "text", type = OoaType.STRING, description = "Recognised text.")
     public Map<String, Object> readScreen(ActionContext ctx,
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = "Region left (whole screen when empty).") Integer x,
@@ -288,10 +297,39 @@ public final class OcrPackage {
             @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_TRIM) boolean trim,
             @Input(name = "scale", type = OoaType.NUMBER, required = false, defaultValue = "2", min = 1, max = 5, description = D_SCALE) double scale,
             @Input(name = "image_mode", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gray", "black_white"}, description = D_MODE) String mode,
-            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this many milliseconds before capturing, e.g. 1000 for a slow remote session.") int waitMs) {
+            @Input(name = "wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this many milliseconds before capturing, e.g. 1000 for a slow remote session.") int waitMs,
+            @Input(name = "window", type = OoaType.STRING, required = false, example = "Invoice entry*",
+                    description = "Read from this window (title text, a pattern with * or ?, or re:regex): it is brought to the front and x, y are measured from its top-left corner; the whole window when the area is empty.") String window) {
         checkLanguage(lang);
-        pause(ctx, waitMs);
-        return Map.of("text", filterText(ocr(ctx, prepare(capture(x, y, w, h), null, null, null, null, scale, mode), lang, psm), after, before, trim));
+        boolean inWindow = window != null && !window.isBlank();
+        if (inWindow) checkWindowArea(x, y, w, h);   // before the window is touched
+        int[] wb = inWindow ? DesktopPackage.focusWindow(window, true) : null;
+        pause(ctx, Math.max(waitMs, inWindow ? 200 : 0));   // a window brought to the front needs a moment to repaint
+        BufferedImage shot;
+        if (inWindow) { Rectangle r = windowRegion(x, y, w, h, wb); shot = capture(r.x, r.y, r.width, r.height); }
+        else shot = capture(x, y, w, h);
+        return Map.of("text", filterText(ocr(ctx, prepare(shot, null, null, null, null, scale, mode), lang, psm), after, before, trim));
+    }
+
+    /**
+     * The screen rectangle to read inside a window {left, top, width, height}: the area measured from the window's
+     * top-left corner, or the whole window when the area is empty. A partly given area fills the rest from the window.
+     */
+    static Rectangle windowRegion(Integer x, Integer y, Integer w, Integer h, int[] window) {
+        checkWindowArea(x, y, w, h);
+        int ox = x == null ? 0 : x, oy = y == null ? 0 : y;
+        int width = w == null ? window[2] - ox : w, height = h == null ? window[3] - oy : h;
+        if (width <= 0 || height <= 0)
+            throw new ActionException("OCR.BAD_REGION", "The area starts outside the window (" + window[2] + "x" + window[3] + ")", "Check x and y against the window's size.");
+        return new Rectangle(window[0] + ox, window[1] + oy, width, height);
+    }
+
+    /** An area inside a window: positive width and height, x and y not negative. */
+    static void checkWindowArea(Integer x, Integer y, Integer w, Integer h) {
+        if ((w != null && w <= 0) || (h != null && h <= 0))
+            throw new ActionException("OCR.BAD_REGION", "The area's width and height must be above 0", "Set a positive width and height, or leave the area empty for the whole window.");
+        if ((x != null && x < 0) || (y != null && y < 0))
+            throw new ActionException("OCR.BAD_REGION", "x and y inside a window must be 0 or more", "Measure x and y from the window's top-left corner.");
     }
 
     private static void pause(ActionContext ctx, int ms) {
@@ -307,7 +345,8 @@ public final class OcrPackage {
     public Map<String, Object> findInImage(ActionContext ctx, String path, String text, String lang) { return findInImage(ctx, path, text, lang, 1); }
 
     @Action(id = "find_text_in_image", name = "Find text in image", category = "OCR", idempotent = true, timeoutSeconds = 300, capabilities = "filesystem",
-            description = "Locate a word or phrase in an image, or its n-th appearance; returns whether it was found, its centre and how often it appears.")
+            description = "Locate a word or phrase in an image, or its n-th appearance; returns whether it was found, its centre and how often it appears.",
+            panel = "path, text, occurrence | language")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when found.")
     @Output(name = "x", type = OoaType.NUMBER, description = "Centre x.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y.")
@@ -337,7 +376,8 @@ public final class OcrPackage {
     public Map<String, Object> clickText(ActionContext ctx, String text, boolean dbl, String lang) { return clickText(ctx, text, dbl, lang, 1, "left", 0, 0); }
 
     @Action(id = "click_text", name = "Click text on screen", category = "OCR", timeoutSeconds = 300, capabilities = "desktop",
-            description = "Find a word or phrase (or its n-th appearance) on the screen with OCR and click it with the chosen button, optionally offset from its centre (OCR.TEXT_NOT_FOUND when absent).")
+            description = "Find a word or phrase (or its n-th appearance) on the screen with OCR and click it with the chosen button, optionally offset from its centre (OCR.TEXT_NOT_FOUND when absent).",
+            panel = "text, double_click, occurrence | button, offset_x, offset_y, language")
     @Output(name = "x", type = OoaType.NUMBER, description = "Clicked x.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Clicked y.")
     public Map<String, Object> clickText(ActionContext ctx,

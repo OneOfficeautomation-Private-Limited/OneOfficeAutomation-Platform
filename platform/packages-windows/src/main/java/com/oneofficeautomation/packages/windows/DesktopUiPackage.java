@@ -167,7 +167,8 @@ public final class DesktopUiPackage {
             "scroll_into_view", "get_coordinates"};
 
     @Action(id = "object_action", name = "Desktop object action", category = "Capture", timeoutSeconds = 600, capabilities = "desktop",
-            description = "Find a captured control in a Windows application and act on it: click, set or read text, read properties, select, expand, toggle, check, list items, read a grid, wait for it or get its position.")
+            description = "Find a captured control in a Windows application and act on it: click, set or read text, read properties, select, expand, toggle, check, list items, read a grid, wait for it or get its position.",
+            panel = "object, action, click_type, text, property, item | click_method, offset_x, offset_y, clear_first, text_method, type_delay_ms, item_index, timeout_seconds, if_not_found, run_in_background")
     @Output(name = "result", type = OoaType.ANY, description = "What the action returns: text for get_text, a value for get_property, a dictionary for get_all_properties and get_coordinates, a list for get_children and get_list_items, a table for get_table, true/false for the wait actions.")
     @Output(name = "healed_by", type = OoaType.STRING, description = "Empty when the object was found by its used properties; otherwise the recorded property that found it (update the object).")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "False when the step was skipped because the object was not found (if_not_found = continue).")
@@ -312,7 +313,8 @@ public final class DesktopUiPackage {
     }
 
     @Action(id = "find_objects", name = "Find desktop objects", category = "Capture", idempotent = true, capabilities = "desktop",
-            description = "Return every control that matches the object's used properties (the index is ignored), with their recorded properties.")
+            description = "Return every control that matches the object's used properties (the index is ignored), with their recorded properties.",
+            panel = "object | timeout_seconds")
     @Output(name = "objects", type = OoaType.LIST, description = "One dictionary of properties per matching control, in the order UI Automation lists them.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching controls.")
     public Map<String, Object> findObjects(ActionContext ctx,
@@ -329,7 +331,8 @@ public final class DesktopUiPackage {
     }
 
     @Action(id = "get_object_properties", name = "Get desktop object properties", category = "Capture", idempotent = true, capabilities = "desktop",
-            description = "Find a captured control and return all its current UI Automation properties and states.")
+            description = "Find a captured control and return all its current UI Automation properties and states.",
+            panel = "object | timeout_seconds")
     @Output(name = "properties", type = OoaType.DICTIONARY, description = "Current properties: the recorded ones plus states such as IsReadOnly, ToggleState, IsSelected, ExpandCollapseState and SupportedPatterns.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> getObjectProperties(ActionContext ctx,
@@ -340,7 +343,8 @@ public final class DesktopUiPackage {
     }
 
     @Action(id = "wait_for_object", name = "Wait for desktop object", category = "Capture", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Wait until a captured control appears, or until it disappears, in a Windows application.")
+            description = "Wait until a captured control appears, or until it disappears, in a Windows application.",
+            panel = "object, state, timeout_seconds | fail_on_timeout")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the wait ended in the requested state; false after a timeout when fail_on_timeout is false.")
     public Map<String, Object> waitForObject(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, description = D_OBJECT) Map<String, Object> object,
@@ -356,7 +360,8 @@ public final class DesktopUiPackage {
     }
 
     @Action(id = "get_table", name = "Get desktop table", category = "Capture", idempotent = true, capabilities = "desktop",
-            description = "Read a grid, table or detailed list view in a Windows application into a Data Table.")
+            description = "Read a grid, table or detailed list view in a Windows application into a Data Table.",
+            panel = "object | max_rows, timeout_seconds")
     @Output(name = "table", type = OoaType.TABLE, description = "The cell texts; columns are named after the grid's column headers.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows read.")
     @SuppressWarnings("unchecked")
@@ -388,7 +393,8 @@ public final class DesktopUiPackage {
     }
 
     @Action(id = "pick_object", name = "Pick desktop object", category = "Capture", timeoutSeconds = 900, capabilities = "desktop",
-            description = "Design time: point at a control in any Windows application and press Ctrl+Shift+C. A red frame shows the control under the pointer. Returns the captured object, ready for the other Desktop objects actions.")
+            description = "Design time: point at a control in any Windows application and press Ctrl+Shift+C. A red frame shows the control under the pointer. Returns the captured object, ready for the other Desktop objects actions.",
+            panel = "timeout_seconds, highlight | screenshot")
     @Output(name = "object", type = OoaType.DICTIONARY, description = "The captured object: technology, window, properties (with match and use), path, index and screenshot.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> pickObject(ActionContext ctx,
@@ -404,7 +410,8 @@ public final class DesktopUiPackage {
 
     @Action(id = "record", name = "Record desktop actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "desktop",
             description = "Design time: records clicks and typing in any Windows application until Stop recording is pressed on the recording bar. "
-                    + "Each click or field becomes a Desktop object action step with the full captured object; password fields are never read.")
+                    + "Each click or field becomes a Desktop object action step with the full captured object; password fields are never read.",
+            panel = "timeout_seconds | screenshot")
     @Output(name = "steps", type = OoaType.LIST, description = "The recorded steps (ooa.desktop_ui/object_action), ready to insert into an agent.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of recorded steps.")
     @SuppressWarnings("unchecked")

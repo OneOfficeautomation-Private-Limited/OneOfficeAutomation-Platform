@@ -126,7 +126,8 @@ public final class CsvPackage {
     }
 
     @Action(id = "read", name = "Read to table", category = "CSV", idempotent = true, capabilities = "filesystem",
-            description = "Read a CSV or delimited text file into a table.")
+            description = "Read a CSV or delimited text file into a table.",
+            panel = "path, header, delimiter, trim, encoding | skip_lines, [Read only the first rows: max_rows], skip_empty_rows, detect_types")
     @Output(name = "table", type = OoaType.TABLE, description = "Table of text values (typed values with detect_types).")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
     public Map<String, Object> read(ActionContext ctx,
@@ -169,7 +170,8 @@ public final class CsvPackage {
     }
 
     @Action(id = "write", name = "Write from table", category = "CSV", capabilities = "filesystem",
-            description = "Write a table to a CSV file, overwriting or appending rows.")
+            description = "Write a table to a CSV file, overwriting or appending rows.",
+            panel = "table, path, header, delimiter, encoding, append | quote_all, line_ending")
     public Map<String, Object> write(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Table to write.") Map<String, Object> table,
             @Input(name = "path", type = OoaType.FILE, description = "Target path.") String path,

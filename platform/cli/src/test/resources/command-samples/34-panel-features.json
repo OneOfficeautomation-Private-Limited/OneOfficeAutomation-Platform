@@ -1,0 +1,616 @@
+[
+ {
+  "command": "ooa.rest/request",
+  "name": "multipart form with a text field and a file part",
+  "mock": [
+   {
+    "method": "POST",
+    "path": "/upload",
+    "body": {
+     "ok": true
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.file/write_text",
+    "args": {
+     "path": "{tmp}/note.txt",
+     "text": "file content 42"
+    }
+   },
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "{mock}/upload",
+     "method": "POST",
+     "multipart": {
+      "comment": "hello",
+      "doc": {
+       "file": "{tmp}/note.txt",
+       "content_type": "text/plain"
+      }
+     }
+    },
+    "out": {
+     "status": "status"
+    }
+   }
+  ],
+  "expect": {
+   "status": 200
+  },
+  "expectRequests": [
+   "POST /upload filename=\"note.txt\""
+  ]
+ },
+ {
+  "command": "ooa.rest/request",
+  "name": "file sent as the raw body",
+  "mock": [
+   {
+    "method": "PUT",
+    "path": "/raw",
+    "body": {
+     "ok": true
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.file/write_text",
+    "args": {
+     "path": "{tmp}/raw.txt",
+     "text": "raw bytes here"
+    }
+   },
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "{mock}/raw",
+     "method": "PUT",
+     "body_file": "{tmp}/raw.txt",
+     "content_type": "text/plain"
+    },
+    "out": {
+     "status": "status"
+    }
+   }
+  ],
+  "expect": {
+   "status": 200
+  },
+  "expectRequests": [
+   "PUT /raw raw bytes here"
+  ]
+ },
+ {
+  "command": "ooa.rest/request",
+  "name": "two bodies at once are refused",
+  "steps": [
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "http://127.0.0.1:9/x",
+     "method": "POST",
+     "json": {
+      "a": 1
+     },
+     "body": "text"
+    }
+   }
+  ],
+  "error": "REST.BAD_BODY"
+ },
+ {
+  "command": "ooa.rest/request",
+  "name": "file body that does not exist",
+  "steps": [
+   {
+    "action": "ooa.rest/request",
+    "args": {
+     "url": "http://127.0.0.1:9/x",
+     "method": "POST",
+     "body_file": "{tmp}/missing.bin"
+    }
+   }
+  ],
+  "error": "REST.FILE_NOT_FOUND"
+ },
+ {
+  "command": "ooa.desktop/type_text",
+  "name": "nothing to type is refused before the desktop is touched",
+  "steps": [
+   {
+    "action": "ooa.desktop/type_text",
+    "args": {
+     "method": "keystrokes"
+    }
+   }
+  ],
+  "error": "DESKTOP.NOTHING_TO_TYPE"
+ },
+ {
+  "command": "ooa.zendesk/list_tickets",
+  "name": "only open urgent tickets",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/api/v2/tickets",
+    "body": {
+     "tickets": [
+      {
+       "id": 1,
+       "status": "open",
+       "priority": "urgent"
+      },
+      {
+       "id": 2,
+       "status": "open",
+       "priority": "low"
+      },
+      {
+       "id": 3,
+       "status": "solved",
+       "priority": "urgent"
+      }
+     ],
+     "meta": {
+      "has_more": false
+     }
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.zendesk/list_tickets",
+    "args": {
+     "site": "{mock}",
+     "email": "bot@acme.test",
+     "api_token": "$tok",
+     "status": "open",
+     "priority": "urgent"
+    },
+    "out": {
+     "count": "n",
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  }
+ },
+ {
+  "command": "ooa.zendesk/list_tickets",
+  "name": "requested by an email address, with a status",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/api/v2/search",
+    "body": {
+     "results": [
+      {
+       "id": 9,
+       "status": "pending",
+       "priority": "normal"
+      }
+     ],
+     "next_page": null
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.zendesk/list_tickets",
+    "args": {
+     "site": "{mock}",
+     "email": "bot@acme.test",
+     "api_token": "$tok",
+     "requester_email": "pat@customer.com",
+     "status": "pending"
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "expectRequests": [
+   "GET /api/v2/search?query=type%3Aticket%20requester%3Apat%40customer.com%20status%3Apending"
+  ]
+ },
+ {
+  "command": "ooa.zendesk/list_tickets",
+  "name": "requester by id and by email at once",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "steps": [
+   {
+    "action": "ooa.zendesk/list_tickets",
+    "args": {
+     "site": "https://acme.zendesk.com",
+     "email": "bot@acme.test",
+     "api_token": "$tok",
+     "requester_id": 5,
+     "requester_email": "pat@customer.com"
+    }
+   }
+  ],
+  "error": "ZENDESK.BAD_INPUT"
+ },
+ {
+  "command": "ooa.azure_devops/list_pipeline_runs",
+  "name": "failed runs of a pipeline",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/acme/Portal/_apis/pipelines/12/runs",
+    "body": {
+     "count": 3,
+     "value": [
+      {
+       "id": 30,
+       "name": "20261025.3",
+       "state": "completed",
+       "result": "failed",
+       "createdDate": "2026-10-25T09:00:00Z",
+       "finishedDate": "2026-10-25T09:05:00Z",
+       "_links": {
+        "web": {
+         "href": "https://dev.azure.com/acme/Portal/_build/results?buildId=30"
+        }
+       }
+      },
+      {
+       "id": 29,
+       "name": "20261025.2",
+       "state": "completed",
+       "result": "succeeded",
+       "createdDate": "2026-10-25T08:00:00Z",
+       "finishedDate": "2026-10-25T08:04:00Z",
+       "_links": {
+        "web": {
+         "href": "u29"
+        }
+       }
+      },
+      {
+       "id": 28,
+       "name": "20261025.1",
+       "state": "inProgress",
+       "createdDate": "2026-10-25T07:00:00Z",
+       "_links": {
+        "web": {
+         "href": "u28"
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_devops/list_pipeline_runs",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "pipeline_id": 12,
+     "result": "failed"
+    },
+    "out": {
+     "count": "n",
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "n": 1
+  },
+  "expectRequests": [
+   "GET /acme/Portal/_apis/pipelines/12/runs"
+  ]
+ },
+ {
+  "command": "ooa.azure_devops/list_pipeline_runs",
+  "name": "all runs, at most two",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/acme/Portal/_apis/pipelines/12/runs",
+    "body": {
+     "count": 3,
+     "value": [
+      {
+       "id": 30,
+       "name": "20261025.3",
+       "state": "completed",
+       "result": "failed",
+       "createdDate": "2026-10-25T09:00:00Z",
+       "finishedDate": "2026-10-25T09:05:00Z",
+       "_links": {
+        "web": {
+         "href": "https://dev.azure.com/acme/Portal/_build/results?buildId=30"
+        }
+       }
+      },
+      {
+       "id": 29,
+       "name": "20261025.2",
+       "state": "completed",
+       "result": "succeeded",
+       "createdDate": "2026-10-25T08:00:00Z",
+       "finishedDate": "2026-10-25T08:04:00Z",
+       "_links": {
+        "web": {
+         "href": "u29"
+        }
+       }
+      },
+      {
+       "id": 28,
+       "name": "20261025.1",
+       "state": "inProgress",
+       "createdDate": "2026-10-25T07:00:00Z",
+       "_links": {
+        "web": {
+         "href": "u28"
+        }
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_devops/list_pipeline_runs",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "pipeline_id": 12,
+     "max_results": 2
+    },
+    "out": {
+     "count": "n"
+    }
+   }
+  ],
+  "expect": {
+   "n": 2
+  }
+ },
+ {
+  "command": "ooa.azure_devops/list_pipeline_runs",
+  "name": "pipeline that does not exist",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "/acme/Portal/_apis/pipelines/99/runs",
+    "status": 404,
+    "body": {
+     "message": "Pipeline not found"
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.azure_devops/list_pipeline_runs",
+    "args": {
+     "organization_url": "{mock}/acme",
+     "personal_access_token": "$tok",
+     "project": "Portal",
+     "pipeline_id": 99
+    }
+   }
+  ],
+  "error": "AZURE_DEVOPS.NOT_FOUND"
+ },
+ {
+  "command": "ooa.microsoft365/excel_read_range",
+  "name": "all cells in use, no header row, as displayed text",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "*",
+    "body": {
+     "address": "Sheet1!A1:B2",
+     "values": [
+      [
+       1,
+       2.5
+      ],
+      [
+       3,
+       4
+      ]
+     ],
+     "text": [
+      [
+       "1",
+       "2.50"
+      ],
+      [
+       "3",
+       "4"
+      ]
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/excel_read_range",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "remote_path": "Finance/b.xlsx",
+     "sheet": "Sheet1",
+     "header": false,
+     "read_as": "text"
+    },
+    "out": {
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": {
+    "columns": [
+     "Column1",
+     "Column2"
+    ],
+    "rows": [
+     [
+      "1",
+      "2.50"
+     ],
+     [
+      "3",
+      "4"
+     ]
+    ]
+   }
+  },
+  "expectRequests": [
+   "GET /me/drive/root:/Finance/b.xlsx:/workbook/worksheets('Sheet1')/usedRange"
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/excel_read_range",
+  "name": "a range with a header row, as values",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "mock": [
+   {
+    "method": "GET",
+    "path": "*",
+    "body": {
+     "values": [
+      [
+       "Item",
+       "Qty"
+      ],
+      [
+       "Pens",
+       4
+      ]
+     ],
+     "text": [
+      [
+       "Item",
+       "Qty"
+      ],
+      [
+       "Pens",
+       "4"
+      ]
+     ]
+    }
+   }
+  ],
+  "steps": [
+   {
+    "action": "ooa.microsoft365/excel_read_range",
+    "args": {
+     "base_url": "{mock}",
+     "access_token": "$tok",
+     "remote_path": "Finance/b.xlsx",
+     "sheet": "Sheet1",
+     "range": "A1:B2"
+    },
+    "out": {
+     "table": "t"
+    }
+   }
+  ],
+  "expect": {
+   "t": {
+    "columns": [
+     "Item",
+     "Qty"
+    ],
+    "rows": [
+     [
+      "Pens",
+      4
+     ]
+    ]
+   }
+  },
+  "expectRequests": [
+   "GET /me/drive/root:/Finance/b.xlsx:/workbook/worksheets('Sheet1')/range(address='A1:B2')"
+  ]
+ },
+ {
+  "command": "ooa.microsoft365/excel_read_range",
+  "name": "a malformed range",
+  "credentials": {
+   "tok": "test/api/token"
+  },
+  "secrets": {
+   "test/api/token": "t0k"
+  },
+  "steps": [
+   {
+    "action": "ooa.microsoft365/excel_read_range",
+    "args": {
+     "access_token": "$tok",
+     "remote_path": "b.xlsx",
+     "sheet": "Sheet1",
+     "range": "A1-B2"
+    }
+   }
+  ],
+  "error": "M365.BAD_RANGE"
+ }
+]

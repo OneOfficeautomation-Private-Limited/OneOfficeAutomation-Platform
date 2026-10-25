@@ -106,7 +106,8 @@ public final class DesktopPackage {
     // ---------- mouse ----------
 
     @Action(id = "mouse_click", name = "Mouse click", category = "Mouse", capabilities = "desktop",
-            description = "Click, double-click, or press or release a mouse button at a point on the screen or in a window.")
+            description = "Click, double-click, or press or release a mouse button at a point on the screen or in a window.",
+            panel = "window, x, y, button, button_action, double_click | relative_to, modifier_keys")
     public Map<String, Object> click(ActionContext ctx,
             @Input(name = "x", type = OoaType.NUMBER, description = "Horizontal position in pixels from the left.") int x,
             @Input(name = "y", type = OoaType.NUMBER, description = "Vertical position in pixels from the top.") int y,
@@ -139,22 +140,56 @@ public final class DesktopPackage {
         return Map.of();
     }
 
-    @Action(id = "mouse_move", name = "Mouse move", category = "Mouse", capabilities = "desktop", description = "Move the pointer to a point on the screen or in a window, at once or gradually.")
+    @Action(id = "mouse_move", name = "Mouse move", category = "Mouse", capabilities = "desktop", description = "Move the pointer to a point on the screen or in a window, at once or gradually.",
+            panel = "window, relative_to, x, y, duration_ms | [Start from another point: from_x, from_y]")
     public Map<String, Object> move(ActionContext ctx,
             @Input(name = "x", type = OoaType.NUMBER, description = "Horizontal position.") int x,
             @Input(name = "y", type = OoaType.NUMBER, description = "Vertical position.") int y,
             @Input(name = "relative_to", type = OoaType.STRING, required = false, defaultValue = "\"screen\"", enumValues = {"screen", "window"}, description = D_RELATIVE) String relativeTo,
             @Input(name = "window", type = OoaType.STRING, required = false, description = D_WINDOW) String window,
-            @Input(name = "duration_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Glide to the point over this many milliseconds; 0 jumps there at once.") int duration) {
+            @Input(name = "duration_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Glide to the point over this many milliseconds; 0 jumps there at once.") int duration,
+            @Input(name = "from_x", type = OoaType.NUMBER, required = false,
+                    description = "Put the pointer at this point first (with from_y, measured like x and y), then move to x, y; e.g. after pressing a button down, for a drag.") Integer fromX,
+            @Input(name = "from_y", type = OoaType.NUMBER, required = false, description = "Vertical position of the starting point (with from_x).") Integer fromY) {
         String rel = choice("relative_to", relativeTo, "screen", "screen", "window");
+        checkFrom(fromX, fromY);
+        if (duration < 0) throw new ActionException("DESKTOP.BAD_DURATION", "duration_ms must be 0 or more, not " + duration, "Use 0 to jump, or e.g. 500 to glide.");
         Robot r = DesktopSupport.robot();
-        int[] p = target(x, y, rel, focusWindow(window, "window".equals(rel)));
-        if (duration > 0) {
-            Point start = MouseInfo.getPointerInfo().getLocation();
-            for (int[] s : glide(start.x, start.y, p[0], p[1], duration)) { r.mouseMove(s[0], s[1]); r.delay(Math.max(1, s[2])); }
-        }
-        r.mouseMove(p[0], p[1]);
+        int[] wb = focusWindow(window, "window".equals(rel));
+        int[] p = target(x, y, rel, wb);
+        Point cur = fromX == null && duration > 0 ? MouseInfo.getPointerInfo().getLocation() : new Point(p[0], p[1]);
+        for (int[] s : movePoints(fromX, fromY, p, rel, wb, duration, cur.x, cur.y)) { r.mouseMove(s[0], s[1]); if (s[2] > 0) r.delay(s[2]); }
         return Map.of();
+    }
+
+    /** Mouse move without a starting point (the signature before from_x and from_y were added). */
+    public Map<String, Object> move(ActionContext ctx, int x, int y, String relativeTo, String window, int duration) {
+        return move(ctx, x, y, relativeTo, window, duration, null, null);
+    }
+
+    /** from_x and from_y go together. */
+    static void checkFrom(Integer fromX, Integer fromY) {
+        if ((fromX == null) != (fromY == null))
+            throw new ActionException("DESKTOP.BAD_POINT", "The starting point needs both from_x and from_y", "Fill in both, or leave both empty to start where the pointer is.");
+    }
+
+    /**
+     * The pointer positions {x, y, pause_ms} of a move to the screen point {@code to}: the starting point first (from_x and
+     * from_y measured like x and y), then the glide when a duration is given, ending exactly on the target. Without a
+     * starting point the glide starts at the pointer's current place (curX, curY).
+     */
+    static List<int[]> movePoints(Integer fromX, Integer fromY, int[] to, String relativeTo, int[] windowBounds, int durationMs, int curX, int curY) {
+        checkFrom(fromX, fromY);
+        List<int[]> out = new ArrayList<>();
+        int sx = curX, sy = curY;
+        if (fromX != null) {
+            int[] f = target(fromX, fromY, relativeTo, windowBounds);
+            out.add(new int[]{f[0], f[1], durationMs > 0 ? 20 : 0});
+            sx = f[0]; sy = f[1];
+        }
+        if (durationMs > 0) out.addAll(glide(sx, sy, to[0], to[1], durationMs));
+        if (out.isEmpty() || out.get(out.size() - 1)[0] != to[0] || out.get(out.size() - 1)[1] != to[1]) out.add(new int[]{to[0], to[1], 0});
+        return out;
     }
 
     /** Intermediate points {x, y, pause_ms} for a gradual move, about one step every 10 ms. */
@@ -167,7 +202,8 @@ public final class DesktopPackage {
     }
 
     @Action(id = "mouse_scroll", name = "Mouse scroll", category = "Mouse", capabilities = "desktop",
-            description = "Scroll the mouse wheel up, down, left or right, optionally over a chosen point or window.")
+            description = "Scroll the mouse wheel up, down, left or right, optionally over a chosen point or window.",
+            panel = "direction, amount, delay_ms | x, y, window, relative_to")
     public Map<String, Object> scroll(ActionContext ctx,
             @Input(name = "amount", type = OoaType.NUMBER, description = "Wheel notches; negative scrolls up (or left) when direction is empty.") int amount,
             @Input(name = "direction", type = OoaType.STRING, required = false, enumValues = {"up", "down", "left", "right"},
@@ -260,15 +296,38 @@ public final class DesktopPackage {
         }
     }
 
-    private static void typeKeystrokes(Robot r, String text, int delay) {
-        for (char c : text.toCharArray()) {
+    /** Characters typed with Shift on a US keyboard, and the key that gives them. */
+    private static final String SHIFTED = "!@#$%^&*()_+{}|:\"<>?~", UNSHIFTED = "1234567890-=[]\\;',./`";
+
+    /** The key code and whether Shift is held, for one character; null when no key gives it. */
+    static int[] keyFor(char c) {
+        int s = SHIFTED.indexOf(c);
+        if (s >= 0) return new int[] { KeyEvent.getExtendedKeyCodeForChar(UNSHIFTED.charAt(s)), 1 };
+        int code = KeyEvent.getExtendedKeyCodeForChar(c);
+        if (code == KeyEvent.VK_UNDEFINED) return null;
+        return new int[] { code, Character.isUpperCase(c) ? 1 : 0 };
+    }
+
+    private static void typeKeystrokes(Robot r, String text, int delay) { typeKeystrokes(r, text, delay, false); }
+
+    /** Types each character as a key press; a secret's characters never appear in an error. */
+    private static void typeKeystrokes(Robot r, String text, int delay, boolean secret) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
             if (c == '\n') { r.keyPress(KeyEvent.VK_ENTER); r.keyRelease(KeyEvent.VK_ENTER); continue; }
-            int code = KeyEvent.getExtendedKeyCodeForChar(c);
-            if (code == KeyEvent.VK_UNDEFINED) throw new ActionException("DESKTOP.UNTYPABLE", "Cannot type '" + c + "' as a keystroke", "Use method paste for this text.");
-            boolean shift = Character.isUpperCase(c);
-            if (shift) r.keyPress(KeyEvent.VK_SHIFT);
-            r.keyPress(code); r.keyRelease(code);
-            if (shift) r.keyRelease(KeyEvent.VK_SHIFT);
+            int[] k = keyFor(c);
+            if (k == null) throw secret
+                    ? new ActionException("DESKTOP.UNTYPABLE", "Character " + (i + 1) + " of the credential cannot be typed as a keystroke", "Credentials are typed key by key; use characters found on a US keyboard.")
+                    : new ActionException("DESKTOP.UNTYPABLE", "Cannot type '" + c + "' as a keystroke", "Use method paste for this text.");
+            try {
+                if (k[1] == 1) r.keyPress(KeyEvent.VK_SHIFT);
+                r.keyPress(k[0]); r.keyRelease(k[0]);
+            } catch (IllegalArgumentException e) {
+                throw new ActionException("DESKTOP.UNTYPABLE", secret ? "Character " + (i + 1) + " of the credential cannot be typed on this keyboard" : "Cannot type '" + c + "' on this keyboard",
+                        secret ? "Credentials are typed key by key; use characters found on a US keyboard." : "Use method paste for this text.");
+            } finally {
+                if (k[1] == 1) r.keyRelease(KeyEvent.VK_SHIFT);
+            }
             r.delay(delay);
         }
     }
@@ -284,10 +343,15 @@ public final class DesktopPackage {
         if (previous != null) try { cb.setContents(previous, null); } catch (IllegalStateException ignored) { }
     }
 
+    public Map<String, Object> typeText(ActionContext ctx, String text, String method, int delay, String window, boolean special, boolean restore, int before) {
+        return typeText(ctx, text, method, delay, window, special, restore, before, null);
+    }
+
     @Action(id = "type_text", name = "Type text", category = "Keyboard", capabilities = "desktop",
-            description = "Type text into the active or a chosen window (pasted via the clipboard by default, which handles any language); can include special keys such as [ENTER].")
+            description = "Type text, or a credential from the vault, into the active or a chosen window (text is pasted via the clipboard by default, which handles any language; a credential is always typed key by key and never logged); can include special keys such as [ENTER].",
+            panel = "window, (Type: Text = text, special_keys / A credential from the vault = credential), method, delay_ms | restore_clipboard, delay_before_ms")
     public Map<String, Object> typeText(ActionContext ctx,
-            @Input(name = "text", type = OoaType.STRING, description = "Text to type.") String text,
+            @Input(name = "text", type = OoaType.STRING, required = false, description = "Text to type; used when no credential is given.") String text,
             @Input(name = "method", type = OoaType.STRING, required = false, defaultValue = "\"paste\"", enumValues = {"paste", "keystrokes"},
                     description = "paste uses the clipboard (restored afterwards); keystrokes types letters and digits one by one.") String method,
             @Input(name = "delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "20", visibleWhen = "method=keystrokes", min = 0, description = "Delay between keystrokes.") int delay,
@@ -295,8 +359,21 @@ public final class DesktopPackage {
             @Input(name = "special_keys", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Read keys in square brackets: [ENTER], [TAB 3], [CTRL+S], [SHIFT DOWN] ... [SHIFT UP]; [[ types a [.") boolean special,
             @Input(name = "restore_clipboard", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "method=paste", description = "With paste, put the previous clipboard content back afterwards.") boolean restore,
-            @Input(name = "delay_before_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this long after bringing the window to the front, before typing.") int before) {
+            @Input(name = "delay_before_ms", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Wait this long after bringing the window to the front, before typing.") int before,
+            @Input(name = "credential", type = OoaType.CREDENTIAL, required = false,
+                    description = "Credential attribute from the vault, e.g. a password; typed key by key (never through the clipboard) instead of text.") Object credential) {
         String m = choice("method", method, "paste", "paste", "keystrokes");
+        if (credential != null) {
+            if (!(credential instanceof SecureString secret))
+                throw new ActionException("DESKTOP.NOT_A_CREDENTIAL", "The credential input needs a vault credential, not plain text", "Pick a credential attribute from the vault, or use the text input.");
+            UiGuard.before(ctx);
+            Robot r = DesktopSupport.robot();
+            focusWindow(window, false);
+            if (before > 0) r.delay(Math.min(60_000, before));
+            typeKeystrokes(r, secret.reveal(), Math.max(delay, 0), true);
+            return Map.of();
+        }
+        if (text == null) throw new ActionException("DESKTOP.NOTHING_TO_TYPE", "Neither text nor a credential was given", "Fill in the text, or pick a credential from the vault.");
         List<KeyStep> steps = special ? parseSequence(text) : List.of(KeyStep.text(text));
         UiGuard.before(ctx);
         Robot r = DesktopSupport.robot();
@@ -316,7 +393,8 @@ public final class DesktopPackage {
     }
 
     @Action(id = "press_keys", name = "Press keys", category = "Keyboard", capabilities = "desktop",
-            description = "Press, hold down or release a key or key combination, e.g. ENTER, CTRL+S or ALT+F4, in the active or a chosen window; repeat if needed.")
+            description = "Press, hold down or release a key or key combination, e.g. ENTER, CTRL+S or ALT+F4, in the active or a chosen window; repeat if needed.",
+            panel = "window, keys, times, key_action | delay_ms, hold_ms")
     public Map<String, Object> pressKeys(ActionContext ctx,
             @Input(name = "keys", type = OoaType.STRING, example = "CTRL+S", description = "Key or combination joined with +.") String keys,
             @Input(name = "times", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many times to press.") int times,
@@ -337,7 +415,8 @@ public final class DesktopPackage {
     // ---------- screen ----------
 
     @Action(id = "capture_screen", name = "Capture screen", category = "Screen", capabilities = "desktop",
-            description = "Save a screenshot of the whole screen, all screens, a region or a window as a PNG, JPEG or BMP file.")
+            description = "Save a screenshot of the whole screen, all screens, a region or a window as a PNG, JPEG or BMP file.",
+            panel = "[Capture one window only: window], [Capture part of the screen: x, y, width, height], path, overwrite | format, all_screens")
     @Output(name = "path", type = OoaType.FILE, description = "Saved image path.")
     public Map<String, Object> capture(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Image file to save.") String path,
@@ -399,7 +478,8 @@ public final class DesktopPackage {
     }
 
     @Action(id = "clipboard_get", name = "Get clipboard text", category = "Clipboard", capabilities = "desktop",
-            description = "Read text from the clipboard, optionally waiting until text arrives (e.g. after pressing CTRL+C).")
+            description = "Read text from the clipboard, optionally waiting until text arrives (e.g. after pressing CTRL+C).",
+            panel = "| wait_seconds, trim")
     @Output(name = "text", type = OoaType.STRING, description = "Clipboard text, empty when it holds no text.")
     @Output(name = "has_text", type = OoaType.BOOLEAN, description = "True when the clipboard held text.")
     public Map<String, Object> clipboardGet(ActionContext ctx,
@@ -417,7 +497,8 @@ public final class DesktopPackage {
         return Map.of("text", trim ? text.strip() : text, "has_text", !text.isEmpty());
     }
 
-    @Action(id = "clipboard_set", name = "Copy to clipboard", category = "Clipboard", capabilities = "desktop", description = "Put text on the clipboard, replacing it or adding to what is there.")
+    @Action(id = "clipboard_set", name = "Copy to clipboard", category = "Clipboard", capabilities = "desktop", description = "Put text on the clipboard, replacing it or adding to what is there.",
+            panel = "text | append")
     public Map<String, Object> clipboardSet(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to copy.") String text,
             @Input(name = "append", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Add the text after the current clipboard text instead of replacing it.") boolean append) {
         DesktopSupport.requireDesktop();
@@ -490,7 +571,8 @@ public final class DesktopPackage {
     }
 
     @Action(id = "message_box", name = "Message box", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600,
-            description = "Show a message to the user (attended agents) with a choice of buttons and icon; can close automatically after a timeout.")
+            description = "Show a message to the user (attended agents) with a choice of buttons and icon; can close automatically after a timeout.",
+            panel = "title, message, scroll_after_lines, [Close it automatically: timeout_seconds] | buttons, icon, always_on_top")
     @Output(name = "button", type = OoaType.STRING, description = "Button chosen: ok, cancel, yes or no; closed when the window was closed; timeout when it closed by itself.")
     public Map<String, Object> messageBox(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Message text.") String message,
@@ -518,7 +600,8 @@ public final class DesktopPackage {
         return Map.of("button", buttonName(btn, chosen));
     }
 
-    @Action(id = "prompt_value", name = "Prompt for value", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to type a value, optionally hidden as it is typed.")
+    @Action(id = "prompt_value", name = "Prompt for value", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to type a value, optionally hidden as it is typed.",
+            panel = "title, question, masked | default, timeout_seconds, always_on_top")
     @Output(name = "value", type = OoaType.STRING, description = "Entered text.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when the user cancelled or the prompt timed out.")
     @Output(name = "timed_out", type = OoaType.BOOLEAN, description = "True when nobody answered in time; value is then the default.")
@@ -556,7 +639,8 @@ public final class DesktopPackage {
         return Out.of("value", v == null ? "" : v, "cancelled", v == null, "timed_out", false);
     }
 
-    @Action(id = "prompt_yes_no", name = "Prompt for yes/no", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user a yes/no question.")
+    @Action(id = "prompt_yes_no", name = "Prompt for yes/no", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user a yes/no question.",
+            panel = "title, question | timeout_seconds, answer_on_timeout, always_on_top")
     @Output(name = "answer", type = OoaType.BOOLEAN, description = "True for Yes.")
     @Output(name = "timed_out", type = OoaType.BOOLEAN, description = "True when nobody answered before the timeout (or the window was closed).")
     public Map<String, Object> promptYesNo(ActionContext ctx,
@@ -577,7 +661,8 @@ public final class DesktopPackage {
     }
 
     @Action(id = "prompt_password", name = "Prompt for password", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600,
-            description = "Ask the user for a password; the result is a Credential that is never shown or logged.")
+            description = "Ask the user for a password; the result is a Credential that is never shown or logged.",
+            panel = "title, question | timeout_seconds, always_on_top")
     @Output(name = "password", type = OoaType.CREDENTIAL, description = "Entered password as a Credential.")
     public Map<String, Object> promptPassword(ActionContext ctx,
             @Input(name = "question", type = OoaType.STRING, required = false, defaultValue = "\"Enter password\"", description = "Prompt text.") String question,
@@ -635,7 +720,8 @@ public final class DesktopPackage {
         return Out.of("path", paths.isEmpty() ? "" : paths.get(0), "paths", paths, "cancelled", chosen == null);
     }
 
-    @Action(id = "prompt_file", name = "Prompt for file", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to choose one or more files, optionally of given types.")
+    @Action(id = "prompt_file", name = "Prompt for file", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to choose one or more files, optionally of given types.",
+            panel = "title, file_types, multiple | start_folder, timeout_seconds, always_on_top")
     @Output(name = "path", type = OoaType.FILE, description = "Chosen file (the first one when several), empty when cancelled.")
     @Output(name = "paths", type = OoaType.LIST, description = "All chosen files.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when cancelled or timed out.")
@@ -649,7 +735,8 @@ public final class DesktopPackage {
         return pick(title, false, start, ctx, extensions(fileTypes), multiple, timeout, onTop);
     }
 
-    @Action(id = "prompt_folder", name = "Prompt for folder", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to choose a folder.")
+    @Action(id = "prompt_folder", name = "Prompt for folder", category = "Dialogs", capabilities = "desktop", timeoutSeconds = 3600, description = "Ask the user to choose a folder.",
+            panel = "title | start_folder, timeout_seconds, always_on_top")
     @Output(name = "path", type = OoaType.FILE, description = "Chosen folder, empty when cancelled.")
     @Output(name = "cancelled", type = OoaType.BOOLEAN, description = "True when cancelled or timed out.")
     public Map<String, Object> promptFolder(ActionContext ctx,

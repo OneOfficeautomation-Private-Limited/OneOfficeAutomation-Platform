@@ -28,6 +28,7 @@
   .choices label { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-weight: 400; }
   .disabled { opacity: .55; }
   .hl { outline: 3px solid var(--hl); outline-offset: 4px; }
+  .note { margin-top: 3px; color: var(--hl); font-size: 13px; font-weight: 600; }
   h2 { margin: 18px 0 8px; font-size: 16px; }
   p.block { margin: 0 0 14px; white-space: pre-wrap; }
   .area { padding: 10px 12px 2px; margin: 0 0 14px; border: 1px dashed var(--line); border-radius: var(--radius); }
@@ -82,7 +83,7 @@
     if (st.hidden) return null;
     const cls = (extra) => [extra, st.disabled ? "disabled" : "", st.highlight ? "hl" : "", (state.errors || {})[f.id] ? "bad" : ""].filter(Boolean).join(" ");
     const wrap = (node, opts = {}) => {
-      const w = el(opts.tag || "div", { class: cls(opts.cls || "field") }, node);
+      const w = el(opts.tag || "div", { class: cls(opts.cls || "field") }, node, st.highlight && st.message ? el("div", { class: "note", text: st.message }) : null);
       if (st.highlight) w.style.setProperty("--hl", st.highlight);
       return w;
     };
