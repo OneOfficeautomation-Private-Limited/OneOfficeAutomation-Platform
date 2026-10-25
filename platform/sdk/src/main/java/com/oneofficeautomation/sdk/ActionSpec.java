@@ -6,7 +6,87 @@ import java.util.*;
 /** Reflected description of one action, condition or iterator. */
 public record ActionSpec(String kind, String id, String name, String description, String category,
                          List<InputSpec> inputs, List<OutputSpec> outputs, double timeoutSeconds, boolean idempotent,
-                         List<String> capabilities, Method method) {
+                         List<String> capabilities, Method method, String panel) {
+
+    public ActionSpec(String kind, String id, String name, String description, String category,
+                      List<InputSpec> inputs, List<OutputSpec> outputs, double timeoutSeconds, boolean idempotent,
+                      List<String> capabilities, Method method) {
+        this(kind, id, name, description, category, inputs, outputs, timeoutSeconds, idempotent, capabilities, method, "");
+    }
+
+    /**
+     * The parsed panel layout: {"main": [name | {"tick": label, "fields": [names]}], "more": [...]}, or null when the
+     * action has none. Every input must appear exactly once.
+     */
+    public Map<String, Object> panelLayout() {
+        if (panel == null || panel.isBlank()) return null;
+        String[] halves = panel.split("\\|", -1);
+        if (halves.length > 2) throw bad("has more than one '|'");
+        Set<String> seen = new LinkedHashSet<>();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("main", panelPart(halves[0], seen));
+        out.put("more", halves.length > 1 ? panelPart(halves[1], seen) : List.of());
+        for (InputSpec i : inputs) if (!seen.contains(i.name())) throw bad("does not place input '" + i.name() + "'");
+        return out;
+    }
+
+    private List<Object> panelPart(String text, Set<String> seen) {
+        List<Object> items = new ArrayList<>();
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (c == ',' || Character.isWhitespace(c)) { i++; continue; }
+            if (c == '(') {   // (Label: Option A = a, b / Option B = c): a choice that shows only the chosen option's fields
+                int end = text.indexOf(')', i);
+                if (end < 0) throw bad("has an unclosed '('");
+                String body = text.substring(i + 1, end);
+                int colon = body.indexOf(':');
+                if (colon < 1) throw bad("choice '" + body + "' needs 'Label: option / option'");
+                List<Object> options = new ArrayList<>();
+                for (String opt : body.substring(colon + 1).split("/")) {
+                    int eq = opt.indexOf('=');
+                    List<String> fields = new ArrayList<>();
+                    for (String f : (eq < 0 ? opt : opt.substring(eq + 1)).split(",")) if (!f.isBlank()) fields.add(place(f.strip(), seen));
+                    // an option with only a label ("Active cell =") stands for leaving the other options' fields empty
+                    if (fields.isEmpty() && (eq < 1 || opt.substring(0, eq).isBlank())) throw bad("choice '" + body + "' has an option with no label and no fields");
+                    Map<String, Object> o = new LinkedHashMap<>();
+                    if (eq >= 0) o.put("label", opt.substring(0, eq).strip());
+                    o.put("fields", fields);
+                    options.add(o);
+                }
+                if (options.size() < 2) throw bad("choice '" + body + "' needs at least two options");
+                items.add(Map.of("choice", body.substring(0, colon).strip(), "options", options));
+                i = end + 1;
+            } else if (c == '[') {
+                int end = text.indexOf(']', i);
+                if (end < 0) throw bad("has an unclosed '['");
+                String body = text.substring(i + 1, end);
+                int colon = body.indexOf(':');
+                if (colon < 1) throw bad("group '" + body + "' needs 'Label: fields'");
+                List<String> fields = new ArrayList<>();
+                for (String f : body.substring(colon + 1).split(",")) if (!f.isBlank()) fields.add(place(f.strip(), seen));
+                if (fields.isEmpty()) throw bad("group '" + body + "' has no fields");
+                items.add(Map.of("tick", body.substring(0, colon).strip(), "fields", fields));
+                i = end + 1;
+            } else {
+                int end = i;
+                while (end < text.length() && text.charAt(end) != ',' && text.charAt(end) != '[' && text.charAt(end) != '(') end++;
+                items.add(place(text.substring(i, end).strip(), seen));
+                i = end;
+            }
+        }
+        return items;
+    }
+
+    private String place(String n, Set<String> seen) {
+        if (input(n).isEmpty()) throw bad("names '" + n + "', which is not an input");
+        if (!seen.add(n)) throw bad("places '" + n + "' twice");
+        return n;
+    }
+
+    private OoaException bad(String what) {
+        return new OoaException("PKG.ERROR", "The panel of '" + id + "' " + what, "List every input once: \"a, [Label: b], c | d\".");
+    }
 
     public record InputSpec(String name, OoaType type, String description, String label, boolean required,
                             Object defaultValue, String pattern, List<String> enumValues, String example,
@@ -89,6 +169,8 @@ public record ActionSpec(String kind, String id, String name, String description
             m.put("timeoutSeconds", java.math.BigDecimal.valueOf(timeoutSeconds));
             m.put("idempotent", idempotent);
             m.put("capabilities", capabilities);
+            Map<String, Object> layout = panelLayout();
+            if (layout != null) m.put("x-ooa-panel", layout);
         }
         return m;
     }

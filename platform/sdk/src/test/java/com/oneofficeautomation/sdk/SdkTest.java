@@ -34,6 +34,38 @@ class SdkTest {
         assertEquals(false, inputs.get("additionalProperties"));
     }
 
+    @OoaPackage(id = "acme.panel", name = "Panel", version = "1.0.0", description = "Panel layouts.")
+    public static final class Laid {
+        @Action(id = "open", name = "Open", description = "Opens.", panel = "path, [Has a password: password], header | session")
+        public Map<String, Object> open(ActionContext ctx, @Input(name = "path", description = "Path.") String path,
+                @Input(name = "session", description = "Session.", required = false) String session,
+                @Input(name = "header", description = "Header.", required = false) Boolean header,
+                @Input(name = "password", description = "Password.", required = false) Object password) { return Map.of(); }
+    }
+
+    @OoaPackage(id = "acme.panelbad", name = "Panel bad", version = "1.0.0", description = "A panel that misses an input.")
+    public static final class LaidBad {
+        @Action(id = "open", name = "Open", description = "Opens.", panel = "path")
+        public Map<String, Object> open(ActionContext ctx, @Input(name = "path", description = "Path.") String path,
+                @Input(name = "session", description = "Session.", required = false) String session) { return Map.of(); }
+    }
+
+    @Test void panelLayoutReachesTheManifest() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> a = (Map<String, Object>) ((List<?>) PackageIntrospector.manifest(Laid.class).get("actions")).get(0);
+        assertEquals(Map.of("main", List.of("path", Map.of("tick", "Has a password", "fields", List.of("password")), "header"),
+                "more", List.of("session")), a.get("x-ooa-panel"));
+        ActionSpec chosen = new ActionSpec("action", "x", "X", "X.", "General", List.of(
+                new ActionSpec.InputSpec("name", OoaType.STRING, "Name.", "", false, null, "", List.of(), ""),
+                new ActionSpec.InputSpec("index", OoaType.NUMBER, "Index.", "", false, null, "", List.of(), "")),
+                List.of(), 60, false, List.of(), null, "(Sheet by: By name = name / index)");
+        assertEquals(Map.of("main", List.of(Map.of("choice", "Sheet by", "options", List.of(
+                Map.of("label", "By name", "fields", List.of("name")), Map.of("fields", List.of("index"))))), "more", List.of()),
+                chosen.panelLayout());
+        OoaException e = assertThrows(OoaException.class, () -> PackageIntrospector.inspect(LaidBad.class));
+        assertTrue(e.getMessage().contains("does not place input 'session'"), e.getMessage());
+    }
+
     @Test void undocumentedActionsAreRejected() {
         OoaException e = assertThrows(OoaException.class, () -> PackageIntrospector.inspect(Undocumented.class));
         assertTrue(e.getMessage().contains("no description"));
