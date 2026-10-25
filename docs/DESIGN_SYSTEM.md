@@ -85,10 +85,12 @@ page that fails shows its single error line as an error panel (`cr.css` section 
 
 ## Layout
 
-- **Console**: a sticky 52 px frame bar, a 236 px menu with monochrome icons (only the current page carries the
-  accent), and a work area with 24–32 px padding up to 1600 px wide. Page headers use a 22 px semibold title and a
-  muted subtitle. Under 760 px the menu collapses to icons and the brand text hides.
-- **Studio**: the same frame bar and a dark rail; Explorer, canvas and Action settings keep their minimum widths (the
+- **Console**: a dark charcoal frame (44 px top bar, 220 px menu with monochrome icons; only the current page carries
+  the accent) around a light, dense work area: 13 px body text, 16–20 px padding up to 1600 px wide, compact tables
+  with small upper-case headers, and 18 px page titles (`cr.css` section 15). Under 760 px the menu collapses to icons
+  and the brand text hides.
+- **Studio**: One Dark (`midnight`, blue-grey charcoal with the same blue accent) is the default theme, and Compact the
+  default density, with a 42 px top bar and a 44 px rail. Explorer, canvas and Action settings keep their minimum widths (the
   UI test checks them). Steps keep their action-group colour as a 3 px edge and icon tile, which helps scanning long
   agents. Under 700 px the left panel opens over the canvas, Action settings hide and the top bar wraps.
 

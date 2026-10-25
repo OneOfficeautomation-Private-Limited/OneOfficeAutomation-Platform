@@ -11,7 +11,7 @@
    ===================================================================================================================== */
 
 /* ---------- 1. themes and density ---------- */
-/* "brand" (One Light) uses the tokens as they are; "midnight" (One Dark) is the dark token set; the others change the accent. */
+/* "midnight" (One Dark, the default) is the dark token set; "brand" (One Light) uses the light tokens; the others change the accent. */
 body[data-theme="teal"] {
   --accent: #0d7470; --accent-hover: #0a5f5c; --accent-active: #084f4c; --accent-subtle: #e3f3f2; --accent-subtle-2: #c7e7e5; --accent-text: #0a5f5c;
   --frame-bg: #0b2324; --frame-bg-2: #0f2e2f; --frame-accent: #7fd4cf;
@@ -738,6 +738,17 @@ body.compact .fnode { width: 240px; gap: var(--space-2); padding: 6px 10px; }
 #props .row-actions { gap: var(--space-1); margin-top: var(--space-15); }
 #props .sel-note { margin: var(--space-1) 0; padding: 5px 8px; font-size: var(--text-sm); }
 #props button { line-height: 18px; }
+
+/* compact frame: a slimmer top bar and rail, quieter panel headings */
+body.compact .topbar { min-height: 42px; padding-top: var(--space-1); padding-bottom: var(--space-1); }
+body.compact .topbar button:not(.primary), body.compact .topbar a.button-link { padding: 3px 9px; font-size: var(--text-sm); }
+body.compact .topbar button.primary { padding: 3px 12px; font-size: var(--text-sm); }
+body.compact .topbar .icon-btn { width: 28px; height: 26px; padding: 0; }
+body.compact .rail { flex-basis: 44px; min-width: 44px; }
+body.compact .rail-btn { width: 34px; height: 34px; }
+body.compact .rail-btn.active::before { left: -5px; }
+body.compact .side-head { padding: var(--space-2) var(--space-3) var(--space-1); font-size: var(--text-2xs); }
+body.compact .side-body { padding: var(--space-2); }
 
 /* ---------- 21. view rules: settings and the run dock belong to agents; scripts keep the dock ---------- */
 body[data-view="home"] .props, body[data-view="home"] .props-split, body[data-view="home"] .dock, body[data-view="home"] .dock-split,

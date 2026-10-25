@@ -3842,7 +3842,7 @@ function setPref(key, value) {
   applyPrefs();
 }
 function applyPrefs() {
-  const p = Object.assign({ left: true, right: true, dock: true, theme: "brand", density: "compact", dockPos: "bottom" }, prefs());
+  const p = Object.assign({ left: true, right: true, dock: true, theme: "midnight", density: "compact", dockPos: "bottom" }, prefs());
   document.body.classList.toggle("no-left", !p.left);
   document.body.classList.toggle("no-right", !p.right);
   document.body.classList.toggle("no-dock", !p.dock);
