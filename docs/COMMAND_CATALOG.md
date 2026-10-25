@@ -36,7 +36,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | UI automation | OCR | ooa.ocr | Built | Needs Tesseract installed; tested with real Tesseract |
 | UI automation | Application | ooa.application | Built |  |
 | UI automation | Legacy automation | - | Not needed | AA v11 compatibility |
-| UI automation | Terminal Emulator | ooa.terminal | Partial | TN3270 via x3270 (tested with the real engine); TN5250 and VT planned |
+| UI automation | Terminal Emulator | ooa.terminal | Partial | TN3270 via x3270 (tested with the real engine); VT100/ANSI over SSH (password or key, tested against an in-process SSH host); TN5250 not yet (see docs/research/terminal-vt-ssh.md) |
 | UI automation | SAP | ooa.sap | Partial | SAP GUI Scripting built; BAPI/RFC needs SAP JCo from the customer |
 | UI automation | Citrix / remote desktop | ooa.image, ooa.ocr | Partial | Image + OCR built; in-session agent later |
 | UI automation | App-specific recorders | - | Planned | After the Recorder |
