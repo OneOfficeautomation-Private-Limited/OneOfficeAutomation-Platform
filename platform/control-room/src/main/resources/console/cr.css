@@ -98,6 +98,7 @@
 .nav .nav-group.open .nav-caret { transform: rotate(90deg); }
 .nav-items { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 6px; padding-left: 14px; border-left: 1px solid var(--frame-border); margin-left: 19px; }
 .nav-items button, .nav-items a.nav-link { padding: 5px 10px; }
+.nav > button .nav-label, .nav .nav-group .nav-label { text-transform: uppercase; letter-spacing: .05em; font-size: var(--text-sm); }   /* Home and the section names */
 .nav-items .ic { display: none; }   /* pages under a section show their names only; the section shows the icon */
 .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-ext { margin-left: auto; opacity: .6; font-size: var(--text-sm); }

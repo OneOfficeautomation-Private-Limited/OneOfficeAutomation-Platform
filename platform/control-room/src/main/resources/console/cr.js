@@ -152,16 +152,15 @@ const PAGES = [
   ["admin", "Administration", "settings.manage", "gear", "#334155"]];
 
 /**
- * The menu: Home, then short sections (as in the reference product: Automation, Operations, AI, Manage,
- * Administration). The section of the current page is open, and the one opened last; the others show only their name.
+ * The menu: Home, then short sections: Build, Manage, Operations, Administration, AI (shown in capitals). The section of the current page is open, and the one opened last; the others show only their name.
  * Pages not listed here (admin) are reached from inside other pages.
  */
 const NAV_GROUPS = [
-  ["automation", "Automation", "bot", ["automation", "studio", "workflows", "apitasks"]],
-  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
-  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
+  ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks"]],
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
+  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "audit", "settings"]],
+  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
@@ -520,7 +519,7 @@ const VIEWS = {
         st.tab === "active" ? null : api("GET", "runs?filter=active&limit=1"), st.tab === "history" ? null : api("GET", "runs?filter=history&limit=1")]);
       counts[st.tab] = r.total; if (a) counts.active = a.total; if (hcount) counts.history = hcount.total;
       renderTabs(counts);
-      if (st.tab === "active") list.replaceChildren(r.runs.length ? h("div", { class: "live-list" }, r.runs.map(liveCard)) : h("div", { class: "empty-state" }, ic("check", "#16a34a", "lg"), h("strong", { text: "Nothing is running" }), h("p", { class: "muted", text: "Runs appear here as soon as they are queued. Start one from Automation." })));
+      if (st.tab === "active") list.replaceChildren(r.runs.length ? h("div", { class: "live-list" }, r.runs.map(liveCard)) : h("div", { class: "empty-state" }, ic("check", "#16a34a", "lg"), h("strong", { text: "Nothing is running" }), h("p", { class: "muted", text: "Runs appear here as soon as they are queued. Start one from Build." })));
       else list.replaceChildren(historyTable(r.runs), r.total > st.size ? pager(Math.floor(st.offset / st.size), Math.ceil(r.total / st.size), r.total, st.size, (p) => { st.offset = p * st.size; refresh(); }) : null);
     }
     function liveCard(run) {
