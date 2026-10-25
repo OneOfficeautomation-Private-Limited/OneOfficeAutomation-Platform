@@ -7,24 +7,61 @@ import java.util.*;
 
 /**
  * JDBC access with a small connection pool and versioned schema migrations. Portable SQL that runs on embedded H2
- * (default, PostgreSQL compatibility mode) and on PostgreSQL in production.
+ * (default, PostgreSQL compatibility mode), on PostgreSQL and on Microsoft SQL Server (translated by
+ * {@link SqlServerDialect}). The connection comes from {@code config/ooa-db.properties} ({@link DbConfig}).
  */
 public final class Db implements AutoCloseable {
     private final String url, user, password;
+    private final int poolMax;
     private final Deque<Connection> pool = new ArrayDeque<>();
     private final ThreadLocal<Connection> txConn = new ThreadLocal<>();
-    public final boolean postgres;
+    public final boolean postgres, sqlServer, h2;
 
-    public Db(String url, String user, String password) {
-        this.url = url; this.user = user; this.password = password;
+    public Db(String url, String user, String password) { this(url, user, password, 10); }
+
+    public Db(String url, String user, String password, int poolMax) {
+        this.url = url; this.user = user; this.password = password; this.poolMax = poolMax;
         this.postgres = url.startsWith("jdbc:postgresql:");
+        this.sqlServer = url.startsWith("jdbc:sqlserver:");
+        this.h2 = url.startsWith("jdbc:h2:");
         try (Connection c = open()) { /* fail fast on a wrong URL or missing driver */ }
-        catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot open the database: " + e.getMessage(), "Check --db-url, the user and password, and that the database server is running."); }
+        catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot open the database: " + e.getMessage(), "Check the database settings (config\\ooa-db.properties or --db-url), the user and password, and that the database server is running."); }
+    }
+
+    /** The database described by a configuration file, signed in as the runtime account (or, with setup, the setup account). */
+    public static Db open(DbConfig cfg, java.nio.file.Path dataDir, Vault vault, boolean setup) {
+        if (cfg.engine().equals("h2")) return embedded(dataDir);
+        if (setup && !cfg.hasSetupAccount()) throw new OoaException("CR.DB_CONFIG", "No setup account in " + cfg.file, "Add setup.user and run: ooa db set-password --setup");
+        return new Db(cfg.url(dataDir, false), setup ? cfg.get("setup.user") : cfg.get("user"), cfg.password(vault, setup), cfg.poolMax());
     }
 
     public static Db embedded(java.nio.file.Path dir) {
+        String test = System.getProperty("ooa.test.db");
+        if (test != null && !test.isBlank()) return testDatabase(test, dir);
+        return h2File(dir);
+    }
+
+    /** The embedded H2 database file (controlroom.mv.db) of a data folder. */
+    public static Db h2File(java.nio.file.Path dir) {
         return new Db("jdbc:h2:file:" + dir.resolve("controlroom").toAbsolutePath() + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=FALSE", "ooa", "");
     }
+
+    /**
+     * Test runs only (-Pooa.test.db=jdbc:sqlserver://host:port;encrypt=false with ooa.test.db.user and
+     * ooa.test.db.password): each data folder gets its own SQL Server database named after the folder, so the whole
+     * test suite runs against SQL Server unchanged. The databases are named ooa_t_* and dropped after the run.
+     */
+    private static Db testDatabase(String base, java.nio.file.Path dir) {
+        String user = System.getProperty("ooa.test.db.user", ""), pw = System.getProperty("ooa.test.db.password", "");
+        String name = "ooa_t_" + Security.sha256(dir.toAbsolutePath().normalize().toString()).substring(0, 20);
+        try (Connection c = DriverManager.getConnection(base + ";databaseName=master", user, pw); Statement s = c.createStatement()) {
+            s.execute("IF DB_ID('" + name + "') IS NULL BEGIN CREATE DATABASE [" + name + "]; ALTER DATABASE [" + name + "] SET READ_COMMITTED_SNAPSHOT ON; END");
+        } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }
+        return new Db(base + ";databaseName=" + name + ";sendTimeAsDatetime=false", user, pw);
+    }
+
+    /** The account this connection signs in with (shown on the console, never the password). */
+    public String user() { return user; }
 
     private Connection open() throws SQLException { return DriverManager.getConnection(url, user, password); }
 
@@ -39,7 +76,7 @@ public final class Db implements AutoCloseable {
         try {
             if (c.isClosed()) return;
             if (!c.getAutoCommit()) { c.rollback(); c.setAutoCommit(true); }
-            if (pool.size() < 10) pool.addLast(c); else c.close();
+            if (pool.size() < poolMax) pool.addLast(c); else c.close();
         } catch (SQLException ignored) { }
     }
 
@@ -93,7 +130,10 @@ public final class Db implements AutoCloseable {
         }
     }
 
-    public List<Map<String, Object>> query(String sql, Object... params) {
+    public List<Map<String, Object>> query(String sql0, Object... params0) {
+        SqlServerDialect.Statement st = sqlServer ? SqlServerDialect.statement(sql0) : null;
+        String sql = st == null ? sql0 : st.sql();
+        Object[] params = st == null ? params0 : st.reorder(params0);
         return withConn(c -> {
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 bind(ps, params);
@@ -121,7 +161,10 @@ public final class Db implements AutoCloseable {
         return r.isEmpty() ? null : r.get(0);
     }
 
-    public int update(String sql, Object... params) {
+    public int update(String sql0, Object... params0) {
+        SqlServerDialect.Statement st = sqlServer ? SqlServerDialect.statement(sql0) : null;
+        String sql = st == null ? sql0 : st.sql();
+        Object[] params = st == null ? params0 : st.reorder(params0);
         return withConn(c -> { try (PreparedStatement ps = c.prepareStatement(sql)) { bind(ps, params); return ps.executeUpdate(); } });
     }
 
@@ -285,46 +328,119 @@ public final class Db implements AutoCloseable {
             "json_credentials VARCHAR(10000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
     };
 
-    /** Creates or upgrades the schema; versions are recorded so upgrades run once and in order. */
-    public void migrate() {
-        tx(() -> {
-            withConn(c -> { try (Statement s = c.createStatement()) { s.execute("CREATE TABLE IF NOT EXISTS schema_version (version INT NOT NULL)"); } return null; });
+    /** The schema version this release needs. */
+    public static final int LATEST = 8;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8 };
+
+    /** The schema version recorded in the database (0 when it is empty). */
+    public int schemaVersion() {
+        try {
             Map<String, Object> v = one("SELECT MAX(version) AS v FROM schema_version");
-            int current = v == null || v.get("v") == null ? 0 : ((Number) v.get("v")).intValue();
-            if (current < 1) {
-                for (String ddl : SCHEMA_V1) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (1)");
+            return v == null || v.get("v") == null ? 0 : ((Number) v.get("v")).intValue();
+        } catch (OoaException e) { return 0; }
+    }
+
+    /**
+     * Creates or upgrades the schema; versions are recorded so upgrades run once and in order. Nothing runs when the
+     * schema is current, so a runtime account with data rights only can start the server. When an upgrade is due and
+     * the account may not change tables, the error names the command that does it with the setup account.
+     */
+    public void migrate() {
+        int current = schemaVersion();
+        if (current >= LATEST) return;
+        try {
+            tx(() -> {
+                if (current == 0) execute(sqlServer ? "IF OBJECT_ID('schema_version', 'U') IS NULL CREATE TABLE schema_version (version INT NOT NULL)"
+                    : "CREATE TABLE IF NOT EXISTS schema_version (version INT NOT NULL)");
+                for (int v = current + 1; v <= LATEST; v++) {
+                    for (String ddl : SCHEMA[v - 1]) execute(ddl(ddl, sqlServer));
+                    update("INSERT INTO schema_version (version) VALUES (" + v + ")");
+                }
+                return null;
+            });
+        } catch (OoaException e) {
+            if (!h2 && e.getMessage() != null && e.getMessage().toLowerCase(Locale.ROOT).contains("permission"))
+                throw new OoaException("CR.DB_UPGRADE_NEEDED", "The database schema is at version " + current + " and this release needs " + LATEST
+                    + "; the account " + user + " may not change tables", "Run: ooa db migrate (it signs in with the setup account)");
+            throw e;
+        }
+    }
+
+    private void execute(String sql) { withConn(c -> { try (Statement s = c.createStatement()) { s.execute(sql); } return null; }); }
+
+    /** A schema statement for the engine; SQL Server needs its own types and the type of a column made nullable. */
+    static String ddl(String ddl, boolean sqlServer) {
+        if (!sqlServer) return ddl;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("ALTER TABLE (\\w+) ALTER COLUMN (\\w+) DROP NOT NULL").matcher(ddl);
+        if (m.matches()) return SqlServerDialect.ddl("ALTER TABLE " + m.group(1) + " ALTER COLUMN " + m.group(2) + " " + columnType(m.group(1), m.group(2)) + " NULL");
+        return SqlServerDialect.ddl(ddl);
+    }
+
+    /** The declared type of a column, read from the CREATE TABLE statement of the schema. */
+    private static String columnType(String table, String column) {
+        for (String[] version : SCHEMA) for (String ddl : version)
+            if (ddl.startsWith("CREATE TABLE " + table + " (")) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("[(,] ?" + column + " (\\w+(\\(\\d+\\))?)").matcher(ddl);
+                if (m.find()) return m.group(1);
             }
-            if (current < 2) {
-                for (String ddl : SCHEMA_V2) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (2)");
-            }
-            if (current < 3) {
-                for (String ddl : SCHEMA_V3) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (3)");
-            }
-            if (current < 4) {
-                for (String ddl : SCHEMA_V4) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (4)");
-            }
-            if (current < 5) {
-                for (String ddl : SCHEMA_V5) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (5)");
-            }
-            if (current < 6) {
-                for (String ddl : SCHEMA_V6) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (6)");
-            }
-            if (current < 7) {
-                for (String ddl : SCHEMA_V7) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (7)");
-            }
-            if (current < 8) {
-                for (String ddl : SCHEMA_V8) withConn(c -> { try (Statement s = c.createStatement()) { s.execute(ddl); } return null; });
-                update("INSERT INTO schema_version (version) VALUES (8)");
-            }
+        throw new IllegalStateException("No column " + table + "." + column);
+    }
+
+    /** Every schema statement up to the latest version, for a DBA who prefers to run them by hand ("ooa db script"). */
+    public static List<String> script(String engine) {
+        boolean ss = engine.equals("sqlserver");
+        List<String> out = new ArrayList<>();
+        out.add(ss ? "IF OBJECT_ID('schema_version', 'U') IS NULL CREATE TABLE schema_version (version INT NOT NULL)" : "CREATE TABLE IF NOT EXISTS schema_version (version INT NOT NULL)");
+        for (int v = 1; v <= LATEST; v++) {
+            for (String ddl : SCHEMA[v - 1]) out.add(ddl(ddl, ss));
+            out.add("INSERT INTO schema_version (version) VALUES (" + v + ")");
+        }
+        return out;
+    }
+
+    /** The tables of the schema, in creation order (for copying data between databases). */
+    public static List<String> tables() {
+        List<String> out = new ArrayList<>();
+        for (String[] version : SCHEMA) for (String ddl : version)
+            if (ddl.startsWith("CREATE TABLE ")) out.add(ddl.substring(13, ddl.indexOf(' ', 13)));
+        return out;
+    }
+
+    /** Runs work with a raw connection of this database (borrowed from the pool, or the open transaction's). */
+    public <T> T withConnection(java.util.function.Function<Connection, T> f) { return withConn(c -> f.apply(c)); }
+
+    /** What the console shows about the database: engine and version, database, account, schema, encryption, size. */
+    public Map<String, Object> info() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        withConn(c -> {
+            DatabaseMetaData md = c.getMetaData();
+            m.put("engine", sqlServer ? "Microsoft SQL Server" : postgres ? "PostgreSQL" : h2 ? "H2 (embedded)" : md.getDatabaseProductName());
+            m.put("version", md.getDatabaseProductVersion());
+            m.put("driver", md.getDriverName() + " " + md.getDriverVersion());
+            m.put("database", c.getCatalog());
             return null;
         });
+        m.put("account", h2 ? null : user);
+        m.put("schema_version", schemaVersion());
+        m.put("schema_latest", LATEST);
+        m.put("pool_max", poolMax);
+        if (sqlServer) {
+            // A data-only account may not read sys.dm_exec_connections, but with encrypt=true the driver refuses any unencrypted session
+            Map<String, Object> r = one("SELECT CAST(SERVERPROPERTY('Edition') AS NVARCHAR(128)) AS edition, " +
+                "CAST(SERVERPROPERTY('Collation') AS NVARCHAR(128)) AS coll, CAST(@@SERVERNAME AS NVARCHAR(128)) AS server, " +
+                "(SELECT SUM(CAST(size AS BIGINT)) * 8 / 1024 FROM sys.database_files) AS size_mb");
+            if (r != null) {
+                m.put("server", r.get("server")); m.put("edition", r.get("edition")); m.put("collation", r.get("coll"));
+                m.put("encrypted", url.contains(";encrypt=true")); m.put("size_mb", r.get("size_mb"));
+            }
+        } else if (postgres) {
+            Map<String, Object> r = one("SELECT pg_database_size(current_database()) / 1048576 AS size_mb, (SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()) AS ssl");
+            if (r != null) { m.put("size_mb", r.get("size_mb")); m.put("encrypted", Boolean.TRUE.equals(r.get("ssl"))); }
+        } else {
+            m.put("encrypted", false);
+            m.put("note", "Embedded database for evaluation; use SQL Server or PostgreSQL in production");
+        }
+        return m;
     }
 
     @Override public synchronized void close() {

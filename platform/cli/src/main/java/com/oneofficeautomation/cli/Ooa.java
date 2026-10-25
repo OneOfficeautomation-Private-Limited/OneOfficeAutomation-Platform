@@ -21,7 +21,9 @@ import java.util.stream.Stream;
  *                                     one step: Control Room, Studio (/studio) and a local Bot Agent on http://localhost:8720
  *   ooa studio [--workspace DIR]      start the Studio preview on http://localhost:8710
  *   ooa control-room [--port N] [--host H] [--data DIR] [--db-url URL --db-user U --db-password-env VAR]
- *                                     start Control Room on http://localhost:8720
+ *                                     start Control Room on http://localhost:8720; the database comes from
+ *                                     DIR\config\ooa-db.properties when that file exists (SQL Server, PostgreSQL)
+ *   ooa db configure|set-password|test|init|migrate|script|copy   set up the Command Center database (DbCommand)
  *   ooa agent register --url URL --key KEY [--name NAME] [--config FILE]
  *   ooa agent start [--config FILE] [--workspace DIR]
  * picocli and GraalVM native image replace this hand-rolled parser in a later slice.
@@ -58,6 +60,7 @@ public final class Ooa {
                 case "control-room" -> controlRoom(Arrays.copyOfRange(args, 1, args.length));
                 case "agent" -> agent(Arrays.copyOfRange(args, 1, args.length));
                 case "reset-admin" -> resetAdmin(Arrays.copyOfRange(args, 1, args.length));
+                case "db" -> DbCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "native-host" -> NativeHost.main(Arrays.copyOfRange(args, 1, args.length));
                 case "browser-connector" -> BrowserConnector.main(Arrays.copyOfRange(args, 1, args.length));
                 default -> { usage(); yield 1; }
@@ -75,6 +78,7 @@ public final class Ooa {
                 + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
                 + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]"
                 + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
+                + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
                 + " | browser-connector install|status|uninstall | native-host (started by the browser)");
     }
 
@@ -99,19 +103,34 @@ public final class Ooa {
     /** Control Room's database and services, opened from the command-line options shared by `control-room` and `server`. */
     record ControlRoomSetup(com.oneofficeautomation.controlroom.ControlRoom cr, com.oneofficeautomation.controlroom.Db db, Path data, String firstPassword, String dbLabel) {}
 
-    static ControlRoomSetup openControlRoom(Map<String, String> o) throws Exception {
+    /** The Command Center data folder: --data, else the folder of earlier versions when it holds a database, else ~/OOA Command Center. */
+    static Path dataDir(Map<String, String> o) {
         // Keep using the folder of earlier versions ("OOA Control Room") when it holds a database, so an upgrade never starts empty.
         Path legacy = Path.of(System.getProperty("user.home"), "OOA Control Room");
         Path defaultData = Files.exists(legacy.resolve("controlroom.mv.db")) ? legacy : Path.of(System.getProperty("user.home"), "OOA Command Center");
-        Path data = Path.of(o.getOrDefault("data", defaultData.toString()));
+        return Path.of(o.getOrDefault("data", defaultData.toString()));
+    }
+
+    static ControlRoomSetup openControlRoom(Map<String, String> o) throws Exception {
+        Path data = dataDir(o);
         Files.createDirectories(data);
         com.oneofficeautomation.controlroom.Db db;
+        String label;
+        Path dbConfig = o.containsKey("db-config") ? Path.of(o.get("db-config")) : com.oneofficeautomation.controlroom.DbConfig.defaultFile(data);
         if (o.containsKey("db-url")) {
             String pw = o.containsKey("db-password-env") ? System.getenv(o.get("db-password-env")) : "";
             db = new com.oneofficeautomation.controlroom.Db(o.get("db-url"), o.getOrDefault("db-user", ""), pw == null ? "" : pw);
-        } else db = com.oneofficeautomation.controlroom.Db.embedded(data);
+            label = o.get("db-url");
+        } else if (Files.exists(dbConfig)) {
+            var cfg = com.oneofficeautomation.controlroom.DbConfig.load(dbConfig);
+            db = com.oneofficeautomation.controlroom.Db.open(cfg, data, new com.oneofficeautomation.controlroom.Vault(data), false);
+            label = cfg.label() + " as " + db.user();
+        } else {
+            db = com.oneofficeautomation.controlroom.Db.embedded(data);
+            label = "embedded H2 in " + data;
+        }
         var cr = new com.oneofficeautomation.controlroom.ControlRoom(db, data, FirstPartyPackages.registry(), schemaValidator());
-        return new ControlRoomSetup(cr, db, data, cr.bootstrap(), o.containsKey("db-url") ? o.get("db-url") : "embedded H2 in " + data);
+        return new ControlRoomSetup(cr, db, data, cr.bootstrap(), label);
     }
 
     static void printFirstStart(ControlRoomSetup s) {

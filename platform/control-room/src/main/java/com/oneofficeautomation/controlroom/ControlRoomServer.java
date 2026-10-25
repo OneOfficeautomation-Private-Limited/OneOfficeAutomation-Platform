@@ -292,6 +292,11 @@ public final class ControlRoomServer {
                 else notFound(ex);
             }
             case "governance" -> sendJson(ex, 200, cr.platform.aiGovernance(u, ControlRoom.intOr(q.get("days"), 30)));
+            case "database" -> {
+                if (!m.equals("GET")) { notFound(ex); return; }
+                cr.require(u, "settings.manage", "see the database details");
+                sendJson(ex, 200, cr.db.info());
+            }
             case "settings" -> {
                 if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
                 else if (m.equals("PUT")) sendJson(ex, 200, cr.platform.updateSettings(u, map(body(ex)), ip));

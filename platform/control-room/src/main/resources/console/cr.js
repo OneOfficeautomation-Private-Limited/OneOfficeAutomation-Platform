@@ -727,6 +727,7 @@ const VIEWS = {
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
       const lic = await api("GET", "license").catch(() => null);
+      const dbi = await api("GET", "database").catch(() => null);
       main.replaceChildren(...head, tabs, h("div", { class: "card form-card" },
         h("label", {}, "Announcement for all users (empty for none)", ann),
         h("div", { class: "grid2" }, h("label", {}, "Disable users inactive for (days, 0 = never)", inactive), h("label", {}, "Sign-in session length (hours)", session),
@@ -752,6 +753,13 @@ const VIEWS = {
             try { const r = await api("POST", "runs/purge", { run_days: d, log_days: l }); toast("Removed " + r.runs_removed + " run(s) and " + r.log_lines_removed + " log line(s)"); } catch (e) { toast(e.message, true); } } }, "Remove now"))),
         lic ? [h("h3", {}, ic("shield", "#475569", "sm"), "This Command Center"), kv([["Edition", lic.edition], ["Limits", lic.limits], ["Active users", String(lic.users)], ["Runners", String(lic.runners)],
           ["Agents", String(lic.agents)], ["Toolkits", lic.toolkits + (lic.toolkits_switched_off ? " (" + lic.toolkits_switched_off + " switched off)" : "")]])] : null,
+        dbi ? [h("h3", {}, ic("desktop", "#475569", "sm"), "Database"),
+          h("p", { class: "muted", text: dbi.note || "Read-only here. The connection is set in config\\ooa-db.properties in the data folder and changed with the ooa db command." }),
+          kv([["Engine", dbi.engine + " " + dbi.version + (dbi.edition ? " (" + dbi.edition + ")" : "")], dbi.server ? ["Server", dbi.server] : null, ["Database", dbi.database || "\u2014"],
+            dbi.account ? ["Signed in as", dbi.account] : null, ["Encrypted connection", dbi.encrypted ? "Yes" : "No"],
+            ["Schema", "version " + dbi.schema_version + " of " + dbi.schema_latest + (dbi.schema_version < dbi.schema_latest ? " (run ooa db migrate)" : "")],
+            dbi.collation ? ["Collation", dbi.collation] : null, dbi.size_mb !== undefined && dbi.size_mb !== null ? ["Size", dbi.size_mb + " MB"] : null,
+            ["Connection pool", "up to " + dbi.pool_max + " idle connections"]].filter(Boolean))] : null,
         h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
           try {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
