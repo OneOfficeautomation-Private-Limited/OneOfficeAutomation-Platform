@@ -33,8 +33,11 @@ jobs:
           java-version: "21"
           cache: gradle
       - name: GnuPG for the PGP toolkit tests
+        # optional: without it the PGP tests skip (the image's own gpg cannot use Windows paths)
+        timeout-minutes: 5
+        continue-on-error: true
         shell: pwsh
-        run: choco install gnupg -y --no-progress
+        run: choco install gnupg -y --no-progress --timeout 240
       - name: Build and run every test
         shell: pwsh
         run: ./gradlew.bat build --continue --console=plain
