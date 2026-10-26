@@ -62,6 +62,7 @@ public final class Ooa {
                 case "reset-admin" -> resetAdmin(Arrays.copyOfRange(args, 1, args.length));
                 case "db" -> DbCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "license" -> LicenseCommand.run(Arrays.copyOfRange(args, 1, args.length));
+                case "check" -> CheckCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "backup" -> BackupCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "tls" -> TlsCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "service" -> WindowsService.run(Arrays.copyOfRange(args, 1, args.length));
@@ -85,7 +86,7 @@ public final class Ooa {
                 + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
                 + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
                 + " | license show FILE"
-                + " | backup now|list|restore FILE [--replace] [--data DIR]"
+                + " | backup now|list|restore FILE [--replace] [--data DIR] | check [--data DIR] [--port N] | agent diagnose"
                 + " | tls configure --pfx FILE|set-password|self-signed [--host NAME]|show|export-cert --out FILE|off [--data DIR]"
                 + " | service install|uninstall|start|stop|status [--mode server|control-room|agent] (Windows services)"
                 + " | browser-connector install|status|uninstall | native-host (started by the browser)");
@@ -302,6 +303,16 @@ public final class Ooa {
                 System.out.println("Trusted CA:  " + (String.valueOf(r.get("ca")).isEmpty() ? "Java's and Windows' certificate authorities" : r.get("ca") + ", plus Java's and Windows' authorities"));
                 System.out.println("Restart the runner for a change to take effect.");
                 return 0;
+            }
+            case "diagnose" -> {
+                // why this runner cannot reach or work with its Command Center
+                int fails = 0;
+                for (var l : com.oneofficeautomation.agent.Diagnose.run(config, Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString())))) {
+                    System.out.printf("%-5s %-18s %s%n", l.level(), l.what(), l.detail());
+                    if (l.level().equals("FAIL")) fails++;
+                }
+                System.out.println(fails == 0 ? "No problems found." : fails + " problem(s) found.");
+                return fails;
             }
             case "install-task" -> { return WindowsService.installTask(o); }
             case "uninstall-task" -> { return WindowsService.uninstallTask(); }

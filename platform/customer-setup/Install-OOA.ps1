@@ -10,6 +10,11 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -Service                     run it as a Windows service that starts with Windows (needs administrator)
   -Port N                      its port (default 8720)
   -DataDir DIR                 its data folder (default: as the product chooses)
+  -DbServer NAME               put its data on this SQL Server (host or host\instance); default: the built-in evaluation
+                               database. With it: -DbName (ooa_command_center), -DbUser (ooa_app), -DbSetupUser (ooa_setup),
+                               -DbPasswordEnv VAR and -DbSetupPasswordEnv VAR (environment variables holding the passwords;
+                               asked for when not silent), -DbTrustCertificate (a test server's self-signed certificate)
+  -SkipCheck                   install even when the prerequisite check (ooa check) finds a problem
   Runner:
   -Url URL                     the Command Center address, for example https://ooa.example.com:8720
   -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner
@@ -22,7 +27,9 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -NoShortcuts                 no Start menu entries
   -NoStart                     do not start anything after installing
 
-Exit codes: 0 installed, 1 a parameter is missing or wrong, 2 the install failed, 3 administrator rights are needed.
+Exit codes: 0 installed, 1 a parameter is missing or wrong, 2 the install failed, 3 administrator rights are needed,
+4 the prerequisite check failed. An update in place stops the services, replaces the files, upgrades the database and
+starts the services again.
 Everything is logged to %TEMP%\ooa-install.log.
 #>
 param(
@@ -38,6 +45,14 @@ param(
     [string]$RunnerName = "",
     [string]$CaFile = "",
     [string]$Proxy = "",
+    [string]$DbServer = "",
+    [string]$DbName = "ooa_command_center",
+    [string]$DbUser = "ooa_app",
+    [string]$DbSetupUser = "ooa_setup",
+    [string]$DbPasswordEnv = "",
+    [string]$DbSetupPasswordEnv = "",
+    [switch]$DbTrustCertificate,
+    [switch]$SkipCheck,
     [switch]$NoShortcuts,
     [switch]$NoStart,
     # used by the MSI: the files are already in place; only set up the role. ServiceFlag 1 = -Service.
@@ -81,6 +96,23 @@ if ($Role -eq "Runner") {
     if (-not $Url -or -not $RegistrationKey) { Fail 1 "A runner needs -Url and -RegistrationKey." }
     if ($Url -notmatch '^https?://') { Fail 1 "-Url starts with https:// or http://" }
     if ($CaFile -and -not (Test-Path $CaFile)) { Fail 1 "No such certificate file: $CaFile" }
+}
+if ($Role -eq "CommandCenter" -and -not $ConfigureOnly -and -not $DbServer -and -not $Silent) {
+    $DbServer = Ask "SQL Server for the Command Center's data (host or host\instance; empty = built-in evaluation database)" ""
+}
+if ($Role -eq "CommandCenter" -and $DbServer) {
+    # passwords travel in environment variables only, never on a command line or in the log
+    if (-not $DbPasswordEnv) {
+        if ($Silent) { Fail 1 "-DbServer needs -DbPasswordEnv and -DbSetupPasswordEnv (environment variables holding the passwords)." }
+        $env:OOA_SETUP_DB_PW = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host "Password of $DbUser (the account the server runs with)" -AsSecureString)))
+        $DbPasswordEnv = "OOA_SETUP_DB_PW"
+    }
+    if (-not $DbSetupPasswordEnv) {
+        if ($Silent) { Fail 1 "-DbServer needs -DbSetupPasswordEnv." }
+        $env:OOA_SETUP_DB_SETUP_PW = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR((Read-Host "Password of $DbSetupUser (creates the database and tables)" -AsSecureString)))
+        $DbSetupPasswordEnv = "OOA_SETUP_DB_SETUP_PW"
+    }
+    foreach ($v in $DbPasswordEnv, $DbSetupPasswordEnv) { if (-not [Environment]::GetEnvironmentVariable($v)) { Fail 1 "The environment variable $v is not set." } }
 }
 Log "Installing $Role $version into $InstallDir (all users: $([bool]$AllUsers), service: $([bool]$Service))"
 
@@ -130,12 +162,31 @@ try {
 
 # ---------- set up the role ----------
 function Ooa([string[]]$a) {
-    $out = (& $ooa @a 2>&1 | Out-String).Trim()
+    # messages on the error stream are logged, not fatal (Windows PowerShell 5.1 would stop the script on them)
+    $ErrorActionPreference = "Continue"
+    $out = (& $ooa @a 2>&1 | ForEach-Object { "$_" } | Out-String).Trim()
     Log "> ooa $(($a | ForEach-Object { if ($_ -like 'ooareg_*') { 'ooareg_(hidden)' } else { $_ } }) -join ' ')"
     if ($out) { Log $out }
     return $LASTEXITCODE
 }
 if ($Role -eq "CommandCenter") {
+    $dataArgs = @(); if ($DataDir) { $dataArgs = @("--data", $DataDir) }
+    # prerequisites (I10)
+    if (-not $SkipCheck -and -not $ConfigureOnly) {
+        if ((Ooa (@("check", "--port", "$Port") + $dataArgs)) -ne 0) { Fail 4 "The prerequisite check found a problem (see $log). Fix it, or run again with -SkipCheck." }
+    }
+    # the database (I4): SQL Server set up here, or an existing one upgraded after an update (I7)
+    if ($DbServer) {
+        $a = @("db", "configure", "--engine", "sqlserver", "--host", $DbServer, "--database", $DbName, "--user", $DbUser, "--setup-user", $DbSetupUser) + $dataArgs
+        if ($DbTrustCertificate) { $a += "--trust-any-certificate" }
+        if ((Ooa $a) -ne 0) { Fail 2 "The database settings could not be written (see $log)." }
+        if ((Ooa (@("db", "set-password", "--from-env", $DbPasswordEnv) + $dataArgs)) -ne 0) { Fail 2 "The database password could not be stored (see $log)." }
+        if ((Ooa (@("db", "set-password", "--setup", "--from-env", $DbSetupPasswordEnv) + $dataArgs)) -ne 0) { Fail 2 "The setup password could not be stored (see $log)." }
+        if ((Ooa (@("db", "init") + $dataArgs)) -ne 0) { Fail 2 "The database could not be created on $DbServer (see $log). Check the server name and the setup account's rights." }
+        Log "The Command Center keeps its data in $DbName on $DbServer."
+    } elseif ((Test-Path (Join-Path $(if ($DataDir) { $DataDir } else { Join-Path $env:USERPROFILE "OOA Command Center" }) "config\ooa-db.properties")) -and ((Ooa (@("db", "migrate") + $dataArgs)) -ne 0)) {
+        Log "Warning: the database could not be upgraded now; the server upgrades it at its next start, or run: bin\ooa.bat db migrate"
+    }
     if ($Service) {
         $a = @("service", "install", "--mode", "server", "--port", "$Port")
         if ($DataDir) { $a += @("--data", $DataDir) }
