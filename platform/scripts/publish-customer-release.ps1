@@ -1,0 +1,57 @@
+# Publishes a customer release of ONEOFFICEAUTOMATION to the private repository VirupakshaPrabhu/OOA_Customer_Build.
+#   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft]
+# It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
+# release v<version> (the version in platform\build.gradle.kts) with the zip attached, and prints the release address.
+# It signs in with the GitHub account git already uses (Git Credential Manager); nothing is stored or printed.
+param(
+    [string]$Notes = "",
+    [switch]$Draft,
+    [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build"
+)
+$ErrorActionPreference = "Stop"
+$platform = Split-Path -Parent $PSScriptRoot
+
+# 1. version and build
+$version = ([regex]'version = "([^"]+)"').Match((Get-Content (Join-Path $platform "build.gradle.kts") -Raw)).Groups[1].Value
+if (-not $version) { throw "No version found in platform\build.gradle.kts" }
+Write-Host "Building the customer zip for version $version ..."
+Push-Location $platform
+try { & .\gradlew.bat :cli:customerDistZip --console=plain -q; if ($LASTEXITCODE -ne 0) { throw "The build failed" } } finally { Pop-Location }
+$zip = Join-Path $platform "cli\build\distributions\ooa-customer-$version.zip"
+if (-not (Test-Path $zip)) { throw "Not found: $zip" }
+
+# 2. the customer zip must not carry the vendor's license tools
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+try {
+    $vendor = $archive.Entries | Where-Object { $_.FullName -match "vendor-tools|private\.key|\.lic$" }
+    if ($vendor) { throw "The customer zip holds vendor files: $($vendor.FullName -join ', ')" }
+} finally { $archive.Dispose() }
+$sizeMb = [math]::Round((Get-Item $zip).Length / 1MB)
+Write-Host "Checked: no vendor tools in $zip ($sizeMb MB)."
+
+# 3. sign in with git's GitHub credential
+# (the request goes through a file: Windows PowerShell changes text it pipes to programs, and git then rejects it)
+$req = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllText($req, "protocol=https`nhost=github.com`n`n", (New-Object System.Text.UTF8Encoding $false))
+try { $cred = cmd /c "git credential fill < `"$req`"" } finally { Remove-Item $req -Force }
+$token = ($cred | Where-Object { $_ -like "password=*" }) -replace "^password=", ""
+if (-not $token) { throw "No GitHub credential: push once to GitHub from this PC, then run this again" }
+$headers = @{ Authorization = "Bearer $token"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
+
+# 4. the release (refused when it exists already: raise the version for a new release)
+$tag = "v$version"
+try { Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases/tags/$tag" | Out-Null; throw "Release $tag exists already in $Repository. Raise the version in platform\build.gradle.kts for a new release." }
+catch { if ($_.Exception.Message -like "Release $tag exists*") { throw } }
+$source = (git -C $platform rev-parse --short HEAD).Trim()
+if (-not $Notes) { $Notes = "See RELEASES.md for what changed." }
+$body = "ONEOFFICEAUTOMATION $version for customers.`n`n$Notes`n`n**Install:** download ooa-customer-$version.zip, unzip it, double-click START-OOA.cmd (Java 21 needed), then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
+$release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases" -ContentType "application/json" `
+    -Body (@{ tag_name = $tag; target_commitish = "main"; name = "ONEOFFICEAUTOMATION $version"; body = $body; draft = [bool]$Draft; prerelease = $false } | ConvertTo-Json)
+
+# 5. attach the zip
+Write-Host "Uploading $sizeMb MB ..."
+$uploadUrl = $release.upload_url -replace "\{.*\}$", ""
+$asset = Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=ooa-customer-$version.zip" -ContentType "application/zip" -InFile $zip -TimeoutSec 3600
+Write-Host "Published $tag : $($release.html_url)"
+Write-Host "Download (signed-in GitHub users with access): $($asset.browser_download_url)"
