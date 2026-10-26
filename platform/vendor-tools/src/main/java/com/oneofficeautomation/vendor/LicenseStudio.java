@@ -43,7 +43,11 @@ public final class LicenseStudio {
 
     public void start() throws IOException {
         Files.createDirectories(issuedDir);
-        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
+        try { server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0); }
+        catch (java.net.BindException e) {
+            // the port is taken (often License Studio already open in another window): use any free port instead
+            server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        }
         server.createContext("/", this::handle);
         server.start();
     }

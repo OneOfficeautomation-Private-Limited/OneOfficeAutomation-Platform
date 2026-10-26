@@ -37,6 +37,8 @@ public final class VendorLicenseTools {
         Path key = Path.of(o.getOrDefault("key", Path.of(System.getProperty("user.home"), "OOA License Keys", "private.key").toString()));
         LicenseStudio studio = new LicenseStudio(key, Integer.parseInt(o.getOrDefault("port", "8790")));
         studio.start();
+        if (!studio.url().contains(":" + o.getOrDefault("port", "8790") + "/"))
+            System.out.println("Port " + o.getOrDefault("port", "8790") + " is in use (License Studio may already be open in another window), so another port is used.");
         System.out.println("License Studio is running (this computer only). Open:");
         System.out.println("  " + studio.url());
         System.out.println("Signing key: " + key.toAbsolutePath() + (Files.exists(key) ? "" : "  (NOT FOUND: use --key FILE)"));
