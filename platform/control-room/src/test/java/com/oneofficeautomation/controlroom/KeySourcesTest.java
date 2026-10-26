@@ -77,14 +77,6 @@ class KeySourcesTest {
         assertThrows(OoaException.class, () -> KeySources.fetch("aws-secrets:not-a-region/x"));
     }
 
-    @Test void signatureVersion4MatchesAwsPublishedExample() throws Exception {
-        // the example request in AWS's Signature Version 4 documentation (IAM ListUsers, 2015-08-30)
-        Map<String, String> h = new TreeMap<>(Map.of("content-type", "application/x-www-form-urlencoded; charset=utf-8", "host", "iam.amazonaws.com", "x-amz-date", "20150830T123600Z"));
-        String auth = KeySources.sigV4("GET", "/", "Action=ListUsers&Version=2010-05-08", h, "", "us-east-1", "iam", "AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY", "20150830T123600Z");
-        assertEquals("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/iam/aws4_request, SignedHeaders=content-type;host;x-amz-date, "
-            + "Signature=5d672d79c15b13162d9279b0855cfba6789a8edb4c82c400e06b5924a6f2b5d7", auth);
-    }
-
     @Test void manualUnlockAndBadKeys() throws Exception {
         var before = KeySources.prompt;
         try {

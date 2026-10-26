@@ -3,19 +3,15 @@ package com.oneofficeautomation.controlroom;
 import com.oneofficeautomation.sdk.JsonLite;
 import com.oneofficeautomation.sdk.OoaException;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -131,17 +127,14 @@ final class KeySources {
         String[] creds = awsCredentials();
         String host = "secretsmanager." + region + ".amazonaws.com";
         String body = JsonLite.write(Map.of("SecretId", id));
-        Map<String, String> headers = new TreeMap<>();
+        Map<String, String> headers = new LinkedHashMap<>();
         headers.put("content-type", "application/x-amz-json-1.1");
-        headers.put("host", host);
         headers.put("x-amz-target", "secretsmanager.GetSecretValue");
-        String amzDate = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").format(ZonedDateTime.now(ZoneOffset.UTC));
-        headers.put("x-amz-date", amzDate);
         if (creds[2] != null) headers.put("x-amz-security-token", creds[2]);
-        String auth = sigV4("POST", "/", "", headers, body, region, "secretsmanager", creds[0], creds[1], amzDate);
+        Map<String, String> signed = ExternalVaults.SigV4.sign("POST", URI.create("https://" + host + "/"), headers, body, creds[0], creds[1], region, "secretsmanager", ZonedDateTime.now(ZoneOffset.UTC));
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(awsEndpoint != null ? awsEndpoint : "https://" + host + "/")).timeout(Duration.ofSeconds(20))
-            .POST(HttpRequest.BodyPublishers.ofString(body)).header("Authorization", auth);
-        for (var h : headers.entrySet()) if (!h.getKey().equals("host")) b.header(h.getKey(), h.getValue());
+            .POST(HttpRequest.BodyPublishers.ofString(body));
+        for (var h : signed.entrySet()) if (!h.getKey().equals("host")) b.header(h.getKey(), h.getValue());
         return (String) json(HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString())).get("SecretString");
     }
 
@@ -164,33 +157,6 @@ final class KeySources {
         }
         return new String[] { (String) c.get("AccessKeyId"), (String) c.get("SecretAccessKey"), (String) c.get("Token") };
     }
-
-    /**
-     * The AWS Signature Version 4 Authorization header. headers: lower-case names, all of them signed (TreeMap order);
-     * query: the canonical query string (already sorted and encoded).
-     */
-    static String sigV4(String method, String path, String query, Map<String, String> headers, String body, String region, String service, String accessKey, String secretKey, String amzDate) throws Exception {
-        String day = amzDate.substring(0, 8);
-        StringBuilder canonicalHeaders = new StringBuilder();
-        for (var h : new TreeMap<>(headers).entrySet()) canonicalHeaders.append(h.getKey()).append(':').append(h.getValue().trim()).append('\n');
-        String signed = String.join(";", new TreeMap<>(headers).keySet());
-        String canonical = method + "\n" + path + "\n" + query + "\n" + canonicalHeaders + "\n" + signed + "\n" + hex(sha256(body));
-        String scope = day + "/" + region + "/" + service + "/aws4_request";
-        String toSign = "AWS4-HMAC-SHA256\n" + amzDate + "\n" + scope + "\n" + hex(sha256(canonical));
-        byte[] k = hmac(("AWS4" + secretKey).getBytes(StandardCharsets.UTF_8), day);
-        k = hmac(k, region); k = hmac(k, service); k = hmac(k, "aws4_request");
-        return "AWS4-HMAC-SHA256 Credential=" + accessKey + "/" + scope + ", SignedHeaders=" + signed + ", Signature=" + hex(hmac(k, toSign));
-    }
-
-    private static byte[] sha256(String s) throws Exception { return MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8)); }
-
-    private static byte[] hmac(byte[] key, String data) throws Exception {
-        Mac m = Mac.getInstance("HmacSHA256");
-        m.init(new SecretKeySpec(key, "HmacSHA256"));
-        return m.doFinal(data.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String hex(byte[] b) { return HexFormat.of().formatHex(b); }
 
     private static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8); }
 
