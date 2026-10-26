@@ -47,13 +47,22 @@ public final class Db implements AutoCloseable {
     }
 
     /**
-     * Test runs only (-Pooa.test.db=jdbc:sqlserver://host:port;encrypt=false with ooa.test.db.user and
-     * ooa.test.db.password): each data folder gets its own SQL Server database named after the folder, so the whole
-     * test suite runs against SQL Server unchanged. The databases are named ooa_t_* and dropped after the run.
+     * Test runs only (-Pooa.test.db=jdbc:sqlserver://host:port;encrypt=false, or jdbc:postgresql://host:port/, with
+     * ooa.test.db.user and ooa.test.db.password): each data folder gets its own database named after the folder, so the
+     * whole test suite runs against SQL Server or PostgreSQL unchanged. The databases are named ooa_t_*.
      */
     private static Db testDatabase(String base, java.nio.file.Path dir) {
         String user = System.getProperty("ooa.test.db.user", ""), pw = System.getProperty("ooa.test.db.password", "");
         String name = "ooa_t_" + Security.sha256(dir.toAbsolutePath().normalize().toString()).substring(0, 20);
+        if (base.startsWith("jdbc:postgresql:")) {
+            String server = base.endsWith("/") ? base : base + "/";
+            try (Connection c = DriverManager.getConnection(server + "postgres", user, pw); Statement s = c.createStatement()) {
+                try (ResultSet r = s.executeQuery("SELECT 1 FROM pg_database WHERE datname = '" + name + "'")) {
+                    if (!r.next()) s.execute("CREATE DATABASE " + name);
+                }
+            } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }
+            return new Db(server + name, user, pw);
+        }
         try (Connection c = DriverManager.getConnection(base + ";databaseName=master", user, pw); Statement s = c.createStatement()) {
             s.execute("IF DB_ID('" + name + "') IS NULL BEGIN CREATE DATABASE [" + name + "]; ALTER DATABASE [" + name + "] SET READ_COMMITTED_SNAPSHOT ON; END");
         } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }

@@ -109,7 +109,8 @@ public final class ControlRoomServer {
         catch (java.net.BindException e) {
             throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Command Center may still be running", "Stop it, or start with --port " + (port + 1) + ".");
         }
-        server.setExecutor(Executors.newFixedThreadPool(16, r -> { Thread t = new Thread(r, "ooa-cr-http"); t.setDaemon(true); return t; }));
+        // one virtual thread per request: runners waiting for work (long polls) cost almost nothing while they wait
+        server.setExecutor(Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("ooa-cr-http-", 0).factory()));
         server.createContext("/", this::handle);
         mounts.forEach(server::createContext);
         server.start();
@@ -318,7 +319,11 @@ public final class ControlRoomServer {
             if (m.equals("POST") && route.equals("agent/heartbeat")) sendJson(ex, 200, cr.heartbeat(d, map(body(ex))));
             else if (m.equals("GET") && route.equals("agent/update/manifest")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); if (mf == null) notFound(ex); else sendJson(ex, 200, mf); }
             else if (m.equals("GET") && route.equals("agent/update/file")) sendBytes(ex, cr.runnerUpdates.file(q.get("name")), "application/java-archive", q.get("name"));
-            else if (m.equals("POST") && route.equals("agent/jobs/next")) { Map<String, Object> job = cr.claimNext(d); sendJson(ex, 200, job == null ? Map.of("job", false) : Map.of("job", job)); }
+            else if (m.equals("POST") && route.equals("agent/jobs/next")) {
+                // ?wait=SECONDS: hold the request until work arrives (at most 25 s); without it, answer at once (older runners)
+                long wait = q.get("wait") != null && q.get("wait").matches("\\d{1,3}") ? Long.parseLong(q.get("wait")) * 1000 : 0;
+                sendJson(ex, 200, cr.nextJob(d, wait));
+            }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("events")) { cr.appendEvents(d, seg[2], (List<Object>) map(body(ex)).getOrDefault("events", List.of())); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("finish")) { cr.finish(d, seg[2], map(map(body(ex)).getOrDefault("result", Map.of()))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/credential")) {

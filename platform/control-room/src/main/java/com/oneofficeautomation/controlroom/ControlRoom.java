@@ -1147,6 +1147,7 @@ public final class ControlRoom {
         audit.record(requestedBy, "run.start", "run", runId, details, "ok", ip);
         Map<String, Object> out = new LinkedHashMap<>(Map.of("run_id", runId, "version", c.get("version"), "device_id", deviceId));
         if (asUser != null) out.put("run_as", asUser);
+        wake(deviceId, false);
         return out;
     }
 
@@ -1253,6 +1254,38 @@ public final class ControlRoom {
     static String versionStatus(Object runnerVersion) {
         if (runnerVersion == null || String.valueOf(runnerVersion).isBlank() || "null".equals(String.valueOf(runnerVersion))) return "ok";
         return compareVersions(String.valueOf(runnerVersion), VERSION) > 0 ? "newer_than_command_center" : "ok";
+    }
+
+    // ---------- waiting for work (the runner's long poll) ----------
+    private final Object wakeUp = new Object();
+    /** Runners told to send a heartbeat now (a run of theirs was stopped, paused or resumed). */
+    private final Set<String> checkNow = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Wakes runners waiting for work: a run was queued, or a run of theirs needs controlling (deviceId null: all). */
+    void wake(String deviceId, boolean control) {
+        if (control && deviceId != null) checkNow.add(deviceId);
+        synchronized (wakeUp) { wakeUp.notifyAll(); }
+    }
+
+    /**
+     * The next job for a runner, waiting up to {@code waitMs} for one (a long poll: the runner gets work the moment it is
+     * queued, without asking every few seconds). Answers {job}, {job: false}, or {job: false, check: true} when the runner
+     * should send a heartbeat at once (a run of its own was stopped or paused). Checks again every 2 seconds in any case,
+     * for work queued without a wake-up (runner pools, other Command Center nodes).
+     */
+    public Map<String, Object> nextJob(Map<String, Object> d, long waitMs) {
+        String did = (String) d.get("id");
+        long end = System.currentTimeMillis() + Math.max(0, Math.min(waitMs, 25_000));
+        while (true) {
+            Map<String, Object> job = claimNext(d);
+            if (job != null) return Map.of("job", job);
+            if (checkNow.remove(did)) return Map.of("job", false, "check", true);
+            long left = end - System.currentTimeMillis();
+            if (left <= 0) return Map.of("job", false);
+            synchronized (wakeUp) {
+                try { wakeUp.wait(Math.min(left, 2000)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return Map.of("job", false); }
+            }
+        }
     }
 
     public Map<String, Object> claimNext(Map<String, Object> d) {
@@ -1399,6 +1432,8 @@ public final class ControlRoom {
             case "resume" -> db.update("UPDATE runs SET pause_requested = FALSE WHERE id = ?", runId);
             default -> throw new OoaException("CR.BAD_INPUT", "Unknown action " + action);
         }
+        Map<String, Object> dev = db.one("SELECT device_id FROM runs WHERE id = ?", runId);
+        if (dev != null && dev.get("device_id") != null) wake((String) dev.get("device_id"), true);
         audit.record(by.username(), "run." + action, "run", runId, null, "ok", ip);
     }
 

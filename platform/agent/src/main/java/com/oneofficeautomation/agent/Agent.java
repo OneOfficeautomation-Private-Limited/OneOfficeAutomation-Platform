@@ -30,9 +30,11 @@ public final class Agent {
     private final ExecutorService io = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-agent-io"); t.setDaemon(true); return t; });
     private final LocalTriggers localTriggers;
     long heartbeatMs = 10_000, pollMs = 2_000, triggerPollMs = 2_000;
+    /** How long the Command Center may hold a request for work before answering (the long poll), in seconds. */
+    long waitSeconds = 25;
 
-    /** Heartbeat and job-poll intervals in milliseconds (defaults 10 s and 2 s). */
-    public Agent intervals(long heartbeat, long poll) { heartbeatMs = heartbeat; pollMs = poll; return this; }
+    /** Heartbeat and job-poll intervals in milliseconds (defaults 10 s and 2 s); a poll under a second also turns the long poll off. */
+    public Agent intervals(long heartbeat, long poll) { heartbeatMs = heartbeat; pollMs = poll; if (poll < 1000) waitSeconds = 0; return this; }
 
     // ---------------- configuration ----------------
     public static Path defaultConfig() { return Path.of(System.getProperty("user.home"), ".ooa-agent", "agent.json"); }
@@ -154,8 +156,12 @@ public final class Agent {
         while (!stopping) {
             try {
                 if (active == null) {
-                    Map<String, Object> r = client.post("jobs/next", Map.of());
+                    long asked = System.currentTimeMillis();
+                    Map<String, Object> r = client.post(waitSeconds > 0 ? "jobs/next?wait=" + waitSeconds : "jobs/next", Map.of());
                     if (r.get("job") instanceof Map<?, ?> job) { @SuppressWarnings("unchecked") Map<String, Object> j = (Map<String, Object>) job; execute(j); continue; }
+                    if (Boolean.TRUE.equals(r.get("check"))) io.submit(this::heartbeat);
+                    // the Command Center held the request (long poll): ask again at once; an older one answers at once, so wait as before
+                    if (System.currentTimeMillis() - asked >= pollMs) continue;
                 }
             } catch (OoaException e) { log("warning", "Command Center: " + e.getMessage()); }
             try { Thread.sleep(pollMs); } catch (InterruptedException e) { break; }
