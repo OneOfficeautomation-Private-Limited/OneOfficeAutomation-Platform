@@ -117,7 +117,7 @@ def validate_flow(flow: dict, registry: PackageRegistry | None = None, *, raise_
             add(e.message, sid, "args", e.suggested_fix)
             refs = set()
         for name in sorted(refs):
-            if name not in declared:
+            if name not in declared and name not in ("sys", "global"):   # built in: facts about the run, shared values
                 add(f"Variable '${name}' is not declared", sid, "args",
                     f"Declare '{name}' in variables or fix the spelling.")
         for out_name, var in (step.get("out") or {}).items():
