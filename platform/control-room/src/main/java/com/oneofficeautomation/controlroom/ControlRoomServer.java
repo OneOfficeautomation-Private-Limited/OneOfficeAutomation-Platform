@@ -654,6 +654,11 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "backups" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.backups.backupNow(u, ip));
+                else notFound(ex);
+            }
             case "git" -> {
                 if (m.equals("GET") && route.equals("git/status")) sendJson(ex, 200, cr.gitSync.status(u));
                 else if (m.equals("POST") && route.equals("git/sync")) {

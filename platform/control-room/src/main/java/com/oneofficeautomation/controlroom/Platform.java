@@ -60,6 +60,9 @@ public final class Platform {
         DEFAULTS.put("git_auto_push", 0);
         DEFAULTS.put("temporary_runner_hours", 8);
         DEFAULTS.put("audit_retention_days", 0);
+        DEFAULTS.put("backup_hours", 0);
+        DEFAULTS.put("backup_keep_days", 7);
+        DEFAULTS.put("backup_folder", "");
         DEFAULTS.put("runner_secret_days", 30);
         DEFAULTS.put("saml_idp_sso_url", "");
         DEFAULTS.put("saml_idp_entity_id", "");
@@ -87,6 +90,8 @@ public final class Platform {
         Map.entry("git_auto_push", new long[] { 0, 1 }),
         Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
         Map.entry("audit_retention_days", new long[] { 0, 36500 }),
+        Map.entry("backup_hours", new long[] { 0, 168 }),
+        Map.entry("backup_keep_days", new long[] { 1, 3650 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
