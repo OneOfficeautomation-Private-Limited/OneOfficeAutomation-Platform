@@ -58,7 +58,10 @@ public final class ProductionApproval {
         });
         cr.audit.record(by.username(), approve ? "repo.production_approve" : "repo.production_reject", "bot", path,
             Map.of("version", version, "request", id, "requested_by", r.get("requested_by")), "ok", ip);
-        if (approve) cr.audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version, "approved_request", id), "ok", ip);
+        if (approve) {
+            cr.audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version, "approved_request", id), "ok", ip);
+            cr.gitSync.changed(by.username(), path + ": v" + version + " is live in production (approved by " + by.username() + ", asked by " + r.get("requested_by") + ")");
+        }
         return get(id);
     }
 

@@ -53,6 +53,11 @@ public final class Platform {
         DEFAULTS.put("mfa_required", 0);
         DEFAULTS.put("production_approval", 0);
         DEFAULTS.put("runner_auto_update", 0);
+        DEFAULTS.put("git_remote_url", "");
+        DEFAULTS.put("git_branch", "main");
+        DEFAULTS.put("git_username", "");
+        DEFAULTS.put("git_token_ref", "");
+        DEFAULTS.put("git_auto_push", 0);
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -70,7 +75,8 @@ public final class Platform {
         Map.entry("block_executable_uploads", new long[] { 0, 1 }),
         Map.entry("mfa_required", new long[] { 0, 2 }),
         Map.entry("production_approval", new long[] { 0, 1 }),
-        Map.entry("runner_auto_update", new long[] { 0, 1 }));
+        Map.entry("runner_auto_update", new long[] { 0, 1 }),
+        Map.entry("git_auto_push", new long[] { 0, 1 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -110,6 +116,10 @@ public final class Platform {
                 if (s.length() > 2000) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
                 if ((k.equals("public_url") || k.equals("sso_issuer")) && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
+                if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))
+                    throw new OoaException("CR.BAD_INPUT", "The Git remote is an https:// address, for example https://github.com/acme/agents.git");
+                if (k.equals("git_branch") && !s.isEmpty() && !s.matches("[A-Za-z0-9._/-]{1,100}") ) throw new OoaException("CR.BAD_INPUT", "Not a branch name: " + s);
+                if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))
                     throw new OoaException("CR.BAD_INPUT", "The syslog target is host:port, for example siem.example.com:514");
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");

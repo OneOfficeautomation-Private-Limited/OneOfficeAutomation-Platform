@@ -60,6 +60,7 @@ public final class ControlRoom {
     public final Mfa mfa;
     public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
+    public final GitSync gitSync;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -103,6 +104,7 @@ public final class ControlRoom {
         this.mfa = new Mfa(this);
         this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
+        this.gitSync = new GitSync(this, dataDir);
         audit.onRecord(syslog::forward);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);
@@ -729,6 +731,7 @@ public final class ControlRoom {
             db.update("INSERT INTO bot_versions (path, version, content, sha256, comment, author, created) VALUES (?,?,?,?,?,?,?)",
                     path, version, json, Security.sha256(json), comment == null ? "" : comment, by.username(), now());
             audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
+            gitSync.changed(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
             // the code analysis report of the new version, against today's policy
             if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow), by.username());
             return Map.of("path", path, "version", version, "created", b == null);
@@ -749,6 +752,7 @@ public final class ControlRoom {
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
         db.update("UPDATE bots SET production_version = ?, updated = ?, updated_by = ? WHERE path = ?", version, now(), by.username(), path);
         audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version), "ok", ip);
+        gitSync.changed(by.username(), path + ": v" + version + " is live in production");
     }
 
     /**
@@ -768,6 +772,7 @@ public final class ControlRoom {
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
         audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
+        gitSync.changed(by.username(), path + " deleted");
         return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
     }
 

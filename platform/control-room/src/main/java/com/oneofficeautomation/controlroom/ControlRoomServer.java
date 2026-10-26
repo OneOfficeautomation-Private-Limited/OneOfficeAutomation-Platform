@@ -625,6 +625,14 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "git" -> {
+                if (m.equals("GET") && route.equals("git/status")) sendJson(ex, 200, cr.gitSync.status(u));
+                else if (m.equals("POST") && route.equals("git/sync")) {
+                    try { sendJson(ex, 200, cr.gitSync.syncNow(u, ip)); }
+                    catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Git sync failed: " + e.getMessage()); }
+                }
+                else notFound(ex);
+            }
             case "devices" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.devicesPage(u, q));
                 else if (m.equals("GET") && route.equals("devices/runasusers")) sendJson(ex, 200, Map.of("users", cr.runAsUsers(u)));
