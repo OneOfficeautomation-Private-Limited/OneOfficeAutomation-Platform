@@ -141,6 +141,48 @@ jobs:
           path: platform/control-room/build/reports/tests/
           retention-days: 7
 
+  container:
+    name: Container image (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build the image
+        run: |
+          chmod +x gradlew
+          ./gradlew :cli:installCustomerDist --console=plain
+          docker build -f docker/Dockerfile -t ooa-command-center:ci .
+      - name: Start it alone and with PostgreSQL, and check health
+        run: |
+          # throwaway secrets for this job's containers only
+          PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"
+          echo "::add-mask::$PW"; echo "::add-mask::$KEY"
+          wait_ready() {
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$1/api/health/ready" || true)
+              [ "$code" = "200" ] && echo "ready on $1" && return 0
+              sleep 2
+            done
+            docker logs "$2"; return 1
+          }
+          docker run -d --name alone -p 8720:8720 -e "OOA_MASTER_KEY=$KEY" ooa-command-center:ci
+          wait_ready 8720 alone
+          test "$(docker exec alone id -un)" = "ooa"
+          docker network create ooa
+          docker run -d --name pg --network ooa -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_DB=ooa postgres:16
+          for i in $(seq 1 60); do docker exec pg pg_isready -U postgres >/dev/null 2>&1 && break; sleep 2; done
+          docker run -d --name withdb --network ooa -p 8721:8720 -e "OOA_MASTER_KEY=$KEY" -e "OOA_DB_URL=jdbc:postgresql://pg:5432/ooa" \
+            -e OOA_DB_USER=postgres -e "OOA_DB_PASSWORD=$PW" ooa-command-center:ci
+          wait_ready 8721 withdb
+          docker exec pg psql -U postgres -d ooa -tAc "SELECT COUNT(*) FROM users" | grep -qx 1
+          for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' alone)" = "healthy" ] && break; sleep 5; done
+          docker inspect -f '{{.State.Health.Status}}' alone | grep -qx healthy
+
   ui:
     name: Console and Studio UI tests (Linux)
     runs-on: ubuntu-latest
