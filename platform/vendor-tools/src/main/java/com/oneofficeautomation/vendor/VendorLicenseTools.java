@@ -11,6 +11,7 @@ import java.util.*;
  * The vendor's license tools, reached through {@code ooa license keygen|issue} in the vendor build only. The customer
  * distribution does not contain this module, so customers can read and check license files but never make them.
  * <pre>
+ * ooa license ui [--key FILE] [--port 8790] [--no-browser]   License Studio, the page for issuing and checking licenses
  * ooa license keygen --out DIR        a new Ed25519 signing key pair (private.key stays with the vendor, never in the repository)
  * ooa license issue --key DIR\private.key --customer "Name" --expires 2027-12-31 [--developer N] [--citizen-developer N]
  *                   [--attended N] [--unattended N] [--grace-days 14] [--edition Enterprise] [--id ID] [--notes TEXT] --out FILE.lic
@@ -26,8 +27,25 @@ public final class VendorLicenseTools {
         return switch (a[0]) {
             case "keygen" -> keygen(o);
             case "issue" -> issue(o);
+            case "ui" -> ui(o);
             default -> 1;
         };
+    }
+
+    /** Starts License Studio on 127.0.0.1 and opens it in the browser (unless --no-browser); stops with Ctrl+C. */
+    static int ui(Map<String, String> o) throws Exception {
+        Path key = Path.of(o.getOrDefault("key", Path.of(System.getProperty("user.home"), "OOA License Keys", "private.key").toString()));
+        LicenseStudio studio = new LicenseStudio(key, Integer.parseInt(o.getOrDefault("port", "8790")));
+        studio.start();
+        System.out.println("License Studio is running (this computer only). Open:");
+        System.out.println("  " + studio.url());
+        System.out.println("Signing key: " + key.toAbsolutePath() + (Files.exists(key) ? "" : "  (NOT FOUND: use --key FILE)"));
+        System.out.println("Press Ctrl+C (or close this window) to stop.");
+        if (!o.containsKey("no-browser") && java.awt.Desktop.isDesktopSupported()) {
+            try { java.awt.Desktop.getDesktop().browse(java.net.URI.create(studio.url())); } catch (Exception ignored) { /* the address above still works */ }
+        }
+        Thread.currentThread().join();
+        return 0;
     }
 
     static int keygen(Map<String, String> o) throws Exception {

@@ -8,7 +8,7 @@ There are two builds:
 | Build | Made with | Holds | Without a license |
 | --- | --- | --- | --- |
 | Customer (what customers install) | `gradlew :cli:customerDistZip` → `cli/build/distributions/ooa-customer-<version>.zip` | The product, `START-OOA.cmd`, `README.txt`; `ooa license show` only | A 30-day evaluation |
-| Vendor (yours) | `gradlew :cli:installDist` or `start-ooa.bat` | The product plus the `vendor-tools` module (`ooa license keygen`, `issue`) | Nothing is limited |
+| Vendor (yours) | `gradlew :cli:installDist` or `start-ooa.bat` | The product plus the `vendor-tools` module (License Studio, `ooa license ui`, `keygen`, `issue`) | Nothing is limited |
 
 The vendor build is recognised by `META-INF/ooa-vendor`, which only the `vendor-tools` jar carries. The customer zip
 leaves that jar out, and its start scripts load `lib\*`, so they never name it.
@@ -17,7 +17,18 @@ leaves that jar out, and its start scripts load `lib\*`, so they never name it.
 
 1. **Agree the terms:** the customer's name, the end date, and the seats (developers, citizen developers, attended and
    unattended runners).
-2. **Issue the file**, in your vendor build:
+2. **Issue the file.** The easy way is **License Studio**: double-click `platform\scripts\License Studio.bat`, or run
+   `ooa license ui`. It opens a page on your PC (127.0.0.1 only, with an access token in the address) that has three tabs:
+   - **Issue a license:** fill in the customer, the end date (with 1 month to 3 years shortcuts), the grace days and the
+     seats, then click Issue license and download the `.lic` file.
+   - **Issued licenses:** every license you issued, with days left, its state, Download, and Renew. Renew fills the
+     form with the same customer and seats and a new end date one year later.
+   - **Check a file:** reads any `.lic` file and tells you whether the product accepts it.
+
+   A copy of every license it issues is kept in `%USERPROFILE%\OOA License Keys\issued`. The pill at the top says
+   whether the private key matches the key built into the product; issuing is switched off when it doesn't.
+
+   The same from the command line, in your vendor build:
    ```
    ooa license issue --key "%USERPROFILE%\OOA License Keys\private.key" --customer "Acme Ltd" --expires 2027-12-31 --developer 5 --attended 10 --unattended 8 --out "Acme Ltd.lic"
    ```

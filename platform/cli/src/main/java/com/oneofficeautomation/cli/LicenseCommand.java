@@ -23,14 +23,14 @@ final class LicenseCommand {
     static int run(String[] a) throws Exception {
         if (a.length == 0) { usage(); return 1; }
         if (a[0].equals("show")) return show(a.length > 1 ? a[1] : null);
-        if ((a[0].equals("keygen") || a[0].equals("issue")) && vendorBuild())
+        if ((a[0].equals("keygen") || a[0].equals("issue") || a[0].equals("ui")) && vendorBuild())
             return (int) Class.forName(VENDOR_TOOLS).getMethod("run", String[].class).invoke(null, (Object) a);
         usage();
         return 1;
     }
 
     static void usage() {
-        System.err.println(vendorBuild() ? "usage: ooa license keygen --out DIR | issue --key FILE --customer NAME --expires YYYY-MM-DD [seats] --out FILE | show FILE"
+        System.err.println(vendorBuild() ? "usage: ooa license ui [--key FILE] | keygen --out DIR | issue --key FILE --customer NAME --expires YYYY-MM-DD [seats] --out FILE | show FILE"
             : "usage: ooa license show FILE   (install licenses in Administration > Licenses)");
     }
 
