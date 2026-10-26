@@ -34,6 +34,8 @@ jobs:
           cache: gradle
       - name: Build and run every test
         shell: pwsh
+        env:
+          OOA_INTERNET_SAMPLES: "0"   # live public websites are too slow and changeable to fail a build on; run them locally
         run: ./gradlew.bat build --continue --console=plain
       - name: Customer zip without vendor tools
         shell: pwsh
