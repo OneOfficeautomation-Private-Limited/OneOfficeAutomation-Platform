@@ -36,6 +36,7 @@ class EvaluationTest {
         db = Db.embedded(data);
         cr = new ControlRoom(db, data, FirstPartyPackages.registry(), null);
         cr.licensing.vendorOverride = false;   // behave as the customer distribution
+        cr.licensing.serverDatabaseOverride = false;   // on the built-in evaluation database (also when the tests run on SQL Server)
         today(LocalDate.of(2026, 11, 1));
         admin = RepositoryLifecycleTest.boot(cr);
         a = RepositoryLifecycleTest.person(cr, admin, "amy", "bot_creator");
@@ -92,7 +93,18 @@ class EvaluationTest {
     void aLicenseReplacesTheEvaluation() {
         Map<String, Integer> seats = new LinkedHashMap<>(Map.of("developer", 5, "citizen_developer", 0, "attended_runner", 0, "unattended_runner", 5));
         String file = new License("LIC-E", "Customer", "Enterprise", LocalDate.of(2026, 12, 1), LocalDate.of(2027, 12, 31), 14, seats, "").sign(priv);
+        // a customer install licenses only on a server database: the evaluation's built-in database is refused
+        assertEquals(Boolean.TRUE, cr.licensing.status(admin).get("requires_server_database"));
+        assertEquals("LICENSE.DB_REQUIRED", code(() -> cr.licensing.install(admin, file, null)));
+        cr.licensing.serverDatabaseOverride = true;   // as after "ooa db init" on SQL Server
         assertEquals("active", cr.licensing.install(admin, file, null).get("state"));
+        assertNull(cr.licensing.status(admin).get("requires_server_database"));
+        // a license that ends up on the built-in database anyway stops the work and says why
+        cr.licensing.serverDatabaseOverride = false;
+        assertEquals("database_required", cr.licensing.state());
+        assertEquals("CR.LICENSE_EXPIRED", code(() -> cr.startRun("admin", "admin", "E/A.flow.json", pc1, Map.of(), "api", null)));
+        assertTrue(String.valueOf(cr.licensing.status(admin).get("banner")).contains("SQL Server"));
+        cr.licensing.serverDatabaseOverride = true;
         cr.licensing.checkSignIn(b);
         assertEquals("CR.LICENSE_REQUIRED", code(() -> cr.startRun("admin", "admin", "E/A.flow.json", pc3, Map.of(), "api", null)), "a licensed install assigns seats by hand");
         cr.licensing.assign(admin, "unattended_runner", pc3, true, null);

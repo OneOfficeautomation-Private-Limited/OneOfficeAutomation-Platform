@@ -31,6 +31,16 @@ public final class Licensing {
     /** Tests choose the vendor (true) or customer (false) behaviour; null: decided by the class path. */
     Boolean vendorOverride;
 
+    /** Tests say whether the database counts as a server database (null: true unless it is the embedded H2). */
+    Boolean serverDatabaseOverride;
+
+    /** Licensed customer installs run on a server database (SQL Server or PostgreSQL), never on the embedded one. */
+    boolean serverDatabase() { return serverDatabaseOverride != null ? serverDatabaseOverride : !db.h2; }
+
+    static final String DATABASE_STEPS = "Stop the Command Center, then in its folder run: bin\\ooa.bat db configure --engine sqlserver --host DBSERVER --database ooa_command_center "
+        + "--user ooa_app --setup-user ooa_setup; bin\\ooa.bat db set-password; bin\\ooa.bat db set-password --setup; bin\\ooa.bat db init; "
+        + "bin\\ooa.bat db copy --from \"%USERPROFILE%\\OOA Command Center\" (keeps the evaluation's data). Start it again and install the license. See INSTALL.md, section 5.";
+
     static final int EVALUATION_DAYS = 30;
     static final Map<String, Integer> EVALUATION_SEATS = Map.of("developer", 2, "citizen_developer", 0, "attended_runner", 2, "unattended_runner", 2);
 
@@ -97,6 +107,8 @@ public final class Licensing {
             if (vendorBuild()) return "unlicensed";
             return ChronoUnit.DAYS.between(evaluationStart(), today()) < EVALUATION_DAYS ? "evaluation" : "evaluation_ended";
         }
+        // a licensed customer install on the embedded database (it can only get there by going around the install check)
+        if (!vendorBuild() && !serverDatabase()) return "database_required";
         LocalDate t = today();
         if (!t.isAfter(l.expires())) return ChronoUnit.DAYS.between(t, l.expires()) <= 30 ? "expiring" : "active";
         return t.isAfter(l.expires().plusDays(l.graceDays())) ? "expired" : "grace";
@@ -105,7 +117,7 @@ public final class Licensing {
     /** True while a license is installed and still in force (limits apply). */
     boolean enforcing() { String s = state(); return s.equals("active") || s.equals("expiring") || s.equals("grace") || s.equals("evaluation"); }
 
-    boolean expired() { String s = state(); return s.equals("expired") || s.equals("evaluation_ended"); }
+    boolean expired() { String s = state(); return s.equals("expired") || s.equals("evaluation_ended") || s.equals("database_required"); }
 
     static boolean isAdmin(ControlRoom cr, User u) { return cr.can(u, "settings.manage"); }
 
@@ -114,6 +126,8 @@ public final class Licensing {
         Map<String, Object> m = new LinkedHashMap<>();
         String st = state();
         m.put("state", st);
+        // a customer install on the embedded database must move to SQL Server before a license can be installed
+        if (!vendorBuild() && !serverDatabase()) { m.put("requires_server_database", true); m.put("database_steps", DATABASE_STEPS); }
         License l = null;
         try { l = current(); } catch (OoaException e) { m.put("problem", e.getMessage()); }
         if (l != null) {
@@ -121,7 +135,8 @@ public final class Licensing {
             m.put("days_left", left);
             m.put("expires", l.expires().toString());
             m.put("grace_until", l.expires().plusDays(l.graceDays()).toString());
-            String text = switch (st) {
+            String text = st.equals("database_required") ? "A licensed installation runs on Microsoft SQL Server. Runs are stopped until the database is moved: " + DATABASE_STEPS : null;
+            if (text == null) text = switch (st) {
                 case "expiring" -> "The license expires in " + left + (left == 1 ? " day" : " days") + " (" + l.expires() + "). Install a new license in Administration > Licenses.";
                 case "grace" -> "The license expired on " + l.expires() + ". Everything keeps working until " + l.expires().plusDays(l.graceDays()) + "; install a new license before then.";
                 case "expired" -> "The license has expired. Runs are stopped and only administrators can sign in. Install a new license in Administration > Licenses.";
@@ -155,6 +170,8 @@ public final class Licensing {
         if (text == null || text.isBlank() || text.length() > 20000) throw new OoaException("LICENSE.INVALID", "Paste or upload the license file");
         License l = License.verify(text, key.get());
         if (today().isAfter(l.expires().plusDays(l.graceDays()))) throw new OoaException("LICENSE.EXPIRED_FILE", "This license expired on " + l.expires(), "Ask for a current license");
+        if (!vendorBuild() && !serverDatabase())
+            throw new OoaException("LICENSE.DB_REQUIRED", "A licensed installation runs on Microsoft SQL Server; this one still uses the built-in evaluation database", DATABASE_STEPS);
         for (String t : License.TYPES) if (used(t) > l.seats().get(t))
             throw new OoaException("LICENSE.TOO_FEW_SEATS", "This license has " + l.seats().get(t) + " " + label(t) + " seats but " + used(t) + " are assigned", "Take seats back in Administration > Licenses first");
         db.tx(() -> {
@@ -239,6 +256,7 @@ public final class Licensing {
     void checkSignIn(User u) { if (expired() && !isAdmin(cr, u)) throw expiredError(); }
 
     OoaException expiredError() {
+        if (state().equals("database_required")) return new OoaException("CR.LICENSE_EXPIRED", "A licensed installation runs on Microsoft SQL Server; this one uses the built-in database", DATABASE_STEPS);
         return new OoaException("CR.LICENSE_EXPIRED", state().equals("evaluation_ended") ? "The ONEOFFICEAUTOMATION evaluation has ended" : "The ONEOFFICEAUTOMATION license has expired",
             "An administrator installs a license in Administration > Licenses");
     }

@@ -54,6 +54,21 @@ Keep a list of what you issued: the `.lic` files themselves are enough, since ea
 - **Protection:** the start date is stored encrypted with the vault key, so editing it ends the evaluation.
 - **Licensing:** installing a license ends the evaluation. From then on, seats are assigned by hand.
 
+## Licensed customer installs run on SQL Server
+
+The evaluation may use the built-in database, but a customer install cannot install a license until it runs on
+Microsoft SQL Server (PostgreSQL is accepted too). Until then:
+
+- the Licenses page shows the steps in place of the install form;
+- the API refuses the license with `LICENSE.DB_REQUIRED`.
+
+The steps are `ooa db configure`, `set-password` (runtime and `--setup`), `init`, and `copy --from` the evaluation's
+data folder, which keeps its data. Then restart and install the license.
+
+If a license ever ends up on the built-in database by going around this check, the state becomes
+`database_required`. It works like an expired license (runs stop, only administrators sign in) until the database is
+moved. Your vendor build is never held to this.
+
 ## License file
 
 The file is JSON: `{"format":"ooa-license-1","payload":"<Base64 JSON>","signature":"<Base64>"}`. The payload holds:
@@ -90,6 +105,7 @@ assigned on the Licenses page, which needs `users.manage`. Assigning more seats 
 | Unlicensed | No license file, vendor build | Nothing is limited |
 | Evaluation | No license file, customer build, first 30 days | Evaluation seats, banner with the days left |
 | Evaluation ended | After the 30 days | As Expired |
+| Database required | A license on the built-in database, customer build | As Expired, with the SQL Server steps in the banner |
 | Active | More than 30 days left | Seats apply |
 | Expiring | 30 days or fewer left | Banner for administrators: a warning that can be put away, red and permanent in the last 7 days |
 | Grace | After the expiry date, for the grace days | Everything keeps working; the red banner stays |

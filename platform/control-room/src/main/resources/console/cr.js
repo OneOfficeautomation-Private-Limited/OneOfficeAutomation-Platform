@@ -1104,7 +1104,8 @@ const VIEWS = {
     const TYPES = [["developer", "Developer", "user"], ["citizen_developer", "Citizen Developer", "user"], ["attended_runner", "Attended Runner", "user"], ["unattended_runner", "Unattended Runner", "device"]];
     const held = new Set(asg.assignments.map((a) => a.principal_type + "|" + a.principal + "|" + a.license_type));
     const STATE = { unlicensed: ["No license installed", "pending"], evaluation: ["Evaluation", "queued"], evaluation_ended: ["Evaluation ended", "failed"],
-      active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"] };
+      active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"],
+      database_required: ["Needs SQL Server", "failed"] };
     const [stateText, stateCls] = STATE[L.state] || [L.state, ""];
     const toggle = (type, principal, on) => async () => {
       try { await api("PUT", "license/assignments", { license_type: type, principal, assigned: on }); go("licenses"); } catch (e) { toast(e.message, true); go("licenses"); }
@@ -1133,7 +1134,9 @@ const VIEWS = {
           : kv([["Licensed to", L.customer], ["Edition", L.edition], ["License id", L.id], ["Valid", (L.issued || "") + " to " + (L.expires || "") + (L.days_left !== undefined && L.days_left >= 0 ? " (" + L.days_left + " days left)" : "")],
             ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null]]),
         L.problem ? h("p", { class: "error", text: L.problem }) : null,
-        can("settings.manage") ? h("div", { class: "form-card" }, h("h3", { text: "Install a license" }), h("label", {}, "License file", fileInput), paste,
+        L.requires_server_database ? h("div", { class: "note warn" }, h("strong", { text: "Move to Microsoft SQL Server before licensing. " }),
+          h("span", { text: "The evaluation runs on the built-in database; a licensed installation runs on SQL Server (PostgreSQL also works). " + L.database_steps })) : null,
+        can("settings.manage") && !L.requires_server_database ? h("div", { class: "form-card" }, h("h3", { text: "Install a license" }), h("label", {}, "License file", fileInput), paste,
           h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: install }, "Install license"))) : null),
       h("div", { class: "card" }, h("h2", { text: "Seats" }),
         dataTable({ rows: TYPES.map(([t, label]) => ({ t, label, total: seats[t] ? seats[t].total : -1, used: seats[t] ? seats[t].used : 0 })), search: null, exportName: "license-seats",
