@@ -80,7 +80,7 @@ public final class Ooa {
                 + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]"
                 + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
                 + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
-                + " | license keygen|issue|show (vendor tools for license files)"
+                + " | license show FILE"
                 + " | browser-connector install|status|uninstall | native-host (started by the browser)");
     }
 

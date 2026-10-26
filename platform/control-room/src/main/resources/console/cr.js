@@ -1103,7 +1103,8 @@ const VIEWS = {
     const L = st.license || {};
     const TYPES = [["developer", "Developer", "user"], ["citizen_developer", "Citizen Developer", "user"], ["attended_runner", "Attended Runner", "user"], ["unattended_runner", "Unattended Runner", "device"]];
     const held = new Set(asg.assignments.map((a) => a.principal_type + "|" + a.principal + "|" + a.license_type));
-    const STATE = { unlicensed: ["No license installed", "pending"], active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"] };
+    const STATE = { unlicensed: ["No license installed", "pending"], evaluation: ["Evaluation", "queued"], evaluation_ended: ["Evaluation ended", "failed"],
+      active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"] };
     const [stateText, stateCls] = STATE[L.state] || [L.state, ""];
     const toggle = (type, principal, on) => async () => {
       try { await api("PUT", "license/assignments", { license_type: type, principal, assigned: on }); go("licenses"); } catch (e) { toast(e.message, true); go("licenses"); }
@@ -1127,6 +1128,8 @@ const VIEWS = {
       h("div", { class: "card" },
         h("div", { class: "card-head" }, h("h2", { text: "License" }), h("span", { class: "pill " + stateCls, text: stateText })),
         L.state === "unlicensed" ? h("p", { class: "muted", text: "No license is installed, so nothing is limited. Install the license file you received from ONEOFFICEAUTOMATION to apply its seats and expiry date." })
+          : L.state === "evaluation" || L.state === "evaluation_ended" ? h("p", { class: "muted", text: (L.state === "evaluation" ? "This is a 30-day evaluation: " + L.days_left + " days left (until " + L.evaluation_ends + "). "
+            : "The 30-day evaluation ended on " + L.evaluation_ends + ". ") + "It allows 2 developers, 2 attended and 2 unattended runners; seats are given out automatically on first use. Install the license file you received from ONEOFFICEAUTOMATION." })
           : kv([["Licensed to", L.customer], ["Edition", L.edition], ["License id", L.id], ["Valid", (L.issued || "") + " to " + (L.expires || "") + (L.days_left !== undefined && L.days_left >= 0 ? " (" + L.days_left + " days left)" : "")],
             ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null]]),
         L.problem ? h("p", { class: "error", text: L.problem }) : null,

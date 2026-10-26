@@ -74,7 +74,8 @@ public final class Platform {
         Map<String, Object> c = cached;
         if (c != null && System.currentTimeMillis() - cachedAt < 5000) return new LinkedHashMap<>(c);
         Map<String, Object> out = new LinkedHashMap<>(DEFAULTS);
-        for (Map<String, Object> r : db.query("SELECT name, json_value FROM settings")) out.put((String) r.get("name"), JsonLite.parse((String) r.get("json_value")));
+        // only the settings people may change; internal rows (the evaluation start) stay out of view
+        for (Map<String, Object> r : db.query("SELECT name, json_value FROM settings")) if (DEFAULTS.containsKey((String) r.get("name"))) out.put((String) r.get("name"), JsonLite.parse((String) r.get("json_value")));
         cached = out; cachedAt = System.currentTimeMillis();
         return new LinkedHashMap<>(out);
     }
@@ -997,9 +998,11 @@ public final class Platform {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("product", "ONEOFFICEAUTOMATION One Command Center");
         Map<String, Object> lic = cr.licensing.status(by);
-        boolean licensed = !"unlicensed".equals(lic.get("state"));
-        m.put("edition", licensed ? lic.getOrDefault("edition", "Enterprise") + " (licensed to " + lic.getOrDefault("customer", "?") + ")" : "Unlicensed (no license installed)");
-        m.put("limits", licensed ? "seats per license type; see Administration > Licenses" : "none until a license is installed");
+        String state = String.valueOf(lic.get("state"));
+        boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);
+        m.put("edition", licensed ? lic.getOrDefault("edition", "Enterprise") + " (licensed to " + lic.getOrDefault("customer", "?") + ")"
+            : state.startsWith("evaluation") ? "Evaluation (30 days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
+        m.put("limits", licensed || state.startsWith("evaluation") ? "seats per license type; see Administration > Licenses" : "none until a license is installed");
         m.put("license", lic);
         m.put("users", cr.count("SELECT COUNT(*) AS n FROM users WHERE enabled = TRUE"));
         m.put("runners", cr.count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE"));
