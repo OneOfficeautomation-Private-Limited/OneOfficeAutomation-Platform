@@ -146,6 +146,7 @@ distributions {
             with(main.get().contents)
             exclude("**/vendor-tools-*.jar")
             from(rootProject.file("customer"))
+            from(rootProject.file("linux")) { into("linux") }
             from(sbom)
             duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }

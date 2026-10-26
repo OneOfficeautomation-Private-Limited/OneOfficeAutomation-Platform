@@ -32,6 +32,26 @@ Keep the vault key apart from the backups: a backup holds encrypted vault values
 4. Put the load balancer in front (HTTPS on 443 to the machine's 8720), or run `ooa tls configure --pfx`.
 5. `bin\ooa.bat check` should show no FAIL lines.
 
+## A Linux server (without containers)
+
+The customer package runs on any Linux with Java 21 (Ubuntu 22.04 and later, RHEL 9 and later). CI starts it on Ubuntu
+on every push.
+
+```
+sudo useradd --system --home /var/lib/ooa --shell /usr/sbin/nologin ooa
+sudo mkdir -p /opt/ooa /var/lib/ooa /etc/ooa && sudo chown ooa:ooa /var/lib/ooa
+sudo unzip ooa-customer-<version>.zip -d /tmp/ooa && sudo cp -r /tmp/ooa/ooa-customer-<version>/* /opt/ooa/
+sudo chmod 755 /opt/ooa/bin/ooa
+echo "OOA_MASTER_KEY=<from your secret store>" | sudo tee /etc/ooa/ooa.env && sudo chmod 600 /etc/ooa/ooa.env
+sudo cp /opt/ooa/linux/ooa-command-center.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now ooa-command-center
+```
+
+For SQL Server or PostgreSQL run `sudo -u ooa /opt/ooa/bin/ooa db configure ... --data /var/lib/ooa` and the other
+`ooa db` steps first ([DATABASE.md](DATABASE.md)); put database passwords in `/etc/ooa/ooa.env` as environment
+variables (`password=env:VARIABLE` in the database settings). `ooa check --data /var/lib/ooa` checks the server. Runners
+stay on Windows; Windows sign-in to SQL Server works from Windows only.
+
 ## The Linux container image
 
 Build the image once (on a build machine with Docker), from the `platform` folder:

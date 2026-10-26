@@ -1,0 +1,26 @@
+# ONEOFFICEAUTOMATION Command Center as a systemd service on a Linux server (I8).
+# Install the customer package to /opt/ooa, make a user "ooa" that owns /var/lib/ooa, then:
+#   sudo cp ooa-command-center.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now ooa-command-center
+# Put OOA_MASTER_KEY (or OOA_MASTER_KEY_SOURCE) and any database password in /etc/ooa/ooa.env (mode 600, owner root).
+[Unit]
+Description=ONEOFFICEAUTOMATION Command Center
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ooa
+Group=ooa
+EnvironmentFile=-/etc/ooa/ooa.env
+Environment=JAVA_OPTS=-Xmx2g -XX:+ExitOnOutOfMemoryError -Djava.awt.headless=true
+ExecStart=/opt/ooa/bin/ooa control-room --host 0.0.0.0 --port 8720 --data /var/lib/ooa
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/ooa
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

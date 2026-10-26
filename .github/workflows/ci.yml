@@ -165,6 +165,14 @@ jobs:
           chmod +x gradlew
           ./gradlew :cli:installCustomerDist --console=plain
           docker build -f docker/Dockerfile -t ooa-command-center:ci .
+      - name: The customer package on Linux without a container (I8)
+        run: |
+          D=$(mktemp -d)
+          cli/build/install/ooa-customer/bin/ooa check --data "$D" --port 8790 || true
+          cli/build/install/ooa-customer/bin/ooa control-room --host 127.0.0.1 --port 8790 --data "$D" > "$D/server.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8790/api/health/ready >/dev/null && echo "ready" && break; sleep 2; done
+          curl -sf http://127.0.0.1:8790/api/health/ready
+          kill %1
       - name: Start it alone and with PostgreSQL, and check health
         run: |
           # throwaway secrets for this job's containers only
