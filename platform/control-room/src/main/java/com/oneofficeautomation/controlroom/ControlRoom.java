@@ -61,6 +61,7 @@ public final class ControlRoom {
     public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
     public final GitSync gitSync;
+    final Saml saml;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -105,6 +106,7 @@ public final class ControlRoom {
         this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
         this.gitSync = new GitSync(this, dataDir);
+        this.saml = new Saml(this);
         audit.onRecord(syslog::forward);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);

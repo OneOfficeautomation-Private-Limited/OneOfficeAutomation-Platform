@@ -58,6 +58,11 @@ public final class Platform {
         DEFAULTS.put("git_username", "");
         DEFAULTS.put("git_token_ref", "");
         DEFAULTS.put("git_auto_push", 0);
+        DEFAULTS.put("saml_idp_sso_url", "");
+        DEFAULTS.put("saml_idp_entity_id", "");
+        DEFAULTS.put("saml_idp_certificate", "");
+        DEFAULTS.put("saml_sp_entity_id", "");
+        DEFAULTS.put("saml_label", "");
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -113,7 +118,14 @@ public final class Platform {
                 v = n;
             } else {
                 String s = String.valueOf(v == null ? "" : v).trim();
-                if (s.length() > 2000) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
+                if (s.length() > (k.equals("saml_idp_certificate") ? 10000 : 2000)) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
+                if (k.equals("saml_idp_sso_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s]+"))
+                    throw new OoaException("CR.BAD_INPUT", "The identity provider's sign-in address starts with https://");
+                if (k.equals("saml_idp_certificate") && !s.isEmpty()) {
+                    try { java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(new java.io.ByteArrayInputStream(
+                            Base64.getDecoder().decode(s.replaceAll("-----(BEGIN|END) CERTIFICATE-----", "").replaceAll("\\s", "")))); }
+                    catch (Exception x) { throw new OoaException("CR.BAD_INPUT", "The identity provider certificate is not a PEM certificate", "Paste the signing certificate from the identity provider's SAML set-up or metadata."); }
+                }
                 if ((k.equals("public_url") || k.equals("sso_issuer")) && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
                 if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))

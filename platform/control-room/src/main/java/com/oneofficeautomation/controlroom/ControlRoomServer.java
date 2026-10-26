@@ -269,7 +269,35 @@ public final class ControlRoomServer {
             else notFound(ex);
             return;
         }
-        if (m.equals("GET") && route.equals("auth/sso")) { sendJson(ex, 200, sso.info()); return; }
+        if (m.equals("GET") && route.equals("auth/sso")) { Map<String, Object> info = new LinkedHashMap<>(sso.info()); info.put("saml", cr.saml.info()); sendJson(ex, 200, info); return; }
+        if (m.equals("GET") && route.equals("auth/saml/metadata")) {
+            byte[] b = cr.saml.metadata(origin(ex)).getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "application/samlmetadata+xml; charset=utf-8");
+            ex.sendResponseHeaders(200, b.length); ex.getResponseBody().write(b); ex.close();
+            return;
+        }
+        if (m.equals("GET") && route.equals("auth/saml/start")) {
+            ex.getResponseHeaders().set("Location", cr.saml.start(origin(ex)));
+            ex.sendResponseHeaders(302, -1); ex.close();
+            return;
+        }
+        if (m.equals("POST") && route.equals("auth/saml/acs")) {
+            // the identity provider posts the form back (HTTP-POST binding)
+            Map<String, String> form = new HashMap<>();
+            for (String pair : new String(ex.getRequestBody().readNBytes(3_000_000), StandardCharsets.UTF_8).split("&")) {
+                int i = pair.indexOf('=');
+                if (i > 0) form.put(java.net.URLDecoder.decode(pair.substring(0, i), StandardCharsets.UTF_8), java.net.URLDecoder.decode(pair.substring(i + 1), StandardCharsets.UTF_8));
+            }
+            try {
+                Map<String, Object> r = cr.saml.acs(form.get("SAMLResponse"), origin(ex), ip);
+                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
+                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+            } catch (OoaException e) {
+                html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
+                        + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");
+            }
+            return;
+        }
         if (m.equals("GET") && route.equals("auth/sso/start")) {
             ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback"));
             ex.getResponseHeaders().set("Cache-Control", "no-store");
