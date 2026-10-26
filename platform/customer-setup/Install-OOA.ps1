@@ -15,6 +15,7 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner
   -RunnerName NAME             the runner's name in Command Center (default: the computer name)
   -CaFile FILE                 the Command Center certificate to trust (for a self-signed one)
+  -Proxy system|none|URL       how the runner reaches the Command Center (default system: the Windows proxy)
   -Service                     run the runner as a Windows service (only agents that need no screen); default: it starts
                                when the user signs in, for agents that use the screen
   Both:
@@ -36,6 +37,7 @@ param(
     [string]$RegistrationKey = "",
     [string]$RunnerName = "",
     [string]$CaFile = "",
+    [string]$Proxy = "",
     [switch]$NoShortcuts,
     [switch]$NoStart,
     # used by the MSI: the files are already in place; only set up the role. ServiceFlag 1 = -Service.
@@ -145,6 +147,7 @@ if ($Role -eq "CommandCenter") {
     $a = @("agent", "register", "--url", $Url, "--key", $RegistrationKey)
     if ($RunnerName) { $a += @("--name", $RunnerName) }
     if ($CaFile) { $a += @("--ca", (Resolve-Path $CaFile).Path) }
+    if ($Proxy) { $a += @("--proxy", $Proxy) }
     if ((Ooa $a) -ne 0) { Fail 2 "The runner could not register with $Url (see $log). Check the address and that the key is unused and not expired." }
     if ($Service) {
         $a = @("service", "install", "--mode", "agent"); if ($NoStart) { $a += "--no-start" }

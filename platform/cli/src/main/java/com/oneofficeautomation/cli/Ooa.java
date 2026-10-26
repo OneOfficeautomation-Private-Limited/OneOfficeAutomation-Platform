@@ -80,7 +80,7 @@ public final class Ooa {
         System.err.println("usage: ooa manifest [--summary] | validate FLOW... | run FLOW [-i key=value]... | conformance [DIR]"
                 + " | server [--port N] [--workspace DIR] [--data DIR] [--no-agent] [--no-browser]"
                 + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
-                + " | agent register --url URL --key KEY [--name NAME] [--ca FILE] | agent start [--workspace DIR]"
+                + " | agent register --url URL --key KEY [--name NAME] [--ca FILE] [--proxy system|none|URL] | agent network [--proxy ..] [--proxy-user U --proxy-password-env VAR] [--ca FILE] | agent start [--workspace DIR]"
                 + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
                 + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
                 + " | license show FILE"
@@ -279,8 +279,9 @@ public final class Ooa {
         Path config = Path.of(o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString()));
         switch (a[0]) {
             case "register" -> {
-                if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME] [--ca ooa.cer]"); return 1; }
-                Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null);
+                if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME] [--ca ooa.cer] [--proxy system|none|http://host:port] [--proxy-user USER --proxy-password-env VAR]"); return 1; }
+                Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null,
+                    o.get("proxy"), o.get("proxy-user"), proxyPassword(o));
                 System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
                 System.out.println("Start the agent with:  ooa agent start");
                 return 0;
@@ -292,10 +293,26 @@ public final class Ooa {
                 agent.run();
                 return 0;
             }
+            case "network" -> {
+                // proxy and trusted certificate of a registered runner; with no option, shows them
+                Map<String, Object> r = com.oneofficeautomation.agent.Agent.network(config, o.get("proxy"), o.get("proxy-user"), proxyPassword(o), o.containsKey("ca") ? Path.of(o.get("ca")) : null);
+                System.out.println("Proxy:       " + r.get("proxy") + (String.valueOf(r.get("proxy_user")).isEmpty() ? "" : " (signs in as " + r.get("proxy_user") + ")"));
+                System.out.println("Trusted CA:  " + (String.valueOf(r.get("ca")).isEmpty() ? "Java's and Windows' certificate authorities" : r.get("ca") + ", plus Java's and Windows' authorities"));
+                System.out.println("Restart the runner for a change to take effect.");
+                return 0;
+            }
             case "install-task" -> { return WindowsService.installTask(o); }
             case "uninstall-task" -> { return WindowsService.uninstallTask(); }
             default -> { usage(); return 1; }
         }
+    }
+
+    /** The proxy password from --proxy-password-env VAR (never on the command line itself). */
+    static String proxyPassword(Map<String, String> o) {
+        if (!o.containsKey("proxy-password-env")) return null;
+        String v = System.getenv(o.get("proxy-password-env"));
+        if (v == null) throw new OoaException("AGENT.PROXY_PASSWORD", "The environment variable " + o.get("proxy-password-env") + " is not set");
+        return v;
     }
 
     static int manifest(boolean summary) {

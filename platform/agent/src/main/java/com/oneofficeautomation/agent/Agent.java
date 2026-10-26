@@ -40,21 +40,28 @@ public final class Agent {
     public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException { return register(url, key, name, configFile, null); }
 
     /** As above; {@code ca} is a certificate to trust for an HTTPS Command Center (copied next to the config as ca.cer). */
-    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException {
+    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException { return register(url, key, name, configFile, ca, null, null, null); }
+
+    /**
+     * As above, with the network settings: {@code proxy} system, none or http://host:port; {@code proxyUser} and
+     * {@code proxyPassword} (plain text here; stored encrypted) for a proxy that asks for them.
+     */
+    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca, String proxy, String proxyUser, String proxyPassword) throws IOException {
         Path keptCa = null;
         if (ca != null) {
             Files.createDirectories(configFile.getParent());
             keptCa = configFile.resolveSibling("ca.cer");
             if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING);
         }
-        Map<String, Object> r = new AgentClient(url, null, null, keptCa).post("register",
+        Network net = new Network(keptCa, proxy, proxyUser, proxyUser == null || proxyPassword == null ? null : Network.protect(proxyPassword));
+        Map<String, Object> r = new AgentClient(url, null, null, net).post("register",
                 Map.of("key", key, "name", name == null ? hostname() : name, "hostname", hostname(), "os", System.getProperty("os.name") + " " + System.getProperty("os.version"), "agent_version", VERSION));
         Map<String, Object> cfg = new LinkedHashMap<>();
         cfg.put("url", url.replaceAll("/+$", ""));
         cfg.put("device_id", r.get("device_id"));
         cfg.put("secret", r.get("secret"));
         cfg.put("name", r.get("name"));
-        if (keptCa != null) cfg.put("ca", keptCa.toString());
+        net.into(cfg);
         Files.createDirectories(configFile.getParent());
         Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
         try { Files.setPosixFilePermissions(configFile, PosixFilePermissions.fromString("rw-------")); } catch (UnsupportedOperationException ignored) { /* Windows: user profile ACLs apply */ }
@@ -68,12 +75,32 @@ public final class Agent {
         this.config = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
-        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"),
-                config.get("ca") == null ? null : Path.of((String) config.get("ca")));
+        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"), Network.from(config));
         this.localTriggers = new LocalTriggers(new LocalTriggers.Reporter() {
             public void fired(String id, Map<String, Object> event) { client.post("trigger-fired", Map.of("trigger_id", id, "event", event)); }
             public void status(String id, String error) { Map<String, Object> b = new HashMap<>(); b.put("trigger_id", id); b.put("error", error); client.post("trigger-status", b); }
         }, new LocalTriggers.SystemProbe(), LocalTriggers.systemHotkeys(), this::log);
+    }
+
+    /**
+     * Changes the network settings in a runner's config file (ooa agent network); null leaves a value as it is. Returns
+     * the settings now in force, without the password.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> network(Path configFile, String proxy, String proxyUser, String proxyPassword, Path ca) throws IOException {
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
+        Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
+        Network now = Network.from(cfg);
+        Path keptCa = now.ca();
+        if (ca != null) { keptCa = configFile.resolveSibling("ca.cer"); if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING); }
+        String user = proxyUser == null ? now.proxyUser() : proxyUser.isBlank() ? null : proxyUser;
+        String pw = user == null ? null : proxyPassword != null ? Network.protect(proxyPassword) : now.proxyPassword();
+        Network next = new Network(keptCa, proxy == null ? now.proxy() : proxy, user, pw);
+        next.into(cfg);
+        Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("proxy", next.proxy()); out.put("proxy_user", next.proxyUser() == null ? "" : next.proxyUser()); out.put("ca", next.ca() == null ? "" : next.ca().toString());
+        return out;
     }
 
     /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */

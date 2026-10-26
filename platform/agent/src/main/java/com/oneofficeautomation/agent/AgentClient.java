@@ -6,49 +6,22 @@ import com.oneofficeautomation.sdk.OoaException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.*;
-import java.nio.file.*;
-import java.security.KeyStore;
-import java.security.cert.*;
 import java.time.Duration;
 import java.util.Map;
-import javax.net.ssl.*;
 
 /** HTTP client for the Control Room agent API, authenticated with the device id and secret. */
 final class AgentClient {
     private final HttpClient http;
     final String baseUrl; private final String deviceId, secret;
 
-    AgentClient(String baseUrl, String deviceId, String secret) { this(baseUrl, deviceId, secret, null); }
+    AgentClient(String baseUrl, String deviceId, String secret) { this(baseUrl, deviceId, secret, Network.DEFAULT); }
 
-    /** {@code ca}: a certificate file (PEM or DER) trusted in addition to the system's, for a Command Center with a self-signed or company-CA certificate. */
-    AgentClient(String baseUrl, String deviceId, String secret, Path ca) {
+    /** {@code network}: the proxy and the certificates to trust (see {@link Network}). */
+    AgentClient(String baseUrl, String deviceId, String secret, Network network) {
         this.baseUrl = baseUrl.replaceAll("/+$", ""); this.deviceId = deviceId; this.secret = secret;
         HttpClient.Builder b = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10));
-        if (ca != null) b.sslContext(trusting(ca));
+        network.apply(b, this.baseUrl);
         this.http = b.build();
-    }
-
-    /** A TLS context that trusts the JDK's certificate authorities plus the certificates in {@code ca}. */
-    static SSLContext trusting(Path ca) {
-        try {
-            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-            ks.load(null, null);
-            TrustManagerFactory sys = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            sys.init((KeyStore) null);
-            int n = 0;
-            for (TrustManager tm : sys.getTrustManagers())
-                if (tm instanceof X509TrustManager x) for (X509Certificate c : x.getAcceptedIssuers()) ks.setCertificateEntry("sys" + n++, c);
-            try (var in = Files.newInputStream(ca)) {
-                for (Certificate c : CertificateFactory.getInstance("X.509").generateCertificates(in)) ks.setCertificateEntry("ooa" + n++, c);
-            }
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(ks);
-            SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.init(null, tmf.getTrustManagers(), null);
-            return ctx;
-        } catch (Exception e) {
-            throw new OoaException("AGENT.CA", "Cannot use the certificate file " + ca + ": " + e.getMessage(), "Export it on the Command Center with: ooa tls export-cert --out ooa.cer");
-        }
     }
 
     @SuppressWarnings("unchecked")
