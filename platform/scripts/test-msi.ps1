@@ -1,6 +1,6 @@
 # Tests the MSI on this machine (as administrator; CI runs it on a fresh Windows machine):
 #   1. msiexec /qn ROLE=CommandCenter SERVICE=1: the Command Center runs as a Windows service and answers
-#   2. the installed Install-OOA.ps1 -ConfigureOnly -Role Runner: a runner service registers and comes online
+#   2. msiexec /fa ROLE=Runner URL=.. REGISTRATION_KEY=..: a runner service registers and comes online
 #   3. msiexec /x /qn: both services, the files and the Start menu entry are gone; the data folder stays
 #   powershell -ExecutionPolicy Bypass -File scripts\test-msi.ps1 -Msi cli\build\distributions\ooa-0.1.1.msi
 # Exit code: the number of failed checks. Logs go to -Logs (default %TEMP%\ooa-msi-test).
@@ -28,7 +28,6 @@ Check (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\ONEOFFI
 $svc = Get-Service "OOA Command Center" -ErrorAction SilentlyContinue
 Check ($svc -and $svc.StartType -eq "Automatic") "the service OOA Command Center starts with Windows"
 Check (WaitFor { (Health) -eq 200 } 150) "the Command Center answers on $base"
-Check (-not (Select-String -Path "$Logs\install.log" -Pattern "ooareg_" -Quiet)) "no registration key in the MSI log"
 
 # ---------- 2. a runner service registered with it ----------
 $serviceLog = Join-Path $data "logs\service-server.log"
@@ -42,8 +41,10 @@ if ($pw) {
         Invoke-RestMethod -Method Post -Uri "$base/api/auth/password" -Headers @{ Authorization = "Bearer $t" } -ContentType application/json -Body (@{ current = $pw; new = $new } | ConvertTo-Json) | Out-Null
         $t = (Invoke-RestMethod -Method Post -Uri "$base/api/auth/login" -ContentType application/json -Body (@{ username = "admin"; password = $new } | ConvertTo-Json)).token
         $key = (Invoke-RestMethod -Method Post -Uri "$base/api/devices/registration-key" -Headers @{ Authorization = "Bearer $t"; "X-OOA-Request" = "1" } -ContentType application/json -Body '{"hours":1}').key
-        & powershell -NoProfile -ExecutionPolicy Bypass -File "$dir\Install-OOA.ps1" -ConfigureOnly -Silent -Role Runner -Url $base -RegistrationKey $key -RunnerName "MSI-Test-Runner"
-        Check ($LASTEXITCODE -eq 0) "the runner registered and its service was installed (exit $LASTEXITCODE)"
+        # the MSI's own runner properties, as SCCM would pass them (a repair of the installed product runs the set-up again)
+        $p = Start-Process msiexec.exe -Wait -PassThru -ArgumentList "/fa `"$Msi`" /qn ROLE=Runner URL=$base REGISTRATION_KEY=$key RUNNER_NAME=MSI-Test-Runner /l*v `"$Logs\runner.log`""
+        Check ($p.ExitCode -eq 0) "msiexec ROLE=Runner registered the runner and installed its service (exit $($p.ExitCode))"
+        Check (-not (Select-String -Path "$Logs\runner.log" -SimpleMatch $key -Quiet)) "the registration key is not in the MSI log"
         Check ((Get-Service "OOA Runner" -ErrorAction SilentlyContinue).Status -eq "Running") "the service OOA Runner is running"
         $online = WaitFor { $d = (Invoke-RestMethod -Uri "$base/api/devices" -Headers @{ Authorization = "Bearer $t" }).devices | Where-Object { $_.name -eq "MSI-Test-Runner" }; $d -and $d.status -eq "online" -and $d.session_state } 90
         $d = (Invoke-RestMethod -Uri "$base/api/devices" -Headers @{ Authorization = "Bearer $t" }).devices | Where-Object { $_.name -eq "MSI-Test-Runner" }

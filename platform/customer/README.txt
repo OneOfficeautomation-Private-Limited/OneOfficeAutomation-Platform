@@ -9,6 +9,13 @@ Install (setup package, ooa-setup-<version>.zip: Java included)
   Exit code 0 means installed; the log is %TEMP%\ooa-install.log. Remove it in Apps and Features (or Uninstall-OOA.ps1
   -Silent); data folders are kept.
 
+MSI (ooa-<version>.msi: Java included, all users, for SCCM, Intune or Group Policy)
+  msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720
+  msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_...
+  Other properties: DATA_DIR, RUNNER_NAME, CA_FILE. Without ROLE only the files are installed. A runner installed by
+  the MSI runs as a Windows service, for agents that need no screen; for desktop runners use Install.cmd as the user.
+  msiexec /x ooa-<version>.msi /qn removes it and its services; data folders are kept.
+
 Start (zip without the installer, ooa-customer-<version>.zip)
   Double-click START-OOA.cmd. Your browser opens http://localhost:8720.
   The first time, sign in as admin with the one-time password shown in the window, then choose your own password.

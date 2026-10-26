@@ -48,6 +48,13 @@ Runners on other machines must trust the certificate. A certificate from a compa
 already trust needs nothing more. For a self-signed one, copy `ooa.cer` to the runner and register with `--ca ooa.cer`
 (section 3). A reverse proxy in front (IIS, nginx) still works as before; leave HTTPS off on the server then.
 
+### Install with the setup package or the MSI
+
+Customers install from `ooa-setup-<version>.zip` (Install.cmd, guided or `-Silent`) or `ooa-<version>.msi`
+(`msiexec /qn ROLE=CommandCenter SERVICE=1` or `ROLE=Runner URL=... REGISTRATION_KEY=...`). Both bring their own
+Java. Build them with `gradlew :cli:setupDistZip` and `scriptsuild-msi.ps1` (WiX Toolset 5); CI builds and
+install-tests the MSI on every push. The package's README.txt lists every option.
+
 ### Run as a Windows service
 
 From an administrator command prompt, in the installed `bin` folder:
