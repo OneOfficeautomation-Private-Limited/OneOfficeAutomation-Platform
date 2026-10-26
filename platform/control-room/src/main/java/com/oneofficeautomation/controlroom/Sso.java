@@ -30,7 +30,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 final class Sso {
     private final ControlRoom cr;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
-    private final Map<String, String[]> pending = new ConcurrentHashMap<>(); // state -> verifier, nonce, created millis
+    // state -> verifier and nonce, for 10 minutes, in the store all nodes share
     private volatile Map<String, Object> discovery;
     private volatile String discoveryFor;
     private volatile Map<String, Object> jwks;
@@ -77,12 +77,11 @@ final class Sso {
     /** Builds the provider's sign-in URL and remembers the PKCE verifier and nonce for the state. */
     String start(String redirectUri) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "Single sign-on is not set up", "An administrator sets it up in Administration > Settings.");
-        pending.entrySet().removeIf(e -> System.currentTimeMillis() - Long.parseLong(e.getValue()[2]) > 600_000);
         SecureRandom rnd = new SecureRandom();
         byte[] v = new byte[32], s = new byte[24], n = new byte[24];
         rnd.nextBytes(v); rnd.nextBytes(s); rnd.nextBytes(n);
         String verifier = b64u(v), state = b64u(s), nonce = b64u(n);
-        pending.put(state, new String[]{verifier, nonce, String.valueOf(System.currentTimeMillis())});
+        cr.cluster.put("oidc", state, verifier + "|" + nonce, Duration.ofMinutes(10));
         String challenge;
         try { challenge = b64u(MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII))); }
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
@@ -93,7 +92,8 @@ final class Sso {
     /** Exchanges the code, checks the ID token and signs the person in; returns the login result (token + user). */
     @SuppressWarnings("unchecked")
     Map<String, Object> callback(String code, String state, String redirectUri, String ip) {
-        String[] p = state == null ? null : pending.remove(state);
+        String held = cr.cluster.take("oidc", state);
+        String[] p = held == null ? null : held.split("\\|", 2);
         if (p == null || code == null) throw new OoaException("SSO.BAD_STATE", "The sign-in link expired or was already used", "Start the sign-in again.");
         String clientId = String.valueOf(cr.platform.setting("sso_client_id"));
         String secretRef = String.valueOf(cr.platform.setting("sso_client_secret_ref")).trim();

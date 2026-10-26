@@ -835,6 +835,9 @@ const VIEWS = {
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
       const tempHours = num("temporary_runner_hours", 1, 720), secretDays = num("runner_secret_days", 0, 365);
+      const repoShared = txt("repo_files_folder", "\\fileserver\ooa\repo-files (for several nodes)");
+      const nodesBox = h("div", { class: "muted" });
+      api("GET", "cluster").then((c) => nodesBox.replaceChildren(h("p", { text: c.nodes.length + " node(s): " + c.nodes.map((n) => n.node_id + (n.leader ? " (leads background work)" : "") + (n.this_node ? " (this one)" : "")).join(", ") }))).catch(() => {});
       const bkHours = num("backup_hours", 0, 168), bkKeep = num("backup_keep_days", 1, 3650), bkFolder = txt("backup_folder", "(the data folder's backups folder)");
       const bkState = h("div", { class: "muted" });
       const showBk = (b) => bkState.replaceChildren(h("p", { text: (b.backups.length ? b.backups.length + " backup(s) in " + b.folder + ", newest " + local(b.backups[0].created) + " (" + b.backups[0].size_mb + " MB)." : "No backups in " + b.folder + " yet.") + (b.state === "failed" ? " Last attempt failed: " + b.error : "") }), h("p", { class: "note warn", text: b.key_note }));
@@ -903,6 +906,9 @@ const VIEWS = {
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
             try { await api("PUT", "settings", { syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value }); await api("POST", "settings/syslog-test"); toast("Test message sent to " + syslogTarget.value.trim()); }
             catch (e) { toast(e.message, true); } } }, "Send a test message"))),
+        h("h3", {}, ic("desktop", "#475569", "sm"), "Several nodes"),
+        h("p", { class: "muted", text: "Start more Command Centers on the same database behind a load balancer for high availability. Each serves everything; one leads the background work and another takes over within about 30 seconds if it stops. Put repository files in a shared folder every node can reach." }),
+        nodesBox, h("label", {}, "Shared folder for repository files (empty = the data folder)", repoShared),
         h("h3", {}, ic("download", "#475569", "sm"), "Backups"),
         h("p", { class: "muted", text: "Every table, the repository files and the configuration, in one zip per backup. Restore with: bin\ooa.bat backup restore FILE (the server stopped)." }),
         h("div", { class: "grid2" }, h("label", {}, "Back up every (hours, 0 = never)", bkHours), h("label", {}, "Keep backups for (days)", bkKeep),
@@ -936,7 +942,7 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(),
+              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),

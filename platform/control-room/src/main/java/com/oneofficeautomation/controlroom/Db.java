@@ -397,9 +397,16 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE users ADD COLUMN password_changed TIMESTAMP",
     };
 
+    /** Version 18: several nodes (Cluster): the leader lease, the nodes, and sign-ins in progress shared by them. */
+    private static final String[] SCHEMA_V18 = {
+        "CREATE TABLE cluster_lease (name VARCHAR(40) PRIMARY KEY, holder VARCHAR(120) NOT NULL, expires TIMESTAMP NOT NULL)",
+        "CREATE TABLE cluster_nodes (node_id VARCHAR(120) PRIMARY KEY, started TIMESTAMP NOT NULL, last_seen TIMESTAMP NOT NULL, leader_since TIMESTAMP)",
+        "CREATE TABLE auth_pending (token VARCHAR(200) PRIMARY KEY, kind VARCHAR(20) NOT NULL, data VARCHAR(2000), expires TIMESTAMP NOT NULL)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 17;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17 };
+    public static final int LATEST = 18;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

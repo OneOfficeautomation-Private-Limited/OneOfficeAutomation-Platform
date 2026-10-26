@@ -61,6 +61,7 @@ public final class Platform {
         DEFAULTS.put("temporary_runner_hours", 8);
         DEFAULTS.put("audit_retention_days", 0);
         DEFAULTS.put("backup_hours", 0);
+        DEFAULTS.put("repo_files_folder", "");
         DEFAULTS.put("password_history", 0);
         DEFAULTS.put("password_max_days", 0);
         DEFAULTS.put("ai_call_retention_days", 0);

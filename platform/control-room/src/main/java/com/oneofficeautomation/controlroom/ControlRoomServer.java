@@ -121,15 +121,18 @@ public final class ControlRoomServer {
             internal.start();
         }
         clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
-        clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(() -> { try { cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(() -> { try { cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
-        clock.scheduleWithFixedDelay(() -> { try { cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
+        // with several nodes on one database, only the leader runs the background work (Cluster)
+        cr.cluster.tick();
+        clock.scheduleAtFixedRate(() -> { try { cr.cluster.tick(); } catch (RuntimeException ignored) { } }, Cluster.RENEW_SECONDS, Cluster.RENEW_SECONDS, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
 
-    public void stop() { if (clock != null) clock.shutdownNow(); if (server != null) server.stop(0); if (internal != null) internal.stop(0); }
+    public void stop() { if (clock != null) clock.shutdownNow(); cr.cluster.release(); if (server != null) server.stop(0); if (internal != null) internal.stop(0); }
 
     // ------------------------------------------------------------------
     private void handle(HttpExchange ex) throws IOException {
@@ -654,6 +657,7 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "cluster" -> { cr.require(u, "settings.manage", "see the Command Center nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
             case "backups" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.backups.backupNow(u, ip));

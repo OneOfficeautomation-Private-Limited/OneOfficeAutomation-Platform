@@ -23,9 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class Mfa {
     private final ControlRoom cr;
     private final Db db;
-    /** Sign-ins waiting for their code: the token is handed out after the password and lives 5 minutes. */
-    private final Map<String, Challenge> challenges = new ConcurrentHashMap<>();
-    record Challenge(String userId, Instant expires, int[] attempts) {}
+    /** Sign-ins waiting for their code live 5 minutes in the store all nodes share: user id and wrong attempts so far. */
     /** The time the codes are checked against (tests move it). */
     java.time.Clock clock = java.time.Clock.systemUTC();
 
@@ -51,31 +49,30 @@ public final class Mfa {
     /** After a correct password: a challenge token when the account uses two-step sign-in, else null. */
     String challenge(Map<String, Object> user) {
         if (!Boolean.TRUE.equals(user.get("mfa_enabled"))) return null;
-        challenges.values().removeIf(c -> c.expires().isBefore(clock.instant()));
         String t = Security.token(24);
-        challenges.put(t, new Challenge((String) user.get("id"), clock.instant().plus(Duration.ofMinutes(5)), new int[1]));
+        cr.cluster.put("mfa", t, user.get("id") + "|0", Duration.ofMinutes(5));
         return t;
     }
 
     /** Checks the code for a challenge; returns the user's row. Five wrong codes end the challenge and count as a failed sign-in. */
     Map<String, Object> complete(String challengeToken, String code, String ip) {
-        Challenge c = challengeToken == null ? null : challenges.get(challengeToken);
-        if (c == null || c.expires().isBefore(clock.instant())) {
-            if (challengeToken != null) challenges.remove(challengeToken);
-            throw new OoaException("CR.MFA_EXPIRED", "The sign-in took too long", "Sign in again with your password.");
-        }
-        Map<String, Object> r = db.one("SELECT * FROM users WHERE id = ?", c.userId());
+        String held = cr.cluster.peek("mfa", challengeToken);
+        if (held == null) throw new OoaException("CR.MFA_EXPIRED", "The sign-in took too long", "Sign in again with your password.");
+        String userId = held.substring(0, held.lastIndexOf('|'));
+        int attempts = Integer.parseInt(held.substring(held.lastIndexOf('|') + 1));
+        Map<String, Object> r = db.one("SELECT * FROM users WHERE id = ?", userId);
         if (r == null || !verify(r, code)) {
             String name = r == null ? "?" : (String) r.get("username");
             cr.audit.record(name, "auth.mfa", "user", name, null, "failed", ip);
-            if (++c.attempts()[0] >= 5) {
-                challenges.remove(challengeToken);
+            if (++attempts >= 5) {
+                cr.cluster.take("mfa", challengeToken);
                 if (r != null) cr.countFailedSignIn(r, ip);
                 throw new OoaException("CR.MFA_EXPIRED", "Too many wrong codes", "Sign in again with your password.");
             }
+            cr.cluster.update("mfa", challengeToken, userId + "|" + attempts);
             throw new OoaException("CR.MFA_WRONG_CODE", "That code is not right", "Enter the 6-digit code your authenticator app shows now, or a recovery code.");
         }
-        challenges.remove(challengeToken);
+        if (cr.cluster.take("mfa", challengeToken) == null) throw new OoaException("CR.MFA_EXPIRED", "This sign-in was finished already", "Sign in again with your password.");
         return r;
     }
 

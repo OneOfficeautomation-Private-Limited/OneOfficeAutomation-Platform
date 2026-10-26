@@ -35,10 +35,7 @@ final class Saml {
     static final String P = "urn:oasis:names:tc:SAML:2.0:protocol", A = "urn:oasis:names:tc:SAML:2.0:assertion";
     static final long SKEW_SECONDS = 120;
     private final ControlRoom cr;
-    /** Sign-ins this Command Center started: request id -> when (10 minutes to come back). */
-    private final Map<String, Long> pending = new ConcurrentHashMap<>();
-    /** Assertion ids already used, until they expire. */
-    private final Map<String, Instant> used = new ConcurrentHashMap<>();
+    // sign-ins started here (10 minutes to come back) and assertion ids already used live in the store all nodes share
     /** The time responses are checked against (tests move it). */
     java.time.Clock clock = java.time.Clock.systemUTC();
 
@@ -56,9 +53,8 @@ final class Saml {
     /** The address to send the person to: the identity provider with a deflated, Base64 AuthnRequest. */
     String start(String origin) {
         if (!enabled()) throw new OoaException("SSO.DISABLED", "SAML sign-in is not set up", "An administrator sets it up in Administration > Settings.");
-        pending.entrySet().removeIf(e -> System.currentTimeMillis() - e.getValue() > 600_000);
         String id = "_" + Security.token(18).replace('-', 'a').replace('_', 'b');
-        pending.put(id, System.currentTimeMillis());
+        cr.cluster.put("saml", id, "", java.time.Duration.ofMinutes(10));
         String req = "<samlp:AuthnRequest xmlns:samlp=\"" + P + "\" xmlns:saml=\"" + A + "\" ID=\"" + id + "\" Version=\"2.0\" IssueInstant=\"" + clock.instant() + "\""
             + " Destination=\"" + xml(s("saml_idp_sso_url")) + "\" AssertionConsumerServiceURL=\"" + xml(origin + "/api/auth/saml/acs") + "\""
             + " ProtocolBinding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\"><saml:Issuer>" + xml(spEntityId(origin)) + "</saml:Issuer>"
@@ -146,12 +142,12 @@ final class Saml {
         if (!acs.equals(scd.getAttribute("Recipient"))) throw bad("The assertion is for another address (recipient)");
         if (!scd.hasAttribute("NotOnOrAfter") || !now.minusSeconds(SKEW_SECONDS).isBefore(Instant.parse(scd.getAttribute("NotOnOrAfter")))) throw bad("The sign-in has expired");
         String inResponseTo = scd.hasAttribute("InResponseTo") ? scd.getAttribute("InResponseTo") : resp.getAttribute("InResponseTo");
-        if (inResponseTo.isEmpty() || pending.remove(inResponseTo) == null)
+        if (inResponseTo.isEmpty() || cr.cluster.take("saml", inResponseTo) == null)
             throw bad("This sign-in was not started here, or was used already", "Start the sign-in from the Command Center's sign-in page.");
         // once only
-        used.entrySet().removeIf(e -> e.getValue().isBefore(now));
         String aid = as.getAttribute("ID");
-        if (used.putIfAbsent(aid, Instant.parse(scd.getAttribute("NotOnOrAfter")).plusSeconds(SKEW_SECONDS)) != null) throw bad("This assertion was used already");
+        java.time.Duration keep = java.time.Duration.between(now, Instant.parse(scd.getAttribute("NotOnOrAfter")).plusSeconds(SKEW_SECONDS));
+        if (!cr.cluster.put("saml-used", aid, "", keep.isNegative() ? java.time.Duration.ofMinutes(5) : keep.plusMinutes(5))) throw bad("This assertion was used already");
 
         Map<String, Object> claims = new LinkedHashMap<>();
         String sub = nameId.getTextContent().trim();

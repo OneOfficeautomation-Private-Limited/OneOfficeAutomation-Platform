@@ -58,6 +58,7 @@ public final class ControlRoom {
     final SyslogForwarder syslog;
     public final Licensing licensing;
     public final Mfa mfa;
+    public final Cluster cluster;
     public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
     public final GitSync gitSync;
@@ -103,6 +104,7 @@ public final class ControlRoom {
         this.platform = new Platform(this, registry);
         this.syslog = new SyslogForwarder(platform);
         this.licensing = new Licensing(this);
+        this.cluster = new Cluster(db);
         this.mfa = new Mfa(this);
         this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
