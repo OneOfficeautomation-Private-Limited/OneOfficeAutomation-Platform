@@ -141,6 +141,7 @@ final class LlmClient {
      */
     @SuppressWarnings("unchecked")
     static Reply chat(ActionContext ctx, Config cfg, List<Map<String, Object>> messages, List<Map<String, Object>> tools, boolean jsonMode, String purpose) {
+        ModelConnections.beforeCall(ctx, cfg);
         Map<String, String> mapping = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
         List<Map<String, Object>> msgs = new ArrayList<>();
@@ -194,6 +195,8 @@ final class LlmClient {
             rec.put("purpose", purpose);
             rec.put("provider", provider);
             rec.put("model", cfg.model());
+            String connection = ModelConnections.connectionOf(cfg);
+            if (connection != null) rec.put("connection", connection);
             rec.put("input_tokens", r.inTokens());
             rec.put("output_tokens", r.outTokens());
             rec.put("latency_ms", ms);

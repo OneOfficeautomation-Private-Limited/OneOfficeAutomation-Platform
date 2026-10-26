@@ -433,9 +433,14 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE auth_pending (token VARCHAR(200) PRIMARY KEY, kind VARCHAR(20) NOT NULL, data VARCHAR(2000), expires TIMESTAMP NOT NULL)",
     };
 
-    /** Version 19: licence use per day, for the usage trend (Licensing.usage). */
+    /** Version 19: licence use per day, for the usage trend (Licensing.usage); model connection budgets and limits. */
     private static final String[] SCHEMA_V19 = {
         "CREATE TABLE license_usage (snap_day VARCHAR(10) NOT NULL, license_type VARCHAR(40) NOT NULL, used INT NOT NULL, total INT NOT NULL, PRIMARY KEY (snap_day, license_type))",
+        // model budgets and limits (A4): tokens a month, calls a minute and calls a run per connection (0 = none)
+        "ALTER TABLE model_connections ADD COLUMN monthly_tokens BIGINT",
+        "ALTER TABLE model_connections ADD COLUMN calls_per_minute INT",
+        "ALTER TABLE model_connections ADD COLUMN calls_per_run INT",
+        "ALTER TABLE ai_calls ADD COLUMN connection VARCHAR(60)",
     };
 
     /** The schema version this release needs. */

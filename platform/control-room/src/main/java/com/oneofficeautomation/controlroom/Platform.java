@@ -420,11 +420,12 @@ public final class Platform {
             Instant ts;
             try { ts = Instant.parse(String.valueOf(c.get("ts"))); } catch (RuntimeException e) { ts = now(); }
             Object masked = c.get("masked"), tools = c.get("tool_calls");
-            db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
+            db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256, connection) " +
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
                     cut(c.get("purpose"), 80), cut(c.get("provider"), 40), cut(c.get("model"), 200), num(c.get("input_tokens")), num(c.get("output_tokens")),
                     c.get("latency_ms") instanceof Number n ? n.longValue() : null,
-                    masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64));
+                    masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64),
+                    cut(c.get("connection"), 60));
         }
     }
 
@@ -1239,10 +1240,12 @@ public final class Platform {
 
     public List<Map<String, Object>> modelConnections(User by) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, updated, updated_by FROM model_connections ORDER BY name")) {
+        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, updated, updated_by FROM model_connections ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(c);
             m.put("allowed_roles", csv(c.get("allowed_roles")));
             if (m.get("model_type") == null) m.put("model_type", "standard");
+            for (String k : List.of("monthly_tokens", "calls_per_minute", "calls_per_run")) if (m.get(k) == null) m.put(k, 0);
+            m.put("tokens_this_month", tokensThisMonth((String) c.get("name")));
             out.add(m);
         }
         return out;
@@ -1267,10 +1270,12 @@ public final class Platform {
             roles.add(r);
         }
         String rolesCsv = roles.isEmpty() ? null : String.join(",", roles);
-        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, updated = ?, updated_by = ? WHERE name = ?",
-                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, now(), by.username(), name) == 0)
-            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, now(), by.username());
+        long monthly = limit(c.get("monthly_tokens"), 1_000_000_000_000L, "Tokens a month");
+        int perMinute = (int) limit(c.get("calls_per_minute"), 100_000, "Calls a minute"), perRun = (int) limit(c.get("calls_per_run"), 1_000_000, "Calls a run");
+        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, monthly_tokens = ?, calls_per_minute = ?, calls_per_run = ?, updated = ?, updated_by = ? WHERE name = ?",
+                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, now(), by.username(), name) == 0)
+            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, now(), by.username());
         cr.audit.record(by.username(), "connection.save", "connection", name, Map.of("provider", provider, "allowed_roles", roles), "ok", ip);
     }
 
@@ -1295,9 +1300,27 @@ public final class Platform {
         cr.audit.record(by.username(), "connection.delete", "connection", name, null, "ok", ip);
     }
 
+    /** A budget or limit from the dialog: a whole number from 0 (none) to max. */
+    private static long limit(Object v, long max, String what) {
+        if (v == null || String.valueOf(v).isBlank()) return 0;
+        long n;
+        try { n = v instanceof Number num ? num.longValue() : Long.parseLong(String.valueOf(v).trim()); }
+        catch (NumberFormatException e) { throw new OoaException("CR.BAD_INPUT", what + " needs a whole number"); }
+        if (n < 0 || n > max) throw new OoaException("CR.BAD_INPUT", what + " must be from 0 (no limit) to " + max);
+        return n;
+    }
+
+    /** Input and output tokens used through a connection since the start of this month (UTC). */
+    long tokensThisMonth(String connection) {
+        Instant month = java.time.LocalDate.now(java.time.ZoneOffset.UTC).withDayOfMonth(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        Map<String, Object> r = db.one("SELECT SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS n FROM ai_calls WHERE connection = ? AND ts >= ?", connection, month);
+        return r == null || r.get("n") == null ? 0 : ((Number) r.get("n")).longValue();
+    }
+
     /**
      * The connections handed to runners with each job: keys stay vault references ({"$credential": ref}). Only the
-     * connections the run's role may use are sent.
+     * connections the run's role may use are sent. A connection whose monthly token budget is used up goes as blocked
+     * (its AI steps fail with AI.BUDGET_REACHED); its call limits go along for the runner to keep.
      */
     Map<String, Object> connectionsForJob(List<String> runRoles) {
         List<Object> list = new ArrayList<>();
@@ -1309,6 +1332,11 @@ public final class Platform {
             if (c.get("model") != null) m.put("model", c.get("model"));
             if (c.get("base_url") != null) m.put("base_url", c.get("base_url"));
             if (c.get("key_ref") != null) m.put("api_key", Map.of("$credential", c.get("key_ref")));
+            long monthly = c.get("monthly_tokens") instanceof Number n ? n.longValue() : 0;
+            if (monthly > 0 && tokensThisMonth((String) c.get("name")) >= monthly)
+                m.put("blocked", "The connection's budget of " + monthly + " tokens this month is used up");
+            if (c.get("calls_per_minute") instanceof Number n && n.intValue() > 0) m.put("calls_per_minute", n.intValue());
+            if (c.get("calls_per_run") instanceof Number n && n.intValue() > 0) m.put("calls_per_run", n.intValue());
             list.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();

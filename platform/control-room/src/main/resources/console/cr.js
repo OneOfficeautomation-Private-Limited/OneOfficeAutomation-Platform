@@ -1051,6 +1051,8 @@ const VIEWS = {
             { label: "Provider", value: (c) => c.provider }, { label: "Model", value: (c) => c.model || "", render: (c) => h("span", {}, c.model || "", c.model_type === "fine_tuned" ? h("span", { class: "tag", text: "Fine-tuned" }) : null) },
             { label: "Roles", value: (c) => (c.allowed_roles || []).join(", "), render: (c) => (c.allowed_roles || []).length ? h("div", { class: "chips" }, c.allowed_roles.map((x) => h("span", { class: "chip", text: roleLabel(x) }))) : h("span", { class: "muted", text: "every role" }) },
             { label: "Endpoint", value: (c) => c.base_url || "", render: (c) => h("span", { class: "mono small", text: c.base_url || "provider default" }) },
+            { label: "Tokens this month", value: (c) => c.tokens_this_month || 0, render: (c) => c.monthly_tokens ? h("div", {}, (c.tokens_this_month || 0) + " of " + c.monthly_tokens,
+              progressBar(100 * (c.tokens_this_month || 0) / c.monthly_tokens, c.tokens_this_month >= c.monthly_tokens ? "bad" : "")) : String(c.tokens_this_month || 0) },
             { label: "Key", value: (c) => c.key_ref || "", render: (c) => c.key_ref ? h("span", {}, ic("lock", "#dc2626", "sm"), h("code", { text: c.key_ref })) : h("span", { class: "muted", text: "none" }) },
             { label: "Updated", value: (c) => c.updated || "", render: (c) => ago(c.updated) + " by " + (c.updated_by || "") },
             { label: "", sort: false, render: (c) => h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => connectionDialog(c) }, "Edit"),
@@ -2771,16 +2773,23 @@ function connectionDialog(c) {
   const model = h("input", { value: c ? c.model || "" : "", placeholder: "model or deployment name" }), base = h("input", { value: c ? c.base_url || "" : "", placeholder: "https://... (optional)" });
   const key = h("input", { value: c ? c.key_ref || "" : "", placeholder: "vault folder/credential/attribute" }), desc = h("input", { value: c ? c.description || "" : "" });
   const roles = h("input", { value: c ? (c.allowed_roles || []).join(", ") : "", placeholder: "every role" });
+  const lim = (k, max) => h("input", { type: "number", min: "0", max: String(max), value: c && c[k] ? String(c[k]) : "", placeholder: "no limit" });
+  const monthly = lim("monthly_tokens", 1e12), perMinute = lim("calls_per_minute", 100000), perRun = lim("calls_per_run", 1000000);
   const help = h("p", { class: "muted small" });
   const result = h("div");
   if (c) { provider.value = c.provider; type.value = c.model_type || "standard"; }
   const showHelp = () => { help.textContent = PROVIDER_HELP[provider.value] || ""; };
   provider.onchange = showHelp; showHelp();
   const values = () => ({ provider: provider.value, model_type: type.value, model: model.value.trim() || null, base_url: base.value.trim() || null, key_ref: key.value.trim() || null, description: desc.value,
-    allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean) });
+    allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean),
+    monthly_tokens: Number(monthly.value || 0), calls_per_minute: Number(perMinute.value || 0), calls_per_run: Number(perRun.value || 0) });
   modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
     help, h("label", {}, "Endpoint", base),
     h("label", {}, "API key from the One Agent Vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
+    h("h3", { text: "Budget and limits" }),
+    h("div", { class: "grid2" }, h("label", {}, "Tokens a month (in and out)" + (c && c.tokens_this_month ? "; " + c.tokens_this_month + " used this month" : ""), monthly),
+      h("label", {}, "Calls a minute, per run (more calls wait)", perMinute), h("label", {}, "Calls a run (more calls fail)", perRun)),
+    h("p", { class: "muted small", text: "When the month's tokens are used up, runs get the connection blocked and its AI steps fail with AI.BUDGET_REACHED until the next month or a higher budget. Empty or 0: no limit." }),
     h("p", { class: "muted", text: "Only the vault reference is stored here. Runners read the key from the vault while an agent runs, and only for agents whose owner may use that vault folder. Runs of other roles do not receive the connection." }),
     result],
   [h("button", { type: "button", onclick: async () => {

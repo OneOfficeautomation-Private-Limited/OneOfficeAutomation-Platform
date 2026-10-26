@@ -55,6 +55,8 @@ final class ModelConnections {
     static LlmClient.Config config(ActionContext ctx, String connection, String provider, String model, Object key, String base, double temp, int max, boolean mask,
                                    Object accessKeyId, String region) {
         Map<String, Object> c = find(ctx, connection);
+        if (c != null && c.get("blocked") instanceof String why)
+            throw new ActionException("AI.BUDGET_REACHED", why, "An administrator raises the budget in One Model Connections, or the budget starts again next month.");
         if (c != null) {
             provider = String.valueOf(c.getOrDefault("provider", provider));
             if (model == null || model.isBlank()) model = (String) c.get("model");
@@ -64,7 +66,54 @@ final class ModelConnections {
             if ((region == null || region.isBlank()) && c.get("region") instanceof String r) region = r;
         }
         if (model == null || model.isBlank()) throw new ActionException("AI.NO_MODEL", "No model chosen", "Pick a One Model Connection, or set provider and model on this action.");
-        return GenAiPackage.cfg(provider, model, key, base, temp, max, mask, accessKeyId, region);
+        LlmClient.Config cfg = GenAiPackage.cfg(provider, model, key, base, temp, max, mask, accessKeyId, region);
+        if (c != null) USED.put(cfg, c);
+        return cfg;
+    }
+
+    // ---------- call limits of a connection (A4), kept by the runner within a run ----------
+
+    /** The connection each config came from (by value), so a call can be limited and recorded under its connection. */
+    private static final Map<LlmClient.Config, Map<String, Object>> USED = Collections.synchronizedMap(new WeakHashMap<>());
+    /** Calls made per run and connection, and the times of the latest calls (for calls a minute). */
+    private static final Map<String, Integer> PER_RUN = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<String, Deque<Long>> RECENT = new java.util.concurrent.ConcurrentHashMap<>();
+    /** The clock and the wait (tests replace them). */
+    static java.util.function.LongSupplier clock = System::currentTimeMillis;
+    static java.util.function.LongConsumer sleeper = ms -> { try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } };
+
+    /** The connection name of a config, or null for settings typed on the action. */
+    static String connectionOf(LlmClient.Config cfg) { Map<String, Object> c = USED.get(cfg); return c == null ? null : (String) c.get("name"); }
+
+    /**
+     * Before each model call: refuses the call beyond the connection's calls a run, and waits (up to a minute) when the
+     * connection's calls a minute are used, so a busy agent slows down instead of failing.
+     */
+    static void beforeCall(ActionContext ctx, LlmClient.Config cfg) {
+        Map<String, Object> c = USED.get(cfg);
+        if (c == null) return;
+        String name = String.valueOf(c.get("name"));
+        if (c.get("calls_per_run") instanceof Number n && n.intValue() > 0) {
+            int made = PER_RUN.merge(ctx.runId() + "|" + name, 1, Integer::sum);
+            if (made > n.intValue())
+                throw new ActionException("AI.CALL_LIMIT", "This run reached the limit of " + n.intValue() + " calls through the model connection '" + name + "'",
+                    "An administrator raises Calls a run in One Model Connections.");
+        }
+        if (c.get("calls_per_minute") instanceof Number n && n.intValue() > 0) {
+            Deque<Long> times = RECENT.computeIfAbsent(ctx.runId() + "|" + name, k -> new ArrayDeque<>());
+            synchronized (times) {
+                long now = clock.getAsLong();
+                while (!times.isEmpty() && times.peekFirst() <= now - 60_000) times.pollFirst();
+                if (times.size() >= n.intValue()) {
+                    long wait = times.peekFirst() + 60_000 - now;
+                    ctx.info("Model connection '" + name + "' allows " + n.intValue() + " calls a minute: waiting " + Math.max(1, wait / 1000) + " s");
+                    sleeper.accept(wait);
+                    now = clock.getAsLong();
+                    while (!times.isEmpty() && times.peekFirst() <= now - 60_000) times.pollFirst();
+                }
+                times.addLast(now);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

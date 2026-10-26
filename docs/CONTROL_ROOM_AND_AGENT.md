@@ -523,6 +523,10 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
   generative AI and web goal agent actions.
   - **Type**: standard or fine-tuned model.
   - **Roles that may use it**: runs of people with none of these roles do not receive the connection. Empty means every role.
+  - **Budget and limits**: tokens a month (in and out, counted from the AI calls runs report), calls a minute and calls a
+    run. When the month's tokens are used up, AI steps through the connection fail with `AI.BUDGET_REACHED` until the
+    next month or a higher budget. Past calls a minute, a run waits; past calls a run, the step fails with `AI.CALL_LIMIT`.
+    The list shows each connection's tokens this month.
   - **Test connection** sends one very small request ("Answer with OK") with the key from the vault and shows the answer
     and the time. The key is used for that request only; the test is audited.
   - Amazon Bedrock: the model or inference profile id, the endpoint `https://bedrock-runtime.REGION.amazonaws.com`, and
