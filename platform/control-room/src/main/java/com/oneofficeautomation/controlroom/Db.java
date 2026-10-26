@@ -328,9 +328,17 @@ public final class Db implements AutoCloseable {
             "json_credentials VARCHAR(10000) NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
     };
 
+    /** Version 9: the installed license file and who holds which seat (Licensing). */
+    private static final String[] SCHEMA_V9 = {
+        "CREATE TABLE licenses (id VARCHAR(80) PRIMARY KEY, content VARCHAR(20000) NOT NULL, customer VARCHAR(200), expires VARCHAR(10) NOT NULL, " +
+            "installed TIMESTAMP NOT NULL, installed_by VARCHAR(80) NOT NULL, active BOOLEAN NOT NULL)",
+        "CREATE TABLE license_assignments (principal_type VARCHAR(10) NOT NULL, principal VARCHAR(120) NOT NULL, license_type VARCHAR(40) NOT NULL, " +
+            "assigned TIMESTAMP NOT NULL, assigned_by VARCHAR(80), PRIMARY KEY (principal_type, principal, license_type))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 8;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8 };
+    public static final int LATEST = 9;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {
@@ -347,7 +355,9 @@ public final class Db implements AutoCloseable {
      */
     public void migrate() {
         int current = schemaVersion();
-        if (current >= LATEST) return;
+        if (current > LATEST) throw new OoaException("CR.DB_NEWER", "The database holds schema version " + current + ", made by a newer release; this release knows version " + LATEST,
+            "Start the release that upgraded the database, or restore a backup taken before the upgrade");
+        if (current == LATEST) return;
         try {
             tx(() -> {
                 if (current == 0) execute(sqlServer ? "IF OBJECT_ID('schema_version', 'U') IS NULL CREATE TABLE schema_version (version INT NOT NULL)"

@@ -163,7 +163,7 @@ class PendingItemsTest {
         assertNotNull(db.one("SELECT id FROM runs WHERE id = 'run_r3'"));
         assertEquals("CR.FORBIDDEN", code(() -> cr.platform.purgeNow(jane, Map.of("log_days", 1), null)));
         Map<String, Object> lic = cr.platform.license(admin);
-        assertEquals("Self-hosted", lic.get("edition"));
+        assertEquals("Unlicensed (no license installed)", lic.get("edition"));   // no license file: nothing is limited
         assertTrue(((Number) lic.get("agents")).intValue() >= 2);
     }
 }

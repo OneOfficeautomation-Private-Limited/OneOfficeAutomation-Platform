@@ -62,6 +62,8 @@ public final class RepoFiles {
         cr.folders.require(by, p, "edit", "add files to this folder");
         if (content == null || content.length == 0) throw new OoaException("CR.BAD_INPUT", "The file is empty");
         if (content.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "Repository files are at most " + (MAX_BYTES >> 20) + " MB");
+        if (cr.platform.intSetting("block_executable_uploads") == 1 && p.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(exe|dll|msi|bat|cmd|com|scr|ps1|vbs|jar)$"))
+            throw new OoaException("CR.FILE_TYPE_BLOCKED", "Programs and scripts (.exe, .dll, .msi, .bat, .ps1 and similar) may not be uploaded", "An administrator can allow them in Settings");
         if (db.one("SELECT path FROM bots WHERE path = ?", p) != null) throw new OoaException("CR.CONFLICT", "An agent is at " + p);
         String sha = sha256(content);
         try {

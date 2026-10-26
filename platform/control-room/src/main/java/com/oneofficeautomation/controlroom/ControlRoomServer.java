@@ -21,7 +21,10 @@ import java.util.concurrent.*;
  * Agents authenticate with their device id and secret.
  */
 public final class ControlRoomServer {
-    static final int MAX_BODY = 5 * 1024 * 1024;
+    private final RateLimiter limiter = new RateLimiter();
+
+    /** The request size limit; the server sets it from Settings (Largest upload). */
+    static volatile java.util.function.IntSupplier maxBody = () -> 5 * 1024 * 1024;
     public static final String COOKIE = "ooa_cr";
     private final ControlRoom cr;
     private final McpServer mcp;
@@ -32,7 +35,18 @@ public final class ControlRoomServer {
     private ScheduledExecutorService clock;
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
-    public ControlRoomServer(ControlRoom cr, String host, int port) { this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr); }
+    public ControlRoomServer(ControlRoom cr, String host, int port) {
+        this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
+        maxBody = () -> cr.platform.maxBodyBytes();
+    }
+
+    /** True when the browser reached the Command Center over HTTPS (through a TLS proxy that says so, or a public https:// address). */
+    private static boolean overHttps(HttpExchange ex) { return "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
+
+    /** The Secure cookie flag whenever the Command Center is used over HTTPS, so the session cookie never travels in clear text. */
+    private String secureFlag(HttpExchange ex) {
+        return overHttps(ex) || String.valueOf(cr.platform.setting("public_url")).toLowerCase(Locale.ROOT).startsWith("https://") ? "; Secure" : "";
+    }
 
     /** The address people use to reach the Command Center (Settings: public_url), for single sign-on redirects. */
     private String origin(HttpExchange ex) {
@@ -83,11 +97,11 @@ public final class ControlRoomServer {
         } catch (OoaException e) {
             int status = switch (e.code()) {
                 case "CR.UNAUTHENTICATED", "CR.LOGIN_FAILED" -> 401;
-                case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "VAULT.DENIED", "CR.CSRF" -> 403;
+                case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "VAULT.DENIED", "CR.CSRF", "CR.LICENSE_REQUIRED", "CR.LICENSE_EXPIRED", "CR.IP_BLOCKED", "CR.FILE_TYPE_BLOCKED" -> 403;
                 case "CR.NOT_FOUND", "VAULT.NOT_FOUND" -> 404;
-                case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED" -> 409;
+                case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED", "CR.LICENSE_LIMIT", "LICENSE.TOO_FEW_SEATS" -> 409;
                 case "CR.POLICY_VIOLATION" -> 422;
-                case "CR.LOCKED_OUT" -> 429;
+                case "CR.LOCKED_OUT", "CR.RATE_LIMITED" -> 429;
                 default -> 400;
             };
             sendJson(ex, status, Map.of("error", e.toMap()));
@@ -110,8 +124,9 @@ public final class ControlRoomServer {
     }
 
     static Object body(HttpExchange ex) throws IOException {
-        byte[] b = ex.getRequestBody().readNBytes(MAX_BODY + 1);
-        if (b.length > MAX_BODY) throw new OoaException("CR.TOO_LARGE", "Request body exceeds 5 MB");
+        int limit = maxBody.getAsInt();
+        byte[] b = ex.getRequestBody().readNBytes(limit + 1);
+        if (b.length > limit) throw new OoaException("CR.TOO_LARGE", "The request is larger than the Largest upload setting allows", "Raise Settings > Largest upload, or send a smaller file");
         String t = new String(b, StandardCharsets.UTF_8);
         if (t.isBlank()) return new LinkedHashMap<>();
         try { return JsonLite.parse(t); } catch (IllegalArgumentException e) { throw new OoaException("CR.BAD_JSON", "Request body is not valid JSON"); }
@@ -154,11 +169,33 @@ public final class ControlRoomServer {
         Map<String, String> q = query(ex);
         String[] seg = route.split("/");
 
+        // the IP allow list (Settings): this computer and the health checks are always allowed
+        if (!route.startsWith("health") && !ex.getRemoteAddress().getAddress().isLoopbackAddress()) {
+            IpAllowList allow = IpAllowList.parse(String.valueOf(cr.platform.setting("ip_allow_list")));
+            if (!allow.isEmpty() && !allow.allows(ip)) {
+                sendJson(ex, 403, Map.of("error", Map.of("code", "CR.IP_BLOCKED", "message", "This address may not use the Command Center", "retryable", false)));
+                return;
+            }
+        }
+
+        // per-address limits on the routes that need no session (a client on this computer without a proxy is not limited)
+        String limitGroup = RateLimiter.group(m, route);
+        if (limitGroup != null) {
+            boolean local = ex.getRemoteAddress().getAddress().isLoopbackAddress();
+            String fwd = ex.getRequestHeaders().getFirst("X-Forwarded-For");
+            String who = local && fwd != null && !fwd.isBlank() ? fwd.split(",")[0].trim() : local ? null : ip;
+            if (who != null && !limiter.allow(who, limitGroup)) {
+                ex.getResponseHeaders().set("Retry-After", String.valueOf(limiter.retryAfter()));
+                sendJson(ex, 429, Map.of("error", Map.of("code", "CR.RATE_LIMITED", "message", "Too many requests from this address; try again in a minute", "retryable", true)));
+                return;
+            }
+        }
+
         // ---------- public ----------
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
             Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), ip);
-            ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800");
+            ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
             sendJson(ex, 200, r);
             return;
         }
@@ -190,7 +227,7 @@ public final class ControlRoomServer {
             try {
                 if (q.get("error") != null) throw new OoaException("SSO.DENIED", "The identity provider did not sign you in: " + q.get("error") + (q.get("error_description") != null ? " (" + q.get("error_description") + ")" : ""));
                 Map<String, Object> r = sso.callback(q.get("code"), q.get("state"), origin(ex) + "/api/auth/sso/callback", ip);
-                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800");
+                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
                 // A same-site page moves on to the console, so the browser sends the new SameSite=Strict cookie.
                 html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
             } catch (OoaException e) {
@@ -202,6 +239,11 @@ public final class ControlRoomServer {
         if (m.equals("POST") && seg.length == 2 && seg[0].equals("hooks")) {
             String secret = ex.getRequestHeaders().getFirst("X-OOA-Secret");
             sendJson(ex, 202, cr.webhook(seg[1], secret, body(ex), ip));
+            return;
+        }
+        if (m.equals("GET") && route.equals("health/ready")) {
+            Map<String, Object> r = cr.readiness();
+            sendJson(ex, "ready".equals(r.get("status")) ? 200 : 503, r);
             return;
         }
         if (m.equals("GET") && route.equals("health")) {
@@ -244,7 +286,7 @@ public final class ControlRoomServer {
         if (route.equals("auth/logout") && m.equals("POST")) {
             ControlRoom.User u = user(ex, true);
             cr.logout(token(ex), u, ip);
-            ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+            ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + secureFlag(ex));
             sendJson(ex, 200, Map.of("ok", true));
             return;
         }
@@ -252,7 +294,7 @@ public final class ControlRoomServer {
             ControlRoom.User u = user(ex, true);
             Map<String, Object> r = cr.refreshToken(token(ex), u, ip);
             if (ex.getRequestHeaders().getFirst("Authorization") == null)
-                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800");
+                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
             sendJson(ex, 200, r);
             return;
         }
@@ -266,7 +308,15 @@ public final class ControlRoomServer {
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
-            case "license" -> sendJson(ex, 200, cr.platform.license(u));
+            case "license" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.licensing.install(u, (String) map(body(ex)).get("content"), ip));
+                else if (m.equals("GET") && route.equals("license/assignments")) sendJson(ex, 200, cr.licensing.assignments(u));
+                else if (m.equals("PUT") && route.equals("license/assignments")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.licensing.assign(u, (String) b.get("license_type"), (String) b.get("principal"), !Boolean.FALSE.equals(b.get("assigned")), ip));
+                } else notFound(ex);
+            }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
             case "mcp" -> {
                 if (!m.equals("POST")) { ex.getResponseHeaders().set("Allow", "POST"); ex.sendResponseHeaders(405, -1); return; }
@@ -298,7 +348,8 @@ public final class ControlRoomServer {
                 sendJson(ex, 200, cr.db.info());
             }
             case "settings" -> {
-                if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
+                if (m.equals("POST") && route.equals("settings/syslog-test")) { cr.require(u, "settings.manage", "test the syslog connection"); sendJson(ex, 200, cr.syslog.test(u.username())); }
+                else if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
                 else if (m.equals("PUT")) sendJson(ex, 200, cr.platform.updateSettings(u, map(body(ex)), ip));
                 else notFound(ex);
             }
@@ -600,6 +651,7 @@ public final class ControlRoomServer {
         var h = ex.getResponseHeaders();
         h.set("X-Content-Type-Options", "nosniff");
         h.set("X-Frame-Options", "DENY");
+        if (overHttps(ex)) h.set("Strict-Transport-Security", "max-age=31536000");
         h.set("Referrer-Policy", "no-referrer");
         h.set("Cache-Control", "no-store");
         h.set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");

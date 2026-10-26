@@ -48,11 +48,28 @@ public final class Security {
         return a != null && b != null && MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Password policy: at least 12 characters with letters and digits; not the username. */
-    public static String passwordProblem(String password, String username) {
-        if (password == null || password.length() < 12) return "Passwords need at least 12 characters.";
+    /** Passwords people commonly choose; refused whatever the letters' case and with digits or symbols around them. */
+    private static final java.util.Set<String> COMMON = java.util.Set.of("password", "passw0rd", "welcome", "qwerty", "qwertyuiop", "letmein", "admin", "administrator",
+        "iloveyou", "monkey", "dragon", "football", "baseball", "sunshine", "princess", "trustno1", "abc123", "changeme", "secret", "master", "login",
+        "starwars", "whatever", "shadow", "superman", "michael", "computer", "automation", "oneoffice", "ooa");
+
+    /** Password policy with the default minimum length (12). */
+    public static String passwordProblem(String password, String username) { return passwordProblem(password, username, 12); }
+
+    /**
+     * Password policy: at least minLength characters (12 to 64, Settings: password_min_length), letters and digits, at most
+     * 128 characters, no character four times in a row, not the user name, and not a common password with
+     * digits or symbols added.
+     */
+    public static String passwordProblem(String password, String username, int minLength) {
+        int min = Math.max(12, Math.min(64, minLength));
+        if (password == null || password.length() < min) return "Passwords need at least " + min + " characters.";
+        if (password.length() > 128) return "Passwords have at most 128 characters.";
         if (!password.matches(".*[A-Za-z].*") || !password.matches(".*\\d.*")) return "Passwords need both letters and digits.";
         if (password.equalsIgnoreCase(username)) return "The password cannot be the user name.";
+        if (password.matches(".*(.)\\1{3,}.*")) return "The same character cannot appear four times in a row.";
+        String core = password.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z]", "");
+        if (COMMON.contains(core)) return "That password is too common; choose another.";
         return null;
     }
 }
