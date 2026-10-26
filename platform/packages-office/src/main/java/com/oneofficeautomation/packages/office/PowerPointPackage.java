@@ -35,7 +35,7 @@ public final class PowerPointPackage {
         @Override public void close() throws IOException { ppt.close(); }
     }
 
-    private static DeckSession s(ActionContext ctx, String name) { return ctx.session(name, DeckSession.class); }
+    private static DeckSession s(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "powerpoint", DeckSession.class); }
 
     private static int lastSlide(DeckSession d) { return d.ppt.getSlides().size(); }
 
@@ -193,6 +193,7 @@ public final class PowerPointPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+        session = ctx.sessionNameOrOnly(session, "powerpoint", DeckSession.class);
         if (save && ctx.sessions().get(session) instanceof DeckSession d) write(d, d.path);
         Object o = ctx.sessions().remove(session);
         if (o instanceof DeckSession d) try { d.close(); } catch (IOException ignored) { }

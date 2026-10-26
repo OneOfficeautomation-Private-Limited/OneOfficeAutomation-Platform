@@ -41,7 +41,8 @@ public final class ExcelPackage {
         @Override public void close() throws IOException { wb.close(); }
     }
 
-    private static WorkbookSession session(ActionContext ctx, String name) { return ctx.session(name, WorkbookSession.class); }
+    /** The step's workbook: its session, or the one open workbook when the step keeps the default name (T1). */
+    private static WorkbookSession session(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "excel", WorkbookSession.class); }
 
     private static Sheet sheet(WorkbookSession s, String name) {
         if (name == null || name.isBlank()) return s.wb.getSheetAt(s.wb.getActiveSheetIndex());
@@ -539,6 +540,7 @@ public final class ExcelPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+        session = ctx.sessionNameOrOnly(session, "excel", WorkbookSession.class);
         if (save && ctx.sessions().get(session) instanceof WorkbookSession w) {
             refuseReadOnly(w, w.path);
             writeFile(w, w.path, w.password);

@@ -803,3 +803,7 @@ body[data-view="item"]:not(.script-item) .dock, body[data-view="item"]:not(.scri
 .cap-which { display: inline-flex; gap: var(--space-1); align-items: center; }
 .cap-which .cap-index { width: 4.5em; }
 .element-switch { align-self: flex-start; margin-top: calc(-1 * var(--space-1)); }
+.ok-text { color: var(--success); }
+.cond-test { margin-top: var(--space-2); }
+.cond-test > summary { cursor: pointer; }
+.cond-test .error { color: var(--danger, #b91c1c); }

@@ -1,6 +1,8 @@
 package com.oneofficeautomation.sdk;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +54,27 @@ public final class ActionContext {
         if (!kind.isInstance(o)) throw new OoaException("SESSION.WRONG_TYPE",
                 "Session '" + name + "' is a " + o.getClass().getSimpleName() + ", expected " + kind.getSimpleName());
         return kind.cast(o);
+    }
+
+    /**
+     * The named session, or, when the step keeps the toolkit's default name and nothing is open under it, the one open
+     * session of that kind (a workbook opened as "report" is used by later steps that left the name as "excel"). With
+     * several open, the step must name one.
+     */
+    public <T> T sessionOrOnly(String name, String defaultName, Class<T> kind) { return session(sessionNameOrOnly(name, defaultName, kind), kind); }
+
+    /** The session name such a step means (see {@link #sessionOrOnly}); the given name when nothing else fits. */
+    public String sessionNameOrOnly(String name, String defaultName, Class<?> kind) {
+        boolean byDefault = name == null || name.isBlank() || name.equals(defaultName);
+        if (byDefault && sessions.get(defaultName) == null) {
+            List<String> open = new ArrayList<>();
+            for (Map.Entry<String, Object> e : sessions.entrySet()) if (kind.isInstance(e.getValue())) open.add(e.getKey());
+            if (open.size() == 1) return open.get(0);
+            if (open.size() > 1) { Collections.sort(open);
+                throw new OoaException("SESSION.NOT_FOUND", "Several are open (" + String.join(", ", open) + "); this step does not say which",
+                    "Choose the session on this step."); }
+        }
+        return byDefault ? defaultName : name;
     }
 
     public <T> T service(String name, Class<T> kind) {

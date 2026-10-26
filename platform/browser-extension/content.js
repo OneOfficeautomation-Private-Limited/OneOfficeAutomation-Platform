@@ -211,6 +211,41 @@
       case "scroll_into_view": el.scrollIntoView({ block: "center" }); return out(true);
       case "highlight": { const old = el.style.outline; el.style.outline = "3px solid #a371ed"; setTimeout(() => { el.style.outline = old; }, 2000); return out(true); }
       case "wait_to_appear": return out(true);
+      case "upload_files": {
+        // the runner sends the files' bytes: a file input gets them as if chosen in the dialog; any other element
+        // (a drop zone) gets them dropped on it
+        const dt = new DataTransfer();
+        for (const f of req.files || []) {
+          const bin = atob(f.base64); const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          dt.items.add(new File([bytes], f.name, { type: f.type || "application/octet-stream" }));
+        }
+        if (el.tagName === "INPUT" && el.type === "file") {
+          if (!el.multiple && dt.files.length > 1) throw Object.assign(new Error("This file field takes one file"), { code: "BROWSER.BAD_INPUT" });
+          el.files = dt.files;
+          el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true }));
+        } else {
+          const r = el.getBoundingClientRect(); const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, dataTransfer: dt, bubbles: true, cancelable: true };
+          for (const type of ["dragenter", "dragover", "drop"]) el.dispatchEvent(new DragEvent(type, at));
+        }
+        return out(dt.files.length);
+      }
+      case "drag_to": {
+        const target = bySelector(req.target)[0];
+        if (!target) throw Object.assign(new Error("No element matches the drop target " + req.target), { code: "BROWSER.OBJECT_NOT_FOUND" });
+        el.scrollIntoView({ block: "center" });
+        const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
+        const from = { clientX: a.left + a.width / 2, clientY: a.top + a.height / 2 }, to = { clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 };
+        // HTML drag and drop (draggable elements) ...
+        const dt = new DataTransfer();
+        const drag = (node, type, at) => node.dispatchEvent(new DragEvent(type, Object.assign({ dataTransfer: dt, bubbles: true, cancelable: true }, at)));
+        drag(el, "dragstart", from); drag(target, "dragenter", to); drag(target, "dragover", to); drag(target, "drop", to); drag(el, "dragend", to);
+        // ... and the pointer moves that drag libraries listen to instead
+        fire(el, "pointerdown", from); fire(el, "mousedown", from);
+        for (let i = 1; i <= 5; i++) { const at = { clientX: from.clientX + (to.clientX - from.clientX) * i / 5, clientY: from.clientY + (to.clientY - from.clientY) * i / 5 }; fire(document.elementFromPoint(at.clientX, at.clientY) || target, "pointermove", at); fire(document.elementFromPoint(at.clientX, at.clientY) || target, "mousemove", at); await sleep(16); }
+        fire(target, "pointerup", to); fire(target, "mouseup", to);
+        return out(true);
+      }
       case "screenshot": { el.scrollIntoView({ block: "center" }); await sleep(150); const r = el.getBoundingClientRect(); return { shot_rect: { x: r.left, y: r.top, width: r.width, height: r.height }, ratio: devicePixelRatio, healed_by: healed.by || "" }; }
       case "select": setChecked(el, true); return out(true);
       case "get_frame_html": {

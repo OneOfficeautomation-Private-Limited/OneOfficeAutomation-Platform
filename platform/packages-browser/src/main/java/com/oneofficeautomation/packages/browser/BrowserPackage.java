@@ -295,8 +295,47 @@ public final class BrowserPackage {
         return Map.of();
     }
 
+    /** The files of an upload_file value: a list, or paths separated by ; or new lines, relative to the workspace; each must exist. */
+    static List<Path> uploadFiles(ActionContext ctx, Object value) {
+        List<Path> files = new ArrayList<>();
+        if (value instanceof List<?> list) for (Object o : list) files.add(ctx.workDir().resolve(Values.text(o)));
+        else if (value != null) for (String f : String.valueOf(value).split("[;\n]")) if (!f.isBlank()) files.add(ctx.workDir().resolve(f.trim()));
+        if (files.isEmpty()) throw new ActionException("BROWSER.BAD_INPUT", "upload_file needs the file path(s) in value");
+        for (Path f : files) if (!Files.isRegularFile(f)) throw new ActionException("BROWSER.FILE_NOT_FOUND", "File not found: " + f);
+        return files;
+    }
+
+    /** Click's "then wait for": the page loaded, or an element shown or gone. */
+    private void afterClick(ActionContext ctx, String session, String then, String waitSelector, double timeout) {
+        switch (then) {
+            case "page_load" -> {
+                sleep(ctx, 300);   // let a navigation the click started begin
+                if (tab(ctx, session) != null) {
+                    long end = System.currentTimeMillis() + (long) timeout;
+                    while (!"complete".equals(String.valueOf(onTab(tab(ctx, session), "run_js", Map.of("code", "return document.readyState"), 30000)))) {
+                        ctx.checkCancelled();
+                        if (System.currentTimeMillis() > end) throw new ActionException("BROWSER.TIMEOUT", "The page did not finish loading after the click", "Raise timeout_ms.");
+                        sleep(ctx, 200);
+                    }
+                } else {
+                    try { s(ctx, session).page.waitForLoadState(com.microsoft.playwright.options.LoadState.LOAD, new Page.WaitForLoadStateOptions().setTimeout(timeout)); }
+                    catch (PlaywrightException e) { throw pw(e, "Waiting for the page to load after the click"); }
+                }
+            }
+            case "element_visible" -> waitFor(ctx, null, waitSelector, "visible", timeout, session, null);
+            case "element_gone" -> waitFor(ctx, null, waitSelector, "hidden", timeout, session, null);
+            default -> { }
+        }
+    }
+
+    /** Click element without "then wait for" (the signature before it was added). */
+    public Map<String, Object> click(ActionContext ctx, Object object, String sel, boolean dbl, double timeout, String session, Map<String, Object> alternatives, Object window,
+                                     String clickMethod, boolean force) {
+        return click(ctx, object, sel, dbl, timeout, session, alternatives, window, clickMethod, force, "nothing", null);
+    }
+
     @Action(id = "click", name = "Click element", category = "Elements", timeoutSeconds = 120, capabilities = "browser", description = "Click an element (waits until it is visible and enabled).",
-            panel = "window, object, selector, double_click | click_method, force, alternatives, session, timeout_ms")
+            panel = "window, object, selector, double_click, then_wait_for, wait_selector | click_method, force, alternatives, session, timeout_ms")
     public Map<String, Object> click(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
             @Input(name = "selector", type = OoaType.STRING, required = false, description = D_SEL_OPT) String sel,
@@ -308,10 +347,22 @@ public final class BrowserPackage {
             @Input(name = "click_method", type = OoaType.STRING, required = false, defaultValue = "\"mouse\"", enumValues = {"mouse", "javascript"},
                     description = "mouse: a real click (scrolls the element into view and waits until it can be clicked); javascript: fire the click on the element itself, for elements covered by an advert or a banner.") String clickMethod,
             @Input(name = "force", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Mouse click without waiting until nothing covers the element.") boolean force) {
+                    description = "Mouse click without waiting until nothing covers the element.") boolean force,
+            @Input(name = "then_wait_for", type = OoaType.STRING, required = false, defaultValue = "\"nothing\"", enumValues = {"nothing", "page_load", "element_visible", "element_gone"},
+                    description = "After the click, wait until the page has loaded, or until the element in wait_selector appears or is gone (for example a spinner): "
+                        + "no fixed Delay needed when Next keeps the same page.") String thenWaitFor,
+            @Input(name = "wait_selector", type = OoaType.STRING, required = false,
+                    description = "With then_wait_for element_visible or element_gone: the element to wait for (a selector).") String waitSelector) {
         session = BrowserWindows.use(ctx, session, window, timeout);
         boolean js = "javascript".equals(clickMethod);
-        if (tab(ctx, session) != null) { onElement(ctx, tab(ctx, session), object, sel, dbl ? "double_click" : "click", null, timeout, Map.of("click_method", js ? "javascript" : "mouse")); return Map.of(); }
+        String then = thenWaitFor == null || thenWaitFor.isBlank() ? "nothing" : thenWaitFor;
+        if (then.startsWith("element_") && (waitSelector == null || waitSelector.isBlank()))
+            throw new ActionException("BROWSER.BAD_INPUT", "Then wait for " + then.replace('_', ' ') + " needs wait_selector", "Give the selector of the element to wait for.");
+        if (tab(ctx, session) != null) {
+            onElement(ctx, tab(ctx, session), object, sel, dbl ? "double_click" : "click", null, timeout, Map.of("click_method", js ? "javascript" : "mouse"));
+            afterClick(ctx, session, then, waitSelector, timeout);
+            return Map.of();
+        }
         try {
             Locator l = target(ctx, session, object, sel, alternatives, timeout);
             if (js) {
@@ -320,6 +371,7 @@ public final class BrowserPackage {
             } else if (dbl) l.dblclick(new Locator.DblclickOptions().setTimeout(timeout).setForce(force));
             else l.click(new Locator.ClickOptions().setTimeout(timeout).setForce(force));
         } catch (PlaywrightException e) { throw pw(e, "Clicking " + what(object, sel)); }
+        afterClick(ctx, session, then, waitSelector, timeout);
         return Map.of();
     }
 
@@ -1619,7 +1671,29 @@ public final class BrowserPackage {
             opts.put("clear_first", clearFirst);
             if (row != null) opts.put("row", row);
             if (column != null) opts.put("column", column);
-            Object r = onElement(ctx, tab(ctx, session), objectArg, sel, action, value, timeout, opts);
+            String tabAction = action;
+            if (action.equals("upload_file")) {
+                // the files travel to the page (the connector cannot read the disk): at most 50 MB in all
+                List<Map<String, Object>> files = new ArrayList<>();
+                long total = 0;
+                for (Path f : uploadFiles(ctx, value)) {
+                    try {
+                        byte[] b = Files.readAllBytes(f);
+                        total += b.length;
+                        if (total > 50L * 1024 * 1024) throw new ActionException("BROWSER.FILE_TOO_LARGE", "Files over 50 MB in all cannot go through the browser connector", "Use Open browser with the built-in browser for large uploads.");
+                        String type = Files.probeContentType(f);
+                        files.add(Map.of("name", f.getFileName().toString(), "type", type == null ? "application/octet-stream" : type, "base64", Base64.getEncoder().encodeToString(b)));
+                    } catch (java.io.IOException e) { throw new ActionException("BROWSER.FILE_ERROR", "Cannot read " + f + ": " + e.getMessage()); }
+                }
+                opts.put("files", files);
+                tabAction = "upload_files";
+            }
+            if (action.equals("drag_to")) {
+                if (value == null || String.valueOf(value).isBlank()) throw new ActionException("BROWSER.BAD_INPUT", "drag_to needs the target selector in value");
+                opts.put("target", String.valueOf(value));
+            }
+            Object r = onElement(ctx, tab(ctx, session), objectArg, sel, tabAction, value, timeout, opts);
+            if (r instanceof Number n && tabAction.equals("upload_files")) r = new BigDecimal(n.toString());
             if (action.equals("screenshot") && r != null) {
                 Path out = ctx.workDir().resolve(String.valueOf(value));
                 try { if (out.getParent() != null) Files.createDirectories(out.getParent()); Files.write(out, Base64.getDecoder().decode(String.valueOf(r))); }
@@ -1744,10 +1818,8 @@ public final class BrowserPackage {
                 case "wait_to_appear" -> { l.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.VISIBLE)); result = true; }
                 case "drag_to" -> l.dragTo(bs.page.locator(need.get()), new Locator.DragToOptions().setTimeout(timeout).setForce(force));
                 case "upload_file" -> {
-                    List<Path> files = new ArrayList<>();
-                    if (value instanceof List<?> list) for (Object o : list) files.add(ctx.workDir().resolve(Values.text(o)));
-                    else for (String f : need.get().split("[;\\n]")) if (!f.isBlank()) files.add(ctx.workDir().resolve(f.trim()));
-                    for (Path f : files) if (!Files.isRegularFile(f)) throw new ActionException("BROWSER.FILE_NOT_FOUND", "File not found: " + f);
+                    need.get();
+                    List<Path> files = uploadFiles(ctx, value);
                     l.setInputFiles(files.toArray(Path[]::new), new Locator.SetInputFilesOptions().setTimeout(timeout));
                     result = BigDecimal.valueOf(files.size());
                 }

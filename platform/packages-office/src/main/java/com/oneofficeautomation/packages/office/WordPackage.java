@@ -31,7 +31,7 @@ public final class WordPackage {
             throw new ActionException("WORD.READ_ONLY", "The document was opened read-only", "Use save_as with another path, or open it without read_only.");
     }
 
-    private static DocSession s(ActionContext ctx, String name) { return ctx.session(name, DocSession.class); }
+    private static DocSession s(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "word", DocSession.class); }
 
     /**
      * A new paragraph at the end. A new document holds one blank paragraph (a .docx needs one); the first text added
@@ -521,6 +521,7 @@ public final class WordPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+        session = ctx.sessionNameOrOnly(session, "word", DocSession.class);
         if (save && ctx.sessions().get(session) instanceof DocSession d) { refuseReadOnly(d, d.path); writeTo(d, d.path, d.password); }
         Object o = ctx.sessions().remove(session);
         if (o instanceof DocSession d) try { d.close(); } catch (IOException ignored) { }
