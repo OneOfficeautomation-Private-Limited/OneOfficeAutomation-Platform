@@ -455,9 +455,15 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX test_results_run ON test_results (test_run_id)",
     };
 
+    /** Version 21: PII analyzer and content check per model connection (A3). */
+    private static final String[] SCHEMA_V21 = {
+        "ALTER TABLE model_connections ADD COLUMN pii_analyzer_url VARCHAR(500)",
+        "ALTER TABLE model_connections ADD COLUMN content_check VARCHAR(20)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 20;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20 };
+    public static final int LATEST = 21;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

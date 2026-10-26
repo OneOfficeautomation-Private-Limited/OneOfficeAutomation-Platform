@@ -1482,6 +1482,8 @@ async function openRun(id) {
     const r = await api("GET", "runs/" + id + "?after=" + st.after);
     st.run = r;
     for (const e of r.events) { st.events.push(e); st.after = Math.max(st.after, e.seq); }
+    // AI calls are recorded when the run ends
+    if (!["queued", "running"].includes(r.status) && st.ai === undefined) st.ai = (await api("GET", "runs/" + id + "/ai-calls").catch(() => ({ calls: [] }))).calls;
     render();
     if (!["queued", "running"].includes(r.status) && S.drawerTimer) { clearInterval(S.drawerTimer); S.drawerTimer = null; }
   }
@@ -1524,6 +1526,7 @@ async function openRun(id) {
     const elapsed = r.duration_ms || (r.started ? Date.now() - Date.parse(r.started) : null);
     const pct = x.total ? 100 * x.finished / x.total : r.status === "success" ? 100 : 0;
     const tabsDef = [["steps", "Steps (" + x.steps.length + ")"], ["log", "Log (" + st.events.length + ")"], ["vars", "Variables (" + x.vars.size + ")"], ["io", "Inputs and outputs"]];
+    if (st.ai && st.ai.length) tabsDef.push(["ai", "AI calls (" + st.ai.length + ")"]);
     const tabs = h("div", { class: "tabs small", role: "tablist" }, tabsDef.map(([k, l]) => h("button", { type: "button", role: "tab", class: "tab" + (st.tab === k ? " active" : ""), "aria-selected": String(st.tab === k), onclick: () => { st.tab = k; S.runTab = k; render(); } }, l)));
     let pane;
     if (st.tab === "steps") {
@@ -1537,6 +1540,13 @@ async function openRun(id) {
       const lines = st.events.map((e) => line(e, x.t0)).filter((l) => st.filter === "all" || (st.filter === "errors" ? l.failed || l.kind === "step.retry" : st.filter === "logs" ? l.kind === "log" : l.kind === "variable.set"));
       const fsel = h("div", { class: "seg" }, [["all", "All"], ["errors", "Errors"], ["logs", "Log messages"], ["vars", "Variables"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String(st.filter === k), onclick: () => { st.filter = k; render(); } }, l)));
       pane = h("div", {}, h("div", { class: "toolbar" }, fsel), h("div", { class: "events" }, lines.length ? lines.map((l) => h("div", { class: l.failed ? "failed" : "" }, h("span", { class: "t", text: l.t }), l.step ? h("span", { class: "sid", text: "[" + l.step + "] " }) : null, l.text)) : [h("div", { class: "muted", text: "Nothing to show." })]));
+    } else if (st.tab === "ai") {
+      // each model call in order: what it was for, the model and connection, tokens and time, what was masked and the tools it asked for (prompts are never kept)
+      pane = table(["When", "Purpose", "Model", "Tokens", "Time", "Masked", "Tools"], (st.ai || []).map((c) => ({ cells: [
+        "+" + ((Date.parse(c.ts) - Date.parse(r.started || c.ts)) / 1000).toFixed(1) + "s", c.purpose || "", (c.model || "") + (c.connection ? " (" + c.connection + ")" : ""),
+        (c.input_tokens || 0) + " + " + (c.output_tokens || 0), c.latency_ms ? dur(c.latency_ms) : "",
+        c.masked && Object.keys(c.masked).length ? Object.entries(c.masked).map(([k, n]) => k + " " + n).join(", ") : "",
+        Array.isArray(c.tool_calls) ? c.tool_calls.join(", ") : ""] })));
     } else if (st.tab === "vars") {
       pane = x.vars.size ? table(["Variable", "Last value"], [...x.vars.entries()].map(([k, v]) => ({ data: k, cells: [h("code", { text: k }), h("code", { class: "val", text: String(v) })] })))
         : h("p", { class: "muted", text: "No variables were set yet. Credentials always show as ****." });
@@ -2830,6 +2840,9 @@ function connectionDialog(c) {
   const roles = h("input", { value: c ? (c.allowed_roles || []).join(", ") : "", placeholder: "every role" });
   const lim = (k, max) => h("input", { type: "number", min: "0", max: String(max), value: c && c[k] ? String(c[k]) : "", placeholder: "no limit" });
   const monthly = lim("monthly_tokens", 1e12), perMinute = lim("calls_per_minute", 100000), perRun = lim("calls_per_run", 1000000);
+  const analyzer = h("input", { value: c ? c.pii_analyzer_url || "" : "", placeholder: "https://presidio-analyzer.internal (optional)" });
+  const contentCheck = h("select", {}, h("option", { value: "none", text: "No content check" }), h("option", { value: "moderation", text: "Check answers with the provider's moderation endpoint" }));
+  contentCheck.value = c && c.content_check === "moderation" ? "moderation" : "none";
   const help = h("p", { class: "muted small" });
   const result = h("div");
   if (c) { provider.value = c.provider; type.value = c.model_type || "standard"; }
@@ -2837,10 +2850,14 @@ function connectionDialog(c) {
   provider.onchange = showHelp; showHelp();
   const values = () => ({ provider: provider.value, model_type: type.value, model: model.value.trim() || null, base_url: base.value.trim() || null, key_ref: key.value.trim() || null, description: desc.value,
     allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean),
-    monthly_tokens: Number(monthly.value || 0), calls_per_minute: Number(perMinute.value || 0), calls_per_run: Number(perRun.value || 0) });
+    monthly_tokens: Number(monthly.value || 0), calls_per_minute: Number(perMinute.value || 0), calls_per_run: Number(perRun.value || 0),
+    pii_analyzer_url: analyzer.value.trim() || null, content_check: contentCheck.value });
   modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
     help, h("label", {}, "Endpoint", base),
     h("label", {}, "API key from the One Agent Vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
+    h("h3", { text: "Privacy and safety" }),
+    h("div", { class: "grid2" }, h("label", {}, "Microsoft Presidio analyzer (masks names, places and IDs before the model sees them, with Hide personal data)", analyzer),
+      h("label", {}, "Content check", contentCheck)),
     h("h3", { text: "Budget and limits" }),
     h("div", { class: "grid2" }, h("label", {}, "Tokens a month (in and out)" + (c && c.tokens_this_month ? "; " + c.tokens_this_month + " used this month" : ""), monthly),
       h("label", {}, "Calls a minute, per run (more calls wait)", perMinute), h("label", {}, "Calls a run (more calls fail)", perRun)),

@@ -737,6 +737,7 @@ public final class ControlRoomServer {
             case "runs" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.runsPage(u, q));
                 else if (m.equals("POST") && route.equals("runs/purge")) sendJson(ex, 200, cr.platform.purgeNow(u, map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("ai-calls")) sendJson(ex, 200, Map.of("calls", cr.platform.aiCallsOfRun(u, seg[1])));
                 else if (m.equals("POST") && seg.length == 1) {
                     Map<String, Object> b = map(body(ex));
                     // several targets at once (run-as users and/or runners): one run each

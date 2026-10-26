@@ -434,6 +434,21 @@ public final class Platform {
     private static String cut(Object v, int max) { if (v == null) return null; String s = String.valueOf(v); return s.length() > max ? s.substring(0, max) : s; }
     private static Integer num(Object v) { return v instanceof Number n ? n.intValue() : null; }
 
+    /** The AI calls of one run in order (A3 trace): purpose, model, connection, tokens, time, masking and tools used. Prompts are never kept. */
+    public List<Map<String, Object>> aiCallsOfRun(User by, String runId) {
+        cr.require(by, "runs.view", "view runs");
+        Map<String, Object> r = db.one("SELECT bot_path FROM runs WHERE id = ?", runId);
+        if (r == null) throw notFound("Run");
+        cr.folders.require(by, (String) r.get("bot_path"), "view", "view this agent's runs");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> c : db.query("SELECT ts, purpose, provider, model, connection, input_tokens, output_tokens, latency_ms, masked, tool_calls FROM ai_calls WHERE run_id = ? ORDER BY ts", runId)) {
+            Map<String, Object> m = new LinkedHashMap<>(c);
+            for (String k : List.of("masked", "tool_calls")) if (c.get(k) instanceof String sv && !sv.isBlank()) { try { m.put(k, JsonLite.parse(sv)); } catch (RuntimeException ignored) { } }
+            out.add(m);
+        }
+        return out;
+    }
+
     /** Totals by model, agent and day, masking and tool use, and the latest calls, for the last N days. */
     public Map<String, Object> aiGovernance(User by, int days) {
         cr.require(by, "audit.view", "view AI governance");
@@ -1281,7 +1296,7 @@ public final class Platform {
 
     public List<Map<String, Object>> modelConnections(User by) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, updated, updated_by FROM model_connections ORDER BY name")) {
+        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, pii_analyzer_url, content_check, updated, updated_by FROM model_connections ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(c);
             m.put("allowed_roles", csv(c.get("allowed_roles")));
             if (m.get("model_type") == null) m.put("model_type", "standard");
@@ -1313,10 +1328,17 @@ public final class Platform {
         String rolesCsv = roles.isEmpty() ? null : String.join(",", roles);
         long monthly = limit(c.get("monthly_tokens"), 1_000_000_000_000L, "Tokens a month");
         int perMinute = (int) limit(c.get("calls_per_minute"), 100_000, "Calls a minute"), perRun = (int) limit(c.get("calls_per_run"), 1_000_000, "Calls a run");
-        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, monthly_tokens = ?, calls_per_minute = ?, calls_per_run = ?, updated = ?, updated_by = ? WHERE name = ?",
-                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, now(), by.username(), name) == 0)
-            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, now(), by.username());
+        String analyzer = c.get("pii_analyzer_url") == null ? null : blankToNull(String.valueOf(c.get("pii_analyzer_url")).trim());
+        if (analyzer != null && !analyzer.matches("(?i)(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))\\S*"))
+            throw new OoaException("CR.BAD_INPUT", "The PII analyzer address starts with https:// (http:// only on this computer)", "For example https://presidio.internal.example");
+        String check = c.get("content_check") == null || String.valueOf(c.get("content_check")).isBlank() ? "none" : String.valueOf(c.get("content_check"));
+        if (!check.equals("none") && !check.equals("moderation")) throw new OoaException("CR.BAD_INPUT", "The content check is none or moderation");
+        if (check.equals("moderation") && !List.of("openai", "azure_openai", "openai_compatible").contains(provider))
+            throw new OoaException("CR.BAD_INPUT", "The content check uses an OpenAI-style moderation endpoint, which " + provider + " does not have");
+        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, monthly_tokens = ?, calls_per_minute = ?, calls_per_run = ?, pii_analyzer_url = ?, content_check = ?, updated = ?, updated_by = ? WHERE name = ?",
+                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, analyzer, check, now(), by.username(), name) == 0)
+            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, pii_analyzer_url, content_check, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, analyzer, check, now(), by.username());
         cr.audit.record(by.username(), "connection.save", "connection", name, Map.of("provider", provider, "allowed_roles", roles), "ok", ip);
     }
 
@@ -1378,6 +1400,8 @@ public final class Platform {
                 m.put("blocked", "The connection's budget of " + monthly + " tokens this month is used up");
             if (c.get("calls_per_minute") instanceof Number n && n.intValue() > 0) m.put("calls_per_minute", n.intValue());
             if (c.get("calls_per_run") instanceof Number n && n.intValue() > 0) m.put("calls_per_run", n.intValue());
+            if (c.get("pii_analyzer_url") instanceof String pa && !pa.isBlank()) m.put("pii_analyzer_url", pa);
+            if ("moderation".equals(c.get("content_check"))) m.put("content_check", "moderation");
             list.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();

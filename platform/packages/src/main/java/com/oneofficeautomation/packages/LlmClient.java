@@ -37,7 +37,8 @@ final class LlmClient {
         Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii, Object accessKeyId, String region) {
             this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, null);
         }
-        Config with(Options o) { return new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o); }
+        /** The same settings with call options; it stays linked to its model connection (limits, masking, content check). */
+        Config with(Options o) { Config c = new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o); ModelConnections.carry(this, c); return c; }
         Options opts() { return options == null ? Options.NONE : options; }
     }
 
@@ -119,6 +120,53 @@ final class LlmClient {
         return out;
     }
 
+    /**
+     * Masks what a Microsoft Presidio analyzer finds (names, places, IDs in many languages) besides the built-in patterns
+     * (A3): POST {analyzer}/analyze, each span replaced by the same kind of token, restored in the answer. Without an
+     * analyzer the text is returned as it is. The analyzer runs inside the company, so the text does not leave it.
+     */
+    static String presidio(ActionContext ctx, String analyzer, String text, Map<String, String> mapping, Map<String, Integer> counts) {
+        if (analyzer == null || analyzer.isBlank() || text == null || text.isBlank()) return text;
+        Object found = HttpJson.req(P, "POST", analyzer.replaceAll("/+$", "") + "/analyze").json(Map.of("text", text, "language", "en")).timeout(30).send(ctx).json();
+        if (!(found instanceof List<?> spans) || spans.isEmpty()) return text;
+        List<Map<?, ?>> sorted = new ArrayList<>();
+        for (Object o : spans) if (o instanceof Map<?, ?> m && m.get("start") instanceof Number && m.get("end") instanceof Number) sorted.add(m);
+        sorted.sort((a, b) -> Integer.compare(((Number) b.get("start")).intValue(), ((Number) a.get("start")).intValue()));
+        StringBuilder sb = new StringBuilder(text);
+        int lastStart = Integer.MAX_VALUE;
+        for (Map<?, ?> m : sorted) {
+            int st = ((Number) m.get("start")).intValue(), en = ((Number) m.get("end")).intValue();
+            if (st < 0 || en > text.length() || st >= en || en > lastStart) continue;   // overlapping spans: the later one wins
+            String value = text.substring(st, en);
+            if (value.startsWith("<") && value.endsWith(">")) continue;   // already a token
+            String kind = String.valueOf(m.get("entity_type")).replaceAll("[^A-Z_]", "");
+            String t = token(kind.isEmpty() ? "PII" : kind, value);
+            mapping.put(t, value);
+            counts.merge(kind.isEmpty() ? "PII" : kind, 1, Integer::sum);
+            sb.replace(st, en, t);
+            lastStart = st;
+        }
+        return sb.toString();
+    }
+
+    /** The provider's moderation check on an answer (OpenAI and OpenAI-compatible endpoints); a flagged answer fails the step. */
+    @SuppressWarnings("unchecked")
+    static void moderate(ActionContext ctx, Config cfg, String provider, String text) {
+        if (!List.of("openai", "openai_compatible", "azure_openai").contains(provider))
+            throw new ActionException(P + ".NO_MODERATION", "The content check uses an OpenAI-style moderation endpoint; " + provider + " has none", "Turn the content check off for this connection.");
+        String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
+        HttpJson.Req req = provider.equals("azure_openai") ? HttpJson.req(P, "POST", base + "/openai/moderations?api-version=2024-06-01") : HttpJson.req(P, "POST", base + "/moderations");
+        if (cfg.apiKey() instanceof SecureString k) { if (provider.equals("azure_openai")) req.header("api-key", k.reveal()); else req.bearer(k); }
+        Map<String, Object> r = req.json(Map.of("input", text)).timeout(30).send(ctx).map();
+        if (r.get("results") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> first && Boolean.TRUE.equals(first.get("flagged"))) {
+            List<String> why = new ArrayList<>();
+            if (first.get("categories") instanceof Map<?, ?> cats) for (var e : cats.entrySet()) if (Boolean.TRUE.equals(e.getValue())) why.add(String.valueOf(e.getKey()));
+            ctx.warn("The model's answer was flagged by the content check: " + why);
+            throw new ActionException("AI.CONTENT_FLAGGED", "The model's answer was flagged by the content check" + (why.isEmpty() ? "" : ": " + String.join(", ", why)),
+                "Rephrase the prompt, or have a person review this case.");
+        }
+    }
+
     static String unmask(String text, Map<String, String> mapping) {
         if (text == null) return null;
         String out = text;
@@ -144,15 +192,16 @@ final class LlmClient {
         ModelConnections.beforeCall(ctx, cfg);
         Map<String, String> mapping = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
+        String analyzer = ModelConnections.option(cfg, "pii_analyzer_url");
         List<Map<String, Object>> msgs = new ArrayList<>();
         for (Map<String, Object> m : messages) {
             Map<String, Object> c = new LinkedHashMap<>(m);
-            if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", mask(s, mapping, counts));
+            if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", presidio(ctx, analyzer, mask(s, mapping, counts), mapping, counts));
             if (cfg.maskPii() && m.get("content") instanceof List<?> parts) {
                 List<Object> masked = new ArrayList<>();
                 for (Object p : parts) {
                     Map<String, Object> part = new LinkedHashMap<>((Map<String, Object>) p);
-                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", mask(s, mapping, counts));
+                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", presidio(ctx, analyzer, mask(s, mapping, counts), mapping, counts));
                     masked.add(part);
                 }
                 c.put("content", masked);
@@ -182,6 +231,8 @@ final class LlmClient {
         List<String> choices = null;
         if (r.choices() != null) { choices = new ArrayList<>(); for (String c : r.choices()) choices.add(unmask(c, mapping)); }
         Reply out = new Reply(unmask(r.text(), mapping), calls, r.inTokens(), r.outTokens(), counts, choices);
+        // the connection's content check: the answer goes to the provider's moderation endpoint before anyone uses it
+        if ("moderation".equals(ModelConnections.option(cfg, "content_check")) && out.text() != null && !out.text().isBlank()) moderate(ctx, cfg, provider, out.text());
         govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs);
         return out;
     }

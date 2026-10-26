@@ -40,6 +40,19 @@ class ModelBudgetTest {
             Map<String, Object> blocked = ((List<Map<String, Object>>) cr.platform.connectionsForJob(List.of("admin")).get("connections")).get(0);
             assertTrue(String.valueOf(blocked.get("blocked")).contains("1000 tokens"), blocked.toString());
             assertEquals(1000L, cr.platform.modelConnections(admin).get(0).get("tokens_this_month"));
+
+            // A3: Presidio analyzer and content check go to runners; the run's AI calls read back in order
+            cr.platform.saveModelConnection(admin, Map.of("name", "safe", "provider", "openai", "model", "gpt-4o-mini", "pii_analyzer_url", "https://presidio.internal", "content_check", "moderation"), null);
+            assertThrows(OoaException.class, () -> cr.platform.saveModelConnection(admin, Map.of("name", "x", "provider", "openai", "pii_analyzer_url", "http://presidio.example"), null), "https only");
+            assertThrows(OoaException.class, () -> cr.platform.saveModelConnection(admin, Map.of("name", "x", "provider", "anthropic", "content_check", "moderation"), null), "no moderation endpoint");
+            Map<String, Object> safe = ((List<Map<String, Object>>) cr.platform.connectionsForJob(List.of("admin")).get("connections")).stream().filter(x -> "safe".equals(x.get("name"))).findFirst().orElseThrow();
+            assertEquals("https://presidio.internal", safe.get("pii_analyzer_url"));
+            assertEquals("moderation", safe.get("content_check"));
+            db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "run_1", "A.flow.json", 1, "dev", "success", "{}", "admin", "manual", Instant.now(), false, false);
+            List<Map<String, Object>> trace = cr.platform.aiCallsOfRun(admin, "run_1");
+            assertEquals(3, trace.size());
+            assertEquals("gpt", trace.get(0).get("connection"));
         } finally { db.close(); }
     }
 }

@@ -82,6 +82,12 @@ final class ModelConnections {
     static java.util.function.LongSupplier clock = System::currentTimeMillis;
     static java.util.function.LongConsumer sleeper = ms -> { try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } };
 
+    /** A config made from another keeps its connection. */
+    static void carry(LlmClient.Config from, LlmClient.Config to) { Map<String, Object> c = USED.get(from); if (c != null) USED.put(to, c); }
+
+    /** A text option of the connection a config came from (pii_analyzer_url, content_check), or null. */
+    static String option(LlmClient.Config cfg, String name) { Map<String, Object> c = USED.get(cfg); return c != null && c.get(name) instanceof String v && !v.isBlank() ? v : null; }
+
     /** The connection name of a config, or null for settings typed on the action. */
     static String connectionOf(LlmClient.Config cfg) { Map<String, Object> c = USED.get(cfg); return c == null ? null : (String) c.get("name"); }
 

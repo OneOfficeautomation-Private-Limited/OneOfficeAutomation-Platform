@@ -546,6 +546,13 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
     run. When the month's tokens are used up, AI steps through the connection fail with `AI.BUDGET_REACHED` until the
     next month or a higher budget. Past calls a minute, a run waits; past calls a run, the step fails with `AI.CALL_LIMIT`.
     The list shows each connection's tokens this month.
+  - **Privacy and safety**: a *Microsoft Presidio analyzer* address (run inside the company) adds what Presidio finds
+    (names, places, IDs, in many languages) to the built-in masking when *Hide personal data* is on; the values are put
+    back in the answer and the counts appear in AI governance. The *content check* sends each answer to the provider's
+    moderation endpoint (OpenAI, Azure OpenAI and OpenAI-compatible); a flagged answer fails the step with
+    `AI.CONTENT_FLAGGED`, naming the categories.
+- **AI calls of a run**: the run's details have an *AI calls* tab: each model call in order, with its purpose, model and
+  connection, tokens, time, what was masked and the tools it asked for. Prompts and answers are never stored.
   - **Test connection** sends one very small request ("Answer with OK") with the key from the vault and shows the answer
     and the time. The key is used for that request only; the test is audited.
   - Amazon Bedrock: the model or inference profile id, the endpoint `https://bedrock-runtime.REGION.amazonaws.com`, and
