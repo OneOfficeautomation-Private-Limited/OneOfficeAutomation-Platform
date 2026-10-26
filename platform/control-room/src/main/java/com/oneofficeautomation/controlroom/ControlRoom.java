@@ -54,7 +54,7 @@ public final class ControlRoom {
     static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.(flow|process|form)\\.json$");
     static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
 
-    private final Path dataDir;
+    final Path dataDir;
     final SyslogForwarder syslog;
     public final Licensing licensing;
     public final Mfa mfa;
@@ -108,6 +108,7 @@ public final class ControlRoom {
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         audit.onRecord(syslog::forward);
+        audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
@@ -1331,6 +1332,25 @@ public final class ControlRoom {
     /** Runners told to send a heartbeat now (a run of theirs was stopped, paused or resumed). */
     private final Set<String> checkNow = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+    private volatile byte[] auditKey;
+
+    /** The audit chain key: 32 random bytes made once, kept in settings encrypted with the vault key. */
+    byte[] auditKey() {
+        byte[] k = auditKey;
+        if (k != null) return k;
+        Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = 'audit_chain_key'");
+        if (r == null) {
+            byte[] fresh = new byte[32];
+            Security.RANDOM.nextBytes(fresh);
+            try {
+                db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", "audit_chain_key",
+                    JsonLite.write(vault.encrypt(Base64.getEncoder().encodeToString(fresh), "audit-chain")), now(), "system");
+            } catch (OoaException e) { return auditKey(); }   // made by another request at the same moment
+            return auditKey = fresh;
+        }
+        return auditKey = Base64.getDecoder().decode(vault.decrypt(String.valueOf(JsonLite.parse((String) r.get("json_value"))), "audit-chain"));
+    }
+
     /** Wakes runners waiting for work: a run was queued, or a run of theirs needs controlling (deviceId null: all). */
     void wake(String deviceId, boolean control) {
         if (control && deviceId != null) checkNow.add(deviceId);
@@ -1661,6 +1681,7 @@ public final class ControlRoom {
         }
         platform.disableInactiveUsers();
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================

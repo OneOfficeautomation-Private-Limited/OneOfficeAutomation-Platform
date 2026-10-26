@@ -828,7 +828,7 @@ const VIEWS = {
         ssoSecret = txt("sso_client_secret_ref", "sso/oidc/client_secret"), ssoRole = txt("sso_default_role", "viewer"), ssoLabel = txt("sso_label", "Sign in with your organisation account"),
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600);
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
-      const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
+      const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500), keepAudit = num("audit_retention_days", 0, 36500);
       const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
@@ -900,6 +900,7 @@ const VIEWS = {
         h("h3", {}, ic("clock", "#475569", "sm"), "Run history"),
         h("p", { class: "muted", text: "Old run history is removed once an hour: step logs after the first period, whole runs after the second (0 keeps them). Queued and running runs are never removed." }),
         h("div", { class: "grid2" }, h("label", {}, "Keep step logs for (days, 0 = always)", keepLogs), h("label", {}, "Keep runs for (days, 0 = always)", keepRuns),
+          h("label", {}, "Keep audit entries for (days, at least 90; 0 = always). Older ones go to audit-archive in the data folder first", keepAudit),
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
             const d = Number(keepRuns.value), l = Number(keepLogs.value);
             if (!d && !l) { toast("Set a number of days first", true); return; }
@@ -919,7 +920,7 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
+              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,

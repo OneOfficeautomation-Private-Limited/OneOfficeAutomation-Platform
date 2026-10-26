@@ -386,9 +386,14 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE devices ADD COLUMN toolkits VARCHAR(20000)",
     };
 
+    /** Version 16: how each audit entry is chained (null: SHA-256; h1: HMAC-SHA256 with the audit key). */
+    private static final String[] SCHEMA_V16 = {
+        "ALTER TABLE audit ADD COLUMN alg VARCHAR(8)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 15;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15 };
+    public static final int LATEST = 16;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

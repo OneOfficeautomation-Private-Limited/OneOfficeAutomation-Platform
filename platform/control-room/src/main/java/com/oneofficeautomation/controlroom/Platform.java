@@ -59,6 +59,7 @@ public final class Platform {
         DEFAULTS.put("git_token_ref", "");
         DEFAULTS.put("git_auto_push", 0);
         DEFAULTS.put("temporary_runner_hours", 8);
+        DEFAULTS.put("audit_retention_days", 0);
         DEFAULTS.put("runner_secret_days", 30);
         DEFAULTS.put("saml_idp_sso_url", "");
         DEFAULTS.put("saml_idp_entity_id", "");
@@ -85,6 +86,7 @@ public final class Platform {
         Map.entry("runner_auto_update", new long[] { 0, 1 }),
         Map.entry("git_auto_push", new long[] { 0, 1 }),
         Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
+        Map.entry("audit_retention_days", new long[] { 0, 36500 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
@@ -118,6 +120,7 @@ public final class Platform {
                 try { n = v instanceof Number num ? num.longValue() : Long.parseLong(String.valueOf(v).trim()); }
                 catch (NumberFormatException x) { throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' needs a whole number"); }
                 long[] r = RANGES.getOrDefault(k, new long[] { 0, 100000 });
+                if (k.equals("audit_retention_days") && n > 0 && n < 90) throw new OoaException("CR.BAD_INPUT", "Keep audit entries for at least 90 days (0 keeps them always)");
                 if (n < r[0] || n > r[1]) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be from " + r[0] + " to " + r[1]);
                 v = n;
             } else {
@@ -1000,6 +1003,8 @@ public final class Platform {
         lastPurge = now();
         int runDays = ((Number) setting("run_retention_days")).intValue(), logDays = ((Number) setting("run_log_retention_days")).intValue();
         if (runDays > 0 || logDays > 0) purge(runDays, logDays, "system", null);
+        int auditDays = intSetting("audit_retention_days");
+        if (auditDays > 0) cr.audit.purgeOlderThan(auditDays);
     }
 
     /**
