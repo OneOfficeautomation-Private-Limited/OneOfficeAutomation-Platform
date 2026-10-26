@@ -829,7 +829,8 @@ const VIEWS = {
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600);
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500), keepAudit = num("audit_retention_days", 0, 36500);
-      const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
+      const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64), pwHist = num("password_history", 0, 24), pwDays = num("password_max_days", 0, 3650);
+      const keepAi = num("ai_call_retention_days", 0, 36500), keepItems = num("work_item_retention_days", 0, 36500);
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
@@ -888,6 +889,7 @@ const VIEWS = {
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
+          h("label", {}, "Passwords that cannot be used again (the last N, 0 = no rule)", pwHist), h("label", {}, "Change passwords every (days, 0 = never)", pwDays),
           h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
           h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads"),
           h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live"),
@@ -914,6 +916,7 @@ const VIEWS = {
         h("p", { class: "muted", text: "Old run history is removed once an hour: step logs after the first period, whole runs after the second (0 keeps them). Queued and running runs are never removed." }),
         h("div", { class: "grid2" }, h("label", {}, "Keep step logs for (days, 0 = always)", keepLogs), h("label", {}, "Keep runs for (days, 0 = always)", keepRuns),
           h("label", {}, "Keep audit entries for (days, at least 90; 0 = always). Older ones go to audit-archive in the data folder first", keepAudit),
+          h("label", {}, "Keep AI call records for (days, 0 = always)", keepAi), h("label", {}, "Keep finished work-queue items for (days, 0 = always)", keepItems),
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
             const d = Number(keepRuns.value), l = Number(keepLogs.value);
             if (!d && !l) { toast("Set a number of days first", true); return; }
@@ -934,7 +937,8 @@ const VIEWS = {
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(),
-              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
+              ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
               ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });

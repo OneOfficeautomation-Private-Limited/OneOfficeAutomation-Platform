@@ -61,6 +61,10 @@ public final class Platform {
         DEFAULTS.put("temporary_runner_hours", 8);
         DEFAULTS.put("audit_retention_days", 0);
         DEFAULTS.put("backup_hours", 0);
+        DEFAULTS.put("password_history", 0);
+        DEFAULTS.put("password_max_days", 0);
+        DEFAULTS.put("ai_call_retention_days", 0);
+        DEFAULTS.put("work_item_retention_days", 0);
         DEFAULTS.put("backup_keep_days", 7);
         DEFAULTS.put("backup_folder", "");
         DEFAULTS.put("runner_secret_days", 30);
@@ -91,6 +95,10 @@ public final class Platform {
         Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
         Map.entry("audit_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_hours", new long[] { 0, 168 }),
+        Map.entry("password_history", new long[] { 0, 24 }),
+        Map.entry("password_max_days", new long[] { 0, 3650 }),
+        Map.entry("ai_call_retention_days", new long[] { 0, 36500 }),
+        Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_keep_days", new long[] { 1, 3650 }),
         Map.entry("runner_secret_days", new long[] { 0, 365 }));
 
@@ -1008,6 +1016,10 @@ public final class Platform {
         lastPurge = now();
         int runDays = ((Number) setting("run_retention_days")).intValue(), logDays = ((Number) setting("run_log_retention_days")).intValue();
         if (runDays > 0 || logDays > 0) purge(runDays, logDays, "system", null);
+        // AI call records and finished work-queue items (D2)
+        int aiDays = intSetting("ai_call_retention_days"), itemDays = intSetting("work_item_retention_days");
+        if (aiDays > 0) { int n = db.update("DELETE FROM ai_calls WHERE ts < ?", now().minus(Duration.ofDays(aiDays))); if (n > 0) cr.audit.record("system", "ai.calls_purged", "ai", null, Map.of("removed", n, "days", aiDays), "ok", null); }
+        if (itemDays > 0) { int n = db.update("DELETE FROM queue_items WHERE status IN ('success', 'failed') AND finished < ?", now().minus(Duration.ofDays(itemDays))); if (n > 0) cr.audit.record("system", "queue.items_purged", "queue", null, Map.of("removed", n, "days", itemDays), "ok", null); }
         int auditDays = intSetting("audit_retention_days");
         if (auditDays > 0) cr.audit.purgeOlderThan(auditDays);
     }

@@ -219,6 +219,15 @@ public final class ControlRoom {
             countFailedSignIn(r, ip);
             throw bad;
         }
+        int maxDays = platform.intSetting("password_max_days");
+        if (maxDays > 0 && r.get("sso_subject") == null && !Boolean.TRUE.equals(r.get("must_change"))) {
+            Object changed = r.get("password_changed") != null ? r.get("password_changed") : r.get("created");
+            if (changed != null && Instant.parse(changed.toString()).isBefore(now().minus(Duration.ofDays(maxDays)))) {
+                db.update("UPDATE users SET must_change = TRUE WHERE id = ?", r.get("id"));
+                r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));
+                audit.record(username, "user.password_expired", "user", username, Map.of("days", maxDays), "ok", ip);
+            }
+        }
         String challenge = mfa.challenge(r);
         if (challenge != null) {
             if (code != null && !code.isBlank()) { r = mfa.complete(challenge, code, ip); audit.record(username, "auth.login", "user", username, Map.of("mfa", true), "ok", ip); return newSession(r, ip); }
@@ -399,7 +408,7 @@ public final class ControlRoom {
     }
 
     public void changePassword(User u, String current, String next, String token, String ip) {
-        Map<String, Object> r = db.one("SELECT password_hash FROM users WHERE id = ?", u.id());
+        Map<String, Object> r = db.one("SELECT password_hash, password_history FROM users WHERE id = ?", u.id());
         if (!Security.verifyPassword(current == null ? new char[0] : current.toCharArray(), (String) r.get("password_hash"))) {
             audit.record(u.username(), "user.change_password", "user", u.username(), null, "failed", ip);
             throw new OoaException("CR.LOGIN_FAILED", "The current password is wrong");
@@ -407,8 +416,15 @@ public final class ControlRoom {
         String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"));
         if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem);
         if (current.equals(next)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a different password from the current one.");
+        // password history: none of the last N passwords again
+        int keep = platform.intSetting("password_history");
+        List<String> history = new ArrayList<>(r.get("password_history") == null || ((String) r.get("password_history")).isBlank() ? List.of() : List.of(((String) r.get("password_history")).split(",")));
+        if (keep > 0) for (String old : history.subList(0, Math.min(keep, history.size())))
+            if (Security.verifyPassword(next.toCharArray(), old)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a password you have not used for your last " + keep + " passwords.");
+        history.add(0, (String) r.get("password_hash"));
+        String kept = keep > 0 ? String.join(",", history.subList(0, Math.min(keep, history.size()))) : null;
         db.tx(() -> {
-            db.update("UPDATE users SET password_hash = ?, must_change = FALSE WHERE id = ?", Security.hashPassword(next.toCharArray()), u.id());
+            db.update("UPDATE users SET password_hash = ?, must_change = FALSE, password_history = ?, password_changed = ? WHERE id = ?", Security.hashPassword(next.toCharArray()), kept, now(), u.id());
             db.update("DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?", u.id(), Security.sha256(token));
             return null;
         });
