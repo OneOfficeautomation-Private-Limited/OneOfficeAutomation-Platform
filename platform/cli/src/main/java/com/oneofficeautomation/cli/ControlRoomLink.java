@@ -162,7 +162,9 @@ final class ControlRoomLink {
         Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", true), true);
         m.put(local, repoPath);
         saveMapping(m);
-        return Map.of("path", repoPath, "version", r.get("version"), "local", local);
+        Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local));
+        if (r.get("production_request") != null) out.put("production_request", r.get("production_request"));   // approval before production is on
+        return out;
     }
 
     void undoCheckout(String repoPath) { call("POST", "repo/undo-checkout", Map.of("path", repoPath), true); }

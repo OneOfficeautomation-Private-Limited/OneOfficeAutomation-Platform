@@ -599,8 +599,14 @@ public final class ControlRoomServer {
                     sendJson(ex, 200, cr.checkin(u, (String) b.get("path"), map(b.get("flow")), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), ip));
                 } else if (m.equals("POST") && route.equals("repo/production")) {
                     Map<String, Object> b = map(body(ex));
-                    cr.setProduction(u, (String) b.get("path"), ((Number) b.get("version")).intValue(), ip);
-                    sendJson(ex, 200, Map.of("ok", true));
+                    sendJson(ex, 200, cr.setOrRequestProduction(u, (String) b.get("path"), ((Number) b.get("version")).intValue(), (String) b.get("comment"), ip));
+                } else if (m.equals("GET") && route.equals("repo/production-requests")) sendJson(ex, 200, Map.of("requests", cr.approvals.list(u, q.get("status")), "approval_on", cr.approvals.enabled()));
+                else if (m.equals("POST") && route.equals("repo/production-requests")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.approvals.request(u, (String) b.get("path"), ((Number) b.get("version")).intValue(), (String) b.get("comment"), ip));
+                } else if (m.equals("POST") && seg.length == 4 && seg[1].equals("production-requests") && Set.of("approve", "reject", "withdraw").contains(seg[3])) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, seg[3].equals("withdraw") ? cr.approvals.withdraw(u, seg[2], ip) : cr.approvals.decide(u, seg[2], seg[3].equals("approve"), (String) b.get("note"), ip));
                 } else notFound(ex);
             }
             case "skills" -> {

@@ -513,7 +513,10 @@ const VIEWS = {
   async automation(main) {
     await loadRefs();
     S.repoFolder = S.repoFolder || "";
-    const [r, f] = await Promise.all([api("GET", "repo" + (S.repoFolder ? "?folder=" + encodeURIComponent(S.repoFolder) : "")), api("GET", "repo/folders")]);
+    const [r, f, pr] = await Promise.all([api("GET", "repo" + (S.repoFolder ? "?folder=" + encodeURIComponent(S.repoFolder) : "")), api("GET", "repo/folders"),
+      api("GET", "repo/production-requests?status=pending").catch(() => ({ requests: [], approval_on: false }))]);
+    S.approvalOn = pr.approval_on;
+    const toDecide = pr.requests.filter((x) => x.can_decide).length;
     S.folders = f.folders;
     const folderSel = h("select", { "aria-label": "Folder", onchange: (e) => { S.repoFolder = e.target.value; go("automation"); } },
       h("option", { value: "", text: "All folders" }), f.folders.map((x) => h("option", { value: x.path, text: "\u00A0".repeat(2 * (x.path.split("/").length - 1)) + x.path.split("/").pop()
@@ -536,6 +539,8 @@ const VIEWS = {
       can("lifecycle.export") ? h("button", { type: "button", onclick: () => exportDialog(r.bots) }, ic("download", "#475569", "sm"), "Export / promote") : null,
       can("lifecycle.import") ? h("button", { type: "button", onclick: () => importDialog() }, "Import") : null,
       can("repo.delete") ? h("button", { type: "button", onclick: () => deletedDialog() }, "Deleted agents") : null,
+      S.approvalOn || pr.requests.length ? h("button", { type: "button", class: toDecide ? "primary" : "", onclick: () => approvalsDialog().catch((e) => toast(e.message, true)) },
+        "Production approvals" + (pr.requests.length ? " (" + pr.requests.length + " waiting)" : "")) : null,
       h("button", { type: "button", onclick: () => policyDialog() }, "Code analysis")),
       dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.", tools,
         columns: [
@@ -826,6 +831,7 @@ const VIEWS = {
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
       const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
+      const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
         h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
@@ -852,7 +858,8 @@ const VIEWS = {
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
           h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
-          h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads")),
+          h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads"),
+          h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live")),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
         h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
@@ -883,7 +890,7 @@ const VIEWS = {
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
-              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value),
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0,
               ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
@@ -1464,6 +1471,27 @@ async function openUser(u) {
 }
 
 // ---------- dialogs ----------
+/** Requests for versions to go live: approve or reject (someone else's), withdraw (your own); the latest decisions below. */
+async function approvalsDialog() {
+  const [pending, all] = await Promise.all([api("GET", "repo/production-requests?status=pending"), api("GET", "repo/production-requests")]);
+  const decide = (q, how) => async () => {
+    const note = how === "withdraw" ? "" : prompt((how === "approve" ? "Approve" : "Reject") + " v" + q.version + " of " + botName(q.path) + ". Note (optional):", "");
+    if (note === null) return;
+    try { await api("POST", "repo/production-requests/" + q.id + "/" + how, { note }); toast(how === "approve" ? "v" + q.version + " is live" : how === "reject" ? "Rejected" : "Withdrawn"); approvalsDialog(); }
+    catch (e) { toast(e.message, true); }
+  };
+  const done = all.requests.filter((q) => q.status !== "pending").slice(0, 20);
+  modal("Production approvals", [
+    h("p", { class: "muted", text: pending.approval_on ? "A version goes live in production only when someone with the approval right, other than the person who asked, approves it." : "Approval before production is off (Administration > Settings); requests made before still wait here." }),
+    pending.requests.length ? table(["Agent", "Version", "Asked by", "When", "What changed", ""], pending.requests.map((q) => ({ data: q, cells: [botName(q.path), "v" + q.version, q.requested_by, ago(q.requested), q.comment || "",
+      h("div", { class: "row-actions tight" },
+        q.can_decide ? h("button", { type: "button", class: "primary", onclick: decide(q, "approve") }, "Approve") : null,
+        q.can_decide ? h("button", { type: "button", class: "danger", onclick: decide(q, "reject") }, "Reject") : null,
+        q.requested_by === S.user.username ? h("button", { type: "button", onclick: decide(q, "withdraw") }, "Withdraw") : null)] })))
+      : h("p", { text: "Nothing is waiting." }),
+    done.length ? [h("h3", { text: "Decided" }), table(["Agent", "Version", "Asked by", "Result", "By", "When", "Note"], done.map((q) => ({ data: q, cells: [botName(q.path), "v" + q.version, q.requested_by, q.status, q.decided_by || "", ago(q.decided), q.note || ""] })))] : null], []);
+}
+
 async function versionsDialog(b) {
   const r = await api("GET", "repo/versions?path=" + encodeURIComponent(b.path));
   const picks = new Set();
@@ -1476,8 +1504,13 @@ async function versionsDialog(b) {
         try { await api("DELETE", "repo/labels?path=" + encodeURIComponent(b.path) + "&label=" + encodeURIComponent(l)); versionsDialog(b); } catch (e) { toast(e.message, true); } } }, "\u00D7") : null))),
       v.author, local(v.created), v.comment || "",
       h("div", { class: "row-actions tight" },
-        can("repo.production") && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
-          try { await api("POST", "repo/production", { path: b.path, version: v.version }); toast("Live production is now v" + v.version); closeModal(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Set as production") : null,
+        (S.approvalOn ? can("repo.checkin") : can("repo.production")) && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
+          let comment;
+          if (S.approvalOn && (comment = prompt("Ask for v" + v.version + " to go live in production. What changed (for the approver)?", "")) === null) return;
+          try {
+            const res = await api("POST", "repo/production", { path: b.path, version: v.version, comment });
+            toast(res.production_request ? "Sent for approval: v" + v.version : "Live production is now v" + v.version); closeModal(); go("automation");
+          } catch (e) { toast(e.message, true); } } }, S.approvalOn ? "Ask to make live" : "Set as production") : null,
         can("repo.checkin") ? h("button", { type: "button", onclick: async () => {
           const l = prompt("Label for v" + v.version + " (for example UAT or Release-3). A label moves from the version that has it.", "UAT");
           if (!l) return;

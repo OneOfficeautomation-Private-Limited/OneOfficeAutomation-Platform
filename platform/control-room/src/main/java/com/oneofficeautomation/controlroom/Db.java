@@ -350,9 +350,16 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE users ADD COLUMN mfa_last_step BIGINT",
     };
 
+    /** Version 12: requests for a version to go live in production, approved by someone else (ProductionApproval). */
+    private static final String[] SCHEMA_V12 = {
+        "CREATE TABLE production_requests (id VARCHAR(40) PRIMARY KEY, path VARCHAR(400) NOT NULL, version INT NOT NULL, requested_by VARCHAR(80) NOT NULL, " +
+            "requested TIMESTAMP NOT NULL, comment VARCHAR(2000), status VARCHAR(20) NOT NULL, decided_by VARCHAR(80), decided TIMESTAMP, note VARCHAR(2000))",
+        "CREATE INDEX production_requests_status ON production_requests (status)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 11;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11 };
+    public static final int LATEST = 12;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

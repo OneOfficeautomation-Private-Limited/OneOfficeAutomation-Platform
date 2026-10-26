@@ -58,6 +58,7 @@ public final class ControlRoom {
     final SyslogForwarder syslog;
     public final Licensing licensing;
     public final Mfa mfa;
+    public final ProductionApproval approvals;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -99,6 +100,7 @@ public final class ControlRoom {
         this.syslog = new SyslogForwarder(platform);
         this.licensing = new Licensing(this);
         this.mfa = new Mfa(this);
+        this.approvals = new ProductionApproval(this);
         audit.onRecord(syslog::forward);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);
@@ -675,7 +677,18 @@ public final class ControlRoom {
      * it (import), the agent must not be checked out by someone else.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, boolean checkedOut, String ip) {
+    Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean asProduction, boolean checkedOut, String ip) {
+        // with approval before production, "as production" becomes a request that someone else approves
+        boolean askApproval = asProduction && approvals.enabled(), makeProduction = asProduction && !askApproval;
+        Map<String, Object> stored = storeVersionNow(by, path, flow, comment, makeProduction, checkedOut, ip);
+        if (!askApproval) return stored;
+        Map<String, Object> out = new LinkedHashMap<>(stored);
+        out.put("production_request", approvals.request(by, path, ((Number) stored.get("version")).intValue(), comment, ip));
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> storeVersionNow(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, boolean checkedOut, String ip) {
         require(by, "repo.checkin", "check in agents");
         if (path == null || !PATH.matcher(path).matches() || path.contains(".."))
             throw new OoaException("CR.BAD_PATH", "Invalid agent repository path '" + path + "'", "Use folders and a name ending in .flow.json, e.g. Finance/Invoice approval.flow.json");
@@ -720,7 +733,15 @@ public final class ControlRoom {
         });
     }
 
+    /** Makes a version live, or with approval before production asks for it; returns {ok} or {production_request}. */
+    public Map<String, Object> setOrRequestProduction(User by, String path, int version, String comment, String ip) {
+        if (approvals.enabled()) return Map.of("production_request", approvals.request(by, path, version, comment, ip));
+        setProduction(by, path, version, ip);
+        return Map.of("ok", true);
+    }
+
     public void setProduction(User by, String path, int version, String ip) {
+        if (approvals.enabled()) throw new OoaException("CR.APPROVAL_REQUIRED", "Production versions need approval", "Ask for approval; another person with the approval right decides.");
         require(by, "repo.production", "set live production versions");
         folders.require(by, path, "manage", "set live production versions");
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);

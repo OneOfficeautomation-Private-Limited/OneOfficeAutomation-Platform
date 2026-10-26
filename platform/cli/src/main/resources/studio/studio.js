@@ -4174,7 +4174,7 @@ async function crCheckin() {
   if (comment === null) return;
   try {
     const r = await api("POST", "cr/checkin", { local: state.file, comment });
-    toast("Checked in " + r.path + " as version " + r.version);
+    toast("Checked in " + r.path + " as version " + r.version + (r.production_request ? "; sent for approval before it goes live" : ""));
     crLoadRepo();
   } catch (e) {
     toast(e.message, true);

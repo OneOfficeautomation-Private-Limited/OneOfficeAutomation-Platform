@@ -51,6 +51,7 @@ public final class Platform {
         DEFAULTS.put("password_min_length", 12);
         DEFAULTS.put("block_executable_uploads", 0);
         DEFAULTS.put("mfa_required", 0);
+        DEFAULTS.put("production_approval", 0);
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -66,7 +67,8 @@ public final class Platform {
         Map.entry("max_sessions_per_user", new long[] { 1, 50 }),
         Map.entry("password_min_length", new long[] { 12, 64 }),
         Map.entry("block_executable_uploads", new long[] { 0, 1 }),
-        Map.entry("mfa_required", new long[] { 0, 2 }));
+        Map.entry("mfa_required", new long[] { 0, 2 }),
+        Map.entry("production_approval", new long[] { 0, 1 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
