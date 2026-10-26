@@ -124,7 +124,10 @@ function showLogin() {
   api("GET", "auth/sso").then((r) => {
     const box = $("sso-box");
     if (!box) return;
-    box.replaceChildren(...(r.enabled ? [h("div", { class: "sso-or", text: "or" }), h("a", { class: "button-link sso-button", href: "/api/auth/sso/start" }, ic("key", "#2563eb", "sm"), r.label)] : []));
+    const saml = r.saml && r.saml.enabled;
+    box.replaceChildren(...(r.enabled || saml ? [h("div", { class: "sso-or", text: "or" })] : []),
+      ...(r.enabled ? [h("a", { class: "button-link sso-button", href: "/api/auth/sso/start" }, ic("key", "#2563eb", "sm"), r.label)] : []),
+      ...(saml ? [h("a", { class: "button-link sso-button", href: "/api/auth/saml/start" }, ic("key", "#2563eb", "sm"), r.saml.label)] : []));
   }).catch(() => {});
 }
 /** After the password: the code box replaces the user name and password (token = null goes back). */
@@ -838,6 +841,15 @@ const VIEWS = {
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
+      const samlUrl = txt("saml_idp_sso_url", "https://login.microsoftonline.com/<tenant>/saml2"), samlIdp = txt("saml_idp_entity_id", "https://sts.windows.net/<tenant>/"),
+        samlSp = txt("saml_sp_entity_id", (st.public_url || location.origin) + "/api/auth/saml/metadata"), samlLabel = txt("saml_label", "Sign in with SAML");
+      const samlCert = h("textarea", { rows: 3, value: st.saml_idp_certificate || "", placeholder: "-----BEGIN CERTIFICATE-----" });
+      const gitUrl = txt("git_remote_url", "https://github.com/acme/agents.git"), gitBranch = txt("git_branch", "main"), gitUser = txt("git_username", "(any, for a token)"),
+        gitToken = txt("git_token_ref", "git/agents-repo/token");
+      const gitAuto = h("input", { type: "checkbox", checked: Number(st.git_auto_push) === 1 });
+      const gitState = h("p", { class: "muted" });
+      const showGit = (g) => gitState.textContent = !g.configured ? "Not set up." : g.state === "never" ? "Not synced yet." : g.state === "ok" ? "Last sync " + local(g.at) + ": " + g.agents + " agent(s)" + (g.changed ? ", commit " + String(g.commit).slice(0, 8) : ", nothing changed") + "." : "Last sync failed " + local(g.at) + ": " + g.error;
+      api("GET", "git/status").then(showGit).catch(() => {});
       const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
         h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
@@ -856,6 +868,22 @@ const VIEWS = {
         h("div", { class: "grid2" }, h("label", {}, "Issuer URL", ssoIssuer), h("label", {}, "Client id", ssoClient),
           h("label", {}, "Client secret (vault reference folder/credential/attribute)", ssoSecret), h("label", {}, "Role for new people (empty = existing accounts only)", ssoRole),
           h("label", {}, "Button text", ssoLabel)),
+        h("h3", {}, ic("key", "#2563eb", "sm"), "Single sign-on (SAML 2.0)"),
+        h("p", { class: "muted", text: "For Entra ID, Okta, ADFS and other SAML identity providers. Give the provider this Command Center's metadata: " + (st.public_url || location.origin) + "/api/auth/saml/metadata (sign-in address " + (st.public_url || location.origin) + "/api/auth/saml/acs). Sign the assertion or the response; do not encrypt it. New people get the role for new people above." }),
+        h("div", { class: "grid2" }, h("label", {}, "Identity provider sign-in address (SAML SSO URL)", samlUrl), h("label", {}, "Identity provider entity id (issuer)", samlIdp),
+          h("label", {}, "This Command Center's entity id (empty = the metadata address)", samlSp), h("label", {}, "Button text", samlLabel)),
+        h("label", {}, "Identity provider signing certificate (PEM)", samlCert),
+        h("h3", {}, ic("code", "#475569", "sm"), "Git sync of the agent repository"),
+        h("p", { class: "muted", text: "Mirrors the agent repository to a Git branch (GitHub, GitLab, Azure DevOps): the latest version of every agent as JSON, and which version is live. The Command Center stays the source of truth; changes made in Git are overwritten. Keep the access token in the vault." }),
+        h("div", { class: "grid2" }, h("label", {}, "Remote (https://...git)", gitUrl), h("label", {}, "Branch", gitBranch),
+          h("label", {}, "User name", gitUser), h("label", {}, "Access token (vault reference folder/credential/attribute)", gitToken),
+          h("label", { class: "check" }, gitAuto, "Push after every check-in, production change and deletion"),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async (e) => {
+            e.target.disabled = true;
+            try { await api("PUT", "settings", { git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0 });
+              const r = await api("POST", "git/sync"); showGit(Object.assign({ configured: true }, r)); toast(r.changed ? "Pushed to Git" : "Git is up to date"); }
+            catch (err) { toast(err.message, true); api("GET", "git/status").then(showGit).catch(() => {}); } finally { e.target.disabled = false; } } }, "Save and sync now"))),
+        gitState,
         h("h3", {}, ic("bolt", "#7c3aed", "sm"), "AI assistants (Model Context Protocol)"),
         h("p", { class: "muted", text: "Assistants connect to " + location.origin + "/api/mcp with a user's API key and can run the agents listed here as tools, with that user's permissions." }),
         h("div", { class: "grid2" }, h("label", {}, "Agents offered as tools (paths, comma separated; * for all)", mcpAgents), h("label", {}, "Runner or runner pool id (empty = any online runner)", mcpRunner),
@@ -898,6 +926,8 @@ const VIEWS = {
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0,
+              saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
+              git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
               ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));

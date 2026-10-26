@@ -44,6 +44,10 @@ audited.
   the user name, may not repeat a character four times in a row, and may not be a common password with digits or
   symbols added.
 - **Lockout:** five failed sign-ins lock the account for 15 minutes; five wrong two-step codes count as one failure.
+- **Single sign-on:** OpenID Connect (with PKCE) and SAML 2.0. SAML responses are parsed without DTDs or external
+  entities; exactly one assertion is accepted, signed (it or the response) by the configured certificate with the
+  signature covering exactly that element; issuer, audience, recipient, time window and the sign-in it answers are
+  checked, and each assertion is used once.
 - **Two-step sign-in:** authenticator app codes (RFC 6238; the secret encrypted with the vault key, no code accepted
   twice) and one-time recovery codes; the `mfa_required` setting makes it optional, required for administrators, or
   required for everyone with a password.
@@ -69,4 +73,3 @@ audited.
 - Password history and expiry.
 - Audit-log retention, and a keyed or externally anchored audit chain.
 - Toolkit inventory per runner.
-- SAML single sign-on (OpenID Connect only).

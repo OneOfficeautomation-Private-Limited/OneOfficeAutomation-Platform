@@ -97,6 +97,11 @@ People only see the pages their role allows.
 | Agent operator | View agents, run and stop them, add and work on work queue items |
 | Viewer | Read-only |
 
+- **SAML single sign-on** (Administration > Settings > Single sign-on (SAML 2.0)): for Entra ID, Okta, ADFS and other
+  SAML identity providers. Give the provider the metadata address shown there (`/api/auth/saml/metadata`), then fill in
+  its sign-in address, entity id and signing certificate. The sign-in page gets a SAML button; new people get the
+  role for new people, as with OpenID Connect. Have the provider sign the assertion (or the response) and leave it
+  unencrypted: encrypted assertions are refused. Sign-ins must start at the Command Center's sign-in page.
 - **Two-step sign-in**: anyone with a local password can turn on codes from an authenticator app (Microsoft
   Authenticator, Google Authenticator or another time-based app) in the user menu > Two-step sign-in. They get ten
   one-time recovery codes. Administration > Settings > Security can require it for administrators or for everyone;
@@ -207,6 +212,12 @@ the moment a run is queued or one of its runs is stopped, so runs start without 
   person with the approval right (administrators, or a custom role with *repo.approve*) approves it. Check-in "as
   production", **Ask to make live** in the version list and imports as production create a request; **Production
   approvals** in the Agent repository lists them. Nobody decides their own request; every step is in the audit trail.
+- **Git sync** (Administration > Settings > Git sync of the agent repository): mirrors the repository to a Git branch
+  on GitHub, GitLab, Azure DevOps or any Git server, with the latest version of every agent as indented JSON under
+  `agents/` and `ooa-repository.json` listing each one's latest and live version. Give the remote, the branch and an
+  access token kept in the vault (a vault reference); tick "Push after every check-in" or use **Save and sync now**.
+  Each change becomes a commit with its comment and author. The Command Center stays the source of truth: changes
+  made in Git are overwritten at the next sync.
 - **Agent check-out** locks a public agent for you and copies it into your workspace; others see who has it. Checking
   in releases the lock; **Undo check-out** releases it without a new version.
 - Administrators choose the **live production version**. Runs, schedules, triggers, work queues and workflows always use it.

@@ -142,6 +142,7 @@ body.nav-mini .nav .nav-fly button, body.nav-mini .nav .nav-fly a.nav-link { jus
 .grid-2.tight { gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--space-3); }
 .grid2 > label { justify-content: space-between; } /* fields in a row line up even when a label wraps */
+.grid2 > label.check { justify-content: flex-start; } /* a tick box stays next to its words */
 .card.inset { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); box-shadow: none; background: var(--surface-2); }
 .card h2 { font-size: var(--text-md); font-weight: var(--weight-semibold); margin: 0 0 var(--space-3); }
 
@@ -300,7 +301,7 @@ ol.timeline li::before { content: ""; position: absolute; left: -6px; top: 11px;
 .diff .d.gap { color: var(--text-3); }
 pre.json { max-height: 260px; overflow: auto; font-size: var(--text-sm); }
 .secret-box { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3); word-break: break-all; background: var(--warning-bg); border: 1px solid color-mix(in srgb, var(--warning-solid) 45%, transparent); border-radius: var(--radius-md); }
-code.secret, pre.secret { display: block; padding: var(--space-2) var(--space-3); font-size: var(--text-md); letter-spacing: .06em; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-md); user-select: all; white-space: pre-wrap; }
+code.secret, pre.secret { display: block; box-sizing: border-box; max-width: 100%; margin: 0; overflow-x: auto; padding: var(--space-2) var(--space-3); font-size: var(--text-md); letter-spacing: .06em; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-md); user-select: all; white-space: pre-wrap; }
 
 /* ---------- 11. vault, administration ---------- */
 .locker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: var(--space-4); }

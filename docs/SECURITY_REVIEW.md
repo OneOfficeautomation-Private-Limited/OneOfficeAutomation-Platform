@@ -56,7 +56,7 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 | Sign-in | Lockout after 5 failures for 15 minutes; rate limits per address; session limit per user; must change first password; two-step sign-in (TOTP, recovery codes) optional or required | `RateLimiter.java`, `ControlRoom.java`, `Mfa.java` |
 | Sessions | Random tokens; only SHA-256 hashes stored; idle and absolute expiry from Settings | `ControlRoom.java` |
 | Authorization | Role permissions plus folder permissions on every API call | `Rbac.java`, `Folders.java` |
-| SSO | OIDC authorization code with PKCE; ID token signature, issuer, audience, expiry and nonce checked | `Sso.java` |
+| SSO | OIDC authorization code with PKCE; ID token signature, issuer, audience, expiry and nonce checked. SAML 2.0: no DTDs, one assertion, signature over exactly that element, issuer, audience, recipient, time window, InResponseTo, no replay | `Sso.java`, `Saml.java` |
 | Vault | AES-256-GCM, each value bound to its location (additional data); master key from `OOA_MASTER_KEY` or a key file; key rotation | `Vault.java`, `VaultAdmin.java` |
 | Audit | Every change audited; hash chain over entries, checked by "Verify integrity" on the audit page; syslog forwarding | `Audit.java`, `SyslogForwarder.java` |
 | Agents | SHA-256 of each checked-in version re-checked on every read; optional four-eyes approval before a version goes live | `ControlRoom.java`, `ProductionApproval.java` |
@@ -69,8 +69,9 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 
 ## 5. Suggested test cases
 
-1. Authentication: brute force and lockout, password rules, session fixation, logout and expiry, SSO token
-   substitution (wrong audience, expired, unsigned, other issuer).
+1. Authentication: brute force and lockout, password rules, two-step codes (replay, lockout), session fixation, logout
+   and expiry, SSO token substitution (wrong audience, expired, unsigned, other issuer), SAML signature wrapping and
+   XML entity attacks.
 2. Authorization: every API route with each role; folder permissions; horizontal access to other people's runs,
    credentials and work-queue items; runner credentials used against user APIs and the other way round.
 3. Injection: SQL (SQL Server and H2), JSON path expressions, agent expressions, file paths in repository files and
@@ -87,7 +88,7 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 
 ## 6. Known gaps (no need to report)
 
-- No password history or expiry; no SAML (OpenID Connect only).
+- No password history or expiry. SAML assertions cannot be encrypted (refused), and sign-ins started at the identity provider are refused.
 - The audit chain is not keyed or anchored outside the database: someone with database write access can rebuild it.
 - Runner config files hold the device secret in clear text, protected by the profile's file permissions.
 - No per-runner toolkit inventory. Runner updates are checked by SHA-256 over the TLS connection, not separately signed.
