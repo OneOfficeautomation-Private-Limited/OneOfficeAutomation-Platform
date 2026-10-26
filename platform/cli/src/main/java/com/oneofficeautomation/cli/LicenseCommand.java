@@ -42,6 +42,7 @@ final class LicenseCommand {
             System.out.println("Signature: valid for this release");
             System.out.println("License:   " + l.id() + " (" + l.edition() + ") for " + l.customer());
             System.out.println("Valid:     " + l.issued() + " to " + l.expires() + ", then " + l.graceDays() + " grace days");
+            System.out.println("For:       " + (l.installId().isEmpty() ? "any installation" : "install id " + l.installId()));
             System.out.println("Seats:     " + l.seats());
             return 0;
         } catch (OoaException e) { System.err.println(e.getMessage()); return 2; }

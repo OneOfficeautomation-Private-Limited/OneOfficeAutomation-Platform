@@ -15,8 +15,17 @@ import java.util.*;
  * signed with the vendor's Ed25519 key. The file holds {"format":"ooa-license-1","payload":"<Base64 JSON>",
  * "signature":"<Base64>"}, so the signed bytes never change shape. The vendor's public key is built into the product;
  * the private key stays with the vendor and signs licenses with "ooa license issue".
+ * {@code installId} ties the license to one Command Center (its install id, shown in Administration > Licenses); an
+ * empty one lets the file work on any installation.
  */
-public record License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes) {
+public record License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes, String installId) {
+
+    public License { installId = installId == null ? "" : installId.trim(); }
+
+    /** A license for any installation. */
+    public License(String id, String customer, String edition, LocalDate issued, LocalDate expires, int graceDays, Map<String, Integer> seats, String notes) {
+        this(id, customer, edition, issued, expires, graceDays, seats, notes, "");
+    }
 
     /** Seat types: three per person, one per runner. */
     public static final List<String> USER_TYPES = List.of("developer", "citizen_developer", "attended_runner");
@@ -52,7 +61,8 @@ public record License(String id, String customer, String edition, LocalDate issu
         try {
             return new License(String.valueOf(t.get("id")), String.valueOf(t.get("customer")), String.valueOf(t.getOrDefault("edition", "Enterprise")),
                 LocalDate.parse(String.valueOf(t.get("issued"))), LocalDate.parse(String.valueOf(t.get("expires"))),
-                t.get("grace_days") instanceof Number g ? Math.max(0, Math.min(90, g.intValue())) : 14, seats, t.get("notes") == null ? "" : String.valueOf(t.get("notes")));
+                t.get("grace_days") instanceof Number g ? Math.max(0, Math.min(90, g.intValue())) : 14, seats, t.get("notes") == null ? "" : String.valueOf(t.get("notes")),
+                t.get("install_id") == null ? "" : String.valueOf(t.get("install_id")));
         } catch (RuntimeException e) { throw bad("The license terms are incomplete (id, customer, issued and expires are needed)"); }
     }
 
@@ -61,6 +71,7 @@ public record License(String id, String customer, String edition, LocalDate issu
         t.put("id", id); t.put("customer", customer); t.put("edition", edition); t.put("issued", issued.toString()); t.put("expires", expires.toString());
         t.put("grace_days", graceDays); t.put("seats", new LinkedHashMap<>(seats));
         if (!notes.isEmpty()) t.put("notes", notes);
+        if (!installId.isEmpty()) t.put("install_id", installId);
         return t;
     }
 

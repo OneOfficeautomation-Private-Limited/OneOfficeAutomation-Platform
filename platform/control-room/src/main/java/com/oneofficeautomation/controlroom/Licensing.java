@@ -68,6 +68,33 @@ public final class Licensing {
         catch (RuntimeException e) { return LocalDate.of(2000, 1, 1); }
     }
 
+    /**
+     * This Command Center's install id (OOA-XXXX-XXXX-XXXX-XXXX), made at the first start. A license with an install id
+     * works only where it matches. It is stored encrypted with the vault key, so copying it into another database without
+     * that key does not move a license.
+     */
+    public String installId() {
+        Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = 'install_id'");
+        if (r != null) {
+            try { return cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), "install-id"); }
+            catch (RuntimeException e) { return "unreadable"; }   // edited, or the vault key changed: no bound license matches
+        }
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // no 0/O or 1/I to misread
+        StringBuilder id = new StringBuilder("OOA");
+        for (int i = 0; i < 16; i++) { if (i % 4 == 0) id.append('-'); id.append(alphabet.charAt(random.nextInt(alphabet.length()))); }
+        try {
+            db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", "install_id",
+                com.oneofficeautomation.sdk.JsonLite.write(cr.vault.encrypt(id.toString(), "install-id")), Instant.now(clock), "system");
+        } catch (OoaException e) { return installId(); }   // made by another request at the same moment
+        return id.toString();
+    }
+
+    /** True when the license is tied to another installation. */
+    boolean otherInstall(License l) { return !l.installId().isEmpty() && !l.installId().equalsIgnoreCase(installId()); }
+
+    static final String OTHER_INSTALL = "This license was issued for another installation (install id %s; this one is %s)";
+
     /** Seats of a type: the license's, the evaluation's, or -1 for no limit. */
     int total(String type) {
         String st = state();
@@ -109,6 +136,7 @@ public final class Licensing {
         }
         // a licensed customer install on the embedded database (it can only get there by going around the install check)
         if (!vendorBuild() && !serverDatabase()) return "database_required";
+        if (otherInstall(l)) return "expired";   // a license copied from another installation counts as none
         LocalDate t = today();
         if (!t.isAfter(l.expires())) return ChronoUnit.DAYS.between(t, l.expires()) <= 30 ? "expiring" : "active";
         return t.isAfter(l.expires().plusDays(l.graceDays())) ? "expired" : "grace";
@@ -130,6 +158,7 @@ public final class Licensing {
         if (!vendorBuild() && !serverDatabase()) { m.put("requires_server_database", true); m.put("database_steps", DATABASE_STEPS); }
         License l = null;
         try { l = current(); } catch (OoaException e) { m.put("problem", e.getMessage()); }
+        if (l != null && otherInstall(l)) m.put("problem", String.format(OTHER_INSTALL, l.installId(), installId()) + ". Ask ONEOFFICEAUTOMATION for a license for this install id.");
         if (l != null) {
             long left = ChronoUnit.DAYS.between(today(), l.expires());
             m.put("days_left", left);
@@ -154,7 +183,9 @@ public final class Licensing {
             if (isAdmin(cr, by) || st.equals("evaluation_ended")) m.put("banner", Map.of("level", st.equals("evaluation") && left > 7 ? "warning" : "critical", "text", text));
         }
         if (isAdmin(cr, by) || cr.can(by, "users.manage")) {
-            if (l != null) { m.put("id", l.id()); m.put("customer", l.customer()); m.put("edition", l.edition()); m.put("issued", l.issued().toString()); m.put("grace_days", l.graceDays()); }
+            if (l != null) { m.put("id", l.id()); m.put("customer", l.customer()); m.put("edition", l.edition()); m.put("issued", l.issued().toString()); m.put("grace_days", l.graceDays());
+                m.put("bound_to", l.installId().isEmpty() ? "any installation" : l.installId()); }
+            m.put("install_id", installId());
             Map<String, Object> seats = new LinkedHashMap<>();
             for (String t : License.TYPES) seats.put(t, Map.of("total", total(t), "used", used(t)));
             m.put("seats", seats);
@@ -170,6 +201,8 @@ public final class Licensing {
         if (text == null || text.isBlank() || text.length() > 20000) throw new OoaException("LICENSE.INVALID", "Paste or upload the license file");
         License l = License.verify(text, key.get());
         if (today().isAfter(l.expires().plusDays(l.graceDays()))) throw new OoaException("LICENSE.EXPIRED_FILE", "This license expired on " + l.expires(), "Ask for a current license");
+        if (otherInstall(l)) throw new OoaException("LICENSE.OTHER_INSTALL", String.format(OTHER_INSTALL, l.installId(), installId()),
+            "Send this install id (Administration > Licenses) to ONEOFFICEAUTOMATION for a license issued for it");
         if (!vendorBuild() && !serverDatabase())
             throw new OoaException("LICENSE.DB_REQUIRED", "A licensed installation runs on Microsoft SQL Server; this one still uses the built-in evaluation database", DATABASE_STEPS);
         for (String t : License.TYPES) if (used(t) > l.seats().get(t))
@@ -256,6 +289,10 @@ public final class Licensing {
     void checkSignIn(User u) { if (expired() && !isAdmin(cr, u)) throw expiredError(); }
 
     OoaException expiredError() {
+        License l;
+        try { l = current(); } catch (OoaException e) { l = null; }
+        if (l != null && otherInstall(l)) return new OoaException("CR.LICENSE_EXPIRED", String.format(OTHER_INSTALL, l.installId(), installId()),
+            "An administrator installs a license issued for this install id in Administration > Licenses");
         if (state().equals("database_required")) return new OoaException("CR.LICENSE_EXPIRED", "A licensed installation runs on Microsoft SQL Server; this one uses the built-in database", DATABASE_STEPS);
         return new OoaException("CR.LICENSE_EXPIRED", state().equals("evaluation_ended") ? "The ONEOFFICEAUTOMATION evaluation has ended" : "The ONEOFFICEAUTOMATION license has expired",
             "An administrator installs a license in Administration > Licenses");
