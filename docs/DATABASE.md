@@ -6,7 +6,7 @@ in one relational database. Pick it in `config\ooa-db.properties` in the data fo
 | Engine | Use | Tested |
 | --- | --- | --- |
 | Microsoft SQL Server 2019 or later | Production (the usual choice) | Every Command Center test, the end-to-end suites and the console UI test, on SQL Server 2022 Express |
-| PostgreSQL 14 or later | Production | Configured, not yet run against a real server |
+| PostgreSQL 14 or later | Production | Every Command Center test on PostgreSQL 16 in CI |
 | H2, embedded | Evaluation on one computer; the default when there is no configuration file | Every test |
 
 Repository files (`repo-files`) and the vault key file (`master.key`) stay in the data folder.

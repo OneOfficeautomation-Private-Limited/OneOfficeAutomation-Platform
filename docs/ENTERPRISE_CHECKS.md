@@ -43,7 +43,10 @@ audited.
 - **Passwords:** the minimum length from Settings and at most 128 characters. They need letters and digits, may not be
   the user name, may not repeat a character four times in a row, and may not be a common password with digits or
   symbols added.
-- **Lockout:** five failed sign-ins lock the account for 15 minutes.
+- **Lockout:** five failed sign-ins lock the account for 15 minutes; five wrong two-step codes count as one failure.
+- **Two-step sign-in:** authenticator app codes (RFC 6238; the secret encrypted with the vault key, no code accepted
+  twice) and one-time recovery codes; the `mfa_required` setting makes it optional, required for administrators, or
+  required for everyone with a password.
 - **Rate limits:** sign-in, tokens, single sign-on and runner registration allow 60 a minute per address. Webhooks,
   API tasks and MCP allow 1,200. Going over returns 429 `CR.RATE_LIMITED` with `Retry-After`. Behind a reverse proxy the
   limits count the first `X-Forwarded-For` address; calls made on this computer without a proxy are not limited.
@@ -63,9 +66,7 @@ audited.
 
 ## Not done yet
 
-- Multi-factor sign-in without single sign-on.
 - Password history and expiry.
 - Audit-log retention, and a keyed or externally anchored audit chain.
-- Automatic runner updates.
 - Toolkit inventory per runner.
-- Approval before an agent goes to production.
+- SAML single sign-on (OpenID Connect only).

@@ -53,13 +53,13 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 | Area | Control | Where |
 | --- | --- | --- |
 | Passwords | PBKDF2-HMAC-SHA256, 210,000 iterations, random salt; length and composition rules; common-password check | `Security.java`, `ControlRoom.java` |
-| Sign-in | Lockout after 5 failures for 15 minutes; rate limits per address; session limit per user; must change first password | `RateLimiter.java`, `ControlRoom.java` |
+| Sign-in | Lockout after 5 failures for 15 minutes; rate limits per address; session limit per user; must change first password; two-step sign-in (TOTP, recovery codes) optional or required | `RateLimiter.java`, `ControlRoom.java`, `Mfa.java` |
 | Sessions | Random tokens; only SHA-256 hashes stored; idle and absolute expiry from Settings | `ControlRoom.java` |
 | Authorization | Role permissions plus folder permissions on every API call | `Rbac.java`, `Folders.java` |
 | SSO | OIDC authorization code with PKCE; ID token signature, issuer, audience, expiry and nonce checked | `Sso.java` |
 | Vault | AES-256-GCM, each value bound to its location (additional data); master key from `OOA_MASTER_KEY` or a key file; key rotation | `Vault.java`, `VaultAdmin.java` |
 | Audit | Every change audited; hash chain over entries, checked by "Verify integrity" on the audit page; syslog forwarding | `Audit.java`, `SyslogForwarder.java` |
-| Agents | SHA-256 of each checked-in version re-checked on every read | `ControlRoom.java` |
+| Agents | SHA-256 of each checked-in version re-checked on every read; optional four-eyes approval before a version goes live | `ControlRoom.java`, `ProductionApproval.java` |
 | Transport | Built-in HTTPS, TLS 1.2 and 1.3 only; HSTS and `Secure` cookie over HTTPS; runners verify the certificate (custom CA with `--ca`) | `ControlRoomServer.java`, `TlsConfig.java`, `AgentClient.java` |
 | Headers | Content-Security-Policy (`default-src 'self'`, `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` | `ControlRoomServer.java` |
 | Network | IP allow list (CIDR); Studio and the local runner listener answer on loopback only | `IpAllowList.java`, `ControlRoomServer.java` |
@@ -87,10 +87,10 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 
 ## 6. Known gaps (no need to report)
 
-- No multi-factor sign-in without SSO; no password history or expiry.
+- No password history or expiry; no SAML (OpenID Connect only).
 - The audit chain is not keyed or anchored outside the database: someone with database write access can rebuild it.
 - Runner config files hold the device secret in clear text, protected by the profile's file permissions.
-- No automatic runner updates; no per-runner toolkit inventory.
+- No per-runner toolkit inventory. Runner updates are checked by SHA-256 over the TLS connection, not separately signed.
 - The local Studio listener and the loopback runner listener trust any process on the same computer.
 - Unattended runners cannot sign a user in by themselves yet.
 

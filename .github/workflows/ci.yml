@@ -3,6 +3,7 @@
 #   sqlserver    Linux: the Command Center tests against a real SQL Server 2022 (a throwaway container)
 #   ui           Linux: the console and Studio UI tests (jsdom) against real servers started from the build
 #   msi          Windows: builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls
+#   postgres     Linux: the Command Center tests against a real PostgreSQL 16 (a throwaway container)
 name: CI
 
 on:
@@ -102,6 +103,41 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports-sqlserver
+          path: platform/control-room/build/reports/tests/
+          retention-days: 7
+
+  postgres:
+    name: Command Center on PostgreSQL (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Start PostgreSQL 16
+        run: |
+          # a throwaway password for this job's container only
+          PW="Ci-$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "PG_PW=$PW" >> "$GITHUB_ENV"
+          docker run -d --name pg -e "POSTGRES_PASSWORD=$PW" -p 5432:5432 postgres:16
+          for i in $(seq 1 60); do
+            docker exec pg pg_isready -U postgres >/dev/null 2>&1 && echo "PostgreSQL is up" && exit 0
+            sleep 2
+          done
+          docker logs pg; exit 1
+      - name: Command Center tests on PostgreSQL
+        run: |
+          chmod +x gradlew
+          ./gradlew :control-room:test --console=plain "-Pooa.test.db=jdbc:postgresql://localhost:5432/" -Pooa.test.db.user=postgres "-Pooa.test.db.password=$PG_PW"
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-postgres
           path: platform/control-room/build/reports/tests/
           retention-days: 7
 

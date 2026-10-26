@@ -97,6 +97,12 @@ People only see the pages their role allows.
 | Agent operator | View agents, run and stop them, add and work on work queue items |
 | Viewer | Read-only |
 
+- **Two-step sign-in**: anyone with a local password can turn on codes from an authenticator app (Microsoft
+  Authenticator, Google Authenticator or another time-based app) in the user menu > Two-step sign-in. They get ten
+  one-time recovery codes. Administration > Settings > Security can require it for administrators or for everyone;
+  people who still need to set it up can do nothing else until they have. Single sign-on users are left to their
+  identity provider, and API keys are not affected. For a lost phone, an administrator uses Reset two-step on the
+  Users page (`ooa reset-admin` also clears it). Studio's connect form has a Code box for these accounts.
 - **Custom roles** (Administration > Roles): tick the permissions a role needs, for example a "queue clerk" that may
   only see and add work items. Roles in use cannot be deleted.
 - **Several roles per person** (Users > Edit): besides the main role, a person can have **further roles**. They have every
@@ -143,7 +149,13 @@ People only see the pages their role allows.
        .\gradlew.bat :cli:run --args="agent start"
 
    For a Command Center on HTTPS with a self-signed certificate, add `--ca ooa.cer` (from `ooa tls export-cert`). The
-   runner keeps a copy next to its settings and trusts it from then on.
+   runner keeps a copy next to its settings and trusts it from then on. Runners on Windows also trust the Windows
+   certificate store, so a company certificate authority rolled out by Group Policy needs nothing more.
+
+   **Proxies:** by default the runner uses the Windows proxy settings (including automatic configuration scripts).
+   Use `--proxy none` or `--proxy http://proxy.corp:8080` to choose, and `--proxy-user USER --proxy-password-env VAR`
+   for a proxy that asks for a user name and password (stored encrypted with Windows DPAPI). Change them later with
+   `ooa agent network`. Proxies that only accept Windows (NTLM) sign-in are not supported.
 
 3. To start the runner automatically at sign-in (and restart it if it stops):
 
@@ -166,6 +178,15 @@ use the screen signed in and unlocked (for example a dedicated account with the 
 **Runner pools** (Runners > Runner pools) group runners. A run, schedule or work queue sent to a pool goes to its least
 busy online runner.
 
+**Runner updates**: the Runners list shows whether each runner is on this Command Center's program files. **Update**
+on a runner (or Settings > Update runners automatically) makes an idle runner download the files it needs, check
+every checksum, swap its program folder and start again. A runner service is started again by Windows, a runner at
+sign-in by its task. The bundled Java is not updated this way. A runner installed for all users but started at a
+user's sign-in may not be allowed to write to Program Files; update it with the MSI instead.
+
+**Work arrives at once**: a waiting runner keeps one request open (up to 25 seconds), and the Command Center answers it
+the moment a run is queued or one of its runs is stopped, so runs start without the old polling delay.
+
 **Runner settings** (Runners > Update runners): tick runners, then change for all of them at once:
 
 - **Log level** (error, warning, info, debug) of the runner's own log. Runners pick it up with their next heartbeat, so
@@ -182,6 +203,10 @@ busy online runner.
 - In Studio, connect at the bottom of the Explorer (One Command Center section).
 - **Agent check-in** sends the open agent as a new version. Agents are validated first; problems block the check-in.
   Workflows and forms are published with **Publish to Command Center** in their designers.
+- **Approval before production** (Administration > Settings > Security): a version then goes live only when a second
+  person with the approval right (administrators, or a custom role with *repo.approve*) approves it. Check-in "as
+  production", **Ask to make live** in the version list and imports as production create a request; **Production
+  approvals** in the Agent repository lists them. Nobody decides their own request; every step is in the audit trail.
 - **Agent check-out** locks a public agent for you and copies it into your workspace; others see who has it. Checking
   in releases the lock; **Undo check-out** releases it without a new version.
 - Administrators choose the **live production version**. Runs, schedules, triggers, work queues and workflows always use it.
