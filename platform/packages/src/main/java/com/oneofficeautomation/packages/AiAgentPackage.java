@@ -83,7 +83,8 @@ public final class AiAgentPackage {
 
     @SuppressWarnings("unchecked")
     @Action(id = "run", name = "Run AI agent", category = "AI Agents", timeoutSeconds = 1800, capabilities = {"network", "ai"},
-            description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.")
+            description = "Give an agent a goal and a set of agents it may use; it plans, calls the agents and returns its final answer and a trace.",
+            panel = "goal, instructions, tools, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | sensitive_tools, role, action_plan, output_fields, allow_cancel, max_steps, max_tokens_total, max_duration_seconds, temperature, mask_pii")
     @Output(name = "answer", type = OoaType.STRING, description = "The agent's final answer.")
     @Output(name = "status", type = OoaType.STRING, description = "completed, limit_reached or stopped; with output fields also failed or cancelled, as the agent decided.")
     @Output(name = "outputs", type = OoaType.DICTIONARY, description = "The output fields asked for (empty when none were).")

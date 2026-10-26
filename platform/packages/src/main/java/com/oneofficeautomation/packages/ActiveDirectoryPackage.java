@@ -39,6 +39,17 @@ public final class ActiveDirectoryPackage {
         void delete(String dn) throws NamingException;
         void rename(String dn, String newDn) throws NamingException;
         @Override void close() throws NamingException;
+
+        /** The object's security descriptor (self-relative, binary), at least its DACL; null when it cannot be read. */
+        default byte[] readSecurity(String dn) throws NamingException {
+            Attribute a = read(dn, new String[]{"nTSecurityDescriptor"}).get("nTSecurityDescriptor");
+            return a != null && a.get() instanceof byte[] b ? b : null;
+        }
+
+        /** Writes the DACL of a security descriptor back to the object. */
+        default void writeSecurity(String dn, byte[] sd) throws NamingException {
+            modify(dn, new ModificationItem[]{new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("nTSecurityDescriptor", sd))});
+        }
     }
 
     static final class JndiDirectory implements Directory {
@@ -55,6 +66,20 @@ public final class ActiveDirectoryPackage {
         @Override public void delete(String dn) throws NamingException { c.destroySubcontext(new LdapName(dn)); }
         @Override public void rename(String dn, String newDn) throws NamingException { c.rename(new LdapName(dn), new LdapName(newDn)); }
         @Override public void close() throws NamingException { c.close(); }
+
+        /** Reads and writes only the DACL (LDAP_SERVER_SD_FLAGS_OID with DACL_SECURITY_INFORMATION), so no SACL rights are needed. */
+        private static final javax.naming.ldap.Control[] DACL_ONLY = {new javax.naming.ldap.BasicControl("1.2.840.113556.1.4.801", true, new byte[]{0x30, 0x03, 0x02, 0x01, 0x04})};
+
+        @Override public byte[] readSecurity(String dn) throws NamingException {
+            c.addToEnvironment("java.naming.ldap.attributes.binary", "nTSecurityDescriptor");
+            c.setRequestControls(DACL_ONLY);
+            try { return Directory.super.readSecurity(dn); } finally { c.setRequestControls(null); }
+        }
+
+        @Override public void writeSecurity(String dn, byte[] sd) throws NamingException {
+            c.setRequestControls(DACL_ONLY);
+            try { Directory.super.writeSecurity(dn, sd); } finally { c.setRequestControls(null); }
+        }
     }
 
     static final class AdSession implements AutoCloseable {
@@ -87,7 +112,8 @@ public final class ActiveDirectoryPackage {
 
     private static AdSession s(ActionContext ctx, String name) { return ctx.session(name, AdSession.class); }
 
-    @Action(id = "connect", name = "Connect", category = "Directory", capabilities = "network", description = "Sign in to Active Directory or an LDAP server.")
+    @Action(id = "connect", name = "Connect", category = "Directory", capabilities = "network", description = "Sign in to Active Directory or an LDAP server.",
+            panel = "session, url, base_dn, bind_user, password | connect_timeout_seconds, read_timeout_seconds, follow_referrals")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "url", type = OoaType.STRING, pattern = "^ldaps?://", example = "ldaps://dc01.corp.example.com:636", description = "Server URL; use ldaps:// for password changes.") String url,
             @Input(name = "bind_user", type = OoaType.STRING, example = "svc-bot@corp.example.com", description = "User to sign in as (UPN or distinguished name).") String user,
@@ -168,7 +194,8 @@ public final class ActiveDirectoryPackage {
         return Out.of("table", Values.table(cols, rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "search", name = "Search", category = "Directory", idempotent = true, capabilities = "network", description = "Run an LDAP filter and return matching entries as a table.")
+    @Action(id = "search", name = "Search", category = "Directory", idempotent = true, capabilities = "network", description = "Run an LDAP filter and return matching entries as a table.",
+            panel = "session, filter, attributes | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per entry; columns are dn plus the requested attributes.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of entries.")
     public Map<String, Object> search(ActionContext ctx,
@@ -180,7 +207,8 @@ public final class ActiveDirectoryPackage {
         return table(ctx, s, s.baseDn, filter, SearchControls.SUBTREE_SCOPE, attrs, max);
     }
 
-    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Read a user's properties by sAMAccountName or UPN.")
+    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Read a user's properties by sAMAccountName or UPN.",
+            panel = "session, username, attributes")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "dn, sAMAccountName, displayName, mail, enabled, locked and more.")
     public Map<String, Object> getUser(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String username,
@@ -225,21 +253,24 @@ public final class ActiveDirectoryPackage {
         catch (NamingException e) { throw ad(e); }
     }
 
-    @Action(id = "enable_user", name = "Enable user", category = "Users", capabilities = "network", description = "Enable a disabled user account.")
+    @Action(id = "enable_user", name = "Enable user", category = "Users", capabilities = "network", description = "Enable a disabled user account.",
+            panel = "session, username")
     public Map<String, Object> enable(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = "Session name.") String session) {
         return modify(ctx, session, u, new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("userAccountControl", String.valueOf(uac(ctx, session, u) & ~ACCOUNTDISABLE))));
     }
 
-    @Action(id = "disable_user", name = "Disable user", category = "Users", capabilities = "network", description = "Disable a user account (for example when someone leaves).")
+    @Action(id = "disable_user", name = "Disable user", category = "Users", capabilities = "network", description = "Disable a user account (for example when someone leaves).",
+            panel = "session, username")
     public Map<String, Object> disable(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = "Session name.") String session) {
         return modify(ctx, session, u, new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("userAccountControl", String.valueOf(uac(ctx, session, u) | ACCOUNTDISABLE))));
     }
 
-    @Action(id = "unlock_user", name = "Unlock user", category = "Users", capabilities = "network", description = "Unlock an account locked by failed sign-ins.")
+    @Action(id = "unlock_user", name = "Unlock user", category = "Users", capabilities = "network", description = "Unlock an account locked by failed sign-ins.",
+            panel = "session, username")
     public Map<String, Object> unlock(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = "Session name.") String session) {
@@ -257,7 +288,8 @@ public final class ActiveDirectoryPackage {
     }
 
     @Action(id = "reset_password", name = "Reset password", category = "Users", capabilities = "network",
-            description = "Set a new password (needs an ldaps:// connection), optionally forcing a change at next sign-in.")
+            description = "Set a new password (needs an ldaps:// connection), optionally forcing a change at next sign-in.",
+            panel = "session, username, new_password, must_change | unlock")
     public Map<String, Object> resetPassword(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "new_password", type = OoaType.CREDENTIAL, description = "New password from the vault or a Credential variable.") SecureString pw,
@@ -291,7 +323,8 @@ public final class ActiveDirectoryPackage {
         return Map.of("changed", BigDecimal.valueOf(changed));
     }
 
-    @Action(id = "add_to_group", name = "Add users to group", category = "Groups", capabilities = "network", description = "Add one or more users to a group (no error for users already in it).")
+    @Action(id = "add_to_group", name = "Add users to group", category = "Groups", capabilities = "network", description = "Add one or more users to a group (no error for users already in it).",
+            panel = "session, username, group_dn, more_usernames")
     @Output(name = "changed", type = OoaType.NUMBER, description = "How many users were added (users already in the group are not counted).")
     public Map<String, Object> addToGroup(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
@@ -304,7 +337,8 @@ public final class ActiveDirectoryPackage {
     /** Earlier signature, kept for callers written before more_usernames. */
     public Map<String, Object> addToGroup(ActionContext ctx, String u, String g, String session) { return addToGroup(ctx, u, g, session, null); }
 
-    @Action(id = "remove_from_group", name = "Remove users from group", category = "Groups", capabilities = "network", description = "Remove one or more users from a group (no error for users not in it).")
+    @Action(id = "remove_from_group", name = "Remove users from group", category = "Groups", capabilities = "network", description = "Remove one or more users from a group (no error for users not in it).",
+            panel = "session, username, group_dn, more_usernames")
     @Output(name = "changed", type = OoaType.NUMBER, description = "How many users were removed.")
     public Map<String, Object> removeFromGroup(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
@@ -317,7 +351,8 @@ public final class ActiveDirectoryPackage {
     /** Earlier signature, kept for callers written before more_usernames. */
     public Map<String, Object> removeFromGroup(ActionContext ctx, String u, String g, String session) { return removeFromGroup(ctx, u, g, session, null); }
 
-    @Action(id = "set_attribute", name = "Set user property", category = "Users", capabilities = "network", description = "Change one attribute of a user, e.g. title or telephoneNumber; values can be replaced, added or removed.")
+    @Action(id = "set_attribute", name = "Set user property", category = "Users", capabilities = "network", description = "Change one attribute of a user, e.g. title or telephoneNumber; values can be replaced, added or removed.",
+            panel = "session, username, attribute, value | mode")
     public Map<String, Object> setAttribute(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "attribute", type = OoaType.STRING, description = "LDAP attribute name.") String attr,
@@ -331,7 +366,8 @@ public final class ActiveDirectoryPackage {
     /** Earlier signature, kept for callers written before the mode option. */
     public Map<String, Object> setAttribute(ActionContext ctx, String u, String attr, String value, String session) { return setAttribute(ctx, u, attr, value, session, "replace"); }
 
-    @Action(id = "disconnect", name = "Disconnect", category = "Directory", description = "Close the directory session.")
+    @Action(id = "disconnect", name = "Disconnect", category = "Directory", description = "Close the directory session.",
+            panel = "session")
     public Map<String, Object> disconnect(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = "Session name.") String session) {
         Object o = ctx.sessions().remove(session);
         if (o instanceof AdSession a) try { a.close(); } catch (NamingException ignored) { }
@@ -467,7 +503,8 @@ public final class ActiveDirectoryPackage {
     // ---- Users ----
 
     @Action(id = "create_user", name = "Create user", category = "Users", capabilities = "network",
-            description = "Create a user account in an organizational unit, optionally with a first password, and enable it.")
+            description = "Create a user account in an organizational unit, optionally with a first password, and enable it.",
+            panel = "session, username, user_principal_name, first_name, last_name, display_name, initials, user_description, email, department, title, enabled, [Set a first password: password], must_change_password, password_never_expires, container_dn | attributes")
     @Output(name = "dn", type = OoaType.STRING, description = "Distinguished name of the new user.")
     public Map<String, Object> createUser(ActionContext ctx,
             @Input(name = "container_dn", type = OoaType.STRING, example = "OU=Staff,DC=corp,DC=example,DC=com", description = D_CONTAINER) String parent,
@@ -483,8 +520,13 @@ public final class ActiveDirectoryPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = D_SESSION) String session,
             @Input(name = "initials", type = OoaType.STRING, required = false, description = "Initials (up to 6 characters).") String initials,
             @Input(name = "user_description", type = OoaType.STRING, required = false, description = "Description shown in the directory.") String description,
-            @Input(name = "password_never_expires", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the account with a password that never expires (must_change_password is then ignored by the directory).") boolean neverExpires) {
+            @Input(name = "password_never_expires", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the account with a password that never expires (must_change_password is then ignored by the directory).") boolean neverExpires,
+            @Input(name = "email", type = OoaType.STRING, required = false, example = "jdoe@corp.example.com", description = "Email address (stored in mail).") String email,
+            @Input(name = "department", type = OoaType.STRING, required = false, description = "Department.") String department,
+            @Input(name = "title", type = OoaType.STRING, required = false, description = "Job title.") String title) {
         if (initials != null && initials.strip().length() > 6) throw new ActionException("AD.BAD_NAME", "Initials can have at most 6 characters");
+        if (email != null && !email.isBlank() && !email.strip().matches("^[^@\\s]+@[^@\\s]+$"))
+            throw new ActionException("AD.BAD_EMAIL", "Not an email address: '" + email + "'", "Example: jdoe@corp.example.com.");
         if (username == null || !username.matches("^[^\"/\\\\\\[\\]:;|=,+*?<>@]{1,20}$"))
             throw new ActionException("AD.BAD_NAME", "Invalid user name '" + username + "'", "Up to 20 characters, without \" / \\ [ ] : ; | = , + * ? < > @.");
         String cn = display != null && !display.isBlank() ? display.strip()
@@ -507,6 +549,9 @@ public final class ActiveDirectoryPackage {
         }
         if (initials != null && !initials.isBlank()) a.put("initials", initials.strip());
         if (description != null && !description.isBlank()) a.put("description", description);
+        if (email != null && !email.isBlank()) a.put("mail", email.strip());
+        if (department != null && !department.isBlank()) a.put("department", department.strip());
+        if (title != null && !title.isBlank()) a.put("title", title.strip());
         int extraFlags = neverExpires ? DONT_EXPIRE_PASSWORD : 0;
         a.put("userAccountControl", String.valueOf(NORMAL_ACCOUNT | ACCOUNTDISABLE | extraFlags));
         AdSession s = s(ctx, session);
@@ -532,8 +577,16 @@ public final class ActiveDirectoryPackage {
         return createUser(ctx, parent, username, first, last, display, upn, password, enabled, mustChange, extra, session, null, null, false);
     }
 
+    /** Earlier signature, kept for callers written before email, department and title. */
+    public Map<String, Object> createUser(ActionContext ctx, String parent, String username, String first, String last, String display, String upn,
+                                          SecureString password, boolean enabled, boolean mustChange, Map<String, Object> extra, String session,
+                                          String initials, String description, boolean neverExpires) {
+        return createUser(ctx, parent, username, first, last, display, upn, password, enabled, mustChange, extra, session, initials, description, neverExpires, null, null, null);
+    }
+
     @Action(id = "update_user_details", name = "Update user details", category = "Users", capabilities = "network",
-            description = "Change several details of a user in one step (names, description, office, phone, email, title, department, manager and any other attributes); empty inputs stay as they are.")
+            description = "Change several details of a user in one step (names, description, office, phone, email, title, department, manager and any other attributes); empty inputs stay as they are.",
+            panel = "session, username, first_name, last_name, display_name, initials, email, user_description, department, title | office, telephone, company, manager, attributes")
     @Output(name = "changed", type = OoaType.LIST, description = "Names of the attributes that were changed.")
     public Map<String, Object> updateUserDetails(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
@@ -567,28 +620,61 @@ public final class ActiveDirectoryPackage {
         });
     }
 
-    @Action(id = "delete_user", name = "Delete user", category = "Users", capabilities = "network", description = "Delete a user account.")
+    @Action(id = "delete_user", name = "Delete user", category = "Users", capabilities = "network", description = "Delete a user account.",
+            panel = "session, username")
     public Map<String, Object> deleteUser(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = D_SESSION) String session) {
         return work(ctx, session, s -> { s.dir.delete(findUser(s, u).dn()); return Map.of(); });
     }
 
-    @Action(id = "rename_user", name = "Rename user", category = "Users", capabilities = "network", description = "Change the object name of a user, optionally also its display name; the sign-in name is kept.")
+    @Action(id = "rename_user", name = "Rename user", category = "Users", capabilities = "network",
+            description = "Change the object name of a user (optionally also its display name), its sign-in name (sAMAccountName and the part of the UPN before @), or both.",
+            panel = "session, username, new_name, rename_target | update_display_name, new_sign_in_name")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> renameUser(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
-            @Input(name = "new_name", type = OoaType.STRING, description = "New object name (common name), e.g. Jane Doe.") String newName,
-            @Input(name = "update_display_name", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also set the display name to the new name.") boolean display,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = D_SESSION) String session) {
+            @Input(name = "new_name", type = OoaType.STRING, description = "New object name (common name), e.g. Jane Doe; also the new sign-in name when only the sign-in name is renamed and new_sign_in_name is empty.") String newName,
+            @Input(name = "update_display_name", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Also set the display name to the new name (when the object name changes).") boolean display,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = D_SESSION) String session,
+            @Input(name = "rename_target", type = OoaType.STRING, required = false, defaultValue = "\"object\"", enumValues = {"object", "sign_in", "both"},
+                    description = "object: the object name only (the sign-in name is kept); sign_in: the sign-in name only; both: object name and sign-in name.") String target,
+            @Input(name = "new_sign_in_name", type = OoaType.STRING, required = false, example = "jdoe2",
+                    description = "New sign-in name (sAMAccountName, up to 20 characters); new_name is used when empty.") String newSignIn) {
+        String t = target == null || target.isBlank() ? "object" : target.strip().toLowerCase(Locale.ROOT);
+        if (!t.equals("object") && !t.equals("sign_in") && !t.equals("both"))
+            throw new ActionException("AD.BAD_TARGET", "Unknown rename target '" + target + "'", "Use object, sign_in or both.");
+        boolean object = !t.equals("sign_in"), signIn = !t.equals("object");
+        String sam = signIn ? (newSignIn != null && !newSignIn.isBlank() ? newSignIn.strip() : newName == null ? "" : newName.strip()) : null;
+        if (signIn && !sam.matches("^[^\"/\\\\\\[\\]:;|=,+*?<>@]{1,20}$"))
+            throw new ActionException("AD.BAD_NAME", "Invalid sign-in name '" + sam + "'", "Up to 20 characters, without \" / \\ [ ] : ; | = , + * ? < > @.");
         return work(ctx, session, s -> {
-            Map<String, Object> r = rename(s, findUser(s, u).dn(), newName, "user");
+            Entry e = findUser(s, u);
+            String dn = e.dn();
+            if (signIn) {
+                List<ModificationItem> items = new ArrayList<>();
+                items.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("sAMAccountName", sam)));
+                Object upn = attrValue(e.attributes().get("userPrincipalName"));
+                if (upn != null && String.valueOf(upn).contains("@")) {
+                    String suffix = String.valueOf(upn).substring(String.valueOf(upn).lastIndexOf('@'));
+                    items.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("userPrincipalName", sam + suffix)));
+                }
+                s.dir.modify(dn, items.toArray(new ModificationItem[0]));
+            }
+            if (!object) return Map.of("dn", dn);
+            Map<String, Object> r = rename(s, dn, newName, "user");
             if (display) s.dir.modify((String) r.get("dn"), new ModificationItem[]{new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("displayName", newName.strip()))});
             return r;
         });
     }
 
-    @Action(id = "move_user", name = "Move user", category = "Users", capabilities = "network", description = "Move a user to another organizational unit.")
+    /** Earlier signature, kept for callers written before rename_target and new_sign_in_name. */
+    public Map<String, Object> renameUser(ActionContext ctx, String u, String newName, boolean display, String session) {
+        return renameUser(ctx, u, newName, display, session, "object", null);
+    }
+
+    @Action(id = "move_user", name = "Move user", category = "Users", capabilities = "network", description = "Move a user to another organizational unit.",
+            panel = "username, target_ou_dn, session")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> moveUser(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
@@ -598,7 +684,8 @@ public final class ActiveDirectoryPackage {
     }
 
     @Action(id = "set_password", name = "Set password", category = "Users", capabilities = "network",
-            description = "Set a user's password as an administrator (needs an ldaps:// connection), optionally unlocking the account.")
+            description = "Set a user's password as an administrator (needs an ldaps:// connection), optionally unlocking the account.",
+            panel = "session, username, new_password, must_change | unlock")
     public Map<String, Object> setPassword(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
             @Input(name = "new_password", type = OoaType.CREDENTIAL, description = "New password from the vault or a Credential variable.") SecureString pw,
@@ -613,7 +700,8 @@ public final class ActiveDirectoryPackage {
     }
 
     @Action(id = "update_account_options", name = "Update account options", category = "Users", capabilities = "network",
-            description = "Turn account options on or off: enabled, password never expires, and must change password at next sign-in; empty options stay as they are.")
+            description = "Turn account options on or off: enabled, password never expires, and must change password at next sign-in; empty options stay as they are.",
+            panel = "session, username, enabled, must_change_password, password_never_expires, cannot_change_password | smart_card_required, not_delegated, password_not_required, no_kerberos_preauth, account_expires")
     @Output(name = "user_account_control", type = OoaType.NUMBER, description = "The account control flags after the change.")
     public Map<String, Object> accountOptions(ActionContext ctx,
             @Input(name = "username", type = OoaType.STRING, description = "sAMAccountName or UPN.") String u,
@@ -626,7 +714,9 @@ public final class ActiveDirectoryPackage {
             @Input(name = "password_not_required", type = OoaType.BOOLEAN, required = false, description = "Whether the account may have an empty password (normally false).") Boolean pwNotRequired,
             @Input(name = "no_kerberos_preauth", type = OoaType.BOOLEAN, required = false, description = "Whether Kerberos pre-authentication is not required (normally false).") Boolean noPreauth,
             @Input(name = "account_expires", type = OoaType.STRING, required = false, example = "2026-12-31",
-                    description = "Last day the account can be used (yyyy-MM-dd, the account ends at the start of the next day UTC), or never.") String expires) {
+                    description = "Last day the account can be used (yyyy-MM-dd, the account ends at the start of the next day UTC), or never.") String expires,
+            @Input(name = "cannot_change_password", type = OoaType.BOOLEAN, required = false,
+                    description = "Whether the user is stopped from changing their own password (Active Directory only; changes the object's permissions).") Boolean cannotChange) {
         Long expiresValue = accountExpires(expires);
         return work(ctx, session, s -> {
             Entry e = findUser(s, u);
@@ -643,6 +733,12 @@ public final class ActiveDirectoryPackage {
             if (mustChange != null) items.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("pwdLastSet", mustChange ? "0" : "-1")));
             if (expiresValue != null) items.add(new ModificationItem(DirContext.REPLACE_ATTRIBUTE, new BasicAttribute("accountExpires", String.valueOf(expiresValue))));
             if (!items.isEmpty()) s.dir.modify(e.dn(), items.toArray(new ModificationItem[0]));
+            if (cannotChange != null) {
+                byte[] sd = s.dir.readSecurity(e.dn());
+                if (sd == null) throw new ActionException("AD.NO_SECURITY_DESCRIPTOR", "Cannot read the permissions of " + e.dn(),
+                        "The bind account needs permission to read and change permissions; this option works on Active Directory only.");
+                s.dir.writeSecurity(e.dn(), withChangePassword(sd, cannotChange));
+            }
             return Map.of("user_account_control", BigDecimal.valueOf(flags));
         });
     }
@@ -650,6 +746,111 @@ public final class ActiveDirectoryPackage {
     /** Earlier signature, kept for callers written before the extra account options. */
     public Map<String, Object> accountOptions(ActionContext ctx, String u, Boolean enabled, Boolean neverExpires, Boolean mustChange, String session) {
         return accountOptions(ctx, u, enabled, neverExpires, mustChange, session, null, null, null, null, null);
+    }
+
+    /** Earlier signature, kept for callers written before cannot_change_password. */
+    public Map<String, Object> accountOptions(ActionContext ctx, String u, Boolean enabled, Boolean neverExpires, Boolean mustChange, String session,
+                                              Boolean smartCard, Boolean notDelegated, Boolean pwNotRequired, Boolean noPreauth, String expires) {
+        return accountOptions(ctx, u, enabled, neverExpires, mustChange, session, smartCard, notDelegated, pwNotRequired, noPreauth, expires, null);
+    }
+
+    // ---- "User cannot change password": object ACEs for the Change Password extended right in the DACL ----
+
+    /** Change Password extended right {AB721A53-1E2F-11D0-9819-00AA0040529B} in its binary (little-endian) GUID form. */
+    static final byte[] CHANGE_PASSWORD_GUID = {0x53, 0x1A, 0x72, (byte) 0xAB, 0x2F, 0x1E, (byte) 0xD0, 0x11, (byte) 0x98, 0x19, 0x00, (byte) 0xAA, 0x00, 0x40, 0x52, (byte) 0x9B};
+    static final byte[] SID_EVERYONE = {1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0};   // S-1-1-0
+    static final byte[] SID_SELF = {1, 1, 0, 0, 0, 0, 0, 5, 10, 0, 0, 0};       // S-1-5-10
+    static final int ACCESS_ALLOWED_OBJECT = 5, ACCESS_DENIED_OBJECT = 6, INHERITED_ACE = 0x10, DS_CONTROL_ACCESS = 0x100;
+
+    private static int u16(byte[] b, int o) { return (b[o] & 0xFF) | (b[o + 1] & 0xFF) << 8; }
+    private static int u32(byte[] b, int o) { return u16(b, o) | u16(b, o + 2) << 16; }
+    private static void put16(byte[] b, int o, int v) { b[o] = (byte) v; b[o + 1] = (byte) (v >> 8); }
+    private static void put32(byte[] b, int o, int v) { put16(b, o, v); put16(b, o + 2, v >>> 16); }
+    private static int sidLength(byte[] b, int o) { return 8 + 4 * (b[o + 1] & 0xFF); }
+
+    private static ActionException badSd() {
+        return new ActionException("AD.BAD_SECURITY_DESCRIPTOR", "The user's security descriptor could not be read", "Check that the server is Active Directory.");
+    }
+
+    /** One explicit object ACE for the change-password right. */
+    static byte[] changePasswordAce(int type, byte[] sid) {
+        byte[] a = new byte[12 + 16 + sid.length];
+        a[0] = (byte) type;
+        put16(a, 2, a.length);
+        put32(a, 4, DS_CONTROL_ACCESS);
+        put32(a, 8, 1);                                          // ACE_OBJECT_TYPE_PRESENT
+        System.arraycopy(CHANGE_PASSWORD_GUID, 0, a, 12, 16);
+        System.arraycopy(sid, 0, a, 28, sid.length);
+        return a;
+    }
+
+    /** True when an ACE is an explicit allow or deny object ACE for the change-password right given to Everyone or SELF. */
+    static boolean isChangePasswordAce(byte[] ace) {
+        int type = ace[0] & 0xFF;
+        if ((type != ACCESS_ALLOWED_OBJECT && type != ACCESS_DENIED_OBJECT) || (ace[1] & INHERITED_ACE) != 0 || ace.length < 12) return false;
+        int flags = u32(ace, 8), o = 12;
+        if ((flags & 1) == 0 || ace.length < o + 16 || !Arrays.equals(Arrays.copyOfRange(ace, o, o + 16), CHANGE_PASSWORD_GUID)) return false;
+        o += 16;
+        if ((flags & 2) != 0) o += 16;
+        if (ace.length < o + 8) return false;
+        byte[] sid = Arrays.copyOfRange(ace, o, Math.min(ace.length, o + sidLength(ace, o)));
+        return Arrays.equals(sid, SID_EVERYONE) || Arrays.equals(sid, SID_SELF);
+    }
+
+    /**
+     * Returns the security descriptor with the change-password ACEs for Everyone and SELF set to deny (cannot change) or allow.
+     * Other ACEs are kept in order; deny ACEs go first and allow ACEs after the explicit deny ACEs, the canonical order.
+     */
+    static byte[] withChangePassword(byte[] sd, boolean cannotChange) {
+        if (sd.length < 20 || sd[0] != 1) throw badSd();
+        int control = u16(sd, 2), oOwner = u32(sd, 4), oGroup = u32(sd, 8), oSacl = u32(sd, 12), oDacl = u32(sd, 16);
+        List<byte[]> aces = new ArrayList<>();
+        int revision = 4;
+        if (oDacl != 0) {
+            if (oDacl + 8 > sd.length) throw badSd();
+            revision = Math.max(revision, sd[oDacl] & 0xFF);
+            int count = u16(sd, oDacl + 4), p = oDacl + 8;
+            for (int i = 0; i < count; i++) {
+                if (p + 4 > sd.length) throw badSd();
+                int size = u16(sd, p + 2);
+                if (size < 4 || p + size > sd.length) throw badSd();
+                byte[] ace = Arrays.copyOfRange(sd, p, p + size);
+                if (!isChangePasswordAce(ace)) aces.add(ace);
+                p += size;
+            }
+        }
+        int type = cannotChange ? ACCESS_DENIED_OBJECT : ACCESS_ALLOWED_OBJECT;
+        int at = 0;
+        if (!cannotChange) while (at < aces.size() && (aces.get(at)[1] & INHERITED_ACE) == 0 && ((aces.get(at)[0] & 0xFF) == 1 || (aces.get(at)[0] & 0xFF) == ACCESS_DENIED_OBJECT)) at++;
+        aces.add(at, changePasswordAce(type, SID_SELF));
+        aces.add(at, changePasswordAce(type, SID_EVERYONE));
+        int aclSize = 8;
+        for (byte[] a : aces) aclSize += a.length;
+        byte[] acl = new byte[aclSize];
+        acl[0] = (byte) revision;
+        put16(acl, 2, aclSize);
+        put16(acl, 4, aces.size());
+        int p = 8;
+        for (byte[] a : aces) { System.arraycopy(a, 0, acl, p, a.length); p += a.length; }
+        // rebuild the self-relative descriptor: header, owner, group, SACL, then the new DACL
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] head = new byte[20];
+        head[0] = 1;
+        put16(head, 2, control | 0x8004);                      // SE_SELF_RELATIVE and SE_DACL_PRESENT
+        out.writeBytes(head);
+        int[] offsets = {oOwner, oGroup, oSacl};
+        for (int i = 0; i < 3; i++) {
+            if (offsets[i] == 0) continue;
+            int len = i < 2 ? sidLength(sd, offsets[i]) : u16(sd, offsets[i] + 2);
+            if (offsets[i] + len > sd.length) throw badSd();
+            put32(head, 4 + 4 * i, out.size());
+            out.write(sd, offsets[i], len);
+        }
+        put32(head, 16, out.size());
+        out.writeBytes(acl);
+        byte[] result = out.toByteArray();
+        System.arraycopy(head, 0, result, 0, 20);
+        return result;
     }
 
     private static final int PASSWD_NOTREQD = 0x20, SMARTCARD_REQUIRED = 0x40000, NOT_DELEGATED = 0x100000, DONT_REQ_PREAUTH = 0x400000;
@@ -670,7 +871,8 @@ public final class ActiveDirectoryPackage {
     // ---- Groups ----
 
     @Action(id = "get_group_members", name = "Get group members", category = "Groups", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the members of a group, optionally including members of nested groups.")
+            description = "List the members of a group, optionally including members of nested groups.",
+            panel = "session, group, member_type, recursive | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: dn, name, sAMAccountName, type, mail.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of members.")
     public Map<String, Object> groupMembers(ActionContext ctx,
@@ -728,7 +930,8 @@ public final class ActiveDirectoryPackage {
     /** Earlier signature, kept for callers written before member_type. */
     public Map<String, Object> groupMembers(ActionContext ctx, String g, boolean recursive, int max, String session) { return groupMembers(ctx, g, recursive, max, session, "all"); }
 
-    @Action(id = "move_group", name = "Move group", category = "Groups", capabilities = "network", description = "Move a group to another organizational unit; its members stay.")
+    @Action(id = "move_group", name = "Move group", category = "Groups", capabilities = "network", description = "Move a group to another organizational unit; its members stay.",
+            panel = "group, target_ou_dn, session")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> moveGroup(ActionContext ctx,
             @Input(name = "group", type = OoaType.STRING, description = D_GROUP) String g,
@@ -737,7 +940,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> move(s, groupDn(s, g), target));
     }
 
-    @Action(id = "create_group", name = "Create group", category = "Groups", capabilities = "network", description = "Create a security or distribution group.")
+    @Action(id = "create_group", name = "Create group", category = "Groups", capabilities = "network", description = "Create a security or distribution group.",
+            panel = "session, name, group_description, scope, group_type, container_dn | sam_account_name")
     @Output(name = "dn", type = OoaType.STRING, description = "Distinguished name of the new group.")
     public Map<String, Object> createGroup(ActionContext ctx,
             @Input(name = "container_dn", type = OoaType.STRING, example = "OU=Groups,DC=corp,DC=example,DC=com", description = D_CONTAINER) String parent,
@@ -761,14 +965,16 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> { s.dir.create(dn, a); return Map.of("dn", dn); });
     }
 
-    @Action(id = "delete_group", name = "Delete group", category = "Groups", capabilities = "network", description = "Delete a group (its members are not deleted).")
+    @Action(id = "delete_group", name = "Delete group", category = "Groups", capabilities = "network", description = "Delete a group (its members are not deleted).",
+            panel = "session, group")
     public Map<String, Object> deleteGroup(ActionContext ctx,
             @Input(name = "group", type = OoaType.STRING, description = D_GROUP) String g,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = D_SESSION) String session) {
         return work(ctx, session, s -> { s.dir.delete(groupDn(s, g)); return Map.of(); });
     }
 
-    @Action(id = "rename_group", name = "Rename group", category = "Groups", capabilities = "network", description = "Change a group's name, optionally also its pre-Windows 2000 name.")
+    @Action(id = "rename_group", name = "Rename group", category = "Groups", capabilities = "network", description = "Change a group's name, optionally also its pre-Windows 2000 name.",
+            panel = "session, group, new_name | update_sam_account_name")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> renameGroup(ActionContext ctx,
             @Input(name = "group", type = OoaType.STRING, description = D_GROUP) String g,
@@ -782,7 +988,8 @@ public final class ActiveDirectoryPackage {
         });
     }
 
-    @Action(id = "get_group_property", name = "Get group properties", category = "Groups", idempotent = true, capabilities = "network", description = "Read attributes of a group.")
+    @Action(id = "get_group_property", name = "Get group properties", category = "Groups", idempotent = true, capabilities = "network", description = "Read attributes of a group.",
+            panel = "session, group, attributes")
     @Output(name = "properties", type = OoaType.DICTIONARY, description = "dn plus the requested attributes (all readable ones when none are listed).")
     public Map<String, Object> getGroupProperty(ActionContext ctx,
             @Input(name = "group", type = OoaType.STRING, description = D_GROUP) String g,
@@ -791,7 +998,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> Map.of("properties", properties(s, groupDn(s, g), attrs)));
     }
 
-    @Action(id = "set_group_property", name = "Set group property", category = "Groups", capabilities = "network", description = "Change one attribute of a group, e.g. description or managedBy.")
+    @Action(id = "set_group_property", name = "Set group property", category = "Groups", capabilities = "network", description = "Change one attribute of a group, e.g. description or managedBy.",
+            panel = "session, group, attribute, value")
     public Map<String, Object> setGroupProperty(ActionContext ctx,
             @Input(name = "group", type = OoaType.STRING, description = D_GROUP) String g,
             @Input(name = "attribute", type = OoaType.STRING, description = "LDAP attribute name.") String attr,
@@ -802,7 +1010,8 @@ public final class ActiveDirectoryPackage {
 
     // ---- Computers ----
 
-    @Action(id = "create_computer", name = "Create computer", category = "Computers", capabilities = "network", description = "Create a computer account so a machine can join the domain.")
+    @Action(id = "create_computer", name = "Create computer", category = "Computers", capabilities = "network", description = "Create a computer account so a machine can join the domain.",
+            panel = "session, name, computer_description, container_dn | enabled")
     @Output(name = "dn", type = OoaType.STRING, description = "Distinguished name of the new computer.")
     public Map<String, Object> createComputer(ActionContext ctx,
             @Input(name = "container_dn", type = OoaType.STRING, example = "OU=Workstations,DC=corp,DC=example,DC=com", description = D_CONTAINER) String parent,
@@ -824,7 +1033,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> { s.dir.create(dn, a); return Map.of("dn", dn); });
     }
 
-    @Action(id = "delete_computer", name = "Delete computer", category = "Computers", capabilities = "network", description = "Delete a computer account.")
+    @Action(id = "delete_computer", name = "Delete computer", category = "Computers", capabilities = "network", description = "Delete a computer account.",
+            panel = "session, computer")
     public Map<String, Object> deleteComputer(ActionContext ctx,
             @Input(name = "computer", type = OoaType.STRING, description = D_COMPUTER) String c,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"ad\"", description = D_SESSION) String session) {
@@ -832,7 +1042,8 @@ public final class ActiveDirectoryPackage {
     }
 
     @Action(id = "rename_computer", name = "Rename computer", category = "Computers", capabilities = "network",
-            description = "Rename a computer account (object name and sAMAccountName); the machine itself is not renamed.")
+            description = "Rename a computer account (object name and sAMAccountName); the machine itself is not renamed.",
+            panel = "session, computer, new_name")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> renameComputer(ActionContext ctx,
             @Input(name = "computer", type = OoaType.STRING, description = D_COMPUTER) String c,
@@ -847,7 +1058,8 @@ public final class ActiveDirectoryPackage {
         });
     }
 
-    @Action(id = "move_computer", name = "Move computer", category = "Computers", capabilities = "network", description = "Move a computer account to another organizational unit.")
+    @Action(id = "move_computer", name = "Move computer", category = "Computers", capabilities = "network", description = "Move a computer account to another organizational unit.",
+            panel = "computer, target_ou_dn, session")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> moveComputer(ActionContext ctx,
             @Input(name = "computer", type = OoaType.STRING, description = D_COMPUTER) String c,
@@ -856,7 +1068,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> move(s, computerDn(s, c), target));
     }
 
-    @Action(id = "get_computer_property", name = "Get computer properties", category = "Computers", idempotent = true, capabilities = "network", description = "Read attributes of a computer account.")
+    @Action(id = "get_computer_property", name = "Get computer properties", category = "Computers", idempotent = true, capabilities = "network", description = "Read attributes of a computer account.",
+            panel = "session, computer, attributes")
     @Output(name = "properties", type = OoaType.DICTIONARY, description = "dn plus the requested attributes (all readable ones when none are listed).")
     public Map<String, Object> getComputerProperty(ActionContext ctx,
             @Input(name = "computer", type = OoaType.STRING, description = D_COMPUTER) String c,
@@ -865,7 +1078,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> Map.of("properties", properties(s, computerDn(s, c), attrs)));
     }
 
-    @Action(id = "set_computer_property", name = "Set computer property", category = "Computers", capabilities = "network", description = "Change one attribute of a computer account, e.g. description or location.")
+    @Action(id = "set_computer_property", name = "Set computer property", category = "Computers", capabilities = "network", description = "Change one attribute of a computer account, e.g. description or location.",
+            panel = "session, computer, attribute, value")
     public Map<String, Object> setComputerProperty(ActionContext ctx,
             @Input(name = "computer", type = OoaType.STRING, description = D_COMPUTER) String c,
             @Input(name = "attribute", type = OoaType.STRING, description = "LDAP attribute name.") String attr,
@@ -876,7 +1090,8 @@ public final class ActiveDirectoryPackage {
 
     // ---- Organizational units ----
 
-    @Action(id = "create_ou", name = "Create organizational unit", category = "Organizational units", capabilities = "network", description = "Create an organizational unit.")
+    @Action(id = "create_ou", name = "Create organizational unit", category = "Organizational units", capabilities = "network", description = "Create an organizational unit.",
+            panel = "session, name, ou_description, parent_dn")
     @Output(name = "dn", type = OoaType.STRING, description = "Distinguished name of the new organizational unit.")
     public Map<String, Object> createOu(ActionContext ctx,
             @Input(name = "parent_dn", type = OoaType.STRING, example = "DC=corp,DC=example,DC=com", description = "Distinguished name of the parent domain or organizational unit.") String parent,
@@ -902,7 +1117,8 @@ public final class ActiveDirectoryPackage {
     }
 
     @Action(id = "delete_ou", name = "Delete organizational unit", category = "Organizational units", capabilities = "network",
-            description = "Delete an organizational unit; with recursive, everything inside it is deleted too.")
+            description = "Delete an organizational unit; with recursive, everything inside it is deleted too.",
+            panel = "session, ou | recursive")
     public Map<String, Object> deleteOu(ActionContext ctx,
             @Input(name = "ou", type = OoaType.STRING, description = D_OU) String ou,
             @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete every object inside it (cannot be undone).") boolean recursive,
@@ -914,7 +1130,8 @@ public final class ActiveDirectoryPackage {
         });
     }
 
-    @Action(id = "rename_ou", name = "Rename organizational unit", category = "Organizational units", capabilities = "network", description = "Change the name of an organizational unit.")
+    @Action(id = "rename_ou", name = "Rename organizational unit", category = "Organizational units", capabilities = "network", description = "Change the name of an organizational unit.",
+            panel = "session, ou, new_name")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> renameOu(ActionContext ctx,
             @Input(name = "ou", type = OoaType.STRING, description = D_OU) String ou,
@@ -923,7 +1140,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> rename(s, ouDn(s, ou), newName, "organizational unit"));
     }
 
-    @Action(id = "move_ou", name = "Move organizational unit", category = "Organizational units", capabilities = "network", description = "Move an organizational unit, with everything in it, under another parent.")
+    @Action(id = "move_ou", name = "Move organizational unit", category = "Organizational units", capabilities = "network", description = "Move an organizational unit, with everything in it, under another parent.",
+            panel = "ou, target_parent_dn, session")
     @Output(name = "dn", type = OoaType.STRING, description = "New distinguished name.")
     public Map<String, Object> moveOu(ActionContext ctx,
             @Input(name = "ou", type = OoaType.STRING, description = D_OU) String ou,
@@ -932,7 +1150,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> move(s, ouDn(s, ou), target));
     }
 
-    @Action(id = "get_ou_property", name = "Get organizational unit properties", category = "Organizational units", idempotent = true, capabilities = "network", description = "Read attributes of an organizational unit.")
+    @Action(id = "get_ou_property", name = "Get organizational unit properties", category = "Organizational units", idempotent = true, capabilities = "network", description = "Read attributes of an organizational unit.",
+            panel = "session, ou, attributes")
     @Output(name = "properties", type = OoaType.DICTIONARY, description = "dn plus the requested attributes (all readable ones when none are listed).")
     public Map<String, Object> getOuProperty(ActionContext ctx,
             @Input(name = "ou", type = OoaType.STRING, description = D_OU) String ou,
@@ -941,7 +1160,8 @@ public final class ActiveDirectoryPackage {
         return work(ctx, session, s -> Map.of("properties", properties(s, ouDn(s, ou), attrs)));
     }
 
-    @Action(id = "set_ou_property", name = "Set organizational unit property", category = "Organizational units", capabilities = "network", description = "Change one attribute of an organizational unit, e.g. description or managedBy.")
+    @Action(id = "set_ou_property", name = "Set organizational unit property", category = "Organizational units", capabilities = "network", description = "Change one attribute of an organizational unit, e.g. description or managedBy.",
+            panel = "session, ou, attribute, value")
     public Map<String, Object> setOuProperty(ActionContext ctx,
             @Input(name = "ou", type = OoaType.STRING, description = D_OU) String ou,
             @Input(name = "attribute", type = OoaType.STRING, description = "LDAP attribute name.") String attr,
@@ -953,7 +1173,8 @@ public final class ActiveDirectoryPackage {
     // ---- Queries ----
 
     @Action(id = "run_query", name = "Run LDAP query", category = "Directory", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Run a raw LDAP filter from any starting point and scope and return the entries as a table.")
+            description = "Run a raw LDAP filter from any starting point and scope and return the entries as a table.",
+            panel = "session, filter, attributes | base_dn, scope, max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per entry; columns are dn plus the requested attributes.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of entries.")
     public Map<String, Object> runQuery(ActionContext ctx,

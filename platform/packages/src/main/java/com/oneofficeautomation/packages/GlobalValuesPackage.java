@@ -31,7 +31,8 @@ public final class GlobalValuesPackage {
         } catch (IllegalArgumentException e) { throw new ActionException("GLOBALS.INVALID", FILE + " is not valid JSON: " + e.getMessage(), "Fix the file in the workspace."); }
     }
 
-    @Action(id = "get", name = "Get shared value", category = "Shared values", idempotent = true, description = "Read one shared value by name.")
+    @Action(id = "get", name = "Get shared value", category = "Shared values", idempotent = true, description = "Read one shared value by name.",
+            panel = "name, [Use a fallback when it is not defined: default] | type")
     @Output(name = "value", description = "The value.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Shared value name.") String name,
@@ -58,7 +59,8 @@ public final class GlobalValuesPackage {
         return load(ctx).containsKey(name);
     }
 
-    @Action(id = "get_all", name = "Get all shared values", category = "Shared values", idempotent = true, description = "Read every shared value as a dictionary.")
+    @Action(id = "get_all", name = "Get all shared values", category = "Shared values", idempotent = true, description = "Read every shared value as a dictionary.",
+            panel = "prefix")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value.")
     public Map<String, Object> getAll(ActionContext ctx,
             @Input(name = "prefix", type = OoaType.STRING, required = false, description = "Return only values whose name starts with this text, e.g. finance_.") String prefix) {

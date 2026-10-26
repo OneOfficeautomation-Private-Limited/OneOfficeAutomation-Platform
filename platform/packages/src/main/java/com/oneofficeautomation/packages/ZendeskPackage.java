@@ -91,7 +91,8 @@ public final class ZendeskPackage {
     // ---------------------------------------------------------------- tickets
 
     @Action(id = "create_ticket", name = "Create ticket", category = "Tickets", capabilities = "network",
-            description = "Open a ticket with a first comment, requester, priority, tags and custom fields.")
+            description = "Open a ticket with a first comment, requester, priority, tags and custom fields.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), subject, description, priority, requester_email, custom_fields | requester_name, type, status, assignee_id, group_id, tags, public, upload_tokens")
     @Output(name = "ticket_id", type = OoaType.NUMBER, description = "Number of the new ticket.")
     @Output(name = "url", type = OoaType.STRING, description = "Agent web address of the ticket.")
     public Map<String, Object> createTicket(ActionContext ctx,
@@ -137,7 +138,8 @@ public final class ZendeskPackage {
         return Out.of("ticket_id", tid, "url", site(site) + "/agent/tickets/" + Values.text(tid));
     }
 
-    @Action(id = "get_ticket", name = "Get ticket", category = "Tickets", idempotent = true, capabilities = "network", description = "Read a ticket's fields.")
+    @Action(id = "get_ticket", name = "Get ticket", category = "Tickets", idempotent = true, capabilities = "network", description = "Read a ticket's fields.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id")
     @Output(name = "ticket", type = OoaType.DICTIONARY, description = "id, subject, description, status, priority, type, requester_id, assignee_id, group_id, organization_id, tags, custom_fields (id to value), created_at, updated_at, url.")
     @Output(name = "status", type = OoaType.STRING, description = "new, open, pending, hold, solved or closed.")
     public Map<String, Object> getTicket(ActionContext ctx,
@@ -152,7 +154,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "update_ticket", name = "Update ticket", category = "Tickets", capabilities = "network",
-            description = "Change a ticket's status, priority, assignee, group, tags or custom fields. Only the inputs you fill in are changed.")
+            description = "Change a ticket's status, priority, assignee, group, tags or custom fields. Only the inputs you fill in are changed.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, status, priority, assignee_id, custom_fields | type, subject, group_id, tags")
     public Map<String, Object> updateTicket(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
@@ -182,7 +185,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "delete_ticket", name = "Delete ticket", category = "Tickets", capabilities = "network",
-            description = "Delete a ticket. Admins can restore deleted tickets for about 30 days.")
+            description = "Delete a ticket. Admins can restore deleted tickets for about 30 days.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id")
     public Map<String, Object> deleteTicket(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
@@ -193,8 +197,13 @@ public final class ZendeskPackage {
         return Map.of();
     }
 
+    public Map<String, Object> listTickets(ActionContext ctx, String site, String email, Object apiToken, Object oauth, String requester, String org, int max) {
+        return listTickets(ctx, site, email, apiToken, oauth, requester, org, max, null, null, null);
+    }
+
     @Action(id = "list_tickets", name = "List tickets", category = "Tickets", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List all tickets, or only those requested by one user or belonging to one organization.")
+            description = "List all tickets, or only those requested by one user (by id or email) or belonging to one organization, optionally only with a given status or priority.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), (Requested by: Anyone = / A user id = requester_id / An email address = requester_email), organization_id, status, priority | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, status, priority, type, requester_id, assignee_id, group_id, updated_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tickets returned.")
     public Map<String, Object> listTickets(ActionContext ctx,
@@ -204,14 +213,60 @@ public final class ZendeskPackage {
             @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
             @Input(name = "requester_id", type = OoaType.NUMBER, required = false, description = "Only tickets requested by this user id.") String requester,
             @Input(name = "organization_id", type = OoaType.NUMBER, required = false, description = "Only tickets of this organization id.") String org,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max) {
-        String path = requester != null && !requester.isBlank() ? "/users/" + id("requester", requester) + "/tickets/requested"
-                : org != null && !org.isBlank() ? "/organizations/" + id("organization", org) + "/tickets" : "/tickets";
-        return result(pages(ctx, site, path, "tickets", max, email, apiToken, oauth, true), TICKET_COLS);
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", description = D_MAX) int max,
+            @Input(name = "status", type = OoaType.STRING, required = false, enumValues = {"new", "open", "pending", "hold", "solved", "closed"},
+                    description = "Only tickets with this status.") String status,
+            @Input(name = "priority", type = OoaType.STRING, required = false, enumValues = {"low", "normal", "high", "urgent"},
+                    description = "Only tickets with this priority.") String priority,
+            @Input(name = "requester_email", type = OoaType.STRING, required = false, example = "pat@customer.com",
+                    description = "Only tickets requested by the user with this email address; used instead of requester_id.") String requesterEmail) {
+        String st = blank(status) ? null : choice("status", status, "new", "open", "pending", "hold", "solved", "closed");
+        String pr = blank(priority) ? null : choice("priority", priority, "low", "normal", "high", "urgent");
+        if (!blank(requesterEmail)) {
+            if (!blank(requester)) throw new ActionException("ZENDESK.BAD_INPUT", "Both requester_id and requester_email were given", "Give the requester by id or by email, not both.");
+            if (requesterEmail.matches(".*[\\s\"].*") || !requesterEmail.contains("@"))
+                throw new ActionException("ZENDESK.BAD_INPUT", "requester_email is not an email address: " + requesterEmail, "Give an address such as pat@customer.com.");
+            // the requester by email is found with search; the other filters become search terms
+            StringBuilder terms = new StringBuilder("type:ticket requester:" + requesterEmail.strip());
+            if (st != null) terms.append(" status:").append(st);
+            if (pr != null) terms.append(" priority:").append(pr);
+            Map<String, Object> q = new LinkedHashMap<>();
+            q.put("query", terms.toString());
+            q.put("sort_by", "updated_at");
+            q.put("sort_order", "desc");
+            List<Map<String, Object>> found = pages(ctx, site, "/search?" + HttpJson.query(q), "results", blank(org) ? max : SCAN_LIMIT, email, apiToken, oauth, false);
+            if (!blank(org)) {
+                String o = id("organization", org);
+                found = new ArrayList<>(found.stream().filter(t -> o.equals(Values.text(t.get("organization_id")))).limit(Math.max(0, max)).toList());
+            }
+            return result(found, TICKET_COLS);
+        }
+        String path = !blank(requester) ? "/users/" + id("requester", requester) + "/tickets/requested"
+                : !blank(org) ? "/organizations/" + id("organization", org) + "/tickets" : "/tickets";
+        List<Map<String, Object>> recs = pages(ctx, site, path, "tickets", st == null && pr == null ? max : SCAN_LIMIT, email, apiToken, oauth, true);
+        // status and priority are not filters of these lists, so the tickets are filtered here, up to max_results
+        if (st != null || pr != null) {
+            recs = new ArrayList<>(recs.stream().filter(t -> (st == null || st.equals(String.valueOf(t.get("status"))))
+                    && (pr == null || pr.equals(String.valueOf(t.get("priority"))))).limit(Math.max(0, max)).toList());
+        }
+        return result(recs, TICKET_COLS);
+    }
+
+    /** Most tickets read to filter by status, priority or organization on this side. */
+    private static final int SCAN_LIMIT = 10_000;
+
+    private static boolean blank(String s) { return s == null || s.isBlank(); }
+
+    private static String choice(String name, String value, String... allowed) {
+        String v = value.strip().toLowerCase(Locale.ROOT);
+        if (!Arrays.asList(allowed).contains(v))
+            throw new ActionException("ZENDESK.BAD_INPUT", name + " must be one of " + String.join(", ", allowed) + ", not '" + value + "'", "Pick one of the listed values.");
+        return v;
     }
 
     @Action(id = "search_tickets", name = "Search tickets", category = "Tickets", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Find tickets with Zendesk search terms, e.g. status<solved priority:urgent tags:refund. Search returns at most 1000 results.")
+            description = "Find tickets with Zendesk search terms, e.g. status<solved priority:urgent tags:refund. Search returns at most 1000 results.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), query | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, status, priority, type, requester_id, assignee_id, group_id, updated_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tickets returned.")
     public Map<String, Object> searchTickets(ActionContext ctx,
@@ -229,7 +284,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "add_comment", name = "Add comment", category = "Tickets", capabilities = "network",
-            description = "Reply to a ticket with a public comment or add an internal note, optionally changing its status.")
+            description = "Reply to a ticket with a public comment or add an internal note, optionally changing its status.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, text, public, upload_tokens | html, new_status")
     public Map<String, Object> addComment(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
@@ -253,7 +309,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "list_comments", name = "List comments", category = "Tickets", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Read a ticket's conversation, oldest first, including internal notes.")
+            description = "Read a ticket's conversation, oldest first, including internal notes.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, author_id, body, public, created_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of comments.")
     public Map<String, Object> listComments(ActionContext ctx,
@@ -267,7 +324,8 @@ public final class ZendeskPackage {
                 "id", "author_id", "body=plain_body", "public", "created_at");
     }
 
-    @Action(id = "add_tags", name = "Add tags", category = "Tickets", capabilities = "network", description = "Add tags to a ticket and keep the ones it already has.")
+    @Action(id = "add_tags", name = "Add tags", category = "Tickets", capabilities = "network", description = "Add tags to a ticket and keep the ones it already has.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), ticket_id, tags")
     @Output(name = "tags", type = OoaType.LIST, description = "All tags on the ticket afterwards.")
     public Map<String, Object> addTags(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -283,7 +341,8 @@ public final class ZendeskPackage {
     // ---------------------------------------------------------------- users
 
     @Action(id = "create_user", name = "Create user", category = "Users", capabilities = "network",
-            description = "Create an end user or agent, or update the existing one with the same email when asked to.")
+            description = "Create an end user or agent, or update the existing one with the same email when asked to.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), name, user_email, role, user_fields | organization_id, phone, external_id, update_if_exists")
     @Output(name = "user_id", type = OoaType.NUMBER, description = "Id of the user.")
     public Map<String, Object> createUser(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -296,7 +355,9 @@ public final class ZendeskPackage {
             @Input(name = "organization_id", type = OoaType.NUMBER, required = false, description = "Organization id to put the user in.") String org,
             @Input(name = "phone", type = OoaType.STRING, required = false, description = "Phone number.") String phone,
             @Input(name = "external_id", type = OoaType.STRING, required = false, description = "Your own id for the user, e.g. a CRM customer number.") String external,
-            @Input(name = "update_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Update the existing user with this email or external id instead of failing.") boolean upsert) {
+            @Input(name = "update_if_exists", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Update the existing user with this email or external id instead of failing.") boolean upsert,
+            @Input(name = "user_fields", type = OoaType.DICTIONARY, required = false, description = "Custom user fields by field key, e.g. {\"customer_tier\": \"gold\"}.") Map<String, Object> fields) {
+        checkFieldKeys(fields, "user_fields");
         Map<String, Object> u = new LinkedHashMap<>();
         u.put("name", userName);
         if (userEmail != null && !userEmail.isBlank()) u.put("email", userEmail.strip());
@@ -304,12 +365,28 @@ public final class ZendeskPackage {
         if (org != null && !org.isBlank()) u.put("organization_id", new BigDecimal(id("organization", org)));
         if (phone != null) u.put("phone", phone);
         if (external != null) u.put("external_id", external);
+        if (fields != null && !fields.isEmpty()) u.put("user_fields", fields);
         Map<String, Object> r = call(ctx, "POST", api(site) + (upsert ? "/users/create_or_update" : "/users"), email, apiToken, oauth, Map.of("user", u));
         return Out.of("user_id", HttpJson.path(r, "user.id"));
     }
 
+    /** Earlier signature, kept for callers written before user_fields. */
+    public Map<String, Object> createUser(ActionContext ctx, String site, String email, Object apiToken, Object oauth, String userName, String userEmail,
+                                          String role, String org, String phone, String external, boolean upsert) {
+        return createUser(ctx, site, email, apiToken, oauth, userName, userEmail, role, org, phone, external, upsert, null);
+    }
+
+    /** Custom field keys are names such as customer_tier; anything else is a mistake worth reporting before the request. */
+    private static void checkFieldKeys(Map<String, Object> fields, String input) {
+        if (fields == null) return;
+        for (String k : fields.keySet())
+            if (k == null || !k.matches("^[A-Za-z0-9_-]{1,64}$"))
+                throw new ActionException("ZENDESK.BAD_INPUT", input + " has an invalid field key '" + k + "'", "Use the field keys shown in the Zendesk admin settings, e.g. customer_tier.");
+    }
+
     @Action(id = "find_users", name = "Find users", category = "Users", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Find users by name, email or other search terms.")
+            description = "Find users by name, email or other search terms, optionally only with a given role or in a given organization.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), query, role, organization_id | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, email, role, organization_id, created_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of users found.")
     public Map<String, Object> findUsers(ActionContext ctx,
@@ -317,13 +394,25 @@ public final class ZendeskPackage {
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
             @Input(name = "oauth_token", type = OoaType.CREDENTIAL, required = false, description = D_OAUTH) Object oauth,
-            @Input(name = "query", type = OoaType.STRING, example = "pat@customer.com", description = "Name, email, or search terms such as role:agent.") String query,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max) {
-        return result(pages(ctx, site, "/users/search?" + HttpJson.query(Map.of("query", query)), "users", max, email, apiToken, oauth, false),
+            @Input(name = "query", type = OoaType.STRING, required = false, example = "pat@customer.com", description = "Name, email, or search terms such as role:agent; may be empty when role or organization_id is given.") String query,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max,
+            @Input(name = "role", type = OoaType.STRING, required = false, enumValues = {"end-user", "agent", "admin"}, description = "Only users with this role.") String role,
+            @Input(name = "organization_id", type = OoaType.NUMBER, required = false, description = "Only users of this organization id.") String org) {
+        StringBuilder terms = new StringBuilder(blank(query) ? "" : query.strip());
+        if (!blank(role)) terms.append(terms.length() > 0 ? " " : "").append("role:").append(choice("role", role, "end-user", "agent", "admin"));
+        if (!blank(org)) terms.append(terms.length() > 0 ? " " : "").append("organization:").append(id("organization", org));
+        if (terms.length() == 0) throw new ActionException("ZENDESK.BAD_INPUT", "No search terms were given", "Fill in query, role or organization_id.");
+        return result(pages(ctx, site, "/users/search?" + HttpJson.query(Map.of("query", terms.toString())), "users", max, email, apiToken, oauth, false),
                 "id", "name", "email", "role", "organization_id", "created_at");
     }
 
-    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Read a user's details.")
+    /** Earlier signature, kept for callers written before the role and organization filters. */
+    public Map<String, Object> findUsers(ActionContext ctx, String site, String email, Object apiToken, Object oauth, String query, int max) {
+        return findUsers(ctx, site, email, apiToken, oauth, query, max, null, null);
+    }
+
+    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Read a user's details.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), user_id")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, email, role, phone, organization_id, external_id, time_zone, suspended, created_at, user_fields.")
     public Map<String, Object> getUser(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -340,7 +429,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "update_user", name = "Update user", category = "Users", capabilities = "network",
-            description = "Change a user's name, email, phone, organization or role. Only the inputs you fill in are changed.")
+            description = "Change a user's name, email, phone, organization or role. Only the inputs you fill in are changed.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), user_id, name, role, user_fields | user_email, phone, organization_id")
     public Map<String, Object> updateUser(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
@@ -368,7 +458,8 @@ public final class ZendeskPackage {
     // ---------------------------------------------------------------- organizations and groups
 
     @Action(id = "create_organization", name = "Create organization", category = "Organizations", capabilities = "network",
-            description = "Create a customer organization; users with matching email domains can join it automatically.")
+            description = "Create a customer organization; users with matching email domains can join it automatically.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), name, domain_names, organization_fields | details, notes, external_id")
     @Output(name = "organization_id", type = OoaType.NUMBER, description = "Id of the new organization.")
     public Map<String, Object> createOrganization(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -379,18 +470,28 @@ public final class ZendeskPackage {
             @Input(name = "domain_names", type = OoaType.LIST, required = false, description = "Email domains, e.g. [\"northwind.com\"].") Object domains,
             @Input(name = "details", type = OoaType.STRING, required = false, description = "Details such as an address.") String details,
             @Input(name = "notes", type = OoaType.STRING, required = false, description = "Internal notes.") String notes,
-            @Input(name = "external_id", type = OoaType.STRING, required = false, description = "Your own id, e.g. a CRM account number.") String external) {
+            @Input(name = "external_id", type = OoaType.STRING, required = false, description = "Your own id, e.g. a CRM account number.") String external,
+            @Input(name = "organization_fields", type = OoaType.DICTIONARY, required = false, description = "Custom organization fields by field key, e.g. {\"account_tier\": \"enterprise\"}.") Map<String, Object> fields) {
+        checkFieldKeys(fields, "organization_fields");
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", orgName);
         if (domains != null) o.put("domain_names", HttpJson.addressList(domains));
         if (details != null) o.put("details", details);
         if (notes != null) o.put("notes", notes);
         if (external != null) o.put("external_id", external);
+        if (fields != null && !fields.isEmpty()) o.put("organization_fields", fields);
         return Out.of("organization_id", HttpJson.path(call(ctx, "POST", api(site) + "/organizations", email, apiToken, oauth, Map.of("organization", o)), "organization.id"));
     }
 
+    /** Earlier signature, kept for callers written before organization_fields. */
+    public Map<String, Object> createOrganization(ActionContext ctx, String site, String email, Object apiToken, Object oauth, String orgName, Object domains,
+                                                  String details, String notes, String external) {
+        return createOrganization(ctx, site, email, apiToken, oauth, orgName, domains, details, notes, external, null);
+    }
+
     @Action(id = "update_organization", name = "Update organization", category = "Organizations", capabilities = "network",
-            description = "Change an organization's name, email domains, details, notes, external id or custom fields; empty inputs are kept.")
+            description = "Change an organization's name, email domains, details, notes, external id or custom fields; empty inputs are kept.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), organization_id, name, organization_fields | domain_names, details, notes, external_id")
     public Map<String, Object> updateOrganization(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
             @Input(name = "email", type = OoaType.STRING, required = false, description = D_EMAIL) String email,
@@ -415,7 +516,8 @@ public final class ZendeskPackage {
         return Map.of();
     }
 
-    @Action(id = "get_organization", name = "Get organization", category = "Organizations", idempotent = true, capabilities = "network", description = "Read an organization's details.")
+    @Action(id = "get_organization", name = "Get organization", category = "Organizations", idempotent = true, capabilities = "network", description = "Read an organization's details.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), organization_id")
     @Output(name = "organization", type = OoaType.DICTIONARY, description = "id, name, domain_names, details, notes, external_id, group_id, tags, created_at, organization_fields.")
     public Map<String, Object> getOrganization(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -431,7 +533,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "list_organizations", name = "List organizations", category = "Organizations", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List customer organizations.")
+            description = "List customer organizations.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token) | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, domain_names, external_id, created_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of organizations returned.")
     public Map<String, Object> listOrganizations(ActionContext ctx,
@@ -443,7 +546,8 @@ public final class ZendeskPackage {
         return result(pages(ctx, site, "/organizations", "organizations", max, email, apiToken, oauth, true), "id", "name", "domain_names", "external_id", "created_at");
     }
 
-    @Action(id = "list_groups", name = "List groups", category = "Groups", idempotent = true, capabilities = "network", description = "List the agent groups tickets can be assigned to.")
+    @Action(id = "list_groups", name = "List groups", category = "Groups", idempotent = true, capabilities = "network", description = "List the agent groups tickets can be assigned to.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token)")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, default.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of groups.")
     public Map<String, Object> listGroups(ActionContext ctx,
@@ -457,7 +561,8 @@ public final class ZendeskPackage {
     // ---------------------------------------------------------------- attachments, views, fields
 
     @Action(id = "upload_attachment", name = "Upload attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Upload a local file and get a token; pass the token to Create ticket or Add comment to attach the file.")
+            description = "Upload a local file and get a token; pass the token to Create ticket or Add comment to attach the file.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), path | add_to_token")
     @Output(name = "token", type = OoaType.STRING, description = "Upload token to pass in upload_tokens.")
     @Output(name = "attachment_id", type = OoaType.NUMBER, description = "Id of the stored file.")
     public Map<String, Object> upload(ActionContext ctx,
@@ -479,7 +584,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save an attachment (from a ticket comment) to a local folder under its own name.")
+            description = "Save an attachment (from a ticket comment) to a local folder under its own name.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), attachment_id, folder, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> downloadAttachment(ActionContext ctx,
             @Input(name = "site", type = OoaType.STRING, description = D_SITE) String site,
@@ -502,7 +608,8 @@ public final class ZendeskPackage {
         return Out.of("path", out.toString());
     }
 
-    @Action(id = "list_views", name = "List views", category = "Views", idempotent = true, capabilities = "network", description = "List the active ticket views the agent can use.")
+    @Action(id = "list_views", name = "List views", category = "Views", idempotent = true, capabilities = "network", description = "List the active ticket views the agent can use.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token)")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, position, updated_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of views.")
     public Map<String, Object> listViews(ActionContext ctx,
@@ -514,7 +621,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "list_view_tickets", name = "List tickets in view", category = "Views", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the tickets a view currently shows, e.g. a team's unassigned queue.")
+            description = "List the tickets a view currently shows, e.g. a team's unassigned queue.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token), view_id | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, subject, status, priority, type, requester_id, assignee_id, group_id, updated_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tickets returned.")
     public Map<String, Object> listViewTickets(ActionContext ctx,
@@ -528,7 +636,8 @@ public final class ZendeskPackage {
     }
 
     @Action(id = "list_ticket_fields", name = "List ticket fields", category = "Tickets", idempotent = true, capabilities = "network",
-            description = "List ticket fields with their ids, to fill custom_fields in Create ticket and Update ticket.")
+            description = "List ticket fields with their ids, to fill custom_fields in Create ticket and Update ticket.",
+            panel = "site, (Sign in with: Email and API token = email, api_token / OAuth token = oauth_token)")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, title, type, active, required.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of fields.")
     public Map<String, Object> listTicketFields(ActionContext ctx,

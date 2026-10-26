@@ -107,7 +107,8 @@ public final class AsanaPackage {
     // ---------------------------------------------------------------- workspaces, projects, sections
 
     @Action(id = "list_workspaces", name = "List workspaces", category = "Workspaces", idempotent = true, capabilities = "network",
-            description = "List the workspaces and organizations the token can see.")
+            description = "List the workspaces and organizations the token can see.",
+            panel = "token | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, is_organization.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of workspaces.")
     public Map<String, Object> listWorkspaces(ActionContext ctx,
@@ -117,7 +118,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "list_projects", name = "List projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the projects in a workspace, optionally only those of one team.")
+            description = "List the projects in a workspace, optionally only those of one team.",
+            panel = "token, team_id, workspace_id, include_archived | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, archived, owner, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of projects returned.")
     public Map<String, Object> listProjects(ActionContext ctx,
@@ -135,7 +137,8 @@ public final class AsanaPackage {
         return result(pages(ctx, base, "/projects?" + HttpJson.query(q), token, max), "gid", "name", "archived", "owner=owner.name", "url=permalink_url");
     }
 
-    @Action(id = "get_project", name = "Get project", category = "Projects", idempotent = true, capabilities = "network", description = "Read a project's details.")
+    @Action(id = "get_project", name = "Get project", category = "Projects", idempotent = true, capabilities = "network", description = "Read a project's details.",
+            panel = "token, project_id | base_url")
     @Output(name = "project", type = OoaType.DICTIONARY, description = "gid, name, notes, archived, owner, team, workspace, due_on, created_at, modified_at, url.")
     public Map<String, Object> getProject(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -149,7 +152,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "create_project", name = "Create project", category = "Projects", capabilities = "network",
-            description = "Create a project in a workspace. Organization workspaces also need a team.")
+            description = "Create a project in a workspace. Organization workspaces also need a team.",
+            panel = "token, name, workspace_id, team_id, notes | base_url")
     @Output(name = "project_id", type = OoaType.STRING, description = "Id of the new project.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the project.")
     public Map<String, Object> createProject(ActionContext ctx,
@@ -169,7 +173,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "list_sections", name = "List sections", category = "Projects", idempotent = true, capabilities = "network",
-            description = "List the sections (board columns) of a project.")
+            description = "List the sections (board columns) of a project.",
+            panel = "token, project_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of sections.")
     public Map<String, Object> listSections(ActionContext ctx,
@@ -179,7 +184,8 @@ public final class AsanaPackage {
         return result(pages(ctx, base, "/projects/" + gid("project", project) + "/sections?opt_fields=name", token, 1000), "gid", "name");
     }
 
-    @Action(id = "create_section", name = "Create section", category = "Projects", capabilities = "network", description = "Add a section (board column) to a project.")
+    @Action(id = "create_section", name = "Create section", category = "Projects", capabilities = "network", description = "Add a section (board column) to a project.",
+            panel = "token, project_id, name | base_url")
     @Output(name = "section_id", type = OoaType.STRING, description = "Id of the new section.")
     public Map<String, Object> createSection(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -191,8 +197,15 @@ public final class AsanaPackage {
 
     // ---------------------------------------------------------------- tasks
 
+    /** Earlier signature, kept for callers written before parent_task_id and completed. */
+    public Map<String, Object> createTask(ActionContext ctx, String base, Object token, String taskName, String project, String section, String ws,
+            String notes, String assignee, String due, Object tags, Object followers, Map<String, Object> custom) {
+        return createTask(ctx, base, token, taskName, project, section, ws, notes, assignee, due, tags, followers, custom, null, false);
+    }
+
     @Action(id = "create_task", name = "Create task", category = "Tasks", capabilities = "network",
-            description = "Create a task in a project (optionally in one of its sections) or in a workspace.")
+            description = "Create a task in a project (optionally in one of its sections), in a workspace, or as a subtask of another task.",
+            panel = "token, workspace_id, name, project_id, assignee, due_on, notes | parent_task_id, completed, section_id, tag_ids, follower_ids, custom_fields, base_url")
     @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the task.")
     public Map<String, Object> createTask(ActionContext ctx,
@@ -207,12 +220,16 @@ public final class AsanaPackage {
             @Input(name = "due_on", type = OoaType.STRING, required = false, example = "2026-11-15", description = "Due date as YYYY-MM-DD.") String due,
             @Input(name = "tag_ids", type = OoaType.LIST, required = false, description = "Tag ids to add.") Object tags,
             @Input(name = "follower_ids", type = OoaType.LIST, required = false, description = "Users to follow the task: ids, emails or me.") Object followers,
-            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to value, e.g. {\"1201234567890\": \"High\"}. For drop-downs use the option id.") Map<String, Object> custom) {
-        boolean hasProject = project != null && !project.isBlank();
-        if (!hasProject && (ws == null || ws.isBlank()))
-            throw new ActionException(P + ".MISSING_LOCATION", "No project or workspace given", "Fill in project_id, or workspace_id for a task outside projects.");
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to value, e.g. {\"1201234567890\": \"High\"}. For drop-downs use the option id.") Map<String, Object> custom,
+            @Input(name = "parent_task_id", type = OoaType.STRING, required = false, description = "Create the task as a subtask of this task; then project_id and workspace_id may stay empty.") String parent,
+            @Input(name = "completed", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the task already marked complete, e.g. to record work that is done.") boolean completed) {
+        boolean hasProject = project != null && !project.isBlank(), hasParent = parent != null && !parent.isBlank();
+        if (!hasProject && !hasParent && (ws == null || ws.isBlank()))
+            throw new ActionException(P + ".MISSING_LOCATION", "No project, parent task or workspace given", "Fill in project_id, parent_task_id, or workspace_id for a task outside projects.");
         Map<String, Object> b = new LinkedHashMap<>();
         b.put("name", taskName);
+        if (hasParent) b.put("parent", gid("parent task", parent));
+        if (completed) b.put("completed", true);
         if (hasProject && section != null && !section.isBlank())
             b.put("memberships", List.of(Map.of("project", gid("project", project), "section", gid("section", section))));
         else if (hasProject) b.put("projects", List.of(gid("project", project)));
@@ -227,7 +244,8 @@ public final class AsanaPackage {
         return Out.of("task_id", t.get("gid"), "url", t.get("permalink_url"));
     }
 
-    @Action(id = "get_task", name = "Get task", category = "Tasks", idempotent = true, capabilities = "network", description = "Read a task with its assignee, dates, projects, tags and custom fields.")
+    @Action(id = "get_task", name = "Get task", category = "Tasks", idempotent = true, capabilities = "network", description = "Read a task with its assignee, dates, projects, tags and custom fields.",
+            panel = "token, task_id | base_url")
     @Output(name = "task", type = OoaType.DICTIONARY, description = "gid, name, notes, completed, completed_at, assignee, assignee_email, due_on, due_at, start_on, projects, sections, tags, followers, parent, subtasks, custom_fields (name to value), created_at, modified_at, url.")
     @Output(name = "completed", type = OoaType.BOOLEAN, description = "True when the task is done.")
     public Map<String, Object> getTask(ActionContext ctx,
@@ -239,7 +257,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "update_task", name = "Update task", category = "Tasks", capabilities = "network",
-            description = "Change a task's name, notes, assignee, due date, completion or custom fields. Only the inputs you fill in are changed.")
+            description = "Change a task's name, notes, assignee, due date, completion or custom fields. Only the inputs you fill in are changed.",
+            panel = "token, task_id, name, assignee, due_on, notes, completed | custom_fields, base_url")
     public Map<String, Object> updateTask(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -263,7 +282,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "delete_task", name = "Delete task", category = "Tasks", capabilities = "network",
-            description = "Delete a task. It goes to the trash of the user who owns the token and can be restored from there for a limited time.")
+            description = "Delete a task. It goes to the trash of the user who owns the token and can be restored from there for a limited time.",
+            panel = "token, task_id | base_url")
     public Map<String, Object> deleteTask(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -273,7 +293,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "list_tasks", name = "List tasks", category = "Tasks", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the tasks of a project, of a section, or assigned to a user in a workspace.")
+            description = "List the tasks of a project, of a section, or assigned to a user in a workspace.",
+            panel = "token, workspace_id, project_id, assignee, modified_since | section_id, only_open, max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks returned.")
     public Map<String, Object> listTasks(ActionContext ctx,
@@ -302,7 +323,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "search_tasks", name = "Search tasks", category = "Tasks", idempotent = true, capabilities = "network",
-            description = "Search a workspace for tasks by text, assignee, project or completion (needs a paid Asana plan). Returns up to 100 tasks, most recently changed first.")
+            description = "Search a workspace for tasks by text, assignee, project or completion (needs a paid Asana plan). Returns up to 100 tasks, most recently changed first.",
+            panel = "token, workspace_id, text, assignee, project_id, completed | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tasks found.")
     public Map<String, Object> searchTasks(ActionContext ctx,
@@ -326,7 +348,8 @@ public final class AsanaPackage {
         return result(HttpJson.maps(r.get("data")), TASK_COLS);
     }
 
-    @Action(id = "add_followers", name = "Add followers", category = "Tasks", capabilities = "network", description = "Add people as followers so they are notified about the task.")
+    @Action(id = "add_followers", name = "Add followers", category = "Tasks", capabilities = "network", description = "Add people as followers so they are notified about the task.",
+            panel = "token, task_id, followers | base_url")
     public Map<String, Object> addFollowers(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -336,7 +359,8 @@ public final class AsanaPackage {
         return Map.of();
     }
 
-    @Action(id = "remove_followers", name = "Remove followers", category = "Tasks", capabilities = "network", description = "Stop people from following a task.")
+    @Action(id = "remove_followers", name = "Remove followers", category = "Tasks", capabilities = "network", description = "Stop people from following a task.",
+            panel = "token, task_id, followers | base_url")
     public Map<String, Object> removeFollowers(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -347,7 +371,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "add_task_to_section", name = "Move task to section", category = "Tasks", capabilities = "network",
-            description = "Place a task in a section of a project it belongs to, e.g. to move it to another board column.")
+            description = "Place a task in a section of a project it belongs to, e.g. to move it to another board column.",
+            panel = "token, task_id, section_id | base_url")
     public Map<String, Object> addToSection(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -358,7 +383,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "add_task_to_project", name = "Add task to project", category = "Tasks", capabilities = "network",
-            description = "Also show a task in another project, optionally in a given section.")
+            description = "Also show a task in another project, optionally in a given section.",
+            panel = "token, task_id, project_id, section_id | base_url")
     public Map<String, Object> addToProject(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -372,7 +398,8 @@ public final class AsanaPackage {
         return Map.of();
     }
 
-    @Action(id = "create_subtask", name = "Create subtask", category = "Subtasks", capabilities = "network", description = "Add a subtask under a task.")
+    @Action(id = "create_subtask", name = "Create subtask", category = "Subtasks", capabilities = "network", description = "Add a subtask under a task.",
+            panel = "token, parent_task_id, name, assignee, due_on, notes | base_url")
     @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new subtask.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the subtask.")
     public Map<String, Object> createSubtask(ActionContext ctx,
@@ -392,7 +419,8 @@ public final class AsanaPackage {
         return Out.of("task_id", t.get("gid"), "url", t.get("permalink_url"));
     }
 
-    @Action(id = "list_subtasks", name = "List subtasks", category = "Subtasks", idempotent = true, capabilities = "network", description = "List the subtasks of a task.")
+    @Action(id = "list_subtasks", name = "List subtasks", category = "Subtasks", idempotent = true, capabilities = "network", description = "List the subtasks of a task.",
+            panel = "token, task_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, completed, assignee, due_on, modified_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of subtasks.")
     public Map<String, Object> listSubtasks(ActionContext ctx,
@@ -404,7 +432,8 @@ public final class AsanaPackage {
 
     // ---------------------------------------------------------------- comments and attachments
 
-    @Action(id = "add_comment", name = "Add comment", category = "Comments", capabilities = "network", description = "Post a comment on a task.")
+    @Action(id = "add_comment", name = "Add comment", category = "Comments", capabilities = "network", description = "Post a comment on a task.",
+            panel = "token, task_id, text | base_url")
     @Output(name = "comment_id", type = OoaType.STRING, description = "Id of the new comment.")
     public Map<String, Object> addComment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -415,7 +444,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "list_comments", name = "List comments", category = "Comments", idempotent = true, capabilities = "network",
-            description = "Read the comments on a task, oldest first. System messages such as assignment changes are left out.")
+            description = "Read the comments on a task, oldest first. System messages such as assignment changes are left out.",
+            panel = "token, task_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, text, author, created_at.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of comments.")
     public Map<String, Object> listComments(ActionContext ctx,
@@ -429,7 +459,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "upload_attachment", name = "Upload attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Attach a local file to a task.")
+            description = "Attach a local file to a task.",
+            panel = "token, task_id, path | base_url")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Id of the attachment.")
     @Output(name = "url", type = OoaType.STRING, description = "Address to view the attachment.")
     public Map<String, Object> upload(ActionContext ctx,
@@ -448,7 +479,8 @@ public final class AsanaPackage {
         return Out.of("attachment_id", HttpJson.path(d, "gid"), "url", HttpJson.path(d, "view_url") != null ? HttpJson.path(d, "view_url") : HttpJson.path(d, "permanent_url"));
     }
 
-    @Action(id = "update_comment", name = "Update comment", category = "Comments", capabilities = "network", description = "Change the text of a comment (only the comment's author can).")
+    @Action(id = "update_comment", name = "Update comment", category = "Comments", capabilities = "network", description = "Change the text of a comment (only the comment's author can).",
+            panel = "token, comment_id, text | base_url")
     public Map<String, Object> updateComment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -458,7 +490,8 @@ public final class AsanaPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_comment", name = "Delete comment", category = "Comments", capabilities = "network", description = "Delete a comment (only the comment's author can).")
+    @Action(id = "delete_comment", name = "Delete comment", category = "Comments", capabilities = "network", description = "Delete a comment (only the comment's author can).",
+            panel = "token, comment_id | base_url")
     public Map<String, Object> deleteComment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -467,8 +500,23 @@ public final class AsanaPackage {
         return Map.of();
     }
 
+    @Action(id = "list_attachments", name = "List attachments", category = "Attachments", idempotent = true, timeoutSeconds = 300, capabilities = "network",
+            description = "List the files attached to a task, with their size and download link.",
+            panel = "token, task_id | max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, size (bytes), host, created_at, download_url, view_url. The download link is temporary; use Download attachment to save a file.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of attachments returned.")
+    public Map<String, Object> listAttachments(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", min = 1, description = D_MAX) int max) {
+        String path = "/attachments?parent=" + gid("task", task) + "&opt_fields=name,size,host,created_at,download_url,view_url";
+        return result(pages(ctx, base, path, token, Math.max(1, max)), "gid", "name", "size", "host", "created_at", "download_url", "view_url");
+    }
+
     @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save an attachment of a task to a local folder.")
+            description = "Save an attachment of a task to a local folder.",
+            panel = "token, attachment_id, folder | overwrite, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> downloadAttachment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -489,7 +537,8 @@ public final class AsanaPackage {
         return Out.of("path", out.toString());
     }
 
-    @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Remove an attachment from its task.")
+    @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Remove an attachment from its task.",
+            panel = "token, attachment_id | base_url")
     public Map<String, Object> deleteAttachment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -499,7 +548,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "duplicate_task", name = "Duplicate task", category = "Tasks", capabilities = "network",
-            description = "Copy a task with a new name, choosing what is copied along (notes, assignee, subtasks, attachments, tags, followers, projects, dates).")
+            description = "Copy a task with a new name, choosing what is copied along (notes, assignee, subtasks, attachments, tags, followers, projects, dates).",
+            panel = "token, task_id, name, include | base_url")
     @Output(name = "task_id", type = OoaType.STRING, description = "Id of the new task (it may take a moment to fill in its subtasks).")
     public Map<String, Object> duplicateTask(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -520,7 +570,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "update_project", name = "Update project", category = "Projects", capabilities = "network",
-            description = "Change a project's name, notes, colour, owner, due date or archived state; empty inputs are left as they are.")
+            description = "Change a project's name, notes, colour, owner, due date or archived state; empty inputs are left as they are.",
+            panel = "token, project_id, name, owner, notes, due_on, archived | fields, base_url")
     public Map<String, Object> updateProject(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -544,7 +595,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "delete_project", name = "Delete project", category = "Projects", capabilities = "network",
-            description = "Delete a project; its tasks stay in other projects they belong to. Needs confirm, as this cannot be undone from the API.")
+            description = "Delete a project; its tasks stay in other projects they belong to. Needs confirm, as this cannot be undone from the API.",
+            panel = "token, project_id, confirm | base_url")
     public Map<String, Object> deleteProject(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -555,7 +607,8 @@ public final class AsanaPackage {
         return Map.of();
     }
 
-    @Action(id = "create_team", name = "Create team", category = "Teams", capabilities = "network", description = "Create a team in an organization workspace.")
+    @Action(id = "create_team", name = "Create team", category = "Teams", capabilities = "network", description = "Create a team in an organization workspace.",
+            panel = "token, name, team_description, workspace_id | base_url")
     @Output(name = "team_id", type = OoaType.STRING, description = "Id of the new team.")
     public Map<String, Object> createTeam(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -568,7 +621,8 @@ public final class AsanaPackage {
         return Out.of("team_id", data(ctx, "POST", base, "/teams", token, body).get("gid"));
     }
 
-    @Action(id = "get_team", name = "Get team", category = "Teams", idempotent = true, capabilities = "network", description = "Read a team's name, description, organization and link.")
+    @Action(id = "get_team", name = "Get team", category = "Teams", idempotent = true, capabilities = "network", description = "Read a team's name, description, organization and link.",
+            panel = "token, team_id | base_url")
     @Output(name = "team", type = OoaType.DICTIONARY, description = "Keys: gid, name, description, organization, url.")
     public Map<String, Object> getTeam(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -579,7 +633,8 @@ public final class AsanaPackage {
                 "organization", HttpJson.path(t, "organization.name"), "url", t.get("permalink_url")));
     }
 
-    @Action(id = "update_team", name = "Update team", category = "Teams", capabilities = "network", description = "Rename a team or change its description.")
+    @Action(id = "update_team", name = "Update team", category = "Teams", capabilities = "network", description = "Rename a team or change its description.",
+            panel = "token, team_id, name, team_description | base_url")
     public Map<String, Object> updateTeam(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -596,7 +651,8 @@ public final class AsanaPackage {
 
     // ---------------------------------------------------------------- tags
 
-    @Action(id = "list_tags", name = "List tags", category = "Tags", idempotent = true, capabilities = "network", description = "List the tags of a workspace.")
+    @Action(id = "list_tags", name = "List tags", category = "Tags", idempotent = true, capabilities = "network", description = "List the tags of a workspace.",
+            panel = "token, workspace_id | base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, color.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tags.")
     public Map<String, Object> listTags(ActionContext ctx,
@@ -606,7 +662,8 @@ public final class AsanaPackage {
         return result(pages(ctx, base, "/workspaces/" + gid("workspace", ws) + "/tags?opt_fields=name,color", token, 5000), "gid", "name", "color");
     }
 
-    @Action(id = "create_tag", name = "Create tag", category = "Tags", capabilities = "network", description = "Create a tag in a workspace.")
+    @Action(id = "create_tag", name = "Create tag", category = "Tags", capabilities = "network", description = "Create a tag in a workspace.",
+            panel = "token, workspace_id, name | base_url")
     @Output(name = "tag_id", type = OoaType.STRING, description = "Id of the new tag.")
     public Map<String, Object> createTag(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -616,7 +673,8 @@ public final class AsanaPackage {
         return Out.of("tag_id", data(ctx, "POST", base, "/tags", token, Map.of("name", tagName, "workspace", gid("workspace", ws))).get("gid"));
     }
 
-    @Action(id = "add_tag_to_task", name = "Add tag to task", category = "Tags", capabilities = "network", description = "Put a tag on a task.")
+    @Action(id = "add_tag_to_task", name = "Add tag to task", category = "Tags", capabilities = "network", description = "Put a tag on a task.",
+            panel = "token, task_id, tag_id | base_url")
     public Map<String, Object> addTag(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -626,7 +684,8 @@ public final class AsanaPackage {
         return Map.of();
     }
 
-    @Action(id = "remove_tag_from_task", name = "Remove tag from task", category = "Tags", capabilities = "network", description = "Take a tag off a task.")
+    @Action(id = "remove_tag_from_task", name = "Remove tag from task", category = "Tags", capabilities = "network", description = "Take a tag off a task.",
+            panel = "token, task_id, tag_id | base_url")
     public Map<String, Object> removeTag(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -638,7 +697,8 @@ public final class AsanaPackage {
 
     // ---------------------------------------------------------------- users
 
-    @Action(id = "list_users", name = "List users", category = "Users", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the people in a workspace.")
+    @Action(id = "list_users", name = "List users", category = "Users", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the people in a workspace.",
+            panel = "token, workspace_id | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, email.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of users returned.")
     public Map<String, Object> listUsers(ActionContext ctx,
@@ -650,7 +710,8 @@ public final class AsanaPackage {
     }
 
     @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network",
-            description = "Read a person's name, email and workspaces; use me to check which account the token belongs to.")
+            description = "Read a person's name, email and workspaces; use me to check which account the token belongs to.",
+            panel = "token, user | base_url")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "gid, name, email, workspaces (names).")
     @Output(name = "user_id", type = OoaType.STRING, description = "Numeric user id.")
     public Map<String, Object> getUser(ActionContext ctx,

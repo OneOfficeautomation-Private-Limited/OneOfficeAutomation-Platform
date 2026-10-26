@@ -9,6 +9,8 @@ dependencies {
     implementation(project(":agent"))
     optionalModules.forEach { runtimeOnly(project(":$it")) }
     runtimeOnly(project(":adapters-jackson"))
+    // license issuing: in the vendor build (installDist, run, tests) only; the customer distribution leaves it out
+    runtimeOnly(project(":vendor-tools"))
     runtimeOnly("ch.qos.logback:logback-classic:1.5.8")
     testRuntimeOnly(project(":adapters-jackson"))
     // in-memory SMTP/IMAP server for the email sample tasks (CommandSamplesTest)
@@ -32,12 +34,39 @@ tasks.named<JavaExec>("run") {
     standardInput = System.`in`
 }
 
+val customerStartScripts by tasks.registering(CreateStartScripts::class) {
+    mainClass.set("com.oneofficeautomation.cli.Ooa")
+    applicationName = "ooa"
+    outputDir = layout.buildDirectory.dir("customer-scripts").get().asFile
+    classpath = files(tasks.named("jar")) + configurations.named("runtimeClasspath").get().filter { !it.name.startsWith("vendor-tools") }
+    // one wildcard instead of 60 jar paths, so the Windows command line stays short wherever the product is installed
+    doLast {
+        val bat = outputDir!!.resolve("ooa.bat")
+        bat.writeText(bat.readText().replace(Regex("(?m)^set CLASSPATH=.*$")) { "set CLASSPATH=%APP_HOME%\\lib\\*" })
+        val sh = outputDir!!.resolve("ooa")
+        sh.writeText(sh.readText().replace(Regex("(?m)^CLASSPATH=.*$")) { "CLASSPATH=\$APP_HOME/lib/*" })
+    }
+}
+
 // The browser connector extension ships in the install (browser-extension\), with the shared page script.
 distributions {
     main {
         contents {
             from(rootProject.file("browser-extension")) { into("browser-extension") }
             from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension") }
+        }
+    }
+    // What customers install (gradlew :cli:customerDistZip): the same product without the vendor's license tools, so a
+    // new install runs the 30-day evaluation and can only check license files, never make them.
+    create("customer") {
+        distributionBaseName.set("ooa-customer")
+        contents {
+            // its own start scripts first (their class path leaves the vendor tools out); the main ones are then skipped
+            from(customerStartScripts) { into("bin") }
+            with(main.get().contents)
+            exclude("**/vendor-tools-*.jar")
+            from(rootProject.file("customer"))
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }
     }
 }

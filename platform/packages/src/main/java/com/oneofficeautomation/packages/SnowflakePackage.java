@@ -196,7 +196,8 @@ public final class SnowflakePackage {
     // ----- statements -----
 
     @Action(id = "execute_statement", name = "Run SQL statement", category = "SQL", timeoutSeconds = 3600, capabilities = "network",
-            description = "Run one SQL statement and return its rows as a data table. Use ? in the SQL for values passed in bindings.")
+            description = "Run one SQL statement and return its rows as a data table. Use ? in the SQL for values passed in bindings.",
+            panel = "account_url, token, sql, [Fill in ? placeholders: bindings] | warehouse, database, schema, role, wait_seconds, max_rows, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows (empty for statements that return no rows).")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "rows_affected", type = OoaType.NUMBER, description = "Rows inserted, updated or deleted by a data change.")
@@ -225,7 +226,8 @@ public final class SnowflakePackage {
     }
 
     @Action(id = "get_statement_status", name = "Get statement status", category = "SQL", idempotent = true, capabilities = "network",
-            description = "Check whether a statement that was left running has finished, failed or is still going.")
+            description = "Check whether a statement that was left running has finished, failed or is still going.",
+            panel = "account_url, token, statement_handle | token_type")
     @Output(name = "status", type = OoaType.STRING, description = "running, succeeded or failed.")
     @Output(name = "message", type = OoaType.STRING, description = "Snowflake's message, including the error text when it failed.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the result once it succeeded.")
@@ -245,7 +247,8 @@ public final class SnowflakePackage {
         }
     }
 
-    @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a statement that is still running.")
+    @Action(id = "cancel_statement", name = "Cancel statement", category = "SQL", capabilities = "network", description = "Stop a statement that is still running.",
+            panel = "account_url, token, statement_handle | token_type")
     public Map<String, Object> cancel(ActionContext ctx,
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
             @Input(name = "statement_handle", type = OoaType.STRING, description = "Handle from Run SQL statement.") String h,
@@ -256,7 +259,8 @@ public final class SnowflakePackage {
     }
 
     @Action(id = "fetch_results", name = "Get statement results", category = "SQL", idempotent = true, timeoutSeconds = 3600, capabilities = "network",
-            description = "Read the rows of a finished statement into a data table, page by page.")
+            description = "Read the rows of a finished statement into a data table, page by page.",
+            panel = "account_url, token, statement_handle | max_rows, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "Result rows.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of rows in the table.")
     @Output(name = "total_rows", type = OoaType.NUMBER, description = "Rows in the full result, which can be more than max_rows.")
@@ -276,7 +280,8 @@ public final class SnowflakePackage {
     // ----- catalog -----
 
     @Action(id = "list_databases", name = "List databases", category = "Catalog", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return the databases the role can see.")
+            description = "Return the databases the role can see.",
+            panel = "account_url, token | role, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per database with name, owner, comment and more.")
     @Output(name = "names", type = OoaType.LIST, description = "Database names only.")
     public Map<String, Object> listDatabases(ActionContext ctx,
@@ -288,7 +293,8 @@ public final class SnowflakePackage {
     }
 
     @Action(id = "list_schemas", name = "List schemas", category = "Catalog", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return the schemas in a database.")
+            description = "Return the schemas in a database.",
+            panel = "account_url, token, database | role, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per schema.")
     @Output(name = "names", type = OoaType.LIST, description = "Schema names only.")
     public Map<String, Object> listSchemas(ActionContext ctx,
@@ -301,7 +307,8 @@ public final class SnowflakePackage {
     }
 
     @Action(id = "list_tables", name = "List tables", category = "Catalog", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return the tables in a schema.")
+            description = "Return the tables in a schema.",
+            panel = "account_url, token, database, schema | role, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per table with name, row count, size and more.")
     @Output(name = "names", type = OoaType.LIST, description = "Table names only.")
     public Map<String, Object> listTables(ActionContext ctx,
@@ -315,7 +322,8 @@ public final class SnowflakePackage {
     }
 
     @Action(id = "list_columns", name = "List columns", category = "Catalog", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return the columns of a table with their data types.")
+            description = "Return the columns of a table with their data types.",
+            panel = "account_url, token, table_name | role, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per column with name, type, nullability and default.")
     @Output(name = "names", type = OoaType.LIST, description = "Column names only.")
     public Map<String, Object> listColumns(ActionContext ctx,
@@ -328,7 +336,8 @@ public final class SnowflakePackage {
     }
 
     @Action(id = "list_warehouses", name = "List warehouses", category = "Catalog", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return the warehouses the role can use, with their size and state.")
+            description = "Return the warehouses the role can use, with their size and state.",
+            panel = "account_url, token | role, token_type")
     @Output(name = "table", type = OoaType.TABLE, description = "One row per warehouse.")
     @Output(name = "names", type = OoaType.LIST, description = "Warehouse names only.")
     public Map<String, Object> listWarehouses(ActionContext ctx,
@@ -342,7 +351,8 @@ public final class SnowflakePackage {
     // ----- loading -----
 
     @Action(id = "insert_rows", name = "Insert rows from data table", category = "Loading", timeoutSeconds = 3600, capabilities = "network",
-            description = "Add every row of a data table to a Snowflake table. Columns are matched by name.")
+            description = "Add every row of a data table to a Snowflake table. Columns are matched by name.",
+            panel = "account_url, token, table_name, data | batch_size, warehouse, database, schema, role, token_type")
     @Output(name = "rows_inserted", type = OoaType.NUMBER, description = "Number of rows added.")
     public Map<String, Object> insert(ActionContext ctx,
             @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,

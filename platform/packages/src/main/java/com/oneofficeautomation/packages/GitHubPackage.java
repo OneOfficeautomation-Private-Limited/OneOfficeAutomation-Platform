@@ -93,22 +93,37 @@ public final class GitHubPackage {
 
     // ---------------------------------------------------------------- repositories
 
+    /** Earlier signature, kept for callers written before owner_type. */
+    public Map<String, Object> listRepositories(ActionContext ctx, String base, Object token, String org, int max) {
+        return listRepositories(ctx, base, token, org, max, "organization");
+    }
+
     @Action(id = "list_repositories", name = "List repositories", category = "Repositories", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List the repositories of an organization, or the repositories the token's user can access when no organization is given.")
+            description = "List the repositories of an organization or of another user, or the repositories the token's user can access when no owner is given.",
+            panel = "token, owner_type, organization | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: name, full_name, private, default_branch, description, updated_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of repositories returned.")
     public Map<String, Object> listRepositories(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "organization", type = OoaType.STRING, required = false, example = "acme-corp", description = "Organization name. Leave empty for the repositories of the token's user.") String org,
-            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max) {
-        String path = org == null || org.isBlank() ? "/user/repos?sort=updated" : "/orgs/" + name("organization", org) + "/repos?sort=updated";
+            @Input(name = "organization", type = OoaType.STRING, required = false, example = "acme-corp", description = "Organization name, or a user's login when owner_type is user. Leave empty for the repositories of the token's user.") String org,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "100", description = D_MAX) int max,
+            @Input(name = "owner_type", type = OoaType.STRING, required = false, defaultValue = "\"organization\"", enumValues = {"organization", "user"},
+                    description = "organization: the name in organization is an organization; user: it is a user's login, and their public repositories are listed.") String ownerType) {
+        String kind = ownerType == null || ownerType.isBlank() ? "organization" : ownerType.strip().toLowerCase(Locale.ROOT);
+        if (!kind.equals("organization") && !kind.equals("user"))
+            throw new ActionException(P + ".BAD_OWNER_TYPE", "Unknown owner type '" + ownerType + "'", "Use organization or user.");
+        boolean noOwner = org == null || org.isBlank();
+        String path = noOwner ? "/user/repos?sort=updated"
+                : kind.equals("user") ? "/users/" + name("user", org.strip()) + "/repos?sort=updated"
+                : "/orgs/" + name("organization", org) + "/repos?sort=updated";
         return result(pages(ctx, base, path, token, max, null, null),
                 "name", "full_name", "private", "default_branch", "description", "updated_at", "url=html_url");
     }
 
     @Action(id = "get_repository", name = "Get repository", category = "Repositories", idempotent = true, capabilities = "network",
-            description = "Read a repository's main details, such as its default branch and visibility.")
+            description = "Read a repository's main details, such as its default branch and visibility.",
+            panel = "token, owner, repo | base_url")
     @Output(name = "repository", type = OoaType.DICTIONARY, description = "name, full_name, description, private, default_branch, open_issues, archived, url.")
     @Output(name = "default_branch", type = OoaType.STRING, description = "Default branch, e.g. main.")
     public Map<String, Object> getRepository(ActionContext ctx,
@@ -125,7 +140,8 @@ public final class GitHubPackage {
 
     // ---------------------------------------------------------------- issues
 
-    @Action(id = "create_issue", name = "Create issue", category = "Issues", capabilities = "network", description = "Open a new issue, optionally with labels and assignees.")
+    @Action(id = "create_issue", name = "Create issue", category = "Issues", capabilities = "network", description = "Open a new issue, optionally with labels and assignees.",
+            panel = "token, owner, repo, title, body, labels, assignees | milestone, base_url")
     @Output(name = "number", type = OoaType.NUMBER, description = "Issue number, e.g. 42.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the issue.")
     public Map<String, Object> createIssue(ActionContext ctx,
@@ -148,7 +164,8 @@ public final class GitHubPackage {
         return Out.of("number", r.get("number"), "url", r.get("html_url"));
     }
 
-    @Action(id = "get_issue", name = "Get issue", category = "Issues", idempotent = true, capabilities = "network", description = "Read an issue by its number.")
+    @Action(id = "get_issue", name = "Get issue", category = "Issues", idempotent = true, capabilities = "network", description = "Read an issue by its number.",
+            panel = "token, owner, repo, number | base_url")
     @Output(name = "issue", type = OoaType.DICTIONARY, description = "number, title, state, state_reason, body, author, labels, assignees, milestone, comments, created_at, updated_at, closed_at, is_pull_request, url.")
     @Output(name = "state", type = OoaType.STRING, description = "open or closed.")
     public Map<String, Object> getIssue(ActionContext ctx,
@@ -162,7 +179,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "update_issue", name = "Update issue", category = "Issues", capabilities = "network",
-            description = "Change an issue's title, text, state, labels or assignees. Only the inputs you fill in are changed.")
+            description = "Change an issue's title, text, state, labels or assignees. Only the inputs you fill in are changed.",
+            panel = "token, owner, repo, number, state, title, body, labels, assignees | base_url")
     public Map<String, Object> updateIssue(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -185,7 +203,8 @@ public final class GitHubPackage {
         return Map.of();
     }
 
-    @Action(id = "close_issue", name = "Close issue", category = "Issues", capabilities = "network", description = "Close an issue as completed or as not planned.")
+    @Action(id = "close_issue", name = "Close issue", category = "Issues", capabilities = "network", description = "Close an issue as completed or as not planned.",
+            panel = "token, owner, repo, number, reason | base_url")
     public Map<String, Object> closeIssue(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -198,7 +217,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "add_issue_comment", name = "Comment on issue or pull request", category = "Issues", capabilities = "network",
-            description = "Add a comment to an issue or a pull request conversation.")
+            description = "Add a comment to an issue or a pull request conversation.",
+            panel = "token, owner, repo, number, text | base_url")
     @Output(name = "comment_id", type = OoaType.NUMBER, description = "Id of the new comment.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the comment.")
     public Map<String, Object> addIssueComment(ActionContext ctx,
@@ -213,7 +233,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "list_issues", name = "List issues", category = "Issues", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List a repository's issues, filtered by state, labels or assignee. Pull requests are left out.")
+            description = "List a repository's issues, filtered by state, labels or assignee. Pull requests are left out.",
+            panel = "token, owner, repo, state, labels, assignee | since, max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: number, title, state, author, comments, created_at, updated_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of issues returned.")
     public Map<String, Object> listIssues(ActionContext ctx,
@@ -238,7 +259,8 @@ public final class GitHubPackage {
     // ---------------------------------------------------------------- pull requests
 
     @Action(id = "list_pull_requests", name = "List pull requests", category = "Pull requests", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List pull requests, filtered by state and target branch.")
+            description = "List pull requests, filtered by state and target branch.",
+            panel = "token, owner, repo, state, target_branch | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: number, title, state, draft, author, head, base, updated_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pull requests returned.")
     public Map<String, Object> listPullRequests(ActionContext ctx,
@@ -256,7 +278,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "get_pull_request", name = "Get pull request", category = "Pull requests", idempotent = true, capabilities = "network",
-            description = "Read a pull request, including whether it is merged and whether it can be merged.")
+            description = "Read a pull request, including whether it is merged and whether it can be merged.",
+            panel = "token, owner, repo, number | base_url")
     @Output(name = "pull_request", type = OoaType.DICTIONARY, description = "number, title, state, draft, merged, mergeable, body, author, head, head_sha, base, created_at, updated_at, merged_at, url.")
     @Output(name = "merged", type = OoaType.BOOLEAN, description = "True when already merged.")
     public Map<String, Object> getPullRequest(ActionContext ctx,
@@ -270,7 +293,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "create_pull_request", name = "Create pull request", category = "Pull requests", capabilities = "network",
-            description = "Propose merging one branch into another.")
+            description = "Propose merging one branch into another.",
+            panel = "token, owner, repo, title, body, source_branch, target_branch | draft, base_url")
     @Output(name = "number", type = OoaType.NUMBER, description = "Pull request number.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the pull request.")
     public Map<String, Object> createPullRequest(ActionContext ctx,
@@ -294,7 +318,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "merge_pull_request", name = "Merge pull request", category = "Pull requests", capabilities = "network",
-            description = "Merge a pull request with a merge commit, squash or rebase.")
+            description = "Merge a pull request with a merge commit, squash or rebase.",
+            panel = "token, owner, repo, number, method, commit_title, commit_message | expected_head_sha, base_url")
     @Output(name = "sha", type = OoaType.STRING, description = "Commit id of the merge.")
     @Output(name = "merged", type = OoaType.BOOLEAN, description = "True when merged.")
     public Map<String, Object> mergePullRequest(ActionContext ctx,
@@ -337,7 +362,8 @@ public final class GitHubPackage {
 
     // ---------------------------------------------------------------- branches and files
 
-    @Action(id = "list_branches", name = "List branches", category = "Branches", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List a repository's branches.")
+    @Action(id = "list_branches", name = "List branches", category = "Branches", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List a repository's branches.",
+            panel = "token, owner, repo | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: name, sha, protected.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of branches returned.")
     public Map<String, Object> listBranches(ActionContext ctx,
@@ -350,7 +376,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "create_branch", name = "Create branch", category = "Branches", capabilities = "network",
-            description = "Create a branch starting from another branch (the default branch when none is given).")
+            description = "Create a branch starting from another branch (the default branch when none is given).",
+            panel = "token, owner, repo, branch, from_branch | base_url")
     @Output(name = "sha", type = OoaType.STRING, description = "Commit id the new branch points to.")
     public Map<String, Object> createBranch(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
@@ -367,7 +394,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "get_file", name = "Get file contents", category = "Files", idempotent = true, timeoutSeconds = 300, capabilities = {"network", "filesystem"},
-            description = "Read a file from a repository as text, or save it to a local file.")
+            description = "Read a file from a repository as text, or save it to a local file.",
+            panel = "token, owner, repo, path, ref, [Save it to a file: save_to] | base_url")
     @Output(name = "text", type = OoaType.STRING, description = "File contents as UTF-8 text (empty when saved to a file).")
     @Output(name = "sha", type = OoaType.STRING, description = "Version id of the file; pass it to Create or update file to change it safely.")
     @Output(name = "size", type = OoaType.NUMBER, description = "Size in bytes.")
@@ -397,7 +425,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "put_file", name = "Create or update file", category = "Files", timeoutSeconds = 300, capabilities = {"network", "filesystem"},
-            description = "Commit a new or changed file to a branch, from text or from a local file.")
+            description = "Commit a new or changed file to a branch, from text or from a local file.",
+            panel = "token, owner, repo, path, message, (Contents: Typed text = text / A local file = local_file), branch | sha, base_url")
     @Output(name = "commit_sha", type = OoaType.STRING, description = "Id of the new commit.")
     @Output(name = "sha", type = OoaType.STRING, description = "New version id of the file.")
     public Map<String, Object> putFile(ActionContext ctx,
@@ -435,7 +464,8 @@ public final class GitHubPackage {
     // ---------------------------------------------------------------- releases
 
     @Action(id = "create_release", name = "Create release", category = "Releases", capabilities = "network",
-            description = "Publish a release for a tag; the tag is created from the target branch when it does not exist yet.")
+            description = "Publish a release for a tag; the tag is created from the target branch when it does not exist yet.",
+            panel = "token, owner, repo, tag, name, notes | target, draft, prerelease, base_url")
     @Output(name = "release_id", type = OoaType.NUMBER, description = "Id of the release.")
     @Output(name = "url", type = OoaType.STRING, description = "Web address of the release.")
     public Map<String, Object> createRelease(ActionContext ctx,
@@ -461,7 +491,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "get_latest_release", name = "Get latest release", category = "Releases", idempotent = true, capabilities = "network",
-            description = "Read the newest published release (drafts and pre-releases are skipped).")
+            description = "Read the newest published release (drafts and pre-releases are skipped).",
+            panel = "token, owner, repo | base_url")
     @Output(name = "release", type = OoaType.DICTIONARY, description = "id, tag, name, notes, published_at, author, url, assets (list of file names).")
     @Output(name = "tag", type = OoaType.STRING, description = "Tag of the release, e.g. v2.4.0.")
     public Map<String, Object> latestRelease(ActionContext ctx,
@@ -478,7 +509,8 @@ public final class GitHubPackage {
     // ---------------------------------------------------------------- Actions workflows
 
     @Action(id = "run_workflow", name = "Run workflow", category = "Workflows", capabilities = "network",
-            description = "Start a GitHub Actions workflow that allows manual runs, with optional inputs.")
+            description = "Start a GitHub Actions workflow that allows manual runs, with optional inputs.",
+            panel = "token, owner, repo, workflow, ref, inputs | base_url")
     public Map<String, Object> runWorkflow(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -495,7 +527,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "list_workflow_runs", name = "List workflow runs", category = "Workflows", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "List recent GitHub Actions runs, newest first, for one workflow or the whole repository.")
+            description = "List recent GitHub Actions runs, newest first, for one workflow or the whole repository.",
+            panel = "token, owner, repo, workflow, branch, status | max_results, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, status, conclusion, branch, event, created_at, url.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of runs returned.")
     public Map<String, Object> listRuns(ActionContext ctx,
@@ -517,7 +550,8 @@ public final class GitHubPackage {
     }
 
     @Action(id = "get_workflow_run", name = "Get workflow run", category = "Workflows", idempotent = true, capabilities = "network",
-            description = "Read the status and result of one GitHub Actions run.")
+            description = "Read the status and result of one GitHub Actions run.",
+            panel = "token, owner, repo, run_id | base_url")
     @Output(name = "status", type = OoaType.STRING, description = "queued, in_progress or completed.")
     @Output(name = "conclusion", type = OoaType.STRING, description = "Result once completed: success, failure, cancelled, skipped or timed_out.")
     @Output(name = "run", type = OoaType.DICTIONARY, description = "id, name, status, conclusion, branch, sha, event, created_at, updated_at, url.")

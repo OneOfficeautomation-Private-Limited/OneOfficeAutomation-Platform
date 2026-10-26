@@ -16,7 +16,8 @@ import java.util.*;
 public final class InterruptsPackage {
 
     @Action(id = "add_rule", name = "Add interrupt rule", category = "Interrupts",
-            description = "Add (or replace by name) a rule for this run: when a window or element appears, click, press keys, close the window or run a child agent.")
+            description = "Add (or replace by name) a rule for this run: when a window or element appears, click, press keys, close the window or run a child agent.",
+            panel = "name, when_window, when_element, then, target, inputs | browser_session, max_times")
     public Map<String, Object> addRule(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, example = "Session expired", description = "Rule name; adding a rule with the same name replaces it.") String name,
             @Input(name = "when_window", type = OoaType.STRING, required = false, example = "*Session expired*",
@@ -35,7 +36,8 @@ public final class InterruptsPackage {
         return Map.of();
     }
 
-    @Action(id = "remove_rule", name = "Remove interrupt rule", category = "Interrupts", description = "Remove one interrupt rule by name.")
+    @Action(id = "remove_rule", name = "Remove interrupt rule", category = "Interrupts", description = "Remove one interrupt rule by name.",
+            panel = "name")
     @Output(name = "removed", type = OoaType.BOOLEAN, description = "True when a rule with that name existed.")
     public Map<String, Object> removeRule(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = "Rule name.") String name) {
         InterruptRules r = InterruptRules.existing(ctx);

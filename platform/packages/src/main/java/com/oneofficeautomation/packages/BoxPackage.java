@@ -71,7 +71,8 @@ public final class BoxPackage {
     // ----- folders -----
 
     @Action(id = "create_folder", name = "Create folder", category = "Folders", capabilities = "network",
-            description = "Create a folder inside another folder and return its id.")
+            description = "Create a folder inside another folder and return its id.",
+            panel = "access_token, parent_folder_id, name | reuse_existing, as_user, base_url")
     @Output(name = "folder_id", type = OoaType.STRING, description = "Id of the new (or existing) folder.")
     public Map<String, Object> createFolder(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Name of the new folder.") String name,
@@ -97,7 +98,8 @@ public final class BoxPackage {
     }
 
     @Action(id = "list_folder", name = "List folder items", category = "Folders", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return the files, folders and web links inside a folder.")
+            description = "Return the files, folders and web links inside a folder.",
+            panel = "access_token, folder_id | max_results, as_user, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, name, size, modified_at, parent_id.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items returned.")
     public Map<String, Object> listFolder(ActionContext ctx,
@@ -111,7 +113,8 @@ public final class BoxPackage {
     }
 
     @Action(id = "delete_folder", name = "Delete folder", category = "Folders", capabilities = "network",
-            description = "Move a folder to the Box trash. A folder that still has content is only removed when you allow it.")
+            description = "Move a folder to the Box trash. A folder that still has content is only removed when you allow it.",
+            panel = "access_token, folder_id, include_contents | as_user, base_url")
     public Map<String, Object> deleteFolder(ActionContext ctx,
             @Input(name = "folder_id", type = OoaType.STRING, description = "Folder to delete.") String folder,
             @Input(name = "include_contents", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete everything inside the folder.") boolean recursive,
@@ -127,7 +130,8 @@ public final class BoxPackage {
     // ----- files -----
 
     @Action(id = "upload_file", name = "Upload file", category = "Files", timeoutSeconds = 1800, capabilities = {"network", "filesystem"},
-            description = "Upload a local file to a Box folder. Can replace the existing file of the same name as a new version.")
+            description = "Upload a local file to a Box folder. Can replace the existing file of the same name as a new version.",
+            panel = "access_token, folder_id, local_path, file_name, replace_existing | as_user, upload_url, base_url")
     @Output(name = "file_id", type = OoaType.STRING, description = "Id of the uploaded file.")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "local_path", type = OoaType.FILE, description = "File on this machine to upload.") String path,
@@ -178,21 +182,33 @@ public final class BoxPackage {
     }
 
     @Action(id = "download_file", name = "Download file", category = "Files", timeoutSeconds = 1800, capabilities = {"network", "filesystem"},
-            description = "Save a Box file to this machine.")
+            description = "Save a Box file to this machine.",
+            panel = "access_token, file_id, save_as, overwrite | as_user, base_url")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved file.")
     public Map<String, Object> download(ActionContext ctx,
             @Input(name = "file_id", type = OoaType.STRING, description = "Box file to download.") String file,
             @Input(name = "save_as", type = OoaType.FILE, description = "Where to save it, e.g. downloads/invoice.pdf. Missing folders are created.") String saveAs,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "as_user", type = OoaType.STRING, required = false, description = D_AS_USER) String asUser,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
-        byte[] data = req("GET", api(base) + "/files/" + id("file", file) + "/content", token, asUser).binaryResponse().timeout(1800).send(ctx).bytes();
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace a local file that is already at save_as; when off, the step fails instead.") boolean overwrite) {
+        String fid = id("file", file);
         Path out = ctx.resolvePath(saveAs);
+        if (!overwrite && Files.exists(out))
+            throw new ActionException(P + ".FILE_EXISTS", "A file already exists at " + out, "Choose another save_as path or turn on overwrite.");
+        byte[] data = req("GET", api(base) + "/files/" + fid + "/content", token, asUser).binaryResponse().timeout(1800).send(ctx).bytes();
         HttpJson.writeFile(out, data);
         return Out.of("path", out.toString());
     }
 
-    @Action(id = "copy_file", name = "Copy file", category = "Files", capabilities = "network", description = "Copy a file into a folder, optionally under a new name.")
+    /** Earlier signature, kept for callers written before the overwrite option. */
+    public Map<String, Object> download(ActionContext ctx, String file, String saveAs, Object token, String asUser, String base) {
+        return download(ctx, file, saveAs, token, asUser, base, true);
+    }
+
+    @Action(id = "copy_file", name = "Copy file", category = "Files", capabilities = "network",
+            description = "Copy a file into a folder, optionally under a new name. Can replace a file of the same name there by adding the copy as its new version.",
+            panel = "access_token, file_id, target_folder_id, new_name, overwrite | as_user, upload_url, base_url")
     @Output(name = "file_id", type = OoaType.STRING, description = "Id of the copy.")
     public Map<String, Object> copy(ActionContext ctx,
             @Input(name = "file_id", type = OoaType.STRING, description = "File to copy.") String file,
@@ -200,25 +216,81 @@ public final class BoxPackage {
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "Name for the copy. Leave empty to keep the same name.") String newName,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "as_user", type = OoaType.STRING, required = false, description = D_AS_USER) String asUser,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "If a file of the same name is already in the target folder, upload the copy as a new version of that file instead of failing.") boolean overwrite,
+            @Input(name = "upload_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_UPLOAD, description = D_UPLOAD) String uploadBase) {
+        String fid = id("file", file), target = id("folder", folder);
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("parent", Map.of("id", id("folder", folder)));
+        body.put("parent", Map.of("id", target));
         if (newName != null && !newName.isBlank()) body.put("name", newName);
-        return Out.of("file_id", req("POST", api(base) + "/files/" + id("file", file) + "/copy", token, asUser).json(body).send(ctx).map().get("id"));
+        try {
+            return Out.of("file_id", req("POST", api(base) + "/files/" + fid + "/copy", token, asUser).json(body).send(ctx).map().get("id"));
+        } catch (ActionException e) {
+            if (!isConflict(e)) throw e;
+            String name = newName != null && !newName.isBlank() ? newName : fileName(ctx, fid, token, asUser, base);
+            if (!overwrite) throw new ActionException(P + ".ALREADY_EXISTS", "A file named '" + name + "' is already in folder " + target, "Turn on overwrite to add the copy as a new version.");
+            Object existing = fileInFolder(ctx, target, name, token, asUser, base);
+            if (existing == null) throw e;
+            if (fid.equals(Values.text(existing))) return Out.of("file_id", existing);
+            byte[] data = req("GET", api(base) + "/files/" + fid + "/content", token, asUser).binaryResponse().timeout(1800).send(ctx).bytes();
+            String vattrs = JsonLite.write(Map.of("name", name));
+            String up = uploadBase == null || uploadBase.isBlank() ? "https://upload.box.com" : uploadBase;
+            return Out.of("file_id", firstEntryId(sendUpload(ctx, uploadApi(up) + "/files/" + existing + "/content", vattrs, name, data, token, asUser)));
+        }
     }
 
-    @Action(id = "move_file", name = "Move file", category = "Files", capabilities = "network", description = "Move a file to another folder.")
+    /** Earlier signature, kept for callers written before the overwrite option. */
+    public Map<String, Object> copy(ActionContext ctx, String file, String folder, String newName, Object token, String asUser, String base) {
+        return copy(ctx, file, folder, newName, token, asUser, base, false, "https://upload.box.com");
+    }
+
+    private static String fileName(ActionContext ctx, String fid, Object token, String asUser, String base) {
+        return Values.text(req("GET", api(base) + "/files/" + fid + "?fields=name", token, asUser).send(ctx).map().get("name"));
+    }
+
+    /** Id of the file with this name (any case) directly in a folder, or null. */
+    private static Object fileInFolder(ActionContext ctx, String folder, String name, Object token, String asUser, String base) {
+        for (Object o : offsetPages(ctx, api(base) + "/folders/" + folder + "/items?fields=" + ITEM_FIELDS, 100_000, token, asUser)) {
+            List<?> row = (List<?>) o;
+            if ("file".equals(row.get(1)) && name.equalsIgnoreCase(String.valueOf(row.get(2)))) return row.get(0);
+        }
+        return null;
+    }
+
+    @Action(id = "move_file", name = "Move file", category = "Files", capabilities = "network",
+            description = "Move a file to another folder. Can replace a file of the same name there, which then goes to the Box trash.",
+            panel = "access_token, file_id, target_folder_id, overwrite | as_user, base_url")
     public Map<String, Object> move(ActionContext ctx,
             @Input(name = "file_id", type = OoaType.STRING, description = "File to move.") String file,
             @Input(name = "target_folder_id", type = OoaType.STRING, description = "Folder to move it into.") String folder,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "as_user", type = OoaType.STRING, required = false, description = D_AS_USER) String asUser,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
-        req("PUT", api(base) + "/files/" + id("file", file), token, asUser).json(Map.of("parent", Map.of("id", id("folder", folder)))).send(ctx);
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "If a file of the same name is already in the target folder, move that file to the trash and then move this one.") boolean overwrite) {
+        String fid = id("file", file), target = id("folder", folder);
+        try {
+            req("PUT", api(base) + "/files/" + fid, token, asUser).json(Map.of("parent", Map.of("id", target))).send(ctx);
+        } catch (ActionException e) {
+            if (!isConflict(e)) throw e;
+            String name = fileName(ctx, fid, token, asUser, base);
+            if (!overwrite) throw new ActionException(P + ".ALREADY_EXISTS", "A file named '" + name + "' is already in folder " + target, "Turn on overwrite to replace it.");
+            Object existing = fileInFolder(ctx, target, name, token, asUser, base);
+            if (existing == null || fid.equals(Values.text(existing))) throw e;
+            req("DELETE", api(base) + "/files/" + existing, token, asUser).send(ctx);
+            req("PUT", api(base) + "/files/" + fid, token, asUser).json(Map.of("parent", Map.of("id", target))).send(ctx);
+        }
         return Map.of();
     }
 
-    @Action(id = "rename_file", name = "Rename file", category = "Files", capabilities = "network", description = "Give a file a new name in the same folder.")
+    /** Earlier signature, kept for callers written before the overwrite option. */
+    public Map<String, Object> move(ActionContext ctx, String file, String folder, Object token, String asUser, String base) {
+        return move(ctx, file, folder, token, asUser, base, false);
+    }
+
+    @Action(id = "rename_file", name = "Rename file", category = "Files", capabilities = "network", description = "Give a file a new name in the same folder.",
+            panel = "access_token, file_id, new_name | as_user, base_url")
     public Map<String, Object> rename(ActionContext ctx,
             @Input(name = "file_id", type = OoaType.STRING, description = "File to rename.") String file,
             @Input(name = "new_name", type = OoaType.STRING, description = "New file name including the extension, e.g. Q4-report.xlsx.") String newName,
@@ -229,17 +301,28 @@ public final class BoxPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_file", name = "Delete file", category = "Files", capabilities = "network", description = "Move a file to the Box trash.")
+    @Action(id = "delete_file", name = "Delete file", category = "Files", capabilities = "network", description = "Move a file to the Box trash, or delete it for good.",
+            panel = "access_token, file_id | permanently, as_user, base_url")
     public Map<String, Object> deleteFile(ActionContext ctx,
             @Input(name = "file_id", type = OoaType.STRING, description = "File to delete.") String file,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "as_user", type = OoaType.STRING, required = false, description = D_AS_USER) String asUser,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base) {
-        req("DELETE", api(base) + "/files/" + id("file", file), token, asUser).send(ctx);
+            @Input(name = "base_url", type = OoaType.STRING, required = false, pattern = "^https?://", defaultValue = DEF_API, description = D_URL) String base,
+            @Input(name = "permanently", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Also remove the file from the trash, so it cannot be restored.") boolean permanently) {
+        String fid = id("file", file);
+        req("DELETE", api(base) + "/files/" + fid, token, asUser).send(ctx);
+        if (permanently) req("DELETE", api(base) + "/files/" + fid + "/trash", token, asUser).send(ctx);
         return Map.of();
     }
 
-    @Action(id = "get_file_info", name = "Get file info", category = "Files", idempotent = true, capabilities = "network", description = "Read a file's name, size, dates, owner and folder.")
+    /** Earlier signature, kept for callers written before the permanently option. */
+    public Map<String, Object> deleteFile(ActionContext ctx, String file, Object token, String asUser, String base) {
+        return deleteFile(ctx, file, token, asUser, base, false);
+    }
+
+    @Action(id = "get_file_info", name = "Get file info", category = "Files", idempotent = true, capabilities = "network", description = "Read a file's name, size, dates, owner and folder.",
+            panel = "access_token, file_id | as_user, base_url")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "id, name, size, created_at, modified_at, sha1, parent_id, parent_name, owner, shared_link.")
     public Map<String, Object> info(ActionContext ctx,
             @Input(name = "file_id", type = OoaType.STRING, description = "File to look up.") String file,
@@ -264,7 +347,8 @@ public final class BoxPackage {
     // ----- search -----
 
     @Action(id = "search", name = "Search", category = "Search", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Find files and folders by name, content or description.")
+            description = "Find files and folders by name, content or description.",
+            panel = "access_token, query, file_extensions, in_folder_id, item_type | max_results, as_user, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, type, name, size, modified_at, parent_id.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of results.")
     public Map<String, Object> search(ActionContext ctx,
@@ -289,7 +373,8 @@ public final class BoxPackage {
     // ----- sharing -----
 
     @Action(id = "create_shared_link", name = "Create shared link", category = "Sharing", capabilities = "network",
-            description = "Create or change the shared link of a file or folder and return the link.")
+            description = "Create or change the shared link of a file or folder and return the link.",
+            panel = "access_token, item_type, item_id, access, allow_download, [Set an end date: expires_at] | as_user, base_url")
     @Output(name = "url", type = OoaType.STRING, description = "Shared link to the item.")
     @Output(name = "download_url", type = OoaType.STRING, description = "Direct download link (files only, when downloads are allowed).")
     public Map<String, Object> sharedLink(ActionContext ctx,
@@ -311,7 +396,8 @@ public final class BoxPackage {
         return Out.of("url", sl.get("url"), "download_url", sl.get("download_url"));
     }
 
-    @Action(id = "remove_shared_link", name = "Remove shared link", category = "Sharing", capabilities = "network", description = "Turn off the shared link of a file or folder.")
+    @Action(id = "remove_shared_link", name = "Remove shared link", category = "Sharing", capabilities = "network", description = "Turn off the shared link of a file or folder.",
+            panel = "access_token, item_type, item_id | as_user, base_url")
     public Map<String, Object> removeSharedLink(ActionContext ctx,
             @Input(name = "item_type", type = OoaType.STRING, enumValues = {"file", "folder"}, description = "Whether the item is a file or a folder.") String type,
             @Input(name = "item_id", type = OoaType.STRING, description = "Id of the file or folder.") String item,
@@ -325,7 +411,8 @@ public final class BoxPackage {
     }
 
     @Action(id = "add_collaborator", name = "Invite collaborator", category = "Sharing", capabilities = "network",
-            description = "Give a person or group access to a file or folder with a chosen role.")
+            description = "Give a person or group access to a file or folder with a chosen role.",
+            panel = "access_token, item_type, item_id, (Invite: A person = email / A group = group_id), role, notify | as_user, base_url")
     @Output(name = "collaboration_id", type = OoaType.STRING, description = "Id of the new collaboration, used to remove it later.")
     public Map<String, Object> addCollaborator(ActionContext ctx,
             @Input(name = "item_type", type = OoaType.STRING, enumValues = {"file", "folder"}, description = "Whether the item is a file or a folder.") String type,
@@ -348,7 +435,8 @@ public final class BoxPackage {
     }
 
     @Action(id = "list_collaborators", name = "List collaborators", category = "Sharing", idempotent = true, capabilities = "network",
-            description = "Return who has been invited to a file or folder and their role.")
+            description = "Return who has been invited to a file or folder and their role.",
+            panel = "access_token, item_type, item_id | as_user, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: collaboration_id, name, login, type, role, status.")
     public Map<String, Object> listCollaborators(ActionContext ctx,
             @Input(name = "item_type", type = OoaType.STRING, enumValues = {"file", "folder"}, description = "Whether the item is a file or a folder.") String type,
@@ -373,7 +461,8 @@ public final class BoxPackage {
     }
 
     @Action(id = "remove_collaborator", name = "Remove collaborator", category = "Sharing", capabilities = "network",
-            description = "Take away someone's access that was given by an invitation.")
+            description = "Take away someone's access that was given by an invitation.",
+            panel = "access_token, collaboration_id | as_user, base_url")
     public Map<String, Object> removeCollaborator(ActionContext ctx,
             @Input(name = "collaboration_id", type = OoaType.STRING, description = "Id from Invite collaborator or List collaborators.") String collab,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,

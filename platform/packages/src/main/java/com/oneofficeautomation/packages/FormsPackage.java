@@ -133,7 +133,8 @@ public final class FormsPackage {
     // ---------------------------------------------------------------- show, wait, close
 
     @Action(id = "display", name = "Display form", category = "Interactive forms", capabilities = "desktop", timeoutSeconds = 86400,
-            description = "Show a form from the form designer to the person at the runner. Wait until they submit it, press a button or close it; or keep it open and go on, reacting to it with Wait for form event.")
+            description = "Show a form from the form designer to the person at the runner. Wait until they submit it, press a button or close it; or keep it open and go on, reacting to it with Wait for form event.",
+            panel = "form | name, title, values, wait, timeout_seconds, check_answers, width, height, always_on_top")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "The answers by field id (numbers as Number, checkboxes as true/false).")
     @Output(name = "button", type = OoaType.STRING, description = "How the wait ended: submit, the id of the button pressed, closed, or timeout. Empty when not waiting.")
     @Output(name = "submitted", type = OoaType.BOOLEAN, description = "True when the person submitted the form.")
@@ -151,7 +152,9 @@ public final class FormsPackage {
             @Input(name = "check_answers", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
                     description = "Check required fields and limits in the window before it can be submitted.") boolean check,
             @Input(name = "width", type = OoaType.NUMBER, required = false, defaultValue = "560", min = 320, max = 2000, description = "Window width in pixels.") int width,
-            @Input(name = "height", type = OoaType.NUMBER, required = false, defaultValue = "640", min = 240, max = 2000, description = "Window height in pixels.") int height) {
+            @Input(name = "height", type = OoaType.NUMBER, required = false, defaultValue = "640", min = 240, max = 2000, description = "Window height in pixels.") int height,
+            @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Keep the form window above other windows while it is open (Windows).") boolean alwaysOnTop) {
         Path p = ctx.resolvePath(formPath);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "Form not found: " + p, "Choose a .form.json file made in the form designer.");
         Map<String, Object> form;
@@ -173,7 +176,7 @@ public final class FormsPackage {
             s.values.put(e.getKey(), e.getValue());
         }
         ctx.sessions().put("form:" + n, s);
-        FormWindow.show(s, width, height);
+        FormWindow.show(s, width, height, alwaysOnTop);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("name", n); out.put("address", s.address());
         if (!"until_done".equals(wait)) { out.put("values", answers(s)); out.put("button", ""); out.put("submitted", false); return out; }
@@ -184,8 +187,14 @@ public final class FormsPackage {
         return out;
     }
 
+    public Map<String, Object> display(ActionContext ctx, String formPath, String name, String title, Map<String, Object> values, String wait,
+            double timeoutSeconds, boolean check, int width, int height) {
+        return display(ctx, formPath, name, title, values, wait, timeoutSeconds, check, width, height, false);
+    }
+
     @Action(id = "wait_for_event", name = "Wait for form event", category = "Interactive forms", capabilities = "desktop", timeoutSeconds = 86400,
-            description = "Wait until the person presses a button, changes a field, submits or closes the open form; then react to it (e.g. in an If on the event and element).")
+            description = "Wait until the person presses a button, changes a field, submits or closes the open form; then react to it (e.g. in an If on the event and element).",
+            panel = "name, events, timeout_seconds | fail_on_timeout")
     @Output(name = "event", type = OoaType.STRING, description = "button, change, submit, close or timeout.")
     @Output(name = "element", type = OoaType.STRING, description = "Id of the button pressed or the field changed; empty for submit, close and timeout.")
     @Output(name = "value", type = OoaType.ANY, description = "The changed field's new value.")
@@ -212,7 +221,8 @@ public final class FormsPackage {
         return out;
     }
 
-    @Action(id = "close", name = "Close form", category = "Interactive forms", capabilities = "desktop", description = "Close the open form window.")
+    @Action(id = "close", name = "Close form", category = "Interactive forms", capabilities = "desktop", description = "Close the open form window.",
+            panel = "name")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "The last answers by field id.")
     public Map<String, Object> close(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name) {
         Object o = ctx.sessions().remove("form:" + (name == null ? "" : name.strip()));
@@ -225,7 +235,8 @@ public final class FormsPackage {
     // ---------------------------------------------------------------- read and change fields
 
     @Action(id = "get", name = "Get field value", category = "Interactive forms", capabilities = "desktop", idempotent = true,
-            description = "Read one field's current value, or all answers when no field is given.")
+            description = "Read one field's current value, or all answers when no field is given.",
+            panel = "name, element")
     @Output(name = "value", type = OoaType.ANY, description = "The field's value (all answers as a Dictionary when no field is given).")
     public Map<String, Object> get(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, required = false, description = D_ELEMENT + " Empty for all answers.") String element) {
@@ -236,7 +247,8 @@ public final class FormsPackage {
         return Map.of("value", all.get(element.strip()));
     }
 
-    @Action(id = "set", name = "Set field value", category = "Interactive forms", capabilities = "desktop", description = "Change a field's value on the open form.")
+    @Action(id = "set", name = "Set field value", category = "Interactive forms", capabilities = "desktop", description = "Change a field's value on the open form.",
+            panel = "name, element, value")
     public Map<String, Object> set(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element,
             @Input(name = "value", type = OoaType.ANY, description = "New value (text, number, true/false for a checkbox, an option for a drop-down).") Object value) {
@@ -247,17 +259,31 @@ public final class FormsPackage {
     }
 
     @Action(id = "assign", name = "Assign options", category = "Interactive forms", capabilities = "desktop",
-            description = "Fill a drop-down or choice list with options, e.g. from a list or a data table column.")
+            description = "Fill a drop-down or choice list with options, e.g. from a list or a data table column.",
+            panel = "name, element, options, select | mode")
     public Map<String, Object> assign(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "element", type = OoaType.STRING, description = "Id of a drop-down or choice field.") String element,
             @Input(name = "options", type = OoaType.LIST, description = "The options to offer, in order.") List<Object> options,
-            @Input(name = "select", type = OoaType.STRING, required = false, description = "Option to select; the current choice is kept when it is still offered.") String select) {
+            @Input(name = "select", type = OoaType.STRING, required = false, description = "Option to select; the current choice is kept when it is still offered.") String select,
+            @Input(name = "mode", type = OoaType.STRING, required = false, defaultValue = "\"replace\"", enumValues = {"replace", "append"},
+                    description = "replace: offer only these options. append: add them after the options already offered, skipping ones already there.") String mode) {
+        String m = mode == null || mode.isBlank() ? "replace" : mode.strip();
+        if (!Set.of("replace", "append").contains(m)) throw new ActionException("FORMS.BAD_MODE", "Unknown mode '" + mode + "'", "Use replace or append.");
         FormWindow.Session s = session(ctx, name);
         Map<String, Object> f = element(s, element);
         if (!Set.of("dropdown", "radio").contains(String.valueOf(f.get("type")))) throw new ActionException("FORMS.NOT_A_LIST", "'" + element + "' is not a drop-down or choice field", null);
-        List<String> opts = options == null ? List.of() : options.stream().map(o -> o == null ? "" : String.valueOf(o)).toList();
+        List<String> given = options == null ? List.of() : options.stream().map(o -> o == null ? "" : String.valueOf(o)).toList();
         synchronized (s) {
             String id = element.strip();
+            List<String> opts = given;
+            if (m.equals("append")) {
+                Map<String, Object> st = s.elements.getOrDefault(id, Map.of());
+                Object current = st.containsKey("options") ? st.get("options") : f.get("options");
+                LinkedHashSet<String> all = new LinkedHashSet<>();
+                if (current instanceof List<?> l) for (Object o : l) all.add(o == null ? "" : String.valueOf(o));
+                all.addAll(given);
+                opts = new ArrayList<>(all);
+            }
             s.el(id).put("options", opts);
             if (select != null && !select.isBlank()) s.values.put(id, select);
             else if (!opts.contains(String.valueOf(s.values.get(id)))) s.values.put(id, "");
@@ -266,8 +292,13 @@ public final class FormsPackage {
         return Map.of();
     }
 
+    public Map<String, Object> assign(ActionContext ctx, String name, String element, List<Object> options, String select) {
+        return assign(ctx, name, element, options, select, "replace");
+    }
+
     @Action(id = "reset", name = "Reset form", category = "Interactive forms", capabilities = "desktop",
-            description = "Put every field back to its designer default (or empty) and clear the messages.")
+            description = "Put every field back to its designer default (or empty) and clear the messages.",
+            panel = "name")
     public Map<String, Object> reset(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name) {
         FormWindow.Session s = session(ctx, name);
         synchronized (s) { for (Map<String, Object> f : inputs(s.form)) s.values.put(String.valueOf(f.get("id")), initial(f)); s.errors.clear(); s.changed(); }
@@ -275,7 +306,8 @@ public final class FormsPackage {
     }
 
     @Action(id = "validate", name = "Validate form", category = "Interactive forms", capabilities = "desktop", idempotent = true,
-            description = "Check the answers (required fields, number limits, email addresses, choices) and, if wanted, show the problems next to the fields.")
+            description = "Check the answers (required fields, number limits, email addresses, choices) and, if wanted, show the problems next to the fields.",
+            panel = "name | show_messages")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when there are no problems.")
     @Output(name = "errors", type = OoaType.DICTIONARY, description = "Problems by field id, e.g. {\"email\": \"Required\"}.")
     public Map<String, Object> validate(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
@@ -288,43 +320,79 @@ public final class FormsPackage {
 
     // ---------------------------------------------------------------- look and behaviour of elements
 
-    @Action(id = "show", name = "Show element", category = "Interactive forms", capabilities = "desktop", description = "Show a hidden field, button or area.")
+    @Action(id = "show", name = "Show element", category = "Interactive forms", capabilities = "desktop", description = "Show a hidden field, button or area.",
+            panel = "name, element")
     public Map<String, Object> show(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "hidden", false);
     }
-    @Action(id = "hide", name = "Hide element", category = "Interactive forms", capabilities = "desktop", description = "Hide a field, button or area (a hidden field is not checked).")
+    @Action(id = "hide", name = "Hide element", category = "Interactive forms", capabilities = "desktop", description = "Hide a field, button or area (a hidden field is not checked).",
+            panel = "name, element")
     public Map<String, Object> hide(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "hidden", true);
     }
-    @Action(id = "enable", name = "Enable element", category = "Interactive forms", capabilities = "desktop", description = "Let the person use a field or button again.")
+    @Action(id = "enable", name = "Enable element", category = "Interactive forms", capabilities = "desktop", description = "Let the person use a field or button again.",
+            panel = "name, element")
     public Map<String, Object> enable(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "disabled", false);
     }
-    @Action(id = "disable", name = "Disable element", category = "Interactive forms", capabilities = "desktop", description = "Grey out a field or button so it cannot be used (a disabled field is not checked).")
+    @Action(id = "disable", name = "Disable element", category = "Interactive forms", capabilities = "desktop", description = "Grey out a field or button so it cannot be used (a disabled field is not checked).",
+            panel = "name, element")
     public Map<String, Object> disable(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "disabled", true);
     }
-    @Action(id = "highlight", name = "Highlight element", category = "Interactive forms", capabilities = "desktop", description = "Draw attention to a field or button with a coloured outline.")
+    @Action(id = "highlight", name = "Highlight element", category = "Interactive forms", capabilities = "desktop",
+            description = "Draw attention to a field or button with a coloured outline, in your own colour or as a warning or error, optionally with a message under it.",
+            panel = "name, element, kind, color, message")
     public Map<String, Object> highlight(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element,
-            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"#d97706\"", pattern = "^(#[0-9A-Fa-f]{6}|[a-z]{3,20})$", description = "Outline colour, e.g. #d97706 or red.") String color) {
-        FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "highlight", color == null || color.isBlank() ? "#d97706" : color.strip());
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"#d97706\"", pattern = "^(#[0-9A-Fa-f]{6}|[a-z]{3,20})$", visibleWhen = "kind=color", description = "Outline colour, e.g. #d97706 or red.") String color,
+            @Input(name = "kind", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "warning", "error"},
+                    description = "color: the colour below. warning: amber. error: red.") String kind,
+            @Input(name = "message", type = OoaType.STRING, required = false, description = "Text shown under the element in the outline colour; none when empty.") String message) {
+        String k = kind == null || kind.isBlank() ? "color" : kind.strip();
+        String c = switch (k) {
+            case "warning" -> HIGHLIGHT_WARNING;
+            case "error" -> HIGHLIGHT_ERROR;
+            case "color" -> color == null || color.isBlank() ? HIGHLIGHT_WARNING : color.strip();
+            default -> throw new ActionException("FORMS.BAD_KIND", "Unknown highlight kind '" + kind + "'", "Use color, warning or error.");
+        };
+        if (!c.matches("^(#[0-9A-Fa-f]{6}|[a-z]{3,20})$")) throw new ActionException("FORMS.BAD_COLOR", "Not a colour: '" + c + "'", "Use #rrggbb, e.g. #d97706, or a colour name such as red.");
+        FormWindow.Session s = session(ctx, name); element(s, element);
+        String id = element.strip();
+        synchronized (s) {
+            s.el(id).put("highlight", c);
+            if (message == null || message.isBlank()) s.el(id).remove("message"); else s.el(id).put("message", message);
+            s.changed();
+        }
+        return Map.of();
     }
-    @Action(id = "unhighlight", name = "Remove highlight", category = "Interactive forms", capabilities = "desktop", description = "Remove the highlight from a field or button.")
+
+    static final String HIGHLIGHT_WARNING = "#d97706", HIGHLIGHT_ERROR = "#dc2626";
+
+    public Map<String, Object> highlight(ActionContext ctx, String name, String element, String color) {
+        return highlight(ctx, name, element, color, "color", null);
+    }
+    @Action(id = "unhighlight", name = "Remove highlight", category = "Interactive forms", capabilities = "desktop", description = "Remove the highlight from a field or button.",
+            panel = "name, element")
     public Map<String, Object> unhighlight(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element) {
-        FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "highlight", null);
+        FormWindow.Session s = session(ctx, name); element(s, element);
+        synchronized (s) { s.el(element.strip()).remove("message"); }
+        return changed(s, element.strip(), "highlight", null);
     }
-    @Action(id = "set_focus", name = "Set focus", category = "Interactive forms", capabilities = "desktop", description = "Put the cursor in a field (or on a button).")
+    @Action(id = "set_focus", name = "Set focus", category = "Interactive forms", capabilities = "desktop", description = "Put the cursor in a field (or on a button).",
+            panel = "name, element")
     public Map<String, Object> setFocus(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element) {
         FormWindow.Session s = session(ctx, name); element(s, element);
         synchronized (s) { s.focus = element.strip(); s.changed(); }
         return Map.of();
     }
-    @Action(id = "change_label", name = "Change label", category = "Interactive forms", capabilities = "desktop", description = "Change the label of a field or the text of a button or heading.")
+    @Action(id = "change_label", name = "Change label", category = "Interactive forms", capabilities = "desktop", description = "Change the label of a field or the text of a button or heading.",
+            panel = "name, element, label")
     public Map<String, Object> changeLabel(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name, @Input(name = "element", type = OoaType.STRING, description = D_ELEMENT) String element,
             @Input(name = "label", type = OoaType.STRING, description = "The new label.") String label) {
         FormWindow.Session s = session(ctx, name); element(s, element); return changed(s, element.strip(), "label", label == null ? "" : label);
     }
-    @Action(id = "change_title", name = "Change form title", category = "Interactive forms", capabilities = "desktop", description = "Change the title shown on the form window.")
+    @Action(id = "change_title", name = "Change form title", category = "Interactive forms", capabilities = "desktop", description = "Change the title shown on the form window.",
+            panel = "name, title")
     public Map<String, Object> changeTitle(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,
             @Input(name = "title", type = OoaType.STRING, description = "The new title.") String title) {
         FormWindow.Session s = session(ctx, name);
@@ -333,7 +401,8 @@ public final class FormsPackage {
     }
 
     @Action(id = "dynamic_area", name = "Set dynamic area", category = "Interactive forms", capabilities = "desktop",
-            description = "Replace what a dynamic area on the form shows with new fields, e.g. one line per invoice found. Their answers are read like any other field.")
+            description = "Replace what a dynamic area on the form shows with new fields, e.g. one line per invoice found. Their answers are read like any other field.",
+            panel = "name, element, fields")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of fields now in the area.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> dynamicArea(ActionContext ctx, @Input(name = "name", type = OoaType.STRING, description = D_NAME) String name,

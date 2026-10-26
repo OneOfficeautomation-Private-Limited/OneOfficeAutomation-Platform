@@ -69,7 +69,8 @@ public final class TerminalPackage {
     private static final String D_SESSION = "Session name.";
     private static final String D_WAIT = "Seconds to wait for the host to unlock the keyboard after the key.";
 
-    @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 host and wait for the first screen.")
+    @Action(id = "connect", name = "Connect", category = "Terminal", timeoutSeconds = 120, capabilities = "network", description = "Connect to a TN3270 host and wait for the first screen.",
+            panel = "host, port, terminal_type, tls, model, code_page, [Ask for a specific device name: lu_name], [Wait for text on the first screen: wait_for_text], session | connect_timeout_seconds, wait_for_input_field")
     public Map<String, Object> connect(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Mainframe host name or address.") String host,
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "23", description = "Port (992 is common for TLS).") int port,
@@ -122,7 +123,8 @@ public final class TerminalPackage {
         if (waitForHost && !LOCAL_KEYS.contains(action)) t.cmd("Wait(" + Math.max(1, timeout) + ",InputField)");
     }
 
-    @Action(id = "send_text", name = "Type text", category = "Terminal", timeoutSeconds = 120, description = "Type text at a row and column, or at the cursor; Credentials are typed without being logged.")
+    @Action(id = "send_text", name = "Type text", category = "Terminal", timeoutSeconds = 120, description = "Type text at a row and column, or at the cursor; Credentials are typed without being logged.",
+            panel = "session, text, [Press a key after typing: press_key], delay_after_ms, [Wait for text afterwards: wait_for_text] | row, column, clear_field, timeout_seconds")
     public Map<String, Object> sendText(ActionContext ctx,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row (1-based); the cursor position when empty.") Integer row,
@@ -151,7 +153,8 @@ public final class TerminalPackage {
         return sendText(ctx, text, row, col, clear, session, null, 30, 0, null);
     }
 
-    @Action(id = "send_key", name = "Press key", category = "Terminal", timeoutSeconds = 120, description = "Press Enter, Tab, Clear, a PF or PA key, and wait for the host to answer.")
+    @Action(id = "send_key", name = "Press key", category = "Terminal", timeoutSeconds = 120, description = "Press Enter, Tab, Clear, a PF or PA key, and wait for the host to answer.",
+            panel = "session, key, delay_after_ms, [Wait for text afterwards: wait_for_text] | wait_for_host, timeout_seconds, repeat")
     public Map<String, Object> sendKey(ActionContext ctx,
             @Input(name = "key", type = OoaType.STRING, example = "Enter", description = "Enter, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Newline, Up, Down, Left, Right, BackSpace, Delete, Insert, FieldEnd, Dup, FieldMark, Attn, SysReq, PF1 to PF24 or PA1 to PA3.") String key,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = D_SESSION) String session,
@@ -176,7 +179,8 @@ public final class TerminalPackage {
         if (waitText != null && !waitText.isEmpty()) waitForText(ctx, waitText, Math.max(1, timeout), session, null, null, true, false, true, 500);
     }
 
-    @Action(id = "get_screen", name = "Get screen text", category = "Terminal", idempotent = true, description = "Read the whole screen as text, one line per row.")
+    @Action(id = "get_screen", name = "Get screen text", category = "Terminal", idempotent = true, description = "Read the whole screen as text, one line per row.",
+            panel = "session, from_row, to_row | trim_lines")
     @Output(name = "text", type = OoaType.STRING, description = "Screen text.")
     @Output(name = "lines", type = OoaType.LIST, description = "One item per row.")
     public Map<String, Object> getScreen(ActionContext ctx,
@@ -194,7 +198,8 @@ public final class TerminalPackage {
     /** Earlier signature, kept for callers written before the row range options. */
     public Map<String, Object> getScreen(ActionContext ctx, String session) { return getScreen(ctx, session, false, 1, 0); }
 
-    @Action(id = "get_text", name = "Get text at position", category = "Terminal", idempotent = true, description = "Read text from a row and column for a given length.")
+    @Action(id = "get_text", name = "Get text at position", category = "Terminal", idempotent = true, description = "Read text from a row and column for a given length.",
+            panel = "session, row, column, length | trim")
     @Output(name = "text", type = OoaType.STRING, description = "Text (trimmed unless trim is off).")
     public Map<String, Object> getText(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, description = "Row (1-based).") int row,
@@ -211,7 +216,8 @@ public final class TerminalPackage {
     /** Earlier signature, kept for callers written before the trim option. */
     public Map<String, Object> getText(ActionContext ctx, int row, int col, int len, String session) { return getText(ctx, row, col, len, session, true); }
 
-    @Action(id = "wait_for_text", name = "Wait for text", category = "Terminal", timeoutSeconds = 600, description = "Wait until text appears (or disappears) on the screen or at a position.")
+    @Action(id = "wait_for_text", name = "Wait for text", category = "Terminal", timeoutSeconds = 600, description = "Wait until text appears (or disappears) on the screen or at a position.",
+            panel = "session, text, wait_until_gone, timeout_seconds | [Look at one position only: row, column], case_sensitive, fail_on_timeout, poll_interval_ms")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the condition was met in time (false only when fail_on_timeout is off).")
     public Map<String, Object> waitForText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to wait for.") String text,
@@ -246,7 +252,8 @@ public final class TerminalPackage {
     }
 
     @Action(id = "wait", name = "Wait for screen", category = "Terminal", timeoutSeconds = 600,
-            description = "Wait until the host unlocks the keyboard, shows an input field, changes the screen, or a number of seconds passes.")
+            description = "Wait until the host unlocks the keyboard, shows an input field, changes the screen, or a number of seconds passes.",
+            panel = "session, condition, row, column, timeout_seconds | fail_on_timeout")
     @Output(name = "met", type = OoaType.BOOLEAN, description = "True when the condition was met in time (false only when fail_on_timeout is off).")
     public Map<String, Object> waitFor(ActionContext ctx,
             @Input(name = "condition", type = OoaType.STRING, required = false, defaultValue = "\"input_field\"",
@@ -301,7 +308,8 @@ public final class TerminalPackage {
         catch (RuntimeException e) { throw new ActionException("TERMINAL.NO_CURSOR", "The engine did not report a cursor position: " + String.join(" ", d), "Check the session is connected."); }
     }
 
-    @Action(id = "disconnect", name = "Disconnect", category = "Terminal", description = "Disconnect and close the terminal.")
+    @Action(id = "disconnect", name = "Disconnect", category = "Terminal", description = "Disconnect and close the terminal.",
+            panel = "session")
     public Map<String, Object> disconnect(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
         Object o = ctx.sessions().remove(session);
         if (o instanceof Session t) t.close();
@@ -419,7 +427,8 @@ public final class TerminalPackage {
 
     private static List<String> buffer(Session t) { return t.cmd("ReadBuffer(Ascii)"); }
 
-    @Action(id = "get_all_fields", name = "Get all fields", category = "Fields", idempotent = true, description = "List every field on the screen with its position, length, protection and text.")
+    @Action(id = "get_all_fields", name = "Get all fields", category = "Fields", idempotent = true, description = "List every field on the screen with its position, length, protection and text.",
+            panel = "session, only_input_fields")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: index, row, column, length, protected, numeric, hidden, text.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of fields.")
     public Map<String, Object> getAllFields(ActionContext ctx,
@@ -434,7 +443,8 @@ public final class TerminalPackage {
                 "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "get_field", name = "Get field", category = "Fields", idempotent = true, description = "Read one field, found by a screen position inside it or by the label just before it.")
+    @Action(id = "get_field", name = "Get field", category = "Fields", idempotent = true, description = "Read one field, found by a screen position inside it or by the label just before it.",
+            panel = "session, (Find the field by: Position = row, column / Label = label / Field number = index)")
     @Output(name = "text", type = OoaType.STRING, description = "Field text (trimmed; empty for hidden fields).")
     @Output(name = "field", type = OoaType.DICTIONARY, description = "index, row, column, length, protected, numeric, hidden, text.")
     public Map<String, Object> getField(ActionContext ctx,
@@ -457,7 +467,8 @@ public final class TerminalPackage {
         return fields.get(index - 1);
     }
 
-    @Action(id = "set_field", name = "Set field", category = "Fields", timeoutSeconds = 120, description = "Replace the contents of an input field, found by position, label or field number; Credentials are typed without being logged.")
+    @Action(id = "set_field", name = "Set field", category = "Fields", timeoutSeconds = 120, description = "Replace the contents of an input field, found by position, label or field number; Credentials are typed without being logged.",
+            panel = "session, (Find the field by: Position = row, column / Label = label / Field number = index), text, [Press a key after filling: press_key] | timeout_seconds")
     public Map<String, Object> setField(ActionContext ctx,
             @Input(name = "text", description = "Text, or a Credential variable for passwords.") Object text,
             @Input(name = "row", type = OoaType.NUMBER, required = false, description = "Row of any position in the field (1-based).") Integer row,
@@ -485,7 +496,8 @@ public final class TerminalPackage {
         return setField(ctx, text, row, col, label, session, null, null, 30);
     }
 
-    @Action(id = "search_field", name = "Find text on screen", category = "Fields", idempotent = true, description = "Find where a piece of text appears on the screen.")
+    @Action(id = "search_field", name = "Find text on screen", category = "Fields", idempotent = true, description = "Find where a piece of text appears on the screen.",
+            panel = "session, text | occurrence, case_sensitive, whole_field")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the text was found.")
     @Output(name = "row", type = OoaType.NUMBER, description = "Row of the first character (0 when not found).")
     @Output(name = "column", type = OoaType.NUMBER, description = "Column of the first character (0 when not found).")
@@ -529,7 +541,8 @@ public final class TerminalPackage {
     /** Earlier signature, kept for callers written before the whole_field option. */
     public Map<String, Object> searchField(ActionContext ctx, String text, int occurrence, boolean cs, String session) { return searchField(ctx, text, occurrence, cs, session, false); }
 
-    @Action(id = "set_cursor", name = "Set cursor", category = "Terminal", description = "Move the cursor to a row and column.")
+    @Action(id = "set_cursor", name = "Set cursor", category = "Terminal", description = "Move the cursor to a row and column.",
+            panel = "session, row, column")
     public Map<String, Object> setCursor(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, description = "Row (1-based).") int row,
             @Input(name = "column", type = OoaType.NUMBER, description = "Column (1-based).") int col,
@@ -539,7 +552,8 @@ public final class TerminalPackage {
         return Map.of();
     }
 
-    @Action(id = "get_cursor", name = "Get cursor position", category = "Terminal", idempotent = true, description = "Read the row and column where the cursor is.")
+    @Action(id = "get_cursor", name = "Get cursor position", category = "Terminal", idempotent = true, description = "Read the row and column where the cursor is.",
+            panel = "session")
     @Output(name = "row", type = OoaType.NUMBER, description = "Cursor row (1-based).")
     @Output(name = "column", type = OoaType.NUMBER, description = "Cursor column (1-based).")
     public Map<String, Object> getCursor(ActionContext ctx,
@@ -548,7 +562,8 @@ public final class TerminalPackage {
         return Map.of("row", java.math.BigDecimal.valueOf(c[0]), "column", java.math.BigDecimal.valueOf(c[1]));
     }
 
-    @Action(id = "clear_screen", name = "Clear screen", category = "Terminal", timeoutSeconds = 120, description = "Erase all input fields locally, or send the Clear key to the host.")
+    @Action(id = "clear_screen", name = "Clear screen", category = "Terminal", timeoutSeconds = 120, description = "Erase all input fields locally, or send the Clear key to the host.",
+            panel = "session | send_to_host")
     public Map<String, Object> clearScreen(ActionContext ctx,
             @Input(name = "send_to_host", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Send the Clear key to the host (blanks the whole screen) instead of only erasing input fields.") boolean host,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
@@ -558,21 +573,24 @@ public final class TerminalPackage {
         return Map.of();
     }
 
-    @Action(id = "show_terminal", name = "Show terminal", category = "Terminal", description = "Ask for a visible terminal window; the scripting engine has no window, so this only records a note in the log.")
+    @Action(id = "show_terminal", name = "Show terminal", category = "Terminal", description = "Ask for a visible terminal window; the scripting engine has no window, so this only records a note in the log.",
+            panel = "session")
     public Map<String, Object> showTerminal(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
         s(ctx, session);
         ctx.info("The terminal runs without a window; use Get screen text to see what the host shows.");
         return Map.of();
     }
 
-    @Action(id = "hide_terminal", name = "Hide terminal", category = "Terminal", description = "Hide the terminal window; the scripting engine is always hidden, so nothing changes.")
+    @Action(id = "hide_terminal", name = "Hide terminal", category = "Terminal", description = "Hide the terminal window; the scripting engine is always hidden, so nothing changes.",
+            panel = "session")
     public Map<String, Object> hideTerminal(ActionContext ctx, @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"terminal\"", description = "Session name.") String session) {
         s(ctx, session);
         ctx.info("The terminal already runs without a window.");
         return Map.of();
     }
 
-    @Action(id = "set_key_mapping", name = "Set key mapping", category = "Terminal", description = "Give keys friendly names for this session, e.g. Submit for Enter or Exit for PF3, usable in Press key.")
+    @Action(id = "set_key_mapping", name = "Set key mapping", category = "Terminal", description = "Give keys friendly names for this session, e.g. Submit for Enter or Exit for PF3, usable in Press key.",
+            panel = "session, mappings")
     @Output(name = "mappings", type = OoaType.DICTIONARY, description = "All names set in this session.")
     public Map<String, Object> setKeyMapping(ActionContext ctx,
             @Input(name = "mappings", type = OoaType.DICTIONARY, example = "{\"Submit\": \"Enter\", \"Exit\": \"PF3\"}", description = "Name to key, e.g. {\"Submit\": \"Enter\"}; an empty key removes the name.") Map<String, Object> mappings,

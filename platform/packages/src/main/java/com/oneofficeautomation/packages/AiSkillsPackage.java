@@ -46,7 +46,8 @@ public final class AiSkillsPackage {
     }
 
     @Action(id = "run", name = "Run Prompt Skill", category = "Prompt Skills", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "Fill a saved prompt template with your values and run it; returns text, or a Dictionary for JSON skills.")
+            description = "Fill a saved prompt template with your values and run it; returns text, or a Dictionary for JSON skills.",
+            panel = "skill, values, connection | api_key, model, base_url, aws_access_key_id, aws_region, temperature, max_tokens, fail_on_error, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "The answer as text.")
     @Output(name = "json", description = "The answer parsed as JSON, for skills with output json.")
     @Output(name = "success", type = OoaType.BOOLEAN, description = "True when the skill ran; false only when fail_on_error is off and it failed.")

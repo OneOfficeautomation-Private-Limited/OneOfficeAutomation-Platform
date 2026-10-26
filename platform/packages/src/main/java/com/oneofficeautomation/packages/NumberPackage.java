@@ -14,7 +14,8 @@ import java.util.Map;
 public final class NumberPackage {
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    @Action(id = "round", name = "Round", category = "Number", idempotent = true, description = "Round a number to a number of decimal places.")
+    @Action(id = "round", name = "Round", category = "Number", idempotent = true, description = "Round a number to a number of decimal places.",
+            panel = "value, decimals, mode")
     @Output(name = "result", type = OoaType.NUMBER, description = "Rounded number.")
     public Map<String, Object> round(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to round.") BigDecimal value,
@@ -25,7 +26,8 @@ public final class NumberPackage {
         return Out.of("result", value.setScale(decimals, rm));
     }
 
-    @Action(id = "random", name = "Random number", category = "Number", description = "Generate a random number between min and max (inclusive), whole or with decimals.")
+    @Action(id = "random", name = "Random number", category = "Number", description = "Generate a random number between min and max (inclusive), whole or with decimals.",
+            panel = "min, max, decimals")
     @Output(name = "result", type = OoaType.NUMBER, description = "Random number.")
     public Map<String, Object> random(ActionContext ctx,
             @Input(name = "min", type = OoaType.NUMBER, required = false, defaultValue = "0", description = "Smallest value.") BigDecimal min,
@@ -44,7 +46,8 @@ public final class NumberPackage {
     }
 
     @Action(id = "format", name = "Format number", category = "Number", idempotent = true,
-            description = "Format a number as text with thousands separators and fixed decimals, e.g. 1,234.50.")
+            description = "Format a number as text with thousands separators and fixed decimals, e.g. 1,234.50.",
+            panel = "value, decimals, thousands_separator | locale")
     @Output(name = "text", type = OoaType.STRING, description = "Formatted text.")
     public Map<String, Object> format(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to format.") BigDecimal value,
@@ -76,7 +79,8 @@ public final class NumberPackage {
         return sign + sb + rest;
     }
 
-    @Action(id = "increment", name = "Increment", category = "Number", idempotent = true, description = "Add a step (1 by default) to a number.")
+    @Action(id = "increment", name = "Increment", category = "Number", idempotent = true, description = "Add a step (1 by default) to a number.",
+            panel = "value, step")
     @Output(name = "result", type = OoaType.NUMBER, description = "Number plus the step.")
     public Map<String, Object> increment(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Starting number.") BigDecimal value,
@@ -84,7 +88,8 @@ public final class NumberPackage {
         return Out.of("result", value.add(step == null ? BigDecimal.ONE : step));
     }
 
-    @Action(id = "decrement", name = "Decrement", category = "Number", idempotent = true, description = "Subtract a step (1 by default) from a number.")
+    @Action(id = "decrement", name = "Decrement", category = "Number", idempotent = true, description = "Subtract a step (1 by default) from a number.",
+            panel = "value, step")
     @Output(name = "result", type = OoaType.NUMBER, description = "Number minus the step.")
     public Map<String, Object> decrement(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Starting number.") BigDecimal value,
@@ -93,7 +98,8 @@ public final class NumberPackage {
     }
 
     @Action(id = "to_text", name = "Number to text", category = "Number", idempotent = true,
-            description = "Write a number as plain text, with fixed decimals or a pattern such as 0000 or #,##0.00.")
+            description = "Write a number as plain text, with fixed decimals or a pattern such as 0000 or #,##0.00.",
+            panel = "value, decimals | pattern, rounding")
     @Output(name = "text", type = OoaType.STRING, description = "The number as text.")
     public Map<String, Object> toText(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to write.") BigDecimal value,

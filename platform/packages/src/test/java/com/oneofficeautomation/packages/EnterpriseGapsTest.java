@@ -177,8 +177,8 @@ class EnterpriseGapsTest {
                     : ok("{\"Report_Entry\":[{\"Worker\":\"Ann\",\"Org\":{\"Name\":\"Sales\"},\"Emails\":[{\"Email\":\"a@x\"},{\"Email\":\"b@x\"}]}]}"))
              .on("POST /ccx/service/acme/Integrations/v42.0", c -> {
                  String x = c.text();
-                 if (x.contains("Launch_Integration_Request") && x.contains("INT_Bad")) return new Object[]{500, "<e:Envelope xmlns:e=\"http://schemas.xmlsoap.org/soap/envelope/\"><e:Body><e:Fault><faultcode>e:Client</faultcode><faultstring>Invalid ID value</faultstring></e:Fault></e:Body></e:Envelope>"};
-                 if (x.contains("Launch_Integration_Request")) return ok("<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\"><env:Body><wd:Launch_Integration_Response xmlns:wd=\"urn:com.workday/bsvc\"><wd:Integration_Event><wd:Integration_Event_Reference><wd:ID wd:type=\"WID\">" + wid + "</wd:ID></wd:Integration_Event_Reference></wd:Integration_Event></wd:Launch_Integration_Response></env:Body></env:Envelope>");
+                 if (x.contains("Launch_Integration_Event_Request") && x.contains("INT_Bad")) return new Object[]{500, "<e:Envelope xmlns:e=\"http://schemas.xmlsoap.org/soap/envelope/\"><e:Body><e:Fault><faultcode>e:Client</faultcode><faultstring>Invalid ID value</faultstring></e:Fault></e:Body></e:Envelope>"};
+                 if (x.contains("Launch_Integration_Event_Request")) return ok("<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\"><env:Body><wd:Launch_Integration_Response xmlns:wd=\"urn:com.workday/bsvc\"><wd:Integration_Event><wd:Integration_Event_Reference><wd:ID wd:type=\"WID\">" + wid + "</wd:ID></wd:Integration_Event_Reference></wd:Integration_Event></wd:Launch_Integration_Response></env:Body></env:Envelope>");
                  return ok("<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\"><env:Body><wd:Get_Integration_Events_Response xmlns:wd=\"urn:com.workday/bsvc\"><wd:Response_Data><wd:Integration_Event><wd:Integration_Event_Data>"
                          + "<wd:Background_Process_Instance_Data><wd:Background_Process_Instance_Status_Reference><wd:ID wd:type=\"WID\">ff</wd:ID><wd:ID wd:type=\"Background_Process_Instance_Status_ID\">Completed</wd:ID></wd:Background_Process_Instance_Status_Reference>"
                          + "<wd:Percent_Complete>100</wd:Percent_Complete></wd:Background_Process_Instance_Data><wd:Initiated_DateTime>2026-10-19T08:00:00</wd:Initiated_DateTime><wd:Completed_DateTime>2026-10-19T08:05:00</wd:Completed_DateTime>"
@@ -205,6 +205,16 @@ class EnterpriseGapsTest {
             assertTrue(f.last("POST", ".*").text().contains("<wsse:Username>isu@acme</wsse:Username>"));
             assertEquals("WORKDAY.SOAP_FAULT", assertThrows(ActionException.class, () -> wd.launchIntegration(ctx, f.url(), "acme", "INT_Bad", "v42.0", null, null, TOK)).code());
             assertEquals("WORKDAY.BAD_ID", assertThrows(ActionException.class, () -> wd.launchIntegration(ctx, f.url(), "acme", "<x/>", "v42.0", null, null, TOK)).code());
+            // launch parameters go in Integration_Launch_Parameter_Data, each value with its Workday type
+            Map<String, Object> params = new LinkedHashMap<>();
+            params.put("Effective_Date", "2026-11-01"); params.put("Include_Terminated", false); params.put("Batch_Size", new BigDecimal("500")); params.put("Note", "A & B");
+            wd.launchIntegration(ctx, f.url(), "acme", "INT_Worker_Load", "v42.0", null, null, TOK, "integration_system_id", params);
+            String sent = f.last("POST", ".*").text();
+            assertTrue(sent.contains("<bsvc:Launch_Integration_Event_Request"), sent);
+            assertTrue(sent.contains("<bsvc:ID bsvc:type=\"Launch_Parameter_Name\">Effective_Date</bsvc:ID></bsvc:Launch_Parameter_Reference><bsvc:Launch_Parameter_Value_Data><bsvc:Date>2026-11-01</bsvc:Date>"), sent);
+            assertTrue(sent.contains("<bsvc:Boolean>false</bsvc:Boolean>") && sent.contains("<bsvc:Numeric>500</bsvc:Numeric>") && sent.contains("<bsvc:Text>A &amp; B</bsvc:Text>"), sent);
+            assertEquals("WORKDAY.BAD_ID", assertThrows(ActionException.class, () -> wd.launchIntegration(ctx, f.url(), "acme", "INT_Worker_Load", "v42.0", null, null, TOK,
+                    "integration_system_id", Map.of("bad name", 1))).code());
             Map<String, Object> ev = wd.getIntegrationEvent(ctx, f.url(), "acme", wid, "v42.0", null, null, TOK);
             assertEquals("Completed", ev.get("status"));
             assertEquals(new BigDecimal(100), ev.get("percent_complete"));

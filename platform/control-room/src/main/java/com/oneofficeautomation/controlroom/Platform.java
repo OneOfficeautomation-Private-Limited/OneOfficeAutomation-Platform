@@ -44,37 +44,100 @@ public final class Platform {
         DEFAULTS.put("mcp_timeout_seconds", 120);
         DEFAULTS.put("run_retention_days", 0);
         DEFAULTS.put("run_log_retention_days", 0);
+        DEFAULTS.put("syslog_target", "");
+        DEFAULTS.put("syslog_protocol", "udp");
+        DEFAULTS.put("ip_allow_list", "");
+        DEFAULTS.put("max_sessions_per_user", 5);
+        DEFAULTS.put("password_min_length", 12);
+        DEFAULTS.put("block_executable_uploads", 0);
     }
 
+    /** The allowed range of each number setting (the console uses the same limits). */
+    static final Map<String, long[]> RANGES = Map.ofEntries(
+        Map.entry("inactive_user_days", new long[] { 0, 3650 }),
+        Map.entry("session_hours", new long[] { 1, 720 }),
+        Map.entry("max_upload_mb", new long[] { 1, 1024 }),
+        Map.entry("queue_poll_seconds", new long[] { 3, 3600 }),
+        Map.entry("default_minutes_saved", new long[] { 0, 100000 }),
+        Map.entry("mcp_timeout_seconds", new long[] { 10, 3600 }),
+        Map.entry("run_retention_days", new long[] { 0, 36500 }),
+        Map.entry("run_log_retention_days", new long[] { 0, 36500 }),
+        Map.entry("max_sessions_per_user", new long[] { 1, 50 }),
+        Map.entry("password_min_length", new long[] { 12, 64 }),
+        Map.entry("block_executable_uploads", new long[] { 0, 1 }));
+
+    /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
+    private volatile Map<String, Object> cached;
+    private volatile long cachedAt;
+
     public Map<String, Object> settings() {
+        Map<String, Object> c = cached;
+        if (c != null && System.currentTimeMillis() - cachedAt < 5000) return new LinkedHashMap<>(c);
         Map<String, Object> out = new LinkedHashMap<>(DEFAULTS);
-        for (Map<String, Object> r : db.query("SELECT name, json_value FROM settings")) out.put((String) r.get("name"), JsonLite.parse((String) r.get("json_value")));
-        return out;
+        // only the settings people may change; internal rows (the evaluation start) stay out of view
+        for (Map<String, Object> r : db.query("SELECT name, json_value FROM settings")) if (DEFAULTS.containsKey((String) r.get("name"))) out.put((String) r.get("name"), JsonLite.parse((String) r.get("json_value")));
+        cached = out; cachedAt = System.currentTimeMillis();
+        return new LinkedHashMap<>(out);
     }
 
     public Object setting(String name) { return settings().get(name); }
 
     int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
 
+    /** Checks every change first (known name, whole number in its range, address format), then saves them all in one transaction. */
     public Map<String, Object> updateSettings(User by, Map<String, Object> changes, String ip) {
         cr.require(by, "settings.manage", "change settings");
+        Map<String, Object> clean = new LinkedHashMap<>();
         for (var e : changes.entrySet()) {
-            if (!DEFAULTS.containsKey(e.getKey())) throw new OoaException("CR.BAD_INPUT", "Unknown setting '" + e.getKey() + "'", "Settings: " + DEFAULTS.keySet());
+            String k = e.getKey();
+            if (!DEFAULTS.containsKey(k)) throw new OoaException("CR.BAD_INPUT", "Unknown setting '" + k + "'", "Settings: " + DEFAULTS.keySet());
             Object v = e.getValue();
-            if (DEFAULTS.get(e.getKey()) instanceof Number) {
+            if (DEFAULTS.get(k) instanceof Number) {
                 long n;
                 try { n = v instanceof Number num ? num.longValue() : Long.parseLong(String.valueOf(v).trim()); }
-                catch (NumberFormatException x) { throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' needs a whole number"); }
-                if (n < 0 || n > 100000) throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' is out of range");
+                catch (NumberFormatException x) { throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' needs a whole number"); }
+                long[] r = RANGES.getOrDefault(k, new long[] { 0, 100000 });
+                if (n < r[0] || n > r[1]) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be from " + r[0] + " to " + r[1]);
                 v = n;
-            } else v = String.valueOf(v == null ? "" : v);
-            String json = JsonLite.write(v);
-            if (db.update("UPDATE settings SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), e.getKey()) == 0)
-                db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", e.getKey(), json, now(), by.username());
+            } else {
+                String s = String.valueOf(v == null ? "" : v).trim();
+                if (s.length() > 2000) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
+                if ((k.equals("public_url") || k.equals("sso_issuer")) && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
+                    throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
+                if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))
+                    throw new OoaException("CR.BAD_INPUT", "The syslog target is host:port, for example siem.example.com:514");
+                if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
+                if (k.equals("ip_allow_list")) {
+                    IpAllowList l = IpAllowList.parse(s);
+                    // never lock out the person saving the list (this computer is always allowed)
+                    boolean local = ip == null || ip.startsWith("127.") || ip.equals("0:0:0:0:0:0:0:1") || ip.equals("::1");
+                    if (!l.isEmpty() && !local && !l.allows(ip)) throw new OoaException("CR.BAD_INPUT", "Your own address " + ip + " is not on the list; saving it would lock you out", "Add your address or its range to the list");
+                }
+                if (k.equals("sso_default_role") && !s.isEmpty() && !Rbac.ROLES.contains(s) && db.one("SELECT name FROM roles WHERE name = ?", s) == null)
+                    throw new OoaException("CR.BAD_INPUT", "Setting 'sso_default_role' names a role that does not exist: " + s);
+                v = s;
+            }
+            clean.put(k, v);
         }
-        cr.audit.record(by.username(), "settings.update", "settings", null, changes, "ok", ip);
+        db.tx(() -> {
+            for (var e : clean.entrySet()) {
+                String json = JsonLite.write(e.getValue());
+                if (db.update("UPDATE settings SET json_value = ?, updated = ?, updated_by = ? WHERE name = ?", json, now(), by.username(), e.getKey()) == 0)
+                    db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", e.getKey(), json, now(), by.username());
+            }
+            cached = null;
+            cr.audit.record(by.username(), "settings.update", "settings", null, clean, "ok", ip);
+            return null;
+        });
+        cached = null;
         return settings();
     }
+
+    /** How long a sign-in lasts (Settings: session_hours, 1 to 720). */
+    public java.time.Duration sessionLength() { return java.time.Duration.ofHours(Math.max(1, Math.min(720, intSetting("session_hours")))); }
+
+    /** The largest request body: Settings max_upload_mb, plus room for Base64 (files travel inside JSON). */
+    public int maxBodyBytes() { long mb = Math.max(1, Math.min(1024, intSetting("max_upload_mb"))); return (int) Math.min(Integer.MAX_VALUE - 8, mb * 1024 * 1024 * 4 / 3 + 1024 * 1024); }
 
     /** Disables users who have not signed in for the configured number of days (0 = never). Called by the server clock. */
     public int disableInactiveUsers() {
@@ -162,7 +225,9 @@ public final class Platform {
         if (k == null || !Boolean.TRUE.equals(k.get("enabled"))) return null;
         if (k.get("expires") != null && Instant.parse(String.valueOf(k.get("expires"))).isBefore(now())) return null;
         db.update("UPDATE api_keys SET last_used = ? WHERE id = ?", now(), k.get("kid"));
-        return new User((String) k.get("id"), (String) k.get("username"), (String) k.get("role"), (String) k.get("display_name"), false);
+        User u = new User((String) k.get("id"), (String) k.get("username"), (String) k.get("role"), (String) k.get("display_name"), false);
+        cr.licensing.checkSignIn(u);
+        return u;
     }
 
     // ===================== runner pools =====================
@@ -932,8 +997,13 @@ public final class Platform {
     public Map<String, Object> license(User by) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("product", "ONEOFFICEAUTOMATION One Command Center");
-        m.put("edition", "Self-hosted");
-        m.put("limits", "none: no per-user, per-runner or per-agent limits");
+        Map<String, Object> lic = cr.licensing.status(by);
+        String state = String.valueOf(lic.get("state"));
+        boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);
+        m.put("edition", licensed ? lic.getOrDefault("edition", "Enterprise") + " (licensed to " + lic.getOrDefault("customer", "?") + ")"
+            : state.startsWith("evaluation") ? "Evaluation (30 days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
+        m.put("limits", licensed || state.startsWith("evaluation") ? "seats per license type; see Administration > Licenses" : "none until a license is installed");
+        m.put("license", lic);
         m.put("users", cr.count("SELECT COUNT(*) AS n FROM users WHERE enabled = TRUE"));
         m.put("runners", cr.count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE"));
         m.put("agents", cr.count("SELECT COUNT(*) AS n FROM bots WHERE deleted_at IS NULL"));

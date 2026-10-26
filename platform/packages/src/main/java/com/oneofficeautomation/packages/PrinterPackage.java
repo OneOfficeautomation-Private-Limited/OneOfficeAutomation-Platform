@@ -26,7 +26,8 @@ public final class PrinterPackage {
     }
 
     @Action(id = "print_file", name = "Print file", category = "Printer", capabilities = "filesystem",
-            description = "Print a file on a named printer, or on the default printer using the file's default application.")
+            description = "Print a file on a named printer, or on the default printer using the file's default application.",
+            panel = "path, printer, copies")
     public Map<String, Object> print(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to print.") String path,
             @Input(name = "printer", type = OoaType.STRING, required = false, description = "Printer name; default printer when empty.") String printer,
@@ -86,7 +87,8 @@ public final class PrinterPackage {
     }
 
     @Action(id = "set_default", name = "Set default printer", category = "Printer", timeoutSeconds = 120,
-            description = "Make a printer the default for the runner's signed-in user (Windows).")
+            description = "Make a printer the default for the runner's signed-in user (Windows).",
+            panel = "printer")
     public Map<String, Object> setDefault(ActionContext ctx,
             @Input(name = "printer", type = OoaType.STRING, description = "Exact printer name from Get printers.") String printer) {
         windows("Setting the default printer");
@@ -96,7 +98,8 @@ public final class PrinterPackage {
     }
 
     @Action(id = "remove_printer", name = "Remove printer", category = "Printer", timeoutSeconds = 120,
-            description = "Uninstall a printer from the runner (Windows); needs confirm because it cannot be undone.")
+            description = "Uninstall a printer from the runner (Windows); needs confirm because it cannot be undone.",
+            panel = "printer, confirm")
     public Map<String, Object> removePrinter(ActionContext ctx,
             @Input(name = "printer", type = OoaType.STRING, description = "Exact printer name from Get printers.") String printer,
             @Input(name = "confirm", type = OoaType.BOOLEAN, description = "Must be true to remove the printer.") boolean confirm) {

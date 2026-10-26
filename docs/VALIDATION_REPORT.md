@@ -100,8 +100,9 @@ repository with check-in/check-out) gets its own report.
 
 ## Known limitations (tracked)
 
-- PostgreSQL is supported by configuration but was not tested in this environment (no PostgreSQL server here); run the
-  end-to-end test against PostgreSQL before production.
+- SQL Server (2026-10-26): every Command Center test, the end-to-end suites and the console UI test (68 checks) pass on
+  SQL Server 2022 Express with `-Pooa.test.db` (see DATABASE.md). PostgreSQL is supported by configuration but was not
+  yet run against a real server; run the end-to-end test against PostgreSQL before production.
 - Work queues are still per device (workspace files); central Control Room queues with SLAs come next.
 - Control Room serves plain HTTP; use an HTTPS reverse proxy (IIS, nginx) when other machines connect.
 - The agent runs as a scheduled task in the signed-in user's session; unattended auto-login and a Windows service wrapper

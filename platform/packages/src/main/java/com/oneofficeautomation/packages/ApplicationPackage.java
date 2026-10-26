@@ -21,7 +21,8 @@ public final class ApplicationPackage {
     }
 
     @Action(id = "open_file", name = "Open file", category = "Application", capabilities = "desktop",
-            description = "Open a document with its default application, e.g. a PDF in the PDF viewer.")
+            description = "Open a document with its default application, e.g. a PDF in the PDF viewer.",
+            panel = "path")
     public Map<String, Object> openFile(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File to open.") String path) {
         Path p = ctx.resolvePath(path);
         if (!Files.exists(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
@@ -32,7 +33,8 @@ public final class ApplicationPackage {
     }
 
     @Action(id = "start_program", name = "Start program", category = "Application", capabilities = "desktop",
-            description = "Start a program and continue without waiting; returns its process id.")
+            description = "Start a program and continue without waiting; returns its process id.",
+            panel = "program, working_folder, arguments, wait_seconds | window_state, environment")
     @Output(name = "process_id", type = OoaType.NUMBER, description = "Process id, used by Stop program.")
     public Map<String, Object> startProgram(ActionContext ctx,
             @Input(name = "program", type = OoaType.STRING, example = "notepad.exe", description = "Program name or full path.") String program,
@@ -107,7 +109,8 @@ public final class ApplicationPackage {
     }
 
     @Action(id = "run_program", name = "Run program and wait", category = "Application", timeoutSeconds = 3600,
-            description = "Run a program, wait for it to finish and return its exit code and output.")
+            description = "Run a program, wait for it to finish and return its exit code and output.",
+            panel = "program, arguments, working_folder | input, timeout_seconds, fail_on_error, environment, output_encoding")
     @Output(name = "exit_code", type = OoaType.NUMBER, description = "Exit code; 0 usually means success.")
     @Output(name = "output", type = OoaType.STRING, description = "Standard output.")
     @Output(name = "error_output", type = OoaType.STRING, description = "Standard error.")
@@ -132,7 +135,8 @@ public final class ApplicationPackage {
     static String tail(String s) { String t = s.strip(); return t.length() > 400 ? "..." + t.substring(t.length() - 400) : t; }
 
     @Action(id = "stop_program", name = "Stop program", category = "Application",
-            description = "Stop a program by process id or by program name (e.g. EXCEL.EXE).")
+            description = "Stop a program by process id or by program name (e.g. EXCEL.EXE).",
+            panel = "(Program to stop: By process id = process_id / By name = name), force")
     @Output(name = "stopped", type = OoaType.NUMBER, description = "Number of processes stopped.")
     public Map<String, Object> stopProgram(ActionContext ctx,
             @Input(name = "process_id", type = OoaType.NUMBER, required = false, visibleWhen = "name=", description = "Process id from Start program.") Long pid,

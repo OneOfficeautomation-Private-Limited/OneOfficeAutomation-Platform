@@ -28,7 +28,8 @@ public final class RunContextPackage {
         return Map.of("info", m);
     }
 
-    @Action(id = "get_value", name = "Get one run value", category = "Run", idempotent = true, description = "Return a single item of the run information by name, e.g. run_id or device.")
+    @Action(id = "get_value", name = "Get one run value", category = "Run", idempotent = true, description = "Return a single item of the run information by name, e.g. run_id or device.",
+            panel = "name")
     @Output(name = "value", type = OoaType.STRING, description = "The value as text.")
     public Map<String, Object> getValue(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, enumValues = {"run_id", "step_id", "tenant", "device", "os_user", "working_folder", "os_name", "os_version", "java_version", "processors", "temp_folder"},

@@ -17,7 +17,7 @@ How the product is built, configured and managed, and how to build new parts of 
  │  (control-room module)  │◄──────────┤  (cli module, Studio)    │
  │  console: cr.js         │  /studio  │  UI: studio.js           │
  │  REST API: /api/*       │           │  API: /studio/api/*      │
- │  H2 or PostgreSQL       │           │  files: My Workspace     │
+ │  SQL Server, PostgreSQL │           │  files: My Workspace     │
  └──────────┬──────────────┘           └────────────┬─────────────┘
             │ HTTP (device id + secret)              │ runs locally with
             ▼                                        ▼ the same Runner
@@ -51,7 +51,7 @@ Studio mounted at `/studio`, and a One Runner for this computer.
 | HTTP servers | **JDK `com.sun.net.httpserver.HttpServer`** | No framework; small, fast start, easy to embed |
 | HTTP client | **JDK `java.net.http.HttpClient`** (wrapped by `HttpJson`) | Every cloud toolkit uses it; no SDKs |
 | JSON | Own `JsonLite` (sdk) for parsing and writing; Jackson 2.17 + networknt JSON Schema 1.4 (adapters-jackson) for schema validation | The core has no third-party JSON dependency |
-| Database | **H2 2.2** embedded (default) or **PostgreSQL 42.7** driver | Plain JDBC, own pool and migrations (`Db.java`) |
+| Database | **Microsoft SQL Server** (mssql-jdbc 12.8), **PostgreSQL** (42.7) or **H2 2.2** embedded (default, evaluation) | Plain JDBC, own pool and migrations (`Db.java`), SQL Server syntax from `SqlServerDialect.java`; see [DATABASE.md](DATABASE.md) |
 | Office files | Apache POI 5.3 | Excel, Word, PowerPoint |
 | PDF | Apache PDFBox 3.0 | |
 | Email | Eclipse Angus Mail 2.0 (Jakarta Mail) | SMTP and IMAP |
@@ -514,7 +514,7 @@ distribution with `.\gradlew.bat :cli:installDist` and run `cli\build\install\oo
 | My Workspace (Studio files) | `%USERPROFILE%\OOA Workspace` | `--workspace` |
 | One Runner working folder and logs | `%USERPROFILE%\OOA Agent Workspace` | `--workspace` on `agent start` |
 | Vault master key | key file in the data folder | `OOA_MASTER_KEY` (recommended for production) |
-| PostgreSQL | not used | `--db-url jdbc:postgresql://host:5432/ooa --db-user ooa --db-password-env OOA_DB_PASSWORD` |
+| Database | embedded H2 in the data folder | `config\ooa-db.properties` (SQL Server or PostgreSQL), set up with `ooa db`; see [DATABASE.md](DATABASE.md) |
 | Optional toolkit modules | all six | `platform/gradle.properties` → `ooa.optionalModules` |
 | AI approval timeout | 300 s | `-Dooa.approval.timeoutSeconds=N` |
 | Headless (no dialogs) | off | `-Djava.awt.headless=true` |
@@ -544,14 +544,14 @@ in the API at once.
 | AI models | Administration > One Model Connections; Studio > One Model Connections for local runs |
 | Secrets | One Agent Vault (folders, consumers, owners, external vault link, Test reading) |
 | Monitoring | Home dashboard, Agent Runs (Live/History, CSV export), Work queues, One Workflow, Triggers monitoring column, AI governance, One Audit Trail (Verify integrity) |
-| Backup | The data folder (`controlroom.mv.db` + `master.key`) and My Workspace; for PostgreSQL, the database plus `OOA_MASTER_KEY` |
+| Backup | The data folder (`controlroom.mv.db` + `master.key`) and My Workspace; for SQL Server or PostgreSQL, the database plus the data folder's `config` and `repo-files` folders and the master key |
 | Upgrade | `git pull`, restart; migrations run automatically |
 | Recovery | `reset-admin`; the audit trail records it |
 
 **Production notes:**
 
 - Put an HTTPS reverse proxy in front before using `--host 0.0.0.0`.
-- Use PostgreSQL and `OOA_MASTER_KEY`.
+- Use SQL Server (or PostgreSQL) with a data-only runtime account, and `OOA_MASTER_KEY` ([DATABASE.md](DATABASE.md)).
 - Set `public_url` for SSO.
 - Live views poll every 2 to 5 s; a push channel is a planned improvement.
 

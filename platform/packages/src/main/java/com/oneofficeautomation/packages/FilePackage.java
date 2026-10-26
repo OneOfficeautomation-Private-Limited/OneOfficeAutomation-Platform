@@ -57,7 +57,8 @@ public final class FilePackage {
         return (after == null || t.isAfter(after)) && (before == null || t.isBefore(before));
     }
 
-    @Action(id = "read_text", name = "Read text", category = "Files", idempotent = true, capabilities = "filesystem", description = "Read a text file.")
+    @Action(id = "read_text", name = "Read text", category = "Files", idempotent = true, capabilities = "filesystem", description = "Read a text file.",
+            panel = "path, encoding")
     @Output(name = "text", type = OoaType.STRING, description = "File content.")
     public Map<String, Object> readText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
@@ -67,7 +68,8 @@ public final class FilePackage {
         try { return Map.of("text", Files.readString(p, charset(enc))); } catch (IOException e) { throw io("read", p, e); }
     }
 
-    @Action(id = "write_text", name = "Write text", category = "Files", capabilities = "filesystem", description = "Write text to a file, overwriting or appending.")
+    @Action(id = "write_text", name = "Write text", category = "Files", capabilities = "filesystem", description = "Write text to a file, overwriting or appending.",
+            panel = "path, fail_if_exists, text, append | encoding")
     public Map<String, Object> writeText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
             @Input(name = "text", type = OoaType.STRING, description = "Text to write.") String text,
@@ -86,7 +88,8 @@ public final class FilePackage {
     }
 
     @Action(id = "delete", name = "Delete", category = "Files", idempotent = true, capabilities = "filesystem",
-            description = "Delete a file if it exists, or every file in a folder that matches a pattern and optional size and age limits.")
+            description = "Delete a file if it exists, or every file in a folder that matches a pattern and optional size and age limits.",
+            panel = "path, [Delete several files by name pattern: pattern, include_subfolders], [Filter by size: min_size_bytes, max_size_bytes], [Filter by date: older_than_days, modified_after, modified_before]")
     @Output(name = "deleted", type = OoaType.NUMBER, description = "Number of files deleted.")
     public Map<String, Object> delete(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File path, or a folder when pattern is given.") String path,
             @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.tmp", description = "Delete the files in the folder at path that match this glob pattern.") String pattern,
@@ -114,7 +117,8 @@ public final class FilePackage {
     }
 
     @Action(id = "list", name = "List files", category = "Folders", idempotent = true, capabilities = "filesystem",
-            description = "List files in a folder matching a glob pattern.")
+            description = "List files in a folder matching a glob pattern.",
+            panel = "folder, pattern, include_subfolders, [Filter by size: min_size_bytes, max_size_bytes], [Filter by date: modified_within_days, older_than_days] | sort_by, descending")
     @Output(name = "files", type = OoaType.LIST, description = "File paths in the chosen order.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of files found.")
     @Output(name = "first", type = OoaType.FILE, description = "First file of the list (e.g. the newest with sort_by modified, descending); empty when none.")
@@ -219,7 +223,8 @@ public final class FilePackage {
     }
 
     @Action(id = "read_variables", name = "Read variables from file", category = "Files", idempotent = true, capabilities = "filesystem",
-            description = "Read name=value lines (a settings or .properties-style file) into a Dictionary; blank lines and lines starting with # or ; are skipped.")
+            description = "Read name=value lines (a settings or .properties-style file) into a Dictionary; blank lines and lines starting with # or ; are skipped.",
+            panel = "path, encoding, separator, trim")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value, in file order.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of values read.")
     public Map<String, Object> readVariables(ActionContext ctx,
@@ -243,7 +248,8 @@ public final class FilePackage {
     }
 
     @Action(id = "wait_for_file", name = "Wait for file", category = "Files", capabilities = "filesystem", timeoutSeconds = 3600,
-            description = "Wait until a file appears and has stopped growing (for example a download or an export), then return its path.")
+            description = "Wait until a file appears and has stopped growing (for example a download or an export), then return its path.",
+            panel = "path, timeout_seconds | stable_seconds, ignore_temporary, fail_on_timeout")
     @Output(name = "path", type = OoaType.FILE, description = "Path of the file found; empty when time ran out and fail_on_timeout is off.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the file was found in time.")
     public Map<String, Object> waitForFile(ActionContext ctx,
@@ -306,26 +312,85 @@ public final class FilePackage {
         } catch (IOException e) { throw io("list", dir, e); }
     }
 
-    @Action(id = "copy", name = "Copy", category = "Files", capabilities = "filesystem", description = "Copy a file, replacing or keeping an existing target.")
-    @Output(name = "path", type = OoaType.FILE, description = "Path of the copy.")
+    @Action(id = "copy", name = "Copy", category = "Files", capabilities = "filesystem",
+            description = "Copy a file, or every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.",
+            panel = "source, target, overwrite, [Copy several files by name pattern: pattern, include_subfolders], [Filter by size: min_size_bytes, max_size_bytes], [Filter by date: modified_after, modified_before] | keep_both")
+    @Output(name = "path", type = OoaType.FILE, description = "Path of the copy (the target folder when copying several files).")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of files copied.")
+    @Output(name = "files", type = OoaType.LIST, description = "Paths of the copies.")
     public Map<String, Object> copy(ActionContext ctx,
-            @Input(name = "source", type = OoaType.FILE, description = "Source file.") String source,
-            @Input(name = "target", type = OoaType.FILE, description = "Target file.") String target,
+            @Input(name = "source", type = OoaType.FILE, description = "Source file, or a folder when pattern is given.") String source,
+            @Input(name = "target", type = OoaType.FILE, description = "Target file, or a folder when pattern is given.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace an existing target.") boolean overwrite,
             @Input(name = "keep_both", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    visibleWhen = "overwrite=false", description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth) {
-        return Map.of("path", transfer(ctx, source, target, overwrite, false, keepBoth).toString());
+                    visibleWhen = "overwrite=false", description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.pdf",
+                    description = "Copy every file in the source folder whose name matches this glob pattern; the target is then a folder. A source such as in/*.pdf works too.") String pattern,
+            @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With a pattern, also take matching files in sub-folders, keeping their folders under the target.") boolean sub,
+            @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at least this large.") Long min,
+            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at most this large.") Long max,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (local time).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+        return transferMany(ctx, source, target, overwrite, false, keepBoth, pattern, sub, min, max, after, before);
     }
 
-    @Action(id = "move", name = "Move or rename", category = "Files", capabilities = "filesystem", description = "Move or rename a file, replacing or keeping an existing target.")
-    @Output(name = "path", type = OoaType.FILE, description = "New path of the file.")
+    public Map<String, Object> copy(ActionContext ctx, String source, String target, boolean overwrite, boolean keepBoth) {
+        return copy(ctx, source, target, overwrite, keepBoth, null, false, null, null, null, null);
+    }
+
+    @Action(id = "move", name = "Move or rename", category = "Files", capabilities = "filesystem",
+            description = "Move or rename a file, or move every file of a folder that matches a pattern and optional size and date limits, replacing or keeping existing targets.",
+            panel = "source, target | overwrite, keep_both, [Move several files by name pattern: pattern, include_subfolders], [Filter by size: min_size_bytes, max_size_bytes], [Filter by date: modified_after, modified_before]")
+    @Output(name = "path", type = OoaType.FILE, description = "New path of the file (the target folder when moving several files).")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of files moved.")
+    @Output(name = "files", type = OoaType.LIST, description = "New paths of the files.")
     public Map<String, Object> move(ActionContext ctx,
-            @Input(name = "source", type = OoaType.FILE, description = "Source file.") String source,
-            @Input(name = "target", type = OoaType.FILE, description = "New path or name.") String target,
+            @Input(name = "source", type = OoaType.FILE, description = "Source file, or a folder when pattern is given.") String source,
+            @Input(name = "target", type = OoaType.FILE, description = "New path or name, or a folder when pattern is given.") String target,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace an existing target.") boolean overwrite,
             @Input(name = "keep_both", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    visibleWhen = "overwrite=false", description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth) {
-        return Map.of("path", transfer(ctx, source, target, overwrite, true, keepBoth).toString());
+                    visibleWhen = "overwrite=false", description = "When the target exists and overwrite is false, use a free name such as report (2).pdf instead of stopping.") boolean keepBoth,
+            @Input(name = "pattern", type = OoaType.STRING, required = false, example = "*.pdf",
+                    description = "Move every file in the source folder whose name matches this glob pattern; the target is then a folder. A source such as in/*.pdf works too.") String pattern,
+            @Input(name = "include_subfolders", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "With a pattern, also take matching files in sub-folders, keeping their folders under the target.") boolean sub,
+            @Input(name = "min_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at least this large.") Long min,
+            @Input(name = "max_size_bytes", type = OoaType.NUMBER, required = false, min = 0, description = "With a pattern, only files at most this large.") Long max,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed after this date and time (local time).") LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = "With a pattern, only files last changed before this date and time (local time).") LocalDateTime before) {
+        return transferMany(ctx, source, target, overwrite, true, keepBoth, pattern, sub, min, max, after, before);
+    }
+
+    public Map<String, Object> move(ActionContext ctx, String source, String target, boolean overwrite, boolean keepBoth) {
+        return move(ctx, source, target, overwrite, keepBoth, null, false, null, null, null, null);
+    }
+
+    /** One file, or every file of a folder matching a glob (given as pattern, or as a wildcard in the source name) and the limits. */
+    private static Map<String, Object> transferMany(ActionContext ctx, String source, String target, boolean overwrite, boolean move, boolean keepBoth,
+            String pattern, boolean sub, Long min, Long max, LocalDateTime after, LocalDateTime before) {
+        if (min != null && min < 0 || max != null && max < 0) throw new ActionException("FILE.BAD_OPTION", "Sizes cannot be negative", "Use 0 or more bytes.");
+        if (min != null && max != null && min > max) throw new ActionException("FILE.BAD_OPTION", "min_size_bytes " + min + " is larger than max_size_bytes " + max, "Swap the two limits.");
+        if (after != null && before != null && !after.isBefore(before))
+            throw new ActionException("FILE.BAD_OPTION", "modified_after " + after + " is not before modified_before " + before, "Choose a date range whose start is before its end.");
+        String glob = pattern == null || pattern.isBlank() ? null : pattern.strip(), folder = source;
+        if (glob == null && source != null) {
+            int cut = Math.max(source.lastIndexOf('/'), source.lastIndexOf('\\'));
+            String name = source.substring(cut + 1);
+            if (name.contains("*") || name.contains("?")) { glob = name; folder = cut < 0 ? "." : source.substring(0, Math.max(cut, 1)); }
+        }
+        if (glob == null) {
+            Path t = transfer(ctx, source, target, overwrite, move, keepBoth);
+            return Out.of("path", t.toString(), "count", BigDecimal.ONE, "files", new ArrayList<Object>(List.of(t.toString())));
+        }
+        Path dir = ctx.resolvePath(folder), to = ctx.resolvePath(target);
+        if (Files.isRegularFile(to)) throw new ActionException("FILE.BAD_TARGET", "The target " + to + " is a file", "With a pattern, the target must be a folder.");
+        List<Object> done = new ArrayList<>();
+        for (String f : files(dir, glob, sub, filter(min, max, null, null))) {
+            Path from = Path.of(f);
+            if (!modifiedBetween(from, after, before)) continue;
+            ctx.checkCancelled();
+            done.add(transfer(from, to.resolve(dir.relativize(from)), overwrite, move, keepBoth).toString());
+        }
+        return Out.of("path", to.toString(), "count", BigDecimal.valueOf(done.size()), "files", done);
     }
 
     /** First free name next to the target: report.pdf, report (2).pdf, report (3).pdf ... */
@@ -338,7 +403,10 @@ public final class FilePackage {
     }
 
     private static Path transfer(ActionContext ctx, String source, String target, boolean overwrite, boolean move, boolean keepBoth) {
-        Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
+        return transfer(ctx.resolvePath(source), ctx.resolvePath(target), overwrite, move, keepBoth);
+    }
+
+    private static Path transfer(Path s, Path t, boolean overwrite, boolean move, boolean keepBoth) {
         if (!Files.isRegularFile(s)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + s, "Check the source path.");
         if (Files.exists(t) && !overwrite) {
             if (!keepBoth) throw new ActionException("FILE.EXISTS", "Target exists: " + t, "Set overwrite to true or choose another name.");
@@ -353,7 +421,8 @@ public final class FilePackage {
     }
 
     @Action(id = "get_info", name = "Get file info", category = "Files", idempotent = true, capabilities = "filesystem",
-            description = "Return a file's name, extension, folder, size and last modified time.")
+            description = "Return a file's name, extension, folder, size and last modified time.",
+            panel = "path")
     @Output(name = "info", type = OoaType.DICTIONARY, description = "name, extension, folder, size_bytes, modified, exists.")
     public Map<String, Object> getInfo(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File path.") String path) {
         Path p = ctx.resolvePath(path);
@@ -372,7 +441,13 @@ public final class FilePackage {
         return Map.of("info", info);
     }
 
-    @Action(id = "zip", name = "Zip", category = "Archives", capabilities = "filesystem", description = "Compress files or a folder into a .zip archive.")
+    public Map<String, Object> zip(ActionContext ctx, String source, String target, String pattern, String compression, boolean overwrite, boolean deleteOriginals) {
+        return zip(ctx, source, target, pattern, compression, overwrite, deleteOriginals, null);
+    }
+
+    @Action(id = "zip", name = "Zip", category = "Archives", capabilities = "filesystem",
+            description = "Compress files or a folder into a .zip archive, optionally protected with a password (AES-256, opened by 7-Zip, WinZip and most tools).",
+            panel = "source, pattern, target, [Protect with a password: password], delete_originals, compression | overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Created archive.")
     public Map<String, Object> zip(ActionContext ctx,
             @Input(name = "source", type = OoaType.FILE, description = "File or folder to compress.") String source,
@@ -381,8 +456,12 @@ public final class FilePackage {
             @Input(name = "compression", type = OoaType.STRING, required = false, defaultValue = "\"normal\"", enumValues = {"normal", "fast", "fastest", "store"},
                     description = "normal: default size and speed; fast and fastest trade size for speed; store adds files uncompressed.") String compression,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing archive; when false an existing archive stops the step.") boolean overwrite,
-            @Input(name = "delete_originals", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete the files that were added once the archive is complete.") boolean deleteOriginals) {
+            @Input(name = "delete_originals", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete the files that were added once the archive is complete.") boolean deleteOriginals,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Encrypt every file with this password (AES-256). Windows Explorer cannot open such archives; 7-Zip, WinZip and most tools can.") Object password) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
+        String pw = password instanceof SecureString ss ? ss.reveal() : password == null ? null : String.valueOf(password);
+        if (pw != null && pw.isEmpty()) throw new ActionException("ZIP.BAD_PASSWORD", "The password is empty", "Pick a credential with a value, or leave the password out.");
         if (!Files.exists(s)) throw new ActionException("FILE.NOT_FOUND", "Not found: " + s, "Check the source path.");
         if (!overwrite && Files.exists(t)) throw new ActionException("FILE.EXISTS", "Archive already exists: " + t, "Set overwrite to true or choose another name.");
         int level = switch (compression == null || compression.isBlank() ? "normal" : compression) {
@@ -394,6 +473,17 @@ public final class FilePackage {
         try {
             if (t.getParent() != null) Files.createDirectories(t.getParent());
             Path abs = t.toAbsolutePath().normalize();
+            if (pw != null) {
+                Path base = Files.isDirectory(s) ? s : s.getParent();
+                List<ZipCrypt.Item> items = new ArrayList<>();
+                try (Stream<Path> walk = Files.walk(s)) {
+                    for (Path f : (Iterable<Path>) walk.filter(Files::isRegularFile).filter(f -> m.matches(f.getFileName())).sorted()::iterator)
+                        if (!f.toAbsolutePath().normalize().equals(abs)) { items.add(new ZipCrypt.Item(base.relativize(f).toString().replace('\\', '/'), f)); added.add(f); }
+                }
+                ZipCrypt.writeAes(t, items, level == java.util.zip.Deflater.DEFAULT_COMPRESSION ? 6 : level, pw);
+                if (deleteOriginals) for (Path f : added) Files.deleteIfExists(f);
+                return Map.of("path", t.toString());
+            }
             try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(t)); Stream<Path> walk = Files.walk(s)) {
                 zos.setLevel(level);
                 Path base = Files.isDirectory(s) ? s : s.getParent();
@@ -410,14 +500,27 @@ public final class FilePackage {
         return Map.of("path", t.toString());
     }
 
+    public Map<String, Object> unzip(ActionContext ctx, String archive, String folder, boolean overwrite) { return unzip(ctx, archive, folder, overwrite, null); }
+
     @Action(id = "unzip", name = "Unzip", category = "Archives", capabilities = "filesystem",
-            description = "Extract a .zip archive into a folder; entries that would escape the folder are rejected.")
+            description = "Extract a .zip archive into a folder, also a password-protected one (AES or the older ZipCrypto); entries that would escape the folder are rejected.",
+            panel = "archive, folder, [The archive has a password: password], overwrite")
     @Output(name = "files", type = OoaType.LIST, description = "Extracted file paths.")
     public Map<String, Object> unzip(ActionContext ctx,
             @Input(name = "archive", type = OoaType.FILE, description = "Archive path.") String archive,
             @Input(name = "folder", type = OoaType.FILE, description = "Destination folder.") String folder,
-            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist; when false they are kept and skipped.") boolean overwrite) {
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace files that already exist; when false they are kept and skipped.") boolean overwrite,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password of a protected archive, from the vault.") Object password) {
         Path a = ctx.resolvePath(archive), dest = ctx.resolvePath(folder).toAbsolutePath().normalize();
+        String pw = password instanceof SecureString ss ? ss.reveal() : password == null ? null : String.valueOf(password);
+        try {
+            if (pw != null || (Files.isRegularFile(a) && ZipCrypt.anyEncrypted(a))) {
+                Files.createDirectories(dest);
+                return Map.of("files", ZipCrypt.extract(a, dest, overwrite, pw));
+            }
+        } catch (NoSuchFileException e) {
+            throw new ActionException("FILE.NOT_FOUND", "Archive not found: " + a, "Check the path.");
+        } catch (IOException e) { throw io("unzip", a, e); }
         List<Object> out = new ArrayList<>();
         try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(a))) {
             Files.createDirectories(dest);
@@ -440,7 +543,8 @@ public final class FilePackage {
     // ---------- Path parts ----------
 
     @Action(id = "get_name", name = "Get file name", category = "Paths", idempotent = true,
-            description = "Return the last part of a path, with and without its extension; the file does not need to exist.")
+            description = "Return the last part of a path, with and without its extension; the file does not need to exist.",
+            panel = "path")
     @Output(name = "name", type = OoaType.STRING, description = "Name with extension, e.g. report.pdf.")
     @Output(name = "name_without_extension", type = OoaType.STRING, description = "Name without the last extension, e.g. report.")
     @Output(name = "extension", type = OoaType.STRING, description = "Extension without the dot, e.g. pdf; empty when there is none.")
@@ -453,7 +557,8 @@ public final class FilePackage {
     }
 
     @Action(id = "get_parent", name = "Get parent folder", category = "Paths", idempotent = true,
-            description = "Return the folder that contains a file or folder, as a full path.")
+            description = "Return the folder that contains a file or folder, as a full path.",
+            panel = "path")
     @Output(name = "folder", type = OoaType.FILE, description = "Parent folder, or empty for a drive or root.")
     public Map<String, Object> getParent(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "File or folder path.") String path) {
         Path parent = ctx.resolvePath(path).toAbsolutePath().normalize().getParent();
@@ -541,7 +646,8 @@ public final class FilePackage {
     }
 
     @Action(id = "create_shortcut", name = "Create shortcut", category = "Files", capabilities = "filesystem",
-            description = "Create a shortcut that opens a file: a .lnk file on Windows, a .desktop file or symbolic link elsewhere.")
+            description = "Create a shortcut that opens a file: a .lnk file on Windows, a .desktop file or symbolic link elsewhere.",
+            panel = "path, shortcut | arguments, working_folder, comment, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Created shortcut.")
     public Map<String, Object> createShortcut(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File the shortcut opens.") String path,
@@ -555,7 +661,8 @@ public final class FilePackage {
     }
 
     @Action(id = "create_symbolic_link", name = "Create symbolic link", category = "Files", capabilities = "filesystem",
-            description = "Create a symbolic link that points to a file; on Windows this needs Developer Mode or administrator rights.")
+            description = "Create a symbolic link that points to a file; on Windows this needs Developer Mode or administrator rights.",
+            panel = "path, link | overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Created link.")
     public Map<String, Object> createSymbolicLink(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File the link points to.") String path,
@@ -565,7 +672,8 @@ public final class FilePackage {
     }
 
     @Action(id = "print_files", name = "Print files", category = "Files", timeoutSeconds = 600, capabilities = "filesystem",
-            description = "Print several files, in order, on a named printer or with each file's default application.")
+            description = "Print several files, in order, on a named printer or with each file's default application.",
+            panel = "(Print: Listed files = files / Files in a folder = folder, pattern, include_subfolders, modified_within_days), printer, copies")
     @Output(name = "printed", type = OoaType.NUMBER, description = "Number of files sent to the printer.")
     public Map<String, Object> printFiles(ActionContext ctx,
             @Input(name = "files", type = OoaType.LIST, required = false, visibleWhen = "folder=", description = "File paths to print (or use folder).") List<Object> files,

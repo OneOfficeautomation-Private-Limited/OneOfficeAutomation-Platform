@@ -52,11 +52,18 @@ async function page() {
   const menuPages = () => [...d.querySelectorAll("#nav > button:not(.nav-collapse), #nav .nav-fly button")].map((b) => b.textContent);
   const navItems = menuPages();
   const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
-  check("the menu has short sections: Automation, Operations, AI, Manage, Administration", groups.join("|") === "Automation|Operations|AI|Manage|Administration", groups.join("|"));
-  check("an administrator sees Home and all 22 pages, each once", navItems.length === 23 && new Set(navItems).size === 23 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
+  check("the menu has short sections: Build, Manage, Operations, Administration, AI", groups.join("|") === "Build|Manage|Operations|Administration|AI", groups.join("|"));
+  check("an administrator sees Home and all 23 pages, each once", navItems.length === 24 && new Set(navItems).size === 24 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
-  check("Administration holds users, roles, audit and settings", ["Users", "Roles", "Teams", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
+  check("Administration holds users, roles, licenses, audit and settings", ["Users", "Roles", "Teams", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
+  nav("Licenses");
+  check("Licenses says no license is installed and lists seats, people and runners", await until(() => { const t = d.getElementById("main").textContent; return t.includes("No license installed") && t.includes("Unattended Runner") && t.includes("Install license"); }),
+    d.getElementById("main").textContent.slice(0, 300));
+  const badLicense = await P.w.fetch("/api/license", { method: "POST", headers: { "Content-Type": "application/json", "X-OOA-Request": "1" }, body: JSON.stringify({ content: "{\"format\":\"ooa-license-1\",\"payload\":\"e30=\",\"signature\":\"AAAA\"}" }) });
+  check("a license file with a wrong signature is refused", badLicense.status === 400 && (await badLicense.json()).error.code === "LICENSE.INVALID");
+  nav("Home");
+  await until(() => d.querySelectorAll("#main .tile").length >= 6);
   check("on Home only the sections show, no section is open", !d.querySelector("#nav .nav-items"));
   click(d.querySelector('#nav .nav-group[data-group="manage"]'));
   check("a section opens to show its pages", await until(() => [...d.querySelectorAll('#nav .nav-section[aria-label="Manage"] .nav-items button')].map((b) => b.textContent).includes("One Agent Vault")));
@@ -78,6 +85,13 @@ async function page() {
   check("home shows hours saved", d.getElementById("main").textContent.includes("Hours saved (30 days)"));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
+  // Home redraws itself: an agent checked in elsewhere shows up, and a deleted one no longer counts, without leaving the page
+  const agentsTile = () => { const t = [...d.querySelectorAll("#main .tile")].find((x) => x.querySelector(".l") && x.querySelector(".l").textContent === "Agents in the agent repository"); return t ? t.querySelector(".n").textContent : null; };
+  const post = (u, b) => P.w.fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "X-OOA-Request": "1" }, body: JSON.stringify(b) });
+  await post("/api/repo/checkin", { path: "Live/Refresh check.flow.json", comment: "live refresh", flow: { kind: "TaskBot", id: "live_refresh", name: "Refresh check", description: "t", variables: [], steps: [] } });
+  check("Home updates by itself when an agent is checked in", await until(() => agentsTile() === "1", 12000), agentsTile());
+  await post("/api/repo/delete", { path: "Live/Refresh check.flow.json" });
+  check("and a deleted agent no longer counts", await until(() => agentsTile() === "0", 12000), agentsTile());
   nav("Agent Runs");
   check("Activity has In progress and History tabs with an empty state", await until(() => d.getElementById("main").textContent.includes("Live") && d.getElementById("main").textContent.includes("Nothing is running")));
   click([...d.querySelectorAll("#main .tabs .tab")].find((b) => b.textContent.startsWith("History")));

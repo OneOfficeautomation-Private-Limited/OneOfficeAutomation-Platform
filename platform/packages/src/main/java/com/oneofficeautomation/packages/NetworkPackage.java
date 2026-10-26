@@ -12,7 +12,8 @@ import java.util.*;
 @OoaPackage(id = "ooa.network", name = "Network", version = "1.0.0", description = "Check whether hosts and ports are reachable, and read or change devices over SNMP v2c.")
 public final class NetworkPackage {
 
-    @Action(id = "ping", name = "Ping", category = "Network", idempotent = true, capabilities = "network", description = "Check whether a host answers, and how fast.")
+    @Action(id = "ping", name = "Ping", category = "Network", idempotent = true, capabilities = "network", description = "Check whether a host answers, and how fast.",
+            panel = "host, count | timeout_ms, interval_ms")
     @Output(name = "reachable", type = OoaType.BOOLEAN, description = "True when the host answered.")
     @Output(name = "response_ms", type = OoaType.NUMBER, description = "Round-trip time in milliseconds (the average of the answered attempts).")
     @Output(name = "replies", type = OoaType.NUMBER, description = "How many attempts were answered.")
@@ -40,7 +41,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "check_port", name = "Check port", category = "Network", idempotent = true, capabilities = "network",
-            description = "Check whether a TCP port accepts connections, e.g. a database on port 1433.")
+            description = "Check whether a TCP port accepts connections, e.g. a database on port 1433.",
+            panel = "host, port | timeout_ms")
     @Output(name = "open", type = OoaType.BOOLEAN, description = "True when the port accepted a connection.")
     public Map<String, Object> checkPort(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Host name or IP address.") String host,
@@ -361,7 +363,8 @@ public final class NetworkPackage {
     private static final String D_RETRIES = "Extra attempts after a timeout.";
 
     @Action(id = "snmp_get", name = "SNMP get", category = "SNMP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
-            description = "Read one or more values from a device with SNMP v2c.")
+            description = "Read one or more values from a device with SNMP v2c.",
+            panel = "host, version, community, oids | timeout_ms, port, retries")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "OID to value; empty for objects the device does not have.")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     public Map<String, Object> snmpGet(ActionContext ctx,
@@ -384,7 +387,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_get_next", name = "SNMP get next", category = "SNMP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
-            description = "Read the object that follows an OID in the device's tree (SNMP v2c GETNEXT).")
+            description = "Read the object that follows an OID in the device's tree (SNMP v2c GETNEXT).",
+            panel = "host, version, community, oid | timeout_ms, port, retries")
     @Output(name = "oid", type = OoaType.STRING, description = "OID of the next object.")
     @Output(name = "type", type = OoaType.STRING, description = "Value type, e.g. integer, string, end_of_mib_view.")
     @Output(name = "value", description = "Value of the next object.")
@@ -403,7 +407,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_walk", name = "SNMP walk", category = "SNMP", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests.")
+            description = "Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests.",
+            panel = "host, version, community, oid | timeout_ms, port, retries, max_rows")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of objects read.")
     public Map<String, Object> snmpWalk(ActionContext ctx,
@@ -439,7 +444,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_set", name = "SNMP set", category = "SNMP", timeoutSeconds = 120, capabilities = "network",
-            description = "Change one value on a device with SNMP v2c; the community must have write access.")
+            description = "Change one value on a device with SNMP v2c; the community must have write access.",
+            panel = "host, version, community, oid, value_type, value | timeout_ms, port, retries")
     @Output(name = "value", description = "Value the device reports after the change.")
     public Map<String, Object> snmpSet(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = D_HOST) String host,
@@ -463,7 +469,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_send_trap", name = "SNMP send trap", category = "SNMP", timeoutSeconds = 60, capabilities = "network",
-            description = "Send an SNMP v2c notification (trap) to a monitoring system.")
+            description = "Send an SNMP v2c notification (trap) to a monitoring system.",
+            panel = "host, community, trap_oid, variables | port")
     public Map<String, Object> snmpSendTrap(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Monitoring system host name or IP address.") String host,
             @Input(name = "trap_oid", type = OoaType.STRING, example = "1.3.6.1.4.1.99999.0.1", description = "OID that identifies the kind of notification.") String trapOid,

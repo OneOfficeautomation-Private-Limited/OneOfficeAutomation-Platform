@@ -54,7 +54,8 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
-            description = "Get an OAuth access token from the instance (user and password, or client credentials) for the other ServiceNow actions.")
+            description = "Get an OAuth access token from the instance (user and password, or client credentials) for the other ServiceNow actions.",
+            panel = "instance_url, grant_type, client_id, client_secret, user, password")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "refresh_token", type = OoaType.CREDENTIAL, description = "Refresh token, when the instance returns one.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires.")
@@ -85,7 +86,8 @@ public final class ServiceNowPackage {
                 "expires_in", r.get("expires_in") == null ? null : Values.toNumber(r.get("expires_in")));
     }
 
-    @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access or refresh token so it can no longer be used.")
+    @Action(id = "revoke_authentication", name = "Revoke authentication", category = "Authentication", capabilities = "network", description = "Revoke an access or refresh token so it can no longer be used.",
+            panel = "instance_url, client_id, client_secret, token")
     public Map<String, Object> revoke(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "client_id", type = OoaType.STRING, description = "Client id of the OAuth application.") String clientId,
@@ -122,7 +124,8 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "query", name = "Query records", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Return records matching an encoded query (as copied from a ServiceNow list filter).")
+            description = "Return records matching an encoded query (as copied from a ServiceNow list filter).",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, query, filter, fields | max_records, display_value, order_by, offset, exclude_reference_link")
     @Output(name = "table", type = OoaType.TABLE, description = "Records.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     public Map<String, Object> query(ActionContext ctx,
@@ -173,7 +176,8 @@ public final class ServiceNowPackage {
         return query(ctx, instance, t, q, fields, max, user, password, token, "true", null, 0, true);
     }
 
-    @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network", description = "Read one record by sys_id.")
+    @Action(id = "get_record", name = "Get record", category = "Records", idempotent = true, capabilities = "network", description = "Read one record by sys_id.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | display_value")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "Field values.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
@@ -199,7 +203,8 @@ public final class ServiceNowPackage {
         return get(ctx, instance, t, id, user, password, token, null, "true");
     }
 
-    @Action(id = "create_record", name = "Create record", category = "Records", capabilities = "network", description = "Create a record, e.g. an incident; returns its sys_id and number.")
+    @Action(id = "create_record", name = "Create record", category = "Records", capabilities = "network", description = "Create a record, e.g. an incident; returns its sys_id and number.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, fields | input_display_value")
     @Output(name = "sys_id", type = OoaType.STRING, description = "New sys_id.")
     @Output(name = "number", type = OoaType.STRING, description = "Record number, e.g. INC0012345.")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The new record as the instance returned it.")
@@ -220,7 +225,8 @@ public final class ServiceNowPackage {
         return create(ctx, instance, t, fields, user, password, token, false);
     }
 
-    @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of a record.")
+    @Action(id = "update_record", name = "Update record", category = "Records", capabilities = "network", description = "Change fields of a record.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, fields | input_display_value")
     @Output(name = "record", type = OoaType.DICTIONARY, description = "The record after the change, as the instance returned it.")
     public Map<String, Object> update(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
@@ -240,7 +246,8 @@ public final class ServiceNowPackage {
         return update(ctx, instance, t, id, fields, user, password, token, false);
     }
 
-    @Action(id = "add_comment", name = "Add comment or work note", category = "Records", capabilities = "network", description = "Add a customer-visible comment or an internal work note.")
+    @Action(id = "add_comment", name = "Add comment or work note", category = "Records", capabilities = "network", description = "Add a customer-visible comment or an internal work note.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, text, internal")
     public Map<String, Object> comment(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
@@ -254,7 +261,8 @@ public final class ServiceNowPackage {
         return Map.of();
     }
 
-    @Action(id = "attach_file", name = "Attach file", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to a record.")
+    @Action(id = "attach_file", name = "Attach file", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to a record.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id, path | file_name, content_type")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id.")
     public Map<String, Object> attach(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
@@ -286,7 +294,8 @@ public final class ServiceNowPackage {
         return attach(ctx, instance, t, id, path, user, password, token, null, null);
     }
 
-    @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Delete an attachment by its sys_id.")
+    @Action(id = "delete_attachment", name = "Delete attachment", category = "Attachments", capabilities = "network", description = "Delete an attachment by its sys_id.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id")
     public Map<String, Object> deleteAttachment(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "attachment_id", type = OoaType.STRING, description = "Attachment sys_id, from List attachments.") String id,
@@ -299,7 +308,8 @@ public final class ServiceNowPackage {
 
     // ---- Delete, attachments and change polling ----
 
-    @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record by sys_id.")
+    @Action(id = "delete_record", name = "Delete record", category = "Records", capabilities = "network", description = "Delete a record by sys_id.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id")
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
             @Input(name = "table", type = OoaType.STRING, description = "Table name.") String t,
@@ -311,7 +321,8 @@ public final class ServiceNowPackage {
         return Map.of();
     }
 
-    @Action(id = "list_attachments", name = "List attachments", category = "Attachments", idempotent = true, capabilities = "network", description = "List the files attached to a record.")
+    @Action(id = "list_attachments", name = "List attachments", category = "Attachments", idempotent = true, capabilities = "network", description = "List the files attached to a record.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, sys_id")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: sys_id, file_name, content_type, size_bytes, created_on.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of attachments.")
     public Map<String, Object> listAttachments(ActionContext ctx,
@@ -332,7 +343,8 @@ public final class ServiceNowPackage {
     }
 
     @Action(id = "download_attachment", name = "Download attachment", category = "Attachments", idempotent = true, timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save an attachment to a local folder under its original file name.")
+            description = "Save an attachment to a local folder under its original file name.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), attachment_id, folder | file_name, overwrite")
     @Output(name = "path", type = OoaType.FILE, description = "Saved file.")
     public Map<String, Object> downloadAttachment(ActionContext ctx,
             @Input(name = "instance_url", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_URL) String instance,
@@ -362,7 +374,8 @@ public final class ServiceNowPackage {
     private static final Pattern STAMP = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}([ T]\\d{2}:\\d{2}(:\\d{2})?)?$");
 
     @Action(id = "list_changed_records", name = "List changed records", category = "Records", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Return records created or updated after a point in time, oldest first, for polling-style triggers.")
+            description = "Return records created or updated after a point in time, oldest first, for polling-style triggers.",
+            panel = "instance_url, (Sign in with: User name and password = user, password / An access token = access_token), table, since, query, fields | max_records")
     @Output(name = "table", type = OoaType.TABLE, description = "Changed records (values as stored, times in UTC).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of records.")
     @Output(name = "latest", type = OoaType.STRING, description = "Newest sys_updated_on seen; pass it as since on the next poll (equal to since when nothing changed).")

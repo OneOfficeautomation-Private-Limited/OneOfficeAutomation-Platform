@@ -9,7 +9,8 @@ import java.util.regex.PatternSyntaxException;
 public final class StringPackage {
 
     @Action(id = "extract_text", name = "Extract text", category = "Text", idempotent = true,
-            description = "Return the text before, after or between markers.")
+            description = "Return the text before, after or between markers.",
+            panel = "text, after, after_occurrence, before, before_occurrence, if_not_found, [Limit the length: max_length], ignore_case, trim, remove_line_breaks | until")
     @Output(name = "result", type = OoaType.STRING, description = "Extracted text, empty when a marker is missing.")
     public Map<String, Object> extractText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -64,7 +65,8 @@ public final class StringPackage {
         return i;
     }
 
-    @Action(id = "replace", name = "Replace", category = "Text", idempotent = true, description = "Replace text, optionally using a regular expression.")
+    @Action(id = "replace", name = "Replace", category = "Text", idempotent = true, description = "Replace text, optionally using a regular expression.",
+            panel = "text, find, ignore_case, regex, start, count, replace_with")
     @Output(name = "result", type = OoaType.STRING, description = "Text after replacement.")
     public Map<String, Object> replace(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -96,7 +98,8 @@ public final class StringPackage {
         }
     }
 
-    @Action(id = "split", name = "Split", category = "Text", idempotent = true, description = "Split text into a list by a delimiter.")
+    @Action(id = "split", name = "Split", category = "Text", idempotent = true, description = "Split text into a list by a delimiter.",
+            panel = "text, delimiter, ignore_case, max_parts | trim_items, regex, remove_empty")
     @Output(name = "items", type = OoaType.LIST, description = "List of parts.")
     public Map<String, Object> split(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -122,7 +125,8 @@ public final class StringPackage {
         return Map.of("items", items);
     }
 
-    @Action(id = "change_case", name = "Change case", category = "Text", idempotent = true, description = "Convert text to upper, lower, title or sentence case.")
+    @Action(id = "change_case", name = "Change case", category = "Text", idempotent = true, description = "Convert text to upper, lower, title or sentence case.",
+            panel = "text, case")
     @Output(name = "result", type = OoaType.STRING, description = "Converted text.")
     public Map<String, Object> changeCase(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -154,7 +158,8 @@ public final class StringPackage {
     // ---- Comparison, search and measurement ----
 
     @Action(id = "compare", name = "Compare", category = "Text", idempotent = true,
-            description = "Compare two texts exactly, ignoring case, or in natural order where numbers inside the text are compared by value.")
+            description = "Compare two texts exactly, ignoring case, or in natural order where numbers inside the text are compared by value.",
+            panel = "text, other, mode | ignore_line_breaks")
     @Output(name = "result", type = OoaType.NUMBER, description = "-1 when the first text comes first, 0 when they are equal, 1 when it comes after.")
     @Output(name = "equal", type = OoaType.BOOLEAN, description = "True when the texts are equal under the chosen mode.")
     public Map<String, Object> compare(ActionContext ctx,
@@ -198,7 +203,8 @@ public final class StringPackage {
     }
 
     @Action(id = "find", name = "Find", category = "Text", idempotent = true,
-            description = "Find where a text (or regular expression) first appears, starting from a position.")
+            description = "Find where a text (or regular expression) first appears, starting from a position.",
+            panel = "text, find, ignore_case, regex, start | occurrence, group")
     @Output(name = "index", type = OoaType.NUMBER, description = "Zero-based position of the match, or -1 when not found.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a match was found.")
     @Output(name = "match", type = OoaType.STRING, description = "The matched text (or the chosen group), empty when not found.")
@@ -253,14 +259,16 @@ public final class StringPackage {
         return find(ctx, text, find, regex, start, ignoreCase, occurrence, 0);
     }
 
-    @Action(id = "length", name = "Get length", category = "Text", idempotent = true, description = "Count the characters in a text.")
+    @Action(id = "length", name = "Get length", category = "Text", idempotent = true, description = "Count the characters in a text.",
+            panel = "text")
     @Output(name = "length", type = OoaType.NUMBER, description = "Number of characters.")
     public Map<String, Object> length(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to measure.") String text) {
         return Out.of("length", java.math.BigDecimal.valueOf(text == null ? 0 : text.codePointCount(0, text.length())));
     }
 
     @Action(id = "substring", name = "Get part of text", category = "Text", idempotent = true,
-            description = "Return the part of a text from a start position, for a length or up to an end position.")
+            description = "Return the part of a text from a start position, for a length or up to an end position.",
+            panel = "text, start, (Take: Up to the end = / A number of characters = length / Up to a position = end), if_out_of_range")
     @Output(name = "result", type = OoaType.STRING, description = "The selected part of the text.")
     public Map<String, Object> substring(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -284,7 +292,8 @@ public final class StringPackage {
     }
 
     @Action(id = "trim", name = "Trim", category = "Text", idempotent = true,
-            description = "Remove spaces, or the characters you list, from both ends, the start or the end of a text.")
+            description = "Remove spaces, or the characters you list, from both ends, the start or the end of a text.",
+            panel = "text, side | characters")
     @Output(name = "result", type = OoaType.STRING, description = "Trimmed text.")
     public Map<String, Object> trim(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -299,7 +308,8 @@ public final class StringPackage {
         return Out.of("result", text.substring(a, b));
     }
 
-    @Action(id = "reverse", name = "Reverse", category = "Text", idempotent = true, description = "Return the text with its characters in reverse order.")
+    @Action(id = "reverse", name = "Reverse", category = "Text", idempotent = true, description = "Return the text with its characters in reverse order.",
+            panel = "text")
     @Output(name = "result", type = OoaType.STRING, description = "Reversed text.")
     public Map<String, Object> reverse(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text) {
         return Out.of("result", new StringBuilder(text).reverse().toString());
@@ -308,7 +318,8 @@ public final class StringPackage {
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     @Action(id = "random_string", name = "Random text", category = "Text",
-            description = "Generate random text of a given length from letters, digits and/or symbols.")
+            description = "Generate random text of a given length from letters, digits and/or symbols.",
+            panel = "length | letters, digits, symbols, letter_case, exclude_characters")
     @Output(name = "result", type = OoaType.STRING, description = "Random text.")
     public Map<String, Object> randomString(ActionContext ctx,
             @Input(name = "length", type = OoaType.NUMBER, required = false, defaultValue = "12", min = 1, max = 100000, description = "Number of characters.") int length,
@@ -332,7 +343,8 @@ public final class StringPackage {
     // ---- Number conversion ----
 
     @Action(id = "to_number", name = "Text to number", category = "Text", idempotent = true,
-            description = "Read a number from text written for a locale, or with the decimal and grouping separators you give.")
+            description = "Read a number from text written for a locale, or with the decimal and grouping separators you give.",
+            panel = "text | locale, decimal_separator, grouping_separator")
     @Output(name = "result", type = OoaType.NUMBER, description = "The number.")
     public Map<String, Object> toNumber(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, example = "1.234,56", description = "Text such as 1,234.56 or 1.234,56.") String text,
@@ -357,7 +369,8 @@ public final class StringPackage {
     }
 
     @Action(id = "to_locale_number", name = "Number to locale text", category = "Text", idempotent = true,
-            description = "Write a number as text using the separators of a locale, e.g. 1.234,5 for de-DE.")
+            description = "Write a number as text using the separators of a locale, e.g. 1.234,5 for de-DE.",
+            panel = "value, locale | decimals, grouping")
     @Output(name = "result", type = OoaType.STRING, description = "Formatted number.")
     public Map<String, Object> toLocaleNumber(ActionContext ctx,
             @Input(name = "value", type = OoaType.NUMBER, description = "Number to write.") java.math.BigDecimal value,

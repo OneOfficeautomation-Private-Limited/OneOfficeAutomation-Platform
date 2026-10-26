@@ -21,6 +21,9 @@ import java.util.regex.Pattern;
 public final class CurrencyPackage {
     static final String P = "CURRENCY";
     static final String ECB_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
+    /** The ECB's published history files: the last 90 days, and every day since 1999 (larger). */
+    static final String ECB_90D_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml";
+    static final String ECB_HIST_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml";
     static final String CACHE = "_ooa.currency.rates";
     static final MathContext MC = MathContext.DECIMAL64;
 
@@ -139,6 +142,46 @@ public final class CurrencyPackage {
         return cur;
     }
 
+    private static final Pattern ECB_DAY = Pattern.compile("<Cube\\s+time=['\"]([0-9]{4}-[0-9]{2}-[0-9]{2})['\"]\\s*>(.*?)</Cube>", Pattern.DOTALL);
+
+    /** Every day of an ECB history file, by ISO date. */
+    static TreeMap<String, Rates> ecbHistory(String xml) {
+        TreeMap<String, Rates> days = new TreeMap<>();
+        Matcher m = ECB_DAY.matcher(xml == null ? "" : xml);
+        while (m.find()) {
+            Map<String, BigDecimal> rates = new TreeMap<>();
+            Matcher r = ECB_RATE.matcher(m.group(2));
+            while (r.find()) rates.put(r.group(1).toUpperCase(Locale.ROOT), new BigDecimal(r.group(2)));
+            if (!rates.isEmpty()) days.put(m.group(1), new Rates("EUR", rates, m.group(1), "ECB"));
+        }
+        if (days.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "The ECB history contained no exchange rates", "Check the url returns the eurofxref history XML.", true);
+        return days;
+    }
+
+    /**
+     * The ECB rates of a past day: that day's, or the latest earlier working day's (the ECB publishes none on weekends
+     * and holidays). Recent dates use the 90-day file, older ones the full history; a url replaces both.
+     */
+    @SuppressWarnings("unchecked")
+    static Rates ecbOn(ActionContext ctx, java.time.LocalDate day, String url) {
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+        if (day.isAfter(today)) throw new ActionException(P + ".BAD_DATE", "The date " + day + " is in the future", "Give today's date or an earlier one.");
+        String address = url != null && !url.isBlank() ? url.strip() : day.isAfter(today.minusDays(85)) ? ECB_90D_URL : ECB_HIST_URL;
+        Map<String, TreeMap<String, Rates>> cache = (Map<String, TreeMap<String, Rates>>) ctx.sessions().computeIfAbsent(CACHE + ".history", k -> new ConcurrentHashMap<String, TreeMap<String, Rates>>());
+        TreeMap<String, Rates> days = cache.get(address);
+        if (days == null) {
+            HttpJson.Response r = HttpJson.req(P, "GET", address).header("Accept", "application/xml, text/xml, */*").timeout(120).send(ctx);
+            days = ecbHistory(r.text());
+            cache.put(address, days);
+            ctx.info("Loaded ECB exchange rates for " + days.size() + " days from " + HttpJson.host(address));
+        }
+        Map.Entry<String, Rates> e = days.floorEntry(day.toString());
+        if (e == null || java.time.LocalDate.parse(e.getKey()).isBefore(day.minusDays(10)))
+            throw new ActionException(P + ".NO_RATE_FOR_DATE", "The ECB has no rates on or shortly before " + day + " (its file starts " + days.firstKey() + ")",
+                    "ECB reference rates start on 1999-01-04; choose a later date.");
+        return e.getValue();
+    }
+
     static BigDecimal rate(Rates r, String from, String to) {
         return r.rate(to).divide(r.rate(from), MC);
     }
@@ -146,7 +189,8 @@ public final class CurrencyPackage {
     // ---------- actions ----------
 
     @Action(id = "convert", name = "Convert amount", category = "Currency", timeoutSeconds = 60, capabilities = "network",
-            description = "Convert an amount from one currency to another using the chosen rate source.")
+            description = "Convert an amount from one currency to another using the chosen rate source.",
+            panel = "amount, from_currency, to_currency | [Use the rates of a past day: date], decimals, source, url, rates_path, base_currency, rates")
     @Output(name = "amount", type = OoaType.NUMBER, description = "Converted amount, rounded to 'decimals'.")
     @Output(name = "rate", type = OoaType.NUMBER, description = "Rate used: units of the target currency for one unit of the source currency.")
     @Output(name = "rate_date", type = OoaType.STRING, description = "Date of the rates when the source gives one, otherwise empty.")
@@ -159,17 +203,33 @@ public final class CurrencyPackage {
             @Input(name = "url", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_URL) String url,
             @Input(name = "rates_path", type = OoaType.STRING, required = false, visibleWhen = "source=json", description = D_PATH) String path,
             @Input(name = "base_currency", type = OoaType.STRING, required = false, visibleWhen = "source=json|fixed", description = D_BASE) String base,
-            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed) {
+            @Input(name = "rates", type = OoaType.DICTIONARY, required = false, visibleWhen = "source=fixed", description = D_RATES) Map<String, Object> fixed,
+            @Input(name = "date", type = OoaType.DATETIME, required = false, example = "2026-03-31",
+                    description = "Convert at the rates of this past day (ecb source only); on a weekend or holiday the last working day before it is used. Today's rates when empty.") Object date) {
         if (amount == null) throw new ActionException(P + ".NO_AMOUNT", "Give an amount to convert");
         if (decimals < 0 || decimals > 12) throw new ActionException(P + ".BAD_DECIMALS", "decimals must be between 0 and 12");
-        Rates r = rates(ctx, source, url, path, base, fixed);
+        Rates r;
+        if (date != null && !(date instanceof String ds && ds.isBlank())) {
+            String src = source == null || source.isBlank() ? "ecb" : source;
+            if (!src.equals("ecb")) throw new ActionException(P + ".DATE_NOT_SUPPORTED", "A past date works only with the ecb source", "Use source ecb, or leave date empty.");
+            java.time.LocalDate day;
+            try { day = Values.toDateTime(date).toLocalDate(); }
+            catch (OoaException e) { throw new ActionException(P + ".BAD_DATE", "Cannot read " + Values.safeRepr(date) + " as a date", "Use a date such as 2026-03-31."); }
+            r = ecbOn(ctx, day, url);
+        } else r = rates(ctx, source, url, path, base, fixed);
         BigDecimal rate = rate(r, from, to);
         return Out.of("amount", amount.multiply(rate, MC).setScale(decimals, RoundingMode.HALF_UP), "rate", rate.stripTrailingZeros(),
                 "rate_date", r.date() == null ? "" : r.date());
     }
 
+    public Map<String, Object> convert(ActionContext ctx, BigDecimal amount, String from, String to, int decimals, String source, String url, String path,
+            String base, Map<String, Object> fixed) {
+        return convert(ctx, amount, from, to, decimals, source, url, path, base, fixed, null);
+    }
+
     @Action(id = "get_rate", name = "Get exchange rate", category = "Currency", timeoutSeconds = 60, capabilities = "network",
-            description = "Return how many units of the target currency one unit of the source currency buys.")
+            description = "Return how many units of the target currency one unit of the source currency buys.",
+            panel = "from_currency, to_currency | source, url, rates_path, base_currency, rates")
     @Output(name = "rate", type = OoaType.NUMBER, description = "Exchange rate.")
     @Output(name = "rate_date", type = OoaType.STRING, description = "Date of the rates when the source gives one, otherwise empty.")
     public Map<String, Object> getRate(ActionContext ctx,
@@ -185,7 +245,8 @@ public final class CurrencyPackage {
     }
 
     @Action(id = "list_currencies", name = "List currencies", category = "Currency", timeoutSeconds = 60, capabilities = "network",
-            description = "List the currency codes the chosen rate source can convert, with each rate against its base currency.")
+            description = "List the currency codes the chosen rate source can convert, with each rate against its base currency.",
+            panel = "source, url, rates_path, base_currency, rates")
     @Output(name = "currencies", type = OoaType.LIST, description = "Currency codes, sorted, including the base currency.")
     @Output(name = "rates", type = OoaType.DICTIONARY, description = "Code to rate against the base currency.")
     @Output(name = "base_currency", type = OoaType.STRING, description = "Currency the rates are quoted against.")

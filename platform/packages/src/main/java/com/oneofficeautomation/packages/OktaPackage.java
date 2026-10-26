@@ -85,7 +85,8 @@ public final class OktaPackage {
     // ----- users -----
 
     @Action(id = "create_user", name = "Create user", category = "Users", capabilities = "network",
-            description = "Add a new person to Okta, optionally with a starting password and group memberships.")
+            description = "Add a new person to Okta, optionally with a starting password and group memberships.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), login, password, email, first_name, last_name, activate | profile_fields, group_ids")
     @Output(name = "user_id", type = OoaType.STRING, description = "Okta id of the new user.")
     @Output(name = "status", type = OoaType.STRING, description = "Account status, e.g. ACTIVE, PROVISIONED or STAGED.")
     public Map<String, Object> createUser(ActionContext ctx,
@@ -114,7 +115,8 @@ public final class OktaPackage {
         return Out.of("user_id", r.get("id"), "status", r.get("status"));
     }
 
-    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Look up one person by Okta id or sign-in name.")
+    @Action(id = "get_user", name = "Get user", category = "Users", idempotent = true, capabilities = "network", description = "Look up one person by Okta id or sign-in name.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, status, login, email, first_name, last_name, created, last_login.")
     @Output(name = "profile", type = OoaType.DICTIONARY, description = "All profile values held in Okta.")
     public Map<String, Object> getUser(ActionContext ctx,
@@ -127,7 +129,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "update_user", name = "Update user profile", category = "Users", capabilities = "network",
-            description = "Change selected profile values; values you leave out stay as they are.")
+            description = "Change selected profile values; values you leave out stay as they are.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, profile_fields")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "The user after the change.")
     public Map<String, Object> updateUser(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
@@ -141,7 +144,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "activate_user", name = "Activate user", category = "User status", capabilities = "network",
-            description = "Activate a staged or newly created account.")
+            description = "Activate a staged or newly created account.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, send_email")
     @Output(name = "activation_url", type = OoaType.STRING, description = "One-time activation link when no email is sent; empty otherwise.")
     public Map<String, Object> activate(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
@@ -154,7 +158,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "deactivate_user", name = "Deactivate user", category = "User status", capabilities = "network",
-            description = "Turn off an account so the person can no longer sign in. Their app access is removed.")
+            description = "Turn off an account so the person can no longer sign in. Their app access is removed.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user | send_email")
     public Map<String, Object> deactivate(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
@@ -166,7 +171,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "suspend_user", name = "Suspend user", category = "User status", capabilities = "network",
-            description = "Block sign-in for an active account for now, keeping its app assignments.")
+            description = "Block sign-in for an active account for now, keeping its app assignments.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> suspend(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
@@ -177,7 +183,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "unsuspend_user", name = "Unsuspend user", category = "User status", capabilities = "network",
-            description = "Let a suspended person sign in again.")
+            description = "Let a suspended person sign in again.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> unsuspend(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
@@ -188,7 +195,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "delete_user", name = "Delete user", category = "Users", capabilities = "network",
-            description = "Remove a person from Okta for good. An account that is still active is deactivated first.")
+            description = "Remove a person from Okta for good. An account that is still active is deactivated first.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     public Map<String, Object> deleteUser(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
@@ -202,7 +210,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "reset_password", name = "Reset password", category = "User status", capabilities = "network",
-            description = "Start a password reset. The person gets an email, or you get a one-time reset link to pass on.")
+            description = "Start a password reset. The person gets an email, or you get a one-time reset link to pass on.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user, send_email")
     @Output(name = "reset_url", type = OoaType.STRING, description = "One-time reset link when no email is sent; empty otherwise.")
     public Map<String, Object> resetPassword(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
@@ -215,7 +224,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "list_users", name = "List users", category = "Users", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return people that match a quick text search or an Okta filter expression.")
+            description = "Return people that match a quick text search or an Okta filter expression.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), (Users: All users = / Name or email starts with = search_text / Matching a search expression = filter) | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, status, login, email, first_name, last_name, created, last_login.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of users returned.")
     public Map<String, Object> listUsers(ActionContext ctx,
@@ -236,8 +246,13 @@ public final class OktaPackage {
 
     // ----- groups -----
 
+    public Map<String, Object> listGroups(ActionContext ctx, String org, String q, int max, Object apiToken, Object accessToken) {
+        return listGroups(ctx, org, q, max, apiToken, accessToken, null);
+    }
+
     @Action(id = "list_groups", name = "List groups", category = "Groups", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return groups, optionally only those whose name starts with some text.")
+            description = "Return groups, optionally only those whose name starts with some text or that match a search expression.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), (Groups: All groups = / Name starts with = name_starts_with / Search expression = search) | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, type.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of groups returned.")
     public Map<String, Object> listGroups(ActionContext ctx,
@@ -245,9 +260,14 @@ public final class OktaPackage {
             @Input(name = "name_starts_with", type = OoaType.STRING, required = false, description = "Only groups whose name starts with this text.") String q,
             @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "1000", description = "Most groups to return.") int max,
             @Input(name = "api_token", type = OoaType.CREDENTIAL, required = false, description = D_TOKEN) Object apiToken,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken) {
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = D_ACCESS) Object accessToken,
+            @Input(name = "search", type = OoaType.STRING, required = false, example = "profile.name eq \"Finance\"",
+                    description = "Okta search expression on group properties, e.g. profile.name eq \"Finance\" for an exact name, or type eq \"APP_GROUP\". Used instead of name_starts_with.") String search) {
+        boolean hasQ = q != null && !q.isBlank(), hasSearch = search != null && !search.isBlank();
+        if (hasQ && hasSearch) throw new ActionException(P + ".BAD_INPUT", "Give either name_starts_with or search, not both", "Clear one of the two inputs.");
         Map<String, Object> params = new LinkedHashMap<>();
-        if (q != null && !q.isBlank()) params.put("q", q);
+        if (hasQ) params.put("q", q);
+        if (hasSearch) params.put("search", search.trim());
         params.put("limit", Math.max(1, Math.min(200, max)));
         List<Object> rows = new ArrayList<>();
         for (Map<?, ?> g : pages(ctx, api(org) + "/groups?" + HttpJson.query(params), max, apiToken, accessToken)) rows.add(groupRow(g));
@@ -255,7 +275,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "add_user_to_group", name = "Add user to group", category = "Groups", idempotent = true, capabilities = "network",
-            description = "Make a person a member of a group. Nothing changes if they are already a member.")
+            description = "Make a person a member of a group. Nothing changes if they are already a member.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), group, user")
     public Map<String, Object> addToGroup(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
@@ -268,7 +289,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "remove_user_from_group", name = "Remove user from group", category = "Groups", capabilities = "network",
-            description = "Take a person out of a group.")
+            description = "Take a person out of a group.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), group, user")
     public Map<String, Object> removeFromGroup(ActionContext ctx,
             @Input(name = "org_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String org,
             @Input(name = "user", type = OoaType.STRING, description = D_USER) String u,
@@ -281,7 +303,8 @@ public final class OktaPackage {
     }
 
     @Action(id = "list_user_groups", name = "List user's groups", category = "Groups", idempotent = true, capabilities = "network",
-            description = "Return every group a person belongs to.")
+            description = "Return every group a person belongs to.",
+            panel = "org_url, (Sign in with: An API token = api_token / An access token = access_token), user")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, description, type.")
     @Output(name = "names", type = OoaType.LIST, description = "Group names only.")
     public Map<String, Object> userGroups(ActionContext ctx,

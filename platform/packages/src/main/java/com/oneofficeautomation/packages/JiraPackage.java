@@ -22,7 +22,8 @@ public final class JiraPackage {
     private static String key(String k) { if (!KEY.matcher(k).matches()) throw new ActionException(P + ".BAD_KEY", "Invalid issue key '" + k + "'", "Example: OPS-123."); return k; }
     private static String api(String site) { return site.replaceAll("/+$", "") + "/rest/api/2"; }
 
-    @Action(id = "create_issue", name = "Create issue", category = "Issues", capabilities = "network", description = "Create an issue and return its key.")
+    @Action(id = "create_issue", name = "Create issue", category = "Issues", capabilities = "network", description = "Create an issue and return its key.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project, issue_type, parent_key, summary, description, priority, labels, components, extra_fields | assignee, due_date")
     @Output(name = "key", type = OoaType.STRING, description = "Issue key, e.g. OPS-123.")
     @Output(name = "id", type = OoaType.STRING, description = "Issue id.")
     @Output(name = "url", type = OoaType.STRING, description = "Link to the issue in the browser.")
@@ -86,7 +87,8 @@ public final class JiraPackage {
         throw new ActionException(P + ".USER_NOT_FOUND", "No Jira user with email " + who, "Check the address, or give the account id.");
     }
 
-    @Action(id = "get_issue", name = "Get issue", category = "Issues", idempotent = true, capabilities = "network", description = "Read an issue's main fields, and optionally more fields by name.")
+    @Action(id = "get_issue", name = "Get issue", category = "Issues", idempotent = true, capabilities = "network", description = "Read an issue's main fields, and optionally more fields by name.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key | extra_fields")
     @Output(name = "issue", type = OoaType.DICTIONARY, description = "key, summary, status, assignee, reporter, priority, created, updated, description, plus the extra fields asked for.")
     @Output(name = "raw", type = OoaType.DICTIONARY, description = "The full issue as Jira returned it.")
     public Map<String, Object> get(ActionContext ctx,
@@ -127,7 +129,8 @@ public final class JiraPackage {
         return o;
     }
 
-    @Action(id = "search", name = "Search issues (JQL)", category = "Issues", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Find issues with a JQL query.")
+    @Action(id = "search", name = "Search issues (JQL)", category = "Issues", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Find issues with a JQL query.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), jql, max_results | extra_fields")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: key, summary, status, assignee, priority, updated.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of issues returned.")
     public Map<String, Object> search(ActionContext ctx,
@@ -166,7 +169,8 @@ public final class JiraPackage {
     /** Earlier signature, kept for callers written before extra_fields. */
     public Map<String, Object> search(ActionContext ctx, String site, String jql, int max, String email, Object apiToken, Object pat) { return search(ctx, site, jql, max, email, apiToken, pat, null); }
 
-    @Action(id = "add_comment", name = "Add comment", category = "Issues", capabilities = "network", description = "Add a comment to an issue, optionally visible only to a project role or group.")
+    @Action(id = "add_comment", name = "Add comment", category = "Issues", capabilities = "network", description = "Add a comment to an issue, optionally visible only to a project role or group.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, text | (Who can see it: Everyone =  / A project role = visible_to_role / A group = visible_to_group)")
     @Output(name = "comment_id", type = OoaType.STRING, description = "Id of the new comment.")
     @Output(name = "author", type = OoaType.STRING, description = "Display name of the author.")
     @Output(name = "created", type = OoaType.STRING, description = "When it was created (ISO 8601).")
@@ -192,7 +196,8 @@ public final class JiraPackage {
     public Map<String, Object> comment(ActionContext ctx, String site, String k, String text, String email, Object apiToken, Object pat) { return comment(ctx, site, k, text, email, apiToken, pat, null, null); }
 
     @Action(id = "transition", name = "Move issue (transition)", category = "Issues", capabilities = "network",
-            description = "Move an issue through its workflow by transition name, e.g. In Progress or Done, optionally with a comment and field values.")
+            description = "Move an issue through its workflow by transition name, e.g. In Progress or Done, optionally with a comment and field values.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, transition, comment | fields")
     public Map<String, Object> transition(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
@@ -225,7 +230,8 @@ public final class JiraPackage {
     /** Earlier signature, kept for callers written before comment and fields. */
     public Map<String, Object> transition(ActionContext ctx, String site, String k, String name, String email, Object apiToken, Object pat) { return transition(ctx, site, k, name, email, apiToken, pat, null, null); }
 
-    @Action(id = "attach_file", name = "Attach file", category = "Issues", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to an issue.")
+    @Action(id = "attach_file", name = "Attach file", category = "Issues", timeoutSeconds = 600, capabilities = {"network", "filesystem"}, description = "Attach a local file to an issue.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, path")
     public Map<String, Object> attach(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
@@ -250,7 +256,8 @@ public final class JiraPackage {
     private static String commentId(String id) { if (id == null || !id.matches("^\\d{1,19}$")) throw new ActionException(P + ".BAD_COMMENT_ID", "Invalid comment id '" + id + "'", "Comment ids are numbers; read them with Get comments."); return id; }
     private static String name(Object user) { return user instanceof Map<?, ?> m && m.get("displayName") != null ? String.valueOf(m.get("displayName")) : null; }
 
-    @Action(id = "get_comments", name = "Get comments", category = "Comments", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the comments on an issue, oldest first, as a table.")
+    @Action(id = "get_comments", name = "Get comments", category = "Comments", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the comments on an issue, oldest first, as a table.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, author, created, updated, body.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of comments returned.")
     public Map<String, Object> getComments(ActionContext ctx,
@@ -277,7 +284,8 @@ public final class JiraPackage {
         return Map.of("table", Values.table(List.of("id", "author", "created", "updated", "body"), rows), "count", BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "update_comment", name = "Update comment", category = "Comments", idempotent = true, capabilities = "network", description = "Replace the text of an existing comment.")
+    @Action(id = "update_comment", name = "Update comment", category = "Comments", idempotent = true, capabilities = "network", description = "Replace the text of an existing comment.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, comment_id, text")
     public Map<String, Object> updateComment(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
@@ -290,7 +298,8 @@ public final class JiraPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_comment", name = "Delete comment", category = "Comments", capabilities = "network", description = "Remove a comment from an issue.")
+    @Action(id = "delete_comment", name = "Delete comment", category = "Comments", capabilities = "network", description = "Remove a comment from an issue.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, comment_id")
     public Map<String, Object> deleteComment(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
@@ -302,7 +311,8 @@ public final class JiraPackage {
         return Map.of();
     }
 
-    @Action(id = "update_issue", name = "Update issue", category = "Issues", idempotent = true, capabilities = "network", description = "Change fields of an issue, such as summary, priority, labels or assignee.")
+    @Action(id = "update_issue", name = "Update issue", category = "Issues", idempotent = true, capabilities = "network", description = "Change fields of an issue, such as summary, priority, labels or assignee.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, summary, description, priority, labels, fields | assignee, due_date, notify_users")
     public Map<String, Object> updateIssue(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
@@ -332,7 +342,8 @@ public final class JiraPackage {
         return updateIssue(ctx, site, k, fields, notify, email, apiToken, pat, null, null, null, null, null, null);
     }
 
-    @Action(id = "delete_issue", name = "Delete issue", category = "Issues", capabilities = "network", description = "Permanently delete an issue, optionally with its sub-tasks.")
+    @Action(id = "delete_issue", name = "Delete issue", category = "Issues", capabilities = "network", description = "Permanently delete an issue, optionally with its sub-tasks.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), key, delete_subtasks")
     public Map<String, Object> deleteIssue(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "key", type = OoaType.STRING, description = "Issue key.") String k,
@@ -344,7 +355,8 @@ public final class JiraPackage {
         return Map.of();
     }
 
-    @Action(id = "create_project", name = "Create project", category = "Projects", capabilities = "network", description = "Create a project with a key, name, type and project lead.")
+    @Action(id = "create_project", name = "Create project", category = "Projects", capabilities = "network", description = "Create a project with a key, name, type and project lead.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project_key, project_name, project_type, template_key, project_description, lead_account_id | lead_user_name")
     @Output(name = "id", type = OoaType.STRING, description = "Project id.")
     @Output(name = "key", type = OoaType.STRING, description = "Project key.")
     public Map<String, Object> createProject(ActionContext ctx,
@@ -372,7 +384,8 @@ public final class JiraPackage {
         return Out.of("id", r.get("id") == null ? null : Values.text(r.get("id")), "key", r.getOrDefault("key", pk));
     }
 
-    @Action(id = "get_projects", name = "Get projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the projects the account can see as a table.")
+    @Action(id = "get_projects", name = "Get projects", category = "Projects", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "List the projects the account can see as a table.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), query, project_type, max_results, start_at")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, key, name, project_type, lead.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of projects.")
     public Map<String, Object> getProjects(ActionContext ctx,
@@ -402,7 +415,8 @@ public final class JiraPackage {
     /** Earlier signature, kept for callers written before the filters. */
     public Map<String, Object> getProjects(ActionContext ctx, String site, String email, Object apiToken, Object pat) { return getProjects(ctx, site, email, apiToken, pat, null, null, 1000, 0); }
 
-    @Action(id = "update_project", name = "Update project", category = "Projects", idempotent = true, capabilities = "network", description = "Change project details such as its name, lead, description, default assignee or category.")
+    @Action(id = "update_project", name = "Update project", category = "Projects", idempotent = true, capabilities = "network", description = "Change project details such as its name, lead, description, default assignee or category.",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project_key, project_name, project_description, assignee_type, category_id, fields | lead")
     public Map<String, Object> updateProject(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "project_key", type = OoaType.STRING, description = "Project key.") String pk,
@@ -438,7 +452,8 @@ public final class JiraPackage {
         return updateProject(ctx, site, pk, fields, email, apiToken, pat, null, null, null, null, null);
     }
 
-    @Action(id = "delete_project", name = "Delete project", category = "Projects", capabilities = "network", description = "Delete a project and the issues in it (Cloud keeps it in the trash for a while).")
+    @Action(id = "delete_project", name = "Delete project", category = "Projects", capabilities = "network", description = "Delete a project and the issues in it (Cloud keeps it in the trash for a while).",
+            panel = "site_url, (Sign in with: Cloud email and API token = email, api_token / Data Center access token = personal_access_token), project_key")
     public Map<String, Object> deleteProject(ActionContext ctx,
             @Input(name = "site_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String site,
             @Input(name = "project_key", type = OoaType.STRING, description = "Project key.") String pk,

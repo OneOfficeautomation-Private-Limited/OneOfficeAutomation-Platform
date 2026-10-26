@@ -25,6 +25,8 @@ subprojects {
         useJUnitPlatform()
         systemProperty("ooa.contracts", rootProject.file("../contracts").absolutePath)
         systemProperty("ooa.examples", rootProject.file("../examples").absolutePath)
+        // -Pooa.test.db=jdbc:sqlserver://localhost:1433;encrypt=false (+ ooa.test.db.user, ooa.test.db.password) runs the tests on SQL Server
+        for (k in listOf("ooa.test.db", "ooa.test.db.user", "ooa.test.db.password")) project.findProperty(k)?.let { systemProperty(k, it) }
         testLogging {
             events("passed", "failed", "skipped")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

@@ -11,7 +11,11 @@ import java.util.*;
  */
 public final class Audit {
     private final Db db;
+    /** Told about every entry after it is written (the syslog forwarder); never allowed to fail the action. */
+    private volatile java.util.function.Consumer<Map<String, Object>> listener;
     public Audit(Db db) { this.db = db; }
+
+    void onRecord(java.util.function.Consumer<Map<String, Object>> l) { this.listener = l; }
 
     public synchronized void record(String actor, String action, String objectType, String objectId, Object details, String result, String ip) {
         db.tx(() -> {
@@ -24,6 +28,13 @@ public final class Audit {
             String hash = Security.sha256(prev + "|" + seq + "|" + ts + "|" + actor + "|" + action + "|" + objectType + "|" + objectId + "|" + det + "|" + result);
             db.update("INSERT INTO audit (seq, ts, actor, action, object_type, object_id, details, result, ip, prev_hash, hash) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     seq, Instant.parse(ts), actor, action, objectType, objectId, det, result, ip, prev, hash);
+            var l = listener;
+            if (l != null) {
+                Map<String, Object> e = new HashMap<>();
+                e.put("seq", seq); e.put("ts", ts); e.put("actor", actor); e.put("action", action); e.put("object_type", objectType);
+                e.put("object_id", objectId); e.put("details", det); e.put("result", result); e.put("ip", ip);
+                try { l.accept(e); } catch (RuntimeException ignored) { /* forwarding never fails the action */ }
+            }
             return null;
         });
     }

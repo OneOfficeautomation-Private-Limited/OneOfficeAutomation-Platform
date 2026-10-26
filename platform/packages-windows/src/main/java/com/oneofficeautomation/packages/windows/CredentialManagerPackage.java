@@ -124,7 +124,8 @@ public final class CredentialManagerPackage {
     }
 
     @Action(id = "read_credential", name = "Read credential", category = "Credential Manager", idempotent = true, capabilities = "desktop",
-            description = "Read a generic credential by its target name; the secret comes back as a Credential that is masked everywhere.")
+            description = "Read a generic credential by its target name; the secret comes back as a Credential that is masked everywhere.",
+            panel = "target | encoding")
     @Output(name = "username", type = OoaType.STRING, description = "User name stored with the credential (may be empty).")
     @Output(name = "password", type = OoaType.CREDENTIAL, description = "The stored secret.")
     @Output(name = "comment", type = OoaType.STRING, description = "Comment stored with the credential.")
@@ -155,7 +156,8 @@ public final class CredentialManagerPackage {
     }
 
     @Action(id = "list_targets", name = "List credential targets", category = "Credential Manager", idempotent = true, capabilities = "desktop",
-            description = "List the target names of generic credentials, optionally filtered with a * wildcard pattern. Secrets are not returned.")
+            description = "List the target names of generic credentials, optionally filtered with a * wildcard pattern. Secrets are not returned.",
+            panel = "filter")
     @Output(name = "targets", type = OoaType.LIST, description = "Target names, sorted.")
     @Output(name = "credentials", type = OoaType.TABLE, description = "Columns: target, username, comment, persist, last_written.")
     public Map<String, Object> listTargets(ActionContext ctx,
@@ -194,7 +196,8 @@ public final class CredentialManagerPackage {
     }
 
     @Action(id = "write_credential", name = "Save credential", category = "Credential Manager", capabilities = "desktop",
-            description = "Create or replace a generic credential for the agent's user account.")
+            description = "Create or replace a generic credential for the agent's user account.",
+            panel = "target, username, password, persist | comment, encoding")
     public Map<String, Object> writeCredential(ActionContext ctx,
             @Input(name = "target", type = OoaType.STRING, example = "MyApp/service-account", description = "Target name to store under.") String target,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Secret to store, from the vault or another Credential variable.") Object password,
@@ -240,7 +243,8 @@ public final class CredentialManagerPackage {
     }
 
     @Action(id = "delete_credential", name = "Remove credential", category = "Credential Manager", capabilities = "desktop",
-            description = "Remove a generic credential from Credential Manager.")
+            description = "Remove a generic credential from Credential Manager.",
+            panel = "target | missing_ok")
     @Output(name = "deleted", type = OoaType.BOOLEAN, description = "True when a credential was removed; false when none existed and missing_ok is on.")
     public Map<String, Object> deleteCredential(ActionContext ctx,
             @Input(name = "target", type = OoaType.STRING, description = "Target name to remove.") String target,

@@ -131,7 +131,8 @@ public final class FuzzyPackage {
     // ---------- actions ----------
 
     @Action(id = "similarity", name = "Text similarity", category = "Fuzzy match", idempotent = true,
-            description = "Score how alike two texts are, from 0 (nothing in common) to 100 (identical).")
+            description = "Score how alike two texts are, from 0 (nothing in common) to 100 (identical).",
+            panel = "text1, text2 | algorithm, case_sensitive")
     @Output(name = "score", type = OoaType.NUMBER, description = "Similarity from 0 to 100.")
     public Map<String, Object> similarity(ActionContext ctx,
             @Input(name = "text1", type = OoaType.STRING, description = "First text.") String text1,
@@ -142,7 +143,8 @@ public final class FuzzyPackage {
     }
 
     @Action(id = "best_match", name = "Find closest match", category = "Fuzzy match", idempotent = true,
-            description = "Compare a text with every entry of a list and return the closest entry when it scores at least the threshold.")
+            description = "Compare a text with every entry of a list and return the closest entry when it scores at least the threshold.",
+            panel = "text, candidates, threshold | algorithm, case_sensitive")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when an entry reached the threshold.")
     @Output(name = "match", type = OoaType.STRING, description = "Closest entry, empty when none reached the threshold.")
     @Output(name = "score", type = OoaType.NUMBER, description = "Score of the closest entry (0 to 100), even when below the threshold.")
@@ -169,7 +171,8 @@ public final class FuzzyPackage {
     }
 
     @Action(id = "fuzzy_lookup", name = "Fuzzy join tables", category = "Fuzzy match", idempotent = true,
-            description = "For each row of the first table, find the row of the second table whose column value is closest and append its columns and the score.")
+            description = "For each row of the first table, find the row of the second table whose column value is closest and append its columns and the score.",
+            panel = "left_table, left_column, right_table, right_column, threshold | algorithm, keep_unmatched, case_sensitive")
     @Output(name = "table", type = OoaType.TABLE, description = "First table's columns, then the second table's (renamed with a right_ prefix on a clash), then match_score.")
     @Output(name = "matched", type = OoaType.NUMBER, description = "Rows that found a match.")
     @Output(name = "unmatched", type = OoaType.NUMBER, description = "Rows of the first table without a match.")

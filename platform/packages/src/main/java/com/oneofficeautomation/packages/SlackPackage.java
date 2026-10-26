@@ -31,11 +31,12 @@ public final class SlackPackage {
         return r;
     }
 
-    @Action(id = "post_message", name = "Post message", category = "Messages", capabilities = "network", description = "Post a message to a channel (or a user's DM), optionally as a thread reply.")
+    @Action(id = "post_message", name = "Post message", category = "Messages", capabilities = "network", description = "Post a message to a channel (or a user's DM), optionally as a thread reply.",
+            panel = "bot_token, channel, text, thread_ts, files | reply_broadcast, blocks, unfurl_links, unfurl_media, mrkdwn, username, icon_emoji, base_url")
     @Output(name = "ts", type = OoaType.STRING, description = "Message timestamp id (use it to reply in a thread).")
     public Map<String, Object> post(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token (xoxb-...) from the vault.") Object token,
-            @Input(name = "channel", type = OoaType.STRING, example = "C0123456789", description = "Channel id, or a user id for a direct message.") String channel,
+            @Input(name = "channel", type = OoaType.STRING, example = "C0123456789", description = "Channel id, a user id for a direct message, or a channel name such as #ops-alerts (looked up first).") String channel,
             @Input(name = "text", type = OoaType.STRING, description = "Message text (Slack markdown).") String text,
             @Input(name = "thread_ts", type = OoaType.STRING, required = false, description = "Reply in the thread of this message.") String thread,
             @Input(name = "reply_broadcast", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Thread replies only: also show the reply in the channel.") boolean broadcast,
@@ -47,14 +48,18 @@ public final class SlackPackage {
             @Input(name = "icon_emoji", type = OoaType.STRING, required = false, example = ":robot_face:", description = "Emoji shown as the sender's picture (needs chat:write.customize).") String icon,
             @Input(name = "files", type = OoaType.LIST, required = false, description = "Local files to share in the same conversation, right after the message.") List<Object> files,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = "\"https://slack.com/api\"", description = "API endpoint; change only for testing.") String base) {
-        Map<String, Object> body = new LinkedHashMap<>(Map.of("channel", channel, "text", text));
+        if (channel == null || channel.isBlank() || channel.trim().equals("#"))
+            throw new ActionException(P + ".BAD_CHANNEL", "A channel is required", "Give a channel id such as C0123456789 or a name such as #ops-alerts.");
+        String c = channel.trim();
+        if (c.startsWith("#")) c = String.valueOf(channelId(ctx, token, c, true, false, base).get("channel_id"));
+        Map<String, Object> body = new LinkedHashMap<>(Map.of("channel", c, "text", text));
         if (thread != null) body.put("thread_ts", thread);
         if (broadcast && thread != null) body.put("reply_broadcast", true);
         messageOptions(body, blocks, unfurlLinks, unfurlMedia, mrkdwn);
         if (username != null && !username.isBlank()) body.put("username", username);
         if (icon != null && !icon.isBlank()) body.put("icon_emoji", icon);
         Map<String, Object> r = call(ctx, base, "chat.postMessage", token, body);
-        if (files != null && !files.isEmpty()) upload(ctx, base, token, String.valueOf(r.getOrDefault("channel", channel)), files, null, thread);
+        if (files != null && !files.isEmpty()) upload(ctx, base, token, String.valueOf(r.getOrDefault("channel", c)), files, null, thread);
         return Out.of("ts", r.get("ts"));
     }
 
@@ -97,7 +102,8 @@ public final class SlackPackage {
     }
 
     @Action(id = "upload_file", name = "Upload file", category = "Messages", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Share one or more local files in a channel or direct conversation, with an optional comment or as a thread reply.")
+            description = "Share one or more local files in a channel or direct conversation, with an optional comment or as a thread reply.",
+            panel = "bot_token, channel, files, comment | thread_ts, base_url")
     @Output(name = "file_ids", type = OoaType.LIST, description = "Slack file ids.")
     public Map<String, Object> uploadFile(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token (xoxb-...) from the vault; needs the files:write scope.") Object token,
@@ -110,7 +116,8 @@ public final class SlackPackage {
         return Map.of("file_ids", upload(ctx, base, token, channel, files, comment, thread));
     }
 
-    @Action(id = "update_message", name = "Update message", category = "Messages", capabilities = "network", description = "Edit a message the agent posted, e.g. to show progress.")
+    @Action(id = "update_message", name = "Update message", category = "Messages", capabilities = "network", description = "Edit a message the agent posted, e.g. to show progress.",
+            panel = "bot_token, channel, ts, text | blocks, base_url")
     public Map<String, Object> update(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
             @Input(name = "channel", type = OoaType.STRING, description = "Channel id.") String channel,
@@ -160,7 +167,8 @@ public final class SlackPackage {
 
     private static Object nested(Object map, String key) { return map instanceof Map<?, ?> m ? m.get(key) : null; }
 
-    @Action(id = "send_direct_message", name = "Send direct message", category = "Messages", capabilities = "network", description = "Open a direct conversation with a person (by member id or email) and post a message there.")
+    @Action(id = "send_direct_message", name = "Send direct message", category = "Messages", capabilities = "network", description = "Open a direct conversation with a person (by member id or email) and post a message there.",
+            panel = "bot_token, user, text | thread_ts, blocks, unfurl_links, unfurl_media, mrkdwn, files, base_url")
     @Output(name = "ts", type = OoaType.STRING, description = "Message timestamp id.")
     @Output(name = "channel", type = OoaType.STRING, description = "Direct conversation id.")
     public Map<String, Object> sendDirect(ActionContext ctx,
@@ -186,7 +194,8 @@ public final class SlackPackage {
         return Out.of("ts", ts, "channel", channel);
     }
 
-    @Action(id = "get_channel_id_by_name", name = "Get channel id by name", category = "Channels", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Find a channel's id from its name, e.g. #ops-alerts.")
+    @Action(id = "get_channel_id_by_name", name = "Get channel id by name", category = "Channels", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Find a channel's id from its name, e.g. #ops-alerts.",
+            panel = "bot_token, name | include_private, include_archived, base_url")
     @Output(name = "channel_id", type = OoaType.STRING, description = "Channel id, e.g. C0123456789.")
     public Map<String, Object> channelId(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
@@ -207,7 +216,8 @@ public final class SlackPackage {
         throw new ActionException(P + ".CHANNEL_NOT_FOUND", "No channel named '" + wanted + "'", "Check the name; for a private channel, invite the agent first.");
     }
 
-    @Action(id = "get_channel_details", name = "Get channel details", category = "Channels", idempotent = true, capabilities = "network", description = "Read a channel's name, topic, purpose, privacy and member count.")
+    @Action(id = "get_channel_details", name = "Get channel details", category = "Channels", idempotent = true, capabilities = "network", description = "Read a channel's name, topic, purpose, privacy and member count.",
+            panel = "bot_token, channel | base_url")
     @Output(name = "channel", type = OoaType.DICTIONARY, description = "id, name, is_private, is_archived, topic, purpose, num_members, created.")
     public Map<String, Object> channelDetails(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
@@ -221,7 +231,8 @@ public final class SlackPackage {
         return Map.of("channel", o);
     }
 
-    @Action(id = "get_conversation_history", name = "Get conversation history", category = "Channels", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Read recent messages of a channel or direct conversation into a table, newest first.")
+    @Action(id = "get_conversation_history", name = "Get conversation history", category = "Channels", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Read recent messages of a channel or direct conversation into a table, newest first.",
+            panel = "bot_token, channel, oldest, latest, max_messages | thread_ts, inclusive, base_url")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: ts, user, text, thread_ts, reply_count, subtype.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of messages.")
     public Map<String, Object> history(ActionContext ctx,
@@ -253,7 +264,8 @@ public final class SlackPackage {
         return Map.of("table", com.oneofficeautomation.runner.Values.table(List.of("ts", "user", "text", "thread_ts", "reply_count", "subtype"), rows), "count", java.math.BigDecimal.valueOf(rows.size()));
     }
 
-    @Action(id = "get_user_details", name = "Get user details", category = "Users", idempotent = true, capabilities = "network", description = "Look up a person by member id or email and return their profile.")
+    @Action(id = "get_user_details", name = "Get user details", category = "Users", idempotent = true, capabilities = "network", description = "Look up a person by member id or email and return their profile.",
+            panel = "bot_token, user | base_url")
     @Output(name = "user", type = OoaType.DICTIONARY, description = "id, name, real_name, display_name, email, title, time_zone, is_bot, deleted.")
     public Map<String, Object> userDetails(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
@@ -277,7 +289,8 @@ public final class SlackPackage {
     }
 
     @Action(id = "get_workspace_id_by_name", name = "Get workspace id by name", category = "Workspace", idempotent = true, capabilities = "network",
-            description = "Find a workspace's id from its name or domain, among the workspaces the agent's app is installed in.")
+            description = "Find a workspace's id from its name or domain, among the workspaces the agent's app is installed in.",
+            panel = "bot_token, name | base_url")
     @Output(name = "workspace_id", type = OoaType.STRING, description = "Workspace (team) id, e.g. T0123456789.")
     public Map<String, Object> workspaceId(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,
@@ -304,7 +317,8 @@ public final class SlackPackage {
         throw new ActionException(P + ".WORKSPACE_NOT_FOUND", "No workspace named '" + wanted + "'", "The agent's app is installed in: " + String.join(", ", new LinkedHashSet<>(seen)) + ".");
     }
 
-    @Action(id = "get_workspace_details", name = "Get workspace details", category = "Workspace", idempotent = true, capabilities = "network", description = "Read the workspace's id, name and domain.")
+    @Action(id = "get_workspace_details", name = "Get workspace details", category = "Workspace", idempotent = true, capabilities = "network", description = "Read the workspace's id, name and domain.",
+            panel = "bot_token, workspace_id | base_url")
     @Output(name = "workspace", type = OoaType.DICTIONARY, description = "id, name, domain, email_domain.")
     public Map<String, Object> workspace(ActionContext ctx,
             @Input(name = "bot_token", type = OoaType.CREDENTIAL, description = "Slack bot token from the vault.") Object token,

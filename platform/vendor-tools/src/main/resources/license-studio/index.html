@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>License Studio</title>
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <header class="top">
+    <span class="mark" aria-hidden="true">O</span>
+    <span class="brand">ONEOFFICEAUTOMATION</span>
+    <span class="product">License Studio</span>
+    <span class="spacer"></span>
+    <span id="key-status" class="pill">Checking the key...</span>
+  </header>
+  <main>
+    <p id="key-note" class="note" hidden></p>
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="issue" aria-selected="true">Issue a license</button>
+      <button type="button" role="tab" data-tab="issued" aria-selected="false">Issued licenses <span id="issued-count" class="count"></span></button>
+      <button type="button" role="tab" data-tab="check" aria-selected="false">Check a file</button>
+    </nav>
+
+    <section id="tab-issue" class="tab-body">
+      <div class="cols">
+        <form id="issue-form" class="card" autocomplete="off">
+          <h2>New license</h2>
+          <div class="grid">
+            <label class="wide">Customer <input id="f-customer" required maxlength="200" placeholder="Acme Ltd"></label>
+            <label>Edition <input id="f-edition" value="Enterprise" maxlength="60"></label>
+            <label>Valid until <input id="f-expires" type="date" required></label>
+            <div class="quick" aria-label="Quick dates">
+              <button type="button" data-months="1">1 month</button>
+              <button type="button" data-months="3">3 months</button>
+              <button type="button" data-months="12">1 year</button>
+              <button type="button" data-months="24">2 years</button>
+              <button type="button" data-months="36">3 years</button>
+            </div>
+            <label>Grace days after expiry <input id="f-grace" type="number" min="0" max="90" value="14"></label>
+          </div>
+          <h3>Seats</h3>
+          <div class="seats">
+            <label><span class="seat-name">Developer</span><span class="seat-help">Builds and checks in agents</span><input id="s-developer" type="number" min="0" value="0"></label>
+            <label><span class="seat-name">Citizen Developer</span><span class="seat-help">Builds simpler agents in their own folders</span><input id="s-citizen_developer" type="number" min="0" value="0"></label>
+            <label><span class="seat-name">Attended Runner</span><span class="seat-help">Runs agents on their own computer</span><input id="s-attended_runner" type="number" min="0" value="0"></label>
+            <label><span class="seat-name">Unattended Runner</span><span class="seat-help">A runner machine for scheduled, API and queue work</span><input id="s-unattended_runner" type="number" min="0" value="0"></label>
+          </div>
+          <label>Notes (shown in the file, optional) <textarea id="f-notes" rows="2" maxlength="500" placeholder="Order 4711, renewal of LIC-..."></textarea></label>
+          <p id="issue-error" class="error" hidden></p>
+          <div class="actions"><button type="submit" class="primary" id="issue-btn">Issue license</button><button type="reset">Clear</button></div>
+        </form>
+        <aside class="card summary">
+          <h2>Summary</h2>
+          <dl id="summary"></dl>
+          <div id="result" hidden>
+            <h2>Issued</h2>
+            <p class="ok" id="result-text"></p>
+            <div class="actions"><button type="button" class="primary" id="result-download">Download .lic file</button><button type="button" id="result-copy">Copy text</button></div>
+            <p class="muted small">Send the file to the customer. They install it in Administration &gt; Licenses. A copy is kept in the issued folder.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="tab-issued" class="tab-body" hidden>
+      <div class="card">
+        <div class="card-head"><h2>Issued licenses</h2><input id="issued-search" type="search" placeholder="Search customer or id" aria-label="Search issued licenses"></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Customer</th><th>License</th><th>Valid until</th><th>State</th><th>Seats</th><th></th></tr></thead>
+          <tbody id="issued-rows"></tbody>
+        </table></div>
+        <p class="muted small" id="issued-folder"></p>
+      </div>
+    </section>
+
+    <section id="tab-check" class="tab-body" hidden>
+      <div class="card">
+        <h2>Check a license file</h2>
+        <p class="muted">Read the terms of a .lic file and check that this product accepts its signature.</p>
+        <label>License file <input id="check-file" type="file" accept=".lic,.json,.txt"></label>
+        <textarea id="check-text" rows="4" placeholder="Or paste the file text here"></textarea>
+        <div class="actions"><button type="button" class="primary" id="check-btn">Check</button></div>
+        <div id="check-result"></div>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="studio.js"></script>
+</body>
+</html>

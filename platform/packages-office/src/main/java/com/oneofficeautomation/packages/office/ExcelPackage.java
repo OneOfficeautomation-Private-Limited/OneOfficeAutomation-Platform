@@ -110,7 +110,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = "filesystem",
-            description = "Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.")
+            description = "Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.",
+            panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook path.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Session name used by later steps.") String session,
@@ -143,20 +144,28 @@ public final class ExcelPackage {
         return Map.of();
     }
 
+    public Map<String, Object> createWorkbook(ActionContext ctx, String path, String sheet, boolean overwrite, String session) {
+        return createWorkbook(ctx, path, sheet, overwrite, session, null);
+    }
+
     @Action(id = "create_workbook", name = "Create workbook", category = "Workbook", capabilities = "filesystem",
-            description = "Create a new empty .xlsx file on disk with one named sheet and open it as a session.")
+            description = "Create a new empty .xlsx file on disk with one named sheet and open it as a session; optionally encrypted with a password.",
+            panel = "path, overwrite, sheet, [Require a password to open the file: password] | session")
     public Map<String, Object> createWorkbook(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new workbook.") String path,
             @Input(name = "sheet", type = OoaType.STRING, required = false, defaultValue = "\"Sheet1\"", description = "Name of the first worksheet.") String sheet,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Session name used by later steps.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Session name used by later steps.") String session,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Encrypt the file with this password; later saves keep it encrypted.") Object password) {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("EXCEL.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XSSFWorkbook wb = new XSSFWorkbook();
         try { wb.createSheet(sheet == null || sheet.isBlank() ? "Sheet1" : sheet); }
         catch (IllegalArgumentException e) { throw new ActionException("EXCEL.BAD_SHEET_NAME", e.getMessage(), "Sheet names are at most 31 characters and cannot contain : \\ / ? * [ ]."); }
         WorkbookSession s = new WorkbookSession(p, wb);
-        writeFile(s, p, null);
+        s.password = OfficeCrypto.secret(password);
+        writeFile(s, p, s.password);
         Object old = ctx.sessions().put(session, s);
         if (old instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) { }
         return Map.of();
@@ -208,7 +217,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "get_cell", name = "Get cell", category = "Cells", idempotent = true,
-            description = "Read one cell, or the active cell; formulas return their calculated value, or the text as Excel displays it.")
+            description = "Read one cell, or the active cell; formulas return their calculated value, or the text as Excel displays it.",
+            panel = "(Cell: The active cell = / A specific cell = cell), read_as | sheet, session")
     @Output(name = "value", description = "Cell value.")
     public Map<String, Object> getCell(ActionContext ctx,
             @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "B2", description = "Cell address; the active cell (set by go_to_cell) when empty.") String address,
@@ -223,7 +233,8 @@ public final class ExcelPackage {
         return out;
     }
 
-    @Action(id = "set_cell", name = "Set cell", category = "Cells", description = "Write a value to one cell, or to the active cell.")
+    @Action(id = "set_cell", name = "Set cell", category = "Cells", description = "Write a value to one cell, or to the active cell.",
+            panel = "(Cell: The active cell = / A specific cell = cell), value | sheet, session")
     public Map<String, Object> setCell(ActionContext ctx,
             @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "B2", description = "Cell address; the active cell (set by go_to_cell) when empty.") String address,
             @Input(name = "value", required = false, description = "Value to write; empty clears the cell.") Object value,
@@ -235,14 +246,16 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "set_formula", name = "Set formula", category = "Cells", description = "Put a formula in a cell, e.g. SUM(C2:C10).")
+    @Action(id = "set_formula", name = "Set formula", category = "Cells", description = "Put a formula in a cell, or in the active cell, e.g. SUM(C2:C10).",
+            panel = "(Cell: The active cell = / A specific cell = cell), formula | sheet, session")
     public Map<String, Object> setFormula(ActionContext ctx,
-            @Input(name = "cell", type = OoaType.STRING, pattern = CELL, example = "C11", description = "Cell address.") String address,
+            @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "C11", description = "Cell address; the active cell (set by go_to_cell) when empty.") String address,
             @Input(name = "formula", type = OoaType.STRING, example = "SUM(C2:C10)", description = "Formula, with or without a leading =.") String formula,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
         WorkbookSession s = session(ctx, session);
-        try { cell(sheet(s, sheet), address, true).setCellFormula(formula.startsWith("=") ? formula.substring(1) : formula); }
+        Sheet sh = sheet(s, sheet);
+        try { cell(sh, cellOrActive(sh, address), true).setCellFormula(formula.startsWith("=") ? formula.substring(1) : formula); }
         catch (RuntimeException e) { throw new ActionException("EXCEL.BAD_FORMULA", "Invalid formula '" + formula + "': " + e.getMessage(), "Check the formula syntax."); }
         return Map.of();
     }
@@ -296,7 +309,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "get_all_cells", name = "Get all cells", category = "Cells", idempotent = true,
-            description = "Read the used area of a sheet as a table; the first row can be the column names.")
+            description = "Read the used area of a sheet as a table; the first row can be the column names.",
+            panel = "(Worksheet: The active sheet = / A named sheet = sheet), header, read_as | include_hidden, keep_blank_rows, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Sheet content.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of data rows.")
     public Map<String, Object> getAllCells(ActionContext ctx,
@@ -333,7 +347,8 @@ public final class ExcelPackage {
         return getRange(ctx, range, (Boolean) header, sheet, session, "value");
     }
 
-    @Action(id = "get_range", name = "Get range", category = "Cells", idempotent = true, description = "Read a rectangular range such as A1:D20 as a table.")
+    @Action(id = "get_range", name = "Get range", category = "Cells", idempotent = true, description = "Read a rectangular range such as A1:D20 as a table.",
+            panel = "range, header, read_as | sheet, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Range content.")
     public Map<String, Object> getRange(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, pattern = "^[A-Za-z]{1,3}[1-9][0-9]*:[A-Za-z]{1,3}[1-9][0-9]*$", example = "A1:D20", description = "Range address.") String range,
@@ -357,7 +372,8 @@ public final class ExcelPackage {
         return Map.of("table", toTable(grid, header == null ? s.header : header));
     }
 
-    @Action(id = "write_table", name = "Write from Data Table", category = "Cells", description = "Write a table (with column names) starting at a cell.")
+    @Action(id = "write_table", name = "Write from Data Table", category = "Cells", description = "Write a table (with column names) starting at a cell.",
+            panel = "table, (Worksheet: The active sheet = / A named sheet = sheet), start_cell, include_header | session")
     public Map<String, Object> writeTable(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Table to write.") Map<String, Object> table,
             @Input(name = "start_cell", type = OoaType.STRING, required = false, defaultValue = "\"A1\"", pattern = CELL, description = "Top-left cell.") String start,
@@ -383,7 +399,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "find", name = "Find", category = "Cells", idempotent = true,
-            description = "Find cells whose content contains (or equals) a text, in the whole sheet or a range; returns their addresses in search order.")
+            description = "Find cells whose content contains (or equals) a text, in the whole sheet or a range; returns their addresses in search order.",
+            panel = "range, text, search_by, match_case, whole_cell | look_in, sheet, session")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses such as B7.")
     @Output(name = "first_cell", type = OoaType.STRING, description = "Address of the first match; empty when nothing matched.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching cells.")
@@ -420,7 +437,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> getSheetNames(ActionContext ctx, String session) { return getSheetNames(ctx, session, true); }
 
-    @Action(id = "get_sheet_names", name = "Get sheet names", category = "Sheets", idempotent = true, description = "List the worksheet names, optionally leaving out hidden sheets.")
+    @Action(id = "get_sheet_names", name = "Get sheet names", category = "Sheets", idempotent = true, description = "List the worksheet names, optionally leaving out hidden sheets.",
+            panel = "session | include_hidden")
     @Output(name = "names", type = OoaType.LIST, description = "Sheet names in order.")
     public Map<String, Object> getSheetNames(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -435,7 +453,8 @@ public final class ExcelPackage {
     public Map<String, Object> addSheet(ActionContext ctx, String name, boolean replace, String session) { return addSheet(ctx, name, replace, session, null, false); }
 
     @Action(id = "add_sheet", name = "Create worksheet", category = "Sheets",
-            description = "Create a worksheet at the end or at a position, or clear it first when replace is true.")
+            description = "Create a worksheet at the end or at a position, or clear it first when replace is true.",
+            panel = "name, position, activate | replace, session")
     public Map<String, Object> addSheet(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, description = "Worksheet name.") String name,
             @Input(name = "replace", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing sheet with this name.") boolean replace,
@@ -477,7 +496,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> deleteSheet(ActionContext ctx, String name, String session) { return deleteSheet(ctx, name, session, null); }
 
-    @Action(id = "delete_sheet", name = "Delete worksheet", category = "Sheets", description = "Delete a worksheet chosen by name or position.")
+    @Action(id = "delete_sheet", name = "Delete worksheet", category = "Sheets", description = "Delete a worksheet chosen by name or position.",
+            panel = "(Sheet by: Name = name / Position = index) | session")
     public Map<String, Object> deleteSheet(ActionContext ctx,
             @Input(name = "name", type = OoaType.STRING, required = false, visibleWhen = "index=", description = "Worksheet name.") String name,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -492,7 +512,8 @@ public final class ExcelPackage {
     public Map<String, Object> save(ActionContext ctx, String path, String session) { return save(ctx, path, session, null); }
 
     @Action(id = "save", name = "Save", category = "Workbook", capabilities = "filesystem",
-            description = "Save the workbook, optionally to a new path (Save as); encrypted workbooks stay encrypted.")
+            description = "Save the workbook, optionally to a new path (Save as); encrypted workbooks stay encrypted.",
+            panel = "session | path, password")
     public Map<String, Object> save(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "Save-as path; the opened file when empty.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -513,7 +534,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> close(ActionContext ctx, String session) { return close(ctx, session, false); }
 
-    @Action(id = "close", name = "Close", category = "Workbook", capabilities = "filesystem", description = "Close the workbook session, saving the changes first when asked.")
+    @Action(id = "close", name = "Close", category = "Workbook", capabilities = "filesystem", description = "Close the workbook session, saving the changes first when asked.",
+            panel = "save | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
@@ -691,15 +713,19 @@ public final class ExcelPackage {
     // Workbook and sheet structure
     // ------------------------------------------------------------------------------------------------
 
+    public Map<String, Object> appendWorkbook(ActionContext ctx, String path, String session) { return appendWorkbook(ctx, path, session, null); }
+
     @Action(id = "append_workbook", name = "Append workbook", category = "Workbook", capabilities = "filesystem",
-            description = "Copy every sheet of another workbook file to the end of this workbook; clashing names get a number suffix.")
+            description = "Copy every sheet of another workbook file to the end of this workbook; clashing names get a number suffix.",
+            panel = "path, [The file has a password: password] | session")
     @Output(name = "sheets", type = OoaType.LIST, description = "Names the copied sheets received.")
     public Map<String, Object> appendWorkbook(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook file whose sheets are copied in.") String path,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password of that file, when it is encrypted.") Object password) {
         WorkbookSession s = session(ctx, session);
         List<Object> added = new ArrayList<>();
-        try (Workbook other = load(ctx.resolvePath(path))) {
+        try (Workbook other = load(ctx.resolvePath(path), OfficeCrypto.secret(password))) {
             for (int i = 0; i < other.getNumberOfSheets(); i++) {
                 Sheet src = other.getSheetAt(i);
                 Sheet dst = s.wb.createSheet(uniqueSheetName(s.wb, src.getSheetName()));
@@ -710,17 +736,30 @@ public final class ExcelPackage {
         return out("sheets", added);
     }
 
+    public Map<String, Object> appendWorksheet(ActionContext ctx, String path, String sourceSheet, String newName, String session) {
+        return appendWorksheet(ctx, path, sourceSheet, newName, session, null, null);
+    }
+
     @Action(id = "append_worksheet", name = "Append worksheet", category = "Sheets", capabilities = "filesystem",
-            description = "Copy one sheet from another workbook file to the end of this workbook.")
+            description = "Copy one sheet, chosen by name or position, from another workbook file to the end of this workbook.",
+            panel = "path, [The file has a password: password], (Sheet to copy: By name = source_sheet / By position = source_index), new_name | session")
     @Output(name = "name", type = OoaType.STRING, description = "Name the copied sheet received.")
     public Map<String, Object> appendWorksheet(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook file that holds the sheet.") String path,
             @Input(name = "source_sheet", type = OoaType.STRING, required = false, description = "Sheet to copy; the first sheet when empty.") String sourceSheet,
             @Input(name = "new_name", type = OoaType.STRING, required = false, description = "Name for the copy; the source name when empty.") String newName,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password of that file, when it is encrypted.") Object password,
+            @Input(name = "source_index", type = OoaType.NUMBER, required = false, min = 1, description = "Position of the sheet to copy (1 = first); used when the sheet name is empty.") Integer sourceIndex) {
         WorkbookSession s = session(ctx, session);
-        try (Workbook other = load(ctx.resolvePath(path))) {
-            Sheet src = sourceSheet == null || sourceSheet.isBlank() ? other.getSheetAt(0) : other.getSheet(sourceSheet);
+        try (Workbook other = load(ctx.resolvePath(path), OfficeCrypto.secret(password))) {
+            Sheet src;
+            if (sourceSheet != null && !sourceSheet.isBlank()) src = other.getSheet(sourceSheet);
+            else if (sourceIndex != null) {
+                if (sourceIndex > other.getNumberOfSheets())
+                    throw new ActionException("EXCEL.NO_SHEET", "Sheet " + sourceIndex + " not found in " + path + ", which has " + other.getNumberOfSheets() + " sheets", "Use a position from 1 to " + other.getNumberOfSheets() + ".");
+                src = other.getSheetAt(sourceIndex - 1);
+            } else src = other.getSheetAt(0);
             if (src == null) throw new ActionException("EXCEL.NO_SHEET", "Sheet '" + sourceSheet + "' not found in " + path, "Check the sheet name in the source workbook.");
             Sheet dst = s.wb.createSheet(uniqueSheetName(s.wb, newName == null || newName.isBlank() ? src.getSheetName() : newName));
             copySheetInto(src, dst);
@@ -728,7 +767,8 @@ public final class ExcelPackage {
         } catch (IOException e) { throw new ActionException("EXCEL.OPEN_FAILED", e.getMessage()); }
     }
 
-    @Action(id = "copy_sheet", name = "Copy worksheet", category = "Sheets", description = "Duplicate a worksheet inside the same workbook under a new name.")
+    @Action(id = "copy_sheet", name = "Copy worksheet", category = "Sheets", description = "Duplicate a worksheet inside the same workbook under a new name.",
+            panel = "sheet, new_name | session")
     @Output(name = "name", type = OoaType.STRING, description = "Name of the new sheet.")
     public Map<String, Object> copySheet(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet to copy; active sheet when empty.") String sheet,
@@ -749,7 +789,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> renameSheet(ActionContext ctx, String sheet, String newName, String session) { return renameSheet(ctx, sheet, newName, session, null); }
 
-    @Action(id = "rename_sheet", name = "Rename worksheet", category = "Sheets", description = "Give a worksheet, chosen by name or position, a new name.")
+    @Action(id = "rename_sheet", name = "Rename worksheet", category = "Sheets", description = "Give a worksheet, chosen by name or position, a new name.",
+            panel = "(Sheet by: Name = sheet / Position = index), new_name | session")
     public Map<String, Object> renameSheet(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, visibleWhen = "index=", description = "Current sheet name.") String sheet,
             @Input(name = "new_name", type = OoaType.STRING, description = "New sheet name.") String newName,
@@ -766,7 +807,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> sheetCount(ActionContext ctx, String session) { return sheetCount(ctx, session, true); }
 
-    @Action(id = "sheet_count", name = "Get sheet count", category = "Sheets", idempotent = true, description = "Count the worksheets in the workbook, with or without the hidden ones.")
+    @Action(id = "sheet_count", name = "Get sheet count", category = "Sheets", idempotent = true, description = "Count the worksheets in the workbook, with or without the hidden ones.",
+            panel = "include_hidden | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of worksheets.")
     public Map<String, Object> sheetCount(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -774,7 +816,8 @@ public final class ExcelPackage {
         return out("count", n(((List<?>) getSheetNames(ctx, session, includeHidden).get("names")).size()));
     }
 
-    @Action(id = "get_current_sheet_name", name = "Get current sheet name", category = "Sheets", idempotent = true, description = "Return the name of the active worksheet.")
+    @Action(id = "get_current_sheet_name", name = "Get current sheet name", category = "Sheets", idempotent = true, description = "Return the name of the active worksheet.",
+            panel = "session")
     @Output(name = "name", type = OoaType.STRING, description = "Active sheet name.")
     public Map<String, Object> currentSheet(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
@@ -791,7 +834,8 @@ public final class ExcelPackage {
     public Map<String, Object> switchSheet(ActionContext ctx, String sheet, String session) { return switchSheet(ctx, sheet, session, null); }
 
     @Action(id = "switch_sheet", name = "Switch to sheet", category = "Sheets",
-            description = "Make a worksheet, chosen by name or position, the active one; later steps with an empty sheet input work on it.")
+            description = "Make a worksheet, chosen by name or position, the active one; later steps with an empty sheet input work on it.",
+            panel = "(Sheet by: Name = sheet / Position = index) | session")
     public Map<String, Object> switchSheet(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, visibleWhen = "index=", description = "Sheet name to activate.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -803,7 +847,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> hideSheet(ActionContext ctx, String sheet, String session) { return hideSheet(ctx, sheet, session, null); }
 
-    @Action(id = "hide_sheet", name = "Hide sheet", category = "Sheets", description = "Hide a worksheet chosen by name or position; at least one sheet must stay visible.")
+    @Action(id = "hide_sheet", name = "Hide sheet", category = "Sheets", description = "Hide a worksheet chosen by name or position; at least one sheet must stay visible.",
+            panel = "(Sheet by: Name = sheet / Position = index) | session")
     public Map<String, Object> hideSheet(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, visibleWhen = "index=", description = "Sheet to hide.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -821,7 +866,8 @@ public final class ExcelPackage {
 
     public Map<String, Object> unhideSheet(ActionContext ctx, String sheet, String session) { return unhideSheet(ctx, sheet, session, null); }
 
-    @Action(id = "unhide_sheet", name = "Unhide sheet", category = "Sheets", description = "Make a hidden worksheet, chosen by name or position, visible again.")
+    @Action(id = "unhide_sheet", name = "Unhide sheet", category = "Sheets", description = "Make a hidden worksheet, chosen by name or position, visible again.",
+            panel = "(Sheet by: Name = sheet / Position = index) | session")
     public Map<String, Object> unhideSheet(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, visibleWhen = "index=", description = "Sheet to show.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -831,7 +877,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "unhide_all_sheets", name = "Unhide all sheets", category = "Sheets", description = "Make every hidden worksheet visible.")
+    @Action(id = "unhide_all_sheets", name = "Unhide all sheets", category = "Sheets", description = "Make every hidden worksheet visible.",
+            panel = "session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of sheets that were hidden.")
     public Map<String, Object> unhideAllSheets(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
@@ -846,7 +893,8 @@ public final class ExcelPackage {
     // Rows, columns and cells
     // ------------------------------------------------------------------------------------------------
 
-    @Action(id = "insert_rows", name = "Insert rows", category = "Rows and columns", description = "Insert empty rows before a row number, moving the rows below down.")
+    @Action(id = "insert_rows", name = "Insert rows", category = "Rows and columns", description = "Insert empty rows before a row number, moving the rows below down.",
+            panel = "row, count | sheet, session")
     public Map<String, Object> insertRows(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, example = "3", min = 1, description = "1-based row number the new rows go before.") int row,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many rows to insert.") int count,
@@ -858,7 +906,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_rows", name = "Delete rows", category = "Rows and columns", description = "Delete whole rows and move the rows below up.")
+    @Action(id = "delete_rows", name = "Delete rows", category = "Rows and columns", description = "Delete whole rows and move the rows below up.",
+            panel = "row, count | sheet, session")
     public Map<String, Object> deleteRows(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, example = "3", min = 1, description = "1-based number of the first row to delete.") int row,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many rows to delete.") int count,
@@ -875,7 +924,8 @@ public final class ExcelPackage {
         if (start + k <= last) sh.shiftRows(start + k, last, -k, true, false);
     }
 
-    @Action(id = "insert_columns", name = "Insert columns", category = "Rows and columns", description = "Insert empty columns before a column, moving the columns to the right.")
+    @Action(id = "insert_columns", name = "Insert columns", category = "Rows and columns", description = "Insert empty columns before a column, moving the columns to the right.",
+            panel = "column, count | sheet, session")
     public Map<String, Object> insertColumns(ActionContext ctx,
             @Input(name = "column", example = "C", description = "Column letter or 1-based number the new columns go before.") Object column,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many columns to insert.") int count,
@@ -887,7 +937,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_columns", name = "Delete columns", category = "Rows and columns", description = "Delete whole columns and move the columns to the right leftwards.")
+    @Action(id = "delete_columns", name = "Delete columns", category = "Rows and columns", description = "Delete whole columns and move the columns to the right leftwards.",
+            panel = "column, count | sheet, session")
     public Map<String, Object> deleteColumns(ActionContext ctx,
             @Input(name = "column", example = "C", description = "Column letter or 1-based number of the first column to delete.") Object column,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many columns to delete.") int count,
@@ -901,7 +952,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "delete_cells", name = "Delete cells", category = "Cells",
-            description = "Delete the cells of a range and close the gap by moving the cells below up or the cells to the right left.")
+            description = "Delete the cells of a range and close the gap by moving the cells below up or the cells to the right left.",
+            panel = "range, shift | sheet, session")
     public Map<String, Object> deleteCells(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "B2:C3", description = "Cell or range to delete.") String range,
             @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", enumValues = {"up", "left", "entire_row", "entire_column"},
@@ -940,7 +992,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "hide_rows", name = "Hide rows", category = "Rows and columns", description = "Hide one or more rows.")
+    @Action(id = "hide_rows", name = "Hide rows", category = "Rows and columns", description = "Hide one or more rows.",
+            panel = "row, count | sheet, session")
     public Map<String, Object> hideRows(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based number of the first row.") int row,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many rows.") int count,
@@ -951,7 +1004,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "unhide_rows", name = "Unhide rows", category = "Rows and columns", description = "Show hidden rows again.")
+    @Action(id = "unhide_rows", name = "Unhide rows", category = "Rows and columns", description = "Show hidden rows again.",
+            panel = "row, count | sheet, session")
     public Map<String, Object> unhideRows(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based number of the first row.") int row,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many rows.") int count,
@@ -962,7 +1016,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "hide_columns", name = "Hide columns", category = "Rows and columns", description = "Hide one or more columns.")
+    @Action(id = "hide_columns", name = "Hide columns", category = "Rows and columns", description = "Hide one or more columns.",
+            panel = "column, count | sheet, session")
     public Map<String, Object> hideColumns(ActionContext ctx,
             @Input(name = "column", example = "B", description = "Column letter or 1-based number of the first column.") Object column,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many columns.") int count,
@@ -973,7 +1028,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "unhide_columns", name = "Unhide columns", category = "Rows and columns", description = "Show hidden columns again.")
+    @Action(id = "unhide_columns", name = "Unhide columns", category = "Rows and columns", description = "Show hidden columns again.",
+            panel = "column, count | sheet, session")
     public Map<String, Object> unhideColumns(ActionContext ctx,
             @Input(name = "column", example = "B", description = "Column letter or 1-based number of the first column.") Object column,
             @Input(name = "count", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, description = "How many columns.") int count,
@@ -984,16 +1040,28 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "remove_blank_rows", name = "Remove blank rows", category = "Rows and columns", description = "Delete every empty row inside the used area and close the gaps.")
+    public Map<String, Object> removeBlankRows(ActionContext ctx, String sheet, String session) { return removeBlankRows(ctx, sheet, session, null, null); }
+
+    @Action(id = "remove_blank_rows", name = "Remove blank rows", category = "Rows and columns",
+            description = "Delete every empty row inside the used area, or between two rows, and close the gaps.",
+            panel = "(From: The first row = / A specific row = start_row), (To: The last row with data = / A specific row = end_row) | sheet, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows removed.")
     public Map<String, Object> removeBlankRows(ActionContext ctx,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
+            @Input(name = "start_row", type = OoaType.NUMBER, required = false, min = 1, description = "First row to check (1 = first row); the first row when empty.") Integer startRow,
+            @Input(name = "end_row", type = OoaType.NUMBER, required = false, min = 1, description = "Last row to check; the last row with data when empty.") Integer endRow) {
         Sheet sh = sheet(session(ctx, session), sheet);
+        if (startRow != null && endRow != null && endRow < startRow)
+            throw new ActionException("EXCEL.BAD_RANGE", "End row " + endRow + " is before start row " + startRow, "Give an end row at or after the start row.");
         int removed = 0;
         int last = sh.getLastRowNum();
-        while (last >= 0 && blankRow(sh.getRow(last))) { Row x = sh.getRow(last); if (x != null) sh.removeRow(x); last--; }  // trailing blanks are not counted
-        for (int r = last - 1; r >= 0; r--) {
+        if (endRow == null)  // trailing blanks of the whole sheet are not counted
+            while (last >= 0 && blankRow(sh.getRow(last))) { Row x = sh.getRow(last); if (x != null) sh.removeRow(x); last--; }
+        else last = Math.min(last, endRow - 1);
+        int first = startRow == null ? 0 : startRow - 1;
+        // inside a given range every blank row counts; for the whole sheet the last row always holds data
+        for (int r = endRow == null ? last - 1 : last; r >= first; r--) {
             if (!blankRow(sh.getRow(r))) continue;
             removeRows(sh, r, 1);
             removed++;
@@ -1004,7 +1072,8 @@ public final class ExcelPackage {
     public Map<String, Object> rowCount(ActionContext ctx, String sheet, String session) { return rowCount(ctx, sheet, session, "non_empty"); }
 
     @Action(id = "row_count", name = "Get number of rows", category = "Rows and columns", idempotent = true,
-            description = "Count the rows that hold data, or all rows of the used area, and report the number of the last used row.")
+            description = "Count the rows that hold data, or all rows of the used area, and report the number of the last used row.",
+            panel = "sheet, mode | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Rows with at least one non-empty cell, or all rows of the used area.")
     @Output(name = "last_row", type = OoaType.NUMBER, description = "1-based number of the last row with data; 0 when the sheet is empty.")
     public Map<String, Object> rowCount(ActionContext ctx,
@@ -1022,7 +1091,8 @@ public final class ExcelPackage {
     public Map<String, Object> getTableRange(ActionContext ctx, String sheet, String session) { return getTableRange(ctx, sheet, session, null, true); }
 
     @Action(id = "get_table_range", name = "Get table range", category = "Cells", idempotent = true,
-            description = "Return the address of the smallest rectangle holding all data on the sheet, or of a named Excel table, e.g. A1:D20.")
+            description = "Return the address of the smallest rectangle holding all data on the sheet, or of a named Excel table, e.g. A1:D20.",
+            panel = "table, include_header | sheet, session")
     @Output(name = "range", type = OoaType.STRING, description = "Used range address; empty when the sheet is empty.")
     @Output(name = "rows", type = OoaType.NUMBER, description = "Number of rows in the range.")
     @Output(name = "columns", type = OoaType.NUMBER, description = "Number of columns in the range.")
@@ -1066,7 +1136,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "find_next_empty_cell", name = "Find next empty cell", category = "Cells", idempotent = true,
-            description = "Starting from a cell, walk along its column or row in a direction and return the first empty cell.")
+            description = "Starting from a cell, walk along its column or row in a direction and return the first empty cell.",
+            panel = "direction, (Start from: The active cell = / A specific cell = start_cell) | sheet, session")
     @Output(name = "cell", type = OoaType.STRING, description = "Address of the first empty cell, e.g. A12.")
     @Output(name = "row", type = OoaType.NUMBER, description = "1-based row number of that cell.")
     @Output(name = "column", type = OoaType.NUMBER, description = "1-based column number of that cell.")
@@ -1084,7 +1155,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "go_to_next_empty_cell", name = "Go to next empty cell", category = "Cells",
-            description = "Starting from a cell, walk along its column or row to the first empty cell and make that cell the active cell.")
+            description = "Starting from a cell, walk along its column or row to the first empty cell and make that cell the active cell.",
+            panel = "(Start from: The active cell = / A specific cell = start_cell), direction | sheet, session")
     @Output(name = "cell", type = OoaType.STRING, description = "Address of the cell that is now active.")
     public Map<String, Object> goToNextEmptyCell(ActionContext ctx,
             @Input(name = "start_cell", type = OoaType.STRING, required = false, pattern = CELL, description = "Where to start; the active cell when empty.") String start,
@@ -1103,7 +1175,8 @@ public final class ExcelPackage {
     public Map<String, Object> goToCell(ActionContext ctx, String address, String sheet, String session) { return goToCell(ctx, address, sheet, session, "none"); }
 
     @Action(id = "go_to_cell", name = "Go to cell", category = "Cells",
-            description = "Make a cell the active cell, or move the active cell one step or to the start or end of its row or column, and remember it for later steps.")
+            description = "Make a cell the active cell, or move the active cell one step or to the start or end of its row or column, and remember it for later steps.",
+            panel = "(Go to: A specific cell = cell, sheet / A cell next to the active cell = move) | session")
     @Output(name = "cell", type = OoaType.STRING, description = "Address of the cell that is now active.")
     public Map<String, Object> goToCell(ActionContext ctx,
             @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "B7", description = "Cell address; the active cell when empty.") String address,
@@ -1136,7 +1209,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "select_range", name = "Select range", category = "Cells",
-            description = "Remember a range as the session's current selection and make its top-left cell active.")
+            description = "Remember a range as the session's current selection and make its top-left cell active.",
+            panel = "range | sheet, session")
     public Map<String, Object> selectRange(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:D20", description = "Range address.") String range,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
@@ -1154,7 +1228,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "cell_address", name = "Get cell address", category = "Addresses", idempotent = true, description = "Turn a row number and a column number or letter into an address such as B7.")
+    @Action(id = "cell_address", name = "Get cell address", category = "Addresses", idempotent = true, description = "Turn a row number and a column number or letter into an address such as B7.",
+            panel = "column, row")
     @Output(name = "cell", type = OoaType.STRING, description = "Cell address.")
     public Map<String, Object> cellAddress(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based row number.") int row,
@@ -1162,14 +1237,16 @@ public final class ExcelPackage {
         return out("cell", addr(rowIndex(row), columnIndex(column)));
     }
 
-    @Action(id = "column_name", name = "Get column name", category = "Addresses", idempotent = true, description = "Turn a 1-based column number into its letters, e.g. 28 becomes AB.")
+    @Action(id = "column_name", name = "Get column name", category = "Addresses", idempotent = true, description = "Turn a 1-based column number into its letters, e.g. 28 becomes AB.",
+            panel = "column")
     @Output(name = "name", type = OoaType.STRING, description = "Column letters.")
     public Map<String, Object> columnName(ActionContext ctx,
             @Input(name = "column", type = OoaType.NUMBER, min = 1, max = 16384, description = "1-based column number.") int column) {
         return out("name", CellReference.convertNumToColString(checkCol(column)));
     }
 
-    @Action(id = "row_number", name = "Get row and column number", category = "Addresses", idempotent = true, description = "Split a cell address such as B7 into its row and column numbers.")
+    @Action(id = "row_number", name = "Get row and column number", category = "Addresses", idempotent = true, description = "Split a cell address such as B7 into its row and column numbers.",
+            panel = "cell")
     @Output(name = "row", type = OoaType.NUMBER, description = "1-based row number.")
     @Output(name = "column", type = OoaType.NUMBER, description = "1-based column number.")
     @Output(name = "column_name", type = OoaType.STRING, description = "Column letters.")
@@ -1183,14 +1260,17 @@ public final class ExcelPackage {
     // Reading
     // ------------------------------------------------------------------------------------------------
 
-    @Action(id = "read_formula", name = "Read cell formula", category = "Cells", idempotent = true, description = "Return the formula a cell holds, or an empty text when it holds a plain value.")
+    @Action(id = "read_formula", name = "Read cell formula", category = "Cells", idempotent = true,
+            description = "Return the formula a cell (or the active cell) holds, or an empty text when it holds a plain value.",
+            panel = "(Cell: The active cell = / A specific cell = cell) | sheet, session")
     @Output(name = "formula", type = OoaType.STRING, description = "Formula starting with =, or empty.")
     @Output(name = "has_formula", type = OoaType.BOOLEAN, description = "True when the cell holds a formula.")
     public Map<String, Object> readFormula(ActionContext ctx,
-            @Input(name = "cell", type = OoaType.STRING, pattern = CELL, example = "C11", description = "Cell address.") String address,
+            @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "C11", description = "Cell address; the active cell (set by go_to_cell) when empty.") String address,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
-        Cell c = cell(sheet(session(ctx, session), sheet), address, false);
+        Sheet sh = sheet(session(ctx, session), sheet);
+        Cell c = cell(sh, cellOrActive(sh, address), false);
         boolean f = c != null && c.getCellType() == CellType.FORMULA;
         return out("formula", f ? "=" + c.getCellFormula() : "", "has_formula", f);
     }
@@ -1200,7 +1280,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "read_column", name = "Read column", category = "Cells", idempotent = true,
-            description = "Read the values of one column, from a start row down to an end row or the last used row.")
+            description = "Read the values of one column, from a start row down to an end row or the last used row.",
+            panel = "column, start_row, end_row, read_as | sheet, session")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values from top to bottom; empty cells are null.")
     public Map<String, Object> readColumn(ActionContext ctx,
             @Input(name = "column", example = "B", description = "Column letter or 1-based number.") Object column,
@@ -1226,7 +1307,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "read_row", name = "Read row", category = "Cells", idempotent = true,
-            description = "Read the values of one row, from a start column to an end column or the last used cell.")
+            description = "Read the values of one row, from a start column to an end column or the last used cell.",
+            panel = "row, start_column, end_column, read_as | sheet, session")
     @Output(name = "values", type = OoaType.LIST, description = "Cell values from left to right; empty cells are null.")
     public Map<String, Object> readRow(ActionContext ctx,
             @Input(name = "row", type = OoaType.NUMBER, min = 1, description = "1-based row number.") int row,
@@ -1272,7 +1354,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "get_cell_color", name = "Get cell colour", category = "Formatting", idempotent = true,
-            description = "Return a cell's fill colour or font colour as a hex value such as #FFC000, or as red, green and blue numbers.")
+            description = "Return a cell's fill colour or font colour as a hex value such as #FFC000, or as red, green and blue numbers.",
+            panel = "target, (Cell: The active cell = / A specific cell = cell) | format, sheet, session")
     @Output(name = "color", type = OoaType.STRING, description = "Colour as hex or as R,G,B; empty when the cell has no colour set.")
     public Map<String, Object> getCellColor(ActionContext ctx,
             @Input(name = "cell", type = OoaType.STRING, required = false, pattern = CELL, example = "B2", description = "Cell address; the active cell when empty.") String address,
@@ -1297,7 +1380,8 @@ public final class ExcelPackage {
         return out("color", h);
     }
 
-    @Action(id = "set_cell_color", name = "Set cell colour", category = "Formatting", description = "Give a cell or range a solid fill colour or a font colour.")
+    @Action(id = "set_cell_color", name = "Set cell colour", category = "Formatting", description = "Give a cell or range a solid fill colour or a font colour.",
+            panel = "range, target, color | sheet, session")
     public Map<String, Object> setCellColor(ActionContext ctx,
             @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "A1:D1", description = "Cell or range to colour.") String range,
             @Input(name = "color", type = OoaType.STRING, example = "#FFC000", description = "Hex colour.") String colour,
@@ -1341,31 +1425,60 @@ public final class ExcelPackage {
 
     public Map<String, Object> protectWorkbook(ActionContext ctx, String password, String session) { return protectWorkbook(ctx, password, session, true, false); }
 
+    public Map<String, Object> protectWorkbook(ActionContext ctx, Object password, String session, boolean lockStructure, boolean lockWindows) {
+        return protectWorkbook(ctx, password, session, lockStructure, lockWindows, null);
+    }
+
     @Action(id = "protect_workbook", name = "Protect workbook", category = "Protection",
-            description = "Lock the workbook structure, its window layout, or both, with a password so sheets cannot be added, removed, renamed or unhidden in Excel.")
+            description = "Require a password to open the file, lock the workbook structure and window layout with a password, or both.",
+            panel = "[Require a password to open the file: open_password], [Lock the structure with a password: password, lock_structure, lock_windows] | session")
     public Map<String, Object> protectWorkbook(ActionContext ctx,
-            @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password needed to unlock the structure; a credential from the vault or text.") Object password,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password needed to unlock the structure; a credential from the vault or text.") Object password,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "lock_structure", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Stop sheets being added, removed, moved, renamed or unhidden.") boolean lockStructure,
-            @Input(name = "lock_windows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also fix the size and position of the workbook windows.") boolean lockWindows) {
-        XSSFWorkbook wb = xlsx(session(ctx, session), "Workbook protection");
-        if (!lockStructure && !lockWindows) throw new ActionException("EXCEL.NOTHING_TO_LOCK", "Neither the structure nor the windows were chosen", "Set lock_structure or lock_windows to true.");
-        if (lockStructure) wb.lockStructure(); else wb.unLockStructure();
-        if (lockWindows) wb.lockWindows(); else wb.unLockWindows();
-        wb.setWorkbookPassword(OfficeCrypto.secret(password), HashAlgorithm.sha512);
+            @Input(name = "lock_windows", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also fix the size and position of the workbook windows.") boolean lockWindows,
+            @Input(name = "open_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Encrypt the file with this password when it is saved, so it cannot be opened without it.") Object openPassword) {
+        WorkbookSession s = session(ctx, session);
+        String structure = OfficeCrypto.secret(password), open = OfficeCrypto.secret(openPassword);
+        if (structure == null && open == null)
+            throw new ActionException("EXCEL.NOTHING_TO_LOCK", "No password was given", "Give a password to open the file, a structure password, or both.");
+        if (open != null) {
+            if (!(s.wb instanceof XSSFWorkbook)) throw new ActionException("EXCEL.NOT_SUPPORTED", "A password to open needs an .xlsx workbook", "Save the workbook as .xlsx first.");
+            s.password = open;
+        }
+        if (structure != null) {
+            XSSFWorkbook wb = xlsx(s, "Workbook protection");
+            if (!lockStructure && !lockWindows) throw new ActionException("EXCEL.NOTHING_TO_LOCK", "Neither the structure nor the windows were chosen", "Set lock_structure or lock_windows to true.");
+            if (lockStructure) wb.lockStructure(); else wb.unLockStructure();
+            if (lockWindows) wb.lockWindows(); else wb.unLockWindows();
+            wb.setWorkbookPassword(structure, HashAlgorithm.sha512);
+        }
         return Map.of();
     }
 
-    @Action(id = "unprotect_workbook", name = "Unprotect workbook", category = "Protection", description = "Unlock a protected workbook structure and windows; the password must match.")
+    public Map<String, Object> unprotectWorkbook(ActionContext ctx, Object password, String session) { return unprotectWorkbook(ctx, password, session, false); }
+
+    @Action(id = "unprotect_workbook", name = "Unprotect workbook", category = "Protection",
+            description = "Stop asking for a password to open the file, unlock a protected workbook structure and windows (the password must match), or both.",
+            panel = "remove_open_password, [Unlock the structure: password] | session")
     public Map<String, Object> unprotectWorkbook(ActionContext ctx,
-            @Input(name = "password", type = OoaType.CREDENTIAL, description = "Structure password; a credential from the vault or text.") Object password,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
-        XSSFWorkbook wb = xlsx(session(ctx, session), "Workbook protection");
-        if ((wb.isStructureLocked() || wb.isWindowsLocked()) && !wb.validateWorkbookPassword(OfficeCrypto.secret(password)))
-            throw new ActionException("EXCEL.WRONG_PASSWORD", "The workbook password is wrong", "Check the password stored in the credential vault.");
-        wb.unLockStructure();
-        wb.unLockWindows();
-        wb.setWorkbookPassword(null, null);
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Structure password; a credential from the vault or text.") Object password,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
+            @Input(name = "remove_open_password", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Save the file without encryption from now on, so it opens without a password.") boolean removeOpenPassword) {
+        WorkbookSession s = session(ctx, session);
+        String pw = OfficeCrypto.secret(password);
+        if (pw == null && !removeOpenPassword)
+            throw new ActionException("EXCEL.NOTHING_TO_UNLOCK", "Nothing to unprotect was chosen", "Give the structure password, set remove_open_password, or both.");
+        if (removeOpenPassword) s.password = null;
+        if (pw != null && s.wb instanceof XSSFWorkbook wb) {
+            if ((wb.isStructureLocked() || wb.isWindowsLocked()) && !wb.validateWorkbookPassword(pw))
+                throw new ActionException("EXCEL.WRONG_PASSWORD", "The workbook password is wrong", "Check the password stored in the credential vault.");
+            wb.unLockStructure();
+            wb.unLockWindows();
+            wb.setWorkbookPassword(null, null);
+        }
         return Map.of();
     }
 
@@ -1374,7 +1487,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "protect_sheet", name = "Protect sheet", category = "Protection",
-            description = "Password-protect a worksheet so its locked cells cannot be edited in Excel, choosing which operations people may still perform.")
+            description = "Password-protect a worksheet so its locked cells cannot be edited in Excel, choosing which operations people may still perform.",
+            panel = "password, allow_format_cells, allow_format_columns, allow_format_rows, allow_insert_columns, allow_insert_rows, allow_delete_columns, allow_delete_rows, allow_sort, allow_filter | allow_select_locked, allow_select_unlocked, sheet, session")
     public Map<String, Object> protectSheet(ActionContext ctx,
             @Input(name = "password", type = OoaType.CREDENTIAL, description = "Password needed to unprotect the sheet; a credential from the vault or text.") Object password,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
@@ -1410,7 +1524,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "unprotect_sheet", name = "Unprotect sheet", category = "Protection", description = "Remove protection from a worksheet; for .xlsx files the password is checked first.")
+    @Action(id = "unprotect_sheet", name = "Unprotect sheet", category = "Protection", description = "Remove protection from a worksheet; for .xlsx files the password is checked first.",
+            panel = "password | sheet, session")
     public Map<String, Object> unprotectSheet(ActionContext ctx,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Sheet password; a credential from the vault or text.") Object password,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
@@ -1431,7 +1546,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "replace", name = "Replace", category = "Cells",
-            description = "Replace text in the cells of a sheet or range, optionally matching case or the whole cell, inside formulas, or only in the first matching cell.")
+            description = "Replace text in the cells of a sheet or range, optionally matching case or the whole cell, inside formulas, or only in the first matching cell.",
+            panel = "range, find, search_by, match_case, whole_cell, replace_with | first_only, look_in, sheet, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of cells changed.")
     @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the changed cells, in search order.")
     public Map<String, Object> replace(ActionContext ctx,
@@ -1545,7 +1661,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "sort_range", name = "Sort", category = "Cells",
-            description = "Sort the rows of a range (or of the used area) by one column and an optional second column, ascending or descending, keeping an optional header row in place.")
+            description = "Sort the rows of a range (or of the used area) by one column and an optional second column, ascending or descending, keeping an optional header row in place.",
+            panel = "sheet, range, header, column, descending | then_by, then_descending, session")
     public Map<String, Object> sortRange(ActionContext ctx,
             @Input(name = "column", example = "C", description = "Sort column: letter, 1-based sheet column number, or header name.") Object column,
             @Input(name = "descending", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Sort from largest to smallest.") boolean descending,
@@ -1605,7 +1722,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "filter", name = "Filter", category = "Cells",
-            description = "Return the rows of a sheet whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.")
+            description = "Return the rows of a sheet whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.",
+            panel = "sheet, header, column, operator, value, value_to, match_case | hide_rows, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Matching rows with the sheet's column names.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching rows.")
     @SuppressWarnings("unchecked")
@@ -1710,7 +1828,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "insert_table_column", name = "Insert table column", category = "Tables",
-            description = "Add a named column to an Excel table, moving the table cells to its right over by one.")
+            description = "Add a named column to an Excel table, moving the table cells to its right over by one.",
+            panel = "table, column_name, position | session")
     public Map<String, Object> insertTableColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, description = "Excel table name, e.g. Table1.") String tableName,
             @Input(name = "column_name", type = OoaType.STRING, description = "Header for the new column.") String columnName,
@@ -1738,7 +1857,8 @@ public final class ExcelPackage {
         return Map.of();
     }
 
-    @Action(id = "delete_table_column", name = "Delete table column", category = "Tables", description = "Remove a column from an Excel table and move the table cells to its right back by one.")
+    @Action(id = "delete_table_column", name = "Delete table column", category = "Tables", description = "Remove a column from an Excel table and move the table cells to its right back by one.",
+            panel = "table, column_name | session")
     public Map<String, Object> deleteTableColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, description = "Excel table name, e.g. Table1.") String tableName,
             @Input(name = "column_name", type = OoaType.STRING, description = "Header of the column to remove.") String columnName,
@@ -1775,7 +1895,8 @@ public final class ExcelPackage {
         return out;
     }
 
-    @Action(id = "get_links", name = "Get workbook links", category = "Links", idempotent = true, description = "List the other workbooks this workbook's formulas refer to and the cells that use them.")
+    @Action(id = "get_links", name = "Get workbook links", category = "Links", idempotent = true, description = "List the other workbooks this workbook's formulas refer to and the cells that use them.",
+            panel = "session")
     @Output(name = "links", type = OoaType.LIST, description = "Linked workbook file names.")
     @Output(name = "cells", type = OoaType.LIST, description = "Cells with external formulas, as Sheet!A1.")
     public Map<String, Object> getLinks(ActionContext ctx,
@@ -1805,7 +1926,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "break_links", name = "Break workbook links", category = "Links",
-            description = "Replace formulas that refer to other workbooks, or to one chosen workbook, with their last calculated values.")
+            description = "Replace formulas that refer to other workbooks, or to one chosen workbook, with their last calculated values.",
+            panel = "(Links: All links = / One link = link) | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of formulas replaced by values.")
     public Map<String, Object> breakLinks(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
@@ -1836,7 +1958,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "change_link", name = "Change workbook link", category = "Links",
-            description = "Point the links to one source workbook at another file; the new file should have the same sheets and cells.")
+            description = "Point the links to one source workbook at another file; the new file should have the same sheets and cells.",
+            panel = "old_link, new_link | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of links changed.")
     public Map<String, Object> changeLink(ActionContext ctx,
             @Input(name = "old_link", type = OoaType.STRING, description = "Current source workbook (path or file name as listed by get_links).") String oldLink,
@@ -1867,7 +1990,8 @@ public final class ExcelPackage {
     // ------------------------------------------------------------------------------------------------
 
     @Action(id = "get_sensitivity_label", name = "Get sensitivity label", category = "Sensitivity", idempotent = true,
-            description = "Read the sensitivity label stored in the workbook's MSIP_Label custom document properties.")
+            description = "Read the sensitivity label stored in the workbook's MSIP_Label custom document properties.",
+            panel = "session")
     @Output(name = "label_id", type = OoaType.STRING, description = "Label GUID; empty when no label is set.")
     @Output(name = "name", type = OoaType.STRING, description = "Label name as stored in the file.")
     @Output(name = "site_id", type = OoaType.STRING, description = "Tenant (site) id the label belongs to.")
@@ -1880,7 +2004,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "set_sensitivity_label", name = "Set sensitivity label", category = "Sensitivity",
-            description = "Write a sensitivity label into the workbook's MSIP_Label custom properties, replacing any earlier label; this marks the file but does not encrypt it.")
+            description = "Write a sensitivity label into the workbook's MSIP_Label custom properties, replacing any earlier label; this marks the file but does not encrypt it.",
+            panel = "label_id, site_id, method | name, session")
     public Map<String, Object> setSensitivityLabel(ActionContext ctx,
             @Input(name = "label_id", type = OoaType.STRING, description = "Label GUID from your organisation's compliance centre.") String labelId,
             @Input(name = "site_id", type = OoaType.STRING, description = "Tenant (site) GUID the label belongs to.") String siteId,
@@ -1901,7 +2026,8 @@ public final class ExcelPackage {
     }
 
     @Action(id = "save_as", name = "Save as", category = "Workbook", capabilities = "filesystem",
-            description = "Save the workbook to a new file as xlsx, xls or csv, optionally password-protected; after xlsx or xls the session continues on the new file.")
+            description = "Save the workbook to a new file as xlsx, xls or csv, optionally password-protected; after xlsx or xls the session continues on the new file.",
+            panel = "path, overwrite, format, sheet | password, session")
     public Map<String, Object> saveAs(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Target file path.") String path,
             @Input(name = "format", type = OoaType.STRING, required = false, enumValues = {"xlsx", "xls", "csv"}, description = "File format; taken from the file extension when empty.") String format,

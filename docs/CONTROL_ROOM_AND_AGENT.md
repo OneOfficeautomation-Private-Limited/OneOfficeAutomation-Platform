@@ -21,7 +21,7 @@ The database upgrades itself on start (schema versions 1 to 3).
 | `--port 8721` | Use another port |
 | `--host 0.0.0.0` | Accept connections from other machines (put an HTTPS reverse proxy in front first) |
 | `--data D:\OOA\cr` | Keep data elsewhere |
-| `--db-url jdbc:postgresql://dbhost:5432/ooa --db-user ooa --db-password-env OOA_DB_PASSWORD` | Use PostgreSQL |
+| `ooa db configure ...`, then `ooa db init` | Use SQL Server or PostgreSQL ([DATABASE.md](DATABASE.md)); the server then reads `config\ooa-db.properties` |
 
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
 Without it a key file is created next to the database.

@@ -79,7 +79,8 @@ public final class XmlPackage {
         return sb.toString();
     }
 
-    @Action(id = "get_value", name = "Get single node", category = "XML", idempotent = true, description = "Return the text of the first node matching an XPath.")
+    @Action(id = "get_value", name = "Get single node", category = "XML", idempotent = true, description = "Return the text of the first node matching an XPath.",
+            panel = "(Source: An XML file = path / XML text = xml), xpath, attribute | return_value")
     @Output(name = "value", type = OoaType.STRING, description = "Node text, empty when nothing matches.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a node matched.")
     public Map<String, Object> getValue(ActionContext ctx,
@@ -93,7 +94,8 @@ public final class XmlPackage {
         return Out.of("value", n.getLength() > 0 ? describe(n.item(0), attribute, returnValue) : "", "found", n.getLength() > 0);
     }
 
-    @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true, description = "Return the text of every node matching an XPath.")
+    @Action(id = "get_nodes", name = "Get multiple nodes", category = "XML", idempotent = true, description = "Return the text of every node matching an XPath.",
+            panel = "(Source: An XML file = path / XML text = xml), xpath, return_value, attribute")
     @Output(name = "values", type = OoaType.LIST, description = "Texts of matching nodes.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
     public Map<String, Object> getNodes(ActionContext ctx,
@@ -122,7 +124,8 @@ public final class XmlPackage {
     }
 
     @Action(id = "to_dictionary", name = "Convert to dictionary", category = "XML", idempotent = true,
-            description = "Convert XML (or the part matched by an XPath) to a Dictionary; attributes become @name keys.")
+            description = "Convert XML (or the part matched by an XPath) to a Dictionary; attributes become @name keys.",
+            panel = "(Source: An XML file = path / XML text = xml), xpath")
     @Output(name = "value", description = "Dictionary or text.")
     public Map<String, Object> toDictionary(ActionContext ctx,
             @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text (or use path).") String xml,
@@ -138,7 +141,8 @@ public final class XmlPackage {
         return Out.of("value", XmlSupport.toValue(e));
     }
 
-    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Set the text (or an attribute) of every node matching an XPath, in a file or in XML text.")
+    @Action(id = "set_value", name = "Update node", category = "XML", capabilities = "filesystem", description = "Set the text (or an attribute) of every node matching an XPath, in a file or in XML text.",
+            panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, value, attribute")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes changed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> setValue(ActionContext ctx,
@@ -162,7 +166,8 @@ public final class XmlPackage {
         return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
 
-    @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element (with text and attributes) under, before or after every node matching an XPath.")
+    @Action(id = "insert_node", name = "Insert node", category = "XML", capabilities = "filesystem", description = "Add an element (with text and attributes) under, before or after every node matching an XPath.",
+            panel = "(Source: An XML file = path, save_to / XML text = xml), parent_xpath, name, text, if_exists, position, attributes | reference_child, namespaces")
     @Output(name = "count", type = OoaType.NUMBER, description = "Elements inserted.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> insertNode(ActionContext ctx,
@@ -176,9 +181,24 @@ public final class XmlPackage {
                     description = "end or start: last or first child of the matched node; before or after: next to the matched node, as its sibling.") String position,
             @Input(name = "if_exists", type = OoaType.STRING, required = false, defaultValue = "\"insert\"", enumValues = {"insert", "skip", "overwrite"},
                     description = "When the parent already has a child with this name (end/start only): add another, skip, or replace the first one.") String ifExists,
-            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml) {
+            @Input(name = "xml", type = OoaType.STRING, required = false, description = "XML text to change instead of a file; the result is in the xml output.") String xml,
+            @Input(name = "reference_child", type = OoaType.STRING, required = false, visibleWhen = "position=before|after", example = "total",
+                    description = "With position before or after: insert next to the first child of the matched node with this element name, instead of next to the matched node itself.") String referenceChild,
+            @Input(name = "namespaces", type = OoaType.DICTIONARY, required = false, example = "{\"inv\": \"urn:example:invoice\"}",
+                    description = "Namespace declarations put on the new element, as prefix to URI (an empty prefix is the default namespace); name may then use the prefix, e.g. inv:note.") Map<String, Object> namespaces) {
         String pos = position == null ? "end" : position;
         if (!List.of("end", "start", "before", "after").contains(pos)) throw new ActionException("XML.BAD_OPTION", "Unknown position '" + pos + "'", "Use end, start, before or after.");
+        String ref = referenceChild == null || referenceChild.isBlank() ? null : referenceChild.strip();
+        if (ref != null && !(pos.equals("before") || pos.equals("after")))
+            throw new ActionException("XML.BAD_OPTION", "reference_child needs position before or after", "Set position to before or after, or leave reference_child empty.");
+        Map<String, String> ns = new LinkedHashMap<>();
+        if (namespaces != null) for (Map.Entry<String, Object> e : namespaces.entrySet()) {
+            String prefix = e.getKey() == null ? "" : e.getKey().strip(), uri = e.getValue() == null ? "" : String.valueOf(e.getValue()).strip();
+            if (!prefix.isEmpty() && (!prefix.matches("[A-Za-z_][A-Za-z0-9_.-]*") || prefix.toLowerCase(Locale.ROOT).startsWith("xml")))
+                throw new ActionException("XML.BAD_NAMESPACE", "Invalid namespace prefix '" + prefix + "'", "Use a prefix of letters, digits, _ . or -, not starting with xml.");
+            if (uri.isEmpty()) throw new ActionException("XML.BAD_NAMESPACE", "The namespace prefix '" + prefix + "' has no URI", "Give each prefix its namespace URI.");
+            ns.put(prefix, uri);
+        }
         int[] count = {0};
         String out = edit(ctx, xml, path, saveTo, doc -> {
             NodeList n = select(doc, parentXpath);
@@ -186,8 +206,18 @@ public final class XmlPackage {
                 for (int i = 0; i < n.getLength(); i++) {
                     Node target = n.item(i);
                     Element el = doc.createElement(name);
+                    ns.forEach((prefix, uri) -> el.setAttribute(prefix.isEmpty() ? "xmlns" : "xmlns:" + prefix, uri));
                     if (text != null) el.setTextContent(text);
                     if (attrs != null) attrs.forEach((k, v) -> el.setAttribute(k, String.valueOf(v)));
+                    if (ref != null) {
+                        Node anchor = null;
+                        for (Node c = target.getFirstChild(); c != null; c = c.getNextSibling()) if (c instanceof Element e && e.getNodeName().equals(ref)) { anchor = c; break; }
+                        if (anchor == null)
+                            throw new ActionException("XML.NO_REFERENCE", "The node " + xpathOf(target) + " has no child element '" + ref + "'", "Check reference_child, or leave it empty to insert next to the matched node.");
+                        target.insertBefore(el, pos.equals("before") ? anchor : anchor.getNextSibling());
+                        count[0]++;
+                        continue;
+                    }
                     if (pos.equals("before") || pos.equals("after")) {
                         Node parent = target.getParentNode();
                         if (parent == null || parent.getNodeType() == Node.DOCUMENT_NODE)
@@ -208,7 +238,13 @@ public final class XmlPackage {
         return Out.of("count", BigDecimal.valueOf(count[0]), "xml", out);
     }
 
-    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every node (or one attribute of every node) matching an XPath, in a file or in XML text.")
+    public Map<String, Object> insertNode(ActionContext ctx, String path, String parentXpath, String name, String text, Map<String, Object> attrs, String saveTo,
+            String position, String ifExists, String xml) {
+        return insertNode(ctx, path, parentXpath, name, text, attrs, saveTo, position, ifExists, xml, null, null);
+    }
+
+    @Action(id = "delete_nodes", name = "Delete nodes", category = "XML", capabilities = "filesystem", description = "Remove every node (or one attribute of every node) matching an XPath, in a file or in XML text.",
+            panel = "(Source: An XML file = path, save_to / XML text = xml), xpath, attribute")
     @Output(name = "count", type = OoaType.NUMBER, description = "Nodes (or attributes) removed.")
     @Output(name = "xml", type = OoaType.STRING, description = "The XML after the change.")
     public Map<String, Object> deleteNodes(ActionContext ctx,
@@ -232,7 +268,8 @@ public final class XmlPackage {
     }
 
     @Action(id = "validate", name = "Validate XML", category = "XML", idempotent = true,
-            description = "Check that an XML document is well-formed and, when an XSD schema is given, valid against it; returns the result instead of failing.")
+            description = "Check that an XML document is well-formed and, when an XSD schema is given, valid against it; returns the result instead of failing.",
+            panel = "(Source: An XML file = path / XML text = xml), [Check against a schema: xsd_path]")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the document is valid.")
     @Output(name = "errors", type = OoaType.LIST, description = "Validation errors with line numbers.")
     public Map<String, Object> validate(ActionContext ctx,
@@ -268,7 +305,8 @@ public final class XmlPackage {
     }
 
     @Action(id = "xpath_function", name = "Evaluate XPath", category = "XML", idempotent = true,
-            description = "Evaluate an XPath expression such as count(//line) or sum(//amount) and return text, a number or true/false.")
+            description = "Evaluate an XPath expression such as count(//line) or sum(//amount) and return text, a number or true/false.",
+            panel = "expression, (Source: An XML file = path / XML text = xml), result_type")
     @Output(name = "result", description = "Result of the expression as String, Number or Boolean.")
     public Map<String, Object> xpathFunction(ActionContext ctx,
             @Input(name = "expression", type = OoaType.STRING, example = "sum(//line/amount)", description = "XPath expression.") String expression,
@@ -298,7 +336,8 @@ public final class XmlPackage {
     }
 
     @Action(id = "save_file", name = "Save XML file", category = "XML", capabilities = "filesystem",
-            description = "Check that XML text is well-formed and write it to a file, optionally indented.")
+            description = "Check that XML text is well-formed and write it to a file, optionally indented.",
+            panel = "xml, path, indent")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the written file.")
     public Map<String, Object> saveFile(ActionContext ctx,
             @Input(name = "xml", type = OoaType.STRING, description = "XML text to save.") String xml,

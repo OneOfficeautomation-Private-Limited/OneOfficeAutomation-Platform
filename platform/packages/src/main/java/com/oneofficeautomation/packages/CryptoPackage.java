@@ -35,7 +35,8 @@ public final class CryptoPackage {
     private static final String D_FORMAT = "How the result is written: hex (lower case), hex_upper or base64.";
     private static final String D_ENC = "Character encoding used to turn the text into bytes, e.g. utf-8, utf-16le, windows-1252.";
 
-    @Action(id = "hash_text", name = "Hash text", category = "Hash", idempotent = true, description = "Return the hex hash of a text (UTF-8).")
+    @Action(id = "hash_text", name = "Hash text", category = "Hash", idempotent = true, description = "Return the hex hash of a text (UTF-8).",
+            panel = "text, algorithm | output_format, encoding")
     @Output(name = "hash", type = OoaType.STRING, description = "Lower-case hex digest.")
     public Map<String, Object> hashText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to hash.") String text,
@@ -46,7 +47,8 @@ public final class CryptoPackage {
         return Map.of("hash", format(MessageDigest.getInstance(algo(a)).digest(text.getBytes(FilePackage.charset(enc))), fmt));
     }
 
-    @Action(id = "hash_file", name = "Hash file", category = "Hash", idempotent = true, capabilities = "filesystem", description = "Return the hex hash of a file, e.g. to verify a download.")
+    @Action(id = "hash_file", name = "Hash file", category = "Hash", idempotent = true, capabilities = "filesystem", description = "Return the hex hash of a file, e.g. to verify a download.",
+            panel = "path, algorithm | output_format")
     @Output(name = "hash", type = OoaType.STRING, description = "Lower-case hex digest.")
     public Map<String, Object> hashFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
@@ -64,7 +66,8 @@ public final class CryptoPackage {
     }
 
     @Action(id = "hmac", name = "HMAC signature", category = "Hash", idempotent = true,
-            description = "Compute an HMAC-SHA256 signature with a secret key from the vault, e.g. to sign or verify webhooks.")
+            description = "Compute an HMAC-SHA256 signature with a secret key from the vault, e.g. to sign or verify webhooks.",
+            panel = "text, key, algorithm | output_format, key_is_base64")
     @Output(name = "signature", type = OoaType.STRING, description = "Hex signature.")
     public Map<String, Object> hmac(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Message.") String text,
@@ -84,7 +87,8 @@ public final class CryptoPackage {
         return Map.of("signature", format(mac.doFinal(text.getBytes(StandardCharsets.UTF_8)), fmt));
     }
 
-    @Action(id = "base64_encode", name = "Base64 encode", category = "Encoding", idempotent = true, description = "Encode text as Base64.")
+    @Action(id = "base64_encode", name = "Base64 encode", category = "Encoding", idempotent = true, description = "Encode text as Base64.",
+            panel = "text, url_safe | encoding")
     @Output(name = "result", type = OoaType.STRING, description = "Base64 text.")
     public Map<String, Object> encode(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Text to encode.") String text,
             @Input(name = "url_safe", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Use the URL-safe alphabet (- and _ instead of + and /) without padding.") boolean urlSafe,
@@ -93,7 +97,8 @@ public final class CryptoPackage {
         return Map.of("result", urlSafe ? Base64.getUrlEncoder().withoutPadding().encodeToString(b) : Base64.getEncoder().encodeToString(b));
     }
 
-    @Action(id = "base64_decode", name = "Base64 decode", category = "Encoding", idempotent = true, description = "Decode Base64 into text.")
+    @Action(id = "base64_decode", name = "Base64 decode", category = "Encoding", idempotent = true, description = "Decode Base64 into text.",
+            panel = "text | encoding")
     @Output(name = "result", type = OoaType.STRING, description = "Decoded text.")
     public Map<String, Object> decode(ActionContext ctx, @Input(name = "text", type = OoaType.STRING, description = "Base64 text (standard or URL-safe).") String text,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Character encoding of the decoded text.") String enc) {
@@ -129,7 +134,8 @@ public final class CryptoPackage {
         return out;
     }
 
-    @Action(id = "encrypt_text", name = "Encrypt text", category = "Encryption", description = "Encrypt text with AES-256 using a passphrase from the vault; returns Base64.")
+    @Action(id = "encrypt_text", name = "Encrypt text", category = "Encryption", description = "Encrypt text with AES-256 using a passphrase from the vault; returns Base64.",
+            panel = "text, passphrase")
     @Output(name = "result", type = OoaType.STRING, description = "Encrypted text (Base64).")
     public Map<String, Object> encryptText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to encrypt.") String text,
@@ -137,7 +143,8 @@ public final class CryptoPackage {
         return Map.of("result", Base64.getEncoder().encodeToString(aes(true, text.getBytes(StandardCharsets.UTF_8), key.reveal().toCharArray())));
     }
 
-    @Action(id = "decrypt_text", name = "Decrypt text", category = "Encryption", description = "Decrypt text produced by Encrypt text.")
+    @Action(id = "decrypt_text", name = "Decrypt text", category = "Encryption", description = "Decrypt text produced by Encrypt text.",
+            panel = "text, passphrase")
     @Output(name = "result", type = OoaType.CREDENTIAL, description = "Decrypted text, kept as a Credential so it is never logged.")
     public Map<String, Object> decryptText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Encrypted Base64 text.") String text,
@@ -147,7 +154,8 @@ public final class CryptoPackage {
         return Map.of("result", new SecureString(new String(aes(false, data, key.reveal().toCharArray()), StandardCharsets.UTF_8), "decrypted"));
     }
 
-    @Action(id = "encrypt_file", name = "Encrypt file", category = "Encryption", capabilities = "filesystem", description = "Encrypt a file with AES-256 into a new file.")
+    @Action(id = "encrypt_file", name = "Encrypt file", category = "Encryption", capabilities = "filesystem", description = "Encrypt a file with AES-256 into a new file.",
+            panel = "path, target, passphrase | overwrite")
     public Map<String, Object> encryptFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File to encrypt.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Encrypted file to create.") String target,
@@ -156,7 +164,8 @@ public final class CryptoPackage {
         return fileOp(ctx, true, path, target, key, overwrite);
     }
 
-    @Action(id = "decrypt_file", name = "Decrypt file", category = "Encryption", capabilities = "filesystem", description = "Decrypt a file produced by Encrypt file.")
+    @Action(id = "decrypt_file", name = "Decrypt file", category = "Encryption", capabilities = "filesystem", description = "Decrypt a file produced by Encrypt file.",
+            panel = "path, target, passphrase | overwrite")
     public Map<String, Object> decryptFile(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Encrypted file.") String path,
             @Input(name = "target", type = OoaType.FILE, description = "Decrypted file to create.") String target,
@@ -193,7 +202,8 @@ public final class CryptoPackage {
 
     private static Cipher oaep() throws GeneralSecurityException { return Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding"); }
 
-    @Action(id = "rsa_generate_keys", name = "Generate RSA key pair", category = "RSA", capabilities = "filesystem", description = "Create public.pem and private.pem (RSA 3072-bit) in a folder; keep the private key protected.")
+    @Action(id = "rsa_generate_keys", name = "Generate RSA key pair", category = "RSA", capabilities = "filesystem", description = "Create public.pem and private.pem (RSA 3072-bit) in a folder; keep the private key protected.",
+            panel = "folder")
     @Output(name = "public_key", type = OoaType.FILE, description = "Public key path.")
     @Output(name = "private_key", type = OoaType.FILE, description = "Private key path.")
     public Map<String, Object> rsaGenerate(ActionContext ctx, @Input(name = "folder", type = OoaType.FILE, description = "Folder for the key files.") String folder) throws GeneralSecurityException {
@@ -211,7 +221,8 @@ public final class CryptoPackage {
         return Map.of("public_key", pub.toString(), "private_key", priv.toString());
     }
 
-    @Action(id = "rsa_encrypt", name = "RSA encrypt text", category = "RSA", description = "Encrypt a short text (up to about 300 characters) with a public key (RSA-OAEP SHA-256); returns Base64.")
+    @Action(id = "rsa_encrypt", name = "RSA encrypt text", category = "RSA", description = "Encrypt a short text (up to about 300 characters) with a public key (RSA-OAEP SHA-256); returns Base64.",
+            panel = "text, public_key")
     @Output(name = "result", type = OoaType.STRING, description = "Encrypted Base64 text.")
     public Map<String, Object> rsaEncrypt(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to encrypt.") String text,
@@ -223,7 +234,8 @@ public final class CryptoPackage {
         } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read key: " + e.getMessage(), "Check the key path."); }
     }
 
-    @Action(id = "rsa_decrypt", name = "RSA decrypt text", category = "RSA", description = "Decrypt Base64 text encrypted with the matching public key.")
+    @Action(id = "rsa_decrypt", name = "RSA decrypt text", category = "RSA", description = "Decrypt Base64 text encrypted with the matching public key.",
+            panel = "text, private_key")
     @Output(name = "result", type = OoaType.CREDENTIAL, description = "Decrypted text, kept as a Credential.")
     public Map<String, Object> rsaDecrypt(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Encrypted Base64 text.") String text,
@@ -235,7 +247,8 @@ public final class CryptoPackage {
         } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read key: " + e.getMessage(), "Check the key path."); }
     }
 
-    @Action(id = "rsa_sign", name = "RSA sign", category = "RSA", description = "Sign text with a private key (SHA256withRSA); returns a Base64 signature.")
+    @Action(id = "rsa_sign", name = "RSA sign", category = "RSA", description = "Sign text with a private key (SHA256withRSA); returns a Base64 signature.",
+            panel = "text, private_key")
     @Output(name = "signature", type = OoaType.STRING, description = "Base64 signature.")
     public Map<String, Object> rsaSign(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to sign.") String text,
@@ -247,7 +260,8 @@ public final class CryptoPackage {
         } catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read key: " + e.getMessage(), "Check the key path."); }
     }
 
-    @Action(id = "rsa_verify", name = "RSA verify", category = "RSA", idempotent = true, description = "Check an RSA signature with the public key; returns the result instead of failing.")
+    @Action(id = "rsa_verify", name = "RSA verify", category = "RSA", idempotent = true, description = "Check an RSA signature with the public key; returns the result instead of failing.",
+            panel = "text, signature, public_key")
     @Output(name = "valid", type = OoaType.BOOLEAN, description = "True when the signature matches.")
     public Map<String, Object> rsaVerify(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Signed text.") String text,

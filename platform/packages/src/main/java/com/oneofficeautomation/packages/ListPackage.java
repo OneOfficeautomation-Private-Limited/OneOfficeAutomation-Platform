@@ -16,7 +16,8 @@ public final class ListPackage {
         return i;
     }
 
-    @Action(id = "add_item", name = "Add item", category = "List", idempotent = true, description = "Add an item at the end, or at a position.")
+    @Action(id = "add_item", name = "Add item", category = "List", idempotent = true, description = "Add an item at the end, or at a position.",
+            panel = "list, item, (Add at: The end = / A position = position) | items, skip_existing")
     @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
     public Map<String, Object> addItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
@@ -36,7 +37,8 @@ public final class ListPackage {
         return Out.of("list", out);
     }
 
-    @Action(id = "get_item", name = "Get item", category = "List", idempotent = true, description = "Read the item at a position.")
+    @Action(id = "get_item", name = "Get item", category = "List", idempotent = true, description = "Read the item at a position.",
+            panel = "list, position | if_out_of_range, default")
     @Output(name = "item", description = "The item.")
     public Map<String, Object> getItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
@@ -49,7 +51,8 @@ public final class ListPackage {
         return Out.of("item", list.get(index(list, p, false)));
     }
 
-    @Action(id = "remove_item", name = "Remove item", category = "List", idempotent = true, description = "Remove the item at a position, or every item equal to a value.")
+    @Action(id = "remove_item", name = "Remove item", category = "List", idempotent = true, description = "Remove the item at a position, or every item equal to a value.",
+            panel = "list, (Remove by: Position = position / Value = value, all_occurrences)")
     @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
     @Output(name = "removed", description = "The removed item (by position), or a list of the removed items (by value).")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items removed.")
@@ -72,7 +75,8 @@ public final class ListPackage {
         return Out.of("list", out, "removed", removed, "count", BigDecimal.valueOf(removed.size()));
     }
 
-    @Action(id = "index_of", name = "Find item", category = "List", idempotent = true, description = "Return the zero-based position of the first (or last) item equal to a value.")
+    @Action(id = "index_of", name = "Find item", category = "List", idempotent = true, description = "Return the zero-based position of the first (or last) item equal to a value.",
+            panel = "list, value | ignore_case, last")
     @Output(name = "index", type = OoaType.NUMBER, description = "Zero-based position, or -1 when the value is not in the list.")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when the value is in the list.")
     public Map<String, Object> indexOf(ActionContext ctx,
@@ -89,7 +93,8 @@ public final class ListPackage {
         return Out.of("index", BigDecimal.valueOf(hit), "found", hit >= 0);
     }
 
-    @Action(id = "reverse", name = "Reverse", category = "List", idempotent = true, description = "Return the items in reverse order.")
+    @Action(id = "reverse", name = "Reverse", category = "List", idempotent = true, description = "Return the items in reverse order.",
+            panel = "list")
     @Output(name = "list", type = OoaType.LIST, description = "Reversed list.")
     public Map<String, Object> reverse(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list) {
         List<Object> out = new ArrayList<>(list);
@@ -97,7 +102,8 @@ public final class ListPackage {
         return Out.of("list", out);
     }
 
-    @Action(id = "sort", name = "Sort", category = "List", idempotent = true, description = "Sort items (numbers numerically, text alphabetically).")
+    @Action(id = "sort", name = "Sort", category = "List", idempotent = true, description = "Sort items (numbers numerically, text alphabetically).",
+            panel = "list, descending | ignore_case")
     @Output(name = "list", type = OoaType.LIST, description = "Sorted list.")
     public Map<String, Object> sort(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
@@ -116,7 +122,8 @@ public final class ListPackage {
         return ignoreCase ? x.compareToIgnoreCase(y) : x.compareTo(y);
     }
 
-    @Action(id = "join", name = "Join", category = "List", idempotent = true, description = "Join items into one text with a separator.")
+    @Action(id = "join", name = "Join", category = "List", idempotent = true, description = "Join items into one text with a separator.",
+            panel = "list, separator | skip_empty, escape_sequences")
     @Output(name = "text", type = OoaType.STRING, description = "Joined text.")
     public Map<String, Object> join(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
@@ -130,13 +137,15 @@ public final class ListPackage {
         return Out.of("text", j.toString());
     }
 
-    @Action(id = "size", name = "Get size", category = "List", idempotent = true, description = "Number of items.")
+    @Action(id = "size", name = "Get size", category = "List", idempotent = true, description = "Number of items.",
+            panel = "list")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of items.")
     public Map<String, Object> size(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list) {
         return Out.of("count", BigDecimal.valueOf(list.size()));
     }
 
-    @Action(id = "remove_duplicates", name = "Remove duplicates", category = "List", idempotent = true, description = "Keep the first occurrence of each value.")
+    @Action(id = "remove_duplicates", name = "Remove duplicates", category = "List", idempotent = true, description = "Keep the first occurrence of each value.",
+            panel = "list")
     @Output(name = "list", type = OoaType.LIST, description = "List without duplicates.")
     public Map<String, Object> removeDuplicates(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list) {
         List<Object> out = new ArrayList<>();
@@ -156,13 +165,15 @@ public final class ListPackage {
         return list.isEmpty();
     }
 
-    @Action(id = "clear", name = "Clear", category = "List", idempotent = true, description = "Return an empty list; map it back to the variable to empty it.")
+    @Action(id = "clear", name = "Clear", category = "List", idempotent = true, description = "Return an empty list; map it back to the variable to empty it.",
+            panel = "list")
     @Output(name = "list", type = OoaType.LIST, description = "Empty list.")
     public Map<String, Object> clear(ActionContext ctx, @Input(name = "list", type = OoaType.LIST, required = false, description = "List to clear.") List<Object> list) {
         return Out.of("list", new ArrayList<>());
     }
 
-    @Action(id = "set_item", name = "Set item", category = "List", idempotent = true, description = "Replace the item at a position.")
+    @Action(id = "set_item", name = "Set item", category = "List", idempotent = true, description = "Replace the item at a position.",
+            panel = "list, position, item")
     @Output(name = "list", type = OoaType.LIST, description = "Updated list.")
     public Map<String, Object> setItem(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "Source list.") List<Object> list,
@@ -173,7 +184,8 @@ public final class ListPackage {
         return Out.of("list", out);
     }
 
-    @Action(id = "append_list", name = "Append list", category = "List", idempotent = true, description = "Join two lists into one, the second after the first.")
+    @Action(id = "append_list", name = "Append list", category = "List", idempotent = true, description = "Join two lists into one, the second after the first.",
+            panel = "list, other")
     @Output(name = "list", type = OoaType.LIST, description = "Combined list.")
     public Map<String, Object> appendList(ActionContext ctx,
             @Input(name = "list", type = OoaType.LIST, description = "First list.") List<Object> list,

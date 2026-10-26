@@ -134,7 +134,7 @@ function showApp() {
   $("avatar").textContent = (S.user.display_name || S.user.username || "?").trim().charAt(0).toUpperCase();
   api("GET", "health").then((r) => { $("btn-studio").hidden = !r.studio; S.studioAvailable = !!r.studio; renderNav(); }).catch(() => {});
   api("GET", "catalog").then((r) => { S.names = r.actions || {}; }).catch(() => {});
-  api("GET", "auth/me").then((u) => showAnnouncement(u.announcement)).catch(() => {});
+  api("GET", "auth/me").then((u) => { showAnnouncement(u.announcement); showLicenseBanner(u.license_banner); }).catch(() => {});
   document.body.classList.toggle("nav-mini", stored(NAV_MINI_KEY) === "1");
   renderNav(); go(S.page);
 }
@@ -149,19 +149,18 @@ const PAGES = [
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
   ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
-  ["admin", "Administration", "settings.manage", "gear", "#334155"]];
+  ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage", "key", "#b45309"]];
 
 /**
- * The menu: Home, then short sections (as in the reference product: Automation, Operations, AI, Manage,
- * Administration). The section of the current page is open, and the one opened last; the others show only their name.
+ * The menu: Home, then short sections: Build, Manage, Operations, Administration, AI (shown in capitals). The section of the current page is open, and the one opened last; the others show only their name.
  * Pages not listed here (admin) are reached from inside other pages.
  */
 const NAV_GROUPS = [
-  ["automation", "Automation", "bot", ["automation", "studio", "workflows", "apitasks"]],
-  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
-  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
+  ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks"]],
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
-  ["administration", "Administration", "gear", ["users", "roles", "teams", "audit", "settings"]],
+  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
+  ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
+  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
@@ -234,6 +233,20 @@ function showAnnouncement(text) {
   bar.hidden = false;
 }
 
+/** The license banner: a warning can be put away for this browser session; a critical one stays. */
+function showLicenseBanner(b) {
+  const bar = $("license-banner");
+  if (!bar) return;
+  let dismissed = null;
+  try { dismissed = sessionStorage.getItem("ooa.cc.licenseBanner"); } catch (_) { /* storage unavailable */ }
+  if (!b || (b.level !== "critical" && dismissed === b.text)) { bar.hidden = true; return; }
+  bar.classList.toggle("critical", b.level === "critical");
+  bar.replaceChildren(ic("key", b.level === "critical" ? "#dc2626" : "#d97706", "sm"), h("span", { class: "ann-text", text: b.text }),
+    can("users.manage") ? h("button", { type: "button", class: "link", onclick: () => go("licenses") }, "Licenses") : null,
+    b.level === "critical" ? null : h("button", { type: "button", class: "icon-close", "aria-label": "Dismiss", onclick: () => { bar.hidden = true; try { sessionStorage.setItem("ooa.cc.licenseBanner", b.text); } catch (_) { /* storage unavailable */ } } }, "\u2715"));
+  bar.hidden = false;
+}
+
 /** Tab strip; items are [id, label]. */
 function tabStrip(items, current, onPick) {
   return h("div", { class: "tabs", role: "tablist" }, items.map(([id, label]) => h("button", { type: "button", role: "tab", class: "tab" + (current === id ? " active" : ""),
@@ -242,15 +255,45 @@ function tabStrip(items, current, onPick) {
 
 function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
 
+/**
+ * Pages that show live figures but have no live view of their own are drawn again quietly while they stay open
+ * (milliseconds between redraws). Pages with their own timer (runs, runners, queues, inbox, workflows, triggers) and
+ * pages with forms or local filters (settings, audit trail) are not listed.
+ */
+const AUTO_REFRESH = { home: 5000, automation: 15000, schedules: 15000, apitasks: 15000, pools: 15000, operations: 30000, governance: 30000, skills: 30000 };
+
 async function go(page) {
   stopTimer();
   closeDrawer();
   S.page = page; renderNav();
+  S.dtStates = {}; S.dtSeq = 0;
   // Each visit renders into its own container: a slow page that finishes after the user moved on writes into a detached element.
   const main = h("div", { class: "view" }, h("p", { class: "muted", text: "Loading..." }));
   $("main").replaceChildren(main);
   try { await VIEWS[page](main); } catch (e) { main.replaceChildren(h("p", { class: "error", text: e.message })); }
   if (main.isConnected) $("main").focus();
+  if (main.isConnected && AUTO_REFRESH[page] && !S.timer) S.timer = setInterval(() => { quietRefresh(page).catch(() => {}); }, AUTO_REFRESH[page]);
+}
+
+/**
+ * Draws the open page again off screen and swaps it in, keeping the scroll position and each table's search, sort and
+ * page. Skipped while a dialog or drawer is open, while someone types in the page, or while text is selected.
+ */
+async function quietRefresh(page) {
+  if (S.page !== page || S.refreshing || !$("modal").hidden || !$("drawer").hidden || document.hidden) return;
+  const a = document.activeElement;
+  if (a && $("main").contains(a) && a.matches("input, select, textarea")) return;
+  if (String(window.getSelection() || "")) return;
+  S.refreshing = true; S.dtSeq = 0;
+  try {
+    const next = h("div", { class: "view" });
+    await VIEWS[page](next);
+    if (S.page !== page || !$("modal").hidden || !$("drawer").hidden) return;
+    const y = window.scrollY, inMain = a && $("main").contains(a);
+    $("main").replaceChildren(next);
+    window.scrollTo(0, y);
+    if (inMain) $("main").focus({ preventScroll: true });
+  } finally { S.refreshing = false; }
 }
 
 function header(title, sub, ...actions) {
@@ -279,11 +322,15 @@ function table(cols, rows, onRow) {
  * columns: [{ label, value(row) for search/sort/CSV, render(row) for the cell, sort: false to disable }]
  */
 function dataTable({ columns, rows, onRow, search = "Search", pageSize = 25, empty = "Nothing here yet.", exportName, tools = [] }) {
-  const st = { q: "", sort: null, dir: 1, page: 0 };
+  // a quiet refresh of the page (quietRefresh) draws the tables again in the same order: each keeps its search, sort and page
+  const key = S.page + ":" + (S.dtSeq = (S.dtSeq || 0) + 1);
+  S.dtStates = S.dtStates || {};
+  const st = S.refreshing && S.dtStates[key] ? S.dtStates[key] : { q: "", sort: null, dir: 1, page: 0 };
+  S.dtStates[key] = st;
   const wrap = h("div", { class: "dt" });
   const box = h("div");
-  const q = search ? h("input", { type: "search", placeholder: search, "aria-label": search }) : null;
-  if (q) q.addEventListener("input", () => { st.q = q.value.trim().toLowerCase(); st.page = 0; render(); });
+  const q = search ? h("input", { type: "search", placeholder: search, "aria-label": search, value: st.raw || "" }) : null;
+  if (q) q.addEventListener("input", () => { st.raw = q.value; st.q = q.value.trim().toLowerCase(); st.page = 0; render(); });
   const value = (c, r) => { const v = c.value ? c.value(r) : ""; return v === null || v === undefined ? "" : v; };
   const list = () => {
     let l = rows.filter((r) => !st.q || columns.some((c) => String(value(c, r)).toLowerCase().includes(st.q)));
@@ -353,7 +400,8 @@ const deviceName = (id) => (S.devices.find((d) => d.id === id) || {}).name || id
 
 const VIEWS = {
   async home(main) {
-    const d = await api("GET", "dashboard");
+    let tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) { /* no time zone: the server counts days in UTC */ }
+    const d = await api("GET", "dashboard" + (tz ? "?tz=" + encodeURIComponent(tz) : ""));
     const tile = (n, l, icon, color, onClick) => {
       const t = h(onClick ? "button" : "div", { type: onClick ? "button" : null, class: "card tile" + (onClick ? " clickable" : ""), onclick: onClick || null },
         ic(icon, color), h("div", {}, h("div", { class: "n", text: String(n) }), h("div", { class: "l", text: l })));
@@ -520,7 +568,7 @@ const VIEWS = {
         st.tab === "active" ? null : api("GET", "runs?filter=active&limit=1"), st.tab === "history" ? null : api("GET", "runs?filter=history&limit=1")]);
       counts[st.tab] = r.total; if (a) counts.active = a.total; if (hcount) counts.history = hcount.total;
       renderTabs(counts);
-      if (st.tab === "active") list.replaceChildren(r.runs.length ? h("div", { class: "live-list" }, r.runs.map(liveCard)) : h("div", { class: "empty-state" }, ic("check", "#16a34a", "lg"), h("strong", { text: "Nothing is running" }), h("p", { class: "muted", text: "Runs appear here as soon as they are queued. Start one from Automation." })));
+      if (st.tab === "active") list.replaceChildren(r.runs.length ? h("div", { class: "live-list" }, r.runs.map(liveCard)) : h("div", { class: "empty-state" }, ic("check", "#16a34a", "lg"), h("strong", { text: "Nothing is running" }), h("p", { class: "muted", text: "Runs appear here as soon as they are queued. Start one from Build." })));
       else list.replaceChildren(historyTable(r.runs), r.total > st.size ? pager(Math.floor(st.offset / st.size), Math.ceil(r.total / st.size), r.total, st.size, (p) => { st.offset = p * st.size; refresh(); }) : null);
     }
     function liveCard(run) {
@@ -586,7 +634,9 @@ const VIEWS = {
           { label: "Runner", value: (d) => d.name, render: (d) => h("div", { class: "name-cell" }, h("span", { class: "dot " + d.status }), h("div", {}, h("strong", { text: d.name }), h("div", { class: "muted small", text: (d.hostname || "") + " " + (d.os || "") }))) },
           { label: "Status", value: (d) => d.status, render: (d) => pill(d.status) },
           { label: "Running", value: (d) => d.running, render: (d) => d.running ? h("span", { class: "pill running", text: d.running + " agent" }) : "\u2014" },
-          { label: "Agent", value: (d) => d.agent_version || "" },
+          { label: "Agent", value: (d) => d.agent_version || "", render: (d) => d.version_status && d.version_status !== "ok"
+            ? h("span", { class: "pill failed", title: "This runner is newer than the Command Center and gets no work until the Command Center is updated", text: (d.agent_version || "") + " – update the Command Center" })
+            : h("span", { text: d.agent_version || "" }) },
           { label: "Type", value: (d) => d.device_type === "single_user" ? "Single-user" : "Multi-user" },
           { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
           { label: "Log level", value: (d) => d.log_level || "info" },
@@ -727,7 +777,13 @@ const VIEWS = {
         mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600);
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
+      const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
+      const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
+      const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
+      const syslogTarget = txt("syslog_target", "siem.example.com:514");
+      const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
       const lic = await api("GET", "license").catch(() => null);
+      const dbi = await api("GET", "database").catch(() => null);
       main.replaceChildren(...head, tabs, h("div", { class: "card form-card" },
         h("label", {}, "Announcement for all users (empty for none)", ann),
         h("div", { class: "grid2" }, h("label", {}, "Disable users inactive for (days, 0 = never)", inactive), h("label", {}, "Sign-in session length (hours)", session),
@@ -743,6 +799,17 @@ const VIEWS = {
         h("p", { class: "muted", text: "Assistants connect to " + location.origin + "/api/mcp with a user's API key and can run the agents listed here as tools, with that user's permissions." }),
         h("div", { class: "grid2" }, h("label", {}, "Agents offered as tools (paths, comma separated; * for all)", mcpAgents), h("label", {}, "Runner or runner pool id (empty = any online runner)", mcpRunner),
           h("label", {}, "Wait for a result (seconds)", mcpTimeout)),
+        h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
+        h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
+        h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
+          h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads")),
+        h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
+        h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
+        h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
+        h("div", { class: "grid2" }, h("label", {}, "Syslog target (host:port)", syslogTarget), h("label", {}, "Protocol", syslogProto),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
+            try { await api("PUT", "settings", { syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value }); await api("POST", "settings/syslog-test"); toast("Test message sent to " + syslogTarget.value.trim()); }
+            catch (e) { toast(e.message, true); } } }, "Send a test message"))),
         h("h3", {}, ic("clock", "#475569", "sm"), "Run history"),
         h("p", { class: "muted", text: "Old run history is removed once an hour: step logs after the first period, whole runs after the second (0 keeps them). Queued and running runs are never removed." }),
         h("div", { class: "grid2" }, h("label", {}, "Keep step logs for (days, 0 = always)", keepLogs), h("label", {}, "Keep runs for (days, 0 = always)", keepRuns),
@@ -753,12 +820,21 @@ const VIEWS = {
             try { const r = await api("POST", "runs/purge", { run_days: d, log_days: l }); toast("Removed " + r.runs_removed + " run(s) and " + r.log_lines_removed + " log line(s)"); } catch (e) { toast(e.message, true); } } }, "Remove now"))),
         lic ? [h("h3", {}, ic("shield", "#475569", "sm"), "This Command Center"), kv([["Edition", lic.edition], ["Limits", lic.limits], ["Active users", String(lic.users)], ["Runners", String(lic.runners)],
           ["Agents", String(lic.agents)], ["Toolkits", lic.toolkits + (lic.toolkits_switched_off ? " (" + lic.toolkits_switched_off + " switched off)" : "")]])] : null,
+        dbi ? [h("h3", {}, ic("desktop", "#475569", "sm"), "Database"),
+          h("p", { class: "muted", text: dbi.note || "Read-only here. The connection is set in config\\ooa-db.properties in the data folder and changed with the ooa db command." }),
+          kv([["Engine", dbi.engine + " " + dbi.version + (dbi.edition ? " (" + dbi.edition + ")" : "")], dbi.server ? ["Server", dbi.server] : null, ["Database", dbi.database || "\u2014"],
+            dbi.account ? ["Signed in as", dbi.account] : null, ["Encrypted connection", dbi.encrypted ? "Yes" : "No"],
+            ["Schema", "version " + dbi.schema_version + " of " + dbi.schema_latest + (dbi.schema_version < dbi.schema_latest ? " (run ooa db migrate)" : "")],
+            dbi.collation ? ["Collation", dbi.collation] : null, dbi.size_mb !== undefined && dbi.size_mb !== null ? ["Size", dbi.size_mb + " MB"] : null,
+            ["Connection pool", "up to " + dbi.pool_max + " idle connections"]].filter(Boolean))] : null,
         h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: async () => {
           try {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value) });
+              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0,
+              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
     } else if (tab === "roles") {
@@ -1022,6 +1098,58 @@ const VIEWS = {
             can("teams.manage") ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete team " + t.name + "?")) return; try { await api("DELETE", "teams/" + t.id); go("teams"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
   },
 
+  async licenses(main) {
+    const [st, asg, ur, dv] = await Promise.all([api("GET", "license"), api("GET", "license/assignments"), api("GET", "users"), api("GET", "devices").catch(() => ({ devices: [] }))]);
+    const L = st.license || {};
+    const TYPES = [["developer", "Developer", "user"], ["citizen_developer", "Citizen Developer", "user"], ["attended_runner", "Attended Runner", "user"], ["unattended_runner", "Unattended Runner", "device"]];
+    const held = new Set(asg.assignments.map((a) => a.principal_type + "|" + a.principal + "|" + a.license_type));
+    const STATE = { unlicensed: ["No license installed", "pending"], evaluation: ["Evaluation", "queued"], evaluation_ended: ["Evaluation ended", "failed"],
+      active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"] };
+    const [stateText, stateCls] = STATE[L.state] || [L.state, ""];
+    const toggle = (type, principal, on) => async () => {
+      try { await api("PUT", "license/assignments", { license_type: type, principal, assigned: on }); go("licenses"); } catch (e) { toast(e.message, true); go("licenses"); }
+    };
+    const seatCell = (type, kind, principal) => {
+      const on = held.has(kind + "|" + principal + "|" + type);
+      const box = h("input", { type: "checkbox", checked: on, "aria-label": type, disabled: !can("users.manage"), onchange: (e) => toggle(type, principal, e.target.checked)() });
+      return box;
+    };
+    const fileInput = h("input", { type: "file", accept: ".lic,.json,.txt", "aria-label": "License file" });
+    const paste = h("textarea", { rows: 3, placeholder: "Or paste the license file text here" });
+    const install = async () => {
+      let text = paste.value.trim();
+      if (!text && fileInput.files && fileInput.files[0]) text = (await fileInput.files[0].text()).trim();
+      if (!text) { toast("Choose or paste a license file first", true); return; }
+      try { await api("POST", "license", { content: text }); toast("License installed"); const me = await api("GET", "auth/me"); showLicenseBanner(me.license_banner); go("licenses"); }
+      catch (e) { toast(e.message, true); }
+    };
+    const seats = L.seats || {};
+    main.replaceChildren(...header("Licenses", "The license of this Command Center and who holds which seat. Developer and Citizen Developer seats let people check in agents; a runner needs an Unattended Runner seat to take scheduled, triggered, API and queue work; an Attended Runner seat lets a person run agents on their own runner."),
+      h("div", { class: "card" },
+        h("div", { class: "card-head" }, h("h2", { text: "License" }), h("span", { class: "pill " + stateCls, text: stateText })),
+        L.state === "unlicensed" ? h("p", { class: "muted", text: "No license is installed, so nothing is limited. Install the license file you received from ONEOFFICEAUTOMATION to apply its seats and expiry date." })
+          : L.state === "evaluation" || L.state === "evaluation_ended" ? h("p", { class: "muted", text: (L.state === "evaluation" ? "This is a 30-day evaluation: " + L.days_left + " days left (until " + L.evaluation_ends + "). "
+            : "The 30-day evaluation ended on " + L.evaluation_ends + ". ") + "It allows 2 developers, 2 attended and 2 unattended runners; seats are given out automatically on first use. Install the license file you received from ONEOFFICEAUTOMATION." })
+          : kv([["Licensed to", L.customer], ["Edition", L.edition], ["License id", L.id], ["Valid", (L.issued || "") + " to " + (L.expires || "") + (L.days_left !== undefined && L.days_left >= 0 ? " (" + L.days_left + " days left)" : "")],
+            ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null]]),
+        L.problem ? h("p", { class: "error", text: L.problem }) : null,
+        can("settings.manage") ? h("div", { class: "form-card" }, h("h3", { text: "Install a license" }), h("label", {}, "License file", fileInput), paste,
+          h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: install }, "Install license"))) : null),
+      h("div", { class: "card" }, h("h2", { text: "Seats" }),
+        dataTable({ rows: TYPES.map(([t, label]) => ({ t, label, total: seats[t] ? seats[t].total : -1, used: seats[t] ? seats[t].used : 0 })), search: null, exportName: "license-seats",
+          columns: [{ label: "License type", value: (x) => x.label }, { label: "In use", value: (x) => x.used },
+            { label: "Seats", value: (x) => x.total < 0 ? "unlimited" : x.total },
+            { label: "", sort: false, render: (x) => x.total < 0 ? h("span", { class: "muted", text: "no license" }) : h("div", { class: "seat-bar" }, progressBar(x.total ? 100 * x.used / x.total : 100, x.used >= x.total ? "bad" : "")) }] })),
+      h("div", { class: "card" }, h("h2", { text: "People" }),
+        dataTable({ rows: ur.users.filter((u) => u.enabled !== false), search: "Search people", exportName: "license-people",
+          columns: [{ label: "User", value: (u) => u.username, render: (u) => h("div", {}, h("strong", { text: u.username }), u.display_name ? h("div", { class: "small muted", text: u.display_name }) : null) },
+            ...TYPES.filter(([, , k]) => k === "user").map(([t, label]) => ({ label, value: (u) => held.has("user|" + u.username + "|" + t) ? 1 : 0, render: (u) => seatCell(t, "user", u.username) }))] })),
+      h("div", { class: "card" }, h("h2", { text: "Runners" }),
+        dataTable({ rows: dv.devices, search: "Search runners", exportName: "license-runners",
+          columns: [{ label: "Runner", value: (d) => d.name, render: (d) => h("div", {}, h("strong", { text: d.name }), h("div", { class: "small muted", text: d.hostname || "" })) },
+            { label: "Status", value: (d) => d.status, render: (d) => pill(d.status) },
+            { label: "Unattended Runner", value: (d) => held.has("device|" + d.id + "|unattended_runner") ? 1 : 0, render: (d) => seatCell("unattended_runner", "device", d.id) }] })));
+  },
   async operations(main) {
     await loadRefs();
     S.ops = S.ops || { days: "30", bot: "" };
@@ -1258,7 +1386,7 @@ async function openDevice(d) {
   try {
     const [active, hist] = can("runs.view") ? await Promise.all([api("GET", "runs?filter=active&device=" + encodeURIComponent(d.id)), api("GET", "runs?filter=history&limit=15&device=" + encodeURIComponent(d.id))]) : [{ runs: [] }, { runs: [] }];
     body.replaceChildren(
-      kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", d.agent_version], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
+      kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", (d.agent_version || "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center: it gets no work until the Command Center is updated)" : "")], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
         ["Type", d.device_type === "single_user" ? "Single-user" : "Multi-user"], ["Default runner of", (d.default_users || []).join(", ") || "nobody"], ["Log level", d.log_level || "info"],
         ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
       h("h3", { text: "Now" }), active.runs.length ? runTable(active.runs, (r) => openRun(r.id)) : h("p", { class: "muted", text: "Idle." }),

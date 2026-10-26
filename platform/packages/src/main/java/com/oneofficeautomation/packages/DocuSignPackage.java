@@ -95,7 +95,8 @@ public final class DocuSignPackage {
     // ----- envelopes -----
 
     @Action(id = "create_envelope", name = "Create envelope from documents", category = "Envelopes", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Prepare an envelope from local files and signers, then send it now or keep it as a draft.")
+            description = "Prepare an envelope from local files and signers, then send it now or keep it as a draft.",
+            panel = "access_token, account_id, base_url, email_subject, signers, documents, send_now | email_message, copy_to, sign_here_text")
     @Output(name = "envelope_id", type = OoaType.STRING, description = "Id of the new envelope.")
     @Output(name = "status", type = OoaType.STRING, description = "sent or created (draft).")
     public Map<String, Object> createEnvelope(ActionContext ctx,
@@ -139,7 +140,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "create_envelope_from_template", name = "Create envelope from template", category = "Envelopes", capabilities = "network",
-            description = "Start an envelope from a saved template by filling each template role with a person.")
+            description = "Start an envelope from a saved template by filling each template role with a person.",
+            panel = "access_token, account_id, base_url, email_subject, template_id, roles, send_now | field_values")
     @Output(name = "envelope_id", type = OoaType.STRING, description = "Id of the new envelope.")
     @Output(name = "status", type = OoaType.STRING, description = "sent or created (draft).")
     public Map<String, Object> fromTemplate(ActionContext ctx,
@@ -181,7 +183,8 @@ public final class DocuSignPackage {
         return Out.of("envelope_id", r.get("envelopeId"), "status", r.get("status"));
     }
 
-    @Action(id = "send_envelope", name = "Send draft envelope", category = "Envelopes", capabilities = "network", description = "Send an envelope that was saved as a draft.")
+    @Action(id = "send_envelope", name = "Send draft envelope", category = "Envelopes", capabilities = "network", description = "Send an envelope that was saved as a draft.",
+            panel = "access_token, account_id, base_url, envelope_id")
     public Map<String, Object> sendEnvelope(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
@@ -192,7 +195,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "get_envelope_status", name = "Get envelope status", category = "Envelopes", idempotent = true, capabilities = "network",
-            description = "Check where an envelope is: draft, sent, delivered, completed, declined or voided.")
+            description = "Check where an envelope is: draft, sent, delivered, completed, declined or voided.",
+            panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "status", type = OoaType.STRING, description = "created, sent, delivered, completed, declined or voided.")
     @Output(name = "envelope", type = OoaType.DICTIONARY, description = "envelope_id, status, subject, sent, delivered, completed, voided_reason, status_changed.")
     public Map<String, Object> status(ActionContext ctx,
@@ -205,7 +209,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "list_envelopes", name = "List envelopes", category = "Envelopes", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Return envelopes changed since a date, optionally only those with a given status or matching some text.")
+            description = "Return envelopes changed since a date, optionally only those with a given status or matching some text.",
+            panel = "access_token, account_id, base_url, changed_since, changed_before, status | search_text, max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: envelope_id, status, subject, sent, delivered, completed, voided_reason, status_changed.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of envelopes returned.")
     public Map<String, Object> listEnvelopes(ActionContext ctx,
@@ -239,7 +244,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "void_envelope", name = "Void envelope", category = "Envelopes", capabilities = "network",
-            description = "Cancel an envelope that is still out for signature. Recipients are told why.")
+            description = "Cancel an envelope that is still out for signature. Recipients are told why.",
+            panel = "access_token, account_id, base_url, envelope_id, reason")
     public Map<String, Object> voidEnvelope(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
@@ -252,7 +258,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "resend_envelope", name = "Resend envelope", category = "Envelopes", capabilities = "network",
-            description = "Send the signing reminder email again to recipients who have not finished.")
+            description = "Send the signing reminder email again to recipients who have not finished.",
+            panel = "access_token, account_id, base_url, envelope_id")
     public Map<String, Object> resend(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
@@ -265,7 +272,8 @@ public final class DocuSignPackage {
     // ----- recipients -----
 
     @Action(id = "list_recipients", name = "List recipients", category = "Recipients", idempotent = true, capabilities = "network",
-            description = "Return everyone on an envelope with their progress.")
+            description = "Return everyone on an envelope with their progress.",
+            panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: recipient_id, type, name, email, routing_order, status, delivered, signed, declined_reason.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of recipients.")
     public Map<String, Object> listRecipients(ActionContext ctx,
@@ -288,7 +296,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "update_recipient", name = "Update recipient", category = "Recipients", capabilities = "network",
-            description = "Correct a recipient's name or email address, for example after a typo, and optionally send the request again.")
+            description = "Correct a recipient's name or email address, for example after a typo, and optionally send the request again.",
+            panel = "access_token, account_id, base_url, envelope_id, recipient_id, new_name, new_email | recipient_type, resend")
     public Map<String, Object> updateRecipient(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
@@ -313,7 +322,8 @@ public final class DocuSignPackage {
     // ----- documents -----
 
     @Action(id = "list_documents", name = "List envelope documents", category = "Documents", idempotent = true, capabilities = "network",
-            description = "Return the documents inside an envelope.")
+            description = "Return the documents inside an envelope.",
+            panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: document_id, name, type, pages, order.")
     public Map<String, Object> listDocuments(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -331,7 +341,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "download_document", name = "Download document", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save one document from an envelope, the signing certificate, or all documents as a zip archive.")
+            description = "Save one document from an envelope, the signing certificate, or all documents as a zip archive.",
+            panel = "access_token, account_id, base_url, envelope_id, document_id, save_as")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved file.")
     public Map<String, Object> downloadDocument(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -346,7 +357,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "download_combined_pdf", name = "Download combined PDF", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save all documents of an envelope as one PDF, optionally with the signing certificate at the end.")
+            description = "Save all documents of an envelope as one PDF, optionally with the signing certificate at the end.",
+            panel = "access_token, account_id, base_url, envelope_id, save_as | include_certificate")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved PDF.")
     public Map<String, Object> downloadCombined(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -359,7 +371,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "download_zip", name = "Download signed ZIP", category = "Documents", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
-            description = "Save all documents of an envelope as separate PDFs in one ZIP file, with the signing certificate.")
+            description = "Save all documents of an envelope as separate PDFs in one ZIP file, with the signing certificate.",
+            panel = "access_token, account_id, base_url, envelope_id, save_as")
     @Output(name = "path", type = OoaType.FILE, description = "Full path of the saved ZIP.")
     public Map<String, Object> downloadZip(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -371,7 +384,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "add_recipients", name = "Add recipients", category = "Recipients", capabilities = "network",
-            description = "Add signers or copy recipients to an envelope that is still a draft or in progress, optionally in a signing order.")
+            description = "Add signers or copy recipients to an envelope that is still a draft or in progress, optionally in a signing order.",
+            panel = "access_token, account_id, base_url, envelope_id, recipients | resend")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of recipients added.")
     public Map<String, Object> addRecipients(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -411,7 +425,8 @@ public final class DocuSignPackage {
     // ----- templates -----
 
     @Action(id = "list_templates", name = "List templates", category = "Templates", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "Return the templates you can use, optionally only those matching some text.")
+            description = "Return the templates you can use, optionally only those matching some text.",
+            panel = "access_token, account_id, base_url, search_text | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: template_id, name, description, folder, last_modified.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of templates returned.")
     public Map<String, Object> listTemplates(ActionContext ctx,
@@ -442,7 +457,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "get_template", name = "Get template", category = "Templates", idempotent = true, capabilities = "network",
-            description = "Read a template's name, roles and documents, so you know which roles to fill.")
+            description = "Read a template's name, roles and documents, so you know which roles to fill.",
+            panel = "access_token, account_id, base_url, template_id")
     @Output(name = "template", type = OoaType.DICTIONARY, description = "template_id, name, description, email_subject, documents.")
     @Output(name = "roles", type = OoaType.LIST, description = "Names of the roles to fill, e.g. [\"Client\", \"Manager\"].")
     public Map<String, Object> getTemplate(ActionContext ctx,
@@ -468,7 +484,8 @@ public final class DocuSignPackage {
     // ----- embedded signing -----
 
     @Action(id = "create_signing_url", name = "Get embedded signing link", category = "Embedded signing", capabilities = "network",
-            description = "Get a short-lived link that opens the signing session for a recipient inside your own app or portal.")
+            description = "Get a short-lived link that opens the signing session for a recipient inside your own app or portal.",
+            panel = "access_token, account_id, base_url, envelope_id, name, email, client_user_id, return_url | authentication_method")
     @Output(name = "url", type = OoaType.STRING, description = "Signing link; it works once and expires within minutes.")
     public Map<String, Object> signingUrl(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -493,7 +510,8 @@ public final class DocuSignPackage {
     // ----- custom fields and form data -----
 
     @Action(id = "get_custom_fields", name = "Get envelope custom fields", category = "Custom fields", idempotent = true, capabilities = "network",
-            description = "Read the custom fields stored on an envelope, such as a contract or order number.")
+            description = "Read the custom fields stored on an envelope, such as a contract or order number.",
+            panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
     public Map<String, Object> getCustomFields(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
@@ -513,7 +531,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "set_custom_fields", name = "Set envelope custom fields", category = "Custom fields", capabilities = "network",
-            description = "Add or change custom fields on an envelope. Fields that already exist are updated, new ones are added.")
+            description = "Add or change custom fields on an envelope. Fields that already exist are updated, new ones are added.",
+            panel = "access_token, account_id, base_url, envelope_id, fields | show_to_recipients")
     public Map<String, Object> setCustomFields(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,
             @Input(name = "account_id", type = OoaType.STRING, description = D_ACCOUNT) String account,
@@ -540,7 +559,8 @@ public final class DocuSignPackage {
     }
 
     @Action(id = "get_form_data", name = "Get filled-in form data", category = "Custom fields", idempotent = true, capabilities = "network",
-            description = "Read the values recipients typed into the envelope's fields, for example after it is completed.")
+            description = "Read the values recipients typed into the envelope's fields, for example after it is completed.",
+            panel = "access_token, account_id, base_url, envelope_id")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Field label to entered value.")
     public Map<String, Object> formData(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String base,

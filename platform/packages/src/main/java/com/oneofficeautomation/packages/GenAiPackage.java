@@ -51,7 +51,8 @@ public final class GenAiPackage {
     static final String D_FREQUENCY = "From -2 to 2; higher values make the model repeat itself less (OpenAI-style providers).";
     static final String D_TIMEOUT = "Seconds to wait for the model; 180 when 0.";
 
-    @Action(id = "prompt", name = "Prompt", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"}, description = "Send a prompt and return the model's answer.")
+    @Action(id = "prompt", name = "Prompt", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"}, description = "Send a prompt and return the model's answer.",
+            panel = "prompt, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | temperature, max_tokens, response_format, mask_pii, top_p, top_k, stop_sequences, presence_penalty, frequency_penalty, seed, number_of_responses, end_user, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Answer (the first one when several were asked for).")
     @Output(name = "responses", type = OoaType.LIST, description = "Every answer, when number_of_responses is more than 1.")
     @Output(name = "json", description = "The answer parsed as JSON, when response_format is json.")
@@ -111,7 +112,8 @@ public final class GenAiPackage {
     }
 
     @Action(id = "chat", name = "Chat", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
-            description = "Send a message in a conversation that remembers earlier messages of the same chat session until End chat.")
+            description = "Send a message in a conversation that remembers earlier messages of the same chat session until End chat.",
+            panel = "message, chat_session, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region), images | temperature, max_tokens, mask_pii, history_limit, top_p, stop_sequences, presence_penalty, frequency_penalty, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "The model's reply.")
     @Output(name = "turns", type = OoaType.NUMBER, description = "Number of messages now held in the session (yours and the model's).")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request.")
@@ -175,7 +177,8 @@ public final class GenAiPackage {
     }
 
     @Action(id = "prompt_with_images", name = "Prompt with pictures", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai"},
-            description = "Ask about one or more pictures (a scanned form, a screenshot, a photo of a meter) and return the model's answer.")
+            description = "Ask about one or more pictures (a scanned form, a screenshot, a photo of a meter) and return the model's answer.",
+            panel = "prompt, images, system, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | temperature, max_tokens, response_format, mask_pii, timeout_seconds")
     @Output(name = "text", type = OoaType.STRING, description = "Answer.")
     @Output(name = "json", description = "The answer parsed as JSON, when response_format is json.")
     @Output(name = "input_tokens", type = OoaType.NUMBER, description = "Tokens in the request (pictures included).")
@@ -210,7 +213,8 @@ public final class GenAiPackage {
     }
 
     @Action(id = "generate_image", name = "Generate picture", category = "Generative AI", timeoutSeconds = 600, capabilities = {"network", "ai", "filesystem"},
-            description = "Draw pictures from a description and save them as PNG files (OpenAI, Azure OpenAI, OpenAI-compatible, Vertex AI Imagen, Amazon Bedrock).")
+            description = "Draw pictures from a description and save them as PNG files (OpenAI, Azure OpenAI, OpenAI-compatible, Vertex AI Imagen, Amazon Bedrock).",
+            panel = "prompt, output_folder, number_of_images, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | file_name, size, mask_pii, timeout_seconds")
     @Output(name = "file", type = OoaType.STRING, description = "The first picture's file.")
     @Output(name = "files", type = OoaType.LIST, description = "Every picture's file.")
     public Map<String, Object> generateImage(ActionContext ctx,
@@ -250,7 +254,8 @@ public final class GenAiPackage {
     }
 
     @Action(id = "detect_language", name = "Detect language", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "Tell which language a text is written in.")
+            description = "Tell which language a text is written in.",
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
     @Output(name = "language", type = OoaType.STRING, description = "Language name in English, e.g. German.")
     @Output(name = "code", type = OoaType.STRING, description = "Two-letter ISO 639-1 code, e.g. de.")
     @Output(name = "confidence", type = OoaType.NUMBER, description = "From 0 to 1.")
@@ -273,7 +278,8 @@ public final class GenAiPackage {
     }
 
     @Action(id = "key_phrases", name = "Key phrases", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "List the phrases that say what a text is about, most important first.")
+            description = "List the phrases that say what a text is about, most important first.",
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | max_phrases, mask_pii")
     @Output(name = "phrases", type = OoaType.LIST, description = "Phrases as they appear in the text.")
     public Map<String, Object> keyPhrases(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text, e.g. a support ticket.") String text,
@@ -297,7 +303,8 @@ public final class GenAiPackage {
     static final List<String> ENTITY_TYPES = List.of("PERSON", "ORGANIZATION", "LOCATION", "DATE", "QUANTITY", "EVENT", "TITLE", "COMMERCIAL_ITEM", "OTHER");
 
     @Action(id = "entities", name = "Named entities", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "Find the people, organisations, places, dates, amounts and products a text names.")
+            description = "Find the people, organisations, places, dates, amounts and products a text names.",
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | types, mask_pii")
     @Output(name = "entities", type = OoaType.TABLE, description = "Columns: text, type, score.")
     @Output(name = "by_type", type = OoaType.DICTIONARY, description = "Type to the list of texts of that type.")
     public Map<String, Object> entities(ActionContext ctx,
@@ -340,14 +347,16 @@ public final class GenAiPackage {
         try { return Values.toNumber(v).max(BigDecimal.ZERO).min(BigDecimal.ONE); } catch (RuntimeException e) { return BigDecimal.ZERO; }
     }
 
-    @Action(id = "end_chat", name = "End chat", category = "Generative AI", description = "Forget the messages of a chat session, so the next Chat starts a new conversation.")
+    @Action(id = "end_chat", name = "End chat", category = "Generative AI", description = "Forget the messages of a chat session, so the next Chat starts a new conversation.",
+            panel = "chat_session")
     public Map<String, Object> endChat(ActionContext ctx,
             @Input(name = "chat_session", type = OoaType.STRING, required = false, defaultValue = "\"Default\"", description = "Name of the conversation to end.") String session) {
         ctx.sessions().remove(chatKey(session));
         return Map.of();
     }
 
-    @Action(id = "summarize", name = "Summarise", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Summarise text in a few sentences, keeping figures exact.")
+    @Action(id = "summarize", name = "Summarise", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Summarise text in a few sentences, keeping figures exact.",
+            panel = "text, sentences, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
     @Output(name = "summary", type = OoaType.STRING, description = "Summary.")
     public Map<String, Object> summarize(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to summarise.") String text,
@@ -363,7 +372,8 @@ public final class GenAiPackage {
         return Map.of("summary", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1024, mask, awsKeyId, awsRegion), "Summarise the user's text in at most " + n + " sentences. Keep names, dates and figures exact.", text, false, "summarize"));
     }
 
-    @Action(id = "classify", name = "Classify", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Put text into exactly one of your categories, with a short reason.")
+    @Action(id = "classify", name = "Classify", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Put text into exactly one of your categories, with a short reason.",
+            panel = "text, labels, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
     @Output(name = "label", type = OoaType.STRING, description = "Chosen category (always one of the labels).")
     @Output(name = "reason", type = OoaType.STRING, description = "Why.")
     public Map<String, Object> classify(ActionContext ctx,
@@ -389,7 +399,8 @@ public final class GenAiPackage {
     }
 
     @Action(id = "extract", name = "Extract fields", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
-            description = "Extract named fields from text (an email, a contract) into a Dictionary; missing fields come back empty.")
+            description = "Extract named fields from text (an email, a contract) into a Dictionary; missing fields come back empty.",
+            panel = "text, fields, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
     public Map<String, Object> extract(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
@@ -410,7 +421,8 @@ public final class GenAiPackage {
         return Map.of("fields", out);
     }
 
-    @Action(id = "translate", name = "Translate", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Translate text into another language.")
+    @Action(id = "translate", name = "Translate", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Translate text into another language.",
+            panel = "text, target_language, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
     @Output(name = "text", type = OoaType.STRING, description = "Translation.")
     public Map<String, Object> translate(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to translate.") String text,
@@ -426,7 +438,8 @@ public final class GenAiPackage {
         return Map.of("text", ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 2000, mask, awsKeyId, awsRegion), "Translate the user's text into " + lang + ". Return only the translation.", text, false, "translate"));
     }
 
-    @Action(id = "sentiment", name = "Sentiment", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Rate text as positive, neutral or negative, with a score from -1 to 1.")
+    @Action(id = "sentiment", name = "Sentiment", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Rate text as positive, neutral or negative, with a score from -1 to 1.",
+            panel = "text, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
     @Output(name = "sentiment", type = OoaType.STRING, description = "positive, neutral or negative.")
     @Output(name = "score", type = OoaType.NUMBER, description = "From -1 (very negative) to 1 (very positive).")
     public Map<String, Object> sentiment(ActionContext ctx,

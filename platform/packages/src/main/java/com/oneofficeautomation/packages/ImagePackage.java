@@ -204,7 +204,8 @@ public final class ImagePackage {
     }
 
     @Action(id = "find_in_image", name = "Find image in image", category = "Image", idempotent = true,
-            description = "Look for a small picture inside a larger image file, optionally in a region and for its n-th appearance; returns the point of the match.")
+            description = "Look for a small picture inside a larger image file, optionally in a region and for its n-th appearance; returns the point of the match.",
+            panel = "template, image, [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a match within the tolerance was found.")
     @Output(name = "x", type = OoaType.NUMBER, description = "Centre x of the match (or the chosen point).")
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y of the match (or the chosen point).")
@@ -233,8 +234,15 @@ public final class ImagePackage {
         return findOnScreen(ctx, template, tol, 1, "center", 0, 0, null, null, null, null);
     }
 
+    /** Find image on screen with a single look (the signature before timeout_seconds and interval_ms were added). */
+    public Map<String, Object> findOnScreen(ActionContext ctx, String template, double tol, int occurrence, String position, int offsetX, int offsetY,
+            Integer rx, Integer ry, Integer rw, Integer rh) {
+        return findOnScreen(ctx, template, tol, occurrence, position, offsetX, offsetY, rx, ry, rw, rh, 0, 500);
+    }
+
     @Action(id = "find_on_screen", name = "Find image on screen", category = "Image", capabilities = "desktop",
-            description = "Look for a picture on the screen, optionally in a region and for its n-th appearance; returns the point of the match.")
+            description = "Look for a picture on the screen, optionally in a region and for its n-th appearance; returns the point of the match.",
+            panel = "template, [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y, timeout_seconds | interval_ms")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when found.")
     @Output(name = "x", type = OoaType.NUMBER, description = "Centre x on screen (or the chosen point).")
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y on screen (or the chosen point).")
@@ -250,10 +258,40 @@ public final class ImagePackage {
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = D_RX) Integer rx,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Search region top.") Integer ry,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Search region width.") Integer rw,
-            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh) {
+            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 3600,
+                    description = "Keep looking for up to this many seconds while the picture is not there; 0 looks once. found is false when time runs out.") double timeout,
+            @Input(name = "interval_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 50, max = 60000,
+                    description = "Pause between two looks at the screen while waiting, in milliseconds.") int intervalMs) {
+        checkWait(timeout, intervalMs);
         BufferedImage t = load(ctx, template);
         Rectangle r = region(rx, ry, rw, rh);
-        return search(screen(r), r, t, tol, occurrence, position, offsetX, offsetY);
+        return searchUntil(ctx, () -> screen(r), r, t, tol, occurrence, position, offsetX, offsetY, timeout, intervalMs);
+    }
+
+    /** The waiting options of Find image on screen, checked before the screen is read. */
+    static void checkWait(double timeout, int intervalMs) {
+        if (Double.isNaN(timeout) || timeout < 0 || timeout > 3600)
+            throw new ActionException("IMAGE.BAD_TIMEOUT", "timeout_seconds must be between 0 and 3600, not " + timeout, "Use 0 to look once, or e.g. 10 to keep looking.");
+        if (intervalMs < 50 || intervalMs > 60000)
+            throw new ActionException("IMAGE.BAD_INTERVAL", "interval_ms must be between 50 and 60000, not " + intervalMs, "Use e.g. 500.");
+    }
+
+    /**
+     * Looks (with look) until the picture is found or timeout seconds have passed, pausing intervalMs between looks;
+     * returns the last result (found false when it never appeared). A timeout of 0 looks once.
+     */
+    static Map<String, Object> searchUntil(ActionContext ctx, java.util.function.Supplier<BufferedImage> look, Rectangle r, BufferedImage t, double tol,
+            int occurrence, String position, int offsetX, int offsetY, double timeout, int intervalMs) {
+        long end = System.nanoTime() + (long) (Math.max(0, timeout) * 1e9);
+        while (true) {
+            Map<String, Object> res = search(look.get(), r, t, tol, occurrence, position, offsetX, offsetY);
+            if (Boolean.TRUE.equals(res.get("found")) || timeout <= 0 || System.nanoTime() > end) return res;
+            ctx.checkCancelled();
+            long left = (end - System.nanoTime()) / 1_000_000;
+            try { Thread.sleep(Math.max(1, Math.min(intervalMs, Math.max(1, left)))); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        }
     }
 
     public Map<String, Object> waitForImage(ActionContext ctx, String template, double timeout, double tol) {
@@ -261,7 +299,8 @@ public final class ImagePackage {
     }
 
     @Action(id = "wait_for_image", name = "Wait for image", category = "Image", capabilities = "desktop", timeoutSeconds = 3600,
-            description = "Wait until a picture appears on the screen, or disappears from it, checking a region at a chosen interval (IMAGE.NOT_FOUND after the timeout).")
+            description = "Wait until a picture appears on the screen, or disappears from it, checking a region at a chosen interval (IMAGE.NOT_FOUND after the timeout).",
+            panel = "template, until_gone, timeout_seconds | [Search only an area: x, y, width, height], tolerance, interval_ms")
     @Output(name = "x", type = OoaType.NUMBER, description = "Centre x on screen.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y on screen.")
     public Map<String, Object> waitForImage(ActionContext ctx,
@@ -304,7 +343,8 @@ public final class ImagePackage {
     }
 
     @Action(id = "wait_for_screen_change", name = "Wait for screen change", category = "Image", capabilities = "desktop", timeoutSeconds = 3600,
-            description = "Wait until a region of the screen changes (e.g. a result appears), or until it stops changing (e.g. a page or application has finished drawing).")
+            description = "Wait until a region of the screen changes (e.g. a result appears), or until it stops changing (e.g. a page or application has finished drawing).",
+            panel = "(Watch: The whole screen = / One window = window), [Watch only an area: x, y, width, height], initial_wait_ms, timeout_seconds, fail_on_timeout | mode, threshold_percent, stable_ms, interval_ms")
     @Output(name = "changed", type = OoaType.BOOLEAN, description = "True when the awaited change (or the steady state) happened in time.")
     @Output(name = "changed_percent", type = OoaType.NUMBER, description = "How much of the region differed from the first look, in percent.")
     public Map<String, Object> waitForScreenChange(ActionContext ctx,
@@ -358,7 +398,8 @@ public final class ImagePackage {
     }
 
     @Action(id = "click_image", name = "Click image", category = "Image", capabilities = "desktop",
-            description = "Find a picture on the screen (optionally waiting for it, in a region, or its n-th appearance) and click it with the chosen button at its centre, corner or an offset.")
+            description = "Find a picture on the screen (optionally waiting for it, in a region, or its n-th appearance) and click it with the chosen button at its centre, corner or an offset.",
+            panel = "template, double_click, button | [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y, timeout_seconds")
     @Output(name = "x", type = OoaType.NUMBER, description = "Clicked x.")
     @Output(name = "y", type = OoaType.NUMBER, description = "Clicked y.")
     public Map<String, Object> clickImage(ActionContext ctx,

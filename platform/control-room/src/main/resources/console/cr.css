@@ -4,7 +4,8 @@
    tabs, menus, dialogs, drawer, toasts and states). Use semantic tokens only; see docs/DESIGN_SYSTEM.md.
    Sections:  1. sign-in         2. frame: top bar  3. frame: menu     4. work area      5. page header
               6. forms           7. icons           8. dashboard       9. lists, filters  10. runs and details
-              11. vault, admin   12. operations     13. dialogs        14. loading/error  15. narrow screens
+              11. vault, admin   12. operations     13. dialogs        14. loading/error  15. density
+              16. narrow screens
    ===================================================================================================================== */
 
 /* ---------- 1. sign-in ---------- */
@@ -25,10 +26,11 @@
 .sso-button { width: 100%; }
 
 /* ---------- 2. frame: top bar ---------- */
+:root { --frame-h: 44px; }
 .topbar {
   position: sticky; top: 0; z-index: var(--z-sticky);
   display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3);
-  min-height: 52px; padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
+  min-height: var(--frame-h); padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
   background: var(--frame-bg); color: var(--frame-text); border-bottom: 1px solid var(--frame-border);
 }
 .logo { height: 24px; display: block; }
@@ -64,11 +66,14 @@
   background: var(--warning-bg); color: var(--text-1); border-bottom: 1px solid color-mix(in srgb, var(--warning-solid) 40%, transparent); font-weight: var(--weight-medium);
 }
 .announcement .ann-text { flex: 1; }
+.license-banner.critical { background: var(--danger-bg); border-bottom-color: color-mix(in srgb, var(--danger-solid) 45%, transparent); }
+.seat-bar { display: flex; align-items: center; gap: var(--space-2); }
+.seat-bar .bar { flex: 1; min-width: 80px; }
 
 /* ---------- 3. frame: menu ---------- */
-.layout { display: flex; min-height: calc(100vh - 52px); }
+.layout { display: flex; min-height: calc(100vh - var(--frame-h)); }
 .nav {
-  position: sticky; top: 52px; align-self: flex-start; height: calc(100vh - 52px); overflow-y: auto;
+  position: sticky; top: var(--frame-h); align-self: flex-start; height: calc(100vh - var(--frame-h)); overflow-y: auto;
   width: 236px; flex: 0 0 236px; padding: var(--space-3) var(--space-2) var(--space-6);
   display: flex; flex-direction: column; gap: 1px;
   background: var(--frame-bg-2); border-right: 1px solid var(--frame-border);
@@ -96,6 +101,7 @@
 .nav .nav-group.open .nav-caret { transform: rotate(90deg); }
 .nav-items { display: flex; flex-direction: column; gap: 1px; margin: 1px 0 6px; padding-left: 14px; border-left: 1px solid var(--frame-border); margin-left: 19px; }
 .nav-items button, .nav-items a.nav-link { padding: 5px 10px; }
+.nav > button .nav-label, .nav .nav-group .nav-label { text-transform: uppercase; letter-spacing: .05em; font-size: var(--text-sm); }   /* Home and the section names */
 .nav-items .ic { display: none; }   /* pages under a section show their names only; the section shows the icon */
 .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-ext { margin-left: auto; opacity: .6; font-size: var(--text-sm); }
@@ -326,7 +332,60 @@ pre.json { max-height: 260px; overflow: auto; font-size: var(--text-sm); }
 .view > p.error:only-child { margin: 0; padding: var(--space-4) var(--space-5); background: var(--danger-bg); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-left: 4px solid var(--danger-solid); border-radius: var(--radius-md); color: var(--text-1); }
 .view > p.error:only-child::before { content: "This page could not be loaded. "; font-weight: var(--weight-semibold); color: var(--danger); }
 
-/* ---------- 15. narrow screens ---------- */
+/* ---------- 15. density: a compact work area, so more rows and figures fit on one screen ---------- */
+body { font-size: var(--text-base); }
+.topbar button, .topbar a.button-link { padding: 3px 10px; font-size: var(--text-sm); }
+#btn-theme { width: 28px; height: 26px; font-size: 13px; }
+.avatar { width: 26px; height: 26px; font-size: var(--text-sm); }
+.logo { height: 22px; }
+.nav { width: 220px; flex-basis: 220px; padding: var(--space-2) var(--space-15) var(--space-5); }
+.nav button, .nav a.nav-link { padding: 4px 10px; gap: var(--space-2); font-size: var(--text-base); line-height: 20px; }
+.nav .nav-group { padding: 5px 10px; gap: var(--space-2); }
+.nav-items { margin-left: 18px; padding-left: 10px; }
+.nav-items button, .nav-items a.nav-link { padding: 3px 10px; font-size: var(--text-sm); }
+.nav button.active { box-shadow: inset 2px 0 0 var(--frame-accent); }
+.nav-search input { padding: 4px 8px 4px 28px; }
+.main { padding: var(--space-4) var(--space-5) var(--space-10); gap: var(--space-3); }
+.view { gap: var(--space-3); }
+.grid-2 { gap: var(--space-3); }
+h1.page { font-size: var(--text-xl); }
+.page-head { gap: var(--space-2) var(--space-3); padding-bottom: 0; }
+.page-head > .ic.lg { width: 32px; height: 32px; border-radius: var(--radius-md); }
+.page-head > .ic.lg svg { width: 16px; height: 16px; }
+.page-sub { font-size: var(--text-sm); margin-top: 2px; }
+.crumbs { font-size: var(--text-xs); }
+.card, .card-box { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); }
+.card h2, .card > h2:first-child, .card-head h2, .card-head h3 { font-size: var(--text-base); margin-bottom: var(--space-2); }
+button, a.button-link { padding: 3px 10px; }
+button.small, td button { padding: 1px 8px; font-size: var(--text-xs); }
+input, select, textarea { padding: 3px 8px; }
+label { font-size: var(--text-sm); }
+.table-wrap, .home-table, .filters, .kv, div.timeline { border-radius: var(--radius-md); }
+.table-wrap th, table.list th { padding: 6px 10px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
+.table-wrap td, table.list td { padding: 5px 10px; font-size: var(--text-sm); }
+th .th-sort { text-transform: inherit; letter-spacing: inherit; }
+.pill { font-size: var(--text-xs); line-height: 16px; padding: 1px 7px 1px 6px; }
+.chip { font-size: var(--text-xs); line-height: 18px; }
+.tabs .tab, .tab, .ctab { padding: 6px 10px; font-size: var(--text-sm); }
+.filters { padding: var(--space-2); }
+.tiles { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: var(--space-2); }
+.tile { gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+.tile .ic { width: 28px; height: 28px; border-radius: var(--radius-md); }
+.tile .ic svg { width: 15px; height: 15px; }
+.tile .n { font-size: var(--text-xl); }
+.tile .l { font-size: var(--text-xs); }
+button.tile { border-radius: var(--radius-md); }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: var(--space-2); }
+.kpi { padding: var(--space-2) var(--space-3); }
+.kpi-value { font-size: var(--text-2xl); }
+.list-row { padding: 5px var(--space-1); font-size: var(--text-sm); }
+.live-card { padding: var(--space-2) var(--space-3); gap: var(--space-15); }
+.kv { padding: var(--space-2) var(--space-3); gap: var(--space-1) var(--space-4); font-size: var(--text-sm); }
+.kv dt { font-size: var(--text-sm); }
+.tl-row { padding: 5px var(--space-3); font-size: var(--text-sm); }
+.chart { height: 150px; }
+
+/* ---------- 16. narrow screens ---------- */
 @media (max-width: 1100px) { .main { padding: var(--space-5) var(--space-5) var(--space-10); } }
 @media (max-width: 760px) {
   .topbar { padding: var(--space-2) var(--space-3); }
@@ -341,6 +400,7 @@ pre.json { max-height: 260px; overflow: auto; font-size: var(--text-sm); }
   .nav-fly .nav-label { display: inline; }
   .main { padding: var(--space-4) var(--space-3) var(--space-10); }
   .kv { grid-template-columns: 1fr; }
+  .tiles, .kpis { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); }
   .modal-card { padding: var(--space-4); }
   .modal-card > .row-actions { margin: var(--space-4) calc(-1 * var(--space-4)) calc(-1 * var(--space-4)); padding: var(--space-3) var(--space-4); }
   .toolbar > input:not([type="checkbox"]):not([type="radio"]), .toolbar > select { flex: 1 1 100%; }

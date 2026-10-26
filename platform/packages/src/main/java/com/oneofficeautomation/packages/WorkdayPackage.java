@@ -19,7 +19,8 @@ public final class WorkdayPackage {
         return host.replaceAll("/+$", "") + "/ccx/api/v1/" + tenant;
     }
 
-    @Action(id = "search_workers", name = "Search workers", category = "Workers", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Find workers by name or id text.")
+    @Action(id = "search_workers", name = "Search workers", category = "Workers", idempotent = true, timeoutSeconds = 300, capabilities = "network", description = "Find workers by name or id text.",
+            panel = "host, tenant, access_token, [Only matching workers: search] | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, descriptor, primary_work_email, business_title.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of workers.")
     public Map<String, Object> searchWorkers(ActionContext ctx,
@@ -47,7 +48,8 @@ public final class WorkdayPackage {
     }
 
     @Action(id = "get", name = "Call REST endpoint (GET)", category = "REST", idempotent = true, timeoutSeconds = 300, capabilities = "network",
-            description = "GET any Workday REST resource or RaaS report URL path and return the JSON.")
+            description = "GET any Workday REST resource or RaaS report URL path and return the JSON.",
+            panel = "host, path, access_token")
     @Output(name = "json", description = "Response body.")
     public Map<String, Object> get(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
@@ -64,7 +66,8 @@ public final class WorkdayPackage {
     }
 
     @Action(id = "get_report", name = "Get report (RaaS)", category = "Reports", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Run a custom report exposed as a web service and return its rows as a table.")
+            description = "Run a custom report exposed as a web service and return its rows as a table.",
+            panel = "host, report_path, format, parameters | (Sign in with: User name and password = user, password / An access token = access_token), [Also save the answer to a file: save_to_file]")
     @Output(name = "table", type = OoaType.TABLE, description = "Report rows; columns are the report's field aliases.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of rows.")
     @Output(name = "path", type = OoaType.FILE, description = "The saved file, when save_to_file was given.")
@@ -154,7 +157,8 @@ public final class WorkdayPackage {
     }
 
     @Action(id = "authenticate", name = "Authenticate", category = "Authentication", capabilities = "network",
-            description = "Get an OAuth access token for a registered API client from its refresh token, for the other Workday actions.")
+            description = "Get an OAuth access token for a registered API client from its refresh token, for the other Workday actions.",
+            panel = "host, tenant, client_id, client_secret, refresh_token")
     @Output(name = "access_token", type = OoaType.CREDENTIAL, description = "Access token; map it to access_token of later actions.")
     @Output(name = "expires_in", type = OoaType.NUMBER, description = "Seconds until the access token expires, when Workday says.")
     public Map<String, Object> authenticate(ActionContext ctx,
@@ -249,7 +253,8 @@ public final class WorkdayPackage {
     }
 
     @Action(id = "launch_integration", name = "Launch integration", category = "Integrations", timeoutSeconds = 180, capabilities = "network",
-            description = "Start an integration system (such as an EIB) through the Integrations web service and return the event id to track it.")
+            description = "Start an integration system (such as an EIB) through the Integrations web service, optionally with launch parameter values, and return the event id to track it.",
+            panel = "host, tenant, id_type, integration_system_id, parameters | (Sign in with: User name and password = user, password / An access token = access_token), version")
     @Output(name = "event_id", type = OoaType.STRING, description = "Integration event WID; pass it to Get integration event.")
     public Map<String, Object> launchIntegration(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, pattern = HttpJson.HTTPS_OR_LOCAL, description = D_HOST) String host,
@@ -260,13 +265,28 @@ public final class WorkdayPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
             @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"integration_system_id\"", enumValues = {"integration_system_id", "wid"},
-                    description = "Whether integration_system_id holds the Integration System ID or the integration's Workday ID (WID).") String idType) {
+                    description = "Whether integration_system_id holds the Integration System ID or the integration's Workday ID (WID).") String idType,
+            @Input(name = "parameters", type = OoaType.DICTIONARY, required = false, example = "{\"Effective_Date\": \"2026-11-01\", \"Include_Terminated\": false}",
+                    description = "Launch parameter name to value; text, numbers, true/false and dates are sent with their Workday type.") Map<String, Object> parameters) {
         if (integrationId == null || !REF_ID.matcher(integrationId).matches()) throw new ActionException(P + ".BAD_ID", "Invalid integration system id '" + integrationId + "'");
         boolean wid = "wid".equals(idType);
         if (wid && !integrationId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "A WID is 32 hexadecimal characters", "Use id_type integration_system_id for a named id.");
-        String body = "<bsvc:Launch_Integration_Request bsvc:version=\"" + version + "\"><bsvc:Integration_System_Reference>"
-                + "<bsvc:ID bsvc:type=\"" + (wid ? "WID" : "Integration_System_ID") + "\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference></bsvc:Launch_Integration_Request>";
-        org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
+        // the request of the Launch_Integration operation is Launch_Integration_Event_Request (Integrations web service)
+        StringBuilder body = new StringBuilder("<bsvc:Launch_Integration_Event_Request bsvc:version=\"" + version + "\"><bsvc:Integration_System_Reference>"
+                + "<bsvc:ID bsvc:type=\"" + (wid ? "WID" : "Integration_System_ID") + "\">" + xml(integrationId) + "</bsvc:ID></bsvc:Integration_System_Reference>");
+        if (parameters != null) parameters.forEach((name, value) -> {
+            if (name == null || !REF_ID.matcher(name).matches()) throw new ActionException(P + ".BAD_ID", "Invalid launch parameter name '" + name + "'");
+            String typed = value instanceof Boolean b ? "<bsvc:Boolean>" + b + "</bsvc:Boolean>"
+                    : value instanceof Number n ? "<bsvc:Numeric>" + new BigDecimal(n.toString()).toPlainString() + "</bsvc:Numeric>"
+                    : value instanceof java.time.LocalDateTime t ? "<bsvc:DateTime>" + t + "</bsvc:DateTime>"
+                    : value instanceof String str && str.matches("^\\d{4}-\\d{2}-\\d{2}$") ? "<bsvc:Date>" + str + "</bsvc:Date>"
+                    : "<bsvc:Text>" + xml(Values.text(value)) + "</bsvc:Text>";
+            body.append("<bsvc:Integration_Launch_Parameter_Data><bsvc:Launch_Parameter_Reference><bsvc:ID bsvc:type=\"Launch_Parameter_Name\">").append(xml(name))
+                    .append("</bsvc:ID></bsvc:Launch_Parameter_Reference><bsvc:Launch_Parameter_Value_Data>").append(typed)
+                    .append("</bsvc:Launch_Parameter_Value_Data></bsvc:Integration_Launch_Parameter_Data>");
+        });
+        body.append("</bsvc:Launch_Integration_Event_Request>");
+        org.w3c.dom.Document d = soap(ctx, host, tenant, version, body.toString(), user, password, token);
         String event = refId(d, "Integration_Event_Reference", "WID");
         if (event == null) event = refId(d, null, "WID");
         if (event == null) throw new ActionException(P + ".BAD_RESPONSE", "Workday did not return an integration event id", "Check the integration can be launched by this user.");
@@ -275,11 +295,16 @@ public final class WorkdayPackage {
 
     /** Earlier signature, kept for callers written before id_type. */
     public Map<String, Object> launchIntegration(ActionContext ctx, String host, String tenant, String integrationId, String version, String user, Object password, Object token) {
-        return launchIntegration(ctx, host, tenant, integrationId, version, user, password, token, "integration_system_id");
+        return launchIntegration(ctx, host, tenant, integrationId, version, user, password, token, "integration_system_id", null);
+    }
+
+    public Map<String, Object> launchIntegration(ActionContext ctx, String host, String tenant, String integrationId, String version, String user, Object password, Object token, String idType) {
+        return launchIntegration(ctx, host, tenant, integrationId, version, user, password, token, idType, null);
     }
 
     @Action(id = "get_integration_event", name = "Get integration event", category = "Integrations", idempotent = true, timeoutSeconds = 120, capabilities = "network",
-            description = "Read the status and timing of an integration run.")
+            description = "Read the status and timing of an integration run.",
+            panel = "host, tenant, event_id | (Sign in with: User name and password = user, password / An access token = access_token), version")
     @Output(name = "status", type = OoaType.STRING, description = "Run status, e.g. Processing, Completed, Completed with Warnings or Failed.")
     @Output(name = "percent_complete", type = OoaType.NUMBER, description = "Progress percentage when Workday reports it.")
     @Output(name = "started", type = OoaType.STRING, description = "Start time.")

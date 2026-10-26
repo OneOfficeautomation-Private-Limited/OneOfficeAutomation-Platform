@@ -47,12 +47,44 @@ public final class ControlRoom {
     public final TriggerPollers triggerPollers = new TriggerPollers(this);
     private final FlowValidator validator;
     private final PackageRegistry registry;
-    static final Duration SESSION = Duration.ofHours(8);
     static final Duration ONLINE = Duration.ofSeconds(60);
     static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.(flow|process|form)\\.json$");
     static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
 
+    private final Path dataDir;
+    final SyslogForwarder syslog;
+    public final Licensing licensing;
+
+    /**
+     * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
+     * vault key encrypts and decrypts, the data folder has room, and how many runners are online. Only ok/warn/fail per
+     * check is returned, never paths, names or secrets.
+     */
+    public Map<String, Object> readiness() {
+        Map<String, Object> checks = new LinkedHashMap<>();
+        boolean ok = true;
+        try {
+            int v = db.schemaVersion();
+            checks.put("database", "ok");
+            checks.put("schema", v == Db.LATEST ? "ok" : "fail");
+            ok &= v == Db.LATEST;
+        } catch (RuntimeException e) { checks.put("database", "fail"); ok = false; }
+        try { checks.put("vault", "ready".equals(vault.decrypt(vault.encrypt("ready", "health"), "health")) ? "ok" : "fail"); }
+        catch (RuntimeException e) { checks.put("vault", "fail"); }
+        ok &= "ok".equals(checks.get("vault"));
+        long free = dataDir.toFile().getUsableSpace();
+        checks.put("disk", free < 200L * 1024 * 1024 ? "fail" : free < 2L * 1024 * 1024 * 1024 ? "warn" : "ok");
+        ok &= !"fail".equals(checks.get("disk"));
+        try { checks.put("runners_online", count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE AND last_seen > ?", now().minus(ONLINE))); }
+        catch (RuntimeException e) { checks.put("runners_online", null); }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("status", ok ? "ready" : "not_ready");
+        m.put("checks", checks);
+        return m;
+    }
+
     public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema) {
+        this.dataDir = dataDir;
         this.db = db;
         this.audit = new Audit(db);
         this.vault = new Vault(dataDir);
@@ -60,6 +92,9 @@ public final class ControlRoom {
         this.registry = registry;
         db.migrate();
         this.platform = new Platform(this, registry);
+        this.syslog = new SyslogForwarder(platform);
+        this.licensing = new Licensing(this);
+        audit.onRecord(syslog::forward);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
@@ -168,11 +203,16 @@ public final class ControlRoom {
     }
 
     private Map<String, Object> newSession(Map<String, Object> r, String ip) {
+        licensing.checkSignIn(user(r));   // after the license's grace period only administrators sign in
         String token = Security.token(32);
-        Instant expires = now().plus(SESSION);
+        Instant expires = now().plus(platform.sessionLength());
         db.update("UPDATE users SET failed = 0, locked_until = NULL, last_login = ? WHERE id = ?", now(), r.get("id"));
         db.update("DELETE FROM sessions WHERE expires < ?", now());
         db.update("INSERT INTO sessions (token_hash, user_id, created, expires, ip) VALUES (?,?,?,?,?)", Security.sha256(token), r.get("id"), now(), expires, ip);
+        // at most max_sessions_per_user sign-ins at once: the oldest ones end
+        int keep = Math.max(1, platform.intSetting("max_sessions_per_user"));
+        List<Map<String, Object>> open = db.query("SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY created DESC", r.get("id"));
+        for (int i = keep; i < open.size(); i++) db.update("DELETE FROM sessions WHERE token_hash = ?", open.get(i).get("token_hash"));
         return Map.of("token", token, "user", me(user(r)), "expires", expires.toString());
     }
 
@@ -294,6 +334,8 @@ public final class ControlRoom {
         m.put("roles", rolesOf(u.username(), u.role()));
         Object note = platform.setting("announcement");
         if (note instanceof String n && !n.isBlank()) m.put("announcement", n);
+        Map<String, Object> lic = licensing.status(u);
+        if (lic.get("banner") != null) m.put("license_banner", lic.get("banner"));
         return m;
     }
 
@@ -302,8 +344,10 @@ public final class ControlRoom {
         if (token == null || token.isBlank()) return null;
         Map<String, Object> r = db.one("SELECT u.*, s.expires AS s_expires FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?", Security.sha256(token));
         if (r == null || !Boolean.TRUE.equals(r.get("enabled")) || Instant.parse(r.get("s_expires").toString()).isBefore(now())) return null;
-        db.update("UPDATE sessions SET expires = ? WHERE token_hash = ?", now().plus(SESSION), Security.sha256(token));
-        return user(r);
+        db.update("UPDATE sessions SET expires = ? WHERE token_hash = ?", now().plus(platform.sessionLength()), Security.sha256(token));
+        User u = user(r);
+        licensing.checkSignIn(u);
+        return u;
     }
 
     public void logout(String token, User u, String ip) {
@@ -317,7 +361,7 @@ public final class ControlRoom {
             audit.record(u.username(), "user.change_password", "user", u.username(), null, "failed", ip);
             throw new OoaException("CR.LOGIN_FAILED", "The current password is wrong");
         }
-        String problem = Security.passwordProblem(next, u.username());
+        String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"));
         if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem);
         if (current.equals(next)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a different password from the current one.");
         db.tx(() -> {
@@ -541,8 +585,11 @@ public final class ControlRoom {
             v = l.get("version");
         }
         if (v == null) throw new OoaException("CR.NO_PRODUCTION", "Agent " + path + " has no live production version", "Set a live production version in the agent repository.");
-        Map<String, Object> row = db.one("SELECT content, version FROM bot_versions WHERE path = ? AND version = ?", path, Integer.parseInt(String.valueOf(v)));
+        Map<String, Object> row = db.one("SELECT content, version, sha256 FROM bot_versions WHERE path = ? AND version = ?", path, Integer.parseInt(String.valueOf(v)));
         if (row == null) throw notFound("Version " + v + " of " + path);
+        // the checksum taken at check-in must still match: a version changed in the database is never sent to a runner or editor
+        if (row.get("sha256") != null && !Security.sha256((String) row.get("content")).equals(row.get("sha256")))
+            throw new OoaException("CR.AGENT_TAMPERED", "Version " + v + " of " + path + " was changed after check-in (checksum mismatch)", "Check the audit trail, then check the agent in again from Studio.");
         return Map.of("version", row.get("version"), "flow", JsonLite.parse((String) row.get("content")));
     }
 
@@ -580,6 +627,7 @@ public final class ControlRoom {
 
     /** Validates and stores a new version. Existing bots must be checked out by the same user. */
     public Map<String, Object> checkin(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, String ip) {
+        licensing.requireDeveloper(by);
         return storeVersion(by, path, flow, comment, makeProduction, true, ip);
     }
 
@@ -864,6 +912,7 @@ public final class ControlRoom {
             m.put("default_users", defaults.getOrDefault((String) d.get("id"), List.of()));
             boolean online = d.get("last_seen") != null && Instant.parse(d.get("last_seen").toString()).isAfter(now().minus(ONLINE));
             m.put("status", !Boolean.TRUE.equals(d.get("enabled")) ? "disabled" : online ? "online" : "offline");
+            m.put("version_status", versionStatus(d.get("agent_version")));
             m.put("running", ((Number) db.one("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status = 'running'", d.get("id")).get("n")).intValue());
             out.add(m);
         }
@@ -1001,6 +1050,7 @@ public final class ControlRoom {
         Map<String, Object> dev = db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
         if (dev == null) throw notFound("Runner " + deviceId);
         if (!Boolean.TRUE.equals(dev.get("enabled"))) throw new OoaException("CR.DEVICE_DISABLED", "That runner is disabled");
+        licensing.requireRunnable(deviceId, runAs != null && !runAs.isBlank() ? runAs : requestedBy, source);
         Map<String, Object> clean = new LinkedHashMap<>();
         Map<String, Map<String, Object>> declared = new HashMap<>();
         for (Object v : (List<Object>) flow.getOrDefault("variables", List.of())) {
@@ -1114,11 +1164,41 @@ public final class ControlRoom {
 
     /** Atomically assigns the oldest queued run of this device and returns its job (bot bundle, inputs, global values). */
     @SuppressWarnings("unchecked")
+    /** The release of this Command Center; runners may be this release or older, never newer (they may use what it does not know). */
+    public static final String VERSION = "0.2.0";
+
+    /** Compares dotted versions numerically (0.10.0 is newer than 0.9.2); missing parts count as 0. */
+    static int compareVersions(String a, String b) {
+        String[] x = String.valueOf(a).split("[.-]"), y = String.valueOf(b).split("[.-]");
+        for (int i = 0; i < Math.max(x.length, y.length); i++) {
+            int p = i < x.length && x[i].matches("\\d+") ? Integer.parseInt(x[i]) : 0, q = i < y.length && y[i].matches("\\d+") ? Integer.parseInt(y[i]) : 0;
+            if (p != q) return Integer.compare(p, q);
+        }
+        return 0;
+    }
+
+    /** "ok", or why the runner's version may not take work (a runner newer than the Command Center). */
+    static String versionStatus(Object runnerVersion) {
+        if (runnerVersion == null || String.valueOf(runnerVersion).isBlank() || "null".equals(String.valueOf(runnerVersion))) return "ok";
+        return compareVersions(String.valueOf(runnerVersion), VERSION) > 0 ? "newer_than_command_center" : "ok";
+    }
+
     public Map<String, Object> claimNext(Map<String, Object> d) {
         String did = (String) d.get("id");
+        // a runner newer than this Command Center gets no work until the Command Center is updated
+        Map<String, Object> ver = db.one("SELECT agent_version FROM devices WHERE id = ?", did);
+        if (ver != null && !"ok".equals(versionStatus(ver.get("agent_version")))) return null;
         for (Map<String, Object> r : db.query("SELECT id FROM runs WHERE device_id = ? AND status = 'queued' ORDER BY COALESCE(priority, 0) DESC, created LIMIT 5", did)) {
             if (db.update("UPDATE runs SET status = 'running', started = ? WHERE id = ? AND status = 'queued'", now(), r.get("id")) != 1) continue;
             Map<String, Object> run = db.one("SELECT * FROM runs WHERE id = ?", r.get("id"));
+            // the license may have changed since the run was queued (expired, or the runner's seat taken back)
+            String licenseProblem = licensing.runProblem(did, String.valueOf(run.get("run_as") != null ? run.get("run_as") : run.get("requested_by")), String.valueOf(run.get("source")));
+            if (licenseProblem != null) {
+                db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ?", now(),
+                    JsonLite.write(new OoaException(licensing.expired() ? "CR.LICENSE_EXPIRED" : "CR.LICENSE_REQUIRED", licenseProblem).toMap()), run.get("id"));
+                audit.record("agent:" + d.get("name"), "run.finish", "run", (String) run.get("id"), Map.of("status", "failed", "code", "CR.LICENSE_REQUIRED"), "failed", null);
+                continue;
+            }
             Map<String, Object> main = (Map<String, Object>) content((String) run.get("bot_path"), run.get("version")).get("flow");
             Map<String, Object> bundle = new LinkedHashMap<>();
             collect(main, bundle, 0);
@@ -2133,10 +2213,15 @@ public final class ControlRoom {
                 "ORDER BY seq DESC LIMIT " + Math.max(1, Math.min(1000, limit)), like, like, like);
     }
 
-    public Map<String, Object> dashboard(User by) {
+    public Map<String, Object> dashboard(User by) { return dashboard(by, null); }
+
+    /** The Home page figures; the runs-per-day chart counts days in the viewer's time zone (an IANA name, UTC when absent or unknown). */
+    public Map<String, Object> dashboard(User by, String timeZone) {
         Map<String, Object> m = new LinkedHashMap<>();
         Instant day = now().minus(Duration.ofDays(1));
-        m.put("bots", count("SELECT COUNT(*) AS n FROM bots"));
+        ZoneId zone;
+        try { zone = timeZone == null || timeZone.isBlank() ? ZoneOffset.UTC : ZoneId.of(timeZone); } catch (DateTimeException e) { zone = ZoneOffset.UTC; }
+        m.put("bots", count("SELECT COUNT(*) AS n FROM bots WHERE deleted_at IS NULL"));
         m.put("devices_online", count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE AND last_seen > ?", now().minus(ONLINE)));
         m.put("devices_total", count("SELECT COUNT(*) AS n FROM devices"));
         m.put("running", count("SELECT COUNT(*) AS n FROM runs WHERE status = 'running'"));
@@ -2150,12 +2235,12 @@ public final class ControlRoom {
         Map<String, Object> avg = db.one("SELECT AVG(duration_ms) AS a FROM runs WHERE status = 'success' AND finished > ?", day);
         m.put("avg_duration_ms_24h", avg == null || avg.get("a") == null ? null : ((Number) avg.get("a")).longValue());
         if (can(by, "runs.view")) {
-            // Runs per day for the last 7 days (UTC), by outcome.
-            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            // Runs per day for the last 7 days in the viewer's time zone, by outcome.
+            LocalDate today = LocalDate.ofInstant(now(), zone);
             Map<LocalDate, long[]> perDay = new TreeMap<>();
             for (int i = 6; i >= 0; i--) perDay.put(today.minusDays(i), new long[4]);
-            for (Map<String, Object> r : db.query("SELECT status, created FROM runs WHERE created >= ?", today.minusDays(6).atStartOfDay(ZoneOffset.UTC).toInstant())) {
-                long[] c = perDay.get(Instant.parse(String.valueOf(r.get("created"))).atZone(ZoneOffset.UTC).toLocalDate());
+            for (Map<String, Object> r : db.query("SELECT status, created FROM runs WHERE created >= ?", today.minusDays(6).atStartOfDay(zone).toInstant())) {
+                long[] c = perDay.get(Instant.parse(String.valueOf(r.get("created"))).atZone(zone).toLocalDate());
                 if (c == null) continue;
                 switch (String.valueOf(r.get("status"))) { case "success" -> c[0]++; case "failed" -> c[1]++; case "stopped" -> c[2]++; default -> c[3]++; }
             }

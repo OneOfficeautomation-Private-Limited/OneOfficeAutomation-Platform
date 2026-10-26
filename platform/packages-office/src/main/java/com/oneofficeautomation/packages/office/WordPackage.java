@@ -61,7 +61,8 @@ public final class WordPackage {
     public Map<String, Object> open(ActionContext ctx, String path, boolean create, String session) { return open(ctx, path, create, session, false, null); }
 
     @Action(id = "open", name = "Open document", category = "Document", capabilities = "filesystem",
-            description = "Open a .docx document, or create a new one, as a named session; can open password-protected files and open read-only.")
+            description = "Open a .docx document, or create a new one, as a named session; can open password-protected files and open read-only.",
+            panel = "path, read_only, [The file has a password: password] | create, session")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Document path.") String path,
             @Input(name = "create", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Create the document when it does not exist.") boolean create,
@@ -89,8 +90,13 @@ public final class WordPackage {
 
     public Map<String, Object> readText(ActionContext ctx, String session) { return readText(ctx, session, false, false, null, null); }
 
+    public Map<String, Object> readText(ActionContext ctx, String session, boolean includeTables, boolean includeHf, Integer from, Integer to) {
+        return readText(ctx, session, includeTables, includeHf, from, to, null, null);
+    }
+
     @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true,
-            description = "Return the paragraph text, one paragraph per line, of the whole body or a range of paragraphs, optionally with tables, headers and footers.")
+            description = "Return the paragraph text, one paragraph per line, of the whole body, a range of paragraphs, the text inside a bookmark or one page, optionally with tables, headers and footers.",
+            panel = "(Read: The whole document = / A paragraph range = from_paragraph, to_paragraph / A bookmark = bookmark / A page = page), include_tables, include_headers_footers | session")
     @Output(name = "text", type = OoaType.STRING, description = "Document text.")
     @Output(name = "paragraphs", type = OoaType.LIST, description = "Each body paragraph's text.")
     public Map<String, Object> readText(ActionContext ctx,
@@ -100,8 +106,15 @@ public final class WordPackage {
             @Input(name = "include_headers_footers", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
                     description = "Also return the text of page headers (before the body) and footers (after it).") boolean includeHf,
             @Input(name = "from_paragraph", type = OoaType.NUMBER, required = false, description = "1-based first body paragraph to read; the first when empty.") Integer from,
-            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, description = "1-based last body paragraph to read; the last when empty.") Integer to) {
+            @Input(name = "to_paragraph", type = OoaType.NUMBER, required = false, description = "1-based last body paragraph to read; the last when empty.") Integer to,
+            @Input(name = "bookmark", type = OoaType.STRING, required = false,
+                    description = "Read only the text between the start and end of this bookmark (tables inside it included); overrides the paragraph range and page.") String bookmark,
+            @Input(name = "page", type = OoaType.NUMBER, required = false, min = 1,
+                    description = "Read only this 1-based page, counted from page breaks, 'page break before' paragraphs and section breaks stored in the file "
+                            + "(pages Word fills up on its own are not counted); overrides the paragraph range.") Integer page) {
         XWPFDocument doc = s(ctx, session).doc;
+        if (bookmark != null && !bookmark.isBlank()) return textResult(bookmarkText(doc, bookmark));
+        if (page != null) return textResult(pageText(doc, page));
         List<Object> paras = new ArrayList<>();
         if (includeHf) for (XWPFHeader h : doc.getHeaderList()) for (XWPFParagraph p : h.getParagraphs()) paras.add(p.getText());
         int idx = 0;
@@ -116,6 +129,102 @@ public final class WordPackage {
         StringJoiner j = new StringJoiner("\n");
         for (Object o : paras) j.add((String) o);
         return Map.of("text", j.toString(), "paragraphs", paras);
+    }
+
+    private static final String W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private static final String MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+
+    private static Map<String, Object> textResult(String text) {
+        return Map.of("text", text, "paragraphs", new ArrayList<Object>(Arrays.asList(text.split("\n", -1))));
+    }
+
+    private static String wAttr(org.apache.xmlbeans.XmlCursor c, String name) { return c.getAttributeText(new javax.xml.namespace.QName(W_NS, name)); }
+
+    /**
+     * Walks the body XML in document order and hands every element start to the visitor, skipping the fallback copies
+     * of drawings (mc:Fallback) so text boxes are not read twice. Returns false from the visitor to stop.
+     */
+    private static void walkBody(XWPFDocument d, java.util.function.BiPredicate<String, org.apache.xmlbeans.XmlCursor> visitor) {
+        org.apache.xmlbeans.XmlCursor c = d.getDocument().getBody().newCursor();
+        try {
+            while (true) {
+                org.apache.xmlbeans.XmlCursor.TokenType tt = c.toNextToken();
+                if (tt.isEnddoc() || tt.isNone()) return;
+                if (!tt.isStart()) continue;
+                javax.xml.namespace.QName q = c.getName();
+                if (MC_NS.equals(q.getNamespaceURI()) && "Fallback".equals(q.getLocalPart())) { c.toEndToken(); continue; }
+                if (!W_NS.equals(q.getNamespaceURI())) continue;
+                if (!visitor.test(q.getLocalPart(), c)) return;
+            }
+        } finally { c.close(); }
+    }
+
+    /** The text a w:t, w:tab, w:br or w:cr element stands for, or null for other elements. */
+    private static String pieceText(String local, org.apache.xmlbeans.XmlCursor c) {
+        return switch (local) {
+            case "t" -> c.getTextValue();
+            case "tab" -> "\t";
+            case "br", "cr" -> "page".equals(wAttr(c, "type")) ? null : "\n";
+            default -> null;
+        };
+    }
+
+    /** Text between bookmarkStart (by name) and its bookmarkEnd (by id); paragraphs are separated by line breaks. */
+    static String bookmarkText(XWPFDocument d, String name) {
+        StringBuilder sb = new StringBuilder();
+        String[] id = {null};
+        boolean[] found = {false};
+        walkBody(d, (local, c) -> {
+            if (id[0] == null) {
+                if ("bookmarkStart".equals(local) && name.equals(wAttr(c, "name"))) { id[0] = wAttr(c, "id"); found[0] = true; }
+                return true;
+            }
+            if ("bookmarkEnd".equals(local) && id[0].equals(wAttr(c, "id"))) return false;
+            if ("p".equals(local)) { if (sb.length() > 0) sb.append('\n'); return true; }
+            String piece = pieceText(local, c);
+            if (piece != null) sb.append(piece);
+            return true;
+        });
+        if (!found[0]) throw new ActionException("WORD.NO_BOOKMARK", "Bookmark '" + name + "' not found", "Check the bookmark name in Word (Insert > Bookmark).");
+        return sb.toString().strip();
+    }
+
+    /**
+     * Text of one page, counting pages from breaks stored in the file: page breaks, paragraphs with 'page break before'
+     * and section breaks that start a new page.
+     */
+    static String pageText(XWPFDocument d, int page) {
+        if (page < 1) throw new ActionException("WORD.NO_PAGE", "Page must be 1 or more, not " + page, "Use a 1-based page number.");
+        StringBuilder sb = new StringBuilder();
+        int[] current = {1}, paragraphs = {0};
+        boolean[] sectionBreak = {false};
+        walkBody(d, (local, c) -> {
+            switch (local) {
+                case "p", "tbl" -> {
+                    if (sectionBreak[0]) { current[0]++; sectionBreak[0] = false; }
+                    if ("p".equals(local)) { paragraphs[0]++; if (current[0] == page && sb.length() > 0) sb.append('\n'); }
+                }
+                case "pageBreakBefore" -> {  // the very first paragraph is on page 1 whatever its setting
+                    String v = wAttr(c, "val");
+                    if (paragraphs[0] > 1 && (v == null || !(v.equals("0") || v.equalsIgnoreCase("false") || v.equalsIgnoreCase("off")))) current[0]++;
+                }
+                case "br" -> { if ("page".equals(wAttr(c, "type"))) current[0]++; }
+                case "sectPr" -> {
+                    org.apache.xmlbeans.XmlCursor k = c.newCursor();
+                    try {
+                        String type = k.toChild(new javax.xml.namespace.QName(W_NS, "type")) ? wAttr(k, "val") : null;
+                        if (!"continuous".equals(type) && !"nextColumn".equals(type)) sectionBreak[0] = true;
+                    } finally { k.close(); }
+                }
+                default -> { }
+            }
+            if (current[0] == page) { String piece = pieceText(local, c); if (piece != null) sb.append(piece); }
+            return current[0] <= page;
+        });
+        if (current[0] < page)
+            throw new ActionException("WORD.NO_PAGE", "There is no page " + page + " (the document has " + current[0] + " counted from its page and section breaks)",
+                    "Use a page from 1 to " + current[0] + ".");
+        return sb.toString().strip();
     }
 
     /** One occurrence of a search text: the paragraph and the character range inside its runs' text. */
@@ -173,7 +282,8 @@ public final class WordPackage {
     private static final String D_TO = "1-based last body paragraph to search, included; to the end when empty.";
 
     @Action(id = "replace_text", name = "Replace text", category = "Text",
-            description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template; can ignore case, match whole words or change only the first or last occurrence.")
+            description = "Replace text everywhere (body, tables, headers, footers), e.g. fill {{customer}} placeholders in a template; can ignore case, match whole words or change only the first or last occurrence.",
+            panel = "find, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph), replace_with, occurrence | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of replacements.")
     public Map<String, Object> replaceText(ActionContext ctx,
             @Input(name = "find", type = OoaType.STRING, example = "{{customer}}", description = "Text to find.") String find,
@@ -218,7 +328,8 @@ public final class WordPackage {
         return Map.of("count", BigDecimal.valueOf(count));
     }
 
-    @Action(id = "add_paragraph", name = "Add paragraph", category = "Text", description = "Append a paragraph, optionally bold or with a style such as Heading1.")
+    @Action(id = "add_paragraph", name = "Add paragraph", category = "Text", description = "Append a paragraph, optionally bold or with a style such as Heading1.",
+            panel = "text, bold, style | session")
     public Map<String, Object> addParagraph(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Paragraph text.") String text,
             @Input(name = "bold", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Bold text.") boolean bold,
@@ -236,7 +347,8 @@ public final class WordPackage {
     public Map<String, Object> addTable(ActionContext ctx, Map<String, Object> table, String session) { return addTable(ctx, table, session, true, null, null, null); }
 
     @Action(id = "add_table", name = "Insert table", category = "Tables",
-            description = "Insert a table built from a Data Table (header row first) at the end, after a marker text or at a bookmark, optionally with a table style.")
+            description = "Insert a table built from a Data Table (header row first) at the end, after a marker text or at a bookmark, optionally with a table style.",
+            panel = "(Insert: At the end = / After a text = after_text / After a bookmark = bookmark), table, include_header | style, session")
     public Map<String, Object> addTable(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Data to insert.") Map<String, Object> table,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
@@ -289,29 +401,57 @@ public final class WordPackage {
 
     public Map<String, Object> readTables(ActionContext ctx, String session) { return readTables(ctx, session, null, true); }
 
+    public Map<String, Object> readTables(ActionContext ctx, String session, Integer index, boolean header) {
+        return readTables(ctx, session, index, header, null, null, null, null, null);
+    }
+
     @Action(id = "read_tables", name = "Read tables", category = "Tables", idempotent = true,
-            description = "Read every table in the document, or one table by position; the first row of each can become its column names.")
+            description = "Read every table in the document, one table by position or one table by its title, optionally only some of its rows and columns; the first row read can become the column names.",
+            panel = "(Read: All tables = / One table = index / A table by title = title), header, [Only some rows or columns: from_row, to_row, from_column, to_column] | session")
     @Output(name = "tables", type = OoaType.LIST, description = "List of tables.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of tables in the document.")
-    @Output(name = "table", type = OoaType.TABLE, description = "The table chosen by index; the first table when index is empty, or empty when there is none.")
+    @Output(name = "table", type = OoaType.TABLE, description = "The table chosen by index or title; the first table when both are empty, or empty when there is none.")
     public Map<String, Object> readTables(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "index", type = OoaType.NUMBER, required = false, description = "1-based position of the one table to read; all tables when empty.") Integer index,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
-                    description = "The first row holds the column names; false names the columns Column1, Column2 and keeps the first row as data.") boolean header) {
-        List<XWPFTable> all = s(ctx, session).doc.getTables();
-        if (index != null && (index < 1 || index > all.size()))
+                    description = "The first row read holds the column names; false names the columns Column1, Column2 and keeps the first row as data.") boolean header,
+            @Input(name = "title", type = OoaType.STRING, required = false,
+                    description = "Read the one table with this title: the table's alternative-text title, or a Caption-style paragraph just above or below it that contains this text (case is ignored). Used instead of index.") String title,
+            @Input(name = "from_row", type = OoaType.NUMBER, required = false, min = 1, description = "1-based first row of the table to read, counting the header row; the first when empty.") Integer fromRow,
+            @Input(name = "to_row", type = OoaType.NUMBER, required = false, min = 1, description = "1-based last row to read, included; the last when empty.") Integer toRow,
+            @Input(name = "from_column", type = OoaType.NUMBER, required = false, min = 1, description = "1-based first column to read; the first when empty.") Integer fromColumn,
+            @Input(name = "to_column", type = OoaType.NUMBER, required = false, min = 1, description = "1-based last column to read, included; the last when empty.") Integer toColumn) {
+        checkSpan(fromRow, toRow, "row");
+        checkSpan(fromColumn, toColumn, "column");
+        XWPFDocument doc = s(ctx, session).doc;
+        List<XWPFTable> all = doc.getTables();
+        boolean byTitle = title != null && !title.isBlank();
+        if (!byTitle && index != null && (index < 1 || index > all.size()))
             throw new ActionException("WORD.NO_TABLE", "There is no table number " + index + " (the document has " + all.size() + ")", all.isEmpty() ? "The document has no tables." : "Use a number from 1 to " + all.size() + ".");
+        List<XWPFTable> chosen;
+        if (byTitle) {
+            XWPFTable t = tableByTitle(doc, title.strip());
+            if (t == null) throw new ActionException("WORD.NO_TABLE", "No table has the title '" + title + "'",
+                    "Check the table's alternative-text title in Word (Table Properties > Alt Text) or its caption.");
+            chosen = List.of(t);
+        } else chosen = index == null ? all : List.of(all.get(index - 1));
         List<Object> out = new ArrayList<>();
-        for (XWPFTable t : index == null ? all : List.of(all.get(index - 1))) {
+        for (XWPFTable t : chosen) {
             List<String> cols = new ArrayList<>();
             List<Object> rows = new ArrayList<>();
             List<XWPFTableRow> trs = t.getRows();
+            int r0 = fromRow == null ? 0 : Math.min(fromRow - 1, trs.size());
+            int r1 = toRow == null ? trs.size() : Math.min(toRow, trs.size());
+            trs = trs.subList(r0, Math.max(r0, r1));
             int width = 0;
-            for (XWPFTableRow tr : trs) width = Math.max(width, tr.getTableCells().size());
             for (int r = 0; r < trs.size(); r++) {
                 List<Object> vals = new ArrayList<>();
-                for (XWPFTableCell c : trs.get(r).getTableCells()) vals.add(c.getText());
+                List<XWPFTableCell> cells = trs.get(r).getTableCells();
+                int c0 = fromColumn == null ? 0 : Math.min(fromColumn - 1, cells.size());
+                int c1 = toColumn == null ? cells.size() : Math.min(toColumn, cells.size());
+                for (XWPFTableCell c : cells.subList(c0, Math.max(c0, c1))) vals.add(c.getText());
+                width = Math.max(width, vals.size());
                 if (r == 0 && header) for (Object v : vals) cols.add(String.valueOf(v)); else rows.add(vals);
             }
             if (!header) for (int c = 0; c < width; c++) cols.add("Column" + (c + 1));
@@ -324,10 +464,43 @@ public final class WordPackage {
         return res;
     }
 
+    private static void checkSpan(Integer from, Integer to, String what) {
+        if ((from != null && from < 1) || (to != null && to < 1) || (from != null && to != null && to < from))
+            throw new ActionException("WORD.BAD_RANGE", "The " + what + " span " + (from == null ? "" : from) + " to " + (to == null ? "" : to) + " is not valid",
+                    "Use 1-based numbers with from_" + what + " not above to_" + what + ".");
+    }
+
+    /** The table's alternative-text title (w:tblCaption), or null. */
+    static String tableAltTitle(XWPFTable t) {
+        if (t.getCTTbl().getTblPr() == null) return null;
+        org.apache.xmlbeans.XmlCursor c = t.getCTTbl().getTblPr().newCursor();
+        try { return c.toChild(new javax.xml.namespace.QName(W_NS, "tblCaption")) ? wAttr(c, "val") : null; }
+        finally { c.close(); }
+    }
+
+    /** First body table whose alt-text title equals the text, or whose Caption-style neighbour paragraph contains it. */
+    private static XWPFTable tableByTitle(XWPFDocument d, String title) {
+        String want = title.toLowerCase(Locale.ROOT);
+        for (XWPFTable t : d.getTables()) { String alt = tableAltTitle(t); if (alt != null && alt.strip().equalsIgnoreCase(title)) return t; }
+        List<IBodyElement> body = d.getBodyElements();
+        // a caption between two tables belongs to the one below it (Word puts table captions above), so every table's
+        // caption above is tried before any caption below
+        for (int side : new int[]{-1, 1})
+            for (int i = 0; i < body.size(); i++) {
+                if (!(body.get(i) instanceof XWPFTable t)) continue;
+                int j = i + side;
+                if (j < 0 || j >= body.size() || !(body.get(j) instanceof XWPFParagraph p)) continue;
+                String style = p.getStyle() == null ? "" : p.getStyle();
+                if (style.equalsIgnoreCase("Caption") && p.getText().toLowerCase(Locale.ROOT).contains(want)) return t;
+            }
+        return null;
+    }
+
     public Map<String, Object> save(ActionContext ctx, String path, String session) { return save(ctx, path, session, null); }
 
     @Action(id = "save", name = "Save", category = "Document", capabilities = "filesystem",
-            description = "Save the document, optionally to a new path; password-protected documents stay protected.")
+            description = "Save the document, optionally to a new path; password-protected documents stay protected.",
+            panel = "session | path, password")
     public Map<String, Object> save(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, required = false, description = "Save-as path; the opened file when empty.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
@@ -343,7 +516,8 @@ public final class WordPackage {
 
     public Map<String, Object> close(ActionContext ctx, String session) { return close(ctx, session, false); }
 
-    @Action(id = "close", name = "Close", category = "Document", capabilities = "filesystem", description = "Close the document, saving the changes first when asked.")
+    @Action(id = "close", name = "Close", category = "Document", capabilities = "filesystem", description = "Close the document, saving the changes first when asked.",
+            panel = "save | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
@@ -360,7 +534,8 @@ public final class WordPackage {
     public Map<String, Object> createDocument(ActionContext ctx, String path, boolean overwrite, String session) { return createDocument(ctx, path, overwrite, session, null, null); }
 
     @Action(id = "create_document", name = "Create document", category = "Document", capabilities = "filesystem",
-            description = "Create a new .docx file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.")
+            description = "Create a new .docx file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.",
+            panel = "path, [Require a password to open the file: password] | overwrite, template, session")
     public Map<String, Object> createDocument(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new document.") String path,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
@@ -498,7 +673,8 @@ public final class WordPackage {
     }
 
     @Action(id = "insert_text", name = "Insert text", category = "Text",
-            description = "Insert text at the start or end of the document, or just before or after a marker text or a bookmark, optionally with its own font formatting.")
+            description = "Insert text at the start or end of the document, or just before or after a marker text or a bookmark, optionally with its own font formatting.",
+            panel = "position, anchor, text, new_paragraph, [Format the text: font, color, size, bold, italic, underline] | session")
     public Map<String, Object> insertText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to insert; line breaks are kept.") String text,
             @Input(name = "position", type = OoaType.STRING, required = false, defaultValue = "\"end\"",
@@ -625,7 +801,8 @@ public final class WordPackage {
     }
 
     @Action(id = "insert_picture", name = "Insert picture", category = "Pictures", capabilities = "filesystem",
-            description = "Insert an image file at the start or end of the document, after a marker text or at a bookmark, optionally sized and aligned.")
+            description = "Insert an image file at the start or end of the document, after a marker text or at a bookmark, optionally sized and aligned.",
+            panel = "image, alt_text, width, height, (Place it: At the start or end = position / After a text = after_text / After a bookmark = bookmark) | alignment, session")
     public Map<String, Object> insertPicture(ActionContext ctx,
             @Input(name = "image", type = OoaType.FILE, description = "Image file (PNG, JPEG, GIF, BMP, TIFF, EMF or WMF).") String image,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Width in points (72 per inch); the height keeps the aspect ratio. Original size when empty.") Double width,
@@ -707,7 +884,8 @@ public final class WordPackage {
     }
 
     @Action(id = "find_replace_picture", name = "Find and replace picture", category = "Pictures", capabilities = "filesystem",
-            description = "Swap an existing picture, found by its alternative text or its position in the document, for a new image file, optionally resizing it and changing its alternative text.")
+            description = "Swap an existing picture, found by its alternative text or its position in the document, for a new image file, optionally resizing it and changing its alternative text.",
+            panel = "(Find the picture by: Its alt text = alt_text, occurrence / Its position = index), image, new_alt_text, width, height | session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of pictures replaced.")
     public Map<String, Object> findReplacePicture(ActionContext ctx,
             @Input(name = "image", type = OoaType.FILE, description = "New image file.") String image,
@@ -763,7 +941,8 @@ public final class WordPackage {
     }
 
     @Action(id = "format_text", name = "Format text", category = "Text",
-            description = "Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text; inputs left empty are not changed.")
+            description = "Apply bold, italic, underline, strikethrough, highlight, font, size or colour to occurrences of a text; inputs left empty are not changed.",
+            panel = "text, match_case, whole_word, (Look in: The whole document = / A paragraph range = from_paragraph, to_paragraph), occurrence, font, color, size, bold, italic, underline | highlight, strikethrough, session")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of occurrences formatted.")
     public Map<String, Object> formatText(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Text to format wherever it appears.") String text,
@@ -796,7 +975,8 @@ public final class WordPackage {
     public Map<String, Object> saveAs(ActionContext ctx, String path, String format, String session) { return saveAs(ctx, path, format, session, true, null); }
 
     @Action(id = "save_as", name = "Save as", category = "Document", capabilities = "filesystem",
-            description = "Save the document to a new .docx file (optionally password-protected) and continue the session on it, or export its text as a .txt file; PDF output is not available in this toolkit.")
+            description = "Save the document to a new .docx file (optionally password-protected) and continue the session on it, or export its text as a .txt file; PDF output is not available in this toolkit.",
+            panel = "path, overwrite, format | password, session")
     public Map<String, Object> saveAs(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Target file path.") String path,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"docx\"", enumValues = {"docx", "txt"},

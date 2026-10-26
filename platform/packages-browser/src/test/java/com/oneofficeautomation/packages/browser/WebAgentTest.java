@@ -103,6 +103,25 @@ class WebAgentTest {
                 assertTrue(String.valueOf(((List<Object>) r2.get("steps")).get(0)).contains("password fields"), String.valueOf(r2.get("steps")));
             } finally { m2.stop(0); }
 
+            // a start address, and findings that must match a JSON Schema: a wrong answer is sent back once and corrected
+            HttpServer m4 = model(List.of(
+                    "finish {\"success\":true,\"answer\":\"Done\",\"data\":{\"open_invoices\":\"three\"}}",
+                    "finish {\"success\":true,\"answer\":\"Done\",\"data\":{\"open_invoices\":3}}"), seen);
+            try {
+                Map<String, Object> schema = (Map<String, Object>) JsonLite.parse("{\"type\":\"object\",\"required\":[\"open_invoices\"],\"properties\":{\"open_invoices\":{\"type\":\"number\"}}}");
+                int before = seen.size();
+                Map<String, Object> r4 = a.run(c, "How many invoices are open?", "browser", 5, List.of("127.0.0.1"), null, null, "openai_compatible", null, "test-model", null,
+                        "http://127.0.0.1:" + m4.getAddress().getPort() + "/v1", false, null, null, 30, base + "/home?user=bo", schema, "out/findings.json");
+                assertEquals(true, r4.get("success"), String.valueOf(r4));
+                assertEquals(Map.of("open_invoices", new java.math.BigDecimal(3)), r4.get("data"));
+                assertTrue(seen.get(before).contains("Welcome bo"), "the run starts on start_url");
+                assertTrue(seen.get(before).contains("JSON Schema"), "the model is shown the schema");
+                assertTrue(seen.get(before + 1).contains("does not match"), "a wrong answer is sent back");
+                assertEquals("{\"open_invoices\":3}", Files.readString(w.resolve("out/findings.json")).replace(" ", ""));
+                assertEquals("WEBAGENT.NOT_ALLOWED", assertThrows(ActionException.class, () -> a.run(c, "x", "browser", 5, List.of("127.0.0.1"), null, null,
+                        "openai_compatible", null, "test-model", null, "http://127.0.0.1:1/v1", false, null, null, 30, "https://elsewhere.test/", null, null)).code());
+            } finally { m4.stop(0); }
+
             // the step limit ends a run that never finishes
             HttpServer m3 = model(List.of("scroll {\"direction\":\"down\"}"), seen);
             try {

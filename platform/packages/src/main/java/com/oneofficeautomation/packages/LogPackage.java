@@ -14,7 +14,8 @@ public final class LogPackage {
     private static final Object LOCK = new Object();
 
     @Action(id = "write", name = "Log to file", category = "Logging", capabilities = "filesystem",
-            description = "Append (or overwrite with) a line in a text log file, with optional timestamp and level.")
+            description = "Append (or overwrite with) a line in a text log file, with optional timestamp and level.",
+            panel = "path, message, timestamp, timestamp_format, overwrite, encoding | level")
     public Map<String, Object> write(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Log file path, e.g. logs/invoices.log.") String path,
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,
@@ -62,7 +63,8 @@ public final class LogPackage {
     }
 
     @Action(id = "log_variables", name = "Log variables to file", category = "Logging", capabilities = "filesystem",
-            description = "Write one name=value line per variable to a log file, to record the state of a run; credentials are written as ****.")
+            description = "Write one name=value line per variable to a log file, to record the state of a run; credentials are written as ****.",
+            panel = "path, overwrite, timestamp, variables | title, encoding, timestamp_format")
     @Output(name = "lines", type = OoaType.NUMBER, description = "Number of variable lines written.")
     public Map<String, Object> logVariables(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Log file path, e.g. logs/state.log.") String path,
@@ -104,7 +106,8 @@ public final class LogPackage {
     }
 
     @Action(id = "log_to_command_center", name = "Log to Command Center", category = "Logging",
-            description = "Add a message, with optional details, to this run's log so it appears in Command Center with the run's activity.")
+            description = "Add a message, with optional details, to this run's log so it appears in Command Center with the run's activity.",
+            panel = "message, details, level")
     public Map<String, Object> logToCommandCenter(ActionContext ctx,
             @Input(name = "message", type = OoaType.STRING, description = "Text to log; ${...} interpolation allowed.") String message,
             @Input(name = "level", type = OoaType.STRING, required = false, defaultValue = "\"INFO\"", enumValues = {"DEBUG", "INFO", "WARN", "ERROR"}, description = "Level of the log entry.") String level,

@@ -35,9 +35,9 @@ public final class PackageIntrospector {
             Condition c = m.getAnnotation(Condition.class);
             LoopIterator it = m.getAnnotation(LoopIterator.class);
             if (a != null) put(actions, spec("action", a.id(), a.name(), a.description(), a.category(), a.timeoutSeconds(),
-                    a.idempotent(), List.of(a.capabilities()), m), meta);
-            if (c != null) put(conditions, spec("condition", c.id(), c.name(), c.description(), "Conditions", 60, true, List.of(), m), meta);
-            if (it != null) put(iterators, spec("iterator", it.id(), it.name(), it.description(), "Iterators", 60, true, List.of(), m), meta);
+                    a.idempotent(), List.of(a.capabilities()), m, a.panel()), meta);
+            if (c != null) put(conditions, spec("condition", c.id(), c.name(), c.description(), "Conditions", 60, true, List.of(), m, ""), meta);
+            if (it != null) put(iterators, spec("iterator", it.id(), it.name(), it.description(), "Iterators", 60, true, List.of(), m, ""), meta);
         }
         return new PackageInfo(meta, actions, conditions, iterators);
     }
@@ -47,7 +47,7 @@ public final class PackageIntrospector {
     }
 
     private static ActionSpec spec(String kind, String id, String name, String desc, String category, double timeout,
-                                   boolean idempotent, List<String> caps, Method m) {
+                                   boolean idempotent, List<String> caps, Method m, String panel) {
         if (!ID.matcher(id).matches()) throw new OoaException("PKG.ERROR", "Invalid " + kind + " id '" + id + "'", "Use lower_snake_case.");
         if (desc.isBlank()) throw new OoaException("PKG.ERROR", kind + " '" + id + "' has no description",
                 "Add a one-sentence description; the AI assistant and agents rely on it.");
@@ -69,8 +69,10 @@ public final class PackageIntrospector {
                     throw new OoaException("PKG.ERROR", "Input '" + in.name() + "' of '" + id + "' is shown when '" + other + "' has a value, but there is no such input");
         List<ActionSpec.OutputSpec> outputs = new ArrayList<>();
         for (Output o : m.getAnnotationsByType(Output.class)) outputs.add(new ActionSpec.OutputSpec(o.name(), o.type(), o.description()));
-        return new ActionSpec(kind, id, name, desc, category, List.copyOf(inputs), List.copyOf(outputs), timeout, idempotent,
-                caps, m);
+        ActionSpec spec = new ActionSpec(kind, id, name, desc, category, List.copyOf(inputs), List.copyOf(outputs), timeout, idempotent,
+                caps, m, panel);
+        spec.panelLayout();   // a panel that misses or repeats an input fails when the toolkit loads, not in Studio
+        return spec;
     }
 
     /** Manifest in the shared format (identical to the Python reference SDK). */
