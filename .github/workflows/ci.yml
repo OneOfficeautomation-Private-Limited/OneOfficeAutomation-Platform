@@ -32,6 +32,9 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
+      - name: GnuPG for the PGP toolkit tests
+        shell: pwsh
+        run: choco install gnupg -y --no-progress
       - name: Build and run every test
         shell: pwsh
         run: ./gradlew.bat build --continue --console=plain

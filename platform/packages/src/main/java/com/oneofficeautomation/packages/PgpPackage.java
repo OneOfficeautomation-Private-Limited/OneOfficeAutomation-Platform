@@ -29,13 +29,27 @@ public final class PgpPackage {
             try {
                 Path c = Path.of(dir.strip().replace("\"", ""), "gpg.exe");
                 if (!Files.isRegularFile(c)) continue;
-                if (Files.exists(c.resolveSibling("msys-2.0.dll"))) { msysOnly = true; continue; }
+                if (Files.exists(c.resolveSibling("msys-2.0.dll")) || msys(c)) { msysOnly = true; continue; }
                 return c.toString();
             } catch (java.nio.file.InvalidPathException ignored) { /* not a folder */ }
         }
         if (msysOnly) throw new ActionException("PGP.NOT_INSTALLED", "Only the gpg that comes with Git for Windows was found; it cannot work with Windows paths",
                 "Install Gpg4win, or set OOA_GPG to the full path of a Windows gpg.exe.");
         return "gpg";
+    }
+
+    private static final Map<Path, Boolean> MSYS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** True for an MSYS/Cygwin build of gpg (its home folder prints as /c/Users/...), whose DLL may live elsewhere. */
+    static boolean msys(Path gpg) {
+        return MSYS.computeIfAbsent(gpg, g -> {
+            try {
+                Process p = new ProcessBuilder(g.toString(), "--version").redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes());
+                p.waitFor();
+                return java.util.regex.Pattern.compile("(?m)^Home: /").matcher(out).find();
+            } catch (Exception e) { return false; }
+        });
     }
 
     private static ProcessRunner.Result gpg(ActionContext ctx, String home, List<String> args, String stdin) {
