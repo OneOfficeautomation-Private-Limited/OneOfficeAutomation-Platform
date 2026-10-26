@@ -220,17 +220,24 @@ button.tile { border: 1px solid var(--border-2); background: var(--surface-1); b
 .list-row:not(.static):hover { background: var(--surface-hover); border-color: var(--border-1); }
 .list-row .bar { width: 90px; }
 .lr-main { flex: 1; min-width: 0; }
+.lr-main > strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row > .muted.small:last-child { flex: 0 0 auto; white-space: nowrap; }
 .lr-main .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot { width: 8px; height: 8px; flex: 0 0 auto; display: inline-block; border-radius: 50%; background: var(--text-3); }
 .dot.online { background: var(--success-solid); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success-solid) 20%, transparent); }
 .dot.offline { background: var(--danger-solid); }
 .dot.disabled { background: var(--border-2); }
+.dot.busy { background: var(--warning-solid); }
 
 /* ---------- 9. lists, filters, chips ---------- */
 .toolbar > input:not([type="checkbox"]):not([type="radio"]), .toolbar > select { width: auto; flex: 0 1 220px; }
 .toolbar > input[type="search"] { flex-basis: 280px; }
 .toolbar label.inline input[type="date"] { width: 150px; }
 .dt > .toolbar { margin-bottom: var(--space-3); }
+.col-chooser { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding: var(--space-3); margin-bottom: var(--space-3); background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg); }
+.col-chooser[hidden] { display: none; }
+.col-chooser label.check { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 400; }
+.grid-2.flat h3 { margin-top: 0; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3); background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg); }
 .filters:empty { display: none; }
 .filters input[type="search"] { width: 260px; }

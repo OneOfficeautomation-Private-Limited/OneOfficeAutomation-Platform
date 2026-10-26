@@ -444,7 +444,7 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 | Human task | Puts a form in the Task inbox of a user or role (`user:jane`, `role:bot_runner`), optionally with a due time. The answers join the data, also as `$form.field`. |
 | Approval | Asks a person to approve or reject. A rejection ends the workflow, continues anyway, or jumps to a stage you choose. |
 | Decision | Evaluates a condition such as `$amount > 1000` and goes to one stage or another. |
-| Notification | Sends an inbox notice. Text can use `${name}`. |
+| Notification | Sends an inbox notice to `user:` and `role:` recipients, and an e-mail to plain addresses (once e-mail is set up, section 10b; with an optional subject). Text can use `${name}`. |
 
 1. Publish the workflow and the forms it uses (**Publish to Command Center**), and check in the agents it calls.
 2. Start it from **One Workflow** (or Start in the agent repository), optionally with starting data such as `{"amount": 1200}`.

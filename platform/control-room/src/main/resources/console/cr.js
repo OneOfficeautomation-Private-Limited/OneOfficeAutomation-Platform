@@ -385,23 +385,37 @@ function dataTable({ columns, rows, onRow, search = "Search", pageSize = 25, emp
     if (st.sort !== null) { const c = columns[st.sort]; l = l.slice().sort((a, b) => { const x = value(c, a), y = value(c, b); return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * st.dir; }); }
     return l;
   };
+  // columns the viewer switched off, per table (only labelled columns; the actions column always shows)
+  const colKey = exportName ? "ooa.columns." + exportName : null;
+  let hidden = new Set();
+  try { if (colKey) hidden = new Set(JSON.parse(localStorage.getItem(colKey) || "[]")); } catch (_) { /* storage off: all columns */ }
+  const shown = () => columns.map((c, i) => i).filter((i) => !columns[i].label || !hidden.has(columns[i].label));
+  const chooser = h("div", { class: "col-chooser", hidden: true });
+  const colBtn = colKey && columns.filter((c) => c.label).length > 2 ? h("button", { type: "button", "aria-expanded": "false", onclick: (e) => {
+    chooser.hidden = !chooser.hidden; e.currentTarget.setAttribute("aria-expanded", String(!chooser.hidden));
+    chooser.replaceChildren(...columns.filter((c) => c.label).map((c) => h("label", { class: "check" }, h("input", { type: "checkbox", checked: !hidden.has(c.label), onchange: (ev) => {
+      if (ev.target.checked) hidden.delete(c.label); else if (shown().filter((i) => columns[i].label).length > 1) hidden.add(c.label); else { ev.target.checked = true; return; }
+      try { localStorage.setItem(colKey, JSON.stringify([...hidden])); } catch (_) { /* kept for this page only */ }
+      render(); } }), c.label)));
+  } }, "Columns") : null;
   const exp = exportName ? h("button", { type: "button", onclick: () => download(exportName + ".csv", csv([columns.filter((c) => c.value).map((c) => c.label), ...list().map((r) => columns.filter((c) => c.value).map((c) => value(c, r)))]), "text/csv") }, ic("download", "#475569", "sm"), "Export CSV") : null;
   function render() {
     const l = list(), pages = Math.max(1, Math.ceil(l.length / pageSize));
     if (st.page >= pages) st.page = pages - 1;
     const slice = l.slice(st.page * pageSize, st.page * pageSize + pageSize);
-    const ths = columns.map((c, i) => c.sort === false || !c.value ? h("th", { text: c.label })
+    const vis = shown();
+    const ths = vis.map((i) => [columns[i], i]).map(([c, i]) => c.sort === false || !c.value ? h("th", { text: c.label })
       : h("th", { "aria-sort": st.sort === i ? (st.dir > 0 ? "ascending" : "descending") : "none" },
         h("button", { type: "button", class: "th-sort", onclick: () => { if (st.sort === i) st.dir = -st.dir; else { st.sort = i; st.dir = 1; } render(); } }, c.label, h("span", { class: "arrow", text: st.sort === i ? (st.dir > 0 ? " \u25B2" : " \u25BC") : "" }))));
     const body = slice.length ? slice.map((r) => {
-      const tr = h("tr", { class: onRow ? "clickable" : "" }, columns.map((c) => h("td", { class: c.cls || null }, c.render ? c.render(r) : String(value(c, r)))));
+      const tr = h("tr", { class: onRow ? "clickable" : "" }, vis.map((i) => columns[i]).map((c) => h("td", { class: c.cls || null }, c.render ? c.render(r) : String(value(c, r)))));
       if (onRow) { tr.tabIndex = 0; tr.addEventListener("click", (e) => { if (!e.target.closest("button, a, input, select")) onRow(r); }); tr.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target === tr) onRow(r); }); }
       return tr;
-    }) : [h("tr", {}, h("td", { colspan: String(columns.length), class: "muted empty-cell", text: st.q ? "No matches." : empty }))];
+    }) : [h("tr", {}, h("td", { colspan: String(vis.length), class: "muted empty-cell", text: st.q ? "No matches." : empty }))];
     box.replaceChildren(h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ths)), h("tbody", {}, body))),
       l.length > pageSize ? pager(st.page, pages, l.length, pageSize, (p) => { st.page = p; render(); }) : null);
   }
-  wrap.append(h("div", { class: "toolbar" }, q, ...tools, h("span", { class: "spacer" }), exp), box);
+  wrap.append(h("div", { class: "toolbar" }, q, ...tools, h("span", { class: "spacer" }), colBtn, exp), chooser, box);
   render();
   return wrap;
 }
@@ -470,6 +484,16 @@ const VIEWS = {
         d.queue_items_waiting !== undefined ? tile(d.queue_items_waiting, "Work items waiting", "inbox", "#9333ea", () => go("queues")) : null,
         tile((d.hours_saved_30d || 0) + " h", "Hours saved (30 days)", "timer", "#16a34a"),
         tile(d.open_tasks || 0, "Tasks waiting for you", "tasks", "#0d9488", () => go("inbox")))];
+    const myAgents = d.my_recent_agents || [], myRuns = d.my_recent_runs || [];
+    if (myAgents.length || myRuns.length) {
+      parts.push(h("div", { class: "card" }, h("h2", { text: "Pick up where you left off" }), h("div", { class: "grid-2 flat" },
+        h("div", {}, h("h3", { text: "Your agents" }), myAgents.length ? myAgents.map((b) => h("button", { type: "button", class: "list-row", onclick: () => openBot(b) }, ic("bot", "#6d28d9", "sm"),
+          h("div", { class: "lr-main" }, h("strong", { text: botName(b.path) }), h("div", { class: "muted small", text: "v" + b.latest_version + (b.locked_by ? " \u00B7 checked out by " + b.locked_by : "") })),
+          h("span", { class: "muted small", text: ago(b.updated) }))) : h("p", { class: "muted", text: "Agents you check in or check out show here." })),
+        h("div", {}, h("h3", { text: "Your runs" }), myRuns.length ? myRuns.map((r) => h("button", { type: "button", class: "list-row", onclick: () => openRun(r.id) }, h("span", { class: "dot " + (r.status === "success" ? "online" : r.status === "failed" ? "offline" : "busy") }),
+          h("div", { class: "lr-main" }, h("strong", { text: botName(r.bot_path) }), h("div", { class: "muted small", text: r.status })),
+          h("span", { class: "muted small", text: ago(r.finished || r.created) }))) : h("p", { class: "muted", text: "Agents you run show here." })))));
+    }
     if (d.days) {
       const max = Math.max(1, ...d.days.map((x) => x.success + x.failed + x.stopped + x.active));
       const chart = h("div", { class: "chart", role: "img", "aria-label": "Runs per day for the last 7 days" }, d.days.map((x) => {

@@ -4570,6 +4570,7 @@ function processDesigner(it) {
         field("If true, go to", targetSelect(st.if_true, (v) => set("if_true", v))), field("If false, go to", targetSelect(st.if_false, (v) => set("if_false", v))));
     } else if (st.type === "notify") {
       parts.push(field("To", h("input", { type: "text", value: st.to || "", placeholder: "user:jane, role:admin or an email address", onchange: (e) => set("to", e.target.value) })),
+        field("E-mail subject (for e-mail addresses)", h("input", { type: "text", value: st.subject || "", placeholder: "Order ${order} approved", onchange: (e) => set("subject", e.target.value) })),
         field("Message", h("textarea", { rows: 4, value: st.message || "", onchange: (e) => set("message", e.target.value) })));
     }
     parts.push(field("Notes", h("textarea", { rows: 2, value: st.description || "", onchange: (e) => set("description", e.target.value) })),

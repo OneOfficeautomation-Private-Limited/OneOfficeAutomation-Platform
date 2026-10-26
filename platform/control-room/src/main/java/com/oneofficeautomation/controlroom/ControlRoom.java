@@ -2513,6 +2513,20 @@ public final class ControlRoom {
         if (can(by, "queues.view"))
             m.put("queue_items_waiting", count("SELECT COUNT(*) AS n FROM queue_items WHERE status IN ('new', 'retry')"));
         m.put("open_tasks", workflows.openTaskCount(by));
+        // the person's own recent work, for "Pick up where you left off"
+        if (can(by, "repo.view")) {
+            Map<String, Map<String, String>> perms = folders.entries();
+            List<String> mine = teams.principalsOf(by.username(), by.role());
+            List<Map<String, Object>> agents = new ArrayList<>();
+            for (Map<String, Object> b : db.query("SELECT path, latest_version, production_version, locked_by, updated FROM bots WHERE deleted_at IS NULL AND (updated_by = ? OR locked_by = ?) ORDER BY updated DESC LIMIT 20", by.username(), by.username())) {
+                if (folders.accessToFolder(mine, by.role(), Folders.folderOf((String) b.get("path")), perms).equals("none")) continue;
+                agents.add(b);
+                if (agents.size() == 6) break;
+            }
+            m.put("my_recent_agents", agents);
+        }
+        if (can(by, "runs.view"))
+            m.put("my_recent_runs", db.query("SELECT id, bot_path, status, created, finished FROM runs WHERE requested_by = ? ORDER BY created DESC LIMIT 6", by.username()));
         m.put("user", me(by));
         return m;
     }

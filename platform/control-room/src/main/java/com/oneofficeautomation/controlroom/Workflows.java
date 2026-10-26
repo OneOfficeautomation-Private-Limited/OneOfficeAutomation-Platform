@@ -206,8 +206,18 @@ public final class Workflows {
                         if (!inbox.isEmpty())
                             db.update("INSERT INTO human_tasks (id, workflow_run_id, stage, kind, title, description, data, assignee, status, created) VALUES (?,?,?,?,?,?,?,?,?,?)",
                                     id("task"), wfId, sid, "notification", String.valueOf(s.getOrDefault("name", "Notification")), msg, JsonLite.write(visible(data)), String.join(",", inbox), "open", now());
-                        history(wf, h, sid, "notified", other.isEmpty() ? Map.of("to", inbox) : Map.of("to", inbox, "not_delivered", other,
-                                "note", "E-mail addresses need an agent task with the Email toolkit; the inbox notification was sent."));
+                        Map<String, Object> sent = new LinkedHashMap<>();
+                        sent.put("to", inbox);
+                        if (!other.isEmpty()) {
+                            // e-mail addresses go out through the Command Center's own mail server (Settings > E-mail)
+                            if (!cr.mailer.configured()) { sent.put("not_delivered", other); sent.put("note", "E-mail is not set up (Administration > Settings > E-mail); the inbox notification was sent."); }
+                            else {
+                                String subject = String.valueOf(s.getOrDefault("subject", s.getOrDefault("name", "Notification") + " — " + String.valueOf(def.getOrDefault("name", wf.get("path"))).replace(".process.json", "")));
+                                try { cr.mailer.send(other, String.valueOf(Expressions.resolve(subject, n -> lookup(data, n))), msg); sent.put("emailed", other); }
+                                catch (OoaException e) { sent.put("not_delivered", other); sent.put("note", e.getMessage()); }
+                            }
+                        }
+                        history(wf, h, sid, "notified", sent);
                         next = after(st, s);
                     }
                     default -> throw new OoaException("WF.BAD_STAGE", "Unknown stage type " + type);
