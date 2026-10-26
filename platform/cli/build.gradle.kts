@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import java.time.Instant
+
 plugins { application }
 
 val optionalModules = ((findProperty("ooa.optionalModules") as String?) ?: "")
@@ -73,6 +76,34 @@ val javaRuntime by tasks.registering {
     }
 }
 
+// The software bill of materials (gradlew :cli:sbom): every third-party library the customer distribution ships, as
+// CycloneDX 1.5 JSON with its Maven coordinates and SHA-256, for the customer's vulnerability scanning. It goes into the
+// customer and setup packages as sbom.cdx.json.
+val sbom by tasks.registering {
+    val out = layout.buildDirectory.file("sbom/sbom.cdx.json")
+    val runtime = configurations.named("runtimeClasspath")
+    inputs.files(runtime)
+    outputs.file(out)
+    doLast {
+        val components = mutableListOf<Map<String, Any>>()
+        for (a in runtime.get().incoming.artifacts.artifacts.sortedBy { it.id.componentIdentifier.displayName }) {
+            val id = a.id.componentIdentifier
+            if (id !is org.gradle.api.artifacts.component.ModuleComponentIdentifier) continue   // our own modules are the product itself
+            val sha = MessageDigest.getInstance("SHA-256").digest(a.file.readBytes()).joinToString("") { "%02x".format(it) }
+            components.add(mapOf("type" to "library", "group" to id.group, "name" to id.module, "version" to id.version,
+                "purl" to "pkg:maven/${id.group}/${id.module}@${id.version}", "hashes" to listOf(mapOf("alg" to "SHA-256", "content" to sha))))
+        }
+        val bom = mapOf("bomFormat" to "CycloneDX", "specVersion" to "1.5", "version" to 1,
+            "metadata" to mapOf("timestamp" to Instant.now().toString(),
+                "component" to mapOf("type" to "application", "name" to "ONEOFFICEAUTOMATION", "version" to project.version.toString(),
+                    "supplier" to mapOf("name" to "ONEOFFICEAUTOMATION"))),
+            "components" to components)
+        val f = out.get().asFile
+        f.parentFile.mkdirs()
+        f.writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(bom)))
+    }
+}
+
 // The browser connector extension ships in the install (browser-extension\), with the shared page script.
 distributions {
     main {
@@ -91,6 +122,7 @@ distributions {
             with(main.get().contents)
             exclude("**/vendor-tools-*.jar")
             from(rootProject.file("customer"))
+            from(sbom)
             duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }
     }

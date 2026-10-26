@@ -67,6 +67,7 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 | Runners | Secrets stored as hashes and replaced every `runner_secret_days`; temporary runners removed when offline; runs only on runners with the needed toolkits | `ControlRoom.java` |
 | Backups | Scheduled zip of all tables and repository files; vault values stay encrypted, the vault key is never included; restore checks the key fingerprint | `Backups.java` |
 | Licensing | Ed25519-signed licence files tied to an install id | `License.java`, `Licensing.java` |
+| Releases | Release files listed with SHA-256 in a manifest signed with the vendor's Ed25519 key (`ooa release verify`); CycloneDX SBOM in every package | `ReleaseCommand.java`, `cli/build.gradle.kts` |
 | Unattended runs | Dialogs and forms never wait for a person; screen agents do not start on a locked runner | `DesktopSupport.java`, `DesktopSession.java` |
 
 ## 5. Suggested test cases
@@ -86,7 +87,8 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 7. Denial of service: large uploads, many sessions, slow requests, deeply nested JSON.
 8. Installers: file and folder permissions after install (Program Files, data folder, runner config), service
    account rights, the MSI log (the registration key must not appear), uninstall leftovers.
-9. Supply chain: third-party libraries (`gradlew dependencies`), the bundled Java runtime version.
+9. Supply chain: third-party libraries (`sbom.cdx.json` in the package, or `gradlew :cli:sbom`), the bundled Java
+   runtime version, the signed release manifest.
 
 ## 6. Known gaps (no need to report)
 

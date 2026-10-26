@@ -21,8 +21,12 @@ here in `oneofficeautomation`.
 
    The script:
    - builds the customer zip and refuses to publish if the vendor tools, a key or a license file is in it;
+   - writes the software bill of materials (`gradlew :cli:sbom`: every third-party library with its version and
+     SHA-256, CycloneDX 1.5) and a manifest of the release files signed with the vendor key in
+     `%USERPROFILE%\OOA License Keys\private.key` (`-SigningKey` for another place), and checks it;
    - signs in with the GitHub account git already uses;
-   - creates release `v<version>` with the zip attached, noting the source commit it was built from.
+   - creates release `v<version>` with the zips, `ooa-<version>.manifest.json` and `ooa-<version>-sbom.cdx.json`
+     attached, noting the source commit it was built from.
 
    Add `-Draft` to check a release on GitHub before customers can see it.
 
@@ -35,3 +39,11 @@ The repository is private, so a download link only works for people signed in to
 - invite the customer's GitHub user as a read-only collaborator of `OOA_Customer_Build` (Settings > Collaborators).
 
 License files are never published: each customer gets their own `.lic` directly from you.
+
+## How customers check a download
+
+`ooa release verify ooa-<version>.manifest.json` (with any installed release, in the folder holding the downloads, or
+`--dir`) checks the manifest's signature against the vendor key built into the product, then each file's size and
+SHA-256: PASS, FAIL (changed: do not install) or MISSING. A manifest that was edited is refused as a whole. Customers
+without an earlier install compare the SHA-256 values with `certutil -hashfile FILE SHA256`. The SBOM is also inside
+each package as `sbom.cdx.json`, for their vulnerability scanners.

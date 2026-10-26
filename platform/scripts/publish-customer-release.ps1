@@ -1,12 +1,15 @@
 # Publishes a customer release of ONEOFFICEAUTOMATION to the private repository VirupakshaPrabhu/OOA_Customer_Build.
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft]
 # It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
-# release v<version> (the version in platform\build.gradle.kts) with the zip attached, and prints the release address.
+# release v<version> (the version in platform\build.gradle.kts) with the zips, the software bill of materials and a
+# manifest signed with the vendor key attached (customers check downloads with: ooa release verify), and prints the
+# release address.
 # It signs in with the GitHub account git already uses (Git Credential Manager); nothing is stored or printed.
 param(
     [string]$Notes = "",
     [switch]$Draft,
-    [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build"
+    [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build",
+    [string]$SigningKey = (Join-Path $env:USERPROFILE "OOA License Keys\private.key")
 )
 $ErrorActionPreference = "Stop"
 $platform = Split-Path -Parent $PSScriptRoot
@@ -16,7 +19,7 @@ $version = ([regex]'version = "([^"]+)"').Match((Get-Content (Join-Path $platfor
 if (-not $version) { throw "No version found in platform\build.gradle.kts" }
 Write-Host "Building the customer zip for version $version ..."
 Push-Location $platform
-try { & .\gradlew.bat :cli:customerDistZip :cli:setupDistZip --console=plain -q; if ($LASTEXITCODE -ne 0) { throw "The build failed" } } finally { Pop-Location }
+try { & .\gradlew.bat :cli:customerDistZip :cli:setupDistZip :cli:sbom :cli:installDist --console=plain -q; if ($LASTEXITCODE -ne 0) { throw "The build failed" } } finally { Pop-Location }
 $zip = Join-Path $platform "cli\build\distributions\ooa-customer-$version.zip"
 $setup = Join-Path $platform "cli\build\distributions\ooa-setup-$version.zip"
 foreach ($f in $zip, $setup) { if (-not (Test-Path $f)) { throw "Not found: $f" } }
@@ -33,6 +36,19 @@ foreach ($f in $zip, $setup) {
 $sizeMb = [math]::Round((Get-Item $zip).Length / 1MB)
 Write-Host "Checked: no vendor tools in $zip ($sizeMb MB)."
 
+# 2b. the signed manifest over the release files (with the vendor key, which never leaves this PC)
+if (-not (Test-Path $SigningKey)) { throw "No signing key at $SigningKey (the vendor key that also signs licenses)" }
+$stage = Join-Path $platform "cli\build\release-$version"
+if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+New-Item -ItemType Directory $stage | Out-Null
+Copy-Item $zip, $setup $stage
+Copy-Item (Join-Path $platform "cli\build\sbom\sbom.cdx.json") (Join-Path $stage "ooa-$version-sbom.cdx.json")
+$manifest = Join-Path $stage "ooa-$version.manifest.json"
+& (Join-Path $platform "cli\build\install\ooa\bin\ooa.bat") release sign --dir $stage --version $version --key $SigningKey --out $manifest
+if ($LASTEXITCODE -ne 0) { throw "Signing the manifest failed" }
+& (Join-Path $platform "cli\build\install\ooa\bin\ooa.bat") release verify $manifest
+if ($LASTEXITCODE -ne 0) { throw "The signed manifest does not check out" }
+
 # 3. sign in with git's GitHub credential
 # (the request goes through a file: Windows PowerShell changes text it pipes to programs, and git then rejects it)
 $req = [System.IO.Path]::GetTempFileName()
@@ -48,7 +64,7 @@ try { Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Re
 catch { if ($_.Exception.Message -like "Release $tag exists*") { throw } }
 $source = (git -C $platform rev-parse --short HEAD).Trim()
 if (-not $Notes) { $Notes = "See RELEASES.md for what changed." }
-$body = "ONEOFFICEAUTOMATION $version for customers.`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
+$body = "ONEOFFICEAUTOMATION $version for customers.`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Check downloads first with: ooa release verify ooa-$version.manifest.json (from an earlier install), or compare the SHA-256 values in it. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
 $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases" -ContentType "application/json" `
     -Body (@{ tag_name = $tag; target_commitish = "main"; name = "ONEOFFICEAUTOMATION $version"; body = $body; draft = [bool]$Draft; prerelease = $false } | ConvertTo-Json)
 
@@ -58,5 +74,8 @@ $uploadUrl = $release.upload_url -replace "\{.*\}$", ""
 $asset = Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=ooa-customer-$version.zip" -ContentType "application/zip" -InFile $zip -TimeoutSec 3600
 Write-Host "Uploading the setup package ($([math]::Round((Get-Item $setup).Length / 1MB)) MB) ..."
 Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=ooa-setup-$version.zip" -ContentType "application/zip" -InFile $setup -TimeoutSec 3600 | Out-Null
+foreach ($f in "ooa-$version.manifest.json", "ooa-$version-sbom.cdx.json") {
+    Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=$f" -ContentType "application/json" -InFile (Join-Path $stage $f) | Out-Null
+}
 Write-Host "Published $tag : $($release.html_url)"
 Write-Host "Download (signed-in GitHub users with access): $($asset.browser_download_url)"

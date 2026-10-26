@@ -59,10 +59,16 @@ jobs:
           try { $names = $a.Entries.FullName } finally { $a.Dispose() }
           $bad = $names | Where-Object { $_ -match "vendor-tools|private\.key|\.lic$" }
           if ($bad) { throw "The setup package holds vendor files: $($bad -join ', ')" }
-          foreach ($need in "runtime/bin/java.exe", "runtime/bin/keytool.exe", "Install.cmd", "Install-OOA.ps1", "Uninstall-OOA.ps1", "bin/ooa.bat") {
+          foreach ($need in "runtime/bin/java.exe", "runtime/bin/keytool.exe", "Install.cmd", "Install-OOA.ps1", "Uninstall-OOA.ps1", "bin/ooa.bat", "sbom.cdx.json") {
             if (-not ($names | Where-Object { $_ -like "*/$need" })) { throw "The setup package lacks $need" }
           }
           Write-Host "Setup package OK: $($zip.Name), $([math]::Round($zip.Length / 1MB)) MB"
+      - name: Software bill of materials
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: platform/cli/build/sbom/sbom.cdx.json
+          retention-days: 30
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@v4
