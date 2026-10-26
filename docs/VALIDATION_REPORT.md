@@ -107,7 +107,8 @@ repository with check-in/check-out) gets its own report.
 - Control Room serves plain HTTP; use an HTTPS reverse proxy (IIS, nginx) when other machines connect.
 - The agent runs as a scheduled task in the signed-in user's session; unattended auto-login and a Windows service wrapper
   are part of the installer phase.
-- Process Composer / Co-Pilot (forms and human tasks) and the Bot Store remain planned.
+- Process Composer / Co-Pilot (forms and human tasks) and the Bot Store remained planned at the time. (Since built:
+  workflows with forms and the Task inbox; the Bot Store is still open.)
 
 ---
 
@@ -143,7 +144,8 @@ repository with check-in/check-out) gets its own report.
 
 ## Known limitations (tracked)
 
-- Processes are designed and saved, but running them needs the Assist portal (task inbox), which is still planned.
+- Processes were designed and saved, but running them needed the task inbox, then still planned. (Since built: One
+  Workflow runs them on One Command Center.)
 - Document automation generates an extraction bot for PDF and text files; scanned images need an OCR step first.
 - The PGP test needs the Windows `gpg`; run the Java tests from PowerShell or cmd, not Git Bash.
 - Activity refreshes by polling every 2 to 2.5 seconds; a push channel can replace it when Control Room moves to the production stack.

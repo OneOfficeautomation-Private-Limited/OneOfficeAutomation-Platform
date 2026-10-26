@@ -80,8 +80,8 @@ run console with outputs, errors and run log; JSON view.
 
 Studio (Part 3): an **Automation** home lists everything in the workspace with type filters, search and sorting, and a
 **+ Create** menu makes Task Bots, API Tasks, bots from templates, **Forms** (`*.form.json`, form designer with preview),
-**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; running them needs the
-planned Assist portal), **Document automations** (`*.doc.json`, fields to extract; generates an AI extraction bot), **AI Skills**
+**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; they run on One Command Center,
+with human tasks in its Task inbox), **Document automations** (`*.doc.json`, fields to extract; generates an AI extraction bot), **AI Skills**
 (`ai-skills/*.json`, prompt editor) and **scripts** (Python, PowerShell, VBScript, JavaScript; code editor with Run).
 Commands, canvas steps and If/Loop/Try blocks are colour-coded by category. The **Variables** pane groups inputs, outputs
 and working variables; every type (including Table, List, Dictionary, Record, DateTime, File, Window, UIElement and Credential)
@@ -97,7 +97,7 @@ starting (e.g. `test/api/token` reads `OOA_SECRET_TEST_API_TOKEN`).
 In IntelliJ IDEA: File > Open, select the `platform` folder, and trust the Gradle project.
 
 The Studio preview is a developer workbench: it binds to 127.0.0.1 only, refuses cross-site requests and only
-touches files in its workspace. The production Studio is the React app served by Control Center.
+touches files in its workspace. `ooa server` serves the same Studio from One Command Center, at `/studio/`.
 
 ## Writing a package
 

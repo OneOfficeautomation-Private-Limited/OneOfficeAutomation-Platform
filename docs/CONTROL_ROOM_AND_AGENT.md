@@ -601,7 +601,7 @@ profile**: for each output, how often it had a value, its most common values and
 
 **Run history retention** (Administration > Settings): step logs and whole runs older than the periods you set are
 removed once an hour, and **Remove now** removes them at once. Queued and running runs are never removed.
-Settings also shows **This Command Center**: the edition (self-hosted, no limits on people, runners or agents) and
+Settings also shows **This Command Center**: the edition (from the license, or the evaluation; seats are on the Licenses page) and
 what it holds. An agent's **Statistics** (agent details, or a
 click in these lists) shows its errors and runners. Only agents the person may see (folder permissions) are counted.
 API: `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=`, `GET /api/analytics/agent?path=`,

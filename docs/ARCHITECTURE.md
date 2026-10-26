@@ -553,7 +553,7 @@ in the API at once.
 - Turn on HTTPS (`ooa tls`, or a reverse proxy) before using `--host 0.0.0.0`; run it as a Windows service (`ooa service install`).
 - Use SQL Server (or PostgreSQL) with a data-only runtime account, and `OOA_MASTER_KEY` ([DATABASE.md](DATABASE.md)).
 - Set `public_url` for SSO.
-- Live views poll every 2 to 5 s; a push channel is a planned improvement.
+- Live views update by push: the console keeps one long request to `/api/changes` open (timers stay as a fallback).
 
 ---
 
@@ -651,9 +651,7 @@ Conventions:
 | --- | --- |
 | Class-loader isolation per toolkit version | Plan: PF4J; today all toolkits share one class path |
 | Compile-time manifests | Plan: an annotation processor instead of runtime introspection |
-| Push channel for live views | Today polling (2 to 5 s) |
 | Signed custom toolkit upload | Toolkit manager lists and switches toolkits; upload not built |
-| Git sync of the agent repository | Not built |
 | SAP BAPI | Needs the customer's SAP JCo library |
 | macOS/Linux runners | Windows runner first; most toolkits are cross-platform |
 | Live-tenant checks | Cloud toolkits, SSO, external vaults and mail triggers are tested against simulators only |

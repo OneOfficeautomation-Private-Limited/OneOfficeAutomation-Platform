@@ -75,7 +75,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | Hash / Cryptography | ooa.crypto | Built | Hashes, HMAC, AES-256-GCM, RSA encrypt/sign |
 | Integration & system | PGP | ooa.pgp | Built | Needs GnuPG installed; tested with real GnuPG |
 | Integration & system | Credential / Vault | Credential type + Control Room lockers | Built | AES-256-GCM, owners and consumers, just-in-time delivery, audited |
-| Integration & system | Triggers (event) | Studio triggers + Control Room triggers on agents | Partial | File, schedule and webhook built in both; email, window, hotkey and service triggers planned |
+| Integration & system | Triggers (event) | Studio triggers + Command Center triggers on agents | Built | File, schedule and webhook in both; email (IMAP, Microsoft 365), window, process, hotkey and service triggers on runners |
 | Integration & system | Salesforce / ServiceNow / Workday / Jira | ooa.salesforce, ooa.servicenow, ooa.workday, ooa.jira | Built | Workday: workers + generic REST/RaaS |
 | Integration & system | GitHub / Azure DevOps / Asana / Zendesk | ooa.github, ooa.azure_devops, ooa.asana, ooa.zendesk | Built | REST toolkits; base URL input for GitHub Enterprise, Azure DevOps Server and Zendesk subdomains |
 | Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |

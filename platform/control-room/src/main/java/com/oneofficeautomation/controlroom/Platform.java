@@ -1110,7 +1110,7 @@ public final class Platform {
         return purge(runDays, logDays, by.username(), ip);
     }
 
-    /** What this Command Center is and holds. It is not licensed per seat: there are no limits on people, runners or agents. */
+    /** What this Command Center is and holds: the edition from the license (or the evaluation) and what it has in use. */
     public Map<String, Object> license(User by) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("product", "ONEOFFICEAUTOMATION One Command Center");
