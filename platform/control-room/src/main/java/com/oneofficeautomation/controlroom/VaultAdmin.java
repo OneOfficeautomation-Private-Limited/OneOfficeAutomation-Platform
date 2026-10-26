@@ -284,7 +284,8 @@ public final class VaultAdmin {
     public Map<String, Object> status(User by) {
         cr.require(by, "lockers.manage", "administer the vault");
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("key_source", cr.vault.keyFile == null ? "environment" : "file");
+        m.put("key_source", cr.vault.keyFile != null ? "file" : cr.vault.keySource.startsWith("environment") ? "environment" : "external");
+        m.put("key_source_detail", cr.vault.keySource);
         m.put("key_fingerprint", cr.vault.fingerprint());
         m.put("can_rotate", cr.vault.keyFile != null);
         m.put("vault_folders", cr.count("SELECT COUNT(*) AS n FROM lockers"));
@@ -325,8 +326,8 @@ public final class VaultAdmin {
     public Map<String, Object> rotate(User by, String ip) {
         cr.require(by, "lockers.manage", "administer the vault");
         Path file = cr.vault.keyFile;
-        if (file == null) throw new OoaException("CR.VAULT_KEY", "The master key comes from OOA_MASTER_KEY, so it cannot be changed here",
-                "Rotate it where OOA_MASTER_KEY is managed, with a planned restart.");
+        if (file == null) throw new OoaException("CR.VAULT_KEY", "The master key comes from " + cr.vault.keySource + ", so it cannot be changed here",
+                "Rotate it where the key is kept, with a planned restart.");
         Vault next = Vault.fresh();
         Path nextFile = file.resolveSibling("master.key.next");
         try { Files.writeString(nextFile, next.keyBase64()); } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot write the new key: " + e.getMessage()); }

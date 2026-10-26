@@ -28,7 +28,18 @@ internet (single sign-on, Git, AI model connections, external vaults) go through
 the host names listed to reach directly and this computer. Every node picks a change up within a minute.
 
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
-Without it a key file is created next to the database.
+Without it a key file is created next to the database. Or keep the key in a key store and set `OOA_MASTER_KEY_SOURCE`:
+
+| `OOA_MASTER_KEY_SOURCE` | The key is read from | Signed in with |
+| --- | --- | --- |
+| `azure-keyvault:https://NAME.vault.azure.net/secrets/SECRET` | An Azure Key Vault secret | The machine's managed identity, or `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` |
+| `aws-secrets:REGION/SECRET-ID` | An AWS Secrets Manager secret | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, the container's task role, or the EC2 instance role |
+| `gcp-secret:projects/P/secrets/S/versions/latest` | A Google Secret Manager secret | The machine's service account |
+| `prompt` | Nobody stores it: an operator types it when the Command Center starts (manual unlock; not for a service) | |
+
+The secret holds the key as Base64 (`openssl rand -base64 32`). It is read at start and kept only in memory. Give the
+machine's identity read access to that one secret. Rotate it in the key store, with a planned restart. Hardware
+security modules (PKCS#11) are not supported yet.
 
 **Before going live**, `bin\ooa.bat check` tests what the install needs: Java, memory, free disk space, the port, the data
 folder, the vault key, the database connection and schema, and HTTPS. Each line is PASS, WARN or FAIL;

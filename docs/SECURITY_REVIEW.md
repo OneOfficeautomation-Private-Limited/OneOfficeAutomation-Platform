@@ -57,7 +57,7 @@ Roles to test with: Administrator, Bot Creator, Bot Runner and Viewer, plus cust
 | Sessions | Random tokens; only SHA-256 hashes stored; idle and absolute expiry from Settings | `ControlRoom.java` |
 | Authorization | Role permissions plus folder permissions on every API call | `Rbac.java`, `Folders.java` |
 | SSO | OIDC authorization code with PKCE; ID token signature, issuer, audience, expiry and nonce checked. SAML 2.0: no DTDs, one assertion, signature over exactly that element, issuer, audience, recipient, time window, InResponseTo, no replay | `Sso.java`, `Saml.java` |
-| Vault | AES-256-GCM, each value bound to its location (additional data); master key from `OOA_MASTER_KEY` or a key file; key rotation | `Vault.java`, `VaultAdmin.java` |
+| Vault | AES-256-GCM, each value bound to its location (additional data); master key from `OOA_MASTER_KEY`, a key file, Azure Key Vault, AWS Secrets Manager, Google Secret Manager (machine identity) or typed in at start; key rotation | `Vault.java`, `VaultAdmin.java`, `KeySources.java` |
 | Audit | Every change audited; HMAC chain keyed by a vault-encrypted secret, hourly checkpoints in a file outside the database, archived retention; checked by "Verify integrity"; syslog forwarding | `Audit.java`, `SyslogForwarder.java` |
 | Agents | SHA-256 of each checked-in version re-checked on every read; optional four-eyes approval before a version goes live | `ControlRoom.java`, `ProductionApproval.java` |
 | Transport | Built-in HTTPS, TLS 1.2 and 1.3 only; HSTS and `Secure` cookie over HTTPS; runners verify the certificate (custom CA with `--ca`) | `ControlRoomServer.java`, `TlsConfig.java`, `AgentClient.java` |

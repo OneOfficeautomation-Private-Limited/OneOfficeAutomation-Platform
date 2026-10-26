@@ -10,7 +10,7 @@ agents without a screen can run anywhere Windows runs.
 | Piece | AWS | Azure | Google Cloud |
 | --- | --- | --- | --- |
 | Database | RDS for SQL Server | Azure SQL Database or SQL Managed Instance | Cloud SQL for SQL Server |
-| Vault key (`OOA_MASTER_KEY`) | Secrets Manager | Key Vault secret | Secret Manager |
+| Vault key | Secrets Manager: `OOA_MASTER_KEY_SOURCE=aws-secrets:REGION/ID` | Key Vault secret: `OOA_MASTER_KEY_SOURCE=azure-keyvault:https://...` | Secret Manager: `OOA_MASTER_KEY_SOURCE=gcp-secret:projects/...` |
 | Data folder (`/data`, or the install's data folder) | EBS volume, or EFS for several nodes | Managed disk, or Azure Files for several nodes | Persistent disk, or Filestore |
 | HTTPS | Application Load Balancer with an ACM certificate, or `ooa tls` | Application Gateway, or `ooa tls` | HTTPS Load Balancer, or `ooa tls` |
 | Backups | The database's automated backups plus `ooa backup` to S3 (a mounted bucket or a copy job) | Database backups plus `ooa backup` to Azure Files or Blob | Database backups plus `ooa backup` to Cloud Storage |
