@@ -37,8 +37,12 @@ param(
     [string]$RunnerName = "",
     [string]$CaFile = "",
     [switch]$NoShortcuts,
-    [switch]$NoStart
+    [switch]$NoStart,
+    # used by the MSI: the files are already in place; only set up the role. ServiceFlag 1 = -Service.
+    [switch]$ConfigureOnly,
+    [string]$ServiceFlag = ""
 )
+if ($ServiceFlag -in @("1", "yes", "true")) { $Service = [switch]::Present }
 $ErrorActionPreference = "Stop"
 $log = Join-Path $env:TEMP "ooa-install.log"
 $source = $PSScriptRoot
@@ -64,7 +68,11 @@ if (-not $Role) {
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (($AllUsers -or $Service) -and -not $admin) { Fail 3 "Installing for all users or as a Windows service needs administrator rights: run Install.cmd as administrator." }
 if (-not $InstallDir) { $InstallDir = if ($AllUsers) { Join-Path $env:ProgramFiles "ONEOFFICEAUTOMATION" } else { Join-Path $env:LOCALAPPDATA "Programs\ONEOFFICEAUTOMATION" } }
-$InstallDir = Ask "Install folder" $InstallDir
+if ($ConfigureOnly) {
+    $InstallDir = $source
+    # the MSI runs this as the system account: a runner it sets up is a Windows service (there is no user to sign in)
+    if ($Role -eq "Runner") { $Service = [switch]::Present }
+} else { $InstallDir = Ask "Install folder" $InstallDir }
 if ($Role -eq "Runner") {
     $Url = Ask "Command Center address (for example https://ooa.example.com:8720)" $Url
     $RegistrationKey = Ask "Registration key (Command Center > Runners > Register a runner)" $RegistrationKey
@@ -76,6 +84,7 @@ Log "Installing $Role $version into $InstallDir (all users: $([bool]$AllUsers), 
 
 # ---------- files ----------
 $ooa = Join-Path $InstallDir "bin\ooa.bat"
+if (-not $ConfigureOnly) {
 try {
     if (Test-Path $InstallDir) {
         Log "Updating the installation in $InstallDir"
@@ -115,6 +124,7 @@ try {
         $l.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$InstallDir\Uninstall-OOA.ps1`""; $l.Save()
     }
 } catch { Log "Warning: the Apps entry or Start menu shortcut could not be made: $($_.Exception.Message)" }
+}   # the MSI makes its own Apps entry and Start menu shortcut
 
 # ---------- set up the role ----------
 function Ooa([string[]]$a) {

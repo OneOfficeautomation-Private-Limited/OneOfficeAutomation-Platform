@@ -2,6 +2,7 @@
 #   build-test   Windows: the whole build and every test suite (embedded H2), then the customer zip, checked for vendor files
 #   sqlserver    Linux: the Command Center tests against a real SQL Server 2022 (a throwaway container)
 #   ui           Linux: the console and Studio UI tests (jsdom) against real servers started from the build
+#   msi          Windows: builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls
 name: CI
 
 on:
@@ -144,3 +145,41 @@ jobs:
       - name: Server logs
         if: failure()
         run: tail -n 100 "$RUNNER_TEMP"/*.log || true
+
+  msi:
+    name: MSI install and Windows services (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: WiX Toolset 5
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build the MSI
+        shell: pwsh
+        run: ./scripts/build-msi.ps1
+      - name: Install, run as services, uninstall
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem cli/build/distributions/ooa-*.msi | Select-Object -First 1
+          ./scripts/test-msi.ps1 -Msi $msi.FullName -Logs "${{ runner.temp }}/msi-test"
+          if ($LASTEXITCODE -ne 0) { throw "$LASTEXITCODE MSI check(s) failed" }
+      - name: MSI test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msi-test-logs
+          path: ${{ runner.temp }}/msi-test
+          retention-days: 14
+      - name: The MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: ooa-msi
+          path: platform/cli/build/distributions/ooa-*.msi
+          retention-days: 14
+          compression-level: 0

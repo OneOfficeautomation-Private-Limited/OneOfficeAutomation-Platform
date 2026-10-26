@@ -3,7 +3,7 @@ Removes ONEOFFICEAUTOMATION from this computer: its Windows services, the runner
 the Apps and Features entry and the program folder. Data is kept: the Command Center data folder, runner settings
 (.ooa-agent in the user profile) and workspaces. -Silent asks nothing. Log: %TEMP%\ooa-install.log.
 #>
-param([switch]$Silent)
+param([switch]$Silent, [switch]$KeepFiles)   # -KeepFiles: used by the MSI, which removes its own files, shortcut and Apps entry
 $ErrorActionPreference = "Continue"
 $log = Join-Path $env:TEMP "ooa-install.log"
 $dir = $PSScriptRoot
@@ -28,6 +28,7 @@ if (Get-ScheduledTask -TaskName "OOA Runner" -ErrorAction SilentlyContinue) {
 Get-CimInstance Win32_Process -Filter "Name = 'javaw.exe' OR Name = 'java.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase) } |
     ForEach-Object { Log "Ending $($_.Name) ($($_.ProcessId))"; Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+if ($KeepFiles) { Log "Services and the sign-in task removed; the installer removes the files."; exit 0 }
 foreach ($menu in [Environment]::GetFolderPath("Programs"), [Environment]::GetFolderPath("CommonPrograms")) {
     Remove-Item -Recurse -Force (Join-Path $menu "ONEOFFICEAUTOMATION") -ErrorAction SilentlyContinue
 }
