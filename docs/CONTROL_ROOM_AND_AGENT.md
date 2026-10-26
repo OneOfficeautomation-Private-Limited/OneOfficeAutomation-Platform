@@ -19,12 +19,55 @@ The database upgrades itself on start (schema versions 1 to 3).
 | Option | Meaning |
 | --- | --- |
 | `--port 8721` | Use another port |
-| `--host 0.0.0.0` | Accept connections from other machines (put an HTTPS reverse proxy in front first) |
+| `--host 0.0.0.0` | Accept connections from other machines (turn on HTTPS first, see below) |
 | `--data D:\OOA\cr` | Keep data elsewhere |
 | `ooa db configure ...`, then `ooa db init` | Use SQL Server or PostgreSQL ([DATABASE.md](DATABASE.md)); the server then reads `config\ooa-db.properties` |
 
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
 Without it a key file is created next to the database.
+
+### HTTPS
+
+One Command Center serves HTTPS itself (TLS 1.2 and 1.3) once it has a certificate. Stop it, then from `bin`:
+
+| Command | What it does |
+| --- | --- |
+| `ooa tls configure --pfx C:\certs\ooa.pfx` | Use the company's certificate: a .pfx/.p12 file with the private key |
+| `ooa tls set-password` | Store the .pfx password, encrypted with the vault key (or `--from-env VAR`) |
+| `ooa tls self-signed --host ooa.example.com` | Make a certificate for tests; browsers warn about it |
+| `ooa tls show` | Names and validity of the certificate in use |
+| `ooa tls export-cert --out ooa.cer` | The certificate without its key, for runners and browsers to trust |
+| `ooa tls off` | Back to plain HTTP (the settings are kept aside) |
+
+All take `--data DIR` when the data folder is not the default. The settings live in `config\ooa-tls.properties`. With
+HTTPS on, the port no longer answers plain HTTP, the session cookie is `Secure` and responses carry
+`Strict-Transport-Security`. The runner and Studio built into `ooa server` keep working without trusting the
+certificate: they use a second, plain-HTTP listener that only this computer can reach (127.0.0.1).
+
+Runners on other machines must trust the certificate. A certificate from a company authority that Windows and Java
+already trust needs nothing more. For a self-signed one, copy `ooa.cer` to the runner and register with `--ca ooa.cer`
+(section 3). A reverse proxy in front (IIS, nginx) still works as before; leave HTTPS off on the server then.
+
+### Run as a Windows service
+
+From an administrator command prompt, in the installed `bin` folder:
+
+    ooa service install --mode control-room --data D:\OOA\cr --port 8720
+
+| Option | Meaning |
+| --- | --- |
+| `--mode server` | Command Center with Studio (default); no built-in runner, since a service cannot use the desktop |
+| `--mode control-room` | Command Center only |
+| `--mode agent` | A runner for unattended work that needs no desktop (see section 3 for desktop runners) |
+| `--name NAME` | Service name (default "OOA Command Center", or "OOA Runner") |
+| `--account DOMAIN\user --password-env VAR` | Run as this account instead of Local System; the password is read from the variable |
+| `--no-start` | Install only |
+
+The service starts with Windows and restarts after a failure (three times, a minute apart). Manage it with
+`ooa service start|stop|status|uninstall [--name NAME]` or in Windows Services. Its log is
+`<data>\logs\service-<mode>.log`. Every path is written out in full when the service is installed, because a service
+account has another user profile. To try it on a test machine, run `platform\scripts\test-windows-service.ps1` as
+administrator: it installs a throw-away service with HTTPS, checks it, and removes it.
 
 ## Finding your way: the menu
 
@@ -92,9 +135,16 @@ People only see the pages their role allows.
        .\gradlew.bat :cli:run --args="agent register --url http://localhost:8720 --key ooareg_..."
        .\gradlew.bat :cli:run --args="agent start"
 
+   For a Command Center on HTTPS with a self-signed certificate, add `--ca ooa.cer` (from `ooa tls export-cert`). The
+   runner keeps a copy next to its settings and trusts it from then on.
+
 3. To start the runner automatically at sign-in (and restart it if it stops):
 
-       powershell -ExecutionPolicy Bypass -File scripts\install-agent-task.ps1
+       ooa agent install-task
+
+   (`ooa agent uninstall-task` removes it; from a source checkout, `scripts\install-agent-task.ps1` does the same.)
+   Runners that drive the desktop must run this way, in a signed-in session. A runner for work without a desktop can
+   instead be a Windows service: `ooa service install --mode agent`.
 
 The runner runs each agent in its own process, so a crashing agent never stops the runner. Its log files are in
 `C:\Users\<you>\OOA Agent Workspace\logs`.

@@ -99,6 +99,7 @@ public final class DbConfig {
     }
 
     static void setValue(Path file, String key, String value) {
+        value = value.replace("\\", "\\\\");   // properties files treat a backslash as an escape (Windows paths)
         try {
             List<String> lines = Files.exists(file) ? new ArrayList<>(Files.readAllLines(file, StandardCharsets.UTF_8)) : new ArrayList<>();
             boolean done = false;

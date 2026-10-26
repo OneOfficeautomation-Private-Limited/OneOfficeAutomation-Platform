@@ -550,7 +550,7 @@ in the API at once.
 
 **Production notes:**
 
-- Put an HTTPS reverse proxy in front before using `--host 0.0.0.0`.
+- Turn on HTTPS (`ooa tls`, or a reverse proxy) before using `--host 0.0.0.0`; run it as a Windows service (`ooa service install`).
 - Use SQL Server (or PostgreSQL) with a data-only runtime account, and `OOA_MASTER_KEY` ([DATABASE.md](DATABASE.md)).
 - Set `public_url` for SSO.
 - Live views poll every 2 to 5 s; a push channel is a planned improvement.

@@ -11,6 +11,8 @@ dependencies {
     runtimeOnly(project(":adapters-jackson"))
     // license issuing: in the vendor build (installDist, run, tests) only; the customer distribution leaves it out
     runtimeOnly(project(":vendor-tools"))
+    // Windows services (ooa service install, service-run): talks to the Windows service manager
+    implementation("net.java.dev.jna:jna-platform:5.14.0")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.8")
     testRuntimeOnly(project(":adapters-jackson"))
     // in-memory SMTP/IMAP server for the email sample tasks (CommandSamplesTest)

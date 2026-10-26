@@ -47,8 +47,10 @@ audited.
 - **Rate limits:** sign-in, tokens, single sign-on and runner registration allow 60 a minute per address. Webhooks,
   API tasks and MCP allow 1,200. Going over returns 429 `CR.RATE_LIMITED` with `Retry-After`. Behind a reverse proxy the
   limits count the first `X-Forwarded-For` address; calls made on this computer without a proxy are not limited.
-- **HTTPS:** with a `public_url` starting `https://`, or when the proxy sends `X-Forwarded-Proto: https`, the session
-  cookie gets `Secure` and responses carry `Strict-Transport-Security`.
+- **HTTPS:** the Command Center serves HTTPS itself once `ooa tls` gives it a certificate (TLS 1.2 and 1.3 only; the
+  .pfx password is stored encrypted). Served directly over HTTPS, with a `public_url` starting `https://`, or when a
+  proxy sends `X-Forwarded-Proto: https`, the session cookie gets `Secure` and responses carry
+  `Strict-Transport-Security`. Runners trust a self-signed certificate only when registered with `--ca`.
 - **Other protections (unchanged):** CSRF header, SameSite=Strict cookie, Content-Security-Policy, X-Frame-Options.
 
 ## Agents and runners

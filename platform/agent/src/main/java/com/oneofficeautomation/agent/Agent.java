@@ -37,14 +37,24 @@ public final class Agent {
     public static String hostname() { try { return InetAddress.getLocalHost().getHostName(); } catch (Exception e) { return "unknown"; } }
 
     /** One-time registration with a key created in Control Room > Devices. Writes the device credentials to the config file. */
-    public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException {
-        Map<String, Object> r = new AgentClient(url, null, null).post("register",
+    public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException { return register(url, key, name, configFile, null); }
+
+    /** As above; {@code ca} is a certificate to trust for an HTTPS Command Center (copied next to the config as ca.cer). */
+    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException {
+        Path keptCa = null;
+        if (ca != null) {
+            Files.createDirectories(configFile.getParent());
+            keptCa = configFile.resolveSibling("ca.cer");
+            if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING);
+        }
+        Map<String, Object> r = new AgentClient(url, null, null, keptCa).post("register",
                 Map.of("key", key, "name", name == null ? hostname() : name, "hostname", hostname(), "os", System.getProperty("os.name") + " " + System.getProperty("os.version"), "agent_version", VERSION));
         Map<String, Object> cfg = new LinkedHashMap<>();
         cfg.put("url", url.replaceAll("/+$", ""));
         cfg.put("device_id", r.get("device_id"));
         cfg.put("secret", r.get("secret"));
         cfg.put("name", r.get("name"));
+        if (keptCa != null) cfg.put("ca", keptCa.toString());
         Files.createDirectories(configFile.getParent());
         Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
         try { Files.setPosixFilePermissions(configFile, PosixFilePermissions.fromString("rw-------")); } catch (UnsupportedOperationException ignored) { /* Windows: user profile ACLs apply */ }
@@ -58,7 +68,8 @@ public final class Agent {
         this.config = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
-        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"));
+        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"),
+                config.get("ca") == null ? null : Path.of((String) config.get("ca")));
         this.localTriggers = new LocalTriggers(new LocalTriggers.Reporter() {
             public void fired(String id, Map<String, Object> event) { client.post("trigger-fired", Map.of("trigger_id", id, "event", event)); }
             public void status(String id, String error) { Map<String, Object> b = new HashMap<>(); b.put("trigger_id", id); b.put("error", error); client.post("trigger-status", b); }
