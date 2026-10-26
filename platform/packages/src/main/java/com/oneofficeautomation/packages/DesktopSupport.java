@@ -14,6 +14,19 @@ final class DesktopSupport {
                     "Run the agent attended, or unattended on a runner with auto-login enabled.");
     }
 
+    /**
+     * The mode of the run in progress, set by the runner: attended, unattended or headless. Empty outside a runner
+     * (Studio, ooa run), where the person who started the agent is at the screen.
+     */
+    static String runMode() { return System.getProperty("ooa.runMode", ""); }
+
+    /** An unattended run has nobody at the screen: a dialog that would wait for an answer without a timeout fails at once. */
+    static void requirePerson(int timeoutSeconds, String what) {
+        if (timeoutSeconds <= 0 && runMode().equals("unattended"))
+            throw new ActionException("RUN.NEEDS_PERSON", what + " waits for an answer, but this run is unattended and nobody is at the runner",
+                    "Give it a timeout so it closes by itself, or run the agent attended.");
+    }
+
     static Robot robot() {
         requireDesktop();
         try { Robot r = new Robot(); r.setAutoWaitForIdle(true); return r; }

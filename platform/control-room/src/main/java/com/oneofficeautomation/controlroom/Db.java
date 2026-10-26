@@ -336,9 +336,15 @@ public final class Db implements AutoCloseable {
             "assigned TIMESTAMP NOT NULL, assigned_by VARCHAR(80), PRIMARY KEY (principal_type, principal, license_type))",
     };
 
+    /** Version 10: each runner's screen (unlocked, locked, no desktop) and what it does after unattended runs. */
+    private static final String[] SCHEMA_V10 = {
+        "ALTER TABLE devices ADD COLUMN session_state VARCHAR(20)",
+        "ALTER TABLE devices ADD COLUMN after_run VARCHAR(20)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 9;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9 };
+    public static final int LATEST = 10;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

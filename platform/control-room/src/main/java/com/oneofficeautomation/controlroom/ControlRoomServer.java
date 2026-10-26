@@ -600,7 +600,7 @@ public final class ControlRoomServer {
                     Map<String, Object> b = map(body(ex));
                     if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);
                     if (b.containsKey("enabled")) cr.setDeviceEnabled(u, seg[1], Boolean.TRUE.equals(b.get("enabled")), ip);
-                    if (b.containsKey("log_level") || b.containsKey("device_type")) cr.updateDevices(u, List.of(seg[1]), b, ip);
+                    if (b.containsKey("log_level") || b.containsKey("device_type") || b.containsKey("after_run")) cr.updateDevices(u, List.of(seg[1]), b, ip);
                     sendJson(ex, 200, Map.of("ok", true));
                 }
                 else notFound(ex);

@@ -149,6 +149,13 @@ People only see the pages their role allows.
 The runner runs each agent in its own process, so a crashing agent never stops the runner. Its log files are in
 `C:\Users\<you>\OOA Agent Workspace\logs`.
 
+**The runner's screen.** Each runner reports its screen with every heartbeat, shown in the Runners list: Unlocked
+(someone is signed in), Locked, or No desktop (a runner running as a Windows service). A run of an agent that uses the
+screen (keyboard, mouse, windows, images, desktop dialogs) does not start on a locked runner or one without a desktop:
+it fails at once with `RUN.NO_DESKTOP` and the reason, instead of failing halfway. Agents that need no screen run
+anywhere. Signing a user in on a locked or signed-out runner by itself is not built yet; keep unattended runners that
+use the screen signed in and unlocked (for example a dedicated account with the screen saver lock off).
+
 **Runner pools** (Runners > Runner pools) group runners. A run, schedule or work queue sent to a pool goes to its least
 busy online runner.
 
@@ -156,6 +163,8 @@ busy online runner.
 
 - **Log level** (error, warning, info, debug) of the runner's own log. Runners pick it up with their next heartbeat, so
   no one has to visit the machine.
+- **After unattended runs**: leave the screen as it is, lock it, or sign out, so nobody walks up to a signed-in
+  machine. Runners pick it up with their next heartbeat.
 - **Runner type**. A single-user runner is the default runner of one person; a multi-user runner can be the default
   runner of several people (runners nobody set are multi-user). The Runners list shows whose default runner each one is.
 
@@ -246,7 +255,13 @@ same folders and under the same folder permissions.
   - The list of runs shows "admin as jane".
   - Over the API: `POST /api/runs` with `run_as_users: [...]` and/or `device_ids: [...]`. Each target gets its own run,
     and a target that cannot run is reported while the others start.
-- **Run mode:** unattended (default), attended, or headless. Headless refuses agents that need a desktop.
+- **Run mode:** unattended (default), attended, or headless. The runner acts on it:
+  - **Unattended:** nobody is at the runner. A message box, prompt or file picker without a timeout fails at once
+    (`RUN.NEEDS_PERSON`) instead of waiting forever; one with a timeout still shows and closes by itself. Forms fail,
+    and AI tool approvals are refused. After the run the runner can lock its screen or sign out (below).
+  - **Attended:** someone is at the runner; dialogs and forms wait for them as usual.
+  - **Headless:** no desktop at all. Agents that need one are refused when the run starts, and browsers open without
+    a window.
 - A runner can be **removed** when nothing is queued or running on it and no schedule or trigger uses it. It is taken off
   pools and default runners.
   Credential inputs are vault references such as `{"$credential": "finance/erp/password"}`, never the secret itself.
