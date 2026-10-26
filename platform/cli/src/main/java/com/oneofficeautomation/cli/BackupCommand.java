@@ -12,6 +12,7 @@ import java.util.*;
  * ooa backup now [--data DIR]                 make a backup into the backup folder (Settings, or data\backups)
  * ooa backup list [--data DIR]                the backups there, newest first
  * ooa backup restore FILE [--replace] [--data DIR]   put a backup back (the server stopped; --replace deletes the rows first)
+ * All take --db-url URL --db-user U --db-password-env VAR, as the server does (the container image passes them).
  * </pre>
  */
 final class BackupCommand {
@@ -41,7 +42,9 @@ final class BackupCommand {
                 Path file = Path.of(a[1]);
                 Path cfgFile = DbConfig.defaultFile(data);
                 Vault vault = new Vault(data);
-                try (Db db = Files.exists(cfgFile) ? Db.open(DbConfig.load(cfgFile), data, vault, DbConfig.load(cfgFile).hasSetupAccount()) : Db.h2File(data)) {
+                String pw = o.containsKey("db-password-env") ? System.getenv(o.get("db-password-env")) : "";
+                try (Db db = o.containsKey("db-url") ? new Db(o.get("db-url"), o.getOrDefault("db-user", ""), pw == null ? "" : pw)
+                        : Files.exists(cfgFile) ? Db.open(DbConfig.load(cfgFile), data, vault, DbConfig.load(cfgFile).hasSetupAccount()) : Db.h2File(data)) {
                     Map<String, Object> r = Backups.restore(file, db, data, vault, o.containsKey("replace"));
                     @SuppressWarnings("unchecked") Map<String, Object> t = (Map<String, Object>) r.get("tables");
                     long rows = t.values().stream().mapToLong(v -> ((Number) v).longValue()).sum();
@@ -54,5 +57,5 @@ final class BackupCommand {
         }
     }
 
-    static void usage() { System.err.println("usage: ooa backup now | list | restore FILE [--replace]  [--data DIR]"); }
+    static void usage() { System.err.println("usage: ooa backup now | list | restore FILE [--replace]  [--data DIR] [--db-url URL --db-user U --db-password-env VAR]"); }
 }

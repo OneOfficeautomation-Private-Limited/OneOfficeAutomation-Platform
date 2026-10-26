@@ -86,4 +86,38 @@ class RunnerLifecycleTest {
             assertNotNull(db.one("SELECT seq FROM audit WHERE action = 'device.rotate_secret' AND object_id = ?", id));
         } finally { server.stop(); }
     }
+    @Test @SuppressWarnings("unchecked")
+    void aRunnerFollowsTheCommandCenterToANewAddressOnlyWhenItKnowsTheRunner() throws Exception {
+        // the "moved" Command Center serves the same data on another address; a fresh one does not know the runner
+        ControlRoomServer old = new ControlRoomServer(cr, "127.0.0.1", 0), moved = new ControlRoomServer(cr, "127.0.0.1", 0);
+        Path otherData = Files.createDirectories(root.resolve("other"));
+        Db otherDb = Db.embedded(otherData);
+        ControlRoomServer stranger = new ControlRoomServer(new ControlRoom(otherDb, otherData, FirstPartyPackages.registry(), null), "127.0.0.1", 0);
+        old.start(); moved.start(); stranger.start();
+        try {
+            Path conf = root.resolve("agent-move").resolve("agent.json");
+            Agent.register("http://127.0.0.1:" + old.port(), (String) cr.createRegistrationKey(admin, 1, false, null).get("key"), "R-move", conf);
+            String before = Files.readString(conf);
+
+            OoaExceptionCheck.expect("AGENT.MOVE_REFUSED", () -> Agent.moveTo(conf, "http://127.0.0.1:" + stranger.port(), null));
+            assertEquals(before, Files.readString(conf), "a refused move changes nothing");
+            OoaExceptionCheck.expect("AGENT.BAD_URL", () -> Agent.moveTo(conf, "ftp://elsewhere", null));
+
+            assertEquals("http://127.0.0.1:" + old.port(), Agent.moveTo(conf, "http://127.0.0.1:" + moved.port() + "/", null));
+            Map<String, Object> cfg = (Map<String, Object>) JsonLite.parse(Files.readString(conf));
+            assertEquals("http://127.0.0.1:" + moved.port(), cfg.get("url"));
+            Agent agent = new Agent(conf, root.resolve("ws-move"));
+            agent.heartbeat();   // works against the new address with the same registration
+        } finally { old.stop(); moved.stop(); stranger.stop(); otherDb.close(); }
+    }
+
+    /** assertThrows for the product's error codes. */
+    static final class OoaExceptionCheck {
+        interface Call { void run() throws Exception; }
+        static void expect(String code, Call c) {
+            try { c.run(); fail("expected " + code); }
+            catch (com.oneofficeautomation.sdk.OoaException e) { assertEquals(code, e.code(), e.getMessage()); }
+            catch (Exception e) { fail("expected " + code + " but got " + e); }
+        }
+    }
 }

@@ -86,7 +86,7 @@ public final class Ooa {
                 + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
                 + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
                 + " | license show FILE"
-                + " | backup now|list|restore FILE [--replace] [--data DIR] | check [--data DIR] [--port N] | agent diagnose"
+                + " | backup now|list|restore FILE [--replace] [--data DIR] | check [--data DIR] [--port N] | agent diagnose | agent move --url URL [--ca FILE]"
                 + " | tls configure --pfx FILE|set-password|self-signed [--host NAME]|show|export-cert --out FILE|off [--data DIR]"
                 + " | service install|uninstall|start|stop|status [--mode server|control-room|agent] (Windows services)"
                 + " | browser-connector install|status|uninstall | native-host (started by the browser)");
@@ -302,6 +302,13 @@ public final class Ooa {
                 System.out.println("Proxy:       " + r.get("proxy") + (String.valueOf(r.get("proxy_user")).isEmpty() ? "" : " (signs in as " + r.get("proxy_user") + ")"));
                 System.out.println("Trusted CA:  " + (String.valueOf(r.get("ca")).isEmpty() ? "Java's and Windows' certificate authorities" : r.get("ca") + ", plus Java's and Windows' authorities"));
                 System.out.println("Restart the runner for a change to take effect.");
+                return 0;
+            }
+            case "move" -> {
+                // the Command Center moved (new server, cloud) with its data: keep this runner's registration
+                if (!o.containsKey("url")) { System.err.println("usage: ooa agent move --url https://new-command-center:8720 [--ca ooa.cer]"); return 1; }
+                String old = com.oneofficeautomation.agent.Agent.moveTo(config, o.get("url"), o.containsKey("ca") ? Path.of(o.get("ca")) : null);
+                System.out.println("This runner now uses " + o.get("url") + " (was " + old + "). Restart the runner for it to take effect.");
                 return 0;
             }
             case "diagnose" -> {

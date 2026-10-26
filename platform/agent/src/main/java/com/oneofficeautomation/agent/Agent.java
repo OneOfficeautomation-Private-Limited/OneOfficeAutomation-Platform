@@ -118,6 +118,39 @@ public final class Agent {
     }
 
     /**
+     * Points a registered runner at a new Command Center address (ooa agent move), keeping its registration: for a
+     * Command Center that moved (to the cloud, a new server) with its data copied or restored. The new address must
+     * accept this runner's credentials before anything is saved; a new certificate authority file may come along.
+     */
+    @SuppressWarnings("unchecked")
+    public static String moveTo(Path configFile, String url, Path ca) throws IOException {
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
+        if (url == null || !url.matches("(?i)https?://[^\\s/]+.*")) throw new OoaException("AGENT.BAD_URL", "The Command Center address starts with https:// (or http://)");
+        Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
+        Network now = Network.from(cfg);
+        Path newCa = null;
+        if (ca != null) { newCa = configFile.resolveSibling("ca.cer.new"); Files.copy(ca, newCa, StandardCopyOption.REPLACE_EXISTING); }
+        String clean = url.replaceAll("/+$", "");
+        try {
+            new AgentClient(clean, (String) cfg.get("device_id"), (String) cfg.get("secret"), new Network(newCa != null ? newCa : now.ca(), now.proxy(), now.proxyUser(), now.proxyPassword()))
+                .post("heartbeat", Map.of("agent_version", VERSION, "diagnose", true));
+        } catch (RuntimeException e) {
+            if (newCa != null) Files.deleteIfExists(newCa);
+            throw new OoaException("AGENT.MOVE_REFUSED", "The Command Center at " + clean + " did not accept this runner: " + e.getMessage(),
+                "Copy or restore the old Command Center's data there first (its runners come with it), or register this runner again");
+        }
+        Path keptCa = now.ca();
+        if (newCa != null) { keptCa = configFile.resolveSibling("ca.cer"); Files.move(newCa, keptCa, StandardCopyOption.REPLACE_EXISTING); }
+        new Network(keptCa, now.proxy(), now.proxyUser(), now.proxyPassword()).into(cfg);
+        String old = String.valueOf(cfg.get("url"));
+        cfg.put("url", clean);
+        Path tmp = configFile.resolveSibling(configFile.getFileName() + ".new");
+        Files.writeString(tmp, JsonLite.write(cfg), StandardCharsets.UTF_8);
+        Files.move(tmp, configFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        return old;
+    }
+
+    /**
      * Updates the program files from the Command Center (it asked, and nothing is running): stages them, starts the helper
      * that swaps them once this process ends, and exits. A service is started again by Windows; a runner started at sign-in
      * by the helper. Failing leaves everything as it was.

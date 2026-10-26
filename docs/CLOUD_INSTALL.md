@@ -69,6 +69,21 @@ For pooled virtual desktops tick "Temporary runner".
 
 ## Moving from an on-premises install
 
-Stop the old Command Center, make a backup (`bin\ooa.bat backup now`), copy the backup and `master.key` to the new
-install, and restore (`bin\ooa.bat backup restore FILE`). Or point `ooa db copy` at the old data folder. Runners keep
-their registration if the Command Center's address stays the same; otherwise register them again.
+1. **Plan the address.** If the new Command Center keeps the old address (a DNS name moved to the new machine or load
+   balancer), runners need nothing. Otherwise each runner is pointed at the new address in step 5.
+2. **Stop the old Command Center** (so nothing changes during the move) and make a backup:
+   `bin\ooa.bat backup now`. Note where the vault key is: `OOA_MASTER_KEY`, or `master.key` in the data folder.
+3. **Install the new one** (virtual machine or container, above) with the **same vault key**, on an empty database.
+   Without the same key the vault values, the install id and with it the licence cannot be read.
+4. **Restore**: `bin\ooa.bat backup restore FILE` (in a container: `docker run --rm -v ooa-data:/data -v
+   C:\backups:/backups -e OOA_MASTER_KEY=... ooa-command-center:<version> backup restore /backups/FILE`, with the
+   database settings as for the server). Restore refuses a backup made with another key. A move between databases
+   of the same kind can instead use the database's own backup and restore; `ooa db copy --from <old data folder>` copies
+   an evaluation's built-in database into SQL Server or PostgreSQL.
+5. **Runners**: on each runner, `ooa agent move --url https://new-address:8720` (add `--ca FILE` for a new self-signed
+   certificate), then restart it. The runner keeps its registration, schedules and licence seat; the move is refused,
+   and nothing changes, if the new address does not know the runner (data not restored yet).
+6. **Check**: `bin\ooa.bat check`, sign in, Runners shows them online, run an agent. Then retire the old install.
+
+The licence moves with the data when the install id comes along (it does with the same vault key). A licence issued
+for a specific install id keeps working; ask for a new one only if you set up a new install instead of restoring.

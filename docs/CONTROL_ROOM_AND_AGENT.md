@@ -190,6 +190,9 @@ save is interrupted. No one has to visit the machine.
 toolkit (or version) the runner lacks does not start there: it fails at once with `RUN.TOOLKIT_MISSING`, naming what is
 missing.
 
+**When the Command Center moves** to a new address with its data, run `ooa agent move --url https://new-address:8720`
+on each runner (and restart it): it keeps its registration. See [CLOUD_INSTALL.md](CLOUD_INSTALL.md).
+
 **When a runner will not connect**, run `ooa agent diagnose` on it. It checks the runner's settings, name lookup, the proxy and
 network, the certificate, the clock, the Command Center's answer, the runner's sign-in, the screen, free disk space
 and toolkits, and says what to fix.
