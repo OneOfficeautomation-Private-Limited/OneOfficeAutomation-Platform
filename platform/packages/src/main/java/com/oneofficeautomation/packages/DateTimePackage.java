@@ -199,14 +199,17 @@ public final class DateTimePackage {
         } catch (RuntimeException e) { return false; }
     }
 
-    @Condition(id = "is_business_hours", name = "Within business hours", description = "True on weekdays between the start and end hours in the time zone.")
+    @Condition(id = "is_business_hours", name = "Within business hours", description = "True between the start and end hours in the time zone, on weekdays (or every day).")
     public boolean isBusinessHours(ActionContext ctx,
             @Input(name = "start_hour", type = OoaType.NUMBER, required = false, defaultValue = "9", min = 0, max = 24, description = "Start hour (24h).") int start,
             @Input(name = "end_hour", type = OoaType.NUMBER, required = false, defaultValue = "17", min = 0, max = 24, description = "End hour (24h).") int end,
-            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone.") String tz) {
+            @Input(name = "time_zone", type = OoaType.STRING, required = false, defaultValue = "\"UTC\"", description = "Time zone.") String tz,
+            @Input(name = "weekdays_only", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
+                    description = "Only Monday to Friday count; turn off for teams that work every day.") boolean weekdaysOnly) {
         ZonedDateTime z = ZonedDateTime.now(zone(tz));
         DayOfWeek d = z.getDayOfWeek();
-        return d != DayOfWeek.SATURDAY && d != DayOfWeek.SUNDAY && z.getHour() >= start && z.getHour() < end;
+        boolean workday = !weekdaysOnly || d != DayOfWeek.SATURDAY && d != DayOfWeek.SUNDAY;
+        return workday && z.getHour() >= start && z.getHour() < end;
     }
 
     // ---- Comparison ----

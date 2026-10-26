@@ -33,6 +33,8 @@
    "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datetime/is_weekend", "args": {"value": "$d"}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
   {"command": "ooa.datetime/is_valid", "name": "invalid date text", "vars": {"ok": true},
    "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datetime/is_valid", "args": {"text": "2026-02-30"}}}, "else": [{"action": "core/set", "args": {"variable": "ok", "value": false}}]}], "expect": {"ok": false}},
-  {"command": "ooa.datetime/is_business_hours", "name": "24h window always true", "vars": {"ok": false},
-   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datetime/is_business_hours", "args": {"start_hour": 0, "end_hour": 24}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}}
+  {"command": "ooa.datetime/is_business_hours", "name": "24h window every day is always true", "vars": {"ok": false},
+   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datetime/is_business_hours", "args": {"start_hour": 0, "end_hour": 24, "weekdays_only": false}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}},
+  {"command": "ooa.datetime/is_business_hours", "name": "an empty window is never true", "vars": {"ok": true},
+   "steps": [{"action": "core/if", "args": {"condition": {"condition": "ooa.datetime/is_business_hours", "args": {"start_hour": 5, "end_hour": 5, "weekdays_only": false}}}, "children": [{"action": "core/set", "args": {"variable": "ok", "value": false}}], "else": [{"action": "core/set", "args": {"variable": "ok", "value": true}}]}], "expect": {"ok": true}}
 ]
