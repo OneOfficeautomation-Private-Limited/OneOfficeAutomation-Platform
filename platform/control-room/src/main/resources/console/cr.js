@@ -668,16 +668,7 @@ const VIEWS = {
     if (S.devTab === "pools") return VIEWS.pools(main);
     const r = await api("GET", "devices");
     S.devices = r.devices;
-    const actions = can("devices.manage") ? [h("button", { type: "button", class: "primary", onclick: async () => {
-      try {
-        const k = await api("POST", "devices/registration-key", { hours: 24 });
-        modal("Register a runner", [
-          h("p", { text: "On the Windows machine that will run agents, open PowerShell in the platform folder and run:" }),
-          secretBox("Command to run", '.\\gradlew.bat :cli:run --args="agent register --url ' + location.origin + " --key " + k.key + '"', "The key works once and expires in 24 hours. It is shown only now."),
-          h("p", { class: "muted", text: "Then start the agent with:  .\\gradlew.bat :cli:run --args=\"agent start\"" }),
-          h("p", { class: "muted", text: "On this computer you do not need this: ooa server (or start-ooa.bat) registers and starts a One Runner for this computer automatically." })], []);
-      } catch (e) { toast(e.message, true); }
-    } }, "Register a runner")] : [];
+    const actions = can("devices.manage") ? [h("button", { type: "button", class: "primary", onclick: () => registerRunnerDialog() }, "Register a runner")] : [];
     const online = r.devices.filter((d) => d.status === "online").length;
     if (can("devices.manage") && r.devices.length) actions.unshift(h("button", { type: "button", onclick: () => runnerSettingsDialog(r.devices) }, "Update runners"));
     main.replaceChildren(...header("Runners", "Machines running the One Runner. A runner is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
@@ -690,7 +681,8 @@ const VIEWS = {
           { label: "Agent", value: (d) => d.agent_version || "", render: (d) => d.version_status && d.version_status !== "ok"
             ? h("span", { class: "pill failed", title: "This runner is newer than the Command Center and gets no work until the Command Center is updated", text: (d.agent_version || "") + " – update the Command Center" })
             : h("span", { text: d.agent_version || "" }) },
-          { label: "Type", value: (d) => d.device_type === "single_user" ? "Single-user" : "Multi-user" },
+          { label: "Type", value: (d) => (d.device_type === "single_user" ? "Single-user" : "Multi-user") + (d.lifespan === "temporary" ? ", temporary" : ""),
+            render: (d) => h("span", {}, d.device_type === "single_user" ? "Single-user" : "Multi-user", d.lifespan === "temporary" ? [" ", h("span", { class: "pill pending", title: "Removed by itself after a time without contact (Settings)", text: "Temporary" })] : null) },
           { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
           { label: "Log level", value: (d) => d.log_level || "info" },
           { label: "Screen", value: (d) => SCREEN[d.session_state] || "", render: (d) => d.session_state ? h("span", { class: "pill " + (d.session_state === "unlocked" ? "online" : d.session_state === "locked" ? "locked" : "offline"), title: SCREEN_HELP[d.session_state], text: SCREEN[d.session_state] }) : "—" },
@@ -841,6 +833,7 @@ const VIEWS = {
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
+      const tempHours = num("temporary_runner_hours", 1, 720), secretDays = num("runner_secret_days", 0, 365);
       const samlUrl = txt("saml_idp_sso_url", "https://login.microsoftonline.com/<tenant>/saml2"), samlIdp = txt("saml_idp_entity_id", "https://sts.windows.net/<tenant>/"),
         samlSp = txt("saml_sp_entity_id", (st.public_url || location.origin) + "/api/auth/saml/metadata"), samlLabel = txt("saml_label", "Sign in with SAML");
       const samlCert = h("textarea", { rows: 3, value: st.saml_idp_certificate || "", placeholder: "-----BEGIN CERTIFICATE-----" });
@@ -894,7 +887,9 @@ const VIEWS = {
           h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
           h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads"),
           h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live"),
-          h("label", { class: "check" }, autoUpdate, "Update runners automatically to this Command Center's version when they are idle")),
+          h("label", { class: "check" }, autoUpdate, "Update runners automatically to this Command Center's version when they are idle"),
+          h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
+          h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays)),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
         h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
@@ -925,7 +920,7 @@ const VIEWS = {
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
-              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0,
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
               ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
@@ -2066,6 +2061,27 @@ function userEditDialog(u) {
 const SCREEN = { unlocked: "Unlocked", locked: "Locked", no_desktop: "No desktop" };
 const SCREEN_HELP = { unlocked: "someone is signed in and the screen is usable", locked: "agents that use the screen cannot run until someone signs in", no_desktop: "the runner is a Windows service: only agents that need no screen can run" };
 const AFTER_RUN = { nothing: "Leave the screen as it is", lock: "Lock the screen", sign_out: "Sign out" };
+
+/** A one-time key and the commands that register a runner with it: an installed copy, the MSI, or the setup package. */
+function registerRunnerDialog() {
+  const temp = h("input", { type: "checkbox" });
+  modal("Register a runner", [
+    h("p", { text: "Creates a one-time key (valid 24 hours) and shows the command for the runner machine." }),
+    h("label", { class: "check" }, temp, "Temporary runner (VDI or pooled desktop): removed by itself after a time without contact, freeing its seat")],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const k = await api("POST", "devices/registration-key", { hours: 24, temporary: temp.checked });
+      const url = location.origin;
+      modal("Register a runner", [
+        h("p", { text: "On the runner machine, run one of these (the key works once, expires in 24 hours and is shown only now):" }),
+        secretBox("ONEOFFICEAUTOMATION already installed (in its folder)", "bin\\ooa.bat agent register --url " + url + " --key " + k.key, "Then: bin\\ooa.bat agent install-task (starts at sign-in, for agents that use the screen)."),
+        secretBox("With the MSI (runs as a Windows service)", "msiexec /i ooa.msi /qn ROLE=Runner URL=" + url + " REGISTRATION_KEY=" + k.key, ""),
+        secretBox("With the setup package", "Install.cmd -Silent -Role Runner -Url " + url + " -RegistrationKey " + k.key, ""),
+        k.temporary ? h("p", { class: "note warn", text: "Temporary: this runner is removed after the time set in Settings without contact." }) : null,
+        h("p", { class: "muted", text: "On the Command Center computer itself you do not need this: ooa server (START-OOA.cmd) registers a runner for it." })], []);
+    } catch (e) { toast(e.message, true); }
+  } }, "Create key")]);
+}
 
 function runnerSettingsDialog(devices) {
   const picked = new Set();

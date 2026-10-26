@@ -12,7 +12,9 @@ import java.util.Map;
 /** HTTP client for the Control Room agent API, authenticated with the device id and secret. */
 final class AgentClient {
     private final HttpClient http;
-    final String baseUrl; private final String deviceId, secret;
+    final String baseUrl; private final String deviceId;
+    /** Changes when the runner rotates its secret. */
+    private volatile String secret;
 
     AgentClient(String baseUrl, String deviceId, String secret) { this(baseUrl, deviceId, secret, Network.DEFAULT); }
 
@@ -23,6 +25,8 @@ final class AgentClient {
         network.apply(b, this.baseUrl);
         this.http = b.build();
     }
+
+    void secret(String s) { this.secret = s; }
 
     /** A GET on the runner API: the JSON answer, or the raw bytes (a program file for an update). */
     @SuppressWarnings("unchecked")

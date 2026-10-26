@@ -372,9 +372,18 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE devices ADD COLUMN update_requested BOOLEAN",
     };
 
+    /** Version 14: temporary runners (VDI) and runner secret rotation (the previous secret stays valid a few minutes). */
+    private static final String[] SCHEMA_V14 = {
+        "ALTER TABLE registration_keys ADD COLUMN temporary BOOLEAN",
+        "ALTER TABLE devices ADD COLUMN lifespan VARCHAR(20)",
+        "ALTER TABLE devices ADD COLUMN secret_set TIMESTAMP",
+        "ALTER TABLE devices ADD COLUMN secret_prev_hash VARCHAR(64)",
+        "ALTER TABLE devices ADD COLUMN secret_prev_until TIMESTAMP",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 13;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13 };
+    public static final int LATEST = 14;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

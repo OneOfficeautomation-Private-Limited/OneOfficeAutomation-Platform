@@ -922,12 +922,19 @@ public final class ControlRoom {
 
     // ===================== devices and agents =====================
 
-    public Map<String, Object> createRegistrationKey(User by, int hours, String ip) {
+    public Map<String, Object> createRegistrationKey(User by, int hours, String ip) { return createRegistrationKey(by, hours, false, ip); }
+
+    /**
+     * A one-time registration key. {@code temporary}: runners registered with it (VDI, pooled desktops) are removed by
+     * themselves after {@code temporary_runner_hours} without contact, freeing their license seat.
+     */
+    public Map<String, Object> createRegistrationKey(User by, int hours, boolean temporary, String ip) {
         require(by, "devices.manage", "register runners");
         String key = "ooareg_" + Security.token(24);
-        db.update("INSERT INTO registration_keys (key_hash, created_by, created, expires) VALUES (?,?,?,?)", Security.sha256(key), by.username(), now(), now().plus(Duration.ofHours(Math.max(1, Math.min(168, hours)))));
-        audit.record(by.username(), "device.registration_key", "device", null, Map.of("hours", hours), "ok", ip);
-        return Map.of("key", key, "expires_in_hours", hours);
+        db.update("INSERT INTO registration_keys (key_hash, created_by, created, expires, temporary) VALUES (?,?,?,?,?)", Security.sha256(key), by.username(), now(),
+            now().plus(Duration.ofHours(Math.max(1, Math.min(168, hours)))), temporary);
+        audit.record(by.username(), "device.registration_key", "device", null, Map.of("hours", hours, "temporary", temporary), "ok", ip);
+        return Map.of("key", key, "expires_in_hours", hours, "temporary", temporary);
     }
 
     /** One-hour key for the Bot Agent that `ooa server` starts on this machine; no signed-in user is involved. */
@@ -947,8 +954,8 @@ public final class ControlRoom {
             }
             String deviceId = id("dev"), secret = Security.token(32);
             String nm = name == null || name.isBlank() ? hostname : name;
-            db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    deviceId, nm, hostname, os, agentVersion, Security.sha256(secret), true, now(), now(), k.get("created_by"));
+            db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by, lifespan, secret_set) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    deviceId, nm, hostname, os, agentVersion, Security.sha256(secret), true, now(), now(), k.get("created_by"), Boolean.TRUE.equals(k.get("temporary")) ? "temporary" : "persistent", now());
             db.update("UPDATE registration_keys SET used_by = ? WHERE key_hash = ?", deviceId, k.get("key_hash"));
             audit.record("agent:" + hostname, "device.register", "device", deviceId, Map.of("name", nm), "ok", ip);
             return Map.of("device_id", deviceId, "secret", secret, "name", nm);
@@ -958,8 +965,33 @@ public final class ControlRoom {
     public Map<String, Object> device(String deviceId, String secret) {
         if (deviceId == null || secret == null) return null;
         Map<String, Object> d = db.one("SELECT * FROM devices WHERE id = ?", deviceId);
-        if (d == null || !Boolean.TRUE.equals(d.get("enabled")) || !Security.constantEquals(Security.sha256(secret), (String) d.get("secret_hash"))) return null;
-        return d;
+        if (d == null || !Boolean.TRUE.equals(d.get("enabled"))) return null;
+        String h = Security.sha256(secret);
+        if (Security.constantEquals(h, (String) d.get("secret_hash"))) return d;
+        // just after a rotation the previous secret still works for a few minutes (requests already on their way)
+        boolean previous = d.get("secret_prev_hash") != null && d.get("secret_prev_until") != null && Instant.parse(d.get("secret_prev_until").toString()).isAfter(now())
+            && Security.constantEquals(h, (String) d.get("secret_prev_hash"));
+        return previous ? d : null;
+    }
+
+    /**
+     * Gives a runner a new secret (it asked, after its heartbeat said rotate); the old one keeps working for 10 minutes.
+     * Returns the new secret once; only its hash is stored.
+     */
+    public Map<String, Object> rotateSecret(Map<String, Object> d, String ip) {
+        String secret = Security.token(32);
+        db.update("UPDATE devices SET secret_prev_hash = secret_hash, secret_prev_until = ?, secret_hash = ?, secret_set = ? WHERE id = ?",
+            now().plus(Duration.ofMinutes(10)), Security.sha256(secret), now(), d.get("id"));
+        audit.record("agent:" + d.get("name"), "device.rotate_secret", "device", (String) d.get("id"), null, "ok", ip);
+        return Map.of("secret", secret);
+    }
+
+    /** True when the runner's secret is older than runner_secret_days (0: never). */
+    boolean secretDue(Map<String, Object> d) {
+        int days = platform.intSetting("runner_secret_days");
+        if (days <= 0) return false;
+        Object set = d.get("secret_set") != null ? d.get("secret_set") : d.get("registered");
+        return set != null && Instant.parse(set.toString()).isBefore(now().minus(Duration.ofDays(days)));
     }
 
     public List<Map<String, Object>> devices(User by) {
@@ -967,7 +999,7 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, List<String>> defaults = new HashMap<>();
         for (Map<String, Object> u : db.query("SELECT username, device_id FROM user_devices ORDER BY username")) defaults.computeIfAbsent((String) u.get("device_id"), k -> new ArrayList<>()).add((String) u.get("username"));
-        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested FROM devices ORDER BY name")) {
+        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested, lifespan FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
             if (m.get("log_level") == null) m.put("log_level", "info");
             if (m.get("after_run") == null) m.put("after_run", "nothing");
@@ -1076,6 +1108,7 @@ public final class ControlRoom {
                 "log_level", d.get("log_level") == null ? "info" : d.get("log_level"), "after_run", d.get("after_run") == null ? "nothing" : d.get("after_run")));
         Map<String, Object> update = runnerUpdates.forHeartbeat(d, build, !cancel.isEmpty() || !pause.isEmpty() || !resume.isEmpty());
         if (update != null) out.put("update", update);
+        if (secretDue(d)) out.put("rotate", true);
         return out;
     }
 
@@ -1236,10 +1269,35 @@ public final class ControlRoom {
                 List<String> devs = new ArrayList<>(csv(p.get("devices")));
                 if (devs.remove(deviceId)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
             }
+            db.update("DELETE FROM license_assignments WHERE principal_type = 'device' AND principal = ?", deviceId);   // its seat is free again
             db.update("DELETE FROM devices WHERE id = ?", deviceId);
             return null;
         });
         audit.record(by.username(), "device.delete", "device", deviceId, null, "ok", ip);
+    }
+
+    /**
+     * Removes temporary runners (VDI) not heard from for temporary_runner_hours, with their seat and default-runner and
+     * pool entries. One with queued or running work, or used by a schedule or trigger, stays (and is retried later).
+     */
+    void expireTemporaryRunners() {
+        Instant cutoff = now().minus(Duration.ofHours(Math.max(1, platform.intSetting("temporary_runner_hours"))));
+        for (Map<String, Object> d : db.query("SELECT id, name FROM devices WHERE lifespan = 'temporary' AND last_seen < ?", cutoff)) {
+            String id = (String) d.get("id");
+            if (count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status IN ('queued', 'running')", id) > 0) continue;
+            if (count("SELECT COUNT(*) AS n FROM schedules WHERE device_id = ?", id) > 0 || count("SELECT COUNT(*) AS n FROM triggers WHERE device_id = ?", id) > 0) continue;
+            db.tx(() -> {
+                db.update("DELETE FROM user_devices WHERE device_id = ?", id);
+                for (Map<String, Object> p : db.query("SELECT id, devices FROM device_pools")) {
+                    List<String> devs = new ArrayList<>(csv(p.get("devices")));
+                    if (devs.remove(id)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
+                }
+                db.update("DELETE FROM license_assignments WHERE principal_type = 'device' AND principal = ?", id);
+                db.update("DELETE FROM devices WHERE id = ?", id);
+                return null;
+            });
+            audit.record("system", "device.expired", "device", id, Map.of("name", d.get("name"), "offline_since_before", cutoff.toString()), "ok", null);
+        }
     }
 
     /** Atomically assigns the oldest queued run of this device and returns its job (bot bundle, inputs, global values). */
@@ -1568,6 +1626,7 @@ public final class ControlRoom {
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
+        try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================

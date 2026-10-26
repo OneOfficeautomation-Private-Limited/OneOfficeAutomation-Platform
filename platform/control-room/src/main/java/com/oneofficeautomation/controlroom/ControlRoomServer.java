@@ -345,6 +345,7 @@ public final class ControlRoomServer {
             }
             Map<String, Object> d = device(ex);
             if (m.equals("POST") && route.equals("agent/heartbeat")) sendJson(ex, 200, cr.heartbeat(d, map(body(ex))));
+            else if (m.equals("POST") && route.equals("agent/rotate")) sendJson(ex, 200, cr.rotateSecret(d, ip));
             else if (m.equals("GET") && route.equals("agent/update/manifest")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); if (mf == null) notFound(ex); else sendJson(ex, 200, mf); }
             else if (m.equals("GET") && route.equals("agent/update/file")) sendBytes(ex, cr.runnerUpdates.file(q.get("name")), "application/java-archive", q.get("name"));
             else if (m.equals("POST") && route.equals("agent/jobs/next")) {
@@ -669,7 +670,7 @@ public final class ControlRoomServer {
                 else if (m.equals("PATCH") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.updateDevices(u, ControlRoom.csv(b.get("ids")), b, ip)); }
                 else if (m.equals("POST") && route.equals("devices/update")) sendJson(ex, 200, cr.runnerUpdates.request(u, ControlRoom.csv(map(body(ex)).get("ids")), ip));
                 else if (m.equals("GET") && route.equals("devices/update")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); sendJson(ex, 200, mf == null ? Map.of("available", false) : Map.of("available", true, "build", mf.get("build"), "version", mf.get("version"), "auto", cr.platform.intSetting("runner_auto_update") == 1)); }
-                else if (m.equals("POST") && route.equals("devices/registration-key")) sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) map(body(ex)).getOrDefault("hours", 24)).intValue(), ip));
+                else if (m.equals("POST") && route.equals("devices/registration-key")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) b.getOrDefault("hours", 24)).intValue(), Boolean.TRUE.equals(b.get("temporary")), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) {
                     Map<String, Object> b = map(body(ex));
                     if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);

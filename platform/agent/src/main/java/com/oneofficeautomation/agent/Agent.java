@@ -133,6 +133,26 @@ public final class Agent {
         } finally { updating = false; }
     }
 
+    /**
+     * Takes a new secret from the Command Center (its heartbeat asked for it) and saves it in the config file: written to
+     * a new file first, then moved over the old one, so the file always holds a working secret.
+     */
+    synchronized void rotateSecret() {
+        try {
+            Map<String, Object> r = client.post("rotate", Map.of());
+            String s = (String) r.get("secret");
+            if (s == null || s.isBlank()) return;
+            Map<String, Object> cfg = new LinkedHashMap<>(config);
+            cfg.put("secret", s);
+            Path tmp = configFile.resolveSibling(configFile.getFileName() + ".new");
+            Files.writeString(tmp, JsonLite.write(cfg), StandardCharsets.UTF_8);
+            Files.move(tmp, configFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            config.put("secret", s);
+            client.secret(s);
+            log("Runner secret rotated");
+        } catch (Exception e) { log("warning", "Could not rotate the runner secret (the old one keeps working): " + e.getMessage()); }
+    }
+
     /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */
     volatile String logLevel = "info";
     /** What to do with the screen after an unattended run (nothing, lock, sign_out), set in Command Center. */
@@ -187,6 +207,7 @@ public final class Agent {
             localTriggers.update(r.get("local_triggers") instanceof List<?> l ? (List<Object>) l : (List<Object>) r.getOrDefault("file_triggers", List.of()));
             if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by Command Center"); }
             if (r.get("after_run") instanceof String ar && !ar.equals(afterRun)) { afterRun = ar; log("After unattended runs: " + ar + " (set in Command Center)"); }
+            if (Boolean.TRUE.equals(r.get("rotate"))) rotateSecret();
         } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }

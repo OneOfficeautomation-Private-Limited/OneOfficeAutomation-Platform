@@ -58,6 +58,8 @@ public final class Platform {
         DEFAULTS.put("git_username", "");
         DEFAULTS.put("git_token_ref", "");
         DEFAULTS.put("git_auto_push", 0);
+        DEFAULTS.put("temporary_runner_hours", 8);
+        DEFAULTS.put("runner_secret_days", 30);
         DEFAULTS.put("saml_idp_sso_url", "");
         DEFAULTS.put("saml_idp_entity_id", "");
         DEFAULTS.put("saml_idp_certificate", "");
@@ -81,7 +83,9 @@ public final class Platform {
         Map.entry("mfa_required", new long[] { 0, 2 }),
         Map.entry("production_approval", new long[] { 0, 1 }),
         Map.entry("runner_auto_update", new long[] { 0, 1 }),
-        Map.entry("git_auto_push", new long[] { 0, 1 }));
+        Map.entry("git_auto_push", new long[] { 0, 1 }),
+        Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
+        Map.entry("runner_secret_days", new long[] { 0, 365 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;

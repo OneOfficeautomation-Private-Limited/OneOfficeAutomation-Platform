@@ -114,6 +114,8 @@ async function page() {
   nav("Runners");
   await until(() => btn("Register a runner"));
   click(btn("Register a runner"));
+  await until(() => btn("Create key", d.getElementById("modal-actions")));
+  click(btn("Create key", d.getElementById("modal-actions")));
   check("device registration shows the agent command with a one-time key", await until(() => !d.getElementById("modal").hidden && d.getElementById("modal-body").textContent.includes("agent register --url " + BASE + " --key ooareg_")));
   click(btn("Close"));
 
