@@ -33,7 +33,8 @@ public final class PgpPackage {
                 return c.toString();
             } catch (java.nio.file.InvalidPathException ignored) { /* not a folder */ }
         }
-        if (msysOnly) throw new ActionException("PGP.NOT_INSTALLED", "Only the gpg that comes with Git for Windows was found; it cannot work with Windows paths",
+        // nothing usable found on PATH: Windows may still find a gpg elsewhere, so ask the one it would run
+        if (msysOnly || msys(Path.of("gpg"))) throw new ActionException("PGP.NOT_INSTALLED", "Only the gpg that comes with Git for Windows was found; it cannot work with Windows paths",
                 "Install Gpg4win, or set OOA_GPG to the full path of a Windows gpg.exe.");
         return "gpg";
     }
