@@ -16,17 +16,20 @@ $version = ([regex]'version = "([^"]+)"').Match((Get-Content (Join-Path $platfor
 if (-not $version) { throw "No version found in platform\build.gradle.kts" }
 Write-Host "Building the customer zip for version $version ..."
 Push-Location $platform
-try { & .\gradlew.bat :cli:customerDistZip --console=plain -q; if ($LASTEXITCODE -ne 0) { throw "The build failed" } } finally { Pop-Location }
+try { & .\gradlew.bat :cli:customerDistZip :cli:setupDistZip --console=plain -q; if ($LASTEXITCODE -ne 0) { throw "The build failed" } } finally { Pop-Location }
 $zip = Join-Path $platform "cli\build\distributions\ooa-customer-$version.zip"
-if (-not (Test-Path $zip)) { throw "Not found: $zip" }
+$setup = Join-Path $platform "cli\build\distributions\ooa-setup-$version.zip"
+foreach ($f in $zip, $setup) { if (-not (Test-Path $f)) { throw "Not found: $f" } }
 
 # 2. the customer zip must not carry the vendor's license tools
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
-try {
-    $vendor = $archive.Entries | Where-Object { $_.FullName -match "vendor-tools|private\.key|\.lic$" }
-    if ($vendor) { throw "The customer zip holds vendor files: $($vendor.FullName -join ', ')" }
-} finally { $archive.Dispose() }
+foreach ($f in $zip, $setup) {
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($f)
+    try {
+        $vendor = $archive.Entries | Where-Object { $_.FullName -match "vendor-tools|private\.key|\.lic$" }
+        if ($vendor) { throw "$f holds vendor files: $($vendor.FullName -join ', ')" }
+    } finally { $archive.Dispose() }
+}
 $sizeMb = [math]::Round((Get-Item $zip).Length / 1MB)
 Write-Host "Checked: no vendor tools in $zip ($sizeMb MB)."
 
@@ -45,7 +48,7 @@ try { Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Re
 catch { if ($_.Exception.Message -like "Release $tag exists*") { throw } }
 $source = (git -C $platform rev-parse --short HEAD).Trim()
 if (-not $Notes) { $Notes = "See RELEASES.md for what changed." }
-$body = "ONEOFFICEAUTOMATION $version for customers.`n`n$Notes`n`n**Install:** download ooa-customer-$version.zip, unzip it, double-click START-OOA.cmd (Java 21 needed), then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
+$body = "ONEOFFICEAUTOMATION $version for customers.`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
 $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases" -ContentType "application/json" `
     -Body (@{ tag_name = $tag; target_commitish = "main"; name = "ONEOFFICEAUTOMATION $version"; body = $body; draft = [bool]$Draft; prerelease = $false } | ConvertTo-Json)
 
@@ -53,5 +56,7 @@ $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.gi
 Write-Host "Uploading $sizeMb MB ..."
 $uploadUrl = $release.upload_url -replace "\{.*\}$", ""
 $asset = Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=ooa-customer-$version.zip" -ContentType "application/zip" -InFile $zip -TimeoutSec 3600
+Write-Host "Uploading the setup package ($([math]::Round((Get-Item $setup).Length / 1MB)) MB) ..."
+Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=ooa-setup-$version.zip" -ContentType "application/zip" -InFile $setup -TimeoutSec 3600 | Out-Null
 Write-Host "Published $tag : $($release.html_url)"
 Write-Host "Download (signed-in GitHub users with access): $($asset.browser_download_url)"

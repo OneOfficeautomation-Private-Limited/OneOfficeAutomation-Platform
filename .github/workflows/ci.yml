@@ -47,6 +47,20 @@ jobs:
           try { $bad = $a.Entries | Where-Object { $_.FullName -match "vendor-tools|private\.key|\.lic$" } } finally { $a.Dispose() }
           if ($bad) { throw "The customer zip holds vendor files: $($bad.FullName -join ', ')" }
           Write-Host "Customer zip OK: $($zip.Name), $([math]::Round($zip.Length / 1MB)) MB"
+      - name: Setup package with Java and installer
+        shell: pwsh
+        run: |
+          ./gradlew.bat :cli:setupDistZip --console=plain
+          $zip = Get-ChildItem cli/build/distributions/ooa-setup-*.zip | Select-Object -First 1
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $a = [System.IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          try { $names = $a.Entries.FullName } finally { $a.Dispose() }
+          $bad = $names | Where-Object { $_ -match "vendor-tools|private\.key|\.lic$" }
+          if ($bad) { throw "The setup package holds vendor files: $($bad -join ', ')" }
+          foreach ($need in "runtime/bin/java.exe", "runtime/bin/keytool.exe", "Install.cmd", "Install-OOA.ps1", "Uninstall-OOA.ps1", "bin/ooa.bat") {
+            if (-not ($names | Where-Object { $_ -like "*/$need" })) { throw "The setup package lacks $need" }
+          }
+          Write-Host "Setup package OK: $($zip.Name), $([math]::Round($zip.Length / 1MB)) MB"
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@v4
