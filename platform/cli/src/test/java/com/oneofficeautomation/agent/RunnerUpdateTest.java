@@ -74,19 +74,14 @@ class RunnerUpdateTest {
         assertEquals(m.get("build"), Updater.build(staged));
         assertEquals("CR.NOT_FOUND", assertThrows(OoaException.class, () -> cr.runnerUpdates.file("vendor-tools-0.1.2.jar")).code());
 
-        // the helper swaps the folders once the runner has ended (Windows)
-        if (Network.WINDOWS) {
-            Process done = new ProcessBuilder("cmd.exe", "/c", "exit").start();
-            done.waitFor(10, TimeUnit.SECONDS);
-            Path script = runnerLib.getParent().resolve("update").resolve("apply-update.cmd");
-            Files.writeString(script, Updater.applyScript(runnerLib.getParent(), done.pid(), null));
-            Process p = new ProcessBuilder("cmd.exe", "/c", script.toString()).redirectErrorStream(true).start();
-            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(p.waitFor(60, TimeUnit.SECONDS), out);
-            assertEquals(m.get("build"), Updater.build(runnerLib), "the runner's lib folder now holds the new build: " + out);
-            assertFalse(Files.exists(runnerLib.getParent().resolve("update")), "the staging folder is gone");
-            assertFalse(Files.exists(runnerLib.getParent().resolve("lib.old")));
-        }
+        // the helper swaps the folders once the runner has ended
+        Process done = new ProcessBuilder(ProcessHandle.current().info().command().orElseThrow(), "-version").start();
+        done.waitFor(30, TimeUnit.SECONDS);
+        assertTrue(UpdateHelper.apply(runnerLib.getParent(), done.pid(), null));
+        assertEquals(m.get("build"), Updater.build(runnerLib), "the runner's lib folder now holds the new build");
+        assertFalse(Files.exists(runnerLib.getParent().resolve("update")), "the staging folder is gone");
+        assertFalse(Files.exists(runnerLib.getParent().resolve("lib.old")));
+        assertFalse(UpdateHelper.apply(runnerLib.getParent(), done.pid(), null), "nothing staged: nothing to do");
 
         // a runner on the Command Center's build gets nothing more, and the request is cleared
         assertNull(beat((String) m.get("build")).get("update"));
@@ -107,10 +102,6 @@ class RunnerUpdateTest {
     }
 
     @Test void theHelperStartsTheSignInTaskAgain() {
-        String s = Updater.applyScript(Path.of("C:\\OOA"), 4242, "OOA Runner");
-        assertTrue(s.contains("PID eq 4242"));
-        assertTrue(s.contains("move \"C:\\OOA\\update\\lib\" \"C:\\OOA\\lib\""));
-        assertTrue(s.contains("schtasks /run /tn \"OOA Runner\""));
-        assertFalse(Updater.applyScript(Path.of("C:\\OOA"), 1, null).contains("schtasks"));
+        assertEquals(List.of("schtasks.exe", "/run", "/tn", "OOA Runner"), UpdateHelper.restartTask("OOA Runner"));
     }
 }

@@ -12,9 +12,9 @@ import java.util.*;
  * The runner's side of updates from the Command Center. The build id of the runner's program files goes with every
  * heartbeat; when the Command Center answers with an update and the runner is idle, it fetches the Command Center's file
  * list, takes the files it already has from its own lib folder, downloads the others and checks every SHA-256, all into
- * update/lib beside the installation. A small helper then waits for the runner to exit, swaps the folders (keeping
- * the old one until the new one is in place) and, for a runner started at sign-in, starts its task again; a runner
- * service is started again by Windows (it restarts after a failure). Windows only; a build from source has no lib folder
+ * update/lib beside the installation. A helper process ({@link UpdateHelper}) then waits for the runner to exit, swaps
+ * the folders and, for a runner started at sign-in, starts its task again; a runner service is started again by Windows
+ * (it restarts after a failure). Windows only; a build from source has no lib folder
  * and never updates.
  */
 final class Updater {
@@ -77,29 +77,19 @@ final class Updater {
         return target;
     }
 
-    /** The helper that swaps the folders once process {@code pid} has ended, then starts the runner's task again if named. */
-    static String applyScript(Path home, long pid, String task) {
-        String h = home.toAbsolutePath().toString();
-        return String.join("\r\n",
-            "@echo off",
-            "rem ONEOFFICEAUTOMATION runner update: waits for the runner to stop, then swaps the program files",
-            ":wait",
-            "tasklist /FI \"PID eq " + pid + "\" 2>nul | find \"" + pid + "\" >nul && (timeout /t 1 /nobreak >nul & goto wait)",
-            "if exist \"" + h + "\\lib.old\" rmdir /s /q \"" + h + "\\lib.old\"",
-            "move \"" + h + "\\lib\" \"" + h + "\\lib.old\" >nul || exit /b 1",
-            "move \"" + h + "\\update\\lib\" \"" + h + "\\lib\" >nul || (move \"" + h + "\\lib.old\" \"" + h + "\\lib\" >nul & exit /b 1)",
-            "rmdir /s /q \"" + h + "\\lib.old\"",
-            "rmdir /s /q \"" + h + "\\update\" 2>nul",
-            task == null ? "rem no task to start: a service is started again by Windows" : "schtasks /run /tn \"" + task + "\" >nul",
-            "") ;
-    }
-
-    /** Writes and starts the helper; the caller then exits. */
+    /**
+     * Starts the helper that finishes the update once this process has ended ({@link UpdateHelper}), from a copy of this
+     * jar in the temp folder so it holds nothing in the program folder; the caller then exits.
+     */
     static void launch(Path home, String task) throws Exception {
-        Path script = home.resolve("update").resolve("apply-update.cmd");
-        Files.writeString(script, applyScript(home, ProcessHandle.current().pid(), task));
-        new ProcessBuilder("cmd.exe", "/c", "start", "\"ooa-update\"", "/min", "cmd.exe", "/c", script.toString())
-            .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+        Path jar = Path.of(UpdateHelper.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Path copy = Files.createTempDirectory("ooa-update").resolve("ooa-update-helper.jar");
+        Files.copy(jar, copy);
+        String java = ProcessHandle.current().info().command().orElse(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        List<String> cmd = new ArrayList<>(List.of(java.replaceAll("java\\.exe$", "javaw.exe"), "-cp", copy.toString(), UpdateHelper.class.getName(),
+            home.toAbsolutePath().toString(), String.valueOf(ProcessHandle.current().pid())));
+        if (task != null) cmd.add(task);
+        new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
     }
 
     static void deleteTree(Path p) throws Exception {
