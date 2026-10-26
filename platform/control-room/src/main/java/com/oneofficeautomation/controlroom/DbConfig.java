@@ -16,6 +16,9 @@ import java.util.*;
  * engine=sqlserver            h2 | sqlserver | postgresql
  * host=dbserver01             port=1433    instance=SQLEXPRESS (optional)    database=ooa_command_center
  * user=ooa_app                password=enc:...  (or env:VARIABLE)        the account the server runs with
+ * auth=windows                SQL Server only: sign in as the Windows account the Command Center runs as (a service
+ *                             account or gMSA); no user or password then. The setup account may still be a SQL login.
+ * windows.login=CORP\ooa-svc$ the Windows account (or gMSA) ooa db init gives a login and data rights to
  * setup.user=ooa_setup        setup.password=enc:...                     creates and upgrades the schema (ooa db)
  * tls=required                off | required
  * tls.ca=C:\certs\db-ca.crt   the CA chain the server certificate must match (default: Java's trusted CAs)
@@ -39,7 +42,9 @@ public final class DbConfig {
         String engine = c.engine();
         if (!List.of("h2", "sqlserver", "postgresql").contains(engine))
             throw new OoaException("CR.DB_CONFIG", "engine must be h2, sqlserver or postgresql, not \"" + engine + "\"", "Edit " + file);
-        if (!engine.equals("h2")) for (String k : List.of("host", "database", "user"))
+        if (!c.get("auth", "sql").equals("sql") && !c.get("auth").equals("windows")) throw new OoaException("CR.DB_CONFIG", "auth must be sql or windows", "Edit " + file);
+        if (c.windowsAuth() && !engine.equals("sqlserver")) throw new OoaException("CR.DB_CONFIG", "auth=windows is for SQL Server only", "Edit " + file);
+        if (!engine.equals("h2")) for (String k : c.windowsAuth() ? List.of("host", "database") : List.of("host", "database", "user"))
             if (c.get(k).isEmpty()) throw new OoaException("CR.DB_CONFIG", "Missing " + k + " in " + file);
         String tls = c.get("tls", "required");
         if (!tls.equals("off") && !tls.equals("required")) throw new OoaException("CR.DB_CONFIG", "tls must be off or required", "Edit " + file);
@@ -53,7 +58,21 @@ public final class DbConfig {
     public int poolMax() { return Integer.parseInt(get("pool.max", "20")); }
     public int timeoutSeconds() { return Integer.parseInt(get("pool.timeoutSeconds", "30")); }
     public boolean tls() { return get("tls", "required").equals("required"); }
-    public boolean hasSetupAccount() { return !get("setup.user").isEmpty(); }
+    public boolean hasSetupAccount() { return !get("setup.user").isEmpty() || windowsAuth(); }
+
+    /** SQL Server sign-in as the Windows account the process runs as (integrated security), not a SQL login. */
+    public boolean windowsAuth() { return get("auth", "sql").equals("windows"); }
+
+    /** Whether the runtime account (or, with setup, the schema account) signs in with Windows rather than a SQL login. */
+    public boolean integrated(boolean setup) { return windowsAuth() && !(setup && !get("setup.user").isEmpty()); }
+
+    /** The JDBC address for the runtime or the setup account: with Windows sign-in only where that account uses it. */
+    public String url(Path dataDir, boolean master, boolean setup) {
+        String u = url(dataDir, master);
+        return integrated(setup) ? u : u.replace(INTEGRATED, "");
+    }
+
+    static final String INTEGRATED = ";integratedSecurity=true;authenticationScheme=NativeAuthentication";
 
     /** The JDBC address of the OOA database (or, with master, of the server's master database for creating it). */
     public String url(Path dataDir, boolean master) {
@@ -68,6 +87,7 @@ public final class DbConfig {
                 u.append(";databaseName=").append(master ? "master" : database())
                     .append(";applicationName=OOA Command Center;sendTimeAsDatetime=false;loginTimeout=").append(timeoutSeconds())
                     .append(";encrypt=").append(tls());
+                if (windowsAuth()) u.append(INTEGRATED);
                 if (tls() && Boolean.parseBoolean(get("tls.trustAnyCertificate", "false"))) u.append(";trustServerCertificate=true");
                 else if (tls() && !get("tls.ca").isEmpty()) {
                     Path store = trustStore(dataDir);

@@ -37,6 +37,15 @@ records each SSO sign-in.
 
 For each one also check that the secret never appears in run logs, outputs, the audit trail or error messages.
 
+## S7, S8: vault key stores and Windows sign-in to SQL Server
+
+| What | Set up | Check |
+| --- | --- | --- |
+| Vault key in Azure Key Vault | A secret with `openssl rand -base64 32`; the VM's managed identity with Get on secrets | `OOA_MASTER_KEY_SOURCE=azure-keyvault:https://...` starts the Command Center; Settings shows the source; a wrong secret name fails at start with a clear error |
+| Vault key in AWS Secrets Manager | A secret; an EC2 instance role with `secretsmanager:GetSecretValue` | As above with `aws-secrets:REGION/ID` |
+| Vault key in Google Secret Manager | A secret; the VM's service account with Secret Accessor | As above with `gcp-secret:projects/...` |
+| Windows sign-in to SQL Server | A gMSA installed on the server; the service running as it | `ooa db configure --windows-auth --windows-login DOMAIN\gmsa$`, `ooa db init`, the service starts, runs work; no password in `config` |
+
 ## Q4: toolkits against the real product
 
 | System | Samples or agents to run | Notes |

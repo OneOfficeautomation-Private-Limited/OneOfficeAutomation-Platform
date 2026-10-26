@@ -34,6 +34,7 @@ final class ReleaseCommand {
                 if (a.length < 2) { usage(); return 1; }
                 Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 2, a.length));
                 Path manifest = Path.of(a[1]);
+                if (!Files.isRegularFile(manifest)) { System.err.println("No manifest at " + manifest.toAbsolutePath()); return 2; }
                 Path dir = o.containsKey("dir") ? Path.of(o.get("dir")) : manifest.toAbsolutePath().getParent();
                 try {
                     List<String> lines = verify(Files.readString(manifest), License.publicKey(License.VENDOR_PUBLIC_KEY), dir);

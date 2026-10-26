@@ -31,6 +31,17 @@ application {
     applicationName = "ooa"
 }
 
+// Windows sign-in to SQL Server (integrated security, also for a gMSA service account) needs the driver's native
+// library next to the jars; the start scripts and services put lib\ on java.library.path.
+val nativeLibs by configurations.creating
+dependencies { nativeLibs("com.microsoft.sqlserver:mssql-jdbc_auth:12.8.1.x64@dll") }
+
+/** Adds lib\ to java.library.path in a generated ooa.bat (for the SQL Server driver's Windows sign-in library). */
+fun libraryPath(bat: File) = bat.writeText(bat.readText().replace(Regex("(?m)^set DEFAULT_JVM_OPTS=(.*?)\r?$")) {
+    "set DEFAULT_JVM_OPTS=" + it.groupValues[1] + " \"-Djava.library.path=%APP_HOME%\\lib\"\r" })
+
+tasks.named<CreateStartScripts>("startScripts") { doLast { libraryPath(outputDir!!.resolve("ooa.bat")) } }
+
 // the sample tasks run whole agents (browser, OCR on screen images, mail and directory servers) in the test JVM
 tasks.named<Test>("test") { maxHeapSize = "2g" }
 
@@ -53,6 +64,7 @@ val customerStartScripts by tasks.registering(CreateStartScripts::class) {
                 it.value.trimEnd('\r') + "\r\nif exist \"%APP_HOME%\\runtime\\bin\\java.exe\" set \"JAVA_HOME=%APP_HOME%\\runtime\"\r" })
         val sh = outputDir!!.resolve("ooa")
         sh.writeText(sh.readText().replace(Regex("(?m)^CLASSPATH=.*$")) { "CLASSPATH=\$APP_HOME/lib/*" })
+        libraryPath(bat)
     }
 }
 
@@ -110,6 +122,7 @@ distributions {
         contents {
             from(rootProject.file("browser-extension")) { into("browser-extension") }
             from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension") }
+            from(nativeLibs) { into("lib"); rename { "mssql-jdbc_auth-12.8.1.x64.dll" } }
         }
     }
     // What customers install (gradlew :cli:customerDistZip): the same product without the vendor's license tools, so a

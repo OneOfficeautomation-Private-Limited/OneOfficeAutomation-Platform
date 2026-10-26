@@ -60,7 +60,7 @@ final class WindowsService {
 
     /** java.exe plus the class path and main class: what the service (or the sign-in task) starts. */
     static List<String> javaCommand(Path home, String... args) {
-        List<String> c = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(), "-Xmx1g", "-Dfile.encoding=UTF-8",
+        List<String> c = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(), "-Xmx1g", "-Dfile.encoding=UTF-8", "-Djava.library.path=" + home.resolve("lib"),
             "-cp", home.resolve("lib").toString() + "\\*", Ooa.class.getName()));
         c.addAll(List.of(args));
         return c;
@@ -113,7 +113,8 @@ final class WindowsService {
         String account = o.get("account"), pw = null;
         if (account != null) {
             pw = o.containsKey("password-env") ? System.getenv(o.get("password-env")) : null;
-            if (pw == null) { System.err.println("Give --password-env VAR with the account's password in that environment variable."); return 1; }
+            // a group managed service account (DOMAIN\name$) has no password: Windows manages it
+            if (pw == null && !account.endsWith("$")) { System.err.println("Give --password-env VAR with the account's password in that environment variable (a gMSA, DOMAIN\\name$, needs none)."); return 1; }
         }
         Advapi32 api = Advapi32.INSTANCE;
         Winsvc.SC_HANDLE scm = api.OpenSCManager(null, null, SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE);

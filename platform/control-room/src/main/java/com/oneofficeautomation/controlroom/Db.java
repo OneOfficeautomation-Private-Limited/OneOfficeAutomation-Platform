@@ -32,7 +32,9 @@ public final class Db implements AutoCloseable {
     public static Db open(DbConfig cfg, java.nio.file.Path dataDir, Vault vault, boolean setup) {
         if (cfg.engine().equals("h2")) return embedded(dataDir);
         if (setup && !cfg.hasSetupAccount()) throw new OoaException("CR.DB_CONFIG", "No setup account in " + cfg.file, "Add setup.user and run: ooa db set-password --setup");
-        return new Db(cfg.url(dataDir, false), setup ? cfg.get("setup.user") : cfg.get("user"), cfg.password(vault, setup), cfg.poolMax());
+        // Windows sign-in: the process's own account, unless a SQL login is named for setting up the schema
+        if (cfg.integrated(setup)) return new Db(cfg.url(dataDir, false, setup), "", "", cfg.poolMax());
+        return new Db(cfg.url(dataDir, false, setup), setup ? cfg.get("setup.user") : cfg.get("user"), cfg.password(vault, setup), cfg.poolMax());
     }
 
     public static Db embedded(java.nio.file.Path dir) {
@@ -72,7 +74,7 @@ public final class Db implements AutoCloseable {
     /** The account this connection signs in with (shown on the console, never the password). */
     public String user() { return user; }
 
-    private Connection open() throws SQLException { return DriverManager.getConnection(url, user, password); }
+    private Connection open() throws SQLException { return user.isEmpty() && password.isEmpty() && url.contains("integratedSecurity=true") ? DriverManager.getConnection(url) : DriverManager.getConnection(url, user, password); }
 
     private synchronized Connection borrow() throws SQLException {
         Connection c = pool.pollFirst();
