@@ -354,6 +354,36 @@ public final class ControlRoom {
         return newSession(r, ip);
     }
 
+    /**
+     * MCP over OAuth (S10): the person an access token from the company's identity provider stands for. The token must
+     * be signed by the single sign-on issuer, meant for this Command Center (Settings mcp_oauth_audience), unexpired and,
+     * when mcp_oauth_scope is set, carry that scope. Only existing accounts are used (linked by single sign-on, or with
+     * the same e-mail or user name); none is created or changed here.
+     */
+    User oauthUser(Sso sso, String jwt, String ip) {
+        String audience = String.valueOf(platform.setting("mcp_oauth_audience")).trim();
+        if (audience.isEmpty()) throw new OoaException("CR.UNAUTHENTICATED", "MCP sign-in with OAuth is not set up", "An administrator sets the MCP audience in Settings > AI assistants.");
+        Map<String, Object> claims;
+        try { claims = sso.verify(jwt, audience, null); }
+        catch (OoaException e) { audit.record("mcp", "auth.mcp_oauth", "user", null, e.getMessage(), "failed", ip); throw new OoaException("CR.UNAUTHENTICATED", "The access token was refused: " + e.getMessage()); }
+        String scope = String.valueOf(platform.setting("mcp_oauth_scope")).trim();
+        if (!scope.isEmpty()) {
+            String granted = claims.get("scp") instanceof String sc ? sc : claims.get("scope") instanceof String sc2 ? sc2 : "";
+            if (!Arrays.asList(granted.split("\\s+")).contains(scope)) throw new OoaException("CR.FORBIDDEN", "The access token lacks the scope " + scope);
+        }
+        Map<String, Object> r = db.one("SELECT * FROM users WHERE sso_subject = ?", claims.get("iss") + "|" + claims.get("sub"));
+        for (String k : new String[] { "email", "preferred_username", "upn" }) {
+            if (r != null) break;
+            if (claims.get(k) instanceof String v && !v.isBlank()) r = db.one("SELECT * FROM users WHERE LOWER(username) = ?", v.trim().toLowerCase(Locale.ROOT));
+        }
+        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "No Command Center account belongs to this access token", "Sign in to the Command Center once with single sign-on, or ask an administrator for an account.");
+        if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled");
+        User u = user(r);
+        licensing.checkSignIn(u);
+        // signed in through the identity provider: the local first-time password change does not apply (as for SSO sign-in)
+        return new User(u.id(), u.username(), u.role(), u.displayName(), false, u.mfaEnabled(), true);
+    }
+
     /** A credential the Command Center itself needs (for example the SSO client secret), from a vault folder or its external vault. */
     String systemCredential(String ref) {
         String[] p = ref.split("/");

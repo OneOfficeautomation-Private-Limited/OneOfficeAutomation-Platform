@@ -556,6 +556,12 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
     and with that user's permissions.
   - Agent inputs become the tool's input schema; credential inputs are never offered.
   - Each call is a normal run (source "AI assistant (MCP)") in Agent Runs and the One Audit Trail.
+  - **Sign-in with OAuth**: instead of an API key, an assistant can send an access token from the company's identity
+    provider (the single sign-on issuer). Register an MCP application there, put its application id URI in Settings >
+    AI assistants > Token audience (and a scope it must carry, if you like). Assistants find the issuer at
+    `/.well-known/oauth-protected-resource`, and a 401 from `/api/mcp` points them there. The token is checked like a
+    sign-in (signature, issuer, audience, expiry, scope); it must belong to an existing account, and it works for MCP
+    only, never as a console session.
 
 **Shared values people change for themselves.** In Shared values, Edit > **People may set their own value** lets each
 person keep their own value (**My value**). Their runs, and runs as them, read it instead of the shared one. Turning it

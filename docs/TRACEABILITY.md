@@ -75,5 +75,5 @@ requirements; where a row above says Planned or Partial, this table is the curre
 | NFR-008 | Signed supply chain | Built | `ReleaseCommand`, `:cli:sbom` | Signed release manifest, CycloneDX SBOM; licences signed with Ed25519 |
 | NFR-011 | Immutable, hash-chained audit | Built | `Audit` | Keyed chain, checkpoints outside the database, archived retention, syslog forwarding |
 | FR-CC-RES003/004 | Vault master key | Built | `Vault`, `KeySources` | Key file, environment, Azure Key Vault, AWS Secrets Manager, Google Secret Manager or typed at start |
-| FR-AI-009 | MCP over OAuth | Planned | — | MCP takes API keys today |
+| FR-AI-009 | MCP over OAuth | Built | `ControlRoom.oauthUser`, protected resource metadata | Access tokens from the SSO issuer, audience and scope checked; existing accounts only |
 | FR-PKG-005 | Dependency isolation | Planned | — | All toolkits share one class path |

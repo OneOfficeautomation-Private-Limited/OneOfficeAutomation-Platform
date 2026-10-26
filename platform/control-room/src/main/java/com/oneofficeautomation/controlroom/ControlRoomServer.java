@@ -140,6 +140,7 @@ public final class ControlRoomServer {
     private void handle(HttpExchange ex) throws IOException {
         try {
             String path = ex.getRequestURI().getPath();
+            if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
             else serveStatic(ex, path);
         } catch (OoaException e) {
@@ -152,6 +153,12 @@ public final class ControlRoomServer {
                 case "CR.LOCKED_OUT", "CR.RATE_LIMITED" -> 429;
                 default -> 400;
             };
+            if (status == 401 && ex.getRequestURI().getPath().equals("/api/mcp")) {
+                // tells MCP clients where to learn how to get a token (RFC 9728)
+                String base = String.valueOf(cr.platform.setting("public_url")).replaceAll("/+$", "");
+                if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
+                ex.getResponseHeaders().set("WWW-Authenticate", "Bearer resource_metadata=\"" + base + "/.well-known/oauth-protected-resource\"");
+            }
             sendJson(ex, status, Map.of("error", e.toMap()));
         } catch (RuntimeException | Error e) {
             // Any failure still gets an answer, so a client never sees a dropped connection.
@@ -193,15 +200,35 @@ public final class ControlRoomServer {
         return null;
     }
 
+    /**
+     * OAuth protected resource metadata (RFC 9728) for MCP clients: this Command Center's MCP address and the identity
+     * provider that issues tokens for it. Empty of authorization servers until MCP over OAuth is set up.
+     */
+    private void protectedResource(HttpExchange ex) throws IOException {
+        String base = String.valueOf(cr.platform.setting("public_url")).replaceAll("/+$", "");
+        if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
+        String issuer = String.valueOf(cr.platform.setting("sso_issuer")).trim(), audience = String.valueOf(cr.platform.setting("mcp_oauth_audience")).trim();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("resource", audience.isEmpty() ? base + "/api/mcp" : audience);
+        m.put("authorization_servers", issuer.isEmpty() || audience.isEmpty() ? List.of() : List.of(issuer));
+        m.put("bearer_methods_supported", List.of("header"));
+        String scope = String.valueOf(cr.platform.setting("mcp_oauth_scope")).trim();
+        if (!scope.isEmpty()) m.put("scopes_supported", List.of(scope));
+        m.put("resource_name", "ONEOFFICEAUTOMATION Command Center (MCP)");
+        sendJson(ex, 200, m);
+    }
+
     private ControlRoom.User user(HttpExchange ex, boolean allowMustChange) {
         String t = token(ex);
-        ControlRoom.User u = t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
+        // MCP clients may send an OAuth access token (a JWT) from the identity provider instead of an API key
+        boolean jwt = t != null && !t.startsWith("ooak_") && t.chars().filter(ch -> ch == '.').count() == 2 && ex.getRequestURI().getPath().equals("/api/mcp");
+        ControlRoom.User u = jwt ? cr.oauthUser(sso, t, ex.getRemoteAddress().getAddress().getHostAddress()) : t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
         if (u == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
         boolean viaCookie = ex.getRequestHeaders().getFirst("Authorization") == null;
         if (viaCookie && !Set.of("GET", "HEAD").contains(ex.getRequestMethod()) && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
             throw new OoaException("CR.CSRF", "Missing request header X-OOA-Request");
         if (u.mustChange() && !allowMustChange) throw new OoaException("CR.PASSWORD_CHANGE_REQUIRED", "Change your password before continuing");
-        if (!allowMustChange && !t.startsWith("ooak_") && cr.mfa.setupNeeded(u))
+        if (!allowMustChange && !t.startsWith("ooak_") && !jwt && cr.mfa.setupNeeded(u))
             throw new OoaException("CR.MFA_SETUP_REQUIRED", "Set up two-step sign-in before continuing", "Your administrator requires it for your account.");
         return u;
     }

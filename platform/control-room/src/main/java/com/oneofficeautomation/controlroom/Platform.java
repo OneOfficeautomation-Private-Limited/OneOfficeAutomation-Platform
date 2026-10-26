@@ -82,6 +82,8 @@ public final class Platform {
         DEFAULTS.put("mail_from", "");
         DEFAULTS.put("license_mail_to", "");
         DEFAULTS.put("switched_off_roles", "");
+        DEFAULTS.put("mcp_oauth_audience", "");
+        DEFAULTS.put("mcp_oauth_scope", "");
         DEFAULTS.put("outbound_proxy", "");
         DEFAULTS.put("outbound_proxy_bypass", "");
     }
