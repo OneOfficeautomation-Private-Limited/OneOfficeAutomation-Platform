@@ -453,6 +453,17 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "test-sets" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("sets", cr.testSets.list(u, q.get("bot"))));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.testSets.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.testSets.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.testSets.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) { Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.testSets.run(u, seg[1], (String) b.get("device_id"), (String) b.get("pool_id"), b.get("version") == null ? null : String.valueOf(b.get("version")), ip)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("history")) sendJson(ex, 200, Map.of("runs", cr.testSets.history(u, seg[1])));
+                else if (m.equals("GET") && seg.length == 3 && seg[1].equals("runs")) sendJson(ex, 200, cr.testSets.testRun(u, seg[2]));
+                else notFound(ex);
+            }
             case "mcp" -> {
                 if (!m.equals("POST")) { ex.getResponseHeaders().set("Allow", "POST"); ex.sendResponseHeaders(405, -1); return; }
                 Map<String, Object> res = mcp.handle(u, body(ex), ip);

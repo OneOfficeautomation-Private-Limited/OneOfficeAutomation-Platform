@@ -28,6 +28,7 @@ public final class ControlRoom {
     public final Platform platform;
     final ExternalVaults externalVaults = new ExternalVaults();
     public final Workflows workflows;
+    public final TestSets testSets;
     /** Repository folders and folder permissions. */
     final Folders folders;
     /** Export, import and promotion of agents between Command Centers. */
@@ -116,6 +117,7 @@ public final class ControlRoom {
         audit.onRecord(syslog::forward);
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
+        this.testSets = new TestSets(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
         this.lifecycle = new Lifecycle(this);
@@ -1584,6 +1586,7 @@ public final class ControlRoom {
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
         // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
         if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
+        try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }

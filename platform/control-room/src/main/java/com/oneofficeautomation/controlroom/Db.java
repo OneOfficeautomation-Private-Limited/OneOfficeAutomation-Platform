@@ -443,9 +443,21 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE ai_calls ADD COLUMN connection VARCHAR(60)",
     };
 
+    /** Version 20: test sets and scores (TestSets). */
+    private static final String[] SCHEMA_V20 = {
+        "CREATE TABLE test_sets (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, bot_path VARCHAR(400) NOT NULL, description VARCHAR(2000), cases VARCHAR(100000) NOT NULL, "
+            + "created_by VARCHAR(80), updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE test_runs (id VARCHAR(40) PRIMARY KEY, set_id VARCHAR(40) NOT NULL, bot_path VARCHAR(400) NOT NULL, version INT, started TIMESTAMP NOT NULL, started_by VARCHAR(80), "
+            + "finished TIMESTAMP, total INT NOT NULL, passed INT NOT NULL, status VARCHAR(20) NOT NULL)",
+        "CREATE INDEX test_runs_set ON test_runs (set_id, started)",
+        "CREATE TABLE test_results (run_id VARCHAR(40) PRIMARY KEY, test_run_id VARCHAR(40) NOT NULL, case_name VARCHAR(200), status VARCHAR(20) NOT NULL, passed BOOLEAN NOT NULL, "
+            + "detail VARCHAR(4000), finished TIMESTAMP)",
+        "CREATE INDEX test_results_run ON test_results (test_run_id)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 19;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19 };
+    public static final int LATEST = 20;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

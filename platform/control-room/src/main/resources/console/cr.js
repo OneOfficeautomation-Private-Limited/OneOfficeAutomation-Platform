@@ -196,7 +196,7 @@ const PAGES = [
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
-  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"],
+  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage", "key", "#b45309"]];
 
@@ -205,7 +205,7 @@ const PAGES = [
  * Pages not listed here (admin) are reached from inside other pages.
  */
 const NAV_GROUPS = [
-  ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks"]],
+  ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks", "tests"]],
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
   ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
@@ -1259,6 +1259,28 @@ const VIEWS = {
             u.username !== S.user.username ? h("button", { type: "button", class: "danger", onclick: async () => {
               if (!confirm("Delete " + u.username + "? Their sign-ins, API keys, team places, own vault values and every rule naming them go. The audit trail keeps their name.")) return;
               try { await api("DELETE", "users/" + u.id); toast("Deleted " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
+  },
+
+  async tests(main) {
+    await loadRefs();
+    const [r, pools] = await Promise.all([api("GET", "test-sets"), can("devices.view") ? api("GET", "pools").catch(() => ({ pools: [] })) : { pools: [] }]);
+    S.pools = pools.pools;
+    const score = (x) => x ? (x.status === "running" ? "running…" : x.passed + " / " + x.total) : "not run";
+    main.replaceChildren(...header("Agent tests", "Test sets run an agent with chosen inputs and check what it gives back, also for AI answers (contains, matches, close to a number, one of). Each run of a set is scored and kept.",
+      can("repo.checkin") ? h("button", { type: "button", class: "primary", onclick: () => testSetDialog(null) }, "New test set") : null),
+      dataTable({ rows: r.sets, search: "Search test sets", exportName: "test-sets", empty: "No test sets yet.",
+        columns: [
+          { label: "Test set", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small", text: t.description || "" })) },
+          { label: "Agent", value: (t) => botName(t.bot_path) },
+          { label: "Cases", value: (t) => t.cases.length },
+          { label: "Last score", value: (t) => t.last_run ? t.last_run.passed / Math.max(1, t.last_run.total) : -1,
+            render: (t) => t.last_run ? h("button", { type: "button", class: "link", onclick: () => testRunDialog(t.last_run.id) }, h("span", { class: "pill " + (t.last_run.status === "passed" ? "success" : t.last_run.status === "running" ? "running" : "failed"), text: score(t.last_run) }), " ", ago(t.last_run.started)) : h("span", { class: "muted", text: "not run" }) },
+          { label: "", sort: false, render: (t) => h("div", { class: "row-actions tight" },
+            can("runs.start") ? h("button", { type: "button", class: "primary", onclick: () => runTestSetDialog(t) }, "Run") : null,
+            h("button", { type: "button", onclick: () => testHistoryDialog(t) }, "History"),
+            can("repo.checkin") ? h("button", { type: "button", onclick: () => testSetDialog(t) }, "Edit") : null,
+            can("repo.checkin") ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the test set " + t.name + " and its results?")) return;
+              try { await api("DELETE", "test-sets/" + t.id); go("tests"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }] }));
   },
 
   async apitasks(main) {
@@ -2833,6 +2855,57 @@ function connectionDialog(c) {
   h("button", { type: "button", class: "primary", onclick: async () => {
     try { await api("PUT", "connections/" + encodeURIComponent(name.value.trim()), values());
       closeModal(); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, "Save connection")]);
+}
+
+const TEST_EXAMPLE = [
+  { name: "urgent mail", inputs: { text: "The server is down!" }, expect: { outputs: { label: { op: "one_of", value: ["urgent", "high"] } } } },
+  { name: "thank you", inputs: { text: "Thanks a lot" }, expect: { outputs: { label: "low" } } },
+  { name: "empty text fails", inputs: { text: "" }, expect: { status: "failed", error_code: "TRIAGE.*" } }];
+
+function testSetDialog(t) {
+  const name = h("input", { value: t ? t.name : "" }), desc = h("input", { value: t ? t.description || "" : "" });
+  const bot = botSelect(t ? t.bot_path : null);
+  if (t) { const known = [...bot.options].some((o) => o.value === t.bot_path); if (!known) bot.append(h("option", { value: t.bot_path, text: botName(t.bot_path) })); bot.value = t.bot_path; }
+  const cases = h("textarea", { rows: 14, class: "mono", value: JSON.stringify(t ? t.cases : TEST_EXAMPLE, null, 2) });
+  modal(t ? "Edit " + t.name : "New test set", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Agent", bot)), h("label", {}, "Description", desc),
+    h("label", {}, "Cases (JSON)", cases),
+    h("p", { class: "muted small", text: "Each case: a name, the agent's inputs, and expect: status (success or failed), error_code (EMAIL.* allowed) and outputs. An output is equal to a value, or {op, value}: contains, not_contains, matches (regular expression), approx (with tolerance), one_of (a list), not_empty." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const body = { name: name.value.trim(), description: desc.value.trim(), bot_path: bot.value, cases: parseJson(cases.value, []) };
+      await api(t ? "PUT" : "POST", "test-sets" + (t ? "/" + t.id : ""), body); closeModal(); go("tests"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+function runTestSetDialog(t) {
+  const where = h("select", {}, h("optgroup", { label: "Runners" }, S.devices.filter((d) => d.enabled).map((d) => h("option", { value: "d:" + d.id, text: d.name + " (" + d.status + ")" }))),
+    h("optgroup", { label: "Runner pools" }, (S.pools || []).map((p) => h("option", { value: "p:" + p.id, text: p.name }))));
+  modal("Run " + t.name, [h("p", { class: "muted", text: t.cases.length + " case(s) run the live production version of " + botName(t.bot_path) + ", one run each." }), h("label", {}, "Run on", where)],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      const v = where.value || "";
+      try { const r = await api("POST", "test-sets/" + t.id + "/run", v.startsWith("p:") ? { pool_id: v.slice(2) } : { device_id: v.slice(2) });
+        closeModal(); toast(r.started + " of " + r.cases + " case(s) started"); testRunDialog(r.test_run_id); } catch (e) { toast(e.message, true); } } }, "Run")]);
+}
+
+async function testRunDialog(id) {
+  const body = h("div");
+  const load = async () => {
+    const r = await api("GET", "test-sets/runs/" + id);
+    body.replaceChildren(kv([["Agent", botName(r.bot_path) + " v" + r.version], ["Started", local(r.started) + " by " + (r.started_by || "")], ["Score", r.status === "running" ? "running…" : r.passed + " of " + r.total + " passed"]]),
+      table(["Case", "Result", "Why", ""], r.results.map((x) => ({ cells: [x.case_name, x.status === "running" ? pill("running") : h("span", { class: "pill " + (x.passed ? "success" : "failed"), text: x.passed ? "passed" : "failed" }),
+        h("span", { class: "small", text: x.detail || "" }), x.run_id && !x.run_id.startsWith("norun") ? h("button", { type: "button", class: "link", onclick: () => openRun(x.run_id) }, "run") : ""] }))));
+    return r.status === "running";
+  };
+  modal("Test run", [body], []);
+  let more = await load().catch((e) => { toast(e.message, true); return false; });
+  while (more && !$("modal").hidden) { await new Promise((res) => setTimeout(res, 2000)); more = await load().catch(() => false); }
+}
+
+async function testHistoryDialog(t) {
+  try {
+    const r = await api("GET", "test-sets/" + t.id + "/history");
+    modal("History of " + t.name, [r.runs.length ? table(["Started", "Version", "Score", ""], r.runs.map((x) => ({ cells: [local(x.started), "v" + x.version,
+      h("span", { class: "pill " + (x.status === "passed" ? "success" : x.status === "running" ? "running" : "failed"), text: x.status === "running" ? "running" : x.passed + " / " + x.total }),
+      h("button", { type: "button", class: "link", onclick: () => testRunDialog(x.id) }, "details")] }))) : h("p", { class: "muted", text: "Not run yet." })], []);
+  } catch (e) { toast(e.message, true); }
 }
 
 /** The files kept in the current folder of the repository (templates, workbooks, lists), with upload. */

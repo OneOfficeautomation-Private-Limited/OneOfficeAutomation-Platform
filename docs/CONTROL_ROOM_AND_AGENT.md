@@ -418,6 +418,19 @@ API: `POST /api/repo/analyze`, `GET /api/repo/analysis?path=`, `GET /api/repo/an
   run has finished; when it takes longer, the answer is 202 and the caller asks `GET /api/apitasks/{id}/runs/{run_id}`.
 - The token is shown once, works only for its task, and can be replaced; the task can be switched off.
 
+## 5a. Agent tests
+
+Build > **Agent tests** keeps test sets: an agent, and cases with its inputs and what it should give back. **Run** starts
+one run per case on a runner or pool (the live production version), and the test run is scored when every case has
+answered: each case passed or failed, with the reason (for example `label: got "low", expected "urgent"`). **History**
+shows the scores over time.
+
+A case expects `status` (success by default, or failed), an `error_code` (`EMAIL.*` allowed) and `outputs`. An output
+equals a value (numbers by value), or is checked with `{"op": ..., "value": ...}`: `contains`, `not_contains`,
+`matches` (a regular expression), `approx` (with `tolerance`), `one_of` (a list) or `not_empty`, which suit AI answers
+and Prompt Skills that word things differently each time. API: `/api/test-sets` (GET, POST, PUT, DELETE),
+`POST /api/test-sets/{id}/run` with `device_id` or `pool_id`, `GET /api/test-sets/runs/{run}` and `/{id}/history`.
+
 ## 6. Work queues
 
 Work queues hold items (invoices, tickets, orders) that an agent processes one at a time on a runner pool.
