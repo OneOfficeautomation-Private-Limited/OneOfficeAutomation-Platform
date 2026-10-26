@@ -880,6 +880,9 @@ const VIEWS = {
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
       const syslogTarget = txt("syslog_target", "siem.example.com:514");
       const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
+      const offNow = String(st.switched_off_roles || "").split(",").filter(Boolean);
+      const roleOff = ["bot_creator", "bot_runner", "viewer"].map((r) => [r, h("input", { type: "checkbox", checked: offNow.includes(r) }), roleLabel(r)]);
+      const proxy = txt("outbound_proxy", "http://proxy.example.com:8080"), proxyBypass = txt("outbound_proxy_bypass", "*.example.com, 10.*");
       const mailHost = txt("mail_smtp_host", "smtp.office365.com"), mailPort = num("mail_smtp_port", 1, 65535), mailUser = txt("mail_smtp_user", "ooa@example.com"),
         mailPw = txt("mail_smtp_password_ref", "mail/smtp/password"), mailFrom = txt("mail_from", "ooa@example.com"), licMailTo = txt("license_mail_to", "licences@example.com");
       const mailSec = h("select", {}, h("option", { value: "starttls", text: "STARTTLS (port 587)" }), h("option", { value: "ssl", text: "SSL/TLS (port 465)" }),
@@ -931,6 +934,11 @@ const VIEWS = {
           h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
           h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays)),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
+        h("p", { class: "muted", text: "Switch off built-in roles you do not use: they then give no permissions and cannot be given to anyone. People who still have one keep only their other roles." }),
+        h("div", { class: "grid2" }, roleOff.map(([, box, l]) => h("label", { class: "check" }, box, "Switch off " + l))),
+        h("h3", {}, ic("globe", "#475569", "sm"), "Outgoing connections"),
+        h("p", { class: "muted", text: "The Command Center's own connections to the internet (single sign-on, Git, AI model connections, external vaults) go through this proxy when set. This computer is always reached directly. Runners have their own proxy setting (ooa agent network)." }),
+        h("div", { class: "grid2" }, h("label", {}, "Proxy (http://host:port, empty = direct)", proxy), h("label", {}, "Reach these directly (host names, * allowed)", proxyBypass)),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
         h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
         h("div", { class: "grid2" }, h("label", {}, "Syslog target (host:port)", syslogTarget), h("label", {}, "Protocol", syslogProto),
@@ -987,7 +995,8 @@ const VIEWS = {
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
-              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings() });
+              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
+              switched_off_roles: roleOff.filter(([, b]) => b.checked).map(([r]) => r).join(","), outbound_proxy: proxy.value.trim(), outbound_proxy_bypass: proxyBypass.value.trim() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
     } else if (tab === "roles") {
@@ -995,7 +1004,7 @@ const VIEWS = {
       main.replaceChildren(...head, tabs, h("div", { class: "toolbar" }, h("span", { class: "spacer" }), h("button", { type: "button", class: "primary", onclick: () => roleDialog(null, r.permissions) }, "New role")),
         dataTable({ rows: r.roles, search: "Search roles", exportName: "roles",
           columns: [
-            { label: "Role", value: (x) => roleLabel(x.name), render: (x) => h("div", {}, h("strong", { text: roleLabel(x.name) }), x.builtin ? h("span", { class: "tag", text: "built-in" }) : h("code", { class: "small", text: " " + x.name }), h("div", { class: "muted small", text: x.description || "" })) },
+            { label: "Role", value: (x) => roleLabel(x.name), render: (x) => h("div", {}, h("strong", { text: roleLabel(x.name) }), x.builtin ? h("span", { class: "tag", text: x.switched_off ? "built-in, switched off" : "built-in" }) : h("code", { class: "small", text: " " + x.name }), h("div", { class: "muted small", text: x.description || "" })) },
             { label: "Permissions", value: (x) => x.permissions.join(" "), render: (x) => h("div", { class: "chips" }, x.permissions.map((p) => h("span", { class: "chip", text: p }))) },
             { label: "Users", value: (x) => x.users === undefined ? "" : x.users },
             { label: "", sort: false, render: (x) => x.builtin ? "" : h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => roleDialog(x, r.permissions) }, "Edit"),

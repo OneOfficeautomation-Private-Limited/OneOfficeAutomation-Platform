@@ -123,6 +123,8 @@ public final class ControlRoomServer {
         clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
         // with several nodes on one database, only the leader runs the background work (Cluster)
         cr.cluster.tick();
+        // the outgoing proxy from Settings; checked every minute so a change made on another node arrives here too
+        clock.scheduleAtFixedRate(() -> { try { cr.platform.applyOutboundProxy(); } catch (RuntimeException ignored) { } }, 0, 60, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { cr.cluster.tick(); } catch (RuntimeException ignored) { } }, Cluster.RENEW_SECONDS, Cluster.RENEW_SECONDS, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);

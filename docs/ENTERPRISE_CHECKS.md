@@ -43,6 +43,9 @@ audited.
 | `temporary_runner_hours` | 1–720 | Offline hours after which a temporary runner is removed |
 | `runner_secret_days` | 0–365 (0 never) | Days after which a runner's secret is replaced |
 | `repo_files_folder` | A folder | Shared storage for repository files when several nodes run |
+| `switched_off_roles` | `bot_creator`, `bot_runner`, `viewer` | Built-in roles that grant nothing and cannot be given (never `admin`) |
+| `outbound_proxy`, `outbound_proxy_bypass` | `http://host:port`; host names | The Command Center's own outgoing connections |
+| `mail_smtp_*`, `mail_from`, `license_mail_to` | Host name, port 1–65535, `starttls`/`ssl`/`none`, a vault reference, addresses | E-mail sent by the Command Center |
 | `block_executable_uploads` | 0/1 | Refuse .exe, .dll, .msi, .bat, .cmd, .com, .scr, .ps1, .vbs and .jar uploads |
 | `ip_allow_list` | Addresses or CIDR ranges, up to 200 | Only these addresses may use the API (this computer and health checks always may); saving a list that excludes your own address is refused |
 | `syslog_target`, `syslog_protocol` | `host:port`, `udp` or `tcp` | Forward every audit entry to a SIEM (RFC 5424; TCP uses octet counting). "Send a test message" checks the connection |

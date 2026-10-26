@@ -164,6 +164,7 @@ public final class ControlRoom {
     final Map<String, Set<String>> customRoles = new java.util.concurrent.ConcurrentHashMap<>();
 
     public boolean allowed(String role, String permission) {
+        if (roleSwitchedOff(role)) return false;
         Set<String> custom = customRoles.get(role);
         return custom != null ? custom.contains(permission) : Rbac.allowed(role, permission);
     }
@@ -181,6 +182,15 @@ public final class ControlRoom {
     }
 
     public boolean roleExists(String role) { return Rbac.ROLES.contains(role) || customRoles.containsKey(role); }
+
+    /** A built-in role switched off in Settings (switched_off_roles): it grants nothing and cannot be given to anyone (S11). */
+    public boolean roleSwitchedOff(String role) { return role != null && !role.equals("admin") && Rbac.ROLES.contains(role) && platform.switchedOffRoles().contains(role); }
+
+    /** Refuses a role that does not exist or is switched off, for giving it to someone. */
+    void requireAssignable(String role) {
+        if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
+        if (roleSwitchedOff(role)) throw new OoaException("CR.BAD_INPUT", "The built-in role '" + role + "' is switched off", "Choose another role, or switch it on again in Administration > Settings > Security.");
+    }
 
     void loadRoles() {
         customRoles.clear();
@@ -320,7 +330,7 @@ public final class ControlRoom {
                 r = db.one("SELECT * FROM users WHERE LOWER(username) = ? AND sso_subject IS NULL", candidate);
             }
             if (r == null) {
-                if (defaultRole.isEmpty() || !roleExists(defaultRole)) {
+                if (defaultRole.isEmpty() || !roleExists(defaultRole) || roleSwitchedOff(defaultRole)) {
                     audit.record(String.valueOf(email != null ? email : preferred), "auth.sso", "user", null, "no account", "failed", ip);
                     throw new OoaException("SSO.NO_ACCOUNT", "There is no Command Center account for " + (email != null ? email : preferred), "Ask an administrator to create your account.");
                 }
@@ -515,7 +525,7 @@ public final class ControlRoom {
     public Map<String, Object> createUser(User by, String username, String display, String role, String ip) {
         require(by, "users.manage", "manage users");
         if (username == null || !username.matches("^[A-Za-z0-9_.@-]{3,80}$")) throw new OoaException("CR.BAD_INPUT", "User names use 3-80 letters, digits, . _ @ -");
-        if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
+        requireAssignable(role);
         String temp = Security.token(12);
         db.update("INSERT INTO users (id, username, display_name, password_hash, role, enabled, must_change, failed, created) VALUES (?,?,?,?,?,?,?,?,?)",
                 id("usr"), username, display == null || display.isBlank() ? username : display, Security.hashPassword(temp.toCharArray()), role, true, true, 0, now());
@@ -533,7 +543,7 @@ public final class ControlRoom {
         db.tx(() -> {
             if (changes.containsKey("role")) {
                 String role = String.valueOf(changes.get("role"));
-                if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
+                requireAssignable(role);
                 if (self && !role.equals("admin")) throw new OoaException("CR.BAD_INPUT", "You cannot remove your own administrator role");
                 if ("admin".equals(r.get("role")) && !role.equals("admin") && enabledAdmins() <= 1) throw new OoaException("CR.BAD_INPUT", "At least one enabled administrator is required");
                 db.update("UPDATE users SET role = ? WHERE id = ?", role, userId);
@@ -560,7 +570,7 @@ public final class ControlRoom {
                 // roles beyond the main one; administrator stays a main role, so admin counts stay exact
                 List<String> extra = new ArrayList<>();
                 for (String x : csv(changes.get("further_roles"))) {
-                    if (!roleExists(x)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + x + "'", "Use a built-in role or create the role first.");
+                    requireAssignable(x);
                     if (x.equals("admin")) throw new OoaException("CR.BAD_INPUT", "Administrator can only be a main role");
                     if (!extra.contains(x)) extra.add(x);
                 }

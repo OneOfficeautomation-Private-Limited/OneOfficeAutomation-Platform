@@ -23,6 +23,10 @@ The database upgrades itself on start (schema versions 1 to 3).
 | `--data D:\OOA\cr` | Keep data elsewhere |
 | `ooa db configure ...`, then `ooa db init` | Use SQL Server or PostgreSQL ([DATABASE.md](DATABASE.md)); the server then reads `config\ooa-db.properties` |
 
+**Outgoing proxy** (Administration > Settings > Outgoing connections): the Command Center's own connections to the
+internet (single sign-on, Git, AI model connections, external vaults) go through `http://host:port` when set, except
+the host names listed to reach directly and this computer. Every node picks a change up within a minute.
+
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
 Without it a key file is created next to the database.
 
@@ -115,6 +119,9 @@ People only see the pages their role allows.
   Users page (`ooa reset-admin` also clears it). Studio's connect form has a Code box for these accounts.
 - **Custom roles** (Administration > Roles): tick the permissions a role needs, for example a "queue clerk" that may
   only see and add work items. Roles in use cannot be deleted.
+- **Switching off built-in roles** (Administration > Settings > Security): a built-in role you do not use (Agent
+  builder, Agent operator, Viewer) can be switched off. It then gives no permissions and cannot be given to anyone;
+  people who still have it keep only their other roles. The Administrator role cannot be switched off.
 - **Several roles per person** (Users > Edit): besides the main role, a person can have **further roles**. They have every
   permission of each of their roles, and rules that name a role (`role:bot_runner` in folder permissions, vault folders,
   work queues, workflow tasks, model connections) apply to them for each role. Administrator is only ever a main role.

@@ -81,6 +81,9 @@ public final class Platform {
         DEFAULTS.put("mail_smtp_password_ref", "");
         DEFAULTS.put("mail_from", "");
         DEFAULTS.put("license_mail_to", "");
+        DEFAULTS.put("switched_off_roles", "");
+        DEFAULTS.put("outbound_proxy", "");
+        DEFAULTS.put("outbound_proxy_bypass", "");
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -127,6 +130,36 @@ public final class Platform {
 
     public Object setting(String name) { return settings().get(name); }
 
+    /** The built-in roles switched off in Settings (read on every permission check, so kept with the settings copy). */
+    Set<String> switchedOffRoles() {
+        String s = String.valueOf(setting("switched_off_roles"));
+        if (s.isBlank()) return Set.of();
+        return new HashSet<>(Arrays.asList(s.split(",")));
+    }
+
+    /**
+     * The Command Center's own outgoing connections (single sign-on, SAML metadata, Git, model connections, external
+     * vaults, webhooks it calls) go through this proxy when set: http://host:port, with host names to reach directly.
+     * Applied at start and when the setting changes, through Java's proxy settings.
+     */
+    private volatile boolean proxyApplied;
+
+    void applyOutboundProxy() {
+        String p = String.valueOf(setting("outbound_proxy")).trim(), bypass = String.valueOf(setting("outbound_proxy_bypass")).trim();
+        if (p.isEmpty()) {
+            // only undo what this setting did: proxy properties given to Java at start (JAVA_OPTS) stay
+            if (proxyApplied) for (String k : List.of("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")) System.clearProperty(k);
+            proxyApplied = false;
+            return;
+        }
+        proxyApplied = true;
+        java.net.URI u = java.net.URI.create(p);
+        for (String scheme : List.of("http", "https")) { System.setProperty(scheme + ".proxyHost", u.getHost()); System.setProperty(scheme + ".proxyPort", String.valueOf(u.getPort())); }
+        // this computer is always reached directly (the built-in runner and Studio listener)
+        String direct = "localhost|127.*|[::1]" + (bypass.isEmpty() ? "" : "|" + String.join("|", bypass.split("[,;\\s|]+")));
+        System.setProperty("http.nonProxyHosts", direct);
+    }
+
     int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
 
     /** Checks every change first (known name, whole number in its range, address format), then saves them all in one transaction. */
@@ -163,6 +196,20 @@ public final class Platform {
                 if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))
                     throw new OoaException("CR.BAD_INPUT", "The syslog target is host:port, for example siem.example.com:514");
+                if (k.equals("switched_off_roles") && !s.isEmpty()) {
+                    List<String> off = new ArrayList<>();
+                    for (String r : s.split("[,;\\s]+")) {
+                        if (r.isEmpty()) continue;
+                        if (r.equals("admin")) throw new OoaException("CR.BAD_INPUT", "The administrator role cannot be switched off");
+                        if (!Rbac.ROLES.contains(r)) throw new OoaException("CR.BAD_INPUT", "Only built-in roles are switched off here: " + r, "Delete a custom role on the Roles page instead.");
+                        if (!off.contains(r)) off.add(r);
+                    }
+                    s = String.join(",", off);
+                }
+                if (k.equals("outbound_proxy") && !s.isEmpty() && !s.matches("(?i)http://[A-Za-z0-9.\\-]+:\\d{1,5}/?"))
+                    throw new OoaException("CR.BAD_INPUT", "The proxy is http://host:port, for example http://proxy.example.com:8080");
+                if (k.equals("outbound_proxy_bypass") && !s.isEmpty() && !s.matches("[A-Za-z0-9.*\\-|,; ]+"))
+                    throw new OoaException("CR.BAD_INPUT", "List host names to reach directly, for example *.example.com, 10.*");
                 if (k.equals("mail_smtp_security") && !List.of("starttls", "ssl", "none").contains(s)) throw new OoaException("CR.BAD_INPUT", "The mail security is starttls, ssl or none");
                 if (k.equals("mail_smtp_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The mail password is a vault reference: vault folder/credential/attribute");
                 if (k.equals("mail_smtp_host") && !s.isEmpty() && !s.matches("[A-Za-z0-9.-]+")) throw new OoaException("CR.BAD_INPUT", "The mail server is a host name, for example smtp.office365.com");
@@ -192,6 +239,7 @@ public final class Platform {
             return null;
         });
         cached = null;
+        if (clean.containsKey("outbound_proxy") || clean.containsKey("outbound_proxy_bypass")) applyOutboundProxy();
         return settings();
     }
 
@@ -223,7 +271,7 @@ public final class Platform {
     public List<Map<String, Object>> roles(User by) {
         cr.require(by, "users.manage", "manage roles");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (String r : Rbac.ROLES) out.add(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role"));
+        for (String r : Rbac.ROLES) out.add(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role", "switched_off", cr.roleSwitchedOff(r)));
         for (Map<String, Object> r : db.query("SELECT * FROM roles ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", r.get("name")); m.put("builtin", false); m.put("permissions", csv(r.get("permissions")));
