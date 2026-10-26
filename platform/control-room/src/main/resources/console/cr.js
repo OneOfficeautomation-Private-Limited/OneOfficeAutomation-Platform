@@ -141,6 +141,7 @@ function loginCodeStep(token) {
 function afterSignIn() {
   if (S.user.must_change) { showPassword(); return; }
   showApp();
+  watchChanges();
   if (S.user.mfa_setup_required) mfaDialog(true).catch((e) => toast(e.message, true));
 }
 
@@ -301,7 +302,38 @@ function tabStrip(items, current, onPick) {
     "aria-selected": String(current === id), onclick: () => onPick(id) }, label)));
 }
 
-function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } S.live = null; }
+
+/**
+ * Live updates: the open page's refresh (S.live) runs as soon as the Command Center reports a change (a long request
+ * to /api/changes that it answers at once when something changes), at most every 1.5 seconds. Each page's own timer
+ * stays as a slower fallback. Started once after sign-in; stops when the person is signed out.
+ */
+function every(cb, ms) { S.live = cb; return setInterval(cb, S.liveOk ? Math.max(ms * 4, 20000) : ms); }
+
+async function watchChanges() {
+  if (S.watching) return;
+  S.watching = true;
+  let token = "", last = 0, failures = 0;
+  while (S.user) {
+    try {
+      const r = await api("GET", "changes?wait=25&since=" + encodeURIComponent(token));
+      failures = 0; S.liveOk = true;
+      token = r.token;
+      if (r.changed && S.live && !document.hidden) {
+        const wait = Math.max(0, 1500 - (Date.now() - last));
+        if (wait) await new Promise((res) => setTimeout(res, wait));
+        last = Date.now();
+        try { await S.live(); } catch (_) { /* the fallback timer tries again */ }
+      }
+    } catch (e) {
+      if (["CR.UNAUTHENTICATED", "CR.PASSWORD_CHANGE_REQUIRED", "CR.MFA_SETUP_REQUIRED", "CR.LICENSE_EXPIRED"].includes(e.code)) break;
+      failures++; S.liveOk = false;
+      await new Promise((res) => setTimeout(res, Math.min(30000, 2000 * failures)));
+    }
+  }
+  S.watching = false;
+}
 
 /**
  * Pages that show live figures but have no live view of their own are drawn again quietly while they stay open
@@ -320,7 +352,7 @@ async function go(page) {
   $("main").replaceChildren(main);
   try { await VIEWS[page](main); } catch (e) { main.replaceChildren(h("p", { class: "error", text: e.message })); }
   if (main.isConnected) $("main").focus();
-  if (main.isConnected && AUTO_REFRESH[page] && !S.timer) S.timer = setInterval(() => { quietRefresh(page).catch(() => {}); }, AUTO_REFRESH[page]);
+  if (main.isConnected && AUTO_REFRESH[page] && !S.timer) S.timer = every(() => quietRefresh(page).catch(() => {}), AUTO_REFRESH[page]);
 }
 
 /**
@@ -684,7 +716,7 @@ const VIEWS = {
     renderTabs(); renderFilters();
     main.replaceChildren(...header("Agent Runs", "Runs on all runners: what is running now, and the history of every run. Select a run for its live step log, inputs, outputs and errors."), tabs, filters, list);
     await refresh();
-    if (main.isConnected) S.timer = setInterval(() => { if (st.tab === "active" || !st.offset) refresh().catch(() => {}); }, 2500);
+    if (main.isConnected) S.timer = every(() => { if (st.tab === "active" || !st.offset) refresh().catch(() => {}); }, 2500);
   },
 
   async devices(main) {
@@ -719,7 +751,7 @@ const VIEWS = {
           { label: "Last seen", value: (d) => d.last_seen || "", render: (d) => h("span", { title: local(d.last_seen) }, ago(d.last_seen)) },
           { label: "Registered", value: (d) => d.registered, render: (d) => ago(d.registered) + " by " + (d.registered_by || "") },
           { label: "", sort: false, render: (d) => can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : "" }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "devices" && S.devTab === "runners" && $("modal").hidden && $("drawer").hidden) go("devices"); }, 15000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "devices" && S.devTab === "runners" && $("modal").hidden && $("drawer").hidden) go("devices"); }, 15000);
   },
 
   async pools(main) {
@@ -762,7 +794,7 @@ const VIEWS = {
           { label: "Processing", value: (q) => q.processing ? "On" : "Off", render: (q) => q.processing ? pill("running") : pill("stopped") },
           { label: "", sort: false, render: (q) => can("queues.work") ? h("button", { type: "button", onclick: async () => {
             try { await api("POST", "queues/" + q.id + (q.processing ? "/stop" : "/start")); go("queues"); } catch (e) { toast(e.message, true); } } }, q.processing ? "Stop" : "Start") : "" }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "queues" && $("modal").hidden && $("drawer").hidden) go("queues"); }, 5000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "queues" && $("modal").hidden && $("drawer").hidden) go("queues"); }, 5000);
   },
 
   async inbox(main) {
@@ -781,7 +813,7 @@ const VIEWS = {
           { label: "Assigned to", value: (t) => t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee },
           { label: "Due", value: (t) => t.due || "", render: (t) => t.due ? h("span", { class: t.overdue ? "pill failed" : "", title: local(t.due), text: (t.overdue ? "Overdue " : "") + ago(t.due) }) : "\u2014" },
           { label: S.inboxTab === "open" ? "Created" : "Outcome", value: (t) => S.inboxTab === "open" ? t.created : t.outcome, render: (t) => S.inboxTab === "open" ? ago(t.created) : pill(t.outcome || t.status) }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "inbox" && $("modal").hidden && $("drawer").hidden) go("inbox"); }, 10000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "inbox" && $("modal").hidden && $("drawer").hidden) go("inbox"); }, 10000);
   },
 
   async workflows(main) {
@@ -800,7 +832,7 @@ const VIEWS = {
           { label: "Started by", value: (w) => w.started_by || "" },
           { label: "Started", value: (w) => w.created, render: (w) => h("span", { title: local(w.created) }, ago(w.created)) },
           { label: "Updated", value: (w) => w.updated, render: (w) => ago(w.updated) }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "workflows" && $("modal").hidden && $("drawer").hidden) go("workflows"); }, 5000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "workflows" && $("modal").hidden && $("drawer").hidden) go("workflows"); }, 5000);
   },
 
   async governance(main) {
@@ -1102,7 +1134,7 @@ const VIEWS = {
             h("button", { type: "button", onclick: () => act(() => api("POST", "triggers/" + t.id + (t.enabled ? "/pause" : "/resume"))) }, t.enabled ? "Pause" : "Resume"),
             h("button", { type: "button", onclick: () => triggerEditDialog(t) }, "Edit"),
             h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete trigger " + t.name + "?")) act(() => api("DELETE", "triggers/" + t.id)); } }, "Delete")) : "" }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "triggers" && $("modal").hidden && $("drawer").hidden) go("triggers"); }, 30000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "triggers" && $("modal").hidden && $("drawer").hidden) go("triggers"); }, 30000);
   },
 
   async credentials(main) {

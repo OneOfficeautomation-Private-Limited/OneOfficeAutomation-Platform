@@ -108,6 +108,8 @@ The menu on the left has **Home** and three groups (each can be collapsed):
 
 People only see the pages their role allows.
 
+Pages update by themselves: the console keeps one request open to the Command Center (`GET /api/changes?since=TOKEN&wait=25`), which answers the moment something changes, and the open page is drawn again within about a second. Lists with an export also have **Columns**, to hide columns you do not need (remembered in this browser).
+
 ## 2. People, roles and sign-in
 
 | Built-in role | Can |

@@ -1701,6 +1701,25 @@ public final class ControlRoom {
         return out;
     }
 
+    /**
+     * The console's change feed (live updates): returns as soon as something people see changes, or after wait seconds.
+     * The token joins the newest audit entry (changes made on any node, through the shared database) with this node's
+     * own write count (run progress, queue items); a token from before differs from the current one when anything
+     * changed. The console redraws the open page when changed is true.
+     */
+    public Map<String, Object> changes(User by, String since, int waitSeconds) {
+        long deadline = System.currentTimeMillis() + Math.max(0, Math.min(25, waitSeconds)) * 1000L;
+        while (true) {
+            long local = db.changeCount();
+            Map<String, Object> a = db.one("SELECT MAX(seq) AS s FROM audit");
+            String token = (a == null || a.get("s") == null ? "0" : String.valueOf(a.get("s"))) + "." + local;
+            long left = deadline - System.currentTimeMillis();
+            if (since == null || since.isBlank() || !token.equals(since) || left <= 0) return Map.of("token", token, "changed", since != null && !since.isBlank() && !token.equals(since));
+            try { db.awaitChange(local, Math.min(left, 2000)); }   // a write here wakes it at once; changes on other nodes within 2 seconds
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return Map.of("token", token, "changed", false); }
+        }
+    }
+
     /** Fails running jobs whose device stopped reporting (2 minutes), and marks schedules due. Called by the server clock. */
     public void reap() {
         try { platform.purgeIfDue(); } catch (RuntimeException ignored) { /* retention never stops the clock */ }

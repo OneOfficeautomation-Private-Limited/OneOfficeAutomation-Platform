@@ -413,6 +413,7 @@ public final class ControlRoomServer {
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
+            case "changes" -> sendJson(ex, 200, cr.changes(u, q.get("since"), ControlRoom.intOr(q.get("wait"), 0)));
             case "license" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.licensing.install(u, (String) map(body(ex)).get("content"), ip));

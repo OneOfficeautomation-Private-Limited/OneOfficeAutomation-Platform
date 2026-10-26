@@ -176,7 +176,34 @@ public final class Db implements AutoCloseable {
         SqlServerDialect.Statement st = sqlServer ? SqlServerDialect.statement(sql0) : null;
         String sql = st == null ? sql0 : st.sql();
         Object[] params = st == null ? params0 : st.reorder(params0);
-        return withConn(c -> { try (PreparedStatement ps = c.prepareStatement(sql)) { bind(ps, params); return ps.executeUpdate(); } });
+        int n = withConn(c -> { try (PreparedStatement ps = c.prepareStatement(sql)) { bind(ps, params); return ps.executeUpdate(); } });
+        if (n > 0 && shown(sql0)) changed();
+        return n;
+    }
+
+    // ---------- the change feed for the console (live updates) ----------
+
+    /** Counts writes that people see in the console on this node; the console's change feed waits on it. */
+    private final java.util.concurrent.atomic.AtomicLong changes = new java.util.concurrent.atomic.AtomicLong();
+    private final Object changeSignal = new Object();
+
+    long changeCount() { return changes.get(); }
+
+    private void changed() {
+        changes.incrementAndGet();
+        synchronized (changeSignal) { changeSignal.notifyAll(); }
+    }
+
+    /** Waits up to ms for a write (returns at once if one came after the count seen). */
+    void awaitChange(long seen, long ms) throws InterruptedException {
+        synchronized (changeSignal) { if (changes.get() == seen) changeSignal.wait(Math.max(1, ms)); }
+    }
+
+    /** Writes that change what the console shows: not heartbeats, sign-in bookkeeping or the cluster lease. */
+    private static boolean shown(String sql) {
+        String s = sql.length() > 60 ? sql.substring(0, 60) : sql;
+        return !(s.startsWith("UPDATE devices SET last_seen") || s.contains("cluster_") || s.contains("auth_pending") || s.contains("sessions")
+            || s.startsWith("UPDATE users SET last_") || s.contains("settings") || s.contains("license_usage"));
     }
 
     private static final String[] SCHEMA_V1 = {
