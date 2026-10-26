@@ -223,6 +223,7 @@ final class WindowsService {
         System.setOut(log);
         System.setErr(log);
         System.out.println("---- " + LocalDateTime.now() + " service starting: " + mode);
+        System.setProperty("ooa.runner.service", "1");   // a runner service that updates itself is started again by Windows
         Winsvc.SERVICE_MAIN_FUNCTION main = (argc, argv) -> {
             handle = Advapi32.INSTANCE.RegisterServiceCtrlHandlerEx("", (control, eventType, eventData, context) -> {
                 if (control == Winsvc.SERVICE_CONTROL_STOP || control == Winsvc.SERVICE_CONTROL_SHUTDOWN) {
@@ -274,7 +275,8 @@ final class WindowsService {
         String config = o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString());
         String ws = o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString());
         if (!Files.exists(Path.of(config))) { System.err.println("Register the runner first: ooa agent register --url ... --key ..."); return 1; }
-        List<String> cmd = javaCommand(home, "agent", "start", "--config", config, "--workspace", ws);
+        List<String> cmd = new ArrayList<>(javaCommand(home, "agent", "start", "--config", config, "--workspace", ws));
+        cmd.add(1, "-Dooa.runner.task=OOA Runner");   // after an update the runner starts this task again
         String java = cmd.get(0).replace("java.exe", "javaw.exe");   // no console window at sign-in
         String args = commandLine(cmd.subList(1, cmd.size()));
         String ps = "$a = New-ScheduledTaskAction -Execute '" + java.replace("'", "''") + "' -Argument '" + args.replace("'", "''") + "' -WorkingDirectory '" + home.toString().replace("'", "''") + "';"

@@ -24,6 +24,9 @@ public final class Agent {
     private final AgentClient client;
     private volatile Worker active;
     private volatile boolean stopping;
+    /** The build of this runner's program files (null for a build from source); sent with each heartbeat. */
+    private final String build = Updater.build(Updater.lib());
+    private volatile boolean updating;
     private final ExecutorService io = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-agent-io"); t.setDaemon(true); return t; });
     private final LocalTriggers localTriggers;
     long heartbeatMs = 10_000, pollMs = 2_000, triggerPollMs = 2_000;
@@ -103,6 +106,31 @@ public final class Agent {
         return out;
     }
 
+    /**
+     * Updates the program files from the Command Center (it asked, and nothing is running): stages them, starts the helper
+     * that swaps them once this process ends, and exits. A service is started again by Windows; a runner started at sign-in
+     * by the helper. Failing leaves everything as it was.
+     */
+    void update(Map<String, Object> u) {
+        Path lib = Updater.lib();
+        try {
+            if (lib == null || !DesktopSession.WINDOWS) { log("info", "Command Center offers update " + u.get("version") + ", but this runner is not an installation on Windows; update it by hand"); return; }
+            log("Updating to " + u.get("version") + " (build " + u.get("build") + ") from Command Center");
+            Updater.stage(lib, new Updater.Source() {
+                public Map<String, Object> manifest() { return client.getJson("update/manifest"); }
+                public byte[] file(String name) { return client.getBytes("update/file?name=" + java.net.URLEncoder.encode(name, StandardCharsets.UTF_8)); }
+            });
+            if (active != null) { log("warning", "A run started while updating; the update waits for the next heartbeat"); Updater.deleteTree(lib.getParent().resolve("update")); return; }
+            stopping = true;
+            String task = System.getProperty("ooa.runner.task");
+            Updater.launch(lib.getParent(), task);
+            log("Update staged; restarting " + (task != null ? "through the task " + task : System.getProperty("ooa.runner.service") != null ? "(Windows starts the service again)" : "(start the runner again)"));
+            System.exit(75);
+        } catch (Exception e) {
+            log("error", "Update failed, staying on this version: " + e.getMessage());
+        } finally { updating = false; }
+    }
+
     /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */
     volatile String logLevel = "info";
     /** What to do with the screen after an unattended run (nothing, lock, sign_out), set in Command Center. */
@@ -143,7 +171,8 @@ public final class Agent {
         try {
             Worker w = active;
             Map<String, Object> r = client.post("heartbeat", Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
-                    "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state()));
+                    "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state(), "build", build == null ? "" : build));
+            if (r.get("update") instanceof Map<?, ?> u && w == null && !updating) { updating = true; io.submit(() -> update((Map<String, Object>) u)); }
             if (w != null) {
                 if (((List<Object>) r.getOrDefault("cancel", List.of())).contains(w.runId)) w.cancel();
                 else if (((List<Object>) r.getOrDefault("pause", List.of())).contains(w.runId)) w.send(Map.of("type", "pause"));

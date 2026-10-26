@@ -24,6 +24,21 @@ final class AgentClient {
         this.http = b.build();
     }
 
+    /** A GET on the runner API: the JSON answer, or the raw bytes (a program file for an update). */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> getJson(String path) { return (Map<String, Object>) com.oneofficeautomation.sdk.JsonLite.parse(new String(getBytes(path), java.nio.charset.StandardCharsets.UTF_8)); }
+
+    byte[] getBytes(String path) {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + "/api/agent/" + path)).timeout(Duration.ofMinutes(5)).GET();
+        if (deviceId != null) b.header("X-OOA-Device", deviceId).header("X-OOA-Device-Secret", secret);
+        try {
+            HttpResponse<byte[]> r = http.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+            if (r.statusCode() >= 400) throw new OoaException("AGENT.HTTP_" + r.statusCode(), "Command Center answered HTTP " + r.statusCode() + " for " + path);
+            return r.body();
+        } catch (IOException e) { throw new OoaException("AGENT.UNREACHABLE", "Cannot reach Command Center at " + baseUrl + ": " + e.getMessage(), null, true, null); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("AGENT.INTERRUPTED", "Interrupted"); }
+    }
+
     @SuppressWarnings("unchecked")
     Map<String, Object> post(String path, Object body) {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(baseUrl + "/api/agent/" + path)).timeout(Duration.ofSeconds(60))

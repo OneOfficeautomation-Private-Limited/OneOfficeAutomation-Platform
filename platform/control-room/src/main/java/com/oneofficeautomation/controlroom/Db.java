@@ -357,9 +357,15 @@ public final class Db implements AutoCloseable {
         "CREATE INDEX production_requests_status ON production_requests (status)",
     };
 
+    /** Version 13: the build of each runner's program files, and an update an administrator asked for (RunnerUpdates). */
+    private static final String[] SCHEMA_V13 = {
+        "ALTER TABLE devices ADD COLUMN build VARCHAR(40)",
+        "ALTER TABLE devices ADD COLUMN update_requested BOOLEAN",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 12;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12 };
+    public static final int LATEST = 13;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

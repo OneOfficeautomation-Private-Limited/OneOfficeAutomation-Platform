@@ -692,6 +692,11 @@ const VIEWS = {
           { label: "Log level", value: (d) => d.log_level || "info" },
           { label: "Screen", value: (d) => SCREEN[d.session_state] || "", render: (d) => d.session_state ? h("span", { class: "pill " + (d.session_state === "unlocked" ? "online" : d.session_state === "locked" ? "locked" : "offline"), title: SCREEN_HELP[d.session_state], text: SCREEN[d.session_state] }) : "—" },
           { label: "After a run", value: (d) => AFTER_RUN[d.after_run || "nothing"] },
+          { label: "Program", value: (d) => d.up_to_date === undefined ? "" : d.up_to_date ? "Up to date" : "Update available",
+            render: (d) => d.up_to_date === undefined ? "\u2014" : d.up_to_date ? h("span", { class: "pill online", text: "Up to date" })
+              : h("span", {}, h("span", { class: "pill pending", text: d.update_requested ? "Updating" : "Update available" }), " ",
+                can("devices.manage") && !d.update_requested ? h("button", { type: "button", title: "The runner updates itself when it is idle, then starts again", onclick: async () => {
+                  try { const r = await api("POST", "devices/update", { ids: [d.id] }); toast("Runner " + d.name + " updates to " + r.version + " when it is idle"); go("devices"); } catch (e) { toast(e.message, true); } } }, "Update") : null) },
           { label: "Last seen", value: (d) => d.last_seen || "", render: (d) => h("span", { title: local(d.last_seen) }, ago(d.last_seen)) },
           { label: "Registered", value: (d) => d.registered, render: (d) => ago(d.registered) + " by " + (d.registered_by || "") },
           { label: "", sort: false, render: (d) => can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : "" }]}));
@@ -832,6 +837,7 @@ const VIEWS = {
       const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
+      const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
       const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
         h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
@@ -859,7 +865,8 @@ const VIEWS = {
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
           h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
           h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads"),
-          h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live")),
+          h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live"),
+          h("label", { class: "check" }, autoUpdate, "Update runners automatically to this Command Center's version when they are idle")),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
         h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
@@ -890,7 +897,7 @@ const VIEWS = {
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
-              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0,
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0,
               ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));

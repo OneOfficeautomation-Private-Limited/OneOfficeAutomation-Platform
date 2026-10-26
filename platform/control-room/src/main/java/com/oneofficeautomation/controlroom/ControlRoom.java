@@ -59,6 +59,7 @@ public final class ControlRoom {
     public final Licensing licensing;
     public final Mfa mfa;
     public final ProductionApproval approvals;
+    public final RunnerUpdates runnerUpdates;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -101,6 +102,7 @@ public final class ControlRoom {
         this.licensing = new Licensing(this);
         this.mfa = new Mfa(this);
         this.approvals = new ProductionApproval(this);
+        this.runnerUpdates = new RunnerUpdates(this);
         audit.onRecord(syslog::forward);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);
@@ -958,10 +960,12 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, List<String>> defaults = new HashMap<>();
         for (Map<String, Object> u : db.query("SELECT username, device_id FROM user_devices ORDER BY username")) defaults.computeIfAbsent((String) u.get("device_id"), k -> new ArrayList<>()).add((String) u.get("username"));
-        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run FROM devices ORDER BY name")) {
+        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
             if (m.get("log_level") == null) m.put("log_level", "info");
             if (m.get("after_run") == null) m.put("after_run", "nothing");
+            Map<String, Object> mf = runnerUpdates.manifest();
+            if (mf != null && m.get("build") != null) m.put("up_to_date", mf.get("build").equals(m.get("build")));
             if (m.get("device_type") == null) m.put("device_type", "multi_user");
             m.put("default_users", defaults.getOrDefault((String) d.get("id"), List.of()));
             boolean online = d.get("last_seen") != null && Instant.parse(d.get("last_seen").toString()).isAfter(now().minus(ONLINE));
@@ -1043,8 +1047,9 @@ public final class ControlRoom {
     public Map<String, Object> heartbeat(Map<String, Object> d, Map<String, Object> info) {
         String did = (String) d.get("id");
         String session = SESSION_STATES.contains(String.valueOf(info.get("session"))) ? (String) info.get("session") : null;
-        db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state) WHERE id = ?",
-                now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, did);
+        String build = info.get("build") instanceof String b && b.matches("[0-9a-f]{16}") ? b : null;
+        db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state), build = COALESCE(?, build) WHERE id = ?",
+                now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, build, did);
         List<Object> cancel = new ArrayList<>(), pause = new ArrayList<>(), resume = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT id, cancel_requested, pause_requested FROM runs WHERE device_id = ? AND status = 'running'", did)) {
             if (Boolean.TRUE.equals(r.get("cancel_requested"))) cancel.add(r.get("id"));
@@ -1060,8 +1065,11 @@ public final class ControlRoom {
             m.put("config", TriggerKinds.publicConfig(TriggerPollers.config(t)));
             local.add(m);
         }
-        return Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers, "local_triggers", local,
-                "log_level", d.get("log_level") == null ? "info" : d.get("log_level"), "after_run", d.get("after_run") == null ? "nothing" : d.get("after_run"));
+        Map<String, Object> out = new LinkedHashMap<>(Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers, "local_triggers", local,
+                "log_level", d.get("log_level") == null ? "info" : d.get("log_level"), "after_run", d.get("after_run") == null ? "nothing" : d.get("after_run")));
+        Map<String, Object> update = runnerUpdates.forHeartbeat(d, build, !cancel.isEmpty() || !pause.isEmpty() || !resume.isEmpty());
+        if (update != null) out.put("update", update);
+        return out;
     }
 
     // ===================== runs =====================

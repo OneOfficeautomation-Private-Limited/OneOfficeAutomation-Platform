@@ -316,6 +316,8 @@ public final class ControlRoomServer {
             }
             Map<String, Object> d = device(ex);
             if (m.equals("POST") && route.equals("agent/heartbeat")) sendJson(ex, 200, cr.heartbeat(d, map(body(ex))));
+            else if (m.equals("GET") && route.equals("agent/update/manifest")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); if (mf == null) notFound(ex); else sendJson(ex, 200, mf); }
+            else if (m.equals("GET") && route.equals("agent/update/file")) sendBytes(ex, cr.runnerUpdates.file(q.get("name")), "application/java-archive", q.get("name"));
             else if (m.equals("POST") && route.equals("agent/jobs/next")) { Map<String, Object> job = cr.claimNext(d); sendJson(ex, 200, job == null ? Map.of("job", false) : Map.of("job", job)); }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("events")) { cr.appendEvents(d, seg[2], (List<Object>) map(body(ex)).getOrDefault("events", List.of())); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("finish")) { cr.finish(d, seg[2], map(map(body(ex)).getOrDefault("result", Map.of()))); sendJson(ex, 200, Map.of("ok", true)); }
@@ -624,6 +626,8 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.deviceDetail(u, seg[1]));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteDevice(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PATCH") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.updateDevices(u, ControlRoom.csv(b.get("ids")), b, ip)); }
+                else if (m.equals("POST") && route.equals("devices/update")) sendJson(ex, 200, cr.runnerUpdates.request(u, ControlRoom.csv(map(body(ex)).get("ids")), ip));
+                else if (m.equals("GET") && route.equals("devices/update")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); sendJson(ex, 200, mf == null ? Map.of("available", false) : Map.of("available", true, "build", mf.get("build"), "version", mf.get("version"), "auto", cr.platform.intSetting("runner_auto_update") == 1)); }
                 else if (m.equals("POST") && route.equals("devices/registration-key")) sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) map(body(ex)).getOrDefault("hours", 24)).intValue(), ip));
                 else if (m.equals("PATCH") && seg.length == 2) {
                     Map<String, Object> b = map(body(ex));
