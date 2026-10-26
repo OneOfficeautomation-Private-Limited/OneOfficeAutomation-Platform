@@ -471,7 +471,7 @@ public final class Platform {
 
     Map<String, Object> counts(String queueId) {
         Map<String, Object> c = new LinkedHashMap<>();
-        for (String s : List.of("new", "in_progress", "retry", "success", "failed", "deferred")) c.put(s, 0L);
+        for (String s : List.of("new", "in_progress", "review", "retry", "success", "failed", "deferred")) c.put(s, 0L);
         for (Map<String, Object> r : db.query("SELECT status, COUNT(*) AS n FROM queue_items WHERE queue_id = ? GROUP BY status", queueId)) c.put((String) r.get("status"), r.get("n"));
         return c;
     }
@@ -1230,9 +1230,48 @@ public final class Platform {
         if (item == null) return;
         String next = "success".equals(status) ? "success"
                 : ((Number) item.get("attempts")).intValue() < ((Number) item.get("max_attempts")).intValue() && !"stopped".equals(status) ? "retry" : "failed";
+        // the agent asked a person to check what it read (A1): the item waits in "review" until validated
+        if (next.equals("success") && outputs instanceof Map<?, ?> o && o.get("validation") instanceof Map<?, ?> v && v.get("fields") instanceof Map<?, ?>) next = "review";
         db.update("UPDATE queue_items SET status = ?, error = ?, result = ?, updated = ?, finished = ? WHERE id = ?", next,
                 error == null ? null : JsonLite.write(error), outputs == null ? null : JsonLite.write(outputs), now(),
-                next.equals("retry") ? null : now(), item.get("id"));
+                next.equals("retry") || next.equals("review") ? null : now(), item.get("id"));
+        if (next.equals("review")) cr.audit.record("system", "queue.item_review", "work_item", (String) item.get("id"), Map.of("queue", item.get("queue_id")), "ok", null);
+    }
+
+    /**
+     * The validation queue (A1): a person checks the fields an agent read with too little confidence. Approve puts the
+     * item back in its queue with the checked values (data.validated_fields, validated, validated_by), so the agent's
+     * next run uses them; reject fails it with the reason.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> validateItem(User by, String qid, String itemId, Map<String, Object> b, String ip) {
+        cr.require(by, "queues.work", "validate work items");
+        requireQueue(by, qid, "process", "validate work items in this queue");
+        Map<String, Object> i = db.one("SELECT * FROM queue_items WHERE id = ? AND queue_id = ?", itemId, qid);
+        if (i == null) throw notFound("Work item");
+        if (!"review".equals(i.get("status"))) throw new OoaException("CR.CONFLICT", "The item is not waiting for validation");
+        Map<String, Object> result = i.get("result") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) i.get("result"));
+        Map<String, Object> asked = result.get("validation") instanceof Map<?, ?> v && v.get("fields") instanceof Map<?, ?> f ? (Map<String, Object>) f : Map.of();
+        if (Boolean.TRUE.equals(b.get("reject"))) {
+            String reason = b.get("reason") == null ? "" : String.valueOf(b.get("reason")).trim();
+            if (reason.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Say why the document is rejected");
+            db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ?",
+                JsonLite.write(Map.of("code", "VALIDATION.REJECTED", "message", reason, "suggestedFix", "Rejected by " + by.username())), now(), now(), itemId);
+            cr.audit.record(by.username(), "queue.item_reject", "work_item", itemId, Map.of("queue", qid, "reason", reason), "ok", ip);
+            return Map.of("status", "failed");
+        }
+        Map<String, Object> checked = new LinkedHashMap<>();
+        Map<String, Object> given = b.get("fields") instanceof Map<?, ?> g ? (Map<String, Object>) g : Map.of();
+        for (String k : asked.keySet()) checked.put(k, given.containsKey(k) ? given.get(k) : asked.get(k));   // only the fields the agent asked about
+        List<String> changed = new ArrayList<>();
+        for (String k : asked.keySet()) if (!Objects.equals(String.valueOf(asked.get(k)), String.valueOf(checked.get(k)))) changed.add(k);
+        Map<String, Object> data = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) i.get("data")));
+        data.put("validated_fields", checked);
+        data.put("validated", true);
+        data.put("validated_by", by.username());
+        db.update("UPDATE queue_items SET status = 'new', data = ?, updated = ?, finished = NULL WHERE id = ?", JsonLite.write(data), now(), itemId);
+        cr.audit.record(by.username(), "queue.item_validate", "work_item", itemId, Map.of("queue", qid, "changed", changed), "ok", ip);
+        return Map.of("status", "new", "changed", changed);
     }
 
     // ===================== model connections =====================

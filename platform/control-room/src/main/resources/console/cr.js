@@ -2479,7 +2479,7 @@ function addItemsDialog(q, after) {
 
 async function openQueue(q) {
   const st = { status: "", q: "" }, sel = new Set();
-  const status = h("select", { "aria-label": "Item status" }, [["", "All items"], ["new", "New"], ["in_progress", "In progress"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]]
+  const status = h("select", { "aria-label": "Item status" }, [["", "All items"], ["new", "New"], ["in_progress", "In progress"], ["review", "To validate"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]]
     .map(([v, l]) => h("option", { value: v, text: l })));
   const search = h("input", { type: "search", placeholder: "Search reference or data", "aria-label": "Search items" });
   const list = h("div"), summary = h("div", { class: "q-summary" });
@@ -2491,8 +2491,9 @@ async function openQueue(q) {
   async function load() {
     const [r, all] = await Promise.all([api("GET", "queues/" + q.id + "/items?limit=200&status=" + st.status + "&q=" + encodeURIComponent(st.q)), api("GET", "queues")]);
     const cur = all.queues.find((x) => x.id === q.id) || q;
-    summary.replaceChildren(...["new", "in_progress", "retry", "success", "failed", "deferred"].map((k) => h("span", { class: "pill " + ({ new: "queued", in_progress: "running", retry: "pending", success: "success", failed: "failed", deferred: "stopped" })[k],
-      text: k.replace("_", " ") + ": " + (cur.counts[k] || 0) })), cur.overdue ? h("span", { class: "pill failed", text: cur.overdue + " past service level" }) : null);
+    summary.replaceChildren(...["new", "in_progress", "review", "retry", "success", "failed", "deferred"].filter((k) => k !== "review" || cur.counts.review)
+      .map((k) => h("span", { class: "pill " + ({ new: "queued", in_progress: "running", review: "pending", retry: "pending", success: "success", failed: "failed", deferred: "stopped" })[k],
+      text: (k === "review" ? "to validate" : k.replace("_", " ")) + ": " + (cur.counts[k] || 0) })), cur.overdue ? h("span", { class: "pill failed", text: cur.overdue + " past service level" }) : null);
     list.replaceChildren(table(["", "Reference", "Status", "Attempts", "Priority", "Added", "Result or error", ""], r.items.map((it) => {
       const box = h("input", { type: "checkbox", "aria-label": "Select " + (it.reference || it.id), checked: sel.has(it.id), onchange: (e) => { if (e.target.checked) sel.add(it.id); else sel.delete(it.id); } });
       const err = parseMaybe(it.error), res = parseMaybe(it.result);
@@ -2500,7 +2501,8 @@ async function openQueue(q) {
         pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
         it.run_id ? h("button", { type: "button", class: "link", onclick: () => openRun(it.run_id) }, err ? (err.code || "") + " " + (err.message || "") : res ? JSON.stringify(res).slice(0, 80) : "view run")
           : h("span", { class: "muted", text: err ? (err.code || JSON.stringify(err)) : "" }),
-        h("button", { type: "button", onclick: () => itemDialog(q, it.id, load) }, it.status === "in_progress" ? "View" : "Open")] };
+        it.status === "review" && can("queues.work") ? h("button", { type: "button", class: "primary", onclick: () => validateDialog(q, it, load) }, "Validate")
+          : h("button", { type: "button", onclick: () => itemDialog(q, it.id, load) }, it.status === "in_progress" ? "View" : "Open")] };
     })), r.total > r.items.length ? h("p", { class: "muted", text: "Showing " + r.items.length + " of " + r.total + ". Narrow the search to see more." }) : null);
   }
   status.addEventListener("change", () => { st.status = status.value; load(); });
@@ -2701,6 +2703,34 @@ async function membersDialog(q) {
     box, h("div", { class: "grid2" }, h("label", {}, "Who", who), h("label", {}, "As", role)),
     h("button", { type: "button", onclick: () => { const p = who.value.trim(); if (p && !rows.some((x) => x.principal === p && x.role === role.value)) rows.push({ principal: p, role: role.value }); draw(); } }, "+ Add")],
   [h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "queues/" + q.id + "/members", { members: rows }); closeModal(); toast("Members saved"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+/**
+ * Validation (A1): the fields an agent read with too little confidence, the unsure ones marked. Approve sends the item
+ * back to the agent with the checked values; Reject fails it with a reason.
+ */
+function validateDialog(q, it, after) {
+  const res = parseMaybe(it.result) || {};
+  const v = res.validation || {}, fields = v.fields || {}, conf = v.confidence || {}, min = Number(v.min_confidence || 0);
+  const inputs = {};
+  const rows = Object.keys(fields).map((k) => {
+    const c = conf[k] === undefined ? null : Number(conf[k]);
+    const unsure = c !== null && c < min;
+    const el = h("input", { type: "text", value: fields[k] === null || fields[k] === undefined ? "" : String(fields[k]), "aria-label": k, class: unsure ? "unsure" : "" });
+    inputs[k] = el;
+    return h("label", {}, h("span", {}, k, c !== null ? h("span", { class: "pill " + (unsure ? "failed" : "success"), text: Math.round(c * 100) + "%" }) : null), el);
+  });
+  const reason = h("input", { type: "text", placeholder: "Why it is rejected (needed to reject)" });
+  modal("Validate " + (it.reference || it.id), [
+    h("p", { class: "muted", text: "The agent was not sure of the fields marked red (below " + Math.round(min * 100) + "%). Check them against the document, correct them and approve: the item goes back to the agent with these values." }),
+    h("div", { class: "grid2" }, rows), h("label", {}, "Reject instead", reason)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    const out = {}; for (const k of Object.keys(inputs)) out[k] = inputs[k].value === "" ? null : inputs[k].value;
+    try { const r = await api("POST", "queues/" + q.id + "/items/" + it.id + "/validate", { fields: out }); closeModal(); toast(r.changed.length ? "Approved with " + r.changed.length + " correction(s)" : "Approved"); if (after) after(); }
+    catch (e) { toast(e.message, true); } } }, "Approve"),
+   h("button", { type: "button", class: "danger", onclick: async () => {
+    try { await api("POST", "queues/" + q.id + "/items/" + it.id + "/validate", { reject: true, reason: reason.value.trim() }); closeModal(); toast("Rejected"); if (after) after(); }
+    catch (e) { toast(e.message, true); } } }, "Reject")]);
 }
 
 async function itemDialog(q, itemId, after) {

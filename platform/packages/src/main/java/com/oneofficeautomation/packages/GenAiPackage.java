@@ -400,8 +400,12 @@ public final class GenAiPackage {
 
     @Action(id = "extract", name = "Extract fields", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"},
             description = "Extract named fields from text (an email, a contract) into a Dictionary; missing fields come back empty.",
-            panel = "text, fields, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | mask_pii")
+            panel = "text, fields, (Model to use: A saved connection = connection / Set up here = provider, model, api_key, base_url, aws_access_key_id, aws_region) | min_confidence, mask_pii")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
+    @Output(name = "confidence", type = OoaType.DICTIONARY, description = "With min_confidence: field name to how sure the model is, from 0 to 1 (0 for a missing value).")
+    @Output(name = "needs_review", type = OoaType.BOOLEAN, description = "With min_confidence: true when any field is below it, so a person should check the values.")
+    @Output(name = "validation", type = OoaType.DICTIONARY, description = "With min_confidence and a field below it: {fields, confidence, min_confidence}. "
+            + "Return it as the agent's output named validation from a work-queue run, and the item waits in the queue for a person to check it.")
     public Map<String, Object> extract(ActionContext ctx,
             @Input(name = "text", type = OoaType.STRING, description = "Source text.") String text,
             @Input(name = "fields", type = OoaType.DICTIONARY, description = "Field name to description, e.g. {\"invoice_number\": \"the invoice id\", \"total\": \"amount due as a number\"}.") Map<String, Object> fields,
@@ -412,13 +416,41 @@ public final class GenAiPackage {
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = D_BASE) String base,
             @Input(name = "mask_pii", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_MASK + " Off by default because extraction often needs those details.") boolean mask,
             @Input(name = "aws_access_key_id", type = OoaType.CREDENTIAL, required = false, description = D_AWS_KEY_ID) Object awsKeyId,
-            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion) {
-        Object j = LlmClient.parseJson(ask(ctx, ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1500, mask, awsKeyId, awsRegion),
-                "Extract these fields from the user's text: " + JsonLite.write(fields) + ". Reply with one JSON object with exactly these keys; use null when a value is not stated. Do not guess.", text, true, "extract"));
-        Map<String, Object> out = new LinkedHashMap<>();
+            @Input(name = "aws_region", type = OoaType.STRING, required = false, description = D_AWS_REGION) String awsRegion,
+            @Input(name = "min_confidence", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1,
+                    description = "0 (off) to 1: the model also says how sure it is of each field; fields below this send the values to a person (needs_review, validation).") double minConfidence) {
+        LlmClient.Config cfg = ModelConnections.config(ctx, connection, provider, model, key, base, 0, 1500, mask, awsKeyId, awsRegion);
+        boolean rate = minConfidence > 0;
+        Object j = LlmClient.parseJson(ask(ctx, cfg, rate
+                ? "Extract these fields from the user's text: " + JsonLite.write(fields) + ". Reply with one JSON object {\"values\": {...}, \"confidence\": {...}}, both with exactly these keys: "
+                    + "values holds each value (null when not stated; do not guess), confidence how sure you are of it from 0 to 1."
+                : "Extract these fields from the user's text: " + JsonLite.write(fields) + ". Reply with one JSON object with exactly these keys; use null when a value is not stated. Do not guess.", text, true, "extract"));
         Map<?, ?> m = j instanceof Map<?, ?> mm ? mm : Map.of();
-        for (String f : fields.keySet()) out.put(f, m.get(f));
-        return Map.of("fields", out);
+        Map<?, ?> values = rate && m.get("values") instanceof Map<?, ?> vv ? vv : m;
+        Map<?, ?> conf = rate && m.get("confidence") instanceof Map<?, ?> cc ? cc : Map.of();
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (String f : fields.keySet()) out.put(f, values.get(f));
+        if (!rate) return Map.of("fields", out);
+        Map<String, Object> sure = new LinkedHashMap<>();
+        boolean review = false;
+        for (String f : fields.keySet()) {
+            BigDecimal c;
+            try { c = out.get(f) == null ? BigDecimal.ZERO : Values.toNumber(conf.get(f)).max(BigDecimal.ZERO).min(BigDecimal.ONE); } catch (RuntimeException e) { c = BigDecimal.ZERO; }
+            sure.put(f, c);
+            if (c.doubleValue() < minConfidence) review = true;
+        }
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("fields", out);
+        r.put("confidence", sure);
+        r.put("needs_review", review);
+        if (review) r.put("validation", Map.of("fields", out, "confidence", sure, "min_confidence", BigDecimal.valueOf(minConfidence)));
+        return r;
+    }
+
+    /** Extract fields without the confidence option (the signature before it was added). */
+    public Map<String, Object> extract(ActionContext ctx, String text, Map<String, Object> fields, String provider, String connection, String model, Object key, String base,
+                                       boolean mask, Object awsKeyId, String awsRegion) {
+        return extract(ctx, text, fields, provider, connection, model, key, base, mask, awsKeyId, awsRegion, 0);
     }
 
     @Action(id = "translate", name = "Translate", category = "Generative AI", timeoutSeconds = 300, capabilities = {"network", "ai"}, description = "Translate text into another language.",

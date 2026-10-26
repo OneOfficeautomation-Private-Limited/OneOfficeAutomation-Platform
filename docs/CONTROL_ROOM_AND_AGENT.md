@@ -438,6 +438,12 @@ Work queues hold items (invoices, tickets, orders) that an agent processes one a
    - Failed or deferred items can be retried, waiting items can be deferred, and items not being worked on can be deleted.
    - **Open** an item to change its data, reference or priority (the form follows the model).
    - **Export CSV** downloads the items (filtered by status). Cells that a spreadsheet would read as a formula are made safe.
+   - **Validation**: an agent that is not sure what it read (Extract fields with *Least confidence*, 0.8 for example,
+     gives `needs_review` and `validation`) returns `validation` as an output named `validation`. The item then waits
+     as **To validate**: **Validate** shows each field with how sure the agent was, the unsure ones in red. Correct them
+     and **Approve**, and the item goes back to the agent with `validated_fields`, `validated` and `validated_by` in its
+     `work_item`; or **Reject** it with a reason, and it fails. Both are audited. API:
+     `POST /api/queues/{id}/items/{item}/validate` with `{fields}` or `{reject: true, reason}`.
 5. **Export definition** saves a queue's settings, work item model, members and, if you choose, its waiting items as
    a file. **Import queue** makes a queue from such a file:
    - the model is reused when one with the same name and fields exists;

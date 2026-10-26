@@ -587,6 +587,7 @@ public final class ControlRoomServer {
                     sendJson(ex, 200, cr.platform.items(u, seg[1], q.get("status"), q.get("q"), ControlRoom.intOr(q.get("limit"), 100), ControlRoom.intOr(q.get("offset"), 0)));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("items")) sendJson(ex, 200, cr.platform.addItems(u, seg[1], (List<Object>) map(body(ex)).get("items"), ip));
                 else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items")) { cr.platform.updateItems(u, seg[1], (List<Object>) map(body(ex)).get("ids"), seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 5 && seg[2].equals("items") && seg[4].equals("validate")) sendJson(ex, 200, cr.platform.validateItem(u, seg[1], seg[3], map(body(ex)), ip));
                 else notFound(ex);
             }
             case "connections" -> {
