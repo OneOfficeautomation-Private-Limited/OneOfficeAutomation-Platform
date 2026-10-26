@@ -261,7 +261,7 @@ public final class StudioServer {
                 st.put("sameServer", sameServerControlRoom != null);
                 sendJson(ex, 200, st);
             }
-            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"))); }
+            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"), (String) b.get("code"))); }
             else if (method.equals("POST") && r.equals("disconnect")) { cr.disconnect(); sendJson(ex, 200, cr.status()); }
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));

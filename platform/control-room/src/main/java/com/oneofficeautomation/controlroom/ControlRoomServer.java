@@ -138,8 +138,8 @@ public final class ControlRoomServer {
             else serveStatic(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
-                case "CR.UNAUTHENTICATED", "CR.LOGIN_FAILED" -> 401;
-                case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "VAULT.DENIED", "CR.CSRF", "CR.LICENSE_REQUIRED", "CR.LICENSE_EXPIRED", "CR.IP_BLOCKED", "CR.FILE_TYPE_BLOCKED" -> 403;
+                case "CR.UNAUTHENTICATED", "CR.LOGIN_FAILED", "CR.MFA_WRONG_CODE", "CR.MFA_EXPIRED" -> 401;
+                case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "CR.MFA_SETUP_REQUIRED", "VAULT.DENIED", "CR.CSRF", "CR.LICENSE_REQUIRED", "CR.LICENSE_EXPIRED", "CR.IP_BLOCKED", "CR.FILE_TYPE_BLOCKED" -> 403;
                 case "CR.NOT_FOUND", "VAULT.NOT_FOUND" -> 404;
                 case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED", "CR.LICENSE_LIMIT", "LICENSE.TOO_FEW_SEATS" -> 409;
                 case "CR.POLICY_VIOLATION" -> 422;
@@ -195,6 +195,8 @@ public final class ControlRoomServer {
         if (viaCookie && !Set.of("GET", "HEAD").contains(ex.getRequestMethod()) && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
             throw new OoaException("CR.CSRF", "Missing request header X-OOA-Request");
         if (u.mustChange() && !allowMustChange) throw new OoaException("CR.PASSWORD_CHANGE_REQUIRED", "Change your password before continuing");
+        if (!allowMustChange && !t.startsWith("ooak_") && cr.mfa.setupNeeded(u))
+            throw new OoaException("CR.MFA_SETUP_REQUIRED", "Set up two-step sign-in before continuing", "Your administrator requires it for your account.");
         return u;
     }
 
@@ -236,7 +238,15 @@ public final class ControlRoomServer {
         // ---------- public ----------
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
-            Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), ip);
+            Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), (String) b.get("code"), ip);
+            if (r.get("token") == null) { sendJson(ex, 200, r); return; }   // two-step sign-in: the code comes next (auth/mfa)
+            ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
+            sendJson(ex, 200, r);
+            return;
+        }
+        if (m.equals("POST") && route.equals("auth/mfa")) {
+            Map<String, Object> b = map(body(ex));
+            Map<String, Object> r = cr.loginMfa((String) b.get("mfa_token"), (String) b.get("code"), ip);
             ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
             sendJson(ex, 200, r);
             return;
@@ -338,6 +348,18 @@ public final class ControlRoomServer {
             if (ex.getRequestHeaders().getFirst("Authorization") == null)
                 ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
             sendJson(ex, 200, r);
+            return;
+        }
+        if (route.startsWith("auth/mfa/")) {
+            ControlRoom.User u = user(ex, true);
+            Map<String, Object> b = m.equals("POST") ? map(body(ex)) : Map.of();
+            switch (route) {
+                case "auth/mfa/status" -> sendJson(ex, 200, cr.mfa.status(u));
+                case "auth/mfa/setup" -> sendJson(ex, 200, cr.mfa.setup(u, ip));
+                case "auth/mfa/enable" -> sendJson(ex, 200, cr.mfa.enable(u, (String) b.get("code"), ip));
+                case "auth/mfa/disable" -> { cr.mfa.disable(u, (String) b.get("password"), (String) b.get("code"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                default -> notFound(ex);
+            }
             return;
         }
         if (route.equals("auth/password") && m.equals("POST")) {
@@ -523,6 +545,7 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) { cr.updateUser(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-password")) sendJson(ex, 200, cr.resetPassword(u, seg[1], ip));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-mfa")) { cr.mfa.reset(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("default-device")) { cr.setDefaultDevice(u, seg[1], (String) map(body(ex)).get("device_id"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }

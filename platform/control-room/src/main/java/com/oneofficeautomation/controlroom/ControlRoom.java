@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
  * agents, runs, schedules, triggers, credential lockers and global values. Every change is written to the audit log.
  */
 public final class ControlRoom {
-    public record User(String id, String username, String role, String displayName, boolean mustChange) {}
+    /** A signed-in person. mfaEnabled: two-step sign-in is on; sso: the account signs in through the identity provider. */
+    public record User(String id, String username, String role, String displayName, boolean mustChange, boolean mfaEnabled, boolean sso) {
+        public User(String id, String username, String role, String displayName, boolean mustChange) { this(id, username, role, displayName, mustChange, false, false); }
+    }
 
     public final Db db;
     public final Audit audit;
@@ -54,6 +57,7 @@ public final class ControlRoom {
     private final Path dataDir;
     final SyslogForwarder syslog;
     public final Licensing licensing;
+    public final Mfa mfa;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -94,6 +98,7 @@ public final class ControlRoom {
         this.platform = new Platform(this, registry);
         this.syslog = new SyslogForwarder(platform);
         this.licensing = new Licensing(this);
+        this.mfa = new Mfa(this);
         audit.onRecord(syslog::forward);
         this.workflows = new Workflows(this);
         this.teams = new Teams(this);
@@ -181,10 +186,17 @@ public final class ControlRoom {
     }
 
     static User user(Map<String, Object> r) {
-        return new User((String) r.get("id"), (String) r.get("username"), (String) r.get("role"), (String) r.get("display_name"), Boolean.TRUE.equals(r.get("must_change")));
+        return new User((String) r.get("id"), (String) r.get("username"), (String) r.get("role"), (String) r.get("display_name"), Boolean.TRUE.equals(r.get("must_change")),
+                Boolean.TRUE.equals(r.get("mfa_enabled")), r.get("sso_subject") != null);
     }
 
-    public Map<String, Object> login(String username, String password, String ip) {
+    public Map<String, Object> login(String username, String password, String ip) { return login(username, password, null, ip); }
+
+    /**
+     * Signs in with a password. With two-step sign-in on, the answer is {mfa_required, mfa_token} and the session comes
+     * from {@link #loginMfa} with a code; a code sent along here (Studio, scripts) completes the sign-in in one step.
+     */
+    public Map<String, Object> login(String username, String password, String code, String ip) {
         Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", username == null ? "" : username.trim());
         OoaException bad = new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", null);
         if (r == null) { Security.hashPassword("timing".toCharArray()); audit.record(String.valueOf(username), "auth.login", "user", String.valueOf(username), null, "failed", ip); throw bad; }
@@ -193,13 +205,31 @@ public final class ControlRoom {
         if (lu != null && Instant.parse(lu.toString()).isAfter(now()))
             throw new OoaException("CR.LOCKED_OUT", "Too many failed sign-ins; try again after " + lu, "Wait 15 minutes or ask an administrator to reset your password.");
         if (!Security.verifyPassword(password == null ? new char[0] : password.toCharArray(), (String) r.get("password_hash"))) {
-            int failed = ((Number) r.get("failed")).intValue() + 1;
-            db.update("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?", failed % 5 == 0 ? 0 : failed, failed % 5 == 0 ? now().plus(Duration.ofMinutes(15)) : null, r.get("id"));
-            audit.record(username, "auth.login", "user", username, failed % 5 == 0 ? "account locked for 15 minutes" : null, "failed", ip);
+            countFailedSignIn(r, ip);
             throw bad;
+        }
+        String challenge = mfa.challenge(r);
+        if (challenge != null) {
+            if (code != null && !code.isBlank()) { r = mfa.complete(challenge, code, ip); audit.record(username, "auth.login", "user", username, Map.of("mfa", true), "ok", ip); return newSession(r, ip); }
+            audit.record(username, "auth.password", "user", username, Map.of("next", "code"), "ok", ip);
+            return Map.of("mfa_required", true, "mfa_token", challenge);
         }
         audit.record(username, "auth.login", "user", username, null, "ok", ip);
         return newSession(r, ip);
+    }
+
+    /** The second step: the code for a sign-in that passed the password. */
+    public Map<String, Object> loginMfa(String mfaToken, String code, String ip) {
+        Map<String, Object> r = mfa.complete(mfaToken, code, ip);
+        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), Map.of("mfa", true), "ok", ip);
+        return newSession(r, ip);
+    }
+
+    /** A wrong password or too many wrong codes: every fifth failure locks the account for 15 minutes. */
+    void countFailedSignIn(Map<String, Object> r, String ip) {
+        int failed = ((Number) db.one("SELECT failed FROM users WHERE id = ?", r.get("id")).get("failed")).intValue() + 1;
+        db.update("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?", failed % 5 == 0 ? 0 : failed, failed % 5 == 0 ? now().plus(Duration.ofMinutes(15)) : null, r.get("id"));
+        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), failed % 5 == 0 ? "account locked for 15 minutes" : null, "failed", ip);
     }
 
     private Map<String, Object> newSession(Map<String, Object> r, String ip) {
@@ -314,6 +344,7 @@ public final class ControlRoom {
         String temp = Security.token(12);
         db.update("UPDATE users SET password_hash = ?, must_change = TRUE, enabled = TRUE, failed = 0, locked_until = NULL WHERE id = ?",
                 Security.hashPassword(temp.toCharArray()), r.get("id"));
+        mfa.clear((String) r.get("id"));   // a lost authenticator is a common reason for recovery; it is set up again
         db.update("DELETE FROM sessions WHERE user_id = ?", r.get("id"));
         audit.record("system (local console)", "user.recover", "user", username, Map.of("role", r.get("role")), "ok", null);
         return temp;
@@ -324,7 +355,7 @@ public final class ControlRoom {
 
     public static Map<String, Object> publicUser(User u) {
         return Map.of("id", u.id(), "username", u.username(), "role", u.role(), "display_name", u.displayName() == null ? u.username() : u.displayName(),
-                "must_change", u.mustChange(), "permissions", Rbac.permissions(u.role()));
+                "must_change", u.mustChange(), "permissions", Rbac.permissions(u.role()), "mfa_enabled", u.mfaEnabled());
     }
 
     /** The signed-in user with permissions from custom roles too. */
@@ -332,6 +363,7 @@ public final class ControlRoom {
         Map<String, Object> m = new LinkedHashMap<>(publicUser(u));
         m.put("permissions", permissionsOf(u));
         m.put("roles", rolesOf(u.username(), u.role()));
+        if (mfa.setupNeeded(u)) m.put("mfa_setup_required", true);
         Object note = platform.setting("announcement");
         if (note instanceof String n && !n.isBlank()) m.put("announcement", n);
         Map<String, Object> lic = licensing.status(u);
@@ -374,13 +406,13 @@ public final class ControlRoom {
 
     public List<Map<String, Object>> users(User by) {
         require(by, "users.manage", "manage users");
-        return db.query("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until FROM users ORDER BY username");
+        return db.query("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until, mfa_enabled FROM users ORDER BY username");
     }
 
     /** One user with their teams and default runner (by id or user name). */
     public Map<String, Object> userDetail(User by, String idOrName) {
         require(by, "users.manage", "manage users");
-        Map<String, Object> u = db.one("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until FROM users WHERE id = ? OR username = ?", idOrName, idOrName);
+        Map<String, Object> u = db.one("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until, mfa_enabled FROM users WHERE id = ? OR username = ?", idOrName, idOrName);
         if (u == null) throw notFound("User");
         Map<String, Object> m = new LinkedHashMap<>(u);
         m.put("roles", rolesOf((String) u.get("username"), (String) u.get("role")));

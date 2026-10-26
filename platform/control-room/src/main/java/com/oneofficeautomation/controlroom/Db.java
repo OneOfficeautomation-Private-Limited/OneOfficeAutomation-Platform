@@ -342,9 +342,17 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE devices ADD COLUMN after_run VARCHAR(20)",
     };
 
+    /** Version 11: two-step sign-in (the secret encrypted with the vault key, recovery codes as hashes, the last code used). */
+    private static final String[] SCHEMA_V11 = {
+        "ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN",
+        "ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(500)",
+        "ALTER TABLE users ADD COLUMN mfa_recovery VARCHAR(1000)",
+        "ALTER TABLE users ADD COLUMN mfa_last_step BIGINT",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 10;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10 };
+    public static final int LATEST = 11;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

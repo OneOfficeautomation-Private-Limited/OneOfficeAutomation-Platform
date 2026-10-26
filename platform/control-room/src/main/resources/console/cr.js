@@ -61,6 +61,7 @@ async function api(method, path, body) {
     const e = data.error || {};
     if (e.code === "CR.UNAUTHENTICATED") { showLogin(); }
     if (e.code === "CR.PASSWORD_CHANGE_REQUIRED") { showPassword(); }
+    if (e.code === "CR.MFA_SETUP_REQUIRED" && $("modal").hidden) { mfaDialog(true).catch(() => {}); }
     const err = new Error((e.message || res.statusText) + (e.suggestedFix ? " (" + e.suggestedFix + ")" : ""));
     err.code = e.code; throw err;
   }
@@ -126,6 +127,50 @@ function showLogin() {
     box.replaceChildren(...(r.enabled ? [h("div", { class: "sso-or", text: "or" }), h("a", { class: "button-link sso-button", href: "/api/auth/sso/start" }, ic("key", "#2563eb", "sm"), r.label)] : []));
   }).catch(() => {});
 }
+/** After the password: the code box replaces the user name and password (token = null goes back). */
+function loginCodeStep(token) {
+  S.mfaToken = token;
+  for (const id of ["login-user", "login-pass"]) { $(id).closest("label").hidden = !!token; $(id).required = !token; }
+  $("login-code-row").hidden = !token; $("login-code").required = !!token; $("login-code").value = "";
+  if (token) $("login-code").focus();
+}
+
+function afterSignIn() {
+  if (S.user.must_change) { showPassword(); return; }
+  showApp();
+  if (S.user.mfa_setup_required) mfaDialog(true).catch((e) => toast(e.message, true));
+}
+
+/** Two-step sign-in for the signed-in person: set it up, see the recovery codes once, or turn it off. forced: required by the administrator. */
+async function mfaDialog(forced) {
+  const st = await api("GET", "auth/mfa/status");
+  if (st.sso) { modal("Two-step sign-in", [h("p", { text: "You sign in through your organisation's identity provider, which handles two-step sign-in." })], []); return; }
+  if (st.enabled) {
+    const pw = h("input", { type: "password", autocomplete: "current-password" }), code = h("input", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: "12" });
+    modal("Two-step sign-in", [h("p", { text: "On. " + st.recovery_codes_left + " recovery code(s) left." }),
+      st.required ? h("p", { class: "muted", text: "Your administrator requires it for your account, so it cannot be turned off. If you lose your phone, an administrator can reset it." })
+        : [h("p", { class: "muted", text: "To turn it off, enter your password and a current code." }), h("label", {}, "Password", pw), h("label", {}, "Code", code)]],
+      st.required ? [] : [h("button", { type: "button", class: "danger", onclick: async () => {
+        try { await api("POST", "auth/mfa/disable", { password: pw.value, code: code.value }); closeModal(); toast("Two-step sign-in is off"); } catch (e) { toast(e.message, true); } } }, "Turn off")]);
+    return;
+  }
+  const s = await api("POST", "auth/mfa/setup");
+  const code = h("input", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6" });
+  modal(forced ? "Set up two-step sign-in (required)" : "Set up two-step sign-in", [
+    forced ? h("p", { class: "note warn", text: "Your administrator requires a code from an authenticator app as well as your password." }) : null,
+    h("p", { text: "1. In an authenticator app (Microsoft Authenticator, Google Authenticator or another TOTP app), add an account with this key:" }),
+    h("p", {}, h("code", { class: "secret", text: s.secret })),
+    h("p", { class: "muted" }, "On a phone you can also ", h("a", { href: s.otpauth_uri }, "open it in the app"), ". Type: time-based, 6 digits."),
+    h("p", { text: "2. Enter the 6-digit code the app shows:" }), h("label", {}, "Code", code)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const r = await api("POST", "auth/mfa/enable", { code: code.value });
+      S.user = await api("GET", "auth/me");
+      modal("Recovery codes", [h("p", { text: "Two-step sign-in is on. Keep these recovery codes somewhere safe: each one signs you in once if you lose your phone. They are shown only now." }),
+        h("pre", { class: "secret", text: r.recovery_codes.join("\n") })], [h("button", { type: "button", class: "primary", onclick: () => { closeModal(); if (forced) go(S.page); } }, "I have saved them")]);
+    } catch (e) { toast(e.message, true); } } }, "Turn on")]);
+}
+
 function showPassword() { $("app").hidden = true; $("login-view").hidden = true; $("password-view").hidden = false; $("pw-current").focus(); }
 function showApp() {
   $("login-view").hidden = true; $("password-view").hidden = true; $("app").hidden = false;
@@ -781,6 +826,8 @@ const VIEWS = {
       const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
       const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
+      const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
+        h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
       const syslogTarget = txt("syslog_target", "siem.example.com:514");
       const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
@@ -804,6 +851,7 @@ const VIEWS = {
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
+          h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
           h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads")),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
@@ -835,7 +883,7 @@ const VIEWS = {
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
-              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0,
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value),
               ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
@@ -1056,6 +1104,9 @@ const VIEWS = {
             h("button", { type: "button", onclick: async () => { try { await api("PATCH", "users/" + u.id, { enabled: !u.enabled }); go("users"); } catch (e) { toast(e.message, true); } } }, u.enabled ? "Disable" : "Enable"),
             h("button", { type: "button", onclick: async () => { if (!confirm("Reset the password of " + u.username + "?")) return; const p = await api("POST", "users/" + u.id + "/reset-password");
               modal("Temporary password", [secretBox(u.username, p.temporary_password, "Give it to the user securely. They must change it at first sign-in. Shown only once.")], []); } }, "Reset password"),
+            u.mfa_enabled ? h("button", { type: "button", title: "For a lost phone: they set two-step sign-in up again at their next sign-in", onclick: async () => {
+              if (!confirm("Reset two-step sign-in for " + u.username + "? Their sign-ins end, and they set it up again.")) return;
+              try { await api("POST", "users/" + u.id + "/reset-mfa"); toast("Two-step sign-in reset for " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Reset two-step") : null,
             u.username !== S.user.username ? h("button", { type: "button", class: "danger", onclick: async () => {
               if (!confirm("Delete " + u.username + "? Their sign-ins, API keys, team places, own vault values and every rule naming them go. The audit trail keeps their name.")) return;
               try { await api("DELETE", "users/" + u.id); toast("Deleted " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
@@ -2678,11 +2729,18 @@ async function boot() {
     e.preventDefault();
     $("login-error").hidden = true;
     try {
-      const r = await api("POST", "auth/login", { username: $("login-user").value, password: $("login-pass").value });
+      // two steps for accounts with two-step sign-in: the password, then the code
+      const r = S.mfaToken ? await api("POST", "auth/mfa", { mfa_token: S.mfaToken, code: $("login-code").value })
+        : await api("POST", "auth/login", { username: $("login-user").value, password: $("login-pass").value });
       $("login-pass").value = "";
+      if (r.mfa_required) { loginCodeStep(r.mfa_token); return; }
+      loginCodeStep(null);
       S.user = r.user;
-      if (S.user.must_change) showPassword(); else showApp();
-    } catch (err) { $("login-error").textContent = err.message; $("login-error").hidden = false; }
+      afterSignIn();
+    } catch (err) {
+      if (err.code === "CR.MFA_EXPIRED") loginCodeStep(null);
+      $("login-error").textContent = err.message; $("login-error").hidden = false;
+    }
   });
   $("password-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -2691,11 +2749,12 @@ async function boot() {
     try {
       await api("POST", "auth/password", { current: $("pw-current").value, new: $("pw-new").value });
       for (const id of ["pw-current", "pw-new", "pw-repeat"]) $(id).value = "";
-      S.user = await api("GET", "auth/me"); toast("Password changed"); showApp();
+      S.user = await api("GET", "auth/me"); toast("Password changed"); afterSignIn();
     } catch (err) { $("pw-error").textContent = err.message; $("pw-error").hidden = false; }
   });
   $("btn-logout").addEventListener("click", async () => { try { await api("POST", "auth/logout"); } catch (_) { /* already signed out */ } S.user = null; showLogin(); });
   $("btn-change-pw").addEventListener("click", showPassword);
+  $("btn-mfa").addEventListener("click", () => mfaDialog(false).catch((e) => toast(e.message, true)));
   $("btn-apikeys").addEventListener("click", () => apiKeysDialog().catch((e) => toast(e.message, true)));
   // the user menu in the top bar: name and role, API keys, password, sign out
   const userPop = $("user-pop"), userBtn = $("btn-user");
@@ -2708,7 +2767,7 @@ async function boot() {
   $("drawer-close").addEventListener("click", closeDrawer);
   $("drawer").addEventListener("click", (e) => { if (e.target === $("drawer")) closeDrawer(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("modal").hidden && !$("drawer").hidden) closeDrawer(); });
-  try { S.user = await api("GET", "auth/me"); if (S.user.must_change) showPassword(); else showApp(); } catch (_) { showLogin(); }
+  try { S.user = await api("GET", "auth/me"); afterSignIn(); } catch (_) { showLogin(); }
 }
 
 if (typeof window !== "undefined" && !window.__OOA_TEST__) boot();

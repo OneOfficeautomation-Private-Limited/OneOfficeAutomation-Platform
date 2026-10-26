@@ -4112,12 +4112,14 @@ function renderCr() {
     const url = h("input", { type: "text", value: cr.url || "http://localhost:8720", "aria-label": "Command Center address" });
     const user = h("input", { type: "text", autocomplete: "username", "aria-label": "User name" });
     const pass = h("input", { type: "password", autocomplete: "current-password", "aria-label": "Password" });
+    const code = h("input", { type: "text", inputmode: "numeric", autocomplete: "one-time-code", placeholder: "if asked", "aria-label": "Two-step code" });
     const go = h("button", { type: "button", class: "primary", onclick: async () => {
-      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value }); pass.value = ""; toast("Connected to Command Center"); renderCr(); crLoadRepo(); }
+      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value, code: code.value }); pass.value = ""; code.value = ""; toast("Connected to Command Center"); renderCr(); crLoadRepo(); }
       catch (e) { toast(e.message, true); }
     } }, "Connect");
     pass.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
-    body.replaceChildren(h("div", { class: "cr-form" }, h("label", {}, "Address", url), h("label", {}, "User name", user), h("label", {}, "Password", pass), go,
+    code.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
+    body.replaceChildren(h("div", { class: "cr-form" }, h("label", {}, "Address", url), h("label", {}, "User name", user), h("label", {}, "Password", pass), h("label", {}, "Two-step code", code), go,
       h("div", { class: "hint", text: "Your workspace above is private. Connect to share agents through the public agent repository with check-in and check-out." })));
     return;
   }

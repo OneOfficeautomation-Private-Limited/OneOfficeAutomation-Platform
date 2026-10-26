@@ -71,10 +71,18 @@ final class ControlRoomLink {
     }
 
     @SuppressWarnings("unchecked")
-    Map<String, Object> connect(String crUrl, String username, String password) throws IOException {
+    Map<String, Object> connect(String crUrl, String username, String password) throws IOException { return connect(crUrl, username, password, null); }
+
+    /** As above; {@code code} is the authenticator code for an account with two-step sign-in. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> connect(String crUrl, String username, String password, String code) throws IOException {
         if (crUrl == null || !crUrl.matches("^https?://[A-Za-z0-9.\\-:\\[\\]]+(/.*)?$")) throw new OoaException("STUDIO.BAD_URL", "Enter the Command Center address, e.g. http://localhost:8720");
         url = crUrl.replaceAll("/+$", "");
-        Map<String, Object> r = call("POST", "auth/login", Map.of("username", username == null ? "" : username, "password", password == null ? "" : password), false);
+        Map<String, Object> login = new java.util.HashMap<>(Map.of("username", username == null ? "" : username, "password", password == null ? "" : password));
+        if (code != null && !code.isBlank()) login.put("code", code.trim());
+        Map<String, Object> r = call("POST", "auth/login", login, false);
+        if (Boolean.TRUE.equals(r.get("mfa_required")))
+            throw new OoaException("STUDIO.CR_MFA_CODE", "This account uses two-step sign-in", "Enter the code from your authenticator app in the Code box, then connect again.");
         Map<String, Object> u = (Map<String, Object>) r.get("user");
         if (Boolean.TRUE.equals(u.get("must_change")))
             throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Command Center password must be changed first", "Sign in to Command Center in the browser (" + url + "), choose a new password, then connect again.");

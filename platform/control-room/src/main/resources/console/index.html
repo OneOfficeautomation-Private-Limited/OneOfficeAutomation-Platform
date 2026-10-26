@@ -16,6 +16,8 @@
       <h1>One Command Center</h1>
       <label>User name <input id="login-user" autocomplete="username" required></label>
       <label>Password <input id="login-pass" type="password" autocomplete="current-password" required></label>
+      <label id="login-code-row" hidden>Code from your authenticator app (or a recovery code)
+        <input id="login-code" inputmode="numeric" autocomplete="one-time-code" maxlength="12"></label>
       <button type="submit" class="primary">Sign in</button>
       <p id="login-error" class="error" role="alert" hidden></p>
       <div id="sso-box"></div>
@@ -50,6 +52,7 @@
           <div id="user-pop-head" class="user-pop-head"></div>
           <button type="button" id="btn-apikeys" title="Keys for other systems to call the Command Center as you">API keys</button>
           <button type="button" id="btn-change-pw">Change password</button>
+          <button type="button" id="btn-mfa">Two-step sign-in</button>
           <button type="button" id="btn-logout">Sign out</button>
         </div>
       </div>
