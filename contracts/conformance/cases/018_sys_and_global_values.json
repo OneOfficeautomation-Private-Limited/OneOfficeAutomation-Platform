@@ -1,0 +1,80 @@
+{
+  "name": "018_sys_and_global_values",
+  "description": "$sys holds facts about the run ($sys.bot_id, $sys.bot_name, $sys.empty); $global holds shared values given to the run (globals).",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c18_bot",
+    "name": "Conformance 18",
+    "variables": [
+      {
+        "name": "id",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "label",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "region",
+        "type": "String",
+        "direction": "output"
+      },
+      {
+        "name": "blank",
+        "type": "Boolean",
+        "direction": "output"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/set",
+        "args": {
+          "variable": "id",
+          "value": "$sys.bot_id"
+        }
+      },
+      {
+        "id": "s2",
+        "action": "core/set",
+        "args": {
+          "variable": "label",
+          "value": "Run of ${sys.bot_name}"
+        }
+      },
+      {
+        "id": "s3",
+        "action": "core/set",
+        "args": {
+          "variable": "region",
+          "value": "$global.region"
+        }
+      },
+      {
+        "id": "s4",
+        "action": "core/set",
+        "args": {
+          "variable": "blank",
+          "value": {
+            "expr": "$sys.empty == ''"
+          }
+        }
+      }
+    ]
+  },
+  "globals": {
+    "region": "EMEA"
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "id": "c18_bot",
+      "label": "Run of Conformance 18",
+      "region": "EMEA",
+      "blank": true
+    }
+  }
+}

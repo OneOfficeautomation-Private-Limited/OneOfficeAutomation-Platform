@@ -976,7 +976,7 @@ function quoteIfText(v) { return typeof v === "string" && !v.startsWith("$") && 
 function loopText(a) {
   const it = a.iterator || "list";
   const as = a.as ? " as $" + a.as : "";
-  if (it === "times") return (a.count !== undefined ? plainValue(a.count) : "?") + " times" + (a.index ? ", counter $" + a.index + (a.start !== undefined && a.start !== "" && a.start !== 0 ? " from " + plainValue(a.start) : "") : "");
+  if (it === "times") { const counter = a.as || a.index; return (a.count !== undefined ? plainValue(a.count) : "?") + " times" + (counter ? ", counter $" + counter + (a.as && a.start !== undefined && a.start !== "" && a.start !== 0 ? " from " + plainValue(a.start) : "") : ""); }
   if (it === "while") return "while " + conditionText(a.condition);
   const what = { list: "each item in ", table_rows: "each row in ", dictionary: "each key and value in ", dictionary_keys: "each key in ", dictionary_values: "each value in " }[it];
   if (what) return what + (a.over !== undefined ? plainValue(a.over) : "?") + as;
@@ -2634,9 +2634,19 @@ function loopPanel(step) {
 
   if (mode === "times") {
     nodes.push(field("Number of times", textBox("count", "e.g. 3 or $count", "Number"), "How many times the steps inside repeat.", true, "count"));
-    nodes.push(field("Counter (optional)", varPick("index", "Number", "counter"), "A Number variable that holds the pass number: 0, 1, 2 … by default, or 1, 2, 3 … with Start counting at 1.", false, "index"));
-    nodes.push(field("Start counting at", textBox("start", "0", "Number"), "1 to count passes like a person does (1, 2, 3 …).", false, "start"));
-    more.push(field("Count up by", textBox("step", "1", "Number"), null, false, "step"));
+    // the runner gives the counter in "as" from start and step (start, start + step …) and the position in "index"
+    // (0, 1, 2 …); the counter field uses "as" as soon as a start or step is set, so they take effect
+    const counted = () => (args.start !== undefined && Number(args.start) !== 0) || (args.step !== undefined && Number(args.step) !== 1);
+    const moveCounter = () => { if (counted() && args.index !== undefined && args.as === undefined) { args.as = args.index; delete args.index; return true; } return false; };
+    if (moveCounter()) changed();   // an agent saved before start took effect: its counter now counts from the start
+    const counterKey = args.as !== undefined || counted() ? "as" : "index";
+    nodes.push(field("Counter (optional)", varPick(counterKey, "Number", "counter"), "A Number variable that holds the pass number: 0, 1, 2 … by default, or 1, 2, 3 … with Start counting at 1.", false, counterKey));
+    const startBox = textBox("start", "0", "Number");
+    startBox.addEventListener("change", () => { moveCounter(); changed(); renderProps(); });
+    nodes.push(field("Start counting at", startBox, "1 to count passes like a person does (1, 2, 3 …).", false, "start"));
+    const stepBox = textBox("step", "1", "Number");
+    stepBox.addEventListener("change", () => { moveCounter(); changed(); renderProps(); });
+    more.push(field("Count up by", stepBox, null, false, "step"));
   } else if (mode === "while") {
     nodes.push(field("Repeat while", conditionEditor(args.condition, (v) => set("condition", v)), "Checked before each pass; the loop ends when it is false.", true, "condition"));
     const atEnd = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!args.check_at_end, onchange: (e) => set("check_at_end", e.target.checked || undefined) }),

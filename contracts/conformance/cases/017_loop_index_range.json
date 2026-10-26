@@ -1,0 +1,58 @@
+{
+  "name": "017_loop_index_range",
+  "description": "from_index and to_index pick part of a list (positions count from 0, both included).",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c17",
+    "name": "c17",
+    "variables": [
+      {
+        "name": "joined",
+        "type": "String",
+        "direction": "output",
+        "default": ""
+      },
+      {
+        "name": "x",
+        "type": "String",
+        "direction": "local"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/loop",
+        "args": {
+          "iterator": "list",
+          "over": [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e"
+          ],
+          "as": "x",
+          "from_index": 1,
+          "to_index": 3
+        },
+        "children": [
+          {
+            "id": "s2",
+            "action": "core/set",
+            "args": {
+              "variable": "joined",
+              "value": "${joined}${x}"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "joined": "bcd"
+    }
+  }
+}

@@ -398,7 +398,10 @@ public final class Ooa {
         for (Path c : cases) {
             Map<String, Object> tc = (Map<String, Object>) JsonLite.parse(Files.readString(c));
             Path work = Files.createTempDirectory("ooa-conf");
-            Runner runner = Runner.builder(reg).service("vault", vault).workDir(work).schemaValidator(schemaValidator()).build();
+            Runner.Builder rb = Runner.builder(reg).service("vault", vault).workDir(work).schemaValidator(schemaValidator());
+            // shared values ($global) a case gives its run
+            if (tc.get("globals") instanceof Map<?, ?> g) rb.service("global_values", (java.util.function.Supplier<Object>) () -> g);
+            Runner runner = rb.build();
             RunResult r = runner.run((Map<String, Object>) tc.get("flow"), (Map<String, Object>) tc.get("inputs"));
             Map<String, Object> exp = (Map<String, Object>) tc.get("expect");
             List<String> why = new ArrayList<>();

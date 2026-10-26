@@ -1,0 +1,74 @@
+{
+  "name": "016_loop_times_start_step",
+  "description": "A Times loop with start and step: the value (as) goes start, start + step ...; the index stays 0, 1, 2.",
+  "flow": {
+    "kind": "TaskBot",
+    "id": "c16",
+    "name": "c16",
+    "variables": [
+      {
+        "name": "total",
+        "type": "Number",
+        "direction": "output",
+        "default": 0
+      },
+      {
+        "name": "last_index",
+        "type": "Number",
+        "direction": "output"
+      },
+      {
+        "name": "n",
+        "type": "Number",
+        "direction": "local"
+      },
+      {
+        "name": "i",
+        "type": "Number",
+        "direction": "local"
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "action": "core/loop",
+        "args": {
+          "iterator": "times",
+          "count": 3,
+          "start": 1,
+          "step": 2,
+          "as": "n",
+          "index": "i"
+        },
+        "children": [
+          {
+            "id": "s2",
+            "action": "core/set",
+            "args": {
+              "variable": "total",
+              "value": {
+                "expr": "$total + $n"
+              }
+            }
+          },
+          {
+            "id": "s3",
+            "action": "core/set",
+            "args": {
+              "variable": "last_index",
+              "value": "$i"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "inputs": {},
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "total": 9,
+      "last_index": 2
+    }
+  }
+}

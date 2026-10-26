@@ -23,7 +23,10 @@ def _norm(v):
 @pytest.mark.parametrize("path", CASES, ids=[p.stem for p in CASES])
 def test_case(path, registry, vault, tmp_path):
     case = load(path)
-    res = Runner(registry, services={"vault": vault}, work_dir=tmp_path).run(case["flow"], case["inputs"])
+    services = {"vault": vault}
+    if "globals" in case:
+        services["global_values"] = case["globals"]   # shared values ($global) the case gives its run
+    res = Runner(registry, services=services, work_dir=tmp_path).run(case["flow"], case["inputs"])
     exp = case["expect"]
     assert res.status == exp["status"], res.error
     if "outputs" in exp:
@@ -36,4 +39,4 @@ def test_case(path, registry, vault, tmp_path):
 
 
 def test_suite_is_not_empty():
-    assert len(CASES) >= 15
+    assert len(CASES) >= 18
