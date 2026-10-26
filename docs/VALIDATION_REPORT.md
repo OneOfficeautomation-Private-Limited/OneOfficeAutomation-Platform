@@ -590,3 +590,28 @@ Tests:
 - **Upgrade safety:** the first version made every runner single-user, which refused existing setups where several
   people share one runner (`TeamsVaultAuditAnalyticsTest` caught it). Runners nobody set are now multi-user; single-user
   is a choice. **Java suites:** 502 tests, 0 failed, 1 skipped.
+
+## Load test (Q5), 26 October 2026
+
+`gradlew :cli:loadTest` drives one Command Center over HTTP: simulated runners (heartbeat, then a long poll for work,
+then events and the result), a work queue and a large audit trail. Laptop, embedded H2, 50 runners, 1,000 items:
+
+| Measure | Before the fixes | After |
+| --- | --- | --- |
+| Work queue drained | 999 of 1,000 in 200 s (5 items/s); 1 item stuck "in progress" | 1,000 of 1,000 in 10.7 s (93 items/s) |
+| Heartbeat (p50 / p95) | 0 / 2 ms (runners mostly idle) | 86 / 333 ms (under full load) |
+| Long poll that brought work (p50 / p95) | 4 / 31 ms | 86 / 2,361 ms |
+| Events + finish (p50 / p95) | 2 / 5 ms | 189 / 348 ms |
+| Audit trail | 50,000 records at about 150 a second; verifying the whole chain 356 ms | unchanged |
+
+Two real problems found and fixed:
+
+- **A work item could stay "in progress" for ever.** A run was linked to its work item just after it was created; an
+  agent that finished within milliseconds reported back before the link existed, so the item never finished. The run
+  now carries its work item, run-as user and mode from the moment it exists (`ControlRoom.startRun`).
+- **Queues waited for the 3-second clock.** A runner that finished an item got the next one at the next tick only. The
+  leader now hands out the next item as soon as a queue run finishes (`Platform.dispatch`, now synchronized).
+
+Known limit: each audit record is one database transaction, serialized to keep the chain intact (about 150 a second
+on this laptop's H2). A run writes two or three, so audit writing caps runs at roughly 50 to 70 a second per database.
+CI runs a short version (20 runners, 300 items, 2,000 audit records) on every push.

@@ -39,6 +39,8 @@ jobs:
         env:
           OOA_INTERNET_SAMPLES: "0"   # live public websites are too slow and changeable to fail a build on; run them locally
         run: ./gradlew.bat build --continue --console=plain
+      - name: Short load test (many runners, a work queue, the audit trail)
+        run: ./gradlew.bat :cli:loadTest "-Pooa.load.runners=20" "-Pooa.load.items=300" "-Pooa.load.audit=2000" --console=plain
       - name: Customer zip without vendor tools
         shell: pwsh
         run: |

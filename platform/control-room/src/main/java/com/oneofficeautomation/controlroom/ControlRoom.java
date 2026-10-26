@@ -1200,9 +1200,18 @@ public final class ControlRoom {
      * agent's credentials are checked against that user. The mode is unattended (default), attended (someone is at the
      * runner) or headless (no desktop: the agent must not need one).
      */
-    @SuppressWarnings("unchecked")
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl, String runAs, String mode) {
+        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, runAs, mode, null);
+    }
+
+    /**
+     * As above, for the work item the run processes. Everything a runner reads about the run (run-as user, mode, work
+     * item) is written with it: a runner may claim and even finish a run the moment it exists.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
+                                        int priority, String callbackUrl, String runAs, String mode, String queueItemId) {
         if (rolesOf(requestedBy, role).stream().noneMatch(r -> allowed(r, "runs.start"))) throw denied("start runs");
         if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from One Workflow; forms run inside workflows.");
         folders.require(requestedBy, role, path, "run", "run agents");
@@ -1245,11 +1254,11 @@ public final class ControlRoom {
             clean.put(e.getKey(), e.getValue());
         }
         String runId = id("run");
-        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                runId, path, c.get("version"), deviceId, "queued", JsonLite.write(clean), requestedBy, source, now(), false, false, priority,
-                callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl);
         String asUser = runAs == null || runAs.isBlank() ? null : runAs;
-        if (asUser != null || !runMode.equals("unattended")) db.update("UPDATE runs SET run_as = ?, run_mode = ? WHERE id = ?", asUser, runMode, runId);
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url, run_as, run_mode, queue_item_id) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                runId, path, c.get("version"), deviceId, "queued", JsonLite.write(clean), requestedBy, source, now(), false, false, priority,
+                callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl, asUser, runMode.equals("unattended") && asUser == null ? null : runMode, queueItemId);
         Map<String, Object> details = new LinkedHashMap<>(Map.of("bot", path, "version", c.get("version"), "device", deviceId, "source", source, "mode", runMode));
         if (asUser != null) details.put("run_as", asUser);
         audit.record(requestedBy, "run.start", "run", runId, details, "ok", ip);
@@ -1573,6 +1582,8 @@ public final class ControlRoom {
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
+        // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
+        if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }

@@ -45,6 +45,17 @@ tasks.named<CreateStartScripts>("startScripts") { doLast { libraryPath(outputDir
 // the sample tasks run whole agents (browser, OCR on screen images, mail and directory servers) in the test JVM
 tasks.named<Test>("test") { maxHeapSize = "2g" }
 
+// Load and soak (Q5): gradlew :cli:loadTest [-Pooa.load.runners=100 -Pooa.load.items=2000 -Pooa.load.audit=100000]
+tasks.register<Test>("loadTest") {
+    description = "Many runners, a long work queue and a large audit trail against one Command Center."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    maxHeapSize = "2g"
+    outputs.upToDateWhen { false }
+    for (k in listOf("ooa.load.runners", "ooa.load.items", "ooa.load.audit")) project.findProperty(k)?.let { systemProperty(k, it) }
+}
+
 tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
     standardInput = System.`in`

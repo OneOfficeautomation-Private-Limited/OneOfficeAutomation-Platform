@@ -1175,7 +1175,7 @@ public final class Platform {
      * Gives each idle runner of a processing queue's pool the next item (priority, then age). The agent receives the item
      * as an input named work_item (and work_item_id) when it declares them. Called by the server clock.
      */
-    public int dispatch() {
+    public synchronized int dispatch() {
         int started = 0;
         for (Map<String, Object> q : db.query("SELECT * FROM queues WHERE processing = TRUE")) {
             for (int guard = 0; guard < 50; guard++) {
@@ -1191,10 +1191,10 @@ public final class Platform {
                     if (declared.containsKey("work_item")) inputs.put("work_item", JsonLite.parse((String) next.get("data")));
                     if (declared.containsKey("work_item_id")) inputs.put("work_item_id", next.get("id"));
                     Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", q.get("run_as"));
+                    // the run carries its work item from the start: a quick agent may finish before this method goes on
                     Map<String, Object> run = cr.startRun((String) q.get("run_as"), creator == null ? "viewer" : (String) creator.get("role"), (String) q.get("bot_path"), device,
-                            inputs, "queue:" + q.get("id"), null);
+                            null, inputs, "queue:" + q.get("id"), null, 0, null, null, null, (String) next.get("id"));
                     db.update("UPDATE queue_items SET run_id = ? WHERE id = ?", run.get("run_id"), next.get("id"));
-                    db.update("UPDATE runs SET queue_item_id = ? WHERE id = ?", next.get("id"), run.get("run_id"));
                     started++;
                 } catch (OoaException e) {
                     db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ? WHERE id = ?", JsonLite.write(e.toMap()), now(), next.get("id"));
