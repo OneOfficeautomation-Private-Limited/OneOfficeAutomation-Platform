@@ -835,7 +835,7 @@ const VIEWS = {
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
       const tempHours = num("temporary_runner_hours", 1, 720), secretDays = num("runner_secret_days", 0, 365);
-      const repoShared = txt("repo_files_folder", "\\fileserver\ooa\repo-files (for several nodes)");
+      const repoShared = txt("repo_files_folder", "\\\\fileserver\\ooa\\repo-files (for several nodes)");
       const nodesBox = h("div", { class: "muted" });
       api("GET", "cluster").then((c) => nodesBox.replaceChildren(h("p", { text: c.nodes.length + " node(s): " + c.nodes.map((n) => n.node_id + (n.leader ? " (leads background work)" : "") + (n.this_node ? " (this one)" : "")).join(", ") }))).catch(() => {});
       const bkHours = num("backup_hours", 0, 168), bkKeep = num("backup_keep_days", 1, 3650), bkFolder = txt("backup_folder", "(the data folder's backups folder)");
@@ -856,6 +856,13 @@ const VIEWS = {
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
       const syslogTarget = txt("syslog_target", "siem.example.com:514");
       const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
+      const mailHost = txt("mail_smtp_host", "smtp.office365.com"), mailPort = num("mail_smtp_port", 1, 65535), mailUser = txt("mail_smtp_user", "ooa@example.com"),
+        mailPw = txt("mail_smtp_password_ref", "mail/smtp/password"), mailFrom = txt("mail_from", "ooa@example.com"), licMailTo = txt("license_mail_to", "licences@example.com");
+      const mailSec = h("select", {}, h("option", { value: "starttls", text: "STARTTLS (port 587)" }), h("option", { value: "ssl", text: "SSL/TLS (port 465)" }),
+        h("option", { value: "none", text: "None (trusted network only)" })); mailSec.value = st.mail_smtp_security || "starttls";
+      const mailTestTo = h("input", { type: "text", placeholder: "(your own address)" });
+      const mailSettings = () => ({ mail_smtp_host: mailHost.value.trim(), mail_smtp_port: Number(mailPort.value), mail_smtp_security: mailSec.value, mail_smtp_user: mailUser.value.trim(),
+        mail_smtp_password_ref: mailPw.value.trim(), mail_from: mailFrom.value.trim(), license_mail_to: licMailTo.value.trim() });
       const lic = await api("GET", "license").catch(() => null);
       const dbi = await api("GET", "database").catch(() => null);
       main.replaceChildren(...head, tabs, h("div", { class: "card form-card" },
@@ -906,11 +913,20 @@ const VIEWS = {
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
             try { await api("PUT", "settings", { syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value }); await api("POST", "settings/syslog-test"); toast("Test message sent to " + syslogTarget.value.trim()); }
             catch (e) { toast(e.message, true); } } }, "Send a test message"))),
+        h("h3", {}, ic("inbox", "#475569", "sm"), "E-mail"),
+        h("p", { class: "muted", text: "The Command Center sends its own e-mail (licence expiry reminders to administrators, workflow e-mail steps) through your mail server. The password is a vault reference, never typed here." }),
+        h("div", { class: "grid2" }, h("label", {}, "Outgoing mail server", mailHost), h("label", {}, "Port", mailPort), h("label", {}, "Security", mailSec),
+          h("label", {}, "Account (empty = no sign-in)", mailUser), h("label", {}, "Password (vault reference folder/credential/attribute)", mailPw), h("label", {}, "Sender address", mailFrom),
+          h("label", {}, "Also send licence reminders to (addresses, separated by commas)", licMailTo),
+          h("label", {}, "Send a test e-mail to", mailTestTo),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
+            try { await api("PUT", "settings", mailSettings()); const r = await api("POST", "settings/mail-test", { to: mailTestTo.value.trim() }); toast("Test e-mail sent to " + r.to); }
+            catch (e) { toast(e.message, true); } } }, "Send a test e-mail"))),
         h("h3", {}, ic("desktop", "#475569", "sm"), "Several nodes"),
         h("p", { class: "muted", text: "Start more Command Centers on the same database behind a load balancer for high availability. Each serves everything; one leads the background work and another takes over within about 30 seconds if it stops. Put repository files in a shared folder every node can reach." }),
         nodesBox, h("label", {}, "Shared folder for repository files (empty = the data folder)", repoShared),
         h("h3", {}, ic("download", "#475569", "sm"), "Backups"),
-        h("p", { class: "muted", text: "Every table, the repository files and the configuration, in one zip per backup. Restore with: bin\ooa.bat backup restore FILE (the server stopped)." }),
+        h("p", { class: "muted", text: "Every table, the repository files and the configuration, in one zip per backup. Restore with: bin\\ooa.bat backup restore FILE (the server stopped)." }),
         h("div", { class: "grid2" }, h("label", {}, "Back up every (hours, 0 = never)", bkHours), h("label", {}, "Keep backups for (days)", bkKeep),
           h("label", {}, "Backup folder", bkFolder),
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async (e) => {
@@ -947,7 +963,7 @@ const VIEWS = {
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
-              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
+              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
     } else if (tab === "roles") {
@@ -1215,7 +1231,8 @@ const VIEWS = {
   },
 
   async licenses(main) {
-    const [st, asg, ur, dv] = await Promise.all([api("GET", "license"), api("GET", "license/assignments"), api("GET", "users"), api("GET", "devices").catch(() => ({ devices: [] }))]);
+    const [st, asg, ur, dv, use] = await Promise.all([api("GET", "license"), api("GET", "license/assignments"), api("GET", "users"), api("GET", "devices").catch(() => ({ devices: [] })),
+      api("GET", "license/usage?days=90").catch(() => null)]);
     const L = st.license || {};
     const TYPES = [["developer", "Developer", "user"], ["citizen_developer", "Citizen Developer", "user"], ["attended_runner", "Attended Runner", "user"], ["unattended_runner", "Unattended Runner", "device"]];
     const held = new Set(asg.assignments.map((a) => a.principal_type + "|" + a.principal + "|" + a.license_type));
@@ -1260,6 +1277,7 @@ const VIEWS = {
           columns: [{ label: "License type", value: (x) => x.label }, { label: "In use", value: (x) => x.used },
             { label: "Seats", value: (x) => x.total < 0 ? "unlimited" : x.total },
             { label: "", sort: false, render: (x) => x.total < 0 ? h("span", { class: "muted", text: "no license" }) : h("div", { class: "seat-bar" }, progressBar(x.total ? 100 * x.used / x.total : 100, x.used >= x.total ? "bad" : "")) }] })),
+      use ? licenseUsageCard(use) : null,
       h("div", { class: "card" }, h("h2", { text: "People" }),
         dataTable({ rows: ur.users.filter((u) => u.enabled !== false), search: "Search people", exportName: "license-people",
           columns: [{ label: "User", value: (u) => u.username, render: (u) => h("div", {}, h("strong", { text: u.username }), u.display_name ? h("div", { class: "small muted", text: u.display_name }) : null) },
@@ -2881,3 +2899,33 @@ async function boot() {
 }
 
 if (typeof window !== "undefined" && !window.__OOA_TEST__) boot();
+
+/** Licence use: seats in use per type over time, who holds each seat and whether it was used in the last 30 days. */
+function licenseUsageCard(use) {
+  const NAMES = { developer: "Developer", citizen_developer: "Citizen Developer", attended_runner: "Attended Runner", unattended_runner: "Unattended Runner" };
+  const spark = (type) => {
+    const pts = use.trend.filter((r) => r.license_type === type);
+    const max = Math.max(1, ...pts.map((r) => Math.max(r.used, r.total))), w = 160, ht = 28;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 " + w + " " + ht); svg.setAttribute("width", w); svg.setAttribute("height", ht); svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", NAMES[type] + " seats in use over " + pts.length + " day(s)");
+    if (pts.length) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("points", pts.map((r, i) => (pts.length === 1 ? w : i * w / (pts.length - 1)).toFixed(1) + "," + (ht - 2 - (ht - 4) * r.used / max).toFixed(1)).join(" "));
+      line.setAttribute("fill", "none"); line.setAttribute("stroke", "#2563eb"); line.setAttribute("stroke-width", "2");
+      svg.appendChild(line);
+    }
+    return svg;
+  };
+  return h("div", { class: "card" },
+    h("h2", { text: "Usage" }),
+    h("p", { class: "muted", text: "Seats in use each day over the last 90 days, and who holds each seat. A seat whose holder has not signed in (or, for a runner, been online) and has started no runs for 30 days is marked idle: a candidate to take back." }),
+    table(["License type", "In use", "Idle", "Last 90 days"], Object.entries(use.seats).map(([t, x]) => ({ cells: [x.label, x.used + (x.total >= 0 ? " of " + x.total : ""), String(x.idle), spark(t)] }))),
+    dataTable({ rows: use.holders, search: "Search seat holders", exportName: "license-use",
+      columns: [{ label: "Holder", value: (x) => x.name, render: (x) => h("div", {}, h("strong", { text: x.name }), x.name !== x.principal ? h("div", { class: "small muted", text: x.principal }) : null) },
+        { label: "License", value: (x) => NAMES[x.license_type] || x.license_type },
+        { label: "Since", value: (x) => x.assigned, render: (x) => local(x.assigned) },
+        { label: "Last active", value: (x) => x.last_active || "", render: (x) => x.last_active ? local(x.last_active) : h("span", { class: "muted", text: "never" }) },
+        { label: "Runs (30 days)", value: (x) => x.runs_30_days },
+        { label: "", value: (x) => x.idle ? 1 : 0, render: (x) => x.idle ? h("span", { class: "pill queued", text: "idle" }) : null }] }));
+}

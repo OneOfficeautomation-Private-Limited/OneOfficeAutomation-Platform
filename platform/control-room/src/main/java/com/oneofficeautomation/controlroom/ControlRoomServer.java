@@ -415,6 +415,8 @@ public final class ControlRoomServer {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.licensing.install(u, (String) map(body(ex)).get("content"), ip));
                 else if (m.equals("GET") && route.equals("license/assignments")) sendJson(ex, 200, cr.licensing.assignments(u));
+                else if (m.equals("GET") && route.equals("license/usage")) sendJson(ex, 200, cr.licensing.usage(u, ControlRoom.intOr(q.get("days"), 90)));
+                else if (m.equals("GET") && route.equals("license/usage/export")) sendText(ex, 200, "text/csv; charset=utf-8", cr.licensing.usageCsv(u), "license-use.csv");
                 else if (m.equals("PUT") && route.equals("license/assignments")) {
                     Map<String, Object> b = map(body(ex));
                     sendJson(ex, 200, cr.licensing.assign(u, (String) b.get("license_type"), (String) b.get("principal"), !Boolean.FALSE.equals(b.get("assigned")), ip));
@@ -452,6 +454,7 @@ public final class ControlRoomServer {
             }
             case "settings" -> {
                 if (m.equals("POST") && route.equals("settings/syslog-test")) { cr.require(u, "settings.manage", "test the syslog connection"); sendJson(ex, 200, cr.syslog.test(u.username())); }
+                else if (m.equals("POST") && route.equals("settings/mail-test")) sendJson(ex, 200, cr.mailer.test(u, (String) map(body(ex)).get("to"), ip));
                 else if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
                 else if (m.equals("PUT")) sendJson(ex, 200, cr.platform.updateSettings(u, map(body(ex)), ip));
                 else notFound(ex);

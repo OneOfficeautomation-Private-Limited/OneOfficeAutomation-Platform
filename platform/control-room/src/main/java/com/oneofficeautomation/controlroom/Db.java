@@ -404,9 +404,14 @@ public final class Db implements AutoCloseable {
         "CREATE TABLE auth_pending (token VARCHAR(200) PRIMARY KEY, kind VARCHAR(20) NOT NULL, data VARCHAR(2000), expires TIMESTAMP NOT NULL)",
     };
 
+    /** Version 19: licence use per day, for the usage trend (Licensing.usage). */
+    private static final String[] SCHEMA_V19 = {
+        "CREATE TABLE license_usage (snap_day VARCHAR(10) NOT NULL, license_type VARCHAR(40) NOT NULL, used INT NOT NULL, total INT NOT NULL, PRIMARY KEY (snap_day, license_type))",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 18;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18 };
+    public static final int LATEST = 19;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

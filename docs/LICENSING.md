@@ -101,6 +101,11 @@ A person with a Developer or Citizen Developer seat may also run agents by hand 
 assigned on the Licenses page, which needs `users.manage`. Assigning more seats than the file holds is refused with
 `CR.LICENSE_LIMIT`. A license with fewer seats than are already assigned cannot be installed until seats are taken back.
 
+**Usage** (Licenses page, the Usage card): seats in use per type each day over the last 90 days, and every seat holder
+with when the seat was given, when they last signed in (a runner: last online) and how many runs they started in the
+last 30 days. A seat with neither sign-in nor runs for 30 days is marked idle, as a candidate to take back. **CSV**
+downloads the holders list. Deleting a runner frees its seat.
+
 ## Life of a license
 
 | State | When | Effect |
@@ -113,6 +118,11 @@ assigned on the Licenses page, which needs `users.manage`. Assigning more seats 
 | Expiring | 30 days or fewer left | Banner for administrators: a warning that can be put away, red and permanent in the last 7 days |
 | Grace | After the expiry date, for the grace days | Everything keeps working; the red banner stays |
 | Expired | After the grace days | Runs stop, queued runs fail, and only administrators can sign in to install a new license |
+
+**Reminder e-mails**: once e-mail is set up (Administration > Settings > E-mail), administrators with an e-mail address,
+and any addresses in "Also send licence reminders to", get one e-mail when 30, 15, 7, 3, 2 and 1 days are left, and one
+when the license has expired (naming the end of the grace period). The evaluation gets the same reminders. Each is
+audited as `license.mail`.
 
 Every install, assignment and unassignment is audited (`license.install`, `license.assign`, `license.unassign`). The
 same applies to failed sign-ins and refused runs.
@@ -133,3 +143,5 @@ the repository.
 | `POST /api/license` `{content}` | `settings.manage` | Install a license file |
 | `GET /api/license/assignments` | `users.manage` | Who holds which seat |
 | `PUT /api/license/assignments` `{license_type, principal, assigned}` | `users.manage` | Give or take back a seat (principal: user name, or runner id for Unattended Runner) |
+| `GET /api/license/usage?days=90` | `users.manage` or `settings.manage` | Seats, holders with last activity and idle flag, daily trend |
+| `GET /api/license/usage/export` | `users.manage` or `settings.manage` | The holders list as CSV |

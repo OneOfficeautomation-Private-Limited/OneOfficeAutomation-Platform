@@ -298,6 +298,135 @@ public final class Licensing {
             "An administrator installs a license in Administration > Licenses");
     }
 
+    // ---------- expiry e-mails (L3) and the usage report (L2) ----------
+
+    /** Days before the end at which administrators get an e-mail, once each. */
+    static final int[] MAIL_DAYS = { 30, 15, 7, 3, 2, 1 };
+
+    /** Who gets licence e-mails: people who may change settings and have an e-mail address, plus Settings > license_mail_to. */
+    List<String> mailRecipients() {
+        Set<String> to = new LinkedHashSet<>();
+        for (Map<String, Object> r : db.query("SELECT * FROM users WHERE enabled = TRUE AND email IS NOT NULL")) {
+            String email = String.valueOf(r.get("email")).trim();
+            if (!email.isEmpty() && isAdmin(cr, ControlRoom.user(r))) to.add(email);
+        }
+        for (String a : String.valueOf(cr.platform.setting("license_mail_to")).split("[,;\\s]+")) if (!a.isBlank()) to.add(a.trim());
+        return new ArrayList<>(to);
+    }
+
+    /**
+     * Called by the server clock: records today's seat use once a day, and when the license or the evaluation ends in 30,
+     * 15, 7, 3, 2 or 1 days (or the license has just expired), e-mails the administrators once for that step.
+     */
+    void mailIfDue() {
+        snapshotIfDue();
+        if (!cr.mailer.configured()) return;
+        String st = state();
+        License l;
+        try { l = current(); } catch (OoaException e) { return; }
+        LocalDate end;
+        if (l != null && (st.equals("active") || st.equals("expiring") || st.equals("grace"))) end = l.expires();
+        else if (l == null && st.equals("evaluation")) end = evaluationStart().plusDays(EVALUATION_DAYS);
+        else return;
+        long left = ChronoUnit.DAYS.between(today(), end);
+        String step = null;
+        if (left < 0) step = "expired";
+        else for (int d : MAIL_DAYS) if (left <= d) step = String.valueOf(d);
+        if (step == null) return;
+        String marker = end + ":" + step;
+        Map<String, Object> sent = db.one("SELECT json_value FROM settings WHERE name = 'license_mail_sent'");
+        if (sent != null && marker.equals(com.oneofficeautomation.sdk.JsonLite.parse((String) sent.get("json_value")))) return;
+        List<String> to = mailRecipients();
+        if (to.isEmpty()) return;
+        String what = l != null ? "The ONEOFFICEAUTOMATION license" + (l.customer().isEmpty() ? "" : " for " + l.customer()) : "The ONEOFFICEAUTOMATION evaluation";
+        String subject, body;
+        if (left < 0) {
+            subject = "ONEOFFICEAUTOMATION license expired on " + end;
+            body = what + " expired on " + end + ". Everything keeps working until " + l.expires().plusDays(l.graceDays()) + "; after that runs stop and only administrators can sign in.";
+        } else {
+            subject = "ONEOFFICEAUTOMATION " + (l == null ? "evaluation" : "license") + " ends in " + left + (left == 1 ? " day" : " days");
+            body = what + " ends on " + end + " (" + left + (left == 1 ? " day" : " days") + " from today).";
+        }
+        String url = String.valueOf(cr.platform.setting("public_url"));
+        body += "\n\nInstall a new license in Administration > Licenses. This install's id is " + installId() + "; send it to ONEOFFICEAUTOMATION when you ask for one."
+            + (url.isEmpty() ? "" : "\n\nCommand Center: " + url);
+        cr.mailer.send(to, subject, body);
+        String json = com.oneofficeautomation.sdk.JsonLite.write(marker);
+        if (db.update("UPDATE settings SET json_value = ?, updated = ? WHERE name = 'license_mail_sent'", json, Instant.now(clock)) == 0)
+            db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", "license_mail_sent", json, Instant.now(clock), "system");
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("step", step);
+        details.put("recipients", to.size());
+        cr.audit.record("system", "license.mail", "license", l == null ? null : l.id(), details, "ok", null);
+    }
+
+    /** Records each type's seats in use and in total for today (once a day; the usage trend reads them). */
+    void snapshotIfDue() {
+        String day = today().toString();
+        if (db.one("SELECT snap_day FROM license_usage WHERE snap_day = ?", day) != null) return;
+        for (String t : License.TYPES) {
+            try { db.update("INSERT INTO license_usage (snap_day, license_type, used, total) VALUES (?,?,?,?)", day, t, (int) used(t), total(t)); }
+            catch (OoaException raced) { return; }   // recorded at the same moment elsewhere
+        }
+    }
+
+    /**
+     * Licence use for administrators: seats per type, who holds each seat with their last activity and runs in the last
+     * 30 days (a seat with neither is marked idle, to take back), and the daily trend over the given days.
+     */
+    public Map<String, Object> usage(User by, int days) {
+        if (!cr.can(by, "users.manage") && !isAdmin(cr, by)) throw cr.denied("see license use");
+        snapshotIfDue();
+        int span = Math.max(7, Math.min(365, days));
+        Instant since = Instant.now(clock).minus(Duration.ofDays(30));
+        List<Map<String, Object>> holders = new ArrayList<>();
+        for (Map<String, Object> a : db.query("SELECT principal_type, principal, license_type, assigned, assigned_by FROM license_assignments ORDER BY license_type, principal")) {
+            Map<String, Object> m = new LinkedHashMap<>(a);
+            boolean device = "device".equals(a.get("principal_type"));
+            Map<String, Object> who = device ? db.one("SELECT name, last_seen FROM devices WHERE id = ?", a.get("principal"))
+                : db.one("SELECT display_name, last_login FROM users WHERE username = ?", a.get("principal"));
+            Object last = who == null ? null : who.get(device ? "last_seen" : "last_login");
+            Object name = who == null ? null : who.get(device ? "name" : "display_name");
+            m.put("name", name == null ? a.get("principal") : name);
+            m.put("last_active", last);
+            long runs = device ? cr.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND created > ?", a.get("principal"), since)
+                : cr.count("SELECT COUNT(*) AS n FROM runs WHERE requested_by = ? AND created > ?", a.get("principal"), since);
+            m.put("runs_30_days", runs);
+            m.put("idle", (last == null || Instant.parse(String.valueOf(last)).isBefore(since)) && runs == 0);
+            holders.add(m);
+        }
+        Map<String, Object> seats = new LinkedHashMap<>();
+        for (String t : License.TYPES) seats.put(t, Map.of("label", label(t), "total", total(t), "used", used(t),
+            "idle", holders.stream().filter(h -> t.equals(h.get("license_type")) && Boolean.TRUE.equals(h.get("idle"))).count()));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("state", state());
+        m.put("seats", seats);
+        m.put("holders", holders);
+        m.put("trend", db.query("SELECT snap_day, license_type, used, total FROM license_usage WHERE snap_day >= ? ORDER BY snap_day, license_type", today().minusDays(span).toString()));
+        return m;
+    }
+
+    /** The holders list as CSV (the usage report's download). */
+    @SuppressWarnings("unchecked")
+    public String usageCsv(User by) {
+        StringBuilder sb = new StringBuilder("license,holder_type,holder,name,assigned,assigned_by,last_active,runs_30_days,idle\r\n");
+        for (Map<String, Object> h : (List<Map<String, Object>>) usage(by, 30).get("holders")) {
+            List<String> cells = new ArrayList<>();
+            for (String k : List.of("license_type", "principal_type", "principal", "name", "assigned", "assigned_by", "last_active", "runs_30_days", "idle")) {
+                Object v = h.get(k);
+                cells.add(csv(k.equals("license_type") ? label(String.valueOf(v)) : v == null ? "" : String.valueOf(v)));
+            }
+            sb.append(String.join(",", cells)).append("\r\n");
+        }
+        return sb.toString();
+    }
+
+    /** A CSV cell: quoted when needed, and never starting like a spreadsheet formula. */
+    static String csv(String v) {
+        String s = !v.isEmpty() && "=+-@".indexOf(v.charAt(0)) >= 0 ? "'" + v : v;
+        return s.contains(",") || s.contains("\"") || s.contains("\n") ? "\"" + s.replace("\"", "\"\"") + "\"" : s;
+    }
+
     static String label(String type) {
         return switch (type) {
             case "developer" -> "Developer"; case "citizen_developer" -> "Citizen Developer"; case "attended_runner" -> "Attended Runner"; default -> "Unattended Runner";

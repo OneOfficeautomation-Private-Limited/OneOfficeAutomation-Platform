@@ -26,6 +26,11 @@ The database upgrades itself on start (schema versions 1 to 3).
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
 Without it a key file is created next to the database.
 
+**Before going live**, `bin\ooa.bat check` tests what the install needs: Java, memory, free disk space, the port, the data
+folder, the vault key, the database connection and schema, and HTTPS. Each line is PASS, WARN or FAIL;
+the installer runs it first. For a cloud virtual machine or the Linux container image see
+[CLOUD_INSTALL.md](CLOUD_INSTALL.md).
+
 ### HTTPS
 
 One Command Center serves HTTPS itself (TLS 1.2 and 1.3) once it has a certificate. Stop it, then from `bin`:
@@ -52,7 +57,7 @@ already trust needs nothing more. For a self-signed one, copy `ooa.cer` to the r
 
 Customers install from `ooa-setup-<version>.zip` (Install.cmd, guided or `-Silent`) or `ooa-<version>.msi`
 (`msiexec /qn ROLE=CommandCenter SERVICE=1` or `ROLE=Runner URL=... REGISTRATION_KEY=...`). Both bring their own
-Java. Build them with `gradlew :cli:setupDistZip` and `scriptsuild-msi.ps1` (WiX Toolset 5); CI builds and
+Java. Build them with `gradlew :cli:setupDistZip` and `scripts\build-msi.ps1` (WiX Toolset 5); CI builds and
 install-tests the MSI on every push. The package's README.txt lists every option.
 
 ### Run as a Windows service
@@ -117,6 +122,9 @@ People only see the pages their role allows.
 - **New users** (Users > New user) get a one-time temporary password and must change it at first sign-in. Five wrong
   passwords lock an account for 15 minutes. Administration > Settings can disable accounts that have not signed in for
   a number of days.
+- **Password rules** (Administration > Settings > Security): minimum length, how many earlier passwords may not be used
+  again, and after how many days a password expires. Someone whose password has expired signs in and must choose a new
+  one before doing anything else. Single sign-on users are not affected.
 - **Single sign-on** (Administration > Settings > Single sign-on): enter the OpenID Connect issuer URL and client id of
   Microsoft Entra ID, Okta, Google, Keycloak or another provider. The client secret is a vault reference, never typed into
   settings. Register the redirect address shown there with the provider. The sign-in page then shows a "Sign in with
@@ -169,6 +177,22 @@ People only see the pages their role allows.
    (`ooa agent uninstall-task` removes it; from a source checkout, `scripts\install-agent-task.ps1` does the same.)
    Runners that drive the desktop must run this way, in a signed-in session. A runner for work without a desktop can
    instead be a Windows service: `ooa service install --mode agent`.
+
+**Temporary runners** (pooled virtual desktops, short-lived build machines): tick **Temporary runner** when making
+the registration key. Such a runner is removed by itself once it has been offline for the hours set in Administration
+> Settings (8 by default), and its licence seat is freed. Deleting any runner frees its seat too.
+
+**Runner secrets** are replaced by themselves every 30 days (Settings > Runner secret days; 0 turns it off): the runner
+asks for a new secret with its heartbeat and saves it, and the old one keeps working for a short while in case the
+save is interrupted. No one has to visit the machine.
+
+**Toolkits on the runner**: each runner reports which toolkit versions it has, shown in its details. A run that needs a
+toolkit (or version) the runner lacks does not start there: it fails at once with `RUN.TOOLKIT_MISSING`, naming what is
+missing.
+
+**When a runner will not connect**, run `ooa agent diagnose` on it. It checks the runner's settings, name lookup, the proxy and
+network, the certificate, the clock, the Command Center's answer, the runner's sign-in, the screen, free disk space
+and toolkits, and says what to fix.
 
 The runner runs each agent in its own process, so a crashing agent never stops the runner. Its log files are in
 `C:\Users\<you>\OOA Agent Workspace\logs`.
@@ -515,6 +539,15 @@ off removes everyone's own values.
 Every sign-in, change, run, credential use, task and workflow event is recorded and hash-chained. One Audit Trail >
 Verify integrity re-checks the whole chain and reports any record that was edited or deleted.
 
+The chain is keyed with a secret kept encrypted by the vault key, so someone who can write to the database cannot
+rebuild a consistent chain after an edit. Every hour the last record's position and hash are also written to
+`audit-checkpoints.log` in the data folder (copy it to a log collector or write-once storage); Verify compares the
+database with it, so deleting the newest records is found too.
+
+**Audit retention** (Administration > Settings, 90 days at least, 0 keeps everything): older records are moved to
+compressed files in the data folder's `audit-archive` folder before they leave the database, and a record of the cut
+keeps the chain verifiable.
+
 Search by any text, who, action (a prefix such as `repo.` or an exact action), object type, result and a date range,
 newest or oldest first, with paging and the total. **Export CSV** downloads the search (up to 50,000 records); the
 export is itself recorded. API: `GET /api/audit?actor=&action=&object_type=&object_id=&result=&from=&to=&sort=&limit=&offset=`
@@ -546,3 +579,32 @@ what it holds. An agent's **Statistics** (agent details, or a
 click in these lists) shows its errors and runners. Only agents the person may see (folder permissions) are counted.
 API: `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=`, `GET /api/analytics/agent?path=`,
 `GET /api/analytics/export?report=most_run|longest|most_failed|by_runner|by_day|by_source|run_history`.
+
+**Other retention** (Administration > Settings): AI calls and finished work items older than the days you set are
+removed with the run history (0 keeps them).
+
+## 10b. E-mail from the Command Center
+
+Administration > Settings > E-mail: the company's outgoing mail server, port, security (STARTTLS, SSL/TLS, or none on
+a trusted network only), the account and its password as a vault reference (`folder/credential/attribute`), and the
+sender address. **Send a test e-mail** checks it. The Command Center uses it for licence reminders
+([LICENSING.md](LICENSING.md)). Messages are plain text; the server's certificate must name the server.
+
+## 10c. Backups
+
+Administration > Settings > Backups makes a backup every few hours (0 turns it off) into the data folder's `backups`
+folder or a folder you choose, and keeps them for the days you set. **Back up now** makes one at once. A backup is
+one zip with every table and the repository files. It holds vault values encrypted but never the vault key: keep
+`OOA_MASTER_KEY` (or `master.key`) safely apart.
+
+From `bin`: `ooa backup now`, `ooa backup list` and, with the Command Center stopped, `ooa backup restore FILE` (into an
+empty database; `--replace` to overwrite). Restore refuses a backup made with another vault key. With SQL Server or
+PostgreSQL, keep the database's own backups as well.
+
+## 10d. Several Command Center nodes
+
+Two or more Command Centers can share one SQL Server or PostgreSQL database behind a load balancer (no sticky
+sessions needed). Every node serves the console, the API and runners; one node at a time leads the background work
+(schedules, triggers, queues, housekeeping, backups) and another takes over within about 30 seconds if it stops.
+Administration > Settings > Several nodes lists the nodes and which leads. Put repository files on a shared folder
+there (for example `\\fileserver\ooa\repo-files`) and give every node the same `OOA_MASTER_KEY`.

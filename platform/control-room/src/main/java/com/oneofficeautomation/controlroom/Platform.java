@@ -74,6 +74,13 @@ public final class Platform {
         DEFAULTS.put("saml_idp_certificate", "");
         DEFAULTS.put("saml_sp_entity_id", "");
         DEFAULTS.put("saml_label", "");
+        DEFAULTS.put("mail_smtp_host", "");
+        DEFAULTS.put("mail_smtp_port", 587);
+        DEFAULTS.put("mail_smtp_security", "starttls");
+        DEFAULTS.put("mail_smtp_user", "");
+        DEFAULTS.put("mail_smtp_password_ref", "");
+        DEFAULTS.put("mail_from", "");
+        DEFAULTS.put("license_mail_to", "");
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -101,7 +108,8 @@ public final class Platform {
         Map.entry("ai_call_retention_days", new long[] { 0, 36500 }),
         Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
         Map.entry("backup_keep_days", new long[] { 1, 3650 }),
-        Map.entry("runner_secret_days", new long[] { 0, 365 }));
+        Map.entry("runner_secret_days", new long[] { 0, 365 }),
+        Map.entry("mail_smtp_port", new long[] { 1, 65535 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -155,6 +163,11 @@ public final class Platform {
                 if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))
                     throw new OoaException("CR.BAD_INPUT", "The syslog target is host:port, for example siem.example.com:514");
+                if (k.equals("mail_smtp_security") && !List.of("starttls", "ssl", "none").contains(s)) throw new OoaException("CR.BAD_INPUT", "The mail security is starttls, ssl or none");
+                if (k.equals("mail_smtp_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The mail password is a vault reference: vault folder/credential/attribute");
+                if (k.equals("mail_smtp_host") && !s.isEmpty() && !s.matches("[A-Za-z0-9.-]+")) throw new OoaException("CR.BAD_INPUT", "The mail server is a host name, for example smtp.office365.com");
+                if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
+                if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
                 if (k.equals("ip_allow_list")) {
                     IpAllowList l = IpAllowList.parse(s);

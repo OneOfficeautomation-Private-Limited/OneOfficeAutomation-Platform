@@ -64,6 +64,7 @@ public final class ControlRoom {
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
+    final Mailer mailer;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -111,6 +112,7 @@ public final class ControlRoom {
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
+        this.mailer = new Mailer(this);
         audit.onRecord(syslog::forward);
         audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
@@ -1703,6 +1705,7 @@ public final class ControlRoom {
         try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
         try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================
