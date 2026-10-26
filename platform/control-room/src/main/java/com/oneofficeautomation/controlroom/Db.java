@@ -381,9 +381,14 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE devices ADD COLUMN secret_prev_until TIMESTAMP",
     };
 
+    /** Version 15: the toolkits each runner has (id@version, comma separated). */
+    private static final String[] SCHEMA_V15 = {
+        "ALTER TABLE devices ADD COLUMN toolkits VARCHAR(20000)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 14;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14 };
+    public static final int LATEST = 15;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

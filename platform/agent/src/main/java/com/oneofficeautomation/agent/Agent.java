@@ -27,6 +27,15 @@ public final class Agent {
     /** The build of this runner's program files (null for a build from source); sent with each heartbeat. */
     private final String build = Updater.build(Updater.lib());
     private volatile boolean updating;
+    /** The toolkits this runner has (id@version), sent with the first heartbeat and when the Command Center asks. */
+    static final List<String> TOOLKITS = toolkits();
+    private volatile boolean toolkitsSent;
+
+    static List<String> toolkits() {
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> m : com.oneofficeautomation.packages.FirstPartyPackages.registry().allManifests()) out.add(m.get("id") + "@" + m.get("version"));
+        return out;
+    }
     private final ExecutorService io = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-agent-io"); t.setDaemon(true); return t; });
     private final LocalTriggers localTriggers;
     long heartbeatMs = 10_000, pollMs = 2_000, triggerPollMs = 2_000;
@@ -196,8 +205,11 @@ public final class Agent {
     void heartbeat() {
         try {
             Worker w = active;
-            Map<String, Object> r = client.post("heartbeat", Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
+            Map<String, Object> beat = new HashMap<>(Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
                     "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state(), "build", build == null ? "" : build));
+            if (!toolkitsSent) beat.put("toolkits", TOOLKITS);
+            Map<String, Object> r = client.post("heartbeat", beat);
+            toolkitsSent = !Boolean.TRUE.equals(r.get("send_toolkits"));
             if (r.get("update") instanceof Map<?, ?> u && w == null && !updating) { updating = true; io.submit(() -> update((Map<String, Object>) u)); }
             if (w != null) {
                 if (((List<Object>) r.getOrDefault("cancel", List.of())).contains(w.runId)) w.cancel();

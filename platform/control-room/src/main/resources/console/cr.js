@@ -1484,7 +1484,7 @@ async function openDevice(d) {
     body.replaceChildren(
       kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", (d.agent_version || "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center: it gets no work until the Command Center is updated)" : "")], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
         ["Type", d.device_type === "single_user" ? "Single-user" : "Multi-user"], ["Default runner of", (d.default_users || []).join(", ") || "nobody"], ["Log level", d.log_level || "info"],
-        ["Screen", d.session_state ? SCREEN[d.session_state] + ": " + SCREEN_HELP[d.session_state] : "not reported yet"], ["After unattended runs", AFTER_RUN[d.after_run || "nothing"]],
+        ["Screen", d.session_state ? SCREEN[d.session_state] + ": " + SCREEN_HELP[d.session_state] : "not reported yet"], ["After unattended runs", AFTER_RUN[d.after_run || "nothing"]], ["Toolkits", d.toolkits ? h("details", {}, h("summary", { text: d.toolkits.split(",").length + " toolkits" }), h("div", { class: "muted", text: d.toolkits.split(",").join(", ") })) : "not reported yet"],
         ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
       h("h3", { text: "Now" }), active.runs.length ? runTable(active.runs, (r) => openRun(r.id)) : h("p", { class: "muted", text: "Idle." }),
       h("h3", { text: "History" }), runTable(hist.runs, (r) => openRun(r.id)));

@@ -999,7 +999,7 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, List<String>> defaults = new HashMap<>();
         for (Map<String, Object> u : db.query("SELECT username, device_id FROM user_devices ORDER BY username")) defaults.computeIfAbsent((String) u.get("device_id"), k -> new ArrayList<>()).add((String) u.get("username"));
-        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested, lifespan FROM devices ORDER BY name")) {
+        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested, lifespan, toolkits FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
             if (m.get("log_level") == null) m.put("log_level", "info");
             if (m.get("after_run") == null) m.put("after_run", "nothing");
@@ -1087,6 +1087,10 @@ public final class ControlRoom {
         String did = (String) d.get("id");
         String session = SESSION_STATES.contains(String.valueOf(info.get("session"))) ? (String) info.get("session") : null;
         String build = info.get("build") instanceof String b && b.matches("[0-9a-f]{16}") ? b : null;
+        if (info.get("toolkits") instanceof List<?> tk) {
+            String list = String.join(",", tk.stream().map(String::valueOf).filter(x -> x.matches("[A-Za-z0-9._-]{1,80}@[A-Za-z0-9._-]{1,40}")).sorted().toList());
+            if (list.length() <= 20000) db.update("UPDATE devices SET toolkits = ? WHERE id = ?", list, did);
+        }
         db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state), build = COALESCE(?, build) WHERE id = ?",
                 now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, build, did);
         List<Object> cancel = new ArrayList<>(), pause = new ArrayList<>(), resume = new ArrayList<>();
@@ -1109,6 +1113,7 @@ public final class ControlRoom {
         Map<String, Object> update = runnerUpdates.forHeartbeat(d, build, !cancel.isEmpty() || !pause.isEmpty() || !resume.isEmpty());
         if (update != null) out.put("update", update);
         if (secretDue(d)) out.put("rotate", true);
+        if (d.get("toolkits") == null && !(info.get("toolkits") instanceof List)) out.put("send_toolkits", true);   // runners send their toolkit list when asked
         return out;
     }
 
@@ -1353,6 +1358,34 @@ public final class ControlRoom {
         }
     }
 
+    /**
+     * The toolkits an agent and the agents it calls use (from their steps), and which of them a runner lacks. A runner
+     * that has not reported its toolkits yet (an older one) is not checked.
+     */
+    @SuppressWarnings("unchecked")
+    static Set<String> missingToolkits(Object runnerToolkits, Map<String, Object> main, Map<String, Object> bundle) {
+        if (runnerToolkits == null || String.valueOf(runnerToolkits).isBlank()) return Set.of();
+        Set<String> has = new HashSet<>();
+        for (String t : String.valueOf(runnerToolkits).split(",")) has.add(t.substring(0, Math.max(0, t.indexOf('@'))));
+        Set<String> missing = new TreeSet<>();
+        List<Map<String, Object>> flows = new ArrayList<>(List.of(main));
+        for (Object b : bundle.values()) if (b instanceof Map<?, ?> m) flows.add((Map<String, Object>) m);
+        for (Map<String, Object> f : flows)
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+                String a = String.valueOf(s.get("action"));
+                if (!a.contains("/")) continue;
+                String pid = a.substring(0, a.indexOf('/'));
+                if (!has.contains(pid)) missing.add(pid);
+            }
+        return missing;
+    }
+
+    private void requireToolkits(Map<String, Object> d, Map<String, Object> main, Map<String, Object> bundle) {
+        Set<String> missing = missingToolkits(d.get("toolkits"), main, bundle);
+        if (!missing.isEmpty()) throw new OoaException("RUN.TOOLKIT_MISSING", "The runner " + d.get("name") + " does not have the toolkit(s) " + String.join(", ", missing),
+            "Update the runner (Runners > Update), or send the run to a runner that has them.", false, Map.of("missing", new ArrayList<>(missing)));
+    }
+
     public Map<String, Object> claimNext(Map<String, Object> d) {
         String did = (String) d.get("id");
         // a runner newer than this Command Center gets no work until the Command Center is updated
@@ -1383,6 +1416,7 @@ public final class ControlRoom {
             String role = user == null ? "viewer" : (String) user.get("role");
             Map<String, Object> files, skills;
             try {
+                requireToolkits(d, main, bundle);
                 files = repoFiles.forJob(main, String.valueOf(principal), role);
                 skills = promptSkills.forJob(main, bundle, String.valueOf(principal));
             } catch (OoaException e) {
