@@ -265,7 +265,7 @@ public final class ControlRoomServer {
         }
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
-            case "dashboard" -> sendJson(ex, 200, cr.dashboard(u));
+            case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
             case "license" -> sendJson(ex, 200, cr.platform.license(u));
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
             case "mcp" -> {

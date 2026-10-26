@@ -241,15 +241,45 @@ function tabStrip(items, current, onPick) {
 
 function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
 
+/**
+ * Pages that show live figures but have no live view of their own are drawn again quietly while they stay open
+ * (milliseconds between redraws). Pages with their own timer (runs, runners, queues, inbox, workflows, triggers) and
+ * pages with forms or local filters (settings, audit trail) are not listed.
+ */
+const AUTO_REFRESH = { home: 5000, automation: 15000, schedules: 15000, apitasks: 15000, pools: 15000, operations: 30000, governance: 30000, skills: 30000 };
+
 async function go(page) {
   stopTimer();
   closeDrawer();
   S.page = page; renderNav();
+  S.dtStates = {}; S.dtSeq = 0;
   // Each visit renders into its own container: a slow page that finishes after the user moved on writes into a detached element.
   const main = h("div", { class: "view" }, h("p", { class: "muted", text: "Loading..." }));
   $("main").replaceChildren(main);
   try { await VIEWS[page](main); } catch (e) { main.replaceChildren(h("p", { class: "error", text: e.message })); }
   if (main.isConnected) $("main").focus();
+  if (main.isConnected && AUTO_REFRESH[page] && !S.timer) S.timer = setInterval(() => { quietRefresh(page).catch(() => {}); }, AUTO_REFRESH[page]);
+}
+
+/**
+ * Draws the open page again off screen and swaps it in, keeping the scroll position and each table's search, sort and
+ * page. Skipped while a dialog or drawer is open, while someone types in the page, or while text is selected.
+ */
+async function quietRefresh(page) {
+  if (S.page !== page || S.refreshing || !$("modal").hidden || !$("drawer").hidden || document.hidden) return;
+  const a = document.activeElement;
+  if (a && $("main").contains(a) && a.matches("input, select, textarea")) return;
+  if (String(window.getSelection() || "")) return;
+  S.refreshing = true; S.dtSeq = 0;
+  try {
+    const next = h("div", { class: "view" });
+    await VIEWS[page](next);
+    if (S.page !== page || !$("modal").hidden || !$("drawer").hidden) return;
+    const y = window.scrollY, inMain = a && $("main").contains(a);
+    $("main").replaceChildren(next);
+    window.scrollTo(0, y);
+    if (inMain) $("main").focus({ preventScroll: true });
+  } finally { S.refreshing = false; }
 }
 
 function header(title, sub, ...actions) {
@@ -278,11 +308,15 @@ function table(cols, rows, onRow) {
  * columns: [{ label, value(row) for search/sort/CSV, render(row) for the cell, sort: false to disable }]
  */
 function dataTable({ columns, rows, onRow, search = "Search", pageSize = 25, empty = "Nothing here yet.", exportName, tools = [] }) {
-  const st = { q: "", sort: null, dir: 1, page: 0 };
+  // a quiet refresh of the page (quietRefresh) draws the tables again in the same order: each keeps its search, sort and page
+  const key = S.page + ":" + (S.dtSeq = (S.dtSeq || 0) + 1);
+  S.dtStates = S.dtStates || {};
+  const st = S.refreshing && S.dtStates[key] ? S.dtStates[key] : { q: "", sort: null, dir: 1, page: 0 };
+  S.dtStates[key] = st;
   const wrap = h("div", { class: "dt" });
   const box = h("div");
-  const q = search ? h("input", { type: "search", placeholder: search, "aria-label": search }) : null;
-  if (q) q.addEventListener("input", () => { st.q = q.value.trim().toLowerCase(); st.page = 0; render(); });
+  const q = search ? h("input", { type: "search", placeholder: search, "aria-label": search, value: st.raw || "" }) : null;
+  if (q) q.addEventListener("input", () => { st.raw = q.value; st.q = q.value.trim().toLowerCase(); st.page = 0; render(); });
   const value = (c, r) => { const v = c.value ? c.value(r) : ""; return v === null || v === undefined ? "" : v; };
   const list = () => {
     let l = rows.filter((r) => !st.q || columns.some((c) => String(value(c, r)).toLowerCase().includes(st.q)));
@@ -352,7 +386,8 @@ const deviceName = (id) => (S.devices.find((d) => d.id === id) || {}).name || id
 
 const VIEWS = {
   async home(main) {
-    const d = await api("GET", "dashboard");
+    let tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) { /* no time zone: the server counts days in UTC */ }
+    const d = await api("GET", "dashboard" + (tz ? "?tz=" + encodeURIComponent(tz) : ""));
     const tile = (n, l, icon, color, onClick) => {
       const t = h(onClick ? "button" : "div", { type: onClick ? "button" : null, class: "card tile" + (onClick ? " clickable" : ""), onclick: onClick || null },
         ic(icon, color), h("div", {}, h("div", { class: "n", text: String(n) }), h("div", { class: "l", text: l })));

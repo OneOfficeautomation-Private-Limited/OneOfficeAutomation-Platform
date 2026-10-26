@@ -78,6 +78,13 @@ async function page() {
   check("home shows hours saved", d.getElementById("main").textContent.includes("Hours saved (30 days)"));
   check("home shows the dashboard tiles", d.querySelectorAll(".tile").length >= 6);
   check("home shows the 7-day run chart", await until(() => d.querySelector("#main .chart") && d.getElementById("main").textContent.includes("Runs in the last 7 days")));
+  // Home redraws itself: an agent checked in elsewhere shows up, and a deleted one no longer counts, without leaving the page
+  const agentsTile = () => { const t = [...d.querySelectorAll("#main .tile")].find((x) => x.querySelector(".l") && x.querySelector(".l").textContent === "Agents in the agent repository"); return t ? t.querySelector(".n").textContent : null; };
+  const post = (u, b) => P.w.fetch(u, { method: "POST", headers: { "Content-Type": "application/json", "X-OOA-Request": "1" }, body: JSON.stringify(b) });
+  await post("/api/repo/checkin", { path: "Live/Refresh check.flow.json", comment: "live refresh", flow: { kind: "TaskBot", id: "live_refresh", name: "Refresh check", description: "t", variables: [], steps: [] } });
+  check("Home updates by itself when an agent is checked in", await until(() => agentsTile() === "1", 12000), agentsTile());
+  await post("/api/repo/delete", { path: "Live/Refresh check.flow.json" });
+  check("and a deleted agent no longer counts", await until(() => agentsTile() === "0", 12000), agentsTile());
   nav("Agent Runs");
   check("Activity has In progress and History tabs with an empty state", await until(() => d.getElementById("main").textContent.includes("Live") && d.getElementById("main").textContent.includes("Nothing is running")));
   click([...d.querySelectorAll("#main .tabs .tab")].find((b) => b.textContent.startsWith("History")));

@@ -2133,10 +2133,15 @@ public final class ControlRoom {
                 "ORDER BY seq DESC LIMIT " + Math.max(1, Math.min(1000, limit)), like, like, like);
     }
 
-    public Map<String, Object> dashboard(User by) {
+    public Map<String, Object> dashboard(User by) { return dashboard(by, null); }
+
+    /** The Home page figures; the runs-per-day chart counts days in the viewer's time zone (an IANA name, UTC when absent or unknown). */
+    public Map<String, Object> dashboard(User by, String timeZone) {
         Map<String, Object> m = new LinkedHashMap<>();
         Instant day = now().minus(Duration.ofDays(1));
-        m.put("bots", count("SELECT COUNT(*) AS n FROM bots"));
+        ZoneId zone;
+        try { zone = timeZone == null || timeZone.isBlank() ? ZoneOffset.UTC : ZoneId.of(timeZone); } catch (DateTimeException e) { zone = ZoneOffset.UTC; }
+        m.put("bots", count("SELECT COUNT(*) AS n FROM bots WHERE deleted_at IS NULL"));
         m.put("devices_online", count("SELECT COUNT(*) AS n FROM devices WHERE enabled = TRUE AND last_seen > ?", now().minus(ONLINE)));
         m.put("devices_total", count("SELECT COUNT(*) AS n FROM devices"));
         m.put("running", count("SELECT COUNT(*) AS n FROM runs WHERE status = 'running'"));
@@ -2150,12 +2155,12 @@ public final class ControlRoom {
         Map<String, Object> avg = db.one("SELECT AVG(duration_ms) AS a FROM runs WHERE status = 'success' AND finished > ?", day);
         m.put("avg_duration_ms_24h", avg == null || avg.get("a") == null ? null : ((Number) avg.get("a")).longValue());
         if (can(by, "runs.view")) {
-            // Runs per day for the last 7 days (UTC), by outcome.
-            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            // Runs per day for the last 7 days in the viewer's time zone, by outcome.
+            LocalDate today = LocalDate.ofInstant(now(), zone);
             Map<LocalDate, long[]> perDay = new TreeMap<>();
             for (int i = 6; i >= 0; i--) perDay.put(today.minusDays(i), new long[4]);
-            for (Map<String, Object> r : db.query("SELECT status, created FROM runs WHERE created >= ?", today.minusDays(6).atStartOfDay(ZoneOffset.UTC).toInstant())) {
-                long[] c = perDay.get(Instant.parse(String.valueOf(r.get("created"))).atZone(ZoneOffset.UTC).toLocalDate());
+            for (Map<String, Object> r : db.query("SELECT status, created FROM runs WHERE created >= ?", today.minusDays(6).atStartOfDay(zone).toInstant())) {
+                long[] c = perDay.get(Instant.parse(String.valueOf(r.get("created"))).atZone(zone).toLocalDate());
                 if (c == null) continue;
                 switch (String.valueOf(r.get("status"))) { case "success" -> c[0]++; case "failed" -> c[1]++; case "stopped" -> c[2]++; default -> c[3]++; }
             }
