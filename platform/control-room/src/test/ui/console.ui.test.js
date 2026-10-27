@@ -53,7 +53,7 @@ async function page() {
   const navItems = menuPages();
   const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
   check("the menu has short sections: Build, Manage, Operations, Administration, AI", groups.join("|") === "Build|Manage|Operations|Administration|AI", groups.join("|"));
-  check("an administrator sees Home and all 25 pages, each once", navItems.length === 26 && new Set(navItems).size === 26 && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
+  check("an administrator sees Home and all 26 pages, each once", navItems.length === 27 && new Set(navItems).size === 27 && navItems.includes("Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
   check("Administration holds users, roles, licenses, audit and settings", ["Users", "Roles", "Teams", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
