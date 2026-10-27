@@ -63,6 +63,19 @@ public final class PackageRegistry {
         return lp;
     }
 
+    /** Removes one version; the default moves to the newest version left. */
+    public void uninstall(String pid, String version) {
+        Map<String, LoadedPackage> versions = packages.get(pid);
+        if (versions == null || versions.remove(version) == null) return;
+        if (versions.isEmpty()) { packages.remove(pid); defaults.remove(pid); return; }
+        if (version.equals(defaults.get(pid))) defaults.put(pid, versions.keySet().stream().max(PackageRegistry::compare).orElseThrow());
+    }
+
+    /** The installed versions of a toolkit, oldest first. */
+    public List<String> versions(String pid) {
+        return packages.getOrDefault(pid, Map.of()).keySet().stream().sorted(PackageRegistry::compare).toList();
+    }
+
     public void setDefault(String pid, String version) {
         if (!packages.getOrDefault(pid, Map.of()).containsKey(version))
             throw new OoaException("PKG.NOT_FOUND", pid + "@" + version + " is not installed");

@@ -1475,6 +1475,9 @@ public final class Platform {
             t.put("conditions", ((List<Object>) m.getOrDefault("conditions", List.of())).size());
             t.put("enabled", enabled.getOrDefault(pid, true));
             t.put("used_by", used.getOrDefault(pid, 0));
+            List<String> versions = registry.versions(pid);
+            if (versions.size() > 1) t.put("versions", versions);
+            t.put("custom", cr.customToolkits != null && cr.customToolkits.isCustom(pid));
             out.add(t);
         }
         out.sort(Comparator.comparing(t -> String.valueOf(t.get("name"))));

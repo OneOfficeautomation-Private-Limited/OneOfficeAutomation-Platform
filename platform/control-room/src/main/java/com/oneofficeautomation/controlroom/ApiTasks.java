@@ -31,11 +31,13 @@ public final class ApiTasks {
         for (Map<String, Object> t : db.query("SELECT id, name, bot_path, device_id, pool_id, timeout_seconds, enabled, created_by, created, last_used, calls FROM api_tasks ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(t);
             m.put("url", "/api/apitasks/" + t.get("id") + "/run");
+            m.put("serverless", ServerlessRuns.DEVICE.equals(t.get("device_id")));
             out.add(m);
         }
         return out;
     }
 
+    @SuppressWarnings("unchecked")
     public Map<String, Object> create(User by, Map<String, Object> b, String ip) {
         cr.require(by, "apitasks.manage", "manage API tasks");
         cr.require(by, "runs.start", "start runs");
@@ -46,6 +48,12 @@ public final class ApiTasks {
         cr.content(path, "production");
         cr.folders.require(by, path, "run", "make API tasks for agents");
         String device = b.get("device_id") instanceof String d && !d.isBlank() ? d : null, pool = b.get("pool_id") instanceof String p && !p.isBlank() ? p : null;
+        if (Boolean.TRUE.equals(b.get("serverless")) || ServerlessRuns.DEVICE.equals(device)) {
+            // run inside the Command Center: only agents that keep to web services and data toolkits
+            cr.serverless.check((Map<String, Object>) cr.content(path, "production").get("flow"));
+            device = (String) cr.serverless.device().get("id");
+            pool = null;
+        }
         if (device == null && pool == null) throw new OoaException("CR.BAD_INPUT", "Choose the runner or runner pool that runs the calls");
         if (device != null && db.one("SELECT id FROM devices WHERE id = ?", device) == null) throw notFound("Runner");
         if (pool != null && db.one("SELECT id FROM device_pools WHERE id = ?", pool) == null) throw notFound("Runner pool");

@@ -66,6 +66,7 @@ public final class Ooa {
                 case "backup" -> BackupCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "release" -> ReleaseCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "tls" -> TlsCommand.run(Arrays.copyOfRange(args, 1, args.length));
+                case "toolkit" -> ToolkitCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "service" -> WindowsService.run(Arrays.copyOfRange(args, 1, args.length));
                 case "service-run" -> WindowsService.serviceRun(Arrays.copyOfRange(args, 1, args.length));
                 case "native-host" -> NativeHost.main(Arrays.copyOfRange(args, 1, args.length));
@@ -88,6 +89,7 @@ public final class Ooa {
                 + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
                 + " | license show FILE"
                 + " | backup now|list|restore FILE [--replace] [--data DIR] | check [--data DIR] [--port N] | agent diagnose | agent move --url URL [--ca FILE] | release verify MANIFEST [--dir DIR]"
+                + " | toolkit keygen --publisher NAME [--out DIR] | toolkit sign --jar FILE --class NAME --key FILE [--out FILE] | toolkit inspect --jar FILE"
                 + " | tls configure --pfx FILE|set-password|self-signed [--host NAME]|show|export-cert --out FILE|off [--data DIR]"
                 + " | service install|uninstall|start|stop|status [--mode server|control-room|agent] (Windows services)"
                 + " | browser-connector install|status|uninstall | native-host (started by the browser)");

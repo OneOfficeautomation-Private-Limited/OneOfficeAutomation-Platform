@@ -129,6 +129,7 @@ public final class ControlRoomServer {
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
+        cr.serverless.start();
         clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
     }
 
@@ -625,6 +626,15 @@ public final class ControlRoomServer {
             }
             case "toolkits" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("toolkits", cr.platform.toolkits(u)));
+                else if (m.equals("GET") && route.equals("toolkits/custom")) sendJson(ex, 200, Map.of("versions", cr.customToolkits.list(u)));
+                else if (m.equals("POST") && route.equals("toolkits/custom")) {
+                    // the request body is the signed jar itself
+                    sendJson(ex, 200, cr.customToolkits.upload(u, ex.getRequestBody().readNBytes(CustomToolkits.MAX_BYTES + 1), ip));
+                }
+                else if (m.equals("DELETE") && seg.length == 3 && seg[1].equals("custom")) { cr.customToolkits.delete(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && route.equals("toolkits/publishers")) sendJson(ex, 200, Map.of("publishers", cr.customToolkits.publishers(u)));
+                else if (m.equals("POST") && route.equals("toolkits/publishers")) { Map<String, Object> b = map(body(ex)); cr.customToolkits.addPublisher(u, (String) b.get("publisher"), (String) b.get("public_key"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 3 && seg[1].equals("publishers")) { cr.customToolkits.removePublisher(u, URLDecoder.decode(seg[2], StandardCharsets.UTF_8), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("used-by")) sendJson(ex, 200, Map.of("agents", cr.platform.toolkitUsers(u, seg[1])));
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("versions")) sendJson(ex, 200, cr.platform.toolkitVersions(u, seg[1]));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("update-agents")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.updateToolkitRange(u, seg[1], (String) b.get("range"), b.get("paths") instanceof List<?> l ? (List<Object>) l : null, ip)); }

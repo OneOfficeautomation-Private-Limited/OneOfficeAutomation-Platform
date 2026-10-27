@@ -88,8 +88,13 @@ public final class ActionContext {
         if (cancelled.get()) throw new OoaException("RUN.CANCELLED", "Run was stopped from Control Center");
     }
 
+    /** A path relative to the working folder; where the run is confined to it (service confine_paths), no other path. */
     public Path resolvePath(String p) {
         Path path = Path.of(p);
-        return path.isAbsolute() ? path : workDir.resolve(path);
+        Path r = path.isAbsolute() ? path : workDir.resolve(path);
+        if (services != null && Boolean.TRUE.equals(services.get("confine_paths"))
+                && !r.toAbsolutePath().normalize().startsWith(workDir.toAbsolutePath().normalize()))
+            throw new ActionException("FILE.OUTSIDE_WORKSPACE", "This run may only use files in its own workspace, not " + p, "Use a path relative to the workspace.");
+        return r;
     }
 }

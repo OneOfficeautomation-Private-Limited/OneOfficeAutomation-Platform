@@ -28,7 +28,29 @@ here in `oneofficeautomation`.
    - creates release `v<version>` with the zips, `ooa-<version>.manifest.json` and `ooa-<version>-sbom.cdx.json`
      attached, noting the source commit it was built from.
 
-   Add `-Draft` to check a release on GitHub before customers can see it.
+   Add `-Draft` to check a release on GitHub before customers can see it, and `-Preview` for a sandbox preview (below).
+
+## Release cadence and the sandbox
+
+- **A feature release each quarter** (`x.y.0`). Fix releases (`x.y.z`) come when needed, and only change what they fix.
+- **A sandbox preview three weeks ahead.** Publish the quarter's version with `-Preview` first. That makes
+  `v<version>-preview`, a GitHub pre-release. Customers install it on a sandbox Command Center: a separate install with
+  its own database and runners, never the production one. They test their agents there: Export them from production
+  (Automation > Export / promote, with what they depend on) and import them into the sandbox. Agent tests (5a) give a quick
+  pass or fail. Three weeks later, publish the same version without `-Preview`, after fixing what the sandbox found
+  (with a new fix version if anything changed).
+- **Short downtime on upgrade**, in this order:
+  1. back up (`ooa backup now`);
+  2. stop the Command Center (on every node);
+  3. install the new version over the old one (the setup keeps the data folder);
+  4. start it: the database is upgraded on start, or beforehand with `ooa db migrate`;
+  5. update the runners from Runners > Update. Runners newer than the Command Center get no work, so update the
+     Command Center first.
+
+  Runs queued in the meantime wait and then go on. With several nodes, stop them all before starting the first
+  upgraded one.
+- **Region by region**: customers in several regions upgrade one region's Command Center at a time, a week apart,
+  starting with the smallest.
 
 ## Give customers the release
 

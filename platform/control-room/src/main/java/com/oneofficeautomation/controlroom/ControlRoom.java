@@ -30,6 +30,8 @@ public final class ControlRoom {
     public final Workflows workflows;
     public final TestSets testSets;
     public final Dashboards dashboards;
+    public final CustomToolkits customToolkits;
+    public final ServerlessRuns serverless;
     /** Repository folders and folder permissions. */
     final Folders folders;
     /** Export, import and promotion of agents between Command Centers. */
@@ -129,6 +131,9 @@ public final class ControlRoom {
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
+        this.customToolkits = new CustomToolkits(this, registry);
+        customToolkits.loadAll();
+        this.serverless = new ServerlessRuns(this, registry, dataDir);
         loadRoles();
         loadUserRoles();
     }
@@ -1234,10 +1239,14 @@ public final class ControlRoom {
             if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
         }
         if (deviceId == null || deviceId.isBlank()) throw new OoaException("CR.BAD_INPUT", "Choose a runner or a runner pool");
+        boolean serverlessRun = ServerlessRuns.DEVICE.equals(deviceId);
+        if (serverlessRun && (source == null || !source.startsWith("api_task:")))
+            throw new OoaException("CR.BAD_INPUT", "Only serverless API tasks run on " + ServerlessRuns.NAME, "Choose a runner.");
         if (callbackUrl != null && !callbackUrl.isBlank() && !callbackUrl.matches("^https?://\\S+$")) throw new OoaException("CR.BAD_INPUT", "The callback must be an http(s) URL");
         Map<String, Object> c = content(path, "production");
         Map<String, Object> flow = (Map<String, Object>) c.get("flow");
         platform.checkToolkits(flow);
+        if (serverlessRun) serverless.check(flow);
         if (runMode.equals("headless") && flow.get("requires") instanceof Map<?, ?> req && req.get("capabilities") instanceof List<?> caps && caps.contains("desktop"))
             throw new OoaException("CR.BAD_INPUT", "This agent needs a desktop, so it cannot run headless", "Run it unattended or attended.");
         Map<String, Object> dev = db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
@@ -1268,7 +1277,8 @@ public final class ControlRoom {
         audit.record(requestedBy, "run.start", "run", runId, details, "ok", ip);
         Map<String, Object> out = new LinkedHashMap<>(Map.of("run_id", runId, "version", c.get("version"), "device_id", deviceId));
         if (asUser != null) out.put("run_as", asUser);
-        wake(deviceId, false);
+        if (serverlessRun) serverless.kick();
+        else wake(deviceId, false);
         return out;
     }
 
@@ -1476,7 +1486,8 @@ public final class ControlRoom {
     }
 
     private void requireToolkits(Map<String, Object> d, Map<String, Object> main, Map<String, Object> bundle) {
-        Set<String> missing = missingToolkits(d.get("toolkits"), main, bundle);
+        Set<String> missing = new TreeSet<>(missingToolkits(d.get("toolkits"), main, bundle));
+        missing.removeIf(customToolkits::isCustom);   // custom toolkits go with the run
         if (!missing.isEmpty()) throw new OoaException("RUN.TOOLKIT_MISSING", "The runner " + d.get("name") + " does not have the toolkit(s) " + String.join(", ", missing),
             "Update the runner (Runners > Update), or send the run to a runner that has them.", false, Map.of("missing", new ArrayList<>(missing)));
     }
@@ -1510,8 +1521,10 @@ public final class ControlRoom {
             Map<String, Object> user = db.one("SELECT role FROM users WHERE username = ?", principal);
             String role = user == null ? "viewer" : (String) user.get("role");
             Map<String, Object> files, skills;
+            List<Map<String, Object>> custom;
             try {
                 requireToolkits(d, main, bundle);
+                custom = customToolkits.forJob(main, bundle);
                 files = repoFiles.forJob(main, String.valueOf(principal), role);
                 skills = promptSkills.forJob(main, bundle, String.valueOf(principal));
             } catch (OoaException e) {
@@ -1528,6 +1541,7 @@ public final class ControlRoom {
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             if (!skills.isEmpty()) job.put("skills", skills);
+            if (!custom.isEmpty()) job.put("custom_toolkits", custom);
             return job;
         }
         return null;

@@ -418,6 +418,26 @@ API: `POST /api/repo/analyze`, `GET /api/repo/analysis?path=`, `GET /api/repo/an
   run has finished; when it takes longer, the answer is 202 and the caller asks `GET /api/apitasks/{id}/runs/{run_id}`.
 - The token is shown once, works only for its task, and can be replaced; the task can be switched off.
 
+**Serverless API tasks** run inside the Command Center, with no runner: tick **Run on the Command Center** when making the
+task. This suits agents that only call web services and work on data.
+
+- **Toolkits allowed:** the data toolkits (text, numbers, dates, lists, tables, JSON, CSV, XML, crypto, PGP), REST and
+  SOAP, the cloud apps (Microsoft 365, Google, Salesforce, ServiceNow and the others), Email, AI prompts and skills,
+  work queues, and Excel, Word, PowerPoint and PDF files.
+- **Not allowed:** desktop, browser, programs, scripts, databases, server files and custom toolkits. The task is
+  refused when the agent, or an agent it calls, uses one of these (`CR.NOT_SERVERLESS`).
+- **Limits:** every file path must stay inside the run's own temporary workspace (`FILE.OUTSIDE_WORKSPACE` otherwise),
+  which is removed afterwards. At most four runs go at once on each Command Center node, and a run lasts at most
+  5 minutes.
+- **How runs show up:** they run on the virtual runner **Command Center (serverless)**. It is made with the first such
+  task, and only serverless API tasks can use it. Its runs are queued, logged, audited and finished like any other
+  run.
+- **Licensing:** while a license is installed, the virtual runner needs an Unattended Runner seat, like other runners.
+- **Restarts:** a run cut off by a stopped node is failed once it is past the longest time a run may take.
+
+Agents can still reach any address the Command Center can reach through REST and the cloud apps. Make serverless
+tasks only for agents whose addresses you trust.
+
 ## 5a. Agent tests
 
 Build > **Agent tests** keeps test sets: an agent, and cases with its inputs and what it should give back. **Run** starts
@@ -593,6 +613,25 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 person keep their own value (**My value**). Their runs, and runs as them, read it instead of the shared one. Turning it
 off removes everyone's own values.
 
+### Knowledge Q&A (answers from your documents)
+
+The **Knowledge Q&A** toolkit (`ooa.knowledge`) answers questions from a company's own documents:
+
+1. **Build index** reads files and folders and writes one index file. It reads text, Markdown, HTML, CSV, JSON, XML,
+   Word `.docx`, and PDF (on runners with the PDF toolkit). It also takes texts an agent already has, for example from
+   OCR. Each document is split into passages (1,000 characters by default, overlapping by 150). With a model connection
+   for embeddings (OpenAI, Azure OpenAI, OpenAI-compatible servers such as Ollama, Vertex AI, or Bedrock Titan and
+   Cohere), each passage also gets a vector.
+2. **Search** returns the passages that best match a question. It always matches by words (BM25). When the index has
+   vectors, it also matches by meaning, so "reimbursement" finds a passage about refunds.
+3. **Ask** gives the best passages to a chat model, which answers from them only, cites them like `[1]`, and says when
+   the documents do not say. When no passage matches, the model is not called.
+
+The index is a plain file (`.json`, or `.json.gz` to keep it smaller). Keep it in the repository files so the runs
+that need it get it. Rebuild it when the documents change. Embedding and answer calls go through One Model
+Connections: their budgets, masking and the AI calls tab apply. Use a saved connection for the embeddings, so
+Search and Ask can reach the same model.
+
 ## 10. One Audit Trail
 
 Every sign-in, change, run, credential use, task and workflow event is recorded and hash-chained. One Audit Trail >
@@ -618,6 +657,37 @@ Administration > Toolkits > **Versions** lists the agents that use a toolkit, th
 whether the installed version fits. **Update agents** sets a new range (for example `^2.0.0` after an upgrade) on all
 of them. Each agent gets a new version; its live version stays until you choose the new one. Agents that someone else
 has checked out are left as they are and reported.
+
+## 9b. Your own toolkits (signed jars)
+
+A company's developers can write toolkits of their own with the SDK (`@OoaPackage`, `@Action`, as in the product's
+toolkits) and give them an id of their own, for example `com.acme.billing`. They pack the classes in a jar and sign it:
+
+```
+ooa toolkit keygen --publisher acme --out keys      (once: acme.key stays with the developers, acme.pub goes to the admins)
+ooa toolkit sign --jar billing.jar --class com.acme.billing.BillingToolkit --key keys/acme.key
+ooa toolkit inspect --jar billing.jar               (id, version, publisher, whether the signature matches the code)
+```
+
+The signature covers the toolkit's declared commands and its class, so changing either after signing is refused.
+In Administration > Toolkits, someone with `toolkits.manage`:
+
+1. adds the publisher under **Trusted publishers**, pasting the contents of its `.pub` file;
+2. uploads the signed jar with **Upload toolkit**. It is refused if it is unsigned, signed by a publisher not trusted
+   here or with another key, uses an id that comes with the product or that another publisher uses, or reuses a version
+   number with different contents.
+
+Each version is loaded in a class loader of its own, so several versions stay installed side by side. Agents choose
+one with their version range (`requires.packages`, see 9a). Without a range they get the newest version. The jars are
+kept with the repository files (the shared `repo_files_folder` in a cluster) and loaded again when the Command Center
+starts. A run that uses a custom toolkit carries the versions it needs. The runner checks each jar's SHA-256 and its
+publisher signature again before loading it, and the run fails with `RUN.TOOLKIT_LOAD` if either check fails. A
+version can be deleted (**Your toolkit versions**) unless it is the only one and agents use it. A publisher can be
+removed once none of its versions are left.
+
+A trusted publisher's code runs with the runner's rights, as the product's own toolkits do. Trust only publishers
+whose code you would install yourself. API: `GET/POST /api/toolkits/custom` (the POST body is the jar),
+`DELETE /api/toolkits/custom/{id}`, `GET/POST /api/toolkits/publishers`, `DELETE /api/toolkits/publishers/{name}`.
 
 ## 10a. Operations
 
@@ -682,3 +752,37 @@ sessions needed). Every node serves the console, the API and runners; one node a
 (schedules, triggers, queues, housekeeping, backups) and another takes over within about 30 seconds if it stops.
 Administration > Settings > Several nodes lists the nodes and which leads. Put repository files on a shared folder
 there (for example `\\fileserver\ooa\repo-files`) and give every node the same `OOA_MASTER_KEY`.
+
+## 10e. A disaster recovery site
+
+A second site takes over when the main one is lost. It needs three things kept in step with the main site:
+
+| What | How to keep the copy | How far behind it may be |
+|---|---|---|
+| The database | SQL Server: an Always On availability group with an asynchronous replica at the second site, or log shipping. PostgreSQL: streaming replication. | Seconds (availability group, streaming) to the log backup interval (log shipping) |
+| Repository files and custom toolkits (the `repo_files_folder` share) | DFS Replication, storage replication, or a scheduled `robocopy /MIR` | The copy interval |
+| The vault key | The same `OOA_MASTER_KEY` on every node of both sites, kept in your secrets store | Never changes |
+
+Install the Command Center on the second site's servers like the main nodes, with the same `ooa-db.properties`. Point
+them at the database's listener or DNS name, not at one server. Leave them stopped while the main site runs: the
+replica is read-only, and only one site may write. Runners and people should reach the Command Center by a DNS name
+(for example `ooa.company.com`) that you can point at either site.
+
+**Rehearse it** (at least twice a year), and after a real loss:
+
+1. Fail the database over to the second site (or restore the latest backup there), so it can be written.
+2. Make the second site's copy of the shared folder the live one.
+3. Run `ooa check` on a second-site node. Besides the computer, it checks two things. First, that the vault key opens
+   the stored credentials. Second, that every repository file and toolkit jar the database lists is in the folder.
+   Fix any FAIL first.
+4. Start the second site's nodes, then point the DNS name (or the load balancer) at them. One node becomes the leader
+   within about 30 seconds.
+5. Runners reconnect by themselves through the DNS name. A runner registered with a server's own name needs
+   `ooa agent move --url https://ooa.company.com`.
+6. A run that was going when the main site was lost finishes if its runner reaches the second site. Otherwise the
+   housekeeping fails it once its runner has not reported for two minutes; serverless runs fail after their time
+   limit. Queued runs, schedules and work queues carry on. With an asynchronous copy, the last few seconds of changes
+   before the loss may be missing.
+
+To go back, copy the database and the folder the other way and repeat the steps. The backups (10c) are the fallback
+when the replica cannot be used. Restore the latest one at the second site with `ooa backup restore`.

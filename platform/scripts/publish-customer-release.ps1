@@ -1,5 +1,7 @@
 # Publishes a customer release of ONEOFFICEAUTOMATION to the private repository VirupakshaPrabhu/OOA_Customer_Build.
-#   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft]
+#   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft] [-Preview]
+# -Preview publishes v<version>-preview as a GitHub pre-release, for customers' sandbox Command Centers about three weeks
+# before the general release v<version> of the same version (docs\RELEASING.md, Release cadence).
 # It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
 # release v<version> (the version in platform\build.gradle.kts) with the zips, the software bill of materials and a
 # manifest signed with the vendor key attached (customers check downloads with: ooa release verify), and prints the
@@ -8,6 +10,7 @@
 param(
     [string]$Notes = "",
     [switch]$Draft,
+    [switch]$Preview,
     [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build",
     [string]$SigningKey = (Join-Path $env:USERPROFILE "OOA License Keys\private.key")
 )
@@ -59,14 +62,14 @@ if (-not $token) { throw "No GitHub credential: push once to GitHub from this PC
 $headers = @{ Authorization = "Bearer $token"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
 
 # 4. the release (refused when it exists already: raise the version for a new release)
-$tag = "v$version"
+$tag = if ($Preview) { "v$version-preview" } else { "v$version" }
 try { Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases/tags/$tag" | Out-Null; throw "Release $tag exists already in $Repository. Raise the version in platform\build.gradle.kts for a new release." }
 catch { if ($_.Exception.Message -like "Release $tag exists*") { throw } }
 $source = (git -C $platform rev-parse --short HEAD).Trim()
 if (-not $Notes) { $Notes = "See RELEASES.md for what changed." }
-$body = "ONEOFFICEAUTOMATION $version for customers.`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Check downloads first with: ooa release verify ooa-$version.manifest.json (from an earlier install), or compare the SHA-256 values in it. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
+$body = $(if ($Preview) { "ONEOFFICEAUTOMATION $version preview, for sandbox Command Centers. The general release follows in about three weeks; report problems before then." } else { "ONEOFFICEAUTOMATION $version for customers." }) + "`n`n$Notes`n`n**Install:** download ooa-setup-$version.zip (Java included), unzip it and double-click Install.cmd; for silent installs see README.txt. Check downloads first with: ooa release verify ooa-$version.manifest.json (from an earlier install), or compare the SHA-256 values in it. Or ooa-customer-$version.zip: unzip, double-click START-OOA.cmd (Java 21 needed). Then install your license in Administration > Licenses. Full guide: INSTALL.md.`n`nBuilt from oneofficeautomation@$source."
 $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases" -ContentType "application/json" `
-    -Body (@{ tag_name = $tag; target_commitish = "main"; name = "ONEOFFICEAUTOMATION $version"; body = $body; draft = [bool]$Draft; prerelease = $false } | ConvertTo-Json)
+    -Body (@{ tag_name = $tag; target_commitish = "main"; name = "ONEOFFICEAUTOMATION $version" + $(if ($Preview) { " (sandbox preview)" } else { "" }); body = $body; draft = [bool]$Draft; prerelease = [bool]$Preview } | ConvertTo-Json)
 
 # 5. attach the zip
 Write-Host "Uploading $sizeMb MB ..."

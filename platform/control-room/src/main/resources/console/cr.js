@@ -488,7 +488,8 @@ async function loadRefs() {
   S.bots = b.bots; S.devices = d.devices;
 }
 const botSelect = (val) => { const s = h("select", {}, S.bots.filter((b) => b.production_version && isAgent(b.path)).map((b) => h("option", { value: b.path, text: botName(b.path) }))); if (val) s.value = val; return s; };
-const deviceSelect = (val) => { const s = h("select", {}, S.devices.filter((d) => d.enabled).map((d) => h("option", { value: d.id, text: d.name + " (" + d.status + ")" }))); if (val) s.value = val; return s; };
+// the serverless virtual runner takes only serverless API tasks, so it is not offered as a runner
+const deviceSelect = (val) => { const s = h("select", {}, S.devices.filter((d) => d.enabled && d.device_type !== "serverless").map((d) => h("option", { value: d.id, text: d.name + " (" + d.status + ")" }))); if (val) s.value = val; return s; };
 function parseJson(text, fallback) { if (!text.trim()) return fallback; try { return JSON.parse(text); } catch (e) { throw new Error("Invalid JSON: " + e.message); } }
 const deviceName = (id) => (S.devices.find((d) => d.id === id) || {}).name || id;
 
@@ -737,8 +738,8 @@ const VIEWS = {
           { label: "Agent", value: (d) => d.agent_version || "", render: (d) => d.version_status && d.version_status !== "ok"
             ? h("span", { class: "pill failed", title: "This runner is newer than the Command Center and gets no work until the Command Center is updated", text: (d.agent_version || "") + " – update the Command Center" })
             : h("span", { text: d.agent_version || "" }) },
-          { label: "Type", value: (d) => (d.device_type === "single_user" ? "Single-user" : "Multi-user") + (d.lifespan === "temporary" ? ", temporary" : ""),
-            render: (d) => h("span", {}, d.device_type === "single_user" ? "Single-user" : "Multi-user", d.lifespan === "temporary" ? [" ", h("span", { class: "pill pending", title: "Removed by itself after a time without contact (Settings)", text: "Temporary" })] : null) },
+          { label: "Type", value: (d) => (d.device_type === "serverless" ? "Serverless (in the Command Center)" : d.device_type === "single_user" ? "Single-user" : "Multi-user") + (d.lifespan === "temporary" ? ", temporary" : ""),
+            render: (d) => h("span", {}, d.device_type === "serverless" ? "Serverless (in the Command Center)" : d.device_type === "single_user" ? "Single-user" : "Multi-user", d.lifespan === "temporary" ? [" ", h("span", { class: "pill pending", title: "Removed by itself after a time without contact (Settings)", text: "Temporary" })] : null) },
           { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
           { label: "Log level", value: (d) => d.log_level || "info" },
           { label: "Screen", value: (d) => SCREEN[d.session_state] || "", render: (d) => d.session_state ? h("span", { class: "pill " + (d.session_state === "unlocked" ? "online" : d.session_state === "locked" ? "locked" : "offline"), title: SCREEN_HELP[d.session_state], text: SCREEN[d.session_state] }) : "—" },
@@ -1062,10 +1063,14 @@ const VIEWS = {
               h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete connection " + c.name + "?")) { try { await api("DELETE", "connections/" + encodeURIComponent(c.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else {
       const r = await api("GET", "toolkits");
-      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Switch a toolkit off to stop agents that use it from being checked in or run. The core toolkit is always on." }),
+      const manage = can("toolkits.manage");
+      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Switch a toolkit off to stop agents that use it from being checked in or run. The core toolkit is always on. Your own toolkits are signed jars from trusted publishers; several versions stay installed side by side." }),
+        manage ? h("div", { class: "toolbar" }, h("button", { type: "button", class: "primary", onclick: uploadToolkitDialog }, "Upload toolkit"),
+          h("button", { type: "button", onclick: publishersDialog }, "Trusted publishers"), h("button", { type: "button", onclick: customVersionsDialog }, "Your toolkit versions")) : null,
         dataTable({ rows: r.toolkits, search: "Search toolkits", exportName: "toolkits", pageSize: 100,
           columns: [
-            { label: "Toolkit", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: t.id + " " + (t.version || "") }), h("div", { class: "muted small", text: t.description || "" })) },
+            { label: "Toolkit", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), t.custom ? h("span", { class: "pill", text: "your own" }) : null,
+              h("div", { class: "muted small mono", text: t.id + " " + (t.versions ? t.versions.join(", ") + " (default " + t.version + ")" : t.version || "") }), h("div", { class: "muted small", text: t.description || "" })) },
             { label: "Actions", value: (t) => t.actions + t.conditions, render: (t) => t.actions + (t.conditions ? " + " + t.conditions + " conditions" : "") },
             { label: "Used by", value: (t) => t.used_by, render: (t) => t.used_by ? h("button", { type: "button", class: "link", onclick: async () => {
               const u = await api("GET", "toolkits/" + encodeURIComponent(t.id) + "/used-by");
@@ -1312,7 +1317,7 @@ const VIEWS = {
         columns: [
           { label: "API task", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: "POST " + location.origin + t.url })) },
           { label: "Agent", value: (t) => botName(t.bot_path) },
-          { label: "Runs on", value: (t) => t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
+          { label: "Runs on", value: (t) => t.serverless ? "Command Center (serverless)" : t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
           { label: "Waits up to", value: (t) => t.timeout_seconds, render: (t) => t.timeout_seconds + " s" },
           { label: "Calls", value: (t) => t.calls, render: (t) => h("span", {}, String(t.calls), t.last_used ? h("span", { class: "muted small", text: " \u00B7 last " + ago(t.last_used) }) : null) },
           { label: "Status", value: (t) => t.enabled ? "On" : "Off", render: (t) => pill(t.enabled ? "active" : "paused") },
@@ -2049,12 +2054,17 @@ function apiTaskDialog() {
   const name = h("input", { placeholder: "Invoice lookup" }), bot = botSelect(), dev = deviceSelect();
   const pool = h("select", { "aria-label": "Runner pool" }, h("option", { value: "", text: "(none: use the runner)" }), (S.pools || []).map((p) => h("option", { value: p.id, text: p.name })));
   const timeout = h("input", { type: "number", min: "1", max: "300", value: "60" });
-  modal("New API task", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool)),
-    h("label", {}, "Wait for the result up to (seconds, 1-300)", timeout),
+  const runners = h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool));
+  const serverless = h("input", { type: "checkbox", onchange: () => { runners.hidden = serverless.checked; } });
+  modal("New API task", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot),
+    h("label", { class: "check" }, serverless, " Run on the Command Center, with no runner (serverless)"),
+    h("p", { class: "muted small", text: "Serverless suits agents that only call web services and work on data: REST, SOAP, the cloud apps, Excel, PDF, JSON and the like. They run for at most 5 minutes, four at a time, with files only in their own workspace." }),
+    runners, h("label", {}, "Wait for the result up to (seconds, 1-300)", timeout),
     h("p", { class: "muted", text: "Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
-      const r = await api("POST", "apitasks", { name: name.value, bot_path: bot.value, device_id: pool.value ? null : dev.value, pool_id: pool.value || null, timeout_seconds: Number(timeout.value) });
+      const r = await api("POST", "apitasks", serverless.checked ? { name: name.value, bot_path: bot.value, serverless: true, timeout_seconds: Number(timeout.value) }
+        : { name: name.value, bot_path: bot.value, device_id: pool.value ? null : dev.value, pool_id: pool.value || null, timeout_seconds: Number(timeout.value) });
       apiTaskShown(name.value, r.url, r.token); go("apitasks");
     } catch (e) { toast(e.message, true); } } }, "Create")]);
 }
@@ -2933,6 +2943,42 @@ const DASH_EXAMPLE = [
   { title: "Amount by category", type: "bars", kpi: "amount", agg: "sum", group: "value", by: "category", days: 30 },
   { title: "Invoices per day", type: "line", kpi: "amount", agg: "count", group: "day", days: 30 },
   { title: "Success rate", type: "number", source: "runs", metric: "success_rate", days: 7 }];
+
+/** Upload a signed toolkit jar (ooa toolkit sign); its publisher must be trusted first. */
+function uploadToolkitDialog() {
+  const file = h("input", { type: "file", accept: ".jar", "aria-label": "Toolkit jar" });
+  modal("Upload toolkit", [h("label", {}, "Signed toolkit jar (10 MB at most)", file),
+    h("p", { class: "muted small", text: "Developers build the toolkit with the OOA SDK and sign it: ooa toolkit sign --jar FILE --class NAME --key FILE. A new version is installed beside the ones already here; agents use the newest version their range allows." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    const f = file.files && file.files[0];
+    if (!f) { toast("Choose the jar", true); return; }
+    try {
+      const res = await fetch("/api/toolkits/custom", { method: "POST", credentials: "same-origin", headers: { "X-OOA-Request": "1", "Content-Type": "application/java-archive" }, body: f });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { const e = data.error || {}; throw new Error((e.message || res.statusText) + (e.suggestedFix ? " (" + e.suggestedFix + ")" : "")); }
+      closeModal(); toast(data.unchanged ? data.toolkit_id + " " + data.version + " was already installed" : "Installed " + data.toolkit_id + " " + data.version); go(S.adminTab || "toolkits");
+    } catch (e) { toast(e.message, true); } } }, "Upload")]);
+}
+
+async function publishersDialog() {
+  const r = await api("GET", "toolkits/publishers");
+  const name = h("input", { placeholder: "acme" }), key = h("textarea", { rows: 2, class: "mono", placeholder: "The contents of the publisher's .pub file (ooa toolkit keygen)" });
+  modal("Trusted publishers", [r.publishers.length ? table(["Publisher", "Key", "Added", ""], r.publishers.map((p) => ({ cells: [p.publisher, h("code", { text: p.public_key.slice(-16) }), ago(p.added) + " by " + (p.added_by || ""),
+      h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Stop trusting " + p.publisher + "?")) return; try { await api("DELETE", "toolkits/publishers/" + encodeURIComponent(p.publisher)); closeModal(); publishersDialog(); } catch (e) { toast(e.message, true); } } }, "Remove")] })))
+      : h("p", { class: "muted", text: "No publishers yet. Only jars signed by a publisher trusted here can be uploaded." }),
+    h("div", { class: "grid2" }, h("label", {}, "Publisher name (as in the key file)", name), h("label", {}, "Public key", key))],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api("POST", "toolkits/publishers", { publisher: name.value.trim(), public_key: key.value.trim() }); closeModal(); publishersDialog(); } catch (e) { toast(e.message, true); } } }, "Trust publisher")]);
+}
+
+async function customVersionsDialog() {
+  const r = await api("GET", "toolkits/custom");
+  modal("Your toolkit versions", [r.versions.length ? table(["Toolkit", "Version", "Publisher", "Uploaded", "SHA-256", ""], r.versions.map((v) => ({ cells: [v.name || v.toolkit_id, v.version, v.publisher, ago(v.uploaded) + " by " + (v.uploaded_by || ""),
+      h("code", { text: v.sha256.slice(0, 12) }), h("button", { type: "button", class: "danger", onclick: async () => {
+        if (!confirm("Delete " + v.toolkit_id + " " + v.version + "?")) return;
+        try { await api("DELETE", "toolkits/custom/" + v.id); closeModal(); customVersionsDialog(); } catch (e) { toast(e.message, true); } } }, "Delete")] })))
+    : h("p", { class: "muted", text: "No toolkits uploaded yet." })], []);
+}
 
 async function dashboardDialog(d) {
   const k = await api("GET", "dashboards/kpis").catch(() => ({ kpis: [] }));

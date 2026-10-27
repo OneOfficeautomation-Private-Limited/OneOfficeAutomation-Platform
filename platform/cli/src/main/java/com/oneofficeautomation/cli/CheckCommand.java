@@ -29,6 +29,36 @@ final class CheckCommand {
         return fails;
     }
 
+    /**
+     * What a second (disaster recovery) site needs besides the database (I9): the same vault key, which must open the
+     * stored credentials, and every repository file and custom toolkit jar in its folder.
+     */
+    static List<Result> siteChecks(Db db, Path data, int schema) {
+        List<Result> r = new ArrayList<>();
+        List<Map<String, Object>> creds = db.query("SELECT locker, name, attribute, ciphertext FROM credentials");
+        if (creds.isEmpty()) r.add(new Result("PASS", "Vault key and database", "no stored credentials to check it against"));
+        else {
+            Map<String, Object> c = creds.get(0);
+            try {
+                new Vault(data).decrypt((String) c.get("ciphertext"), c.get("locker") + "/" + c.get("name") + "/" + c.get("attribute"));
+                r.add(new Result("PASS", "Vault key and database", "the key opens the stored credentials"));
+            } catch (RuntimeException e) {
+                r.add(new Result("FAIL", "Vault key and database", "the key does not open the stored credentials: use the main site's OOA_MASTER_KEY"));
+            }
+        }
+        String folder = "";
+        Map<String, Object> s = db.one("SELECT json_value FROM settings WHERE name = 'repo_files_folder'");
+        if (s != null && com.oneofficeautomation.sdk.JsonLite.parse((String) s.get("json_value")) instanceof String f) folder = f.trim();
+        Path store = folder.isEmpty() ? data.resolve("repo-files") : Path.of(folder);
+        List<Path> files = new ArrayList<>();
+        for (Map<String, Object> f : db.query("SELECT sha256 FROM repo_files")) files.add(store.resolve((String) f.get("sha256")));
+        if (schema >= 23) for (Map<String, Object> t : db.query("SELECT sha256 FROM custom_toolkits")) files.add(store.resolve("toolkits").resolve(t.get("sha256") + ".jar"));
+        long missing = files.stream().filter(f -> !Files.isRegularFile(f)).count();
+        r.add(new Result(missing == 0 ? "PASS" : "FAIL", "Repository files", files.isEmpty() ? "none yet" : missing == 0 ? files.size() + " files, all in " + store
+            : missing + " of " + files.size() + " missing in " + store + ": copy the folder from the main site (or point repo_files_folder at the shared copy)"));
+        return r;
+    }
+
     static List<Result> checks(Path data, int port) {
         List<Result> r = new ArrayList<>();
         String os = System.getProperty("os.name") + " " + System.getProperty("os.version");
@@ -73,6 +103,7 @@ final class CheckCommand {
                 r.add(new Result(sv == 0 ? "WARN" : "PASS", "Database", i.get("engine") + " " + i.get("version") + ", schema " + sv + " of " + Db.LATEST
                     + (sv == 0 ? " (empty: ooa db init)" : sv < Db.LATEST ? " (upgraded at start, or ooa db migrate)" : "")));
                 r.add(new Result(Boolean.TRUE.equals(i.get("encrypted")) ? "PASS" : "WARN", "Database encryption", Boolean.TRUE.equals(i.get("encrypted")) ? "the connection is encrypted" : "not encrypted: set tls=required"));
+                if (sv > 0) r.addAll(siteChecks(db, data, sv));
             } catch (Exception e) { r.add(new Result("FAIL", "Database", "cannot connect: " + e.getMessage())); }
         }
         // HTTPS, when set up

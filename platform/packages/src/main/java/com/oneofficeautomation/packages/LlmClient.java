@@ -815,6 +815,77 @@ final class LlmClient {
         return out;
     }
 
+    /**
+     * Embeddings (A5): one vector per text, for knowledge search. OpenAI, Azure OpenAI and OpenAI-compatible servers
+     * (Ollama, vLLM, LiteLLM) take a batch per call; Vertex AI and Bedrock (Titan or Cohere) as their APIs allow. Texts
+     * are masked first when the connection masks, so names and numbers are not sent.
+     */
+    @SuppressWarnings("unchecked")
+    static List<float[]> embed(ActionContext ctx, Config cfg, List<String> texts) {
+        ModelConnections.beforeCall(ctx, cfg);
+        String provider = cfg.provider() == null ? "openai" : cfg.provider();
+        Map<String, String> mapping = new LinkedHashMap<>();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        List<String> in = new ArrayList<>();
+        for (String t : texts) in.add(cfg.maskPii() ? mask(t, mapping, counts) : t);
+        long t0 = System.currentTimeMillis();
+        int timeout = cfg.opts().timeout(), tokens = 0;
+        List<float[]> out = new ArrayList<>();
+        switch (provider) {
+            case "openai", "openai_compatible", "azure_openai" -> {
+                HttpJson.Req req;
+                Map<String, Object> body = new LinkedHashMap<>(Map.of("input", in));
+                if (provider.equals("azure_openai")) {
+                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)");
+                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    req = HttpJson.req(P, "POST", cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/embeddings?api-version=2024-10-21").header("api-key", k.reveal());
+                } else {
+                    body.put("model", cfg.model() == null || cfg.model().isBlank() ? "text-embedding-3-small" : cfg.model());
+                    String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
+                    req = HttpJson.req(P, "POST", base + "/embeddings");
+                    if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
+                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                }
+                Map<String, Object> r = req.json(body).timeout(timeout).send(ctx).map();
+                List<Object> data = new ArrayList<>((List<Object>) r.getOrDefault("data", List.of()));
+                data.sort(Comparator.comparingInt(o -> num(((Map<String, Object>) o).get("index"))));
+                for (Object o : data) out.add(vector(((Map<String, Object>) o).get("embedding")));
+                if (r.get("usage") instanceof Map<?, ?> u) tokens = num(u.get("prompt_tokens"));
+            }
+            case "google_vertex" -> {
+                List<Object> inst = new ArrayList<>();
+                for (String t : in) inst.add(Map.of("content", t));
+                Map<String, Object> r = HttpJson.req(P, "POST", vertexBase(cfg) + "/publishers/google/models/" + HttpJson.enc(cfg.model()) + ":predict")
+                        .header("Authorization", "Bearer " + vertexToken(ctx, cfg)).json(Map.of("instances", inst)).timeout(timeout).send(ctx).map();
+                for (Object o : (List<?>) r.getOrDefault("predictions", List.of()))
+                    out.add(vector(((Map<String, Object>) ((Map<String, Object>) o).get("embeddings")).get("values")));
+            }
+            case "aws_bedrock" -> {
+                boolean cohere = String.valueOf(cfg.model()).startsWith("cohere.");
+                if (cohere) {
+                    Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/invoke", Map.of("texts", in, "input_type", "search_document")).map();
+                    for (Object v : (List<?>) r.getOrDefault("embeddings", List.of())) out.add(vector(v));
+                } else for (String t : in) {
+                    Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/invoke", Map.of("inputText", t)).map();
+                    out.add(vector(r.get("embedding")));
+                    tokens += num(r.get("inputTextTokenCount"));
+                }
+            }
+            default -> throw new ActionException(P + ".NOT_SUPPORTED", "Embeddings are not available for " + provider,
+                    "Use openai, azure_openai, openai_compatible (Ollama and similar), google_vertex or aws_bedrock.");
+        }
+        if (out.size() != texts.size()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned " + out.size() + " vectors for " + texts.size() + " texts", null, true);
+        govern(ctx, cfg, provider, "embed", new Reply(null, List.of(), tokens, 0, counts), System.currentTimeMillis() - t0, List.of(Map.of("role", "user", "content", String.join("\n", in))));
+        return out;
+    }
+
+    private static float[] vector(Object v) {
+        if (!(v instanceof List<?> l) || l.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned no vector", null, true);
+        float[] f = new float[l.size()];
+        for (int i = 0; i < f.length; i++) f[i] = ((Number) l.get(i)).floatValue();
+        return f;
+    }
+
     static String aspect(int w, int h) {
         double r = (double) w / h;
         String[] names = {"1:1", "3:4", "4:3", "9:16", "16:9"};

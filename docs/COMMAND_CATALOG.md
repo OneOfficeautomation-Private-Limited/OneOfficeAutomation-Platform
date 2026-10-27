@@ -41,6 +41,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | UI automation | Citrix / remote desktop | ooa.image, ooa.ocr | Partial | Image + OCR built; in-session agent later |
 | UI automation | App-specific recorders | - | Planned | After the Recorder |
 | Office & files | Excel advanced (needs Excel) | ooa.excel_desktop | Built | Windows + Excel; macros, refresh, PDF export, convert |
+| Integration & system | Outlook desktop (needs Outlook) | ooa.outlook_desktop | Built | Windows + Outlook with a mail profile; find, read, send, reply, forward, move, mark, save attachments, folders, shared mailboxes |
 | Office & files | Excel basic (no Excel needed) | ooa.excel | Built (library module, test on laptop) | Already verified on your laptop. Steps that keep the session name "excel" use the one open workbook, whatever it was opened as (Word and PowerPoint the same). A path such as onedrive:Reports/sales.xlsx (with a Graph token, and a SharePoint library as drive) is downloaded on open and saved back on save |
 | Office & files | Office 365 Excel / Google Sheets | ooa.microsoft365 (Excel online), ooa.google (Sheets) | Built |  |
 | Office & files | Microsoft Word | ooa.word | Built (library module, test on laptop) |  |
@@ -51,7 +52,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Office & files | XML | ooa.xml | Built |  |
 | Office & files | JSON | ooa.json | Built |  |
 | Office & files | Printer | ooa.printer | Built |  |
-| Integration & system | Email | ooa.email, ooa.microsoft365, ooa.google | Built (library module, test on laptop) | SMTP/IMAP with OAuth, Outlook via Graph, Gmail API; Outlook desktop planned |
+| Integration & system | Email | ooa.email, ooa.microsoft365, ooa.google | Built (library module, test on laptop) | SMTP/IMAP with OAuth, Outlook via Graph, Gmail API |
 | Integration & system | Office 365 / Google Calendar | ooa.microsoft365, ooa.google | Built |  |
 | Integration & system | OneDrive / SharePoint / Google Drive | ooa.microsoft365, ooa.google | Built |  |
 | Integration & system | Microsoft Teams / Slack | ooa.microsoft365/teams_message, ooa.slack | Built |  |
@@ -81,6 +82,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |
 | Integration & system | Snowflake / Databricks / Kafka | ooa.snowflake, ooa.databricks, ooa.kafka | Built | REST only, no drivers: Snowflake SQL API v2, Databricks SQL/Jobs/Clusters/Files, Kafka REST Proxy |
 | AI, workload & process | Document Automation / IQ Bot | - | Excluded for now (your request) |  |
+| AI, workload & process | Knowledge Q&A | ooa.knowledge | Built | Index text, Markdown, HTML, CSV, JSON, XML, .docx and PDF files into one index file (embeddings optional: OpenAI, Azure OpenAI, OpenAI-compatible such as Ollama, Vertex AI, Bedrock Titan/Cohere); search by words (BM25) and meaning; answers that cite their passages and say when the documents do not say |
 | AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock (Converse, SigV4), Google Vertex AI (Gemini; service-account key or token), Hugging Face, Amazon SageMaker endpoints (SigV4), self-hosted; prompts and chats with pictures; picture generation (OpenAI, Azure OpenAI, Vertex AI Imagen, Bedrock); detect language, key phrases, named entities; PII masking; governance log |
 | AI, workload & process | AI Skills / AI Agent | ooa.ai_skills, ooa.ai_agent | Built | Agents call bots as tools; sensitive bots need approval; step and token limits. Prompt Skills kept in the Command Center (shared, versioned, templates) reach runs with the job |
 | AI, workload & process | Web goal agent | ooa.web_agent | Built | Start session, Reach a goal (an AI model works the page: click, type, select, scroll, go to, finish), End session; allowed sites; vault secrets typed through placeholders the model never sees; password-only check |
