@@ -107,6 +107,9 @@ public final class ControlRoom {
      */
     public volatile boolean serverlessAllowed = true;
 
+    /** A SaaS tenant's seats from the region's catalog (license type -> count; empty: no limit). */
+    public volatile Map<String, Integer> tenantSeats = Map.of();
+
     static OoaException notInSaas(String what) {
         return new OoaException("SAAS.NOT_AVAILABLE", what + " is not available in the SaaS service", "Use a runner in your own network for it.");
     }

@@ -97,6 +97,11 @@ public final class Licensing {
 
     /** Seats of a type: the license's, the evaluation's, or -1 for no limit. */
     int total(String type) {
+        if (cr.tenant != null) {
+            // a SaaS tenant: the seats the operator gave it; none given means no limit
+            Map<String, Integer> seats = cr.tenantSeats;
+            return seats.isEmpty() ? -1 : seats.getOrDefault(type, 0);
+        }
         String st = state();
         if (st.equals("evaluation") || st.equals("evaluation_ended")) return EVALUATION_SEATS.get(type);
         License l;
@@ -106,10 +111,13 @@ public final class Licensing {
 
     /** During the evaluation a free seat is given automatically on first use. */
     private boolean autoSeat(String kind, String principal, String type) {
-        if (!state().equals("evaluation") || has(kind, principal, type)) return has(kind, principal, type);
-        if (used(type) >= EVALUATION_SEATS.get(type)) return false;
-        db.update("INSERT INTO license_assignments (principal_type, principal, license_type, assigned, assigned_by) VALUES (?,?,?,?,?)", kind, principal, type, Instant.now(clock), "evaluation");
-        cr.audit.record("system", "license.assign", kind, principal, Map.of("license", type, "evaluation", true), "ok", null);
+        boolean saas = cr.tenant != null;
+        if (!(saas || state().equals("evaluation")) || has(kind, principal, type)) return has(kind, principal, type);
+        int total = saas ? total(type) : EVALUATION_SEATS.get(type);
+        if (total >= 0 && used(type) >= total) return false;
+        db.update("INSERT INTO license_assignments (principal_type, principal, license_type, assigned, assigned_by) VALUES (?,?,?,?,?)", kind, principal, type, Instant.now(clock),
+            saas ? "subscription" : "evaluation");
+        cr.audit.record("system", "license.assign", kind, principal, Map.of("license", type, saas ? "subscription" : "evaluation", true), "ok", null);
         return true;
     }
 
@@ -128,6 +136,7 @@ public final class Licensing {
     private LocalDate today() { return LocalDate.now(clock); }
 
     public String state() {
+        if (cr.tenant != null) return "subscription";   // a SaaS tenant: the operator's seats, no license file
         License l;
         try { l = current(); } catch (OoaException e) { return "expired"; }   // a stored file that no longer verifies counts as no valid license
         if (l == null) {
@@ -143,7 +152,7 @@ public final class Licensing {
     }
 
     /** True while a license is installed and still in force (limits apply). */
-    boolean enforcing() { String s = state(); return s.equals("active") || s.equals("expiring") || s.equals("grace") || s.equals("evaluation"); }
+    boolean enforcing() { String s = state(); return s.equals("active") || s.equals("expiring") || s.equals("grace") || s.equals("evaluation") || s.equals("subscription"); }
 
     boolean expired() { String s = state(); return s.equals("expired") || s.equals("evaluation_ended") || s.equals("database_required"); }
 
@@ -155,7 +164,7 @@ public final class Licensing {
         String st = state();
         m.put("state", st);
         // a customer install on the embedded database must move to SQL Server before a license can be installed
-        if (!vendorBuild() && !serverDatabase()) { m.put("requires_server_database", true); m.put("database_steps", DATABASE_STEPS); }
+        if (cr.tenant == null && !vendorBuild() && !serverDatabase()) { m.put("requires_server_database", true); m.put("database_steps", DATABASE_STEPS); }
         License l = null;
         try { l = current(); } catch (OoaException e) { m.put("problem", e.getMessage()); }
         if (l != null && otherInstall(l)) m.put("problem", String.format(OTHER_INSTALL, l.installId(), installId()) + ". Ask ONEOFFICEAUTOMATION for a license for this install id.");
@@ -198,6 +207,7 @@ public final class Licensing {
     /** Installs a license file (administrators): it must verify; it replaces the license in force. */
     public Map<String, Object> install(User by, String text, String ip) {
         cr.require(by, "settings.manage", "install licenses");
+        if (cr.tenant != null) throw ControlRoom.notInSaas("Installing license files (the service's seats come with the subscription)");
         if (text == null || text.isBlank() || text.length() > 20000) throw new OoaException("LICENSE.INVALID", "Paste or upload the license file");
         License l = License.verify(text, key.get());
         if (today().isAfter(l.expires().plusDays(l.graceDays()))) throw new OoaException("LICENSE.EXPIRED_FILE", "This license expired on " + l.expires(), "Ask for a current license");
@@ -262,6 +272,7 @@ public final class Licensing {
         if (!enforcing()) { if (expired()) throw expiredError(); return; }
         if (has("user", by.username(), "developer") || has("user", by.username(), "citizen_developer") || autoSeat("user", by.username(), "developer")) return;
         if (state().equals("evaluation")) throw new OoaException("CR.LICENSE_LIMIT", "The evaluation allows " + EVALUATION_SEATS.get("developer") + " developers, and both seats are in use", "Install a license in Administration > Licenses");
+        if (cr.tenant != null) throw new OoaException("CR.LICENSE_LIMIT", "All " + total("developer") + " Developer seats of the subscription are in use", "Take a seat back in Administration > Licenses, or ask ONEOFFICEAUTOMATION for more seats");
         throw new OoaException("CR.LICENSE_REQUIRED", by.username() + " has no Developer or Citizen Developer license", "An administrator assigns one in Administration > Licenses");
     }
 
@@ -276,6 +287,7 @@ public final class Licensing {
         boolean seat = has("user", requestedBy, "attended_runner") || has("user", requestedBy, "developer") || has("user", requestedBy, "citizen_developer");
         boolean own = db.one("SELECT device_id FROM user_devices WHERE username = ? AND device_id = ?", requestedBy, deviceId) != null;
         if (byHand && seat && own) return null;
+        if (cr.tenant != null) return "All " + total("unattended_runner") + " Unattended Runner seats of the subscription are in use (take one back in Administration > Licenses, or ask ONEOFFICEAUTOMATION for more)";
         return state().equals("evaluation") ? "The evaluation allows " + EVALUATION_SEATS.get("unattended_runner") + " runners, and both are in use (install a license in Administration > Licenses)"
             : "This runner has no Unattended Runner license (an administrator assigns one in Administration > Licenses)";
     }

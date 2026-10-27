@@ -60,6 +60,8 @@ public final class Tenants implements AutoCloseable {
     private final Map<String, Tenant> open = new ConcurrentHashMap<>();
     /** Whether tenants may run agents in the Command Center (serverless API tasks): off unless the region's network allows it. */
     public volatile boolean serverless = false;
+    /** The global directory (several regions): a name is reserved there first, so it is used in one region only. */
+    public volatile RegionDirectory.Client directory;
 
     /**
      * @param base       the region's database (PostgreSQL; H2 in tests), signed in with an account that may create schemas
@@ -91,17 +93,31 @@ public final class Tenants implements AutoCloseable {
             throw new OoaException("SAAS.BAD_SLUG", "'" + slug + "' cannot be a tenant's address name", "Use 3 to 40 lower-case letters, digits and hyphens, starting with a letter (not www, api, admin, ...).");
         if (name == null || name.isBlank()) throw new OoaException("SAAS.BAD_NAME", "Give the tenant a name");
         if (catalog.one("SELECT id FROM tenants WHERE slug = ?", slug) != null) throw new OoaException("SAAS.SLUG_TAKEN", "The address name '" + slug + "' is taken");
+        RegionDirectory.Client dir = directory;
+        if (dir != null) dir.reserve(slug);
         String id = Security.token(8).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "x");
         byte[] key = new byte[32];
         Security.RANDOM.nextBytes(key);
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
-        catalog.update("INSERT INTO tenants (id, slug, name, status, region, admin_email, seats, key_ciphertext, created, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            id, slug, name.trim(), "creating", region, adminEmail, JsonLite.write(seats == null ? Map.of() : seats),
-            regionVault.encrypt(Base64.getEncoder().encodeToString(key), "tenant:" + id), now, now, by);
-        Tenant t = start(info(catalog.one("SELECT * FROM tenants WHERE id = ?", id)));
-        String password = t.cr.bootstrap();
-        catalog.update("UPDATE tenants SET status = 'active', updated = ? WHERE id = ?", now, id);
+        String password;
+        try {
+            catalog.update("INSERT INTO tenants (id, slug, name, status, region, admin_email, seats, key_ciphertext, created, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                id, slug, name.trim(), "creating", region, adminEmail, JsonLite.write(seatCounts(seats)),
+                regionVault.encrypt(Base64.getEncoder().encodeToString(key), "tenant:" + id), now, now, by);
+            Tenant t = start(info(catalog.one("SELECT * FROM tenants WHERE id = ?", id)));
+            password = t.cr.bootstrap();
+            catalog.update("UPDATE tenants SET status = 'active', updated = ? WHERE id = ?", now, id);
+        } catch (RuntimeException e) {
+            // nothing half-made stays behind: no schema, folder, entry or reserved name
+            Tenant t = open.remove(id);
+            if (t != null) stop(t);
+            try { base.dropSchema(schemaOf(id)); } catch (RuntimeException ignored) { }
+            catalog.update("DELETE FROM tenants WHERE id = ?", id);
+            if (dir != null) try { dir.release(slug); } catch (RuntimeException ignored) { }
+            throw e;
+        }
         Map<String, Object> out = new LinkedHashMap<>(get(slug).toMap());
+        out.put("url", "https://" + slug + "." + domain + "/");
         out.put("admin_user", "admin");
         out.put("admin_password", password);
         return out;
@@ -142,6 +158,8 @@ public final class Tenants implements AutoCloseable {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) Files.delete(p);
         } catch (IOException e) { throw new OoaException("SAAS.DELETE_FAILED", "Cannot remove " + dir + ": " + e.getMessage()); }
         catalog.update("DELETE FROM tenants WHERE id = ?", i.id());
+        RegionDirectory.Client names = directory;
+        if (names != null) names.release(slug);
     }
 
     /** The open tenant with this address name, opening it when needed; null when there is none or it is not active. */
@@ -159,10 +177,48 @@ public final class Tenants implements AutoCloseable {
         }
     }
 
+    /** Changes a tenant's seats; an open tenant uses them at once. */
+    public Info setSeats(String slug, Map<String, Object> seats, String by) {
+        Info i = need(slug);
+        Map<String, Integer> counts = seatCounts(seats);
+        catalog.update("UPDATE tenants SET seats = ?, updated = ?, updated_by = ? WHERE id = ?", JsonLite.write(counts), Instant.now(), by, i.id());
+        Tenant t = open.get(i.id());
+        if (t != null) t.cr.tenantSeats = counts;
+        return get(slug);
+    }
+
+    /** Seat counts by license type: only known types, whole numbers from 0. */
+    static Map<String, Integer> seatCounts(Map<String, Object> seats) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        if (seats == null) return out;
+        for (Map.Entry<String, Object> e : seats.entrySet()) {
+            if (!com.oneofficeautomation.controlroom.License.TYPES.contains(e.getKey()))
+                throw new OoaException("SAAS.BAD_SEATS", "No seat type '" + e.getKey() + "'", "Use " + String.join(", ", com.oneofficeautomation.controlroom.License.TYPES));
+            if (!(e.getValue() instanceof Number n) || n.intValue() < 0 || n.doubleValue() != n.intValue())
+                throw new OoaException("SAAS.BAD_SEATS", "Seats of '" + e.getKey() + "' are a whole number from 0");
+            out.put(e.getKey(), n.intValue());
+        }
+        return out;
+    }
+
     /** Closes database connections of tenants nobody used for the given time; they stay open and reconnect on use. */
     public void closeIdle(long idleMillis) {
         long cut = System.currentTimeMillis() - idleMillis;
         for (Tenant t : open.values()) if (t.lastUsed < cut) t.cr.db.closeIdle();
+    }
+
+    /**
+     * Closes tenants that another node of the region suspended or deleted (a region may run several nodes behind its
+     * load balancer); their requests and background work stop here too.
+     */
+    public void syncWithCatalog() {
+        Map<String, String> status = new HashMap<>();
+        for (Map<String, Object> r : catalog.query("SELECT id, status FROM tenants")) status.put((String) r.get("id"), (String) r.get("status"));
+        for (Tenant t : List.copyOf(open.values()))
+            if (!"active".equals(status.get(t.info.id())) && !"creating".equals(status.get(t.info.id()))) {
+                open.remove(t.info.id());
+                stop(t);
+            }
     }
 
     public Collection<Tenant> opened() { return Collections.unmodifiableCollection(open.values()); }
@@ -177,6 +233,7 @@ public final class Tenants implements AutoCloseable {
         Db db = base.inSchema(schemaOf(i.id()), 3);
         ControlRoom cr = new ControlRoom(db, dir, registries.get(), schema, Vault.ofKey(key, "tenant key in the region catalog"), i.id());
         cr.serverlessAllowed = serverless;
+        cr.tenantSeats = seatCounts(i.seats());
         // its own address, for sign-in redirects, secure cookies and links in mail (it may set another in Settings)
         if (cr.db.one("SELECT name FROM settings WHERE name = 'public_url'") == null)
             cr.db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", "public_url",

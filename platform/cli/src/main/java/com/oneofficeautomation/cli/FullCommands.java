@@ -90,6 +90,33 @@ final class FullCommands {
             .opt("--token-env", "VAR", "The environment variable with a GitHub token (for a private repository).")
             .opt("--api", "URL", "The GitHub API address (default https://api.github.com).");
 
+        c.group("region", "Run the SaaS service: a region with its tenants (docs/SAAS.md).");
+        c.command("region start", "Start a region: every tenant on one port, the host name picking the tenant.", a -> RegionCommand.start(a.o()))
+            .opt("--data", "DIR", "The region's data folder, with config/ooa-region.properties.")
+            .opt("--host", "HOST", "The address to listen on (default 0.0.0.0; TLS ends at the load balancer).")
+            .number("--port", "N", "The port (default 8720).");
+        c.command("region token", "Make an operator or directory token, and the SHA-256 for the settings file.", a -> RegionCommand.token());
+        c.group("region tenant", "The region's tenants, through its operator API.");
+        for (String verb : new String[] {"list", "create", "seats", "suspend", "resume", "delete"}) {
+            OoaCli.Cmd t = c.command("region tenant " + verb, switch (verb) {
+                    case "list" -> "List the region's tenants.";
+                    case "create" -> "Make a tenant and print its first administrator's one-time password.";
+                    case "seats" -> "Change a tenant's seats (none: no limit).";
+                    case "suspend" -> "Stop a tenant: its people and runners are refused, its data stays.";
+                    case "resume" -> "Start a suspended tenant again.";
+                    default -> "Delete a suspended tenant with all its data, for good.";
+                }, a -> RegionCommand.tenant(verb, a.o(), a.pos()))
+                .required("--url", "URL", "The region's own address, such as https://in.example.com.")
+                .required("--token-env", "VAR", "The environment variable with the operator token.");
+            if (verb.equals("create")) t.required("--slug", "NAME", "The address name: NAME.REGION-DOMAIN.").required("--name", "COMPANY", "The customer's name.")
+                .opt("--admin-email", "ADDRESS", "The customer administrator's e-mail address.").opt("--seats", "KIND=N,...", "Seats, such as developer=2,unattended_runner=5.");
+            else if (verb.equals("seats")) t.param("NAME", "The tenant's address name.", "1").opt("--seats", "KIND=N,...", "Seats, such as developer=2,unattended_runner=5; leave out for no limit.");
+            else if (!verb.equals("list")) t.param("NAME", "The tenant's address name.", "1");
+        }
+        c.group("directory", "The global directory of a SaaS service with several regions.");
+        c.command("directory start", "Start the directory (config/ooa-directory.properties lists the regions).", a -> RegionCommand.directory(a.o()))
+            .opt("--data", "DIR", "Its data folder.").opt("--host", "HOST", "The address to listen on (default 0.0.0.0).").number("--port", "N", "The port (default 8720).");
+
         c.command("check", "Check whether this computer is ready for a Command Center.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
 

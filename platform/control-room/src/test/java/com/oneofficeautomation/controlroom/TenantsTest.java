@@ -93,11 +93,43 @@ class TenantsTest {
         } finally { base.close(); }
     }
 
+    @Test void aTenantHasTheSeatsTheOperatorGave() throws Exception {
+        Path data = Files.createTempDirectory("ooa-region-seats");
+        Db base = Db.embedded(data);
+        assumeFalse(base.sqlServer, "tenants need PostgreSQL or H2");
+        try (Tenants region = new Tenants(base, data, Vault.ofKey(new byte[32], "test"), "us", "us.ooa.test", FirstPartyPackages::registry, null)) {
+            Map<String, Object> t = region.create("acme", "Acme", null, Map.of("developer", 1, "unattended_runner", 1), "op");
+            ControlRoom a = region.serve("acme").cr;
+            ControlRoom.User admin = signIn(a, (String) t.get("admin_password"));
+            Map<String, Object> status = a.licensing.status(admin);
+            assertEquals("subscription", status.get("state"));
+            assertNull(status.get("banner"), "no evaluation or expiry banner");
+            assertEquals("SAAS.NOT_AVAILABLE", assertThrows(OoaException.class, () -> a.licensing.install(admin, "x", null)).code());
+
+            // the one Developer seat goes to the first who checks in an agent
+            a.checkin(admin, "Fin/Pay.flow.json", LicensingAndChecksTest.agent("pay"), "v1", true, null);
+            a.createUser(admin, "dana", "Dana", "bot_creator", null);
+            ControlRoom.User dana = ControlRoom.user(a.db.one("SELECT * FROM users WHERE username = 'dana'"));
+            assertEquals("CR.LICENSE_LIMIT", assertThrows(OoaException.class,
+                () -> a.checkin(dana, "Fin/Other.flow.json", LicensingAndChecksTest.agent("other"), "v1", false, null)).code());
+
+            // the operator gives more; the open tenant uses them at once
+            region.setSeats("acme", Map.of("developer", 2, "unattended_runner", 1), "op");
+            a.checkin(dana, "Fin/Other.flow.json", LicensingAndChecksTest.agent("other"), "v1", false, null);
+            assertEquals("SAAS.BAD_SEATS", assertThrows(OoaException.class, () -> region.setSeats("acme", Map.of("pilots", 3), "op")).code());
+            assertEquals("SAAS.BAD_SEATS", assertThrows(OoaException.class, () -> region.setSeats("acme", Map.of("developer", -1), "op")).code());
+            region.setSeats("acme", Map.of(), "op");
+            assertEquals(-1, a.licensing.total("developer"), "no seats given: no limit");
+        } finally { base.close(); }
+    }
+
     @Test void hostNamesPickTheTenant() {
         assertEquals("acme", TenantHost.slugOf("acme.in.ooa.test", "in.ooa.test"));
         assertEquals("acme", TenantHost.slugOf("ACME.In.Ooa.Test:8443", "in.ooa.test"));
         assertEquals("acme", TenantHost.slugOf("acme.in.ooa.test.", "in.ooa.test"));
         assertEquals("", TenantHost.slugOf("in.ooa.test", "in.ooa.test"));
+        assertEquals("", TenantHost.slugOf("10.0.0.7:8720", "in.ooa.test"), "the node by its address");
+        assertEquals("", TenantHost.slugOf("[::1]:8720", "in.ooa.test"));
         assertNull(TenantHost.slugOf("evil-in.ooa.test", "in.ooa.test"), "not a sub-domain");
         assertNull(TenantHost.slugOf("a.b.in.ooa.test", "in.ooa.test"));
         assertNull(TenantHost.slugOf(null, "in.ooa.test"));
