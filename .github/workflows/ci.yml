@@ -230,16 +230,21 @@ jobs:
           JAVA_OOA=cli/build/install/ooa/bin/ooa
           time "$OOA" --version
           "$OOA" --help
-          # every example automation, Office, email, PDF and browser ones included
-          find ../examples -name '*.flow.json' -print0 | xargs -0 "$OOA" validate
-          "$OOA" conformance ../contracts/conformance/cases
-          "$OOA" manifest --summary > native.txt
+          # every check runs, so one run shows every difference
+          bad=0
+          "$OOA" manifest --summary > native.txt || bad=1
           "$JAVA_OOA" manifest --summary > java.txt
-          diff java.txt native.txt && echo "Both know $(wc -l < native.txt) toolkits"
+          diff java.txt native.txt && echo "Both know $(wc -l < native.txt) toolkits" || bad=1
+          # every example automation, Office, email, PDF and browser ones included
+          find ../examples -name '*.flow.json' -print0 | xargs -0 "$OOA" validate | grep -v ": OK$" || true
+          find ../examples -name '*.flow.json' -print0 | xargs -0 "$OOA" validate > /dev/null || bad=1
+          "$OOA" conformance ../contracts/conformance/cases | grep -v "^PASS" || true
+          "$OOA" conformance ../contracts/conformance/cases > /dev/null || bad=1
           # a step of a toolkit it cannot run fails with a clear message
           echo '{"kind":"TaskBot","id":"native_excel","name":"Native Excel","requires":{"packages":{"ooa.excel":"^1.0.0"}},"steps":[{"id":"open","action":"ooa.excel/open","args":{"path":"book.xlsx"}}]}' > excel.flow.json
-          if "$OOA" run excel.flow.json > run.txt 2>&1; then cat run.txt; exit 1; fi
-          grep -q "ACTION.NOT_IN_THIS_PROGRAM" run.txt || { cat run.txt; exit 1; }
+          "$OOA" run excel.flow.json > run.txt 2>&1 && bad=1
+          grep -q "ACTION.NOT_IN_THIS_PROGRAM" run.txt || { cat run.txt; bad=1; }
+          exit $bad
       - uses: actions/upload-artifact@v4
         with:
           name: ooa-native-${{ runner.os }}

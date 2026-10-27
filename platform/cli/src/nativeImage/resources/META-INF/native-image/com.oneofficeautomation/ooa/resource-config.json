@@ -2,7 +2,7 @@
   "resources": {
     "includes": [
       { "pattern": "\\Qflow.v1.json\\E" },
-      { "pattern": "com/oneofficeautomation/packages/.*\\.(html|json|ps1|txt)$" }
+      { "pattern": "com/oneofficeautomation/packages/.*\\.(html|js|json|ps1|txt)$" }
     ]
   }
 }
