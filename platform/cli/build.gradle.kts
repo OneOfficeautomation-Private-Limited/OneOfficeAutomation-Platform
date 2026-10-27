@@ -153,9 +153,13 @@ val nativeExecutable by tasks.registering(Exec::class) {
         val tool = File(graal, "bin/native-image" + if (windows) ".cmd" else "")
         if (!tool.exists()) throw GradleException("No native-image in $graal: point GRAALVM_HOME at GraalVM for JDK 21")
         out.get().asFile.mkdirs()
+        // an argument file: the class path is longer than a Windows command line may be
+        val argFile = temporaryDir.resolve("native-image.args")
+        val q = { v: String -> "\"" + v.replace("\\", "\\\\") + "\"" }
+        argFile.writeText(listOf("-cp", classpath.asPath, "-o", out.get().file("ooa").asFile.path, "--no-fallback",
+            "-march=compatibility", "com.oneofficeautomation.cli.OoaNative").joinToString("\n") { q(it) })
         executable = tool.path
-        args("-cp", classpath.asPath, "-o", out.get().file("ooa").asFile.path, "--no-fallback", "-march=compatibility",
-            "com.oneofficeautomation.cli.OoaNative")
+        args("@" + argFile.path)
     }
 }
 
