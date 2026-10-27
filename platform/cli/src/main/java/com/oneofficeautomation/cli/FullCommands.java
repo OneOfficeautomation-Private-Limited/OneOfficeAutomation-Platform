@@ -18,7 +18,7 @@ final class FullCommands {
             .opt("--workspace", "DIR", "Agent Studio's workspace (default: ~/OOA Workspace).")
             .flag("--no-agent", "Do not start the runner for this computer.")
             .flag("--no-browser", "Do not open the browser.")
-            .opt("--agent-config", "FILE", "The local runner's registration (default: ~/.ooa-agent/local-agent.json).")
+            .opt("--agent-config", "FILE", "The local runner's registration (default: one file per data folder in ~/.ooa-agent).")
             .opt("--agent-workspace", "DIR", "The local runner's workspace (default: ~/OOA Agent Workspace)."));
         c.command("studio", "Start Agent Studio on its own (http://localhost:8710).", a -> Ooa.studio(a.o()))
             .opt("--workspace", "DIR", "The workspace (default: ~/OOA Workspace).")

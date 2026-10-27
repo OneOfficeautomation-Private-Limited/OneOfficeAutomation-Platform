@@ -159,7 +159,7 @@ public final class Ooa {
         var studio = new StudioServer(workspace, port, Path.of("../examples/refund"));
         server.mount("/studio", studio.mountedAt("/studio", localUrl));
         server.start();
-        Path agentConfig = Path.of(o.getOrDefault("agent-config", Path.of(System.getProperty("user.home"), ".ooa-agent", "local-agent.json").toString()));
+        Path agentConfig = o.containsKey("agent-config") ? Path.of(o.get("agent-config")) : localAgentConfig(s.data());
         Path agentWorkspace = Path.of(o.getOrDefault("agent-workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString()));
         com.oneofficeautomation.agent.Agent agent = o.containsKey("no-agent") ? null : startLocalAgent(s.cr(), localUrl, agentConfig, agentWorkspace);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { if (agent != null) agent.stop(); server.stop(); s.db().close(); }));
@@ -191,13 +191,37 @@ public final class Ooa {
         return "on (" + d.get("subject") + ", valid until " + String.valueOf(d.get("valid_until")).substring(0, 10) + (Boolean.TRUE.equals(d.get("self_signed")) ? ", self-signed" : "") + ")";
     }
 
-    /** Registers this computer once (its own config file, so a separately registered agent is never touched) and runs the agent. */
+    /**
+     * The registration of this computer's runner with the Command Center of a data folder: one file per data folder, so
+     * Command Centers on other data folders (tests, a second install) never overwrite it and make it register again.
+     * The file of earlier versions (local-agent.json, shared by all) is taken over by the data folder whose Command
+     * Center it belongs to (startLocalAgent checks that).
+     */
+    static Path localAgentConfig(Path data) {
+        Path dir = Path.of(System.getProperty("user.home"), ".ooa-agent");
+        String id = sha12(data.toAbsolutePath().normalize().toString().toLowerCase(Locale.ROOT));
+        return dir.resolve("local-agent-" + id + ".json");
+    }
+
+    private static String sha12(String s) {
+        try { return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8))).substring(0, 12); }
+        catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
+
+    /**
+     * Registers this computer once (its own config file, so a separately registered agent is never touched) and runs the
+     * agent. A registration this Command Center still knows is kept even when its address changed (another port): only
+     * the address in the file is updated, so restarting on another port does not add a runner.
+     */
     @SuppressWarnings("unchecked")
     static com.oneofficeautomation.agent.Agent startLocalAgent(com.oneofficeautomation.controlroom.ControlRoom cr, String url, Path config, Path workspace) throws Exception {
-        boolean registered = false;
-        if (Files.exists(config)) {
-            Map<String, Object> c = (Map<String, Object>) JsonLite.parse(Files.readString(config));
-            registered = url.equals(c.get("url")) && cr.device((String) c.get("device_id"), (String) c.get("secret")) != null;
+        // the shared file of earlier versions: kept when it is this Command Center's runner
+        Path legacy = config.resolveSibling("local-agent.json");
+        if (!Files.exists(config) && !config.equals(legacy) && Files.exists(legacy) && knownTo(cr, legacy)) Files.copy(legacy, config);
+        boolean registered = Files.exists(config) && knownTo(cr, config);
+        if (registered) {
+            Map<String, Object> c = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(config)));
+            if (!url.equals(c.get("url"))) { c.put("url", url); Files.writeString(config, JsonLite.write(c)); }
         }
         if (!registered) com.oneofficeautomation.agent.Agent.register(url, cr.localRegistrationKey(), com.oneofficeautomation.agent.Agent.hostname() + " (this computer)", config);
         var agent = new com.oneofficeautomation.agent.Agent(config, workspace);
@@ -205,6 +229,15 @@ public final class Ooa {
         t.setDaemon(true);
         t.start();
         return agent;
+    }
+
+    /** Whether a runner registration file is one this Command Center knows (its device and secret). */
+    @SuppressWarnings("unchecked")
+    static boolean knownTo(com.oneofficeautomation.controlroom.ControlRoom cr, Path config) {
+        try {
+            Map<String, Object> c = (Map<String, Object>) JsonLite.parse(Files.readString(config));
+            return cr.device((String) c.get("device_id"), (String) c.get("secret")) != null;
+        } catch (Exception e) { return false; }
     }
 
     static void openBrowser(String url) {
