@@ -598,6 +598,17 @@ public final class ControlRoomServer {
                 } else if (m.equals("POST") && route.equals("lifecycle/promote")) sendJson(ex, 200, cr.lifecycle.promote(u, map(body(ex)), ip));
                 else notFound(ex);
             }
+            case "templates" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.templates.list(u));
+                else if (m.equals("POST") && route.equals("templates/install")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.templates.install(u, (String) b.get("source"), (String) b.get("id"), (String) b.get("folder"), ip));
+                } else if (m.equals("POST") && route.equals("templates/share")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.templates.share(u, (String) b.get("path"), (String) b.get("name"), (String) b.get("description"), (String) b.get("category"), ip));
+                } else if (m.equals("POST") && route.equals("templates/catalogue")) sendJson(ex, 200, cr.templates.upload(u, (String) map(body(ex)).get("text"), ip));
+                else notFound(ex);
+            }
             case "queues" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("queues", cr.platform.queues(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.platform.queue(u, seg[1]));

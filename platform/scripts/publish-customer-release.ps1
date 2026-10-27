@@ -1,8 +1,9 @@
 # Publishes a customer release of ONEOFFICEAUTOMATION to the public repository VirupakshaPrabhu/OOA_Customer_Build.
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft] [-Preview]
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -PageOnly
-# After a release, and alone with -PageOnly, it refreshes the public releases page (Q10): docs\index.html and
-# docs\releases.json in that repository, which GitHub Pages serves (Settings > Pages: branch main, folder /docs).
+# After a release, and alone with -PageOnly, it refreshes the public releases page (Q10): docs\index.html,
+# docs\releases.json and the signed template catalogue docs\templates.json (K7) in that repository, which GitHub Pages
+# serves (Settings > Pages: branch main, folder /docs).
 # -Preview publishes v<version>-preview as a GitHub pre-release, for customers' sandbox Command Centers about three weeks
 # before the general release v<version> of the same version (docs\RELEASING.md, Release cadence).
 # It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
@@ -40,7 +41,15 @@ function Update-ReleasesPage([string]$Token) {
     $env:OOA_RELEASE_PAGE_TOKEN = $Token
     try { & $ooa release page --repo $Repository --out $pageDir --token-env OOA_RELEASE_PAGE_TOKEN } finally { Remove-Item Env:OOA_RELEASE_PAGE_TOKEN }
     if ($LASTEXITCODE -ne 0) { throw "Making the releases page failed" }
-    foreach ($f in "index.html", "releases.json") {
+    $pageFiles = @("index.html", "releases.json")
+    # the template catalogue (K7), signed with the vendor key: Command Centers list it in Automation > Templates
+    $templates = Join-Path (Split-Path -Parent $platform) "templates"
+    if (Test-Path $templates) {
+        & $ooa release templates --dir $templates --key $SigningKey --out (Join-Path $pageDir "templates.json")
+        if ($LASTEXITCODE -ne 0) { throw "Making the template catalogue failed" }
+        $pageFiles += "templates.json"
+    }
+    foreach ($f in $pageFiles) {
         $uri = "https://api.github.com/repos/$Repository/contents/docs/$f"
         $old = $null
         try { $old = (Invoke-RestMethod -Headers $h -Uri "$($uri)?ref=main").sha } catch { }

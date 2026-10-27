@@ -77,6 +77,57 @@ public final class Tenants implements AutoCloseable {
         catalog.update("CREATE TABLE IF NOT EXISTS tenants (id VARCHAR(40) PRIMARY KEY, slug VARCHAR(40) NOT NULL UNIQUE, name VARCHAR(200) NOT NULL, "
             + "status VARCHAR(20) NOT NULL, region VARCHAR(20) NOT NULL, admin_email VARCHAR(200), seats VARCHAR(2000) NOT NULL, key_ciphertext VARCHAR(500) NOT NULL, "
             + "created TIMESTAMP NOT NULL, updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))");
+        // the region's shared agent templates (K7): offered by tenants, approved by operators, installable by every tenant
+        catalog.update("CREATE TABLE IF NOT EXISTS shared_templates (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, description VARCHAR(2000), "
+            + "category VARCHAR(40) NOT NULL, tenant_id VARCHAR(40) NOT NULL, publisher VARCHAR(200) NOT NULL, submitted_by VARCHAR(80), bundle VARCHAR(5000000) NOT NULL, "
+            + "status VARCHAR(20) NOT NULL, submitted TIMESTAMP NOT NULL, reviewed TIMESTAMP, reviewed_by VARCHAR(80))");
+    }
+
+    // ------------------------------------------------------------ shared templates (K7)
+
+    /** The region's catalogue as a tenant sees it: approved templates, and offering its own. */
+    Templates.Shared sharedTemplates() {
+        return new Templates.Shared() {
+            @Override public List<Map<String, Object>> approved() { return templates("approved", false); }
+            @SuppressWarnings("unchecked")
+            @Override public Map<String, Object> bundle(String id) {
+                Map<String, Object> r = catalog.one("SELECT bundle FROM shared_templates WHERE id = ? AND status = 'approved'", id);
+                return r == null ? null : (Map<String, Object>) JsonLite.parse((String) r.get("bundle"));
+            }
+            @Override public Map<String, Object> submit(String tenantId, Map<String, Object> t) {
+                Map<String, Object> tenant = catalog.one("SELECT name FROM tenants WHERE id = ?", tenantId);
+                String id = "tpl_" + Security.token(8).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "x");
+                catalog.update("INSERT INTO shared_templates (id, name, description, category, tenant_id, publisher, submitted_by, bundle, status, submitted) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    id, t.get("name"), t.get("description"), t.get("category"), tenantId, tenant == null ? tenantId : tenant.get("name"), t.get("submitted_by"),
+                    JsonLite.write(t.get("bundle")), "pending", Instant.now());
+                return Map.of("id", id, "status", "pending");
+            }
+        };
+    }
+
+    /** The region's shared templates with a status (pending, approved, rejected; null for all), with or without their content. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> templates(String status, boolean withBundle) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        List<Map<String, Object>> rows = status == null ? catalog.query("SELECT * FROM shared_templates ORDER BY submitted")
+            : catalog.query("SELECT * FROM shared_templates WHERE status = ? ORDER BY submitted", status);
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> m = new LinkedHashMap<>(r);
+            Map<String, Object> b = (Map<String, Object>) JsonLite.parse((String) m.remove("bundle"));
+            if (withBundle) m.put("bundle", b);
+            List<Object> agents = new ArrayList<>();
+            if (b.get("agents") instanceof List<?> l) for (Object a : l) if (a instanceof Map<?, ?> am) agents.add(am.get("path"));
+            m.put("agents", agents);
+            m.put("created", String.valueOf(r.get("submitted")));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** An operator approves (every tenant of the region may install it) or rejects a shared template. */
+    public void reviewTemplate(String id, boolean approve, String by) {
+        if (catalog.update("UPDATE shared_templates SET status = ?, reviewed = ?, reviewed_by = ? WHERE id = ?", approve ? "approved" : "rejected", Instant.now(), by, id) == 0)
+            throw new OoaException("CR.NOT_FOUND", "No shared template '" + id + "'");
     }
 
     static String schemaOf(String id) { return "t_" + id; }
@@ -233,6 +284,7 @@ public final class Tenants implements AutoCloseable {
         Db db = base.inSchema(schemaOf(i.id()), 3);
         ControlRoom cr = new ControlRoom(db, dir, registries.get(), schema, Vault.ofKey(key, "tenant key in the region catalog"), i.id());
         cr.serverlessAllowed = serverless;
+        cr.templates.shared = sharedTemplates();
         cr.tenantSeats = seatCounts(i.seats());
         // its own address, for sign-in redirects, secure cookies and links in mail (it may set another in Settings)
         if (cr.db.one("SELECT name FROM settings WHERE name = 'public_url'") == null)

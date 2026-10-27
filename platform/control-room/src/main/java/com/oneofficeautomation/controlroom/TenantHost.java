@@ -27,6 +27,8 @@ import java.util.concurrent.*;
  *   POST   /api/operator/tenants/NAME/seats           {seats}: change its seats
  *   POST   /api/operator/tenants/NAME/suspend|resume
  *   DELETE /api/operator/tenants/NAME               a suspended tenant, for good
+ *   GET    /api/operator/templates[?status=pending] the region's shared templates (K7)
+ *   POST   /api/operator/templates/ID/approve|reject
  * </pre>
  */
 public final class TenantHost {
@@ -121,6 +123,13 @@ public final class TenantHost {
                 String[] part = rest.split("/");
                 if (part[2].equals("suspend")) tenants.suspend(part[1], who); else tenants.resume(part[1], who);
                 send(ex, 200, tenants.get(part[1]).toMap());
+            } else if (rest.equals("templates") && m.equals("GET")) {
+                String status = ControlRoomServer.query(ex).get("status");
+                send(ex, 200, Map.of("templates", tenants.templates(status == null || status.isBlank() ? null : status, false)));
+            } else if (rest.matches("templates/tpl_[a-z0-9]+/(approve|reject)") && m.equals("POST")) {
+                String[] part = rest.split("/");
+                tenants.reviewTemplate(part[1], part[2].equals("approve"), who);
+                send(ex, 200, Map.of("id", part[1], "status", part[2].equals("approve") ? "approved" : "rejected"));
             } else if (rest.matches("tenants/[a-z0-9-]+") && m.equals("DELETE")) {
                 tenants.delete(rest.substring(8), who);
                 send(ex, 200, Map.of("deleted", rest.substring(8)));

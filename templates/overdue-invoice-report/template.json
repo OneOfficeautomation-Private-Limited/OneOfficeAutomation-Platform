@@ -1,0 +1,9 @@
+{
+  "name": "Overdue invoice report",
+  "description": "Takes an invoice list (CSV), finds the overdue invoices and writes a formatted Excel report of them.",
+  "category": "Finance",
+  "version": "1",
+  "agents": {
+    "Finance/Overdue invoice report.flow.json": "../../examples/use-cases/O1-overdue-invoice-report.flow.json"
+  }
+}

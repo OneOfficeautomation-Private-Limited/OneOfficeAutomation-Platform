@@ -36,6 +36,7 @@ public final class ControlRoom {
     final Folders folders;
     /** Export, import and promotion of agents between Command Centers. */
     public final Lifecycle lifecycle;
+    public final Templates templates;
     /** Teams of people, named team:x in access rules. */
     public final Teams teams;
     /** Vault folder members, credential owners, people's own values and the master key. */
@@ -147,6 +148,7 @@ public final class ControlRoom {
         this.teams = new Teams(this);
         this.folders = new Folders(this);
         this.lifecycle = new Lifecycle(this);
+        this.templates = new Templates(this);
         this.vaultAdmin = new VaultAdmin(this);
         this.analytics = new Analytics(this);
         this.codeAnalysis = new CodeAnalysis(this);

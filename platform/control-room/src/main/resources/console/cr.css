@@ -419,3 +419,10 @@ input.unsure { border-color: var(--danger-solid); box-shadow: 0 0 0 2px color-mi
 .dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-4); margin-top: var(--space-4); }
 .dash-card .kpi-value { font-size: 2rem; font-weight: 600; margin-top: var(--space-2); }
 .dash-line { width: 100%; height: auto; display: block; margin-top: var(--space-2); }
+
+/* Templates (K7): one card per template, as many columns as fit */
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.tpl-grid .card { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; margin: 0; }
+.tpl-grid .card h3 { margin: 0; }
+.tpl-grid .card p { margin: 0; }
+.tpl-grid .card button { align-self: flex-start; margin-top: auto; }

@@ -1,0 +1,9 @@
+{
+  "name": "Letters from PDF invoices",
+  "description": "Reads values from PDF invoices and fills a Word template to make one letter per invoice.",
+  "category": "Documents",
+  "version": "1",
+  "agents": {
+    "Documents/Letters from PDF invoices.flow.json": "../../examples/use-cases/O3-pdf-to-word-letters.flow.json"
+  }
+}

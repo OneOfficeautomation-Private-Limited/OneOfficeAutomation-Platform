@@ -39,6 +39,41 @@ final class ReleaseCommand {
         } catch (OoaException e) { System.err.println(e.getMessage()); return 2; }
     }
 
+    /**
+     * ooa release templates --dir TEMPLATES --key private.key --out templates.json (vendor build): the signed template
+     * catalogue (K7) from a folder with one folder per template: template.json ({name, description, category, version,
+     * agents: {path in the repository: agent file, relative to template.json}}). Published with the releases page.
+     */
+    @SuppressWarnings("unchecked")
+    static int templates(Map<String, String> o) throws Exception {
+        Path dir = Path.of(o.get("dir"));
+        List<Map<String, Object>> list = new ArrayList<>();
+        try (var s = Files.list(dir)) {
+            for (Path t : s.sorted().toList()) {
+                Path def = t.resolve("template.json");
+                if (!Files.isRegularFile(def)) continue;
+                Map<String, Object> d = (Map<String, Object>) JsonLite.parse(Files.readString(def));
+                Map<String, String> agents = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> a : ((Map<String, Object>) d.get("agents")).entrySet())
+                    agents.put(a.getKey(), Files.readString(t.resolve(String.valueOf(a.getValue())).normalize()));
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", t.getFileName().toString());
+                m.put("name", d.get("name"));
+                m.put("description", d.getOrDefault("description", ""));
+                m.put("category", d.getOrDefault("category", "Other"));
+                m.put("version", String.valueOf(d.getOrDefault("version", "1")));
+                m.put("bundle", com.oneofficeautomation.controlroom.Templates.bundleOf(agents, "ONEOFFICEAUTOMATION templates"));
+                list.add(m);
+            }
+        }
+        if (list.isEmpty()) throw new OoaException("TEMPLATES.EMPTY", "No template folders (with template.json) in " + dir);
+        String feed = com.oneofficeautomation.controlroom.Templates.makeFeed("ONEOFFICEAUTOMATION", list, License.privateKey(Files.readString(Path.of(o.get("key")))));
+        Path out = Path.of(o.get("out"));
+        Files.writeString(out, feed, StandardCharsets.UTF_8);
+        System.out.println("Template catalogue written: " + out + " (" + list.size() + " templates)");
+        return 0;
+    }
+
     /** ooa release sign --dir DIR --version V --key private.key [--out FILE] (vendor build). */
     static int sign(Map<String, String> o) throws Exception {
         Path dir = Path.of(o.get("dir"));

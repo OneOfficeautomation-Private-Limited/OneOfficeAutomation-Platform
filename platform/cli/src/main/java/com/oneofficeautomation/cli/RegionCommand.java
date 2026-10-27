@@ -108,6 +108,29 @@ final class RegionCommand {
         return 0;
     }
 
+    /** list, approve, reject: the region's shared templates (K7), through the operator API. */
+    @SuppressWarnings("unchecked")
+    static int template(String verb, Map<String, String> o, List<String> pos) throws Exception {
+        String base = o.get("url").replaceAll("/+$", "");
+        String token = System.getenv(o.get("token-env"));
+        if (token == null || token.isBlank()) throw new OoaException("SAAS.TOKEN", "Set " + o.get("token-env") + " to the operator token");
+        if (verb.equals("list")) {
+            String status = o.getOrDefault("status", "pending");
+            Map<String, Object> r = (Map<String, Object>) call(base, "GET", "/api/operator/templates" + (status.equals("all") ? "" : "?status=" + status), null, token);
+            List<Object> list = (List<Object>) r.get("templates");
+            for (Object x : list) {
+                Map<String, Object> t = (Map<String, Object>) x;
+                System.out.println(t.get("id") + "  " + t.get("status") + "  " + t.get("name") + "  (" + t.get("category") + ", by " + t.get("publisher") + ")");
+                System.out.println("    " + t.getOrDefault("description", "") + "  agents: " + t.get("agents"));
+            }
+            System.out.println(list.size() + " template(s)" + (status.equals("all") ? "" : " " + status));
+            return 0;
+        }
+        call(base, "POST", "/api/operator/templates/" + pos.get(0) + "/" + verb, "{}", token);
+        System.out.println("Template " + pos.get(0) + (verb.equals("approve") ? " is approved: every tenant of the region can install it." : " is rejected."));
+        return 0;
+    }
+
     /** "developer=2,unattended_runner=5" as seat counts. */
     static Map<String, Object> seats(String s) {
         Map<String, Object> m = new LinkedHashMap<>();

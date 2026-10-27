@@ -70,6 +70,7 @@ public final class Platform {
         DEFAULTS.put("work_item_retention_days", 0);
         DEFAULTS.put("backup_keep_days", 7);
         DEFAULTS.put("backup_folder", "");
+        DEFAULTS.put("template_catalog_url", "");
         DEFAULTS.put("runner_secret_days", 30);
         DEFAULTS.put("saml_idp_sso_url", "");
         DEFAULTS.put("saml_idp_entity_id", "");
@@ -195,6 +196,8 @@ public final class Platform {
                             Base64.getDecoder().decode(s.replaceAll("-----(BEGIN|END) CERTIFICATE-----", "").replaceAll("\\s", "")))); }
                     catch (Exception x) { throw new OoaException("CR.BAD_INPUT", "The identity provider certificate is not a PEM certificate", "Paste the signing certificate from the identity provider's SAML set-up or metadata."); }
                 }
+                if (k.equals("template_catalog_url") && !s.isEmpty() && !s.equalsIgnoreCase("off") && !s.matches("(?i)https://[^\\s/?#]+[^\\s]*"))
+                    throw new OoaException("CR.BAD_INPUT", "The template catalogue address starts with https:// (or is off)");
                 if ((k.equals("public_url") || k.equals("sso_issuer")) && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
                 if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))

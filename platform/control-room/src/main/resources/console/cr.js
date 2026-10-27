@@ -189,7 +189,7 @@ function showApp() {
 }
 
 const PAGES = [
-  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
+  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["templates", "Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
   ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
@@ -205,7 +205,7 @@ const PAGES = [
  * Pages not listed here (admin) are reached from inside other pages.
  */
 const NAV_GROUPS = [
-  ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks", "tests"]],
+  ["automation", "Build", "bot", ["automation", "templates", "studio", "workflows", "apitasks", "tests"]],
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
   ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
@@ -570,6 +570,35 @@ const VIEWS = {
     if (fillDevices) fillDevices();
   },
 
+  /** Templates (K7): ready-made agents from ONEOFFICEAUTOMATION's catalogue and, in the SaaS service, the region's shared ones. */
+  async templates(main) {
+    const l = await api("GET", "templates");
+    S.tplCategory = S.tplCategory || "";
+    const q = h("input", { type: "search", placeholder: "Search templates", "aria-label": "Search templates", value: S.tplQuery || "" });
+    const cat = h("select", { "aria-label": "Category" }, h("option", { value: "", text: "All categories" }), l.categories.map((c) => h("option", { value: c, text: c })));
+    cat.value = S.tplCategory;
+    const grid = h("div", { class: "tpl-grid" });
+    const draw = () => {
+      S.tplQuery = q.value; S.tplCategory = cat.value;
+      const words = q.value.trim().toLowerCase();
+      const shown = l.templates.filter((t) => (!cat.value || t.category === cat.value)
+        && (!words || (t.name + " " + t.description + " " + t.publisher).toLowerCase().includes(words)));
+      grid.replaceChildren(...(shown.length ? shown.map((t) => h("div", { class: "card" },
+        h("div", { class: "muted small", text: t.category + " \u00B7 " + (t.source === "region" ? "shared by " + t.publisher : t.publisher) }),
+        h("h3", { text: t.name }), h("p", { text: t.description || "" }),
+        h("div", { class: "muted small", text: t.agents.length === 1 ? "1 agent: " + botName(t.agents[0]) : t.agents.length + " agents" }),
+        can("lifecycle.import") ? h("button", { type: "button", class: "primary", onclick: () => installTemplate(t) }, "Install") : null))
+        : [h("p", { class: "muted", text: l.templates.length ? "No template matches." : "No templates yet." })]));
+    };
+    q.addEventListener("input", draw); cat.addEventListener("change", draw);
+    main.replaceChildren(...header("Templates", "Ready-made agents to install into your agent repository and adapt: from ONEOFFICEAUTOMATION" + (l.can_share ? " and shared in your region" : "") + ".",
+      l.can_share ? h("button", { type: "button", onclick: () => shareTemplateDialog() }, "Share an agent") : null,
+      can("settings.manage") ? h("button", { type: "button", onclick: () => uploadCatalogueDialog() }, "Upload a catalogue file") : null),
+      l.problem ? h("p", { class: "error", text: l.problem }) : null,
+      h("div", { class: "toolbar" }, q, cat), grid);
+    draw();
+  },
+
   async automation(main) {
     await loadRefs();
     S.repoFolder = S.repoFolder || "";
@@ -894,6 +923,7 @@ const VIEWS = {
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
       const tempHours = num("temporary_runner_hours", 1, 720), secretDays = num("runner_secret_days", 0, 365);
       const repoShared = txt("repo_files_folder", "\\\\fileserver\\ooa\\repo-files (for several nodes)");
+      const tplUrl = txt("template_catalog_url", "(empty: ONEOFFICEAUTOMATION's catalogue; off: none)");
       const nodesBox = h("div", { class: "muted" });
       api("GET", "cluster").then((c) => nodesBox.replaceChildren(h("p", { text: c.nodes.length + " node(s): " + c.nodes.map((n) => n.node_id + (n.leader ? " (leads background work)" : "") + (n.this_node ? " (this one)" : "")).join(", ") }))).catch(() => {});
       const bkHours = num("backup_hours", 0, 168), bkKeep = num("backup_keep_days", 1, 3650), bkFolder = txt("backup_folder", "(the data folder's backups folder)");
@@ -993,6 +1023,7 @@ const VIEWS = {
         h("h3", {}, ic("desktop", "#475569", "sm"), "Several nodes"),
         h("p", { class: "muted", text: "Start more Command Centers on the same database behind a load balancer for high availability. Each serves everything; one leads the background work and another takes over within about 30 seconds if it stops. Put repository files in a shared folder every node can reach." }),
         nodesBox, h("label", {}, "Shared folder for repository files (empty = the data folder)", repoShared),
+        h("label", {}, "Template catalogue (an https address of templates.json)", tplUrl),
         h("h3", {}, ic("download", "#475569", "sm"), "Backups"),
         h("p", { class: "muted", text: "Every table, the repository files and the configuration, in one zip per backup. Restore with: bin\\ooa.bat backup restore FILE (the server stopped)." }),
         h("div", { class: "grid2" }, h("label", {}, "Back up every (hours, 0 = never)", bkHours), h("label", {}, "Keep backups for (days)", bkKeep),
@@ -1026,7 +1057,7 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(),
+              mcp_timeout_seconds: Number(mcpTimeout.value), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
@@ -2662,6 +2693,47 @@ function exportDialog(bots) {
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try { const b = await api("POST", "lifecycle/export", req()); download("agents-" + new Date().toISOString().slice(0, 10) + ".ooabundle.json", JSON.stringify(b, null, 2), "application/json"); toast("Exported " + b.agents.length + " agents"); }
     catch (e) { toast(e.message, true); } } }, "Download bundle")]);
+}
+
+function installTemplate(t) {
+  const folder = h("input", { value: "Templates", "aria-label": "Folder" });
+  const out = h("div");
+  modal("Install " + t.name, [h("p", { class: "muted", text: "The template's agents go into the agent repository under this folder, as new agents you can change. Agents already there are kept as they are." }),
+    h("label", {}, "Folder", folder), out],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const r = await api("POST", "templates/install", { source: t.source, id: t.id, folder: folder.value.trim() || "Templates" });
+      out.replaceChildren(table(["Agent", "Result", "Problem"], r.results.map((x) => ({ data: x, cells: [botName(x.path), pill(x.status === "created" ? "success" : x.status === "skipped" ? "stopped" : "failed"), x.error ? x.error.message : x.status] }))));
+      toast(r.ok ? "Installed in " + r.folder : "Nothing installed: fix the problems listed", !r.ok);
+      if (r.ok) { S.repoFolder = r.folder; closeModal(); go("automation"); }
+    } catch (e) { toast(e.message, true); } } }, "Install")]);
+}
+
+async function shareTemplateDialog() {
+  await loadRefs();
+  const agent = botSelect();
+  const name = h("input", { maxlength: 120, "aria-label": "Template name" });
+  const description = h("textarea", { rows: 3, maxlength: 2000, "aria-label": "Description" });
+  const category = h("select", {}, ["Finance", "Human resources", "Sales", "Customer service", "IT", "Operations", "Documents", "Other"].map((c) => h("option", { value: c, text: c })));
+  agent.addEventListener("change", () => { if (!name.value) name.value = botName(agent.value); });
+  modal("Share an agent as a template", [h("p", { class: "muted", text: "Its live production version and the agents it calls go to your region's template catalogue. Once the service's operators approve it, every company in the region can install it. Only the agents are shared: never credentials, shared values or runs." }),
+    h("label", {}, "Agent", agent), h("label", {}, "Template name", name), h("label", {}, "What it does", description), h("label", {}, "Category", category)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      await api("POST", "templates/share", { path: agent.value, name: name.value.trim() || botName(agent.value), description: description.value.trim(), category: category.value });
+      closeModal(); toast("Sent for approval: it shows in Templates once approved");
+    } catch (e) { toast(e.message, true); } } }, "Share")]);
+}
+
+function uploadCatalogueDialog() {
+  const file = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Catalogue file" });
+  modal("Upload a template catalogue", [h("p", { class: "muted", text: "For a Command Center without internet access: download templates.json from the releases page and upload it here. It must carry ONEOFFICEAUTOMATION's signature." }), file],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const f = file.files[0]; if (!f) throw new Error("Choose the catalogue file");
+      const r = await api("POST", "templates/catalogue", { text: await f.text() });
+      closeModal(); toast(r.templates + " templates available"); go("templates");
+    } catch (e) { toast(e.message, true); } } }, "Upload")]);
 }
 
 function importDialog() {

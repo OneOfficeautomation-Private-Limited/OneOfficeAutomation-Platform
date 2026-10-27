@@ -82,6 +82,9 @@ final class FullCommands {
             c.command("release sign", "Sign a release folder's manifest (vendor build).", a -> ReleaseCommand.sign(a.o()))
                 .required("--dir", "DIR", "The release folder.").required("--version", "V", "The release version.")
                 .required("--key", "FILE", "The vendor private key.").opt("--out", "FILE", "The manifest to write.");
+            c.command("release templates", "Make the signed template catalogue from a folder of templates (vendor build).", a -> ReleaseCommand.templates(a.o()))
+                .required("--dir", "DIR", "The folder with one folder per template (template.json and its agents).")
+                .required("--key", "FILE", "The vendor private key.").required("--out", "FILE", "The catalogue to write (templates.json).");
         }
 
         c.command("release page", "Write the public releases page from a repository's GitHub releases.", a -> ReleasePage.run(a.o()))
@@ -112,6 +115,18 @@ final class FullCommands {
                 .opt("--admin-email", "ADDRESS", "The customer administrator's e-mail address.").opt("--seats", "KIND=N,...", "Seats, such as developer=2,unattended_runner=5.");
             else if (verb.equals("seats")) t.param("NAME", "The tenant's address name.", "1").opt("--seats", "KIND=N,...", "Seats, such as developer=2,unattended_runner=5; leave out for no limit.");
             else if (!verb.equals("list")) t.param("NAME", "The tenant's address name.", "1");
+        }
+        c.group("region template", "The region's shared agent templates: approve them before tenants see them.");
+        for (String verb : new String[] {"list", "approve", "reject"}) {
+            OoaCli.Cmd t = c.command("region template " + verb, switch (verb) {
+                    case "list" -> "List shared templates (waiting for approval, unless --status says otherwise).";
+                    case "approve" -> "Let every tenant of the region install a shared template.";
+                    default -> "Refuse a shared template (or take back an approval).";
+                }, a -> RegionCommand.template(verb, a.o(), a.pos()))
+                .required("--url", "URL", "The region's own address, such as https://in.example.com.")
+                .required("--token-env", "VAR", "The environment variable with the operator token.");
+            if (verb.equals("list")) t.opt("--status", "STATUS", "pending (default), approved, rejected or all.");
+            else t.param("ID", "The template's id (tpl_...).", "1");
         }
         c.group("directory", "The global directory of a SaaS service with several regions.");
         c.command("directory start", "Start the directory (config/ooa-directory.properties lists the regions).", a -> RegionCommand.directory(a.o()))

@@ -1,0 +1,9 @@
+{
+  "name": "Sort support tickets with AI",
+  "description": "Reads support tickets, has a model connection sort them by topic and urgency, and writes the result to a CSV file.",
+  "category": "Customer service",
+  "version": "1",
+  "agents": {
+    "Customer service/Sort tickets with AI.flow.json": "../../examples/use-cases/O5-ai-ticket-triage.flow.json"
+  }
+}

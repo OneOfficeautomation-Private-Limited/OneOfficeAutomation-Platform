@@ -845,3 +845,25 @@ answers only on 127.0.0.1, and only to requests with the token it gave this runn
 tools (Gradle, Maven, IDEs) are left alone unless named in `process`.
 
 SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`).
+
+## 10i. Templates
+
+**Build > Templates** lists ready-made agents to install into the agent repository and adapt (K7):
+
+- **ONEOFFICEAUTOMATION's catalogue**, published with each release beside the releases page (`templates.json`):
+  invoice summary and overdue invoice report in Excel, collecting invoice emails, letters from PDF invoices, REST API
+  data into a database, and sorting support tickets with AI. The catalogue carries ONEOFFICEAUTOMATION's signature; one
+  that was changed is refused as a whole. Settings > *Template catalogue* sets another address (https), or `off`.
+  Without internet access, download `templates.json` from the releases page and use **Upload a catalogue file**.
+- **The region's shared templates** (SaaS service only): **Share an agent** offers one of your agents (its live
+  production version and the agents it calls) to the other companies in your region. It shows once the service's
+  operators approve it (`ooa region template list|approve|reject`). Only the agents are shared, never credentials,
+  shared values or runs.
+
+**Install** puts the template's agents under a folder (default `Templates`) as Lifecycle import does: every agent is
+checked first, nothing is installed unless all pass, and agents already there are kept. Installing needs the *import
+agents* permission; sharing needs *export agents*.
+
+The templates themselves are in `templates/` of the source repository: a folder per template with `template.json`
+(name, description, category and its agents, which are the examples in `examples/`). `ooa release templates` signs
+them into `templates.json`; the publish script does it with each release.

@@ -112,6 +112,20 @@ ooa region tenant delete  acme --url https://in.example.com --token-env OOA_OPER
 The API (`/api/operator/tenants`) is off when `operator.token_sha256` is not set, and answers only on the region's own
 address or the node's IP address, never on a tenant's.
 
+## Shared templates
+
+Tenants can offer their agents to the other tenants of the region as templates (Build > Templates > Share an agent).
+They wait for an operator:
+
+```
+ooa region template list    --url https://in.example.com --token-env OOA_OPERATOR_TOKEN              (waiting ones; --status all)
+ooa region template approve tpl_... --url https://in.example.com --token-env OOA_OPERATOR_TOKEN
+ooa region template reject  tpl_... --url https://in.example.com --token-env OOA_OPERATOR_TOKEN
+```
+
+Look at what a template does before approving it: once approved, every tenant of the region sees it and can install
+it. Rejecting an approved template takes it back from the catalogue (copies already installed stay).
+
 ## Several regions: the directory
 
 1. Make a token for each region with `ooa region token`.
