@@ -786,3 +786,41 @@ replica is read-only, and only one site may write. Runners and people should rea
 
 To go back, copy the database and the folder the other way and repeat the steps. The backups (10c) are the fallback
 when the replica cannot be used. Restore the latest one at the second site with `ooa backup restore`.
+
+## 10f. Interface languages
+
+One Command Center and One Agent Studio are available in English, Deutsch, Français, Español and 日本語. Choose a
+language under **Language** in the user menu (Command Center) or the view menu (Studio). The choice is kept per
+browser. Without a choice, the browser's own language is used when there is a catalog for it.
+
+Names, ids, data and code are never translated, and nor are messages from the server or toolkit command reference.
+A text without a translation shows in English.
+
+For developers: interface texts are written in English in `cr.js`, `studio.js` and the two `index.html` files.
+`ooa-ui/ooa-i18n.js` swaps each visible text, placeholder, tooltip and accessible name for the chosen language as the
+page draws it. After changing texts:
+
+1. Run `python scripts/i18n-extract.py`. It refreshes `ooa-i18n-keys.json`.
+2. Write the new translations as numbered lines and run `python scripts/i18n-merge.py <language> <file>`.
+3. Run `I18nCatalogsTest`. It fails when a catalog loses its `{}` places or covers less than 85% of the texts.
+
+Texts built from parts (`"Delete " + name + "?"`) become keys with `{}` (`Delete {}?`). Elements with the class `mono`
+or the attribute `data-no-i18n` are left as they are.
+
+## 10g. The assistant in the notification area (attended desktop app)
+
+`ooa assistant` (Windows, from `bin`) puts ONEOFFICEAUTOMATION in the notification area for people who work beside
+their agents. It runs as the signed-in person:
+
+- **Run an agent** lists the agents with a live production version that the person may see. It asks for each input
+  (a Credential input takes a vault reference such as `finance/sap/password`). It then starts the agent attended on
+  the person's default runner, as them.
+- **Task inbox (n)** counts the open workflow tasks for them. A notice appears when a new one arrives.
+- A notice appears when one of their runs finishes, fails or is stopped. Clicking it opens the page in One Command
+  Center.
+- **My runs** and **Open One Command Center** open the console. **Sign out** forgets the address and key.
+
+The first start asks for the Command Center address and an API key, which the person makes under their name > API
+keys. The key is stored in `%APPDATA%\ONEOFFICEAUTOMATION\assistant.json`, protected for that Windows user with
+DPAPI. It answers to whatever the key's owner may do; revoking the key stops the assistant. To start it at sign-in, put
+a shortcut to `bin\ooa.bat assistant` in the person's Startup folder.

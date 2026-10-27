@@ -288,3 +288,6 @@ th .arrow { font-size: 9px; color: var(--accent-text); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* interface languages: the page stays hidden (at most 1.5 s) until its catalog is applied */
+.i18n-wait body { visibility: hidden; }

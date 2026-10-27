@@ -44,7 +44,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | Outlook desktop (needs Outlook) | ooa.outlook_desktop | Built | Windows + Outlook with a mail profile; find, read, send, reply, forward, move, mark, save attachments, folders, shared mailboxes |
 | Office & files | Excel basic (no Excel needed) | ooa.excel | Built (library module, test on laptop) | Already verified on your laptop. Steps that keep the session name "excel" use the one open workbook, whatever it was opened as (Word and PowerPoint the same). A path such as onedrive:Reports/sales.xlsx (with a Graph token, and a SharePoint library as drive) is downloaded on open and saved back on save |
 | Office & files | Office 365 Excel / Google Sheets | ooa.microsoft365 (Excel online), ooa.google (Sheets) | Built |  |
-| Office & files | Microsoft Word | ooa.word | Built (library module, test on laptop) |  |
+| Office & files | Microsoft Word | ooa.word | Built (library module, test on laptop) | Extract text also reads old .doc and .rtf files |
 | Office & files | CSV/TXT | ooa.csv | Built |  |
 | Office & files | PDF | ooa.pdf | Built (library module, test on laptop) |  |
 | Office & files | File | ooa.file | Built | Printing via ooa.printer |
@@ -57,7 +57,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | OneDrive / SharePoint / Google Drive | ooa.microsoft365, ooa.google | Built |  |
 | Integration & system | Microsoft Teams / Slack | ooa.microsoft365/teams_message, ooa.slack | Built |  |
 | Integration & system | REST Web Service | ooa.rest | Built |  |
-| Integration & system | SOAP Web Service | ooa.soap | Built | WSDL import planned |
+| Integration & system | SOAP Web Service | ooa.soap | Built | Read WSDL lists the operations (SOAP 1.1 and 1.2) with SOAPAction, endpoint and a request body from the schema, imports included |
 | Integration & system | Database | ooa.database | Built | Database drivers installed per device |
 | Integration & system | FTP/SFTP | ooa.file_transfer | Built (library module, test on laptop) | FTP, FTPS, SFTP with host key pinning |
 | Integration & system | Active Directory | ooa.active_directory | Built | Compiled and unit-tested; needs a directory server for a full test |
@@ -72,7 +72,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | PowerShell | ooa.script/run_powershell | Built |  |
 | Integration & system | System | ooa.system | Built | Power actions need confirm = true |
 | Integration & system | Services | ooa.services | Built | Windows; start and stop need administrator rights |
-| Integration & system | Ping / SNMP | ooa.network | Built | SNMP v2c get, get next, walk, set and traps |
+| Integration & system | Ping / SNMP | ooa.network | Built | SNMP v1, v2c and v3 get, get next, walk and set (v3: MD5, SHA, SHA-256, SHA-512 sign-in; DES or AES-128 privacy); v2c traps |
 | Integration & system | Hash / Cryptography | ooa.crypto | Built | Hashes, HMAC, AES-256-GCM, RSA encrypt/sign |
 | Integration & system | PGP | ooa.pgp | Built | Needs GnuPG installed; tested with real GnuPG |
 | Integration & system | Credential / Vault | Credential type + Control Room lockers | Built | AES-256-GCM, owners and consumers, just-in-time delivery, audited |

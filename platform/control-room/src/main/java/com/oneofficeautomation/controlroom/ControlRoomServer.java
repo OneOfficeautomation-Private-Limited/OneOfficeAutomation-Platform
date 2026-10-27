@@ -880,13 +880,15 @@ public final class ControlRoomServer {
         writeBody(ex, status, b);
     }
 
-    private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml");
+    private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml",
+        "json", "application/json; charset=utf-8");
 
     private void serveStatic(HttpExchange ex, String path) throws IOException {
         String name = path.equals("/") ? "index.html" : path.substring(1);
         if (!name.matches("^[A-Za-z0-9_.-]+$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
-        // The shared design system (ooa-tokens.css, ooa-components.css) lives in /ooa-ui/; Agent Studio serves the same files.
-        String folder = name.startsWith("ooa-") && name.endsWith(".css") ? "/ooa-ui/" : "/console/";
+        // The shared design system (ooa-tokens.css, ooa-components.css) and the interface languages (ooa-i18n.js and its
+        // catalogs) live in /ooa-ui/; Agent Studio serves the same files.
+        String folder = name.startsWith("ooa-") && name.matches(".*\\.(css|js|json)$") ? "/ooa-ui/" : "/console/";
         try (InputStream in = ControlRoomServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }
             byte[] b = in.readAllBytes();

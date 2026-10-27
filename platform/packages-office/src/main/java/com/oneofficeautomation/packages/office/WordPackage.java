@@ -94,6 +94,14 @@ public final class WordPackage {
         return readText(ctx, session, includeTables, includeHf, from, to, null, null);
     }
 
+    @Action(id = "extract_text", name = "Extract text from a file", category = "Text", idempotent = true, capabilities = "filesystem",
+            description = "Return the whole text of a .doc, .docx or .rtf file without opening it as a session; old .doc and .rtf files included.",
+            panel = "path")
+    @Output(name = "text", type = OoaType.STRING, description = "The document's text.")
+    public Map<String, Object> extractText(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "The .doc, .docx or .rtf file.") String path) {
+        return Map.of("text", DocumentText.text(ctx.resolvePath(path), false));
+    }
+
     @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true,
             description = "Return the paragraph text, one paragraph per line, of the whole body, a range of paragraphs, the text inside a bookmark or one page, optionally with tables, headers and footers.",
             panel = "(Read: The whole document = / A paragraph range = from_paragraph, to_paragraph / A bookmark = bookmark / A page = page), include_tables, include_headers_footers | session")

@@ -133,15 +133,16 @@ public final class StudioServer {
     private void asset(HttpExchange ex, String path) throws IOException {
         String name = switch (path) {
             case "/", "/index.html" -> "index.html";
-            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css" -> path.substring(1);
-            default -> null;
+            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css", "/ooa-i18n.js" -> path.substring(1);
+            // interface language catalogs
+            default -> path.matches("^/ooa-i18n-[a-z]{2}\\.json$") ? path.substring(1) : null;
         };
         if (name == null) { send(ex, 404, "text/plain", "Not found"); return; }
         // The shared design system comes from the Command Center module, so both applications use the same files.
         String folder = name.startsWith("ooa-") ? "/ooa-ui/" : "/studio/";
         try (InputStream in = StudioServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { send(ex, 404, "text/plain", "Missing asset " + name); return; }
-            String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8"
+            String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".json") ? "application/json; charset=utf-8"
                     : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
             sendBytes(ex, 200, type, in.readAllBytes());
         }

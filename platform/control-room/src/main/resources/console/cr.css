@@ -60,6 +60,7 @@
 .user-pop-head .muted { font-size: var(--text-sm); }
 .topbar .user-pop button { justify-content: flex-start; width: 100%; padding: 7px 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-1); text-align: left; }
 .topbar .user-pop button:hover { background: var(--surface-2); color: var(--text-1); }
+.topbar .user-pop .lang-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; color: var(--text-1); }
 .topbar .user-pop #btn-logout { color: var(--danger); }
 .announcement {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-5);

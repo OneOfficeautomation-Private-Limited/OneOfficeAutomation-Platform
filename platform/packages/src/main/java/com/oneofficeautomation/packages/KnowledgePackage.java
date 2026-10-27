@@ -21,7 +21,7 @@ import java.util.zip.ZipInputStream;
 
 /**
  * Knowledge Q&A over a company's own documents (A5). Build index splits text, Markdown, HTML, CSV, JSON, XML, Word
- * (.docx) and PDF files into passages and keeps them in one index file, with embeddings when a model is given. Search
+ * (.docx, .doc, .rtf), PowerPoint and PDF files into passages and keeps them in one index file, with embeddings when a model is given. Search
  * finds the passages that best match a question: by words (BM25) always, and by meaning too when the index has
  * embeddings. Ask answers from those passages only, citing them, and says so when they do not hold the answer. The
  * index is a plain file, so it can be kept with the repository files and sent with the runs that need it.
@@ -44,6 +44,7 @@ public final class KnowledgePackage {
         String ext = name.contains(".") ? name.substring(name.lastIndexOf('.') + 1) : "";
         if (ext.equals("docx")) return docx(Files.readAllBytes(f));
         if (ext.equals("pdf")) return pdf(f);
+        if (Set.of("doc", "rtf", "ppt", "pptx").contains(ext)) return office(f);
         if (!TEXT.contains(ext)) throw new ActionException(P + ".UNSUPPORTED", "Cannot read " + f.getFileName() + " for the index",
             "Use text, Markdown, HTML, CSV, JSON, XML, .docx or PDF files, or pass the text with texts (for example from the PDF or OCR toolkit).");
         String s = Files.readString(f, StandardCharsets.UTF_8);
@@ -63,6 +64,17 @@ public final class KnowledgePackage {
                     return untag(new String(z.readAllBytes(), StandardCharsets.UTF_8).replaceAll("</w:p>", "\n").replaceAll("<w:tab/>", "\t"));
         }
         throw new ActionException(P + ".UNSUPPORTED", "The file is not a Word document");
+    }
+
+    /** Old Word, RTF and PowerPoint files through the Office toolkits when the runner has them. */
+    static String office(Path f) {
+        try {
+            return (String) Class.forName("com.oneofficeautomation.packages.office.DocumentText").getMethod("text", Path.class, boolean.class).invoke(null, f, true);
+        } catch (ClassNotFoundException e) {
+            throw new ActionException(P + ".UNSUPPORTED", "This runner cannot read " + f.getFileName(), "Pass the text with texts instead.");
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            throw e.getCause() instanceof RuntimeException r ? r : new ActionException(P + ".UNREADABLE", "Cannot read " + f.getFileName());
+        } catch (ReflectiveOperationException e) { throw new ActionException(P + ".UNREADABLE", "Cannot read " + f.getFileName() + ": " + e); }
     }
 
     /** PDF text through the PDF toolkit's library when the runner has it. */

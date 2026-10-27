@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 
-@OoaPackage(id = "ooa.soap", name = "SOAP Web Service", version = "1.0.0", description = "Call SOAP 1.1/1.2 web services and read the response as a dictionary.")
+@OoaPackage(id = "ooa.soap", name = "SOAP Web Service", version = "1.0.0", description = "Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary.")
 public final class SoapPackage {
     private static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
 
@@ -83,6 +83,44 @@ public final class SoapPackage {
         }
         if (resp.statusCode() >= 400 && failOnError) throw new ActionException("SOAP.HTTP_ERROR", "Service returned HTTP " + resp.statusCode(), null, resp.statusCode() >= 500);
         return Out.of("status", BigDecimal.valueOf(resp.statusCode()), "response", resp.body(), "body", bodyValue, "values", values);
+    }
+
+    @Action(id = "read_wsdl", name = "Read WSDL", category = "SOAP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
+            description = "Read a service's WSDL (address or file) and list its operations, each with its SOAPAction, endpoint, SOAP version and a request body to fill in for Send SOAP request.",
+            panel = "wsdl, [Sign in with a user name: basic_user, basic_password] | timeout_seconds, insecure_tls")
+    @Output(name = "operations", type = OoaType.LIST, description = "Operations: name, soap_action, endpoint, version (1.1 or 1.2), style, body_template (? where a value goes).")
+    @Output(name = "names", type = OoaType.LIST, description = "The operation names.")
+    public Map<String, Object> readWsdl(ActionContext ctx,
+            @Input(name = "wsdl", type = OoaType.STRING, example = "https://erp.example.com/OrderService?wsdl", description = "The WSDL address, or a .wsdl file.") String wsdl,
+            @Input(name = "basic_user", type = OoaType.STRING, required = false, description = "Basic auth user name, when the WSDL needs a sign-in.") String user,
+            @Input(name = "basic_password", type = OoaType.CREDENTIAL, required = false, description = "Basic auth password from the vault.") Object password,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "60", min = 1, description = "Time to wait for each download.") int timeout,
+            @Input(name = "insecure_tls", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Accept any server certificate; for test systems only.") boolean insecure) {
+        if (wsdl == null || wsdl.isBlank()) throw new ActionException("SOAP.BAD_WSDL", "Give the WSDL address or file");
+        boolean web = wsdl.strip().matches("^https?://.*");
+        String base = web ? wsdl.strip() : ctx.resolvePath(wsdl.strip()).toAbsolutePath().toString();
+        HttpOptions opts = new HttpOptions(insecure, null, null, null, null, null, false, true);
+        java.util.function.Function<String, Document> load = at -> {
+            String text;
+            if (at.matches("^https?://.*")) {
+                HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(at)).timeout(Duration.ofSeconds(timeout)).GET();
+                if (user != null && password instanceof SecureString pw)
+                    b.header("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + pw.reveal()).getBytes(StandardCharsets.UTF_8)));
+                try {
+                    HttpResponse<String> r = opts.client(ctx, CLIENT).send(b.build(), HttpResponse.BodyHandlers.ofString());
+                    if (r.statusCode() >= 400) throw new ActionException("SOAP.HTTP_ERROR", at + " answered HTTP " + r.statusCode(), r.statusCode() == 401 ? "Give basic_user and basic_password." : null, r.statusCode() >= 500);
+                    text = r.body();
+                } catch (IOException e) { throw new ActionException("SOAP.UNREACHABLE", "Cannot reach " + at + ": " + e.getMessage(), "Check the address and network access.", true);
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+            } else {
+                try { text = java.nio.file.Files.readString(java.nio.file.Path.of(at), StandardCharsets.UTF_8); }
+                catch (IOException e) { throw new ActionException("FILE.NOT_FOUND", "Cannot read " + at + ": " + e.getMessage(), "Check the path."); }
+            }
+            return XmlSupport.parse(text, true);
+        };
+        List<Object> ops = new ArrayList<>(), names = new ArrayList<>();
+        for (Wsdl.Operation o : Wsdl.read(load.apply(base), base, load)) { ops.add(o.toMap()); if (!names.contains(o.name())) names.add(o.name()); }
+        return Map.of("operations", ops, "names", names);
     }
 
     /** Text of every node the XPath selects (namespaces are ignored by using local-name() in the expression). */

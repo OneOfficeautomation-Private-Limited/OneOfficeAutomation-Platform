@@ -372,7 +372,7 @@ class PropertyGapsTest {
         assertEquals("NETWORK.UNKNOWN_HOST", code(() -> new NetworkPackage().ping(c, "no-such-host.invalid", 500, 1, 0)));
         assertEquals(0, NetworkPackage.Snmp.version("v1"));
         assertEquals(1, NetworkPackage.Snmp.version(null));
-        assertEquals("SNMP.BAD_VERSION", code(() -> NetworkPackage.Snmp.version("v3")));
+        assertEquals("SNMP.BAD_VERSION", code(() -> NetworkPackage.Snmp.version("v4")));
         byte[] v1 = NetworkPackage.Snmp.encode(new NetworkPackage.Snmp.Message(0, "public", NetworkPackage.Snmp.GET, 1, 0, 0,
                 List.of(new NetworkPackage.Snmp.VarBind("1.3.6.1.2.1.1.1.0", NetworkPackage.Snmp.NULL, null))));
         assertEquals(0, NetworkPackage.Snmp.decode(v1, v1.length).version());
