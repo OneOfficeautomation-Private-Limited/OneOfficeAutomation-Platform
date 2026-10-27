@@ -11,6 +11,8 @@ dependencies {
     runtimeOnly(project(":adapters-jackson"))
     // license issuing: in the vendor build (installDist, run, tests) only; the customer distribution leaves it out
     runtimeOnly(project(":vendor-tools"))
+    // Windows services (ooa service install, service-run): talks to the Windows service manager
+    implementation("net.java.dev.jna:jna-platform:5.14.0")
     runtimeOnly("ch.qos.logback:logback-classic:1.5.8")
     testRuntimeOnly(project(":adapters-jackson"))
     // in-memory SMTP/IMAP server for the email sample tasks (CommandSamplesTest)
@@ -42,9 +44,32 @@ val customerStartScripts by tasks.registering(CreateStartScripts::class) {
     // one wildcard instead of 60 jar paths, so the Windows command line stays short wherever the product is installed
     doLast {
         val bat = outputDir!!.resolve("ooa.bat")
-        bat.writeText(bat.readText().replace(Regex("(?m)^set CLASSPATH=.*$")) { "set CLASSPATH=%APP_HOME%\\lib\\*" })
+        bat.writeText(bat.readText().replace(Regex("(?m)^set CLASSPATH=.*$")) { "set CLASSPATH=%APP_HOME%\\lib\\*" }
+            // the setup package carries its own Java (runtime\): it is used before any Java installed on the machine
+            .replace(Regex("""(?m)^for %%i in \("%APP_HOME%"\) do set APP_HOME=%%~fi\r?$""")) {
+                it.value.trimEnd('\r') + "\r\nif exist \"%APP_HOME%\\runtime\\bin\\java.exe\" set \"JAVA_HOME=%APP_HOME%\\runtime\"\r" })
         val sh = outputDir!!.resolve("ooa")
         sh.writeText(sh.readText().replace(Regex("(?m)^CLASSPATH=.*$")) { "CLASSPATH=\$APP_HOME/lib/*" })
+    }
+}
+
+// The Java runtime that the setup package carries (jlink): every Java module the product may use, without the
+// developer tools (compiler, debugger, packagers). About 65 MB; customers then need no Java of their own.
+val javaRuntime by tasks.registering {
+    val out = layout.buildDirectory.dir("java-runtime")
+    outputs.dir(out)
+    doLast {
+        val dir = out.get().asFile
+        delete(dir)
+        val bin = File(System.getProperty("java.home"), "bin")
+        val exe = if (System.getProperty("os.name").lowercase().contains("win")) ".exe" else ""
+        val skip = Regex("""^jdk\.(jshell|jdeps|jlink|jpackage|javadoc|jconsole|hotspot\.agent|jdi|jdwp\.agent|jstatd|jcmd|editpad|random|jartool|compiler|internal\..*|incubator\..*|graal\..*)$""")
+        val list = providers.exec { commandLine(File(bin, "java$exe").path, "--list-modules") }.standardOutput.asText.get()
+        val modules = list.lines().map { it.substringBefore('@').trim() }.filter { it.isNotEmpty() && !skip.matches(it) }
+        providers.exec {
+            commandLine(File(bin, "jlink$exe").path, "--add-modules", modules.joinToString(","), "--strip-debug", "--no-header-files",
+                "--no-man-pages", "--compress", "zip-6", "--output", dir.path)
+        }.result.get().assertNormalExitValue()
     }
 }
 
@@ -66,6 +91,17 @@ distributions {
             with(main.get().contents)
             exclude("**/vendor-tools-*.jar")
             from(rootProject.file("customer"))
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        }
+    }
+    // The setup package (gradlew :cli:setupDistZip): the customer distribution plus its own Java runtime and the
+    // installer (Install.cmd / Install-OOA.ps1: guided, or silent with parameters for SCCM, Intune or GPO).
+    create("setup") {
+        distributionBaseName.set("ooa-setup")
+        contents {
+            with(getByName("customer").contents)
+            from(javaRuntime) { into("runtime") }
+            from(rootProject.file("customer-setup"))
             duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }
     }

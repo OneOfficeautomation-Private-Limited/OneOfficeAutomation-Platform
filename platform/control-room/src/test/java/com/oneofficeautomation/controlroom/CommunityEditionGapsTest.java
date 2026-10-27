@@ -293,6 +293,14 @@ class CommunityEditionGapsTest {
         assertEquals("debug", cr.heartbeat(db.one("SELECT * FROM devices WHERE id = ?", device), Map.of()).get("log_level"));
         assertEquals("CR.BAD_INPUT", code(() -> cr.updateDevices(admin, List.of(device), Map.of("log_level", "loud"), null)));
         assertEquals("CR.FORBIDDEN", code(() -> cr.updateDevices(jane, List.of(device), Map.of("log_level", "info"), null)));
+        // the screen state the runner reports, and what it does after unattended runs
+        assertEquals("nothing", cr.heartbeat(db.one("SELECT * FROM devices WHERE id = ?", device), Map.of("session", "locked")).get("after_run"));
+        assertEquals("locked", db.one("SELECT session_state FROM devices WHERE id = ?", device).get("session_state"));
+        cr.heartbeat(db.one("SELECT * FROM devices WHERE id = ?", device), Map.of("session", "nonsense"));
+        assertEquals("locked", db.one("SELECT session_state FROM devices WHERE id = ?", device).get("session_state"), "unknown states are ignored");
+        cr.updateDevices(admin, List.of(device), Map.of("after_run", "lock"), null);
+        assertEquals("lock", cr.heartbeat(db.one("SELECT * FROM devices WHERE id = ?", device), Map.of("session", "unlocked")).get("after_run"));
+        assertEquals("CR.BAD_INPUT", code(() -> cr.updateDevices(admin, List.of(device), Map.of("after_run", "reboot"), null)));
         // runners nobody set are multi-user (as before); single-user: one person's default runner
         assertEquals("multi_user", cr.deviceDetail(admin, device).get("device_type"));
         cr.updateDevices(admin, List.of(device), Map.of("device_type", "single_user"), null);

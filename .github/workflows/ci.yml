@@ -1,0 +1,185 @@
+# ONEOFFICEAUTOMATION CI: every push and pull request builds the platform and runs the tests.
+#   build-test   Windows: the whole build and every test suite (embedded H2), then the customer zip, checked for vendor files
+#   sqlserver    Linux: the Command Center tests against a real SQL Server 2022 (a throwaway container)
+#   ui           Linux: the console and Studio UI tests (jsdom) against real servers started from the build
+#   msi          Windows: builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  build-test:
+    name: Build and test (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build and run every test
+        shell: pwsh
+        env:
+          OOA_INTERNET_SAMPLES: "0"   # live public websites are too slow and changeable to fail a build on; run them locally
+        run: ./gradlew.bat build --continue --console=plain
+      - name: Customer zip without vendor tools
+        shell: pwsh
+        run: |
+          ./gradlew.bat :cli:customerDistZip --console=plain
+          $zip = Get-ChildItem cli/build/distributions/ooa-customer-*.zip | Select-Object -First 1
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $a = [System.IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          try { $bad = $a.Entries | Where-Object { $_.FullName -match "vendor-tools|private\.key|\.lic$" } } finally { $a.Dispose() }
+          if ($bad) { throw "The customer zip holds vendor files: $($bad.FullName -join ', ')" }
+          Write-Host "Customer zip OK: $($zip.Name), $([math]::Round($zip.Length / 1MB)) MB"
+      - name: Setup package with Java and installer
+        shell: pwsh
+        run: |
+          ./gradlew.bat :cli:setupDistZip --console=plain
+          $zip = Get-ChildItem cli/build/distributions/ooa-setup-*.zip | Select-Object -First 1
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $a = [System.IO.Compression.ZipFile]::OpenRead($zip.FullName)
+          try { $names = $a.Entries.FullName } finally { $a.Dispose() }
+          $bad = $names | Where-Object { $_ -match "vendor-tools|private\.key|\.lic$" }
+          if ($bad) { throw "The setup package holds vendor files: $($bad -join ', ')" }
+          foreach ($need in "runtime/bin/java.exe", "runtime/bin/keytool.exe", "Install.cmd", "Install-OOA.ps1", "Uninstall-OOA.ps1", "bin/ooa.bat") {
+            if (-not ($names | Where-Object { $_ -like "*/$need" })) { throw "The setup package lacks $need" }
+          }
+          Write-Host "Setup package OK: $($zip.Name), $([math]::Round($zip.Length / 1MB)) MB"
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-windows
+          path: platform/**/build/reports/tests/
+          retention-days: 7
+
+  sqlserver:
+    name: Command Center on SQL Server (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Start SQL Server 2022
+        run: |
+          # a throwaway password for this job's container only
+          PW="Ci-$(openssl rand -hex 12)-9a"
+          echo "::add-mask::$PW"
+          echo "MSSQL_PW=$PW" >> "$GITHUB_ENV"
+          docker run -d --name mssql -e ACCEPT_EULA=Y -e "MSSQL_SA_PASSWORD=$PW" -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 60); do
+            docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$PW" -Q "SELECT 1" >/dev/null 2>&1 && echo "SQL Server is up" && exit 0
+            sleep 2
+          done
+          docker logs mssql; exit 1
+      - name: Command Center tests on SQL Server
+        run: |
+          chmod +x gradlew
+          ./gradlew :control-room:test --console=plain "-Pooa.test.db=jdbc:sqlserver://localhost:1433;encrypt=false" -Pooa.test.db.user=sa "-Pooa.test.db.password=$MSSQL_PW"
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-sqlserver
+          path: platform/control-room/build/reports/tests/
+          retention-days: 7
+
+  ui:
+    name: Console and Studio UI tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build the distribution
+        run: |
+          chmod +x gradlew
+          ./gradlew :cli:installDist --console=plain
+          npm install --prefix "$RUNNER_TEMP/node" jsdom@24 >/dev/null
+          echo "NODE_PATH=$RUNNER_TEMP/node/node_modules" >> "$GITHUB_ENV"
+      - name: Console UI test
+        run: |
+          OOA=cli/build/install/ooa/bin/ooa
+          nohup "$OOA" control-room --port 8763 --data "$RUNNER_TEMP/cr" > "$RUNNER_TEMP/cr.log" 2>&1 &
+          for i in $(seq 1 60); do grep -q "one-time password" "$RUNNER_TEMP/cr.log" && break; sleep 2; done
+          PW=$(grep -o "one-time password  [^ ]*" "$RUNNER_TEMP/cr.log" | awk '{print $3}')
+          test -n "$PW" || { cat "$RUNNER_TEMP/cr.log"; exit 1; }
+          cd control-room/src/test/ui
+          CONSOLE_DIR=../../main/resources/console CR_URL=http://localhost:8763 CR_ADMIN_PASSWORD="$PW" node console.ui.test.js
+      - name: Studio UI test
+        run: |
+          OOA=cli/build/install/ooa/bin/ooa
+          mkdir -p "$RUNNER_TEMP/ws"
+          nohup "$OOA" studio --workspace "$RUNNER_TEMP/ws" --port 8746 > "$RUNNER_TEMP/studio.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8746/ >/dev/null && break; sleep 2; done
+          cd cli/src/test/ui
+          STUDIO_DIR=../../main/resources/studio OOA_WS="$RUNNER_TEMP/ws" OOA_STUDIO_URL=http://localhost:8746 node studio.ui.test.js
+      - name: Server logs
+        if: failure()
+        run: tail -n 100 "$RUNNER_TEMP"/*.log || true
+
+  msi:
+    name: MSI install and Windows services (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: WiX Toolset 5
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build the MSI
+        shell: pwsh
+        run: ./scripts/build-msi.ps1
+      - name: Install, run as services, uninstall
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem cli/build/distributions/ooa-*.msi | Select-Object -First 1
+          ./scripts/test-msi.ps1 -Msi $msi.FullName -Logs "${{ runner.temp }}/msi-test"
+          if ($LASTEXITCODE -ne 0) { throw "$LASTEXITCODE MSI check(s) failed" }
+      - name: MSI test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msi-test-logs
+          path: ${{ runner.temp }}/msi-test
+          retention-days: 14
+      - name: The MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: ooa-msi
+          path: platform/cli/build/distributions/ooa-*.msi
+          retention-days: 14
+          compression-level: 0

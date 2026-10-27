@@ -933,9 +933,11 @@ function restoreWorkspace() {
   ctx(node("My Agents/Batch"));
   click(menuItem("Paste"));
   check("Paste copies them into the folder", await until(() => fsx("My Agents/Batch/other_bot.flow.json") && fsx("My Agents/Batch/slow_bot.flow.json") && fsx("My Agents/other_bot.flow.json")));
+  await until(() => node("My Agents/Batch/slow_bot.flow.json") && node("My Agents/Batch/other_bot.flow.json"), 8000);   // the tree redraws after the paste
   ctx(node("My Agents/Batch/slow_bot.flow.json"));
   click(menuItem("Duplicate"));
   check("Duplicate makes a copy next to it", await until(() => fsx("My Agents/Batch/slow_bot - Copy.flow.json")));
+  await until(() => node("My Agents/Batch/slow_bot - Copy.flow.json"), 8000);
   mclick(node("My Agents/Batch/other_bot.flow.json")); await until(() => w.eval("state.file") === "My Agents/Batch/other_bot.flow.json");
   mclick(node("My Agents/Batch/slow_bot.flow.json"), { shiftKey: true });
   check("Shift+click selects a range in the Explorer", w.eval("state.treeMulti.size") === 3, w.eval("[...state.treeMulti].join()"));

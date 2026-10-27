@@ -77,14 +77,15 @@ for (const b of document.querySelectorAll(".quick button")) b.addEventListener("
 function form() {
   const seats = {};
   for (const [t] of SEATS) seats[t] = Number($("s-" + t).value || 0);
-  return { customer: $("f-customer").value.trim(), edition: $("f-edition").value.trim() || "Enterprise", expires: $("f-expires").value, grace_days: Number($("f-grace").value || 0), seats, notes: $("f-notes").value.trim() };
+  return { customer: $("f-customer").value.trim(), edition: $("f-edition").value.trim() || "Enterprise", expires: $("f-expires").value, grace_days: Number($("f-grace").value || 0), seats, notes: $("f-notes").value.trim(),
+    install_id: $("f-install").value.trim().toUpperCase(), any_install: $("f-any").checked };
 }
 
 function summary() {
   const f = form();
   const days = f.expires ? Math.round((new Date(f.expires) - new Date(iso(new Date()))) / 864e5) : null;
   const rows = [["Customer", f.customer || "—"], ["Edition", f.edition], ["Valid", "today to " + (f.expires || "—") + (days !== null ? " (" + days + " days)" : "")],
-    ["Grace", f.grace_days + " days after expiry"], ...SEATS.map(([t, l]) => [l, String(f.seats[t])]), ["Total seats", String(Object.values(f.seats).reduce((a, b) => a + b, 0))]];
+    ["Grace", f.grace_days + " days after expiry"], ["Installation", f.any_install ? "any" : f.install_id || "—"], ...SEATS.map(([t, l]) => [l, String(f.seats[t])]), ["Total seats", String(Object.values(f.seats).reduce((a, b) => a + b, 0))]];
   $("summary").replaceChildren(...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })]));
 }
 $("issue-form").addEventListener("input", summary);
@@ -142,6 +143,7 @@ function renew(l) {
   const from = new Date(Math.max(Date.now(), new Date(l.expires).getTime())); from.setFullYear(from.getFullYear() + 1);
   $("f-expires").value = iso(from);
   $("f-notes").value = "Renewal of " + l.id;
+  $("f-install").value = l.install_id || ""; $("f-any").checked = !l.install_id;
   $("result").hidden = true;
   showTab("issue"); summary(); $("f-customer").focus();
   toast("Form filled from " + l.id + "; check it and issue");
@@ -158,7 +160,7 @@ $("check-btn").addEventListener("click", async () => {
     const l = await api("POST", "verify", { text });
     out.replaceChildren(h("p", { class: "ok", text: "The signature is valid: this product accepts the file." }),
       h("dl", {}, ...[["Customer", l.customer], ["License", l.id], ["Edition", l.edition], ["Valid", l.issued + " to " + l.expires], ["Grace", l.grace_days + " days"],
-        ["State", STATE[l.state] || l.state], ...SEATS.map(([t, n]) => [n, String(l.seats[t] || 0)]), l.notes ? ["Notes", l.notes] : null].filter(Boolean).flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])));
+        ["Installation", l.install_id || "any"], ["State", STATE[l.state] || l.state], ...SEATS.map(([t, n]) => [n, String(l.seats[t] || 0)]), l.notes ? ["Notes", l.notes] : null].filter(Boolean).flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])));
   } catch (e) { out.replaceChildren(h("p", { class: "error", text: e.message })); }
 });
 

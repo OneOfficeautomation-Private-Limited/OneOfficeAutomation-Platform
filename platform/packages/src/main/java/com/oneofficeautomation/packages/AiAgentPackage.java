@@ -56,10 +56,11 @@ public final class AiAgentPackage {
 
     /**
      * Asks the person at the desktop to allow a sensitive agent. Nobody answering counts as "no": the question closes
-     * after ooa.approval.timeoutSeconds (default 300), so an unattended runner never waits forever. Headless: denied.
+     * after ooa.approval.timeoutSeconds (default 300), so an unattended runner never waits forever. Headless or
+     * unattended runs: denied at once, as nobody is there to answer.
      */
     static boolean approve(ActionContext ctx, Tool t, Map<String, Object> args) {
-        if (GraphicsEnvironment.isHeadless()) return false;
+        if (GraphicsEnvironment.isHeadless() || "unattended".equals(System.getProperty("ooa.runMode"))) return false;
         int timeout = Integer.getInteger("ooa.approval.timeoutSeconds", 300);
         if (timeout <= 0) return false;
         final boolean[] ok = {false};

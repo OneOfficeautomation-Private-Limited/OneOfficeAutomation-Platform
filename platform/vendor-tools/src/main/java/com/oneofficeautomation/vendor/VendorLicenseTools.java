@@ -66,7 +66,8 @@ public final class VendorLicenseTools {
 
     static int issue(Map<String, String> o) throws Exception {
         for (String k : List.of("key", "customer", "expires", "out"))
-            if (!o.containsKey(k)) { System.err.println("Give --" + k + ". Usage: ooa license issue --key FILE --customer NAME --expires YYYY-MM-DD [--developer N] [--citizen-developer N] [--attended N] [--unattended N] --out FILE"); return 1; }
+            if (!o.containsKey(k)) { System.err.println("Give --" + k + ". Usage: ooa license issue --key FILE --customer NAME --expires YYYY-MM-DD [--developer N] [--citizen-developer N] [--attended N] [--unattended N] --install-id OOA-XXXX-XXXX-XXXX-XXXX|--any-install --out FILE"); return 1; }
+        String installId = LicenseStudio.installId(o.get("install-id"), o.containsKey("any-install"));
         Map<String, Integer> seats = new LinkedHashMap<>();
         seats.put("developer", Integer.parseInt(o.getOrDefault("developer", "0")));
         seats.put("citizen_developer", Integer.parseInt(o.getOrDefault("citizen-developer", "0")));
@@ -76,12 +77,12 @@ public final class VendorLicenseTools {
         if (expires.isBefore(LocalDate.now())) throw new OoaException("LICENSE.BAD_INPUT", "The expiry date is in the past");
         String id = o.getOrDefault("id", "LIC-" + LocalDate.now().toString().replace("-", "") + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
         License l = new License(id, o.get("customer"), o.getOrDefault("edition", "Enterprise"), LocalDate.now(), expires,
-            Integer.parseInt(o.getOrDefault("grace-days", "14")), seats, o.getOrDefault("notes", ""));
+            Integer.parseInt(o.getOrDefault("grace-days", "14")), seats, o.getOrDefault("notes", ""), installId);
         String text = l.sign(License.privateKey(Files.readString(Path.of(o.get("key")))));
         Path out = Path.of(o.get("out"));
         if (out.getParent() != null) Files.createDirectories(out.getParent());
         Files.writeString(out, text);
-        System.out.println("Issued " + id + " for " + l.customer() + ", valid until " + expires + " (+" + l.graceDays() + " grace days), seats " + seats + ": " + out);
+        System.out.println("Issued " + id + " for " + l.customer() + ", valid until " + expires + " (+" + l.graceDays() + " grace days), seats " + seats + (installId.isEmpty() ? ", any installation" : ", for " + installId) + ": " + out);
         return 0;
     }
 }

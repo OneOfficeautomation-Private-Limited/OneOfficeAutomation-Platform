@@ -905,9 +905,10 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, List<String>> defaults = new HashMap<>();
         for (Map<String, Object> u : db.query("SELECT username, device_id FROM user_devices ORDER BY username")) defaults.computeIfAbsent((String) u.get("device_id"), k -> new ArrayList<>()).add((String) u.get("username"));
-        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type FROM devices ORDER BY name")) {
+        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
             if (m.get("log_level") == null) m.put("log_level", "info");
+            if (m.get("after_run") == null) m.put("after_run", "nothing");
             if (m.get("device_type") == null) m.put("device_type", "multi_user");
             m.put("default_users", defaults.getOrDefault((String) d.get("id"), List.of()));
             boolean online = d.get("last_seen") != null && Instant.parse(d.get("last_seen").toString()).isAfter(now().minus(ONLINE));
@@ -940,11 +941,16 @@ public final class ControlRoom {
     }
 
     static final List<String> LOG_LEVELS = List.of("error", "warning", "info", "debug");
+    /** What a runner reports about its screen: unlocked (a signed-in, usable desktop), locked, or no_desktop (a service). */
+    static final List<String> SESSION_STATES = List.of("unlocked", "locked", "no_desktop");
+    /** What a runner does after an unattended run: nothing, lock the screen, or sign the user out. */
+    static final List<String> AFTER_RUN = List.of("nothing", "lock", "sign_out");
 
     /**
      * Sets runner settings for one or more runners (Update checked runners): log_level (error, warning, info, debug; the
      * runner picks it up with its next heartbeat) and device_type (single_user: one person's default runner;
-     * multi_user, the default for runners nobody set: the default runner of several people).
+     * multi_user, the default for runners nobody set: the default runner of several people) and after_run (nothing,
+     * lock or sign_out: what the runner does with its screen after an unattended run).
      */
     public Map<String, Object> updateDevices(User by, List<String> ids, Map<String, Object> b, String ip) {
         require(by, "devices.manage", "manage runners");
@@ -953,6 +959,8 @@ public final class ControlRoom {
         String type = b.get("device_type") == null ? null : String.valueOf(b.get("device_type"));
         if (level != null && !LOG_LEVELS.contains(level)) throw new OoaException("CR.BAD_INPUT", "The log level is one of " + LOG_LEVELS);
         if (type != null && !type.equals("single_user") && !type.equals("multi_user")) throw new OoaException("CR.BAD_INPUT", "The runner type is single_user or multi_user");
+        String after = b.get("after_run") == null ? null : String.valueOf(b.get("after_run"));
+        if (after != null && !AFTER_RUN.contains(after)) throw new OoaException("CR.BAD_INPUT", "After a run the runner does one of " + AFTER_RUN);
         int n = db.tx(() -> {
             int k = 0;
             for (String id : ids) {
@@ -961,12 +969,14 @@ public final class ControlRoom {
                     throw new OoaException("CR.CONFLICT", "Runner " + id + " is the default runner of several people", "Give them other default runners first, or keep it multi-user.");
                 if (level != null) k += db.update("UPDATE devices SET log_level = ? WHERE id = ?", level, id);
                 if (type != null) k += db.update("UPDATE devices SET device_type = ? WHERE id = ?", type, id);
+                if (after != null) k += db.update("UPDATE devices SET after_run = ? WHERE id = ?", after, id);
             }
             return k;
         });
         Map<String, Object> changes = new LinkedHashMap<>();
         if (level != null) changes.put("log_level", level);
         if (type != null) changes.put("device_type", type);
+        if (after != null) changes.put("after_run", after);
         audit.record(by.username(), "device.update", "device", String.join(",", ids), changes, "ok", ip);
         return Map.of("updated", ids.size(), "changes", n);
     }
@@ -979,8 +989,9 @@ public final class ControlRoom {
 
     public Map<String, Object> heartbeat(Map<String, Object> d, Map<String, Object> info) {
         String did = (String) d.get("id");
-        db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os) WHERE id = ?",
-                now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), did);
+        String session = SESSION_STATES.contains(String.valueOf(info.get("session"))) ? (String) info.get("session") : null;
+        db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state) WHERE id = ?",
+                now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, did);
         List<Object> cancel = new ArrayList<>(), pause = new ArrayList<>(), resume = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT id, cancel_requested, pause_requested FROM runs WHERE device_id = ? AND status = 'running'", did)) {
             if (Boolean.TRUE.equals(r.get("cancel_requested"))) cancel.add(r.get("id"));
@@ -997,7 +1008,7 @@ public final class ControlRoom {
             local.add(m);
         }
         return Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers, "local_triggers", local,
-                "log_level", d.get("log_level") == null ? "info" : d.get("log_level"));
+                "log_level", d.get("log_level") == null ? "info" : d.get("log_level"), "after_run", d.get("after_run") == null ? "nothing" : d.get("after_run"));
     }
 
     // ===================== runs =====================

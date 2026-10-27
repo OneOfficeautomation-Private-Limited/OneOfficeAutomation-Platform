@@ -114,6 +114,7 @@ class CommandSamplesTest {
         String skip = requires.equals("desktop") && !"1".equals(System.getenv("OOA_DESKTOP_SAMPLES")) ? "desktop sample: set OOA_DESKTOP_SAMPLES=1 to run it (it opens windows on the screen)"
                 : requires.equals("browser") && !browserWorks(runner) ? "no browser can start here"
                 // public websites: a browser, and the site's address ("probe") answering; skipped when offline or the site is down
+                : requires.equals("internet") && "0".equals(System.getenv("OOA_INTERNET_SAMPLES")) ? "public-website samples are off (OOA_INTERNET_SAMPLES=0, as in CI)"
                 : requires.equals("internet") && !browserWorks(runner) ? "no browser can start here"
                 : requires.equals("internet") && !reachable(String.valueOf(raw.get("probe"))) ? "cannot reach " + raw.get("probe")
                 : requires.equals("node") && !onPath("node") ? "Node.js is not installed here" : null;

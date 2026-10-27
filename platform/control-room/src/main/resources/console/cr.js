@@ -640,6 +640,8 @@ const VIEWS = {
           { label: "Type", value: (d) => d.device_type === "single_user" ? "Single-user" : "Multi-user" },
           { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
           { label: "Log level", value: (d) => d.log_level || "info" },
+          { label: "Screen", value: (d) => SCREEN[d.session_state] || "", render: (d) => d.session_state ? h("span", { class: "pill " + (d.session_state === "unlocked" ? "online" : d.session_state === "locked" ? "locked" : "offline"), title: SCREEN_HELP[d.session_state], text: SCREEN[d.session_state] }) : "—" },
+          { label: "After a run", value: (d) => AFTER_RUN[d.after_run || "nothing"] },
           { label: "Last seen", value: (d) => d.last_seen || "", render: (d) => h("span", { title: local(d.last_seen) }, ago(d.last_seen)) },
           { label: "Registered", value: (d) => d.registered, render: (d) => ago(d.registered) + " by " + (d.registered_by || "") },
           { label: "", sort: false, render: (d) => can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : "" }]}));
@@ -1104,7 +1106,8 @@ const VIEWS = {
     const TYPES = [["developer", "Developer", "user"], ["citizen_developer", "Citizen Developer", "user"], ["attended_runner", "Attended Runner", "user"], ["unattended_runner", "Unattended Runner", "device"]];
     const held = new Set(asg.assignments.map((a) => a.principal_type + "|" + a.principal + "|" + a.license_type));
     const STATE = { unlicensed: ["No license installed", "pending"], evaluation: ["Evaluation", "queued"], evaluation_ended: ["Evaluation ended", "failed"],
-      active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"] };
+      active: ["Active", "success"], expiring: ["Expiring soon", "queued"], grace: ["Expired: grace period", "failed"], expired: ["Expired", "failed"],
+      database_required: ["Needs SQL Server", "failed"] };
     const [stateText, stateCls] = STATE[L.state] || [L.state, ""];
     const toggle = (type, principal, on) => async () => {
       try { await api("PUT", "license/assignments", { license_type: type, principal, assigned: on }); go("licenses"); } catch (e) { toast(e.message, true); go("licenses"); }
@@ -1131,9 +1134,12 @@ const VIEWS = {
           : L.state === "evaluation" || L.state === "evaluation_ended" ? h("p", { class: "muted", text: (L.state === "evaluation" ? "This is a 30-day evaluation: " + L.days_left + " days left (until " + L.evaluation_ends + "). "
             : "The 30-day evaluation ended on " + L.evaluation_ends + ". ") + "It allows 2 developers, 2 attended and 2 unattended runners; seats are given out automatically on first use. Install the license file you received from ONEOFFICEAUTOMATION." })
           : kv([["Licensed to", L.customer], ["Edition", L.edition], ["License id", L.id], ["Valid", (L.issued || "") + " to " + (L.expires || "") + (L.days_left !== undefined && L.days_left >= 0 ? " (" + L.days_left + " days left)" : "")],
-            ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null]]),
+            ["Grace period", L.grace_days !== undefined ? L.grace_days + " days, until " + L.grace_until : null], ["Issued for", L.bound_to]]),
         L.problem ? h("p", { class: "error", text: L.problem }) : null,
-        can("settings.manage") ? h("div", { class: "form-card" }, h("h3", { text: "Install a license" }), h("label", {}, "License file", fileInput), paste,
+        L.install_id ? h("p", { class: "muted" }, "Install id of this Command Center: ", h("code", { text: L.install_id }), ". Send it with a license request; a license issued for it works only here.") : null,
+        L.requires_server_database ? h("div", { class: "note warn" }, h("strong", { text: "Move to Microsoft SQL Server before licensing. " }),
+          h("span", { text: "The evaluation runs on the built-in database; a licensed installation runs on SQL Server (PostgreSQL also works). " + L.database_steps })) : null,
+        can("settings.manage") && !L.requires_server_database ? h("div", { class: "form-card" }, h("h3", { text: "Install a license" }), h("label", {}, "License file", fileInput), paste,
           h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", onclick: install }, "Install license"))) : null),
       h("div", { class: "card" }, h("h2", { text: "Seats" }),
         dataTable({ rows: TYPES.map(([t, label]) => ({ t, label, total: seats[t] ? seats[t].total : -1, used: seats[t] ? seats[t].used : 0 })), search: null, exportName: "license-seats",
@@ -1388,6 +1394,7 @@ async function openDevice(d) {
     body.replaceChildren(
       kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", (d.agent_version || "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center: it gets no work until the Command Center is updated)" : "")], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
         ["Type", d.device_type === "single_user" ? "Single-user" : "Multi-user"], ["Default runner of", (d.default_users || []).join(", ") || "nobody"], ["Log level", d.log_level || "info"],
+        ["Screen", d.session_state ? SCREEN[d.session_state] + ": " + SCREEN_HELP[d.session_state] : "not reported yet"], ["After unattended runs", AFTER_RUN[d.after_run || "nothing"]],
         ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
       h("h3", { text: "Now" }), active.runs.length ? runTable(active.runs, (r) => openRun(r.id)) : h("p", { class: "muted", text: "Idle." }),
       h("h3", { text: "History" }), runTable(hist.runs, (r) => openRun(r.id)));
@@ -1935,19 +1942,25 @@ function userEditDialog(u) {
       closeModal(); toast("Saved " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
+const SCREEN = { unlocked: "Unlocked", locked: "Locked", no_desktop: "No desktop" };
+const SCREEN_HELP = { unlocked: "someone is signed in and the screen is usable", locked: "agents that use the screen cannot run until someone signs in", no_desktop: "the runner is a Windows service: only agents that need no screen can run" };
+const AFTER_RUN = { nothing: "Leave the screen as it is", lock: "Lock the screen", sign_out: "Sign out" };
+
 function runnerSettingsDialog(devices) {
   const picked = new Set();
   const level = h("select", {}, h("option", { value: "", text: "(keep)" }), ["error", "warning", "info", "debug"].map((x) => h("option", { value: x, text: x })));
   const type = h("select", {}, h("option", { value: "", text: "(keep)" }), h("option", { value: "single_user", text: "Single-user" }), h("option", { value: "multi_user", text: "Multi-user" }));
+  const after = h("select", {}, h("option", { value: "", text: "(keep)" }), Object.entries(AFTER_RUN).map(([v, t]) => h("option", { value: v, text: t })));
   modal("Update runners", [h("p", { class: "muted", text: "Choose runners, then the settings to change. Runners pick up a new log level with their next heartbeat." }),
     h("div", { class: "pick-list" }, ...devices.map((d) => h("label", { class: "check" }, h("input", { type: "checkbox", onchange: (e) => { if (e.target.checked) picked.add(d.id); else picked.delete(d.id); } }),
       d.name + " (" + (d.log_level || "info") + ", " + (d.device_type === "single_user" ? "single-user" : "multi-user") + ")"))),
-    h("div", { class: "grid2" }, h("label", {}, "Log level", level), h("label", {}, "Runner type", type)),
-    h("p", { class: "muted", text: "Single-user: the default runner of one person. Multi-user: the default runner of several people." })],
+    h("div", { class: "grid2" }, h("label", {}, "Log level", level), h("label", {}, "Runner type", type), h("label", {}, "After unattended runs", after)),
+    h("p", { class: "muted", text: "Single-user: the default runner of one person. Multi-user: the default runner of several people. After unattended runs, the runner can lock its screen or sign out, so nobody walks up to a signed-in machine." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     const b = { ids: Array.from(picked) };
     if (level.value) b.log_level = level.value;
     if (type.value) b.device_type = type.value;
+    if (after.value) b.after_run = after.value;
     try { const r = await api("PATCH", "devices", b); closeModal(); toast("Updated " + r.updated + " runner(s)"); go("devices"); } catch (e) { toast(e.message, true); } } }, "Update checked runners")]);
 }
 

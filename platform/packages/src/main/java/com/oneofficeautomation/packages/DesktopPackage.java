@@ -585,6 +585,7 @@ public final class DesktopPackage {
         String btn = choice("buttons", buttons, "ok", "ok", "ok_cancel", "yes_no", "yes_no_cancel");
         String ic = choice("icon", icon, "information", "information", "warning", "error", "question", "none");
         DesktopSupport.requireDesktop();
+        DesktopSupport.requirePerson(timeout, "The message box");
         String text = message == null ? "" : message;
         Object chosen = onEdt(() -> {
             Object body = text;
@@ -614,6 +615,7 @@ public final class DesktopPackage {
                     description = "Show dots instead of the typed characters. The value is still plain text; use Prompt for password for secrets.") boolean masked,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         DesktopSupport.requireDesktop();
+        DesktopSupport.requirePerson(timeout, "The prompt");
         boolean[] timedOut = {false};
         String v = onEdt(() -> {
             if (masked) {
@@ -650,6 +652,7 @@ public final class DesktopPackage {
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop,
             @Input(name = "answer_on_timeout", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "timeout_seconds!=0", description = "Answer used when the prompt times out or is closed without a choice.") boolean onTimeout) {
         DesktopSupport.requireDesktop();
+        DesktopSupport.requirePerson(timeout, "The yes/no prompt");
         Object v = onEdt(() -> {
             JOptionPane pane = new JOptionPane(question, JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION);
             dialog(pane, title, timeout, onTop).setVisible(true);
@@ -670,6 +673,7 @@ public final class DesktopPackage {
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Stop waiting after this many seconds (the step then fails as cancelled); 0 waits.") int timeout,
             @Input(name = "always_on_top", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = D_ON_TOP) boolean onTop) {
         DesktopSupport.requireDesktop();
+        DesktopSupport.requirePerson(timeout, "The password prompt");
         char[] pw = onEdt(() -> {
             JPasswordField f = new JPasswordField(24);
             JOptionPane pane = new JOptionPane(new Object[]{question, f}, JOptionPane.QUESTION_MESSAGE, JOptionPane.OK_CANCEL_OPTION);
@@ -697,6 +701,7 @@ public final class DesktopPackage {
 
     private Map<String, Object> pick(String title, boolean folders, String startIn, ActionContext ctx, List<String> types, boolean multiple, int timeout, boolean onTop) {
         DesktopSupport.requireDesktop();
+        DesktopSupport.requirePerson(timeout, "The file or folder picker");
         List<String> chosen = onEdt(() -> {
             JFileChooser fc = new JFileChooser(startIn == null ? ctx.workDir().toFile() : ctx.resolvePath(startIn).toFile()) {
                 @Override protected JDialog createDialog(Component parent) {

@@ -5,6 +5,10 @@ import com.oneofficeautomation.sdk.OoaException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsConfigurator;
+import com.sun.net.httpserver.HttpsExchange;
+import com.sun.net.httpserver.HttpsParameters;
+import com.sun.net.httpserver.HttpsServer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,6 +36,9 @@ public final class ControlRoomServer {
     private final String host;
     private final int port;
     private HttpServer server;
+    /** With HTTPS on: a plain-HTTP listener on 127.0.0.1 only, for this machine's own runner and Studio (see internalUrl). */
+    private HttpServer internal;
+    private javax.net.ssl.SSLContext tls;
     private ScheduledExecutorService clock;
     private final Map<String, HttpHandler> mounts = new LinkedHashMap<>();
 
@@ -40,8 +47,8 @@ public final class ControlRoomServer {
         maxBody = () -> cr.platform.maxBodyBytes();
     }
 
-    /** True when the browser reached the Command Center over HTTPS (through a TLS proxy that says so, or a public https:// address). */
-    private static boolean overHttps(HttpExchange ex) { return "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
+    /** True when the browser reached the Command Center over HTTPS: served here directly, or through a TLS proxy that says so. */
+    private static boolean overHttps(HttpExchange ex) { return ex instanceof HttpsExchange || "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
 
     /** The Secure cookie flag whenever the Command Center is used over HTTPS, so the session cookie never travels in clear text. */
     private String secureFlag(HttpExchange ex) {
@@ -53,7 +60,7 @@ public final class ControlRoomServer {
         String pub = String.valueOf(cr.platform.setting("public_url")).trim().replaceAll("/+$", "");
         if (!pub.isEmpty()) return pub;
         String host = ex.getRequestHeaders().getFirst("Host");
-        return "http://" + (host == null ? "localhost" : host);
+        return (overHttps(ex) ? "https://" : "http://") + (host == null ? "localhost" : host);
     }
 
     private void html(HttpExchange ex, int status, String body) throws IOException {
@@ -68,8 +75,37 @@ public final class ControlRoomServer {
     /** Serves another application under a path prefix on the same port (used by `ooa server` for Studio at /studio). Call before start(). */
     public ControlRoomServer mount(String prefix, HttpHandler handler) { mounts.put(prefix, handler); return this; }
 
+    /** Serves HTTPS on the port with this context (from config/ooa-tls.properties). Call before start(). */
+    public ControlRoomServer tls(javax.net.ssl.SSLContext ctx) { this.tls = ctx; return this; }
+
+    public boolean https() { return tls != null; }
+
+    /**
+     * The address this machine's own runner and Studio use. Without HTTPS it is the port itself; with HTTPS it is a
+     * plain-HTTP listener bound to 127.0.0.1 only (other machines cannot reach it), so they need no certificate trust.
+     * Call before start(); the listener opens here.
+     */
+    public String internalUrl() throws IOException {
+        if (tls == null) return "http://127.0.0.1:" + port;
+        if (internal == null) internal = HttpServer.create(new InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 0);
+        return "http://127.0.0.1:" + internal.getAddress().getPort();
+    }
+
     public void start() throws IOException {
-        try { server = HttpServer.create(new InetSocketAddress(host, port), 0); }
+        try {
+            if (tls == null) server = HttpServer.create(new InetSocketAddress(host, port), 0);
+            else {
+                HttpsServer s = HttpsServer.create(new InetSocketAddress(host, port), 0);
+                s.setHttpsConfigurator(new HttpsConfigurator(tls) {
+                    @Override public void configure(HttpsParameters params) {
+                        javax.net.ssl.SSLParameters sp = tls.getDefaultSSLParameters();
+                        sp.setProtocols(new String[] { "TLSv1.3", "TLSv1.2" });   // no TLS 1.0 or 1.1
+                        params.setSSLParameters(sp);
+                    }
+                });
+                server = s;
+            }
+        }
         catch (java.net.BindException e) {
             throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Command Center may still be running", "Stop it, or start with --port " + (port + 1) + ".");
         }
@@ -77,6 +113,12 @@ public final class ControlRoomServer {
         server.createContext("/", this::handle);
         mounts.forEach(server::createContext);
         server.start();
+        if (internal != null) {
+            internal.setExecutor(Executors.newFixedThreadPool(4, r -> { Thread t = new Thread(r, "ooa-cr-local"); t.setDaemon(true); return t; }));
+            internal.createContext("/", this::handle);
+            mounts.forEach(internal::createContext);
+            internal.start();
+        }
         clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
         clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
@@ -86,7 +128,7 @@ public final class ControlRoomServer {
 
     public int port() { return server.getAddress().getPort(); }
 
-    public void stop() { if (clock != null) clock.shutdownNow(); if (server != null) server.stop(0); }
+    public void stop() { if (clock != null) clock.shutdownNow(); if (server != null) server.stop(0); if (internal != null) internal.stop(0); }
 
     // ------------------------------------------------------------------
     private void handle(HttpExchange ex) throws IOException {
@@ -558,7 +600,7 @@ public final class ControlRoomServer {
                     Map<String, Object> b = map(body(ex));
                     if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);
                     if (b.containsKey("enabled")) cr.setDeviceEnabled(u, seg[1], Boolean.TRUE.equals(b.get("enabled")), ip);
-                    if (b.containsKey("log_level") || b.containsKey("device_type")) cr.updateDevices(u, List.of(seg[1]), b, ip);
+                    if (b.containsKey("log_level") || b.containsKey("device_type") || b.containsKey("after_run")) cr.updateDevices(u, List.of(seg[1]), b, ip);
                     sendJson(ex, 200, Map.of("ok", true));
                 }
                 else notFound(ex);

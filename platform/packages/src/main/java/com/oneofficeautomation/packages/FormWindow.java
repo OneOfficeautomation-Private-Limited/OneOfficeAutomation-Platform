@@ -111,6 +111,8 @@ final class FormWindow {
     static void show(Session s, int width, int height, boolean onTop) {
         s.alwaysOnTop = onTop;
         if (!openWindows) return;
+        if ("unattended".equals(System.getProperty("ooa.runMode")))
+            throw new ActionException("RUN.NEEDS_PERSON", "Forms wait for a person to fill them in, but this run is unattended and nobody is at the runner", "Run this agent attended.");
         if (java.awt.GraphicsEnvironment.isHeadless())
             throw new ActionException("FORMS.NO_DESKTOP", "Forms need a runner with a desktop and a signed-in person", "Run this agent attended, on a runner where someone is signed in.");
         String url = s.address();

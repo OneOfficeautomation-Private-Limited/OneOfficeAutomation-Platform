@@ -62,6 +62,9 @@ public final class Ooa {
                 case "reset-admin" -> resetAdmin(Arrays.copyOfRange(args, 1, args.length));
                 case "db" -> DbCommand.run(Arrays.copyOfRange(args, 1, args.length));
                 case "license" -> LicenseCommand.run(Arrays.copyOfRange(args, 1, args.length));
+                case "tls" -> TlsCommand.run(Arrays.copyOfRange(args, 1, args.length));
+                case "service" -> WindowsService.run(Arrays.copyOfRange(args, 1, args.length));
+                case "service-run" -> WindowsService.serviceRun(Arrays.copyOfRange(args, 1, args.length));
                 case "native-host" -> NativeHost.main(Arrays.copyOfRange(args, 1, args.length));
                 case "browser-connector" -> BrowserConnector.main(Arrays.copyOfRange(args, 1, args.length));
                 default -> { usage(); yield 1; }
@@ -77,10 +80,12 @@ public final class Ooa {
         System.err.println("usage: ooa manifest [--summary] | validate FLOW... | run FLOW [-i key=value]... | conformance [DIR]"
                 + " | server [--port N] [--workspace DIR] [--data DIR] [--no-agent] [--no-browser]"
                 + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
-                + " | agent register --url URL --key KEY [--name NAME] | agent start [--workspace DIR]"
+                + " | agent register --url URL --key KEY [--name NAME] [--ca FILE] | agent start [--workspace DIR]"
                 + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
                 + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
                 + " | license show FILE"
+                + " | tls configure --pfx FILE|set-password|self-signed [--host NAME]|show|export-cert --out FILE|off [--data DIR]"
+                + " | service install|uninstall|start|stop|status [--mode server|control-room|agent] (Windows services)"
                 + " | browser-connector install|status|uninstall | native-host (started by the browser)");
     }
 
@@ -179,14 +184,16 @@ public final class Ooa {
         String host = o.getOrDefault("host", "127.0.0.1");
         ControlRoomSetup s = openControlRoom(o);
         var server = new com.oneofficeautomation.controlroom.ControlRoomServer(s.cr(), host, port);
+        String tls = useTls(server, s);
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { server.stop(); s.db().close(); }));
         System.out.println("ONEOFFICEAUTOMATION One Command Center is running.");
-        System.out.println("  Open:     http://" + (host.equals("0.0.0.0") ? "localhost" : host) + ":" + port);
+        System.out.println("  Open:     " + (server.https() ? "https://" : "http://") + (host.equals("0.0.0.0") ? "localhost" : host) + ":" + port);
         System.out.println("  Database: " + s.dbLabel());
         System.out.println("  Vault key: " + s.cr().vault.keySource);
-        if (!host.equals("127.0.0.1") && !host.equals("localhost"))
-            System.out.println("  WARNING: listening on " + host + " without TLS; put Command Center behind an HTTPS reverse proxy before other machines use it.");
+        if (tls != null) System.out.println("  HTTPS:    " + tls);
+        if (!host.equals("127.0.0.1") && !host.equals("localhost") && !server.https())
+            System.out.println("  WARNING: listening on " + host + " without TLS; set up HTTPS (ooa tls) or a reverse proxy before other machines use it.");
         printFirstStart(s);
         System.out.println("  Press Ctrl+C to stop.");
         Thread.currentThread().join();
@@ -203,15 +210,17 @@ public final class Ooa {
         String host = o.getOrDefault("host", "127.0.0.1");
         Path workspace = Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Workspace").toString()));
         ControlRoomSetup s = openControlRoom(o);
-        String localUrl = "http://127.0.0.1:" + port;
+        var server = new com.oneofficeautomation.controlroom.ControlRoomServer(s.cr(), host, port);
+        String tls = useTls(server, s);
+        String localUrl = server.internalUrl();   // with HTTPS: a 127.0.0.1-only listener for this machine's runner and Studio
         var studio = new StudioServer(workspace, port, Path.of("../examples/refund"));
-        var server = new com.oneofficeautomation.controlroom.ControlRoomServer(s.cr(), host, port).mount("/studio", studio.mountedAt("/studio", localUrl));
+        server.mount("/studio", studio.mountedAt("/studio", localUrl));
         server.start();
         Path agentConfig = Path.of(o.getOrDefault("agent-config", Path.of(System.getProperty("user.home"), ".ooa-agent", "local-agent.json").toString()));
         Path agentWorkspace = Path.of(o.getOrDefault("agent-workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString()));
         com.oneofficeautomation.agent.Agent agent = o.containsKey("no-agent") ? null : startLocalAgent(s.cr(), localUrl, agentConfig, agentWorkspace);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { if (agent != null) agent.stop(); server.stop(); s.db().close(); }));
-        String open = "http://localhost:" + port;
+        String open = (server.https() ? "https" : "http") + "://localhost:" + port;
         System.out.println("ONEOFFICEAUTOMATION is running.");
         System.out.println("  Open:             " + open);
         System.out.println("  Command Center:   " + open + "/");
@@ -219,13 +228,24 @@ public final class Ooa {
         System.out.println("  One Runner:       " + (agent == null ? "not started (--no-agent)" : "this computer, connected"));
         System.out.println("  My Workspace:     " + studio.workspaceRoot());
         System.out.println("  Database:         " + s.dbLabel());
-        if (!host.equals("127.0.0.1") && !host.equals("localhost"))
-            System.out.println("  WARNING: Command Center listens on " + host + " without TLS; put it behind an HTTPS reverse proxy before other machines use it.");
+        if (tls != null) System.out.println("  HTTPS:            " + tls);
+        if (!host.equals("127.0.0.1") && !host.equals("localhost") && !server.https())
+            System.out.println("  WARNING: Command Center listens on " + host + " without TLS; set up HTTPS (ooa tls) or a reverse proxy before other machines use it.");
         printFirstStart(s);
         System.out.println("  Press Ctrl+C (or close this window) to stop everything.");
         if (!o.containsKey("no-browser")) openBrowser(open);
         Thread.currentThread().join();
         return 0;
+    }
+
+    /** Turns HTTPS on when config/ooa-tls.properties exists in the data folder; returns a one-line description, or null. */
+    static String useTls(com.oneofficeautomation.controlroom.ControlRoomServer server, ControlRoomSetup s) {
+        Path f = com.oneofficeautomation.controlroom.TlsConfig.defaultFile(s.data());
+        if (!Files.exists(f)) return null;
+        var cfg = com.oneofficeautomation.controlroom.TlsConfig.load(f);
+        server.tls(cfg.sslContext(s.cr().vault));
+        Map<String, Object> d = cfg.describe(s.cr().vault);
+        return "on (" + d.get("subject") + ", valid until " + String.valueOf(d.get("valid_until")).substring(0, 10) + (Boolean.TRUE.equals(d.get("self_signed")) ? ", self-signed" : "") + ")";
     }
 
     /** Registers this computer once (its own config file, so a separately registered agent is never touched) and runs the agent. */
@@ -259,8 +279,8 @@ public final class Ooa {
         Path config = Path.of(o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString()));
         switch (a[0]) {
             case "register" -> {
-                if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME]"); return 1; }
-                Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config);
+                if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME] [--ca ooa.cer]"); return 1; }
+                Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null);
                 System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
                 System.out.println("Start the agent with:  ooa agent start");
                 return 0;
@@ -272,6 +292,8 @@ public final class Ooa {
                 agent.run();
                 return 0;
             }
+            case "install-task" -> { return WindowsService.installTask(o); }
+            case "uninstall-task" -> { return WindowsService.uninstallTask(); }
             default -> { usage(); return 1; }
         }
     }

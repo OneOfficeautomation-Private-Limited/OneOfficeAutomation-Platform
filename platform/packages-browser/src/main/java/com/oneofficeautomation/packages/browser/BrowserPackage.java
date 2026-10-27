@@ -232,8 +232,9 @@ public final class BrowserPackage {
             } catch (PlaywrightException e) { throw pw(e, "Opening " + url); }
             return Map.of();
         }
+        if ("headless".equals(System.getProperty("ooa.runMode"))) headless = true;   // a headless run has no desktop to show a window on
         boolean installed = which.equals("edge") || which.equals("chrome");
-        boolean connector = "connector".equals(engine) || ("auto".equals(engine == null ? "auto" : engine) && installed && !headless && downloads == null && keepOpen
+        boolean connector ="connector".equals(engine) || ("auto".equals(engine == null ? "auto" : engine) && installed && !headless && downloads == null && keepOpen
                 && ExtensionBridge.browsers().contains(which));
         if (connector) {
             @SuppressWarnings("unchecked")
@@ -1233,6 +1234,7 @@ public final class BrowserPackage {
         String kind = "chrome".equals(which) ? "chrome" : "edge";
         String ep = "http://127.0.0.1:" + port;
         boolean started = false;
+        if ("headless".equals(System.getProperty("ooa.runMode"))) headless = true;
         long pid = 0;
         if (BrowserWindows.version(ep) == null) {
             if (!BrowserWindows.portFree(port))

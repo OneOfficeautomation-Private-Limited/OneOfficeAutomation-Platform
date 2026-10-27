@@ -124,9 +124,10 @@ public final class LicenseStudio {
         for (String t : License.TYPES) { int n = num(in.get(t), 0, 0, 100000, t + " seats"); seats.put(t, n); sum += n; }
         if (sum == 0) throw new OoaException("STUDIO.BAD_INPUT", "Give at least one seat");
         if (!keyMatches()) throw new OoaException("STUDIO.KEY", "The private key in " + keyFile + " does not match the key built into the product", "Use the key made with ooa license keygen for this product");
+        String installId = installId(str(b.get("install_id")), Boolean.TRUE.equals(b.get("any_install")));
         String edition = str(b.getOrDefault("edition", "Enterprise"));
         String id = "LIC-" + LocalDate.now().toString().replace("-", "") + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
-        License l = new License(id, customer, edition.isEmpty() ? "Enterprise" : edition, LocalDate.now(), expires, grace, seats, str(b.get("notes")));
+        License l = new License(id, customer, edition.isEmpty() ? "Enterprise" : edition, LocalDate.now(), expires, grace, seats, str(b.get("notes")), installId);
         String text = l.sign(privateKey());
         String file = id + " " + customer.replaceAll("[^A-Za-z0-9 ._-]", "_").trim() + ".lic";
         Files.writeString(issuedDir.resolve(file), text);
@@ -147,6 +148,15 @@ public final class LicenseStudio {
         return out;
     }
 
+    /** The install id a license is issued for: required in the OOA-XXXX-XXXX-XXXX-XXXX form, unless "any installation" is chosen. */
+    static String installId(String id, boolean any) {
+        if (any) return "";
+        String v = id == null ? "" : id.trim().toUpperCase(Locale.ROOT);
+        if (!v.matches("OOA(-[A-Z0-9]{4}){4}"))
+            throw new OoaException("STUDIO.BAD_INPUT", "Give the customer's install id (OOA-XXXX-XXXX-XXXX-XXXX, shown in Administration > Licenses), or choose any installation");
+        return v;
+    }
+
     Map<String, Object> verify(String text) {
         License l = License.verify(text == null ? "" : text, License.publicKey(License.VENDOR_PUBLIC_KEY));
         return describe(l, null);
@@ -157,7 +167,7 @@ public final class LicenseStudio {
         if (file != null) m.put("file", file);
         m.put("id", l.id()); m.put("customer", l.customer()); m.put("edition", l.edition());
         m.put("issued", l.issued().toString()); m.put("expires", l.expires().toString()); m.put("grace_days", l.graceDays());
-        m.put("seats", l.seats()); m.put("notes", l.notes());
+        m.put("seats", l.seats()); m.put("notes", l.notes()); m.put("install_id", l.installId());
         LocalDate today = LocalDate.now();
         long left = ChronoUnit.DAYS.between(today, l.expires());
         m.put("days_left", left);

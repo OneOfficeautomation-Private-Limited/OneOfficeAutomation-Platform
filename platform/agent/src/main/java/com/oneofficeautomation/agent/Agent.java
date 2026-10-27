@@ -37,14 +37,24 @@ public final class Agent {
     public static String hostname() { try { return InetAddress.getLocalHost().getHostName(); } catch (Exception e) { return "unknown"; } }
 
     /** One-time registration with a key created in Control Room > Devices. Writes the device credentials to the config file. */
-    public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException {
-        Map<String, Object> r = new AgentClient(url, null, null).post("register",
+    public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException { return register(url, key, name, configFile, null); }
+
+    /** As above; {@code ca} is a certificate to trust for an HTTPS Command Center (copied next to the config as ca.cer). */
+    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException {
+        Path keptCa = null;
+        if (ca != null) {
+            Files.createDirectories(configFile.getParent());
+            keptCa = configFile.resolveSibling("ca.cer");
+            if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING);
+        }
+        Map<String, Object> r = new AgentClient(url, null, null, keptCa).post("register",
                 Map.of("key", key, "name", name == null ? hostname() : name, "hostname", hostname(), "os", System.getProperty("os.name") + " " + System.getProperty("os.version"), "agent_version", VERSION));
         Map<String, Object> cfg = new LinkedHashMap<>();
         cfg.put("url", url.replaceAll("/+$", ""));
         cfg.put("device_id", r.get("device_id"));
         cfg.put("secret", r.get("secret"));
         cfg.put("name", r.get("name"));
+        if (keptCa != null) cfg.put("ca", keptCa.toString());
         Files.createDirectories(configFile.getParent());
         Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
         try { Files.setPosixFilePermissions(configFile, PosixFilePermissions.fromString("rw-------")); } catch (UnsupportedOperationException ignored) { /* Windows: user profile ACLs apply */ }
@@ -58,7 +68,8 @@ public final class Agent {
         this.config = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
-        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"));
+        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"),
+                config.get("ca") == null ? null : Path.of((String) config.get("ca")));
         this.localTriggers = new LocalTriggers(new LocalTriggers.Reporter() {
             public void fired(String id, Map<String, Object> event) { client.post("trigger-fired", Map.of("trigger_id", id, "event", event)); }
             public void status(String id, String error) { Map<String, Object> b = new HashMap<>(); b.put("trigger_id", id); b.put("error", error); client.post("trigger-status", b); }
@@ -67,6 +78,8 @@ public final class Agent {
 
     /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */
     volatile String logLevel = "info";
+    /** What to do with the screen after an unattended run (nothing, lock, sign_out), set in Command Center. */
+    volatile String afterRun = "nothing";
     static final List<String> LEVELS = List.of("error", "warning", "info", "debug");
 
     void log(String msg) { log("info", msg); }
@@ -103,7 +116,7 @@ public final class Agent {
         try {
             Worker w = active;
             Map<String, Object> r = client.post("heartbeat", Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
-                    "running", w == null ? List.of() : List.of(w.runId)));
+                    "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state()));
             if (w != null) {
                 if (((List<Object>) r.getOrDefault("cancel", List.of())).contains(w.runId)) w.cancel();
                 else if (((List<Object>) r.getOrDefault("pause", List.of())).contains(w.runId)) w.send(Map.of("type", "pause"));
@@ -111,6 +124,7 @@ public final class Agent {
             }
             localTriggers.update(r.get("local_triggers") instanceof List<?> l ? (List<Object>) l : (List<Object>) r.getOrDefault("file_triggers", List.of()));
             if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by Command Center"); }
+            if (r.get("after_run") instanceof String ar && !ar.equals(afterRun)) { afterRun = ar; log("After unattended runs: " + ar + " (set in Command Center)"); }
         } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }
@@ -133,16 +147,38 @@ public final class Agent {
         }
     }
 
+    /** The run's mode from Command Center: attended, unattended (the default) or headless. */
+    static String workerMode(Map<String, Object> job) {
+        String m = String.valueOf(job.getOrDefault("mode", "unattended"));
+        return List.of("attended", "unattended", "headless").contains(m) ? m : "unattended";
+    }
+
+    /**
+     * The worker's command line. A headless run gets no desktop (java.awt.headless, and browsers open without a window);
+     * every run tells its commands the mode (ooa.runMode), so an unattended one never waits for a person.
+     */
+    static List<String> workerCommand(String javaBin, String mode, String runnerHeadless, Path workspace) {
+        return List.of(javaBin, "-Djava.awt.headless=" + (mode.equals("headless") ? "true" : runnerHeadless), "-Dooa.runMode=" + mode,
+                "-cp", System.getProperty("java.class.path"), RunWorker.class.getName(), workspace.toString());
+    }
+
     @SuppressWarnings("unchecked")
     void execute(Map<String, Object> job) {
         String runId = (String) job.get("run_id");
-        log("Starting run " + runId + ": " + job.get("bot_path") + " v" + job.get("version"));
+        String mode = workerMode(job);
+        log("Starting run " + runId + ": " + job.get("bot_path") + " v" + job.get("version") + " (" + mode + ")");
         Path logFile = workspace.resolve("logs").resolve(runId + ".log");
+        String screen = DesktopSession.problem(mode, (Map<String, Object>) job.get("flow"), DesktopSession.state());
+        if (screen != null) {
+            log("warning", "Run " + runId + " not started: " + screen);
+            reportResult(runId, Map.of("status", "failed", "error", Map.of("code", "RUN.NO_DESKTOP", "message", screen,
+                    "suggestedFix", "Sign in on the runner and leave it unlocked, or send the run to a runner where someone is signed in")));
+            return;
+        }
         Worker w;
         try {
             String javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString();
-            ProcessBuilder pb = new ProcessBuilder(javaBin, "-Djava.awt.headless=" + System.getProperty("java.awt.headless", "false"),
-                    "-cp", System.getProperty("java.class.path"), RunWorker.class.getName(), workspace.toString());
+            ProcessBuilder pb = new ProcessBuilder(workerCommand(javaBin, mode, System.getProperty("java.awt.headless", "false"), workspace));
             pb.redirectError(ProcessBuilder.Redirect.appendTo(logFile.toFile()));
             w = new Worker(runId, pb.start());
         } catch (IOException e) {
@@ -172,6 +208,7 @@ public final class Agent {
         reportResult(runId, result);
         log("Finished run " + runId + ": " + result.get("status"));
         active = null;
+        if (mode.equals("unattended")) { String done = DesktopSession.afterRun(afterRun); if (done != null) log("After the run: " + done); }
     }
 
     /**

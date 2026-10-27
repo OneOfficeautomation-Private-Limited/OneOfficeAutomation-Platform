@@ -54,6 +54,8 @@ input[type="file"] { padding: 3px; }
 textarea { font-family: var(--mono); font-size: 12px; resize: vertical; margin-top: 8px; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .grid .wide { grid-column: 1 / -1; }
+label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+label.check input { width: auto; margin: 0; }
 @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
 .quick { display: flex; flex-wrap: wrap; gap: 4px; align-items: end; }
 .quick button { padding: 2px 8px; font-size: 11.5px; }
