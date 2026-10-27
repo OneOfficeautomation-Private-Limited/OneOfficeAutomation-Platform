@@ -12,21 +12,9 @@ import java.util.*;
 import java.util.stream.Stream;
 
 /**
- * OOA CLI (Java). Commands:
- *   ooa manifest [--summary]          print package manifests (what Studio renders)
- *   ooa validate FLOW...              validate Flows against schema and manifests
- *   ooa run FLOW [-i key=value]...    run a Flow file
- *   ooa conformance DIR               run the language-neutral conformance suite
- *   ooa server [--port N] [--workspace DIR] [--data DIR] [--no-agent] [--no-browser]
- *                                     one step: Control Room, Studio (/studio) and a local Bot Agent on http://localhost:8720
- *   ooa studio [--workspace DIR]      start the Studio preview on http://localhost:8710
- *   ooa control-room [--port N] [--host H] [--data DIR] [--db-url URL --db-user U --db-password-env VAR]
- *                                     start Control Room on http://localhost:8720; the database comes from
- *                                     DIR\config\ooa-db.properties when that file exists (SQL Server, PostgreSQL)
- *   ooa db configure|set-password|test|init|migrate|script|copy   set up the Command Center database (DbCommand)
- *   ooa agent register --url URL --key KEY [--name NAME] [--config FILE]
- *   ooa agent start [--config FILE] [--workspace DIR]
- * picocli and GraalVM native image replace this hand-rolled parser in a later slice.
+ * OOA CLI (Java): {@code ooa COMMAND [OPTIONS]}. The commands and their options are declared in {@link CoreCommands}
+ * and {@link FullCommands} and read by picocli ({@link OoaCli}); {@code ooa --help} lists them, and
+ * {@code ooa COMMAND --help} shows a command's options. The native executable ({@code OoaNative}) has the core ones.
  */
 public final class Ooa {
     private Ooa() {}
@@ -46,69 +34,19 @@ public final class Ooa {
         }
     }
 
-    public static void main(String[] args) throws Exception {
-        if (args.length == 0) { usage(); System.exit(1); }
-        int code;
-        try {
-            code = switch (args[0]) {
-                case "manifest" -> manifest(Arrays.asList(args).contains("--summary"));
-                case "validate" -> validate(Arrays.copyOfRange(args, 1, args.length));
-                case "run" -> run(Arrays.copyOfRange(args, 1, args.length));
-                case "conformance" -> conformance(Path.of(args.length > 1 ? args[1] : "../contracts/conformance/cases"));
-                case "server" -> server(Arrays.copyOfRange(args, 1, args.length));
-                case "studio" -> studio(Arrays.copyOfRange(args, 1, args.length));
-                case "control-room" -> controlRoom(Arrays.copyOfRange(args, 1, args.length));
-                case "agent" -> agent(Arrays.copyOfRange(args, 1, args.length));
-                case "reset-admin" -> resetAdmin(Arrays.copyOfRange(args, 1, args.length));
-                case "db" -> DbCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "license" -> LicenseCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "check" -> CheckCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "backup" -> BackupCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "release" -> ReleaseCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "tls" -> TlsCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "toolkit" -> ToolkitCommand.run(Arrays.copyOfRange(args, 1, args.length));
-                case "assistant" -> Assistant.run(Arrays.copyOfRange(args, 1, args.length));
-                case "service" -> WindowsService.run(Arrays.copyOfRange(args, 1, args.length));
-                case "service-run" -> WindowsService.serviceRun(Arrays.copyOfRange(args, 1, args.length));
-                case "native-host" -> NativeHost.main(Arrays.copyOfRange(args, 1, args.length));
-                case "browser-connector" -> BrowserConnector.main(Arrays.copyOfRange(args, 1, args.length));
-                default -> { usage(); yield 1; }
-            };
-        } catch (OoaException e) {
-            System.err.println("error: " + e);
-            code = 2;
-        }
-        System.exit(code);
+    public static void main(String[] args) {
+        System.exit(OoaCli.full().execute(args));
     }
 
-    static void usage() {
-        System.err.println("usage: ooa manifest [--summary] | validate FLOW... | run FLOW [-i key=value]... | conformance [DIR]"
-                + " | server [--port N] [--workspace DIR] [--data DIR] [--no-agent] [--no-browser]"
-                + " | studio [--workspace DIR] [--port N] | control-room [--port N] [--host H] [--data DIR] [--db-url URL]"
-                + " | agent register --url URL --key KEY [--name NAME] [--ca FILE] [--proxy system|none|URL] | agent network [--proxy ..] [--proxy-user U --proxy-password-env VAR] [--ca FILE] | agent start [--workspace DIR]"
-                + " | reset-admin [--user NAME] [--data DIR] (stop the server first)"
-                + " | db configure|set-password|test|init|migrate|script|copy [--data DIR]"
-                + " | license show FILE"
-                + " | backup now|list|restore FILE [--replace] [--data DIR] | check [--data DIR] [--port N] | agent diagnose | agent move --url URL [--ca FILE] | release verify MANIFEST [--dir DIR]"
-                + " | assistant [--url URL] [--sign-out] (the attended desktop app in the notification area)"
-                + " | toolkit keygen --publisher NAME [--out DIR] | toolkit sign --jar FILE --class NAME --key FILE [--out FILE] | toolkit inspect --jar FILE"
-                + " | tls configure --pfx FILE|set-password|self-signed [--host NAME]|show|export-cert --out FILE|off [--data DIR]"
-                + " | service install|uninstall|start|stop|status [--mode server|control-room|agent] (Windows services)"
-                + " | browser-connector install|status|uninstall | native-host (started by the browser)");
-    }
-
-    static int studio(String[] a) throws Exception {
-        Path workspace = Path.of(System.getProperty("user.home"), "OOA Workspace");
-        int port = 8710;
-        for (int i = 0; i < a.length - 1; i++) {
-            if (a[i].equals("--workspace")) workspace = Path.of(a[++i]);
-            else if (a[i].equals("--port")) port = Integer.parseInt(a[++i]);
-        }
+    static int studio(Map<String, String> o) throws Exception {
+        Path workspace = Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Workspace").toString()));
+        int port = Integer.parseInt(o.getOrDefault("port", "8710"));
         new StudioServer(workspace, port, Path.of("../examples/refund")).start();
         Thread.currentThread().join();
         return 0;
     }
 
+    /** Options of a command line this program wrote itself (the Windows service's): --name value, or a switch. */
     static Map<String, String> options(String[] a) {
         Map<String, String> o = new HashMap<>();
         for (int i = 0; i < a.length; i++) if (a[i].startsWith("--")) o.put(a[i].substring(2), i + 1 < a.length && !a[i + 1].startsWith("--") ? a[++i] : "true");
@@ -156,8 +94,7 @@ public final class Ooa {
     }
 
     /** Forgotten password: prints a new one-time password for the user (default admin). The server must be stopped first. */
-    static int resetAdmin(String[] a) throws Exception {
-        Map<String, String> o = options(a);
+    static int resetAdmin(Map<String, String> o) throws Exception {
         String user = o.getOrDefault("user", "admin");
         ControlRoomSetup s;
         try { s = openControlRoom(o); }
@@ -186,8 +123,7 @@ public final class Ooa {
         } finally { s.db().close(); }
     }
 
-    static int controlRoom(String[] a) throws Exception {
-        Map<String, String> o = options(a);
+    static int controlRoom(Map<String, String> o) throws Exception {
         int port = Integer.parseInt(o.getOrDefault("port", "8720"));
         String host = o.getOrDefault("host", "127.0.0.1");
         ControlRoomSetup s = openControlRoom(o);
@@ -212,8 +148,7 @@ public final class Ooa {
      * One-step start for a developer machine: Control Room at /, Studio at /studio/ (this computer only) and a Bot Agent
      * for this computer, all in one process on one port. The local agent registers itself on first start.
      */
-    static int server(String[] a) throws Exception {
-        Map<String, String> o = options(a);
+    static int server(Map<String, String> o) throws Exception {
         int port = Integer.parseInt(o.getOrDefault("port", "8720"));
         String host = o.getOrDefault("host", "127.0.0.1");
         Path workspace = Path.of(o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Workspace").toString()));
@@ -281,13 +216,11 @@ public final class Ooa {
         } catch (Exception | LinkageError e) { System.out.println("  (Open " + url + " in your browser.)"); }
     }
 
-    static int agent(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = options(Arrays.copyOfRange(a, 1, a.length));
+    /** A runner command (register, start, network, move, diagnose, install-task, uninstall-task). */
+    static int agent(String verb, Map<String, String> o) throws Exception {
         Path config = Path.of(o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString()));
-        switch (a[0]) {
+        switch (verb) {
             case "register" -> {
-                if (!o.containsKey("url") || !o.containsKey("key")) { System.err.println("usage: ooa agent register --url http://controlroom:8720 --key ooareg_... [--name NAME] [--ca ooa.cer] [--proxy system|none|http://host:port] [--proxy-user USER --proxy-password-env VAR]"); return 1; }
                 Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null,
                     o.get("proxy"), o.get("proxy-user"), proxyPassword(o));
                 System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));
@@ -311,7 +244,6 @@ public final class Ooa {
             }
             case "move" -> {
                 // the Command Center moved (new server, cloud) with its data: keep this runner's registration
-                if (!o.containsKey("url")) { System.err.println("usage: ooa agent move --url https://new-command-center:8720 [--ca ooa.cer]"); return 1; }
                 String old = com.oneofficeautomation.agent.Agent.moveTo(config, o.get("url"), o.containsKey("ca") ? Path.of(o.get("ca")) : null);
                 System.out.println("This runner now uses " + o.get("url") + " (was " + old + "). Restart the runner for it to take effect.");
                 return 0;
@@ -328,7 +260,7 @@ public final class Ooa {
             }
             case "install-task" -> { return WindowsService.installTask(o); }
             case "uninstall-task" -> { return WindowsService.uninstallTask(); }
-            default -> { usage(); return 1; }
+            default -> throw new IllegalArgumentException("Unknown runner command " + verb);
         }
     }
 
@@ -368,21 +300,17 @@ public final class Ooa {
     }
 
     @SuppressWarnings("unchecked")
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
+    static int run(String file, List<String> inputValues) throws Exception {
         JsonCodec json = codec();
-        Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(Path.of(a[0])));
+        Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(Path.of(file)));
         Map<String, Object> inputs = new LinkedHashMap<>();
-        for (int i = 1; i < a.length; i++) {
-            if ((a[i].equals("-i") || a[i].equals("--input")) && i + 1 < a.length) {
-                String kv = a[++i];
-                int eq = kv.indexOf('=');
-                if (eq < 0) throw new OoaException("CLI.BAD_INPUT", "--input expects key=value, got '" + kv + "'");
-                String raw = kv.substring(eq + 1);
-                Object val;
-                try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }
-                inputs.put(kv.substring(0, eq), val);
-            }
+        for (String kv : inputValues) {
+            int eq = kv.indexOf('=');
+            if (eq < 0) throw new OoaException("CLI.BAD_INPUT", "--input expects key=value, got '" + kv + "'");
+            String raw = kv.substring(eq + 1);
+            Object val;
+            try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }
+            inputs.put(kv.substring(0, eq), val);
         }
         Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false))
                 .schemaValidator(schemaValidator()).workDir(Path.of(".")).build();

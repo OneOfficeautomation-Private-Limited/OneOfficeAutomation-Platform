@@ -10,6 +10,8 @@ dependencies {
     implementation(project(":packages"))
     implementation(project(":control-room"))
     implementation(project(":agent"))
+    // the command line: commands, options, help and shell completion
+    implementation("info.picocli:picocli:4.7.6")
     optionalModules.forEach { runtimeOnly(project(":$it")) }
     runtimeOnly(project(":adapters-jackson"))
     // license issuing: in the vendor build (installDist, run, tests) only; the customer distribution leaves it out
@@ -124,6 +126,36 @@ val sbom by tasks.registering {
         val f = out.get().asFile
         f.parentFile.mkdirs()
         f.writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(bom)))
+    }
+}
+
+// The native executable (Q13; gradlew :cli:nativeExecutable): the commands that need no Command Center (validate,
+// run, manifest, conformance, license show, release verify), compiled ahead of time by GraalVM so they start at once
+// and need no Java runtime. It needs GraalVM for JDK 21: GRAALVM_HOME, or JAVA_HOME pointing at it. The nativeImage
+// source set holds what only that build uses: the reflection feature and the resources to keep.
+val nativeImage by sourceSets.creating
+dependencies { "nativeImageCompileOnly"("org.graalvm.sdk:graal-sdk:23.1.2") }
+nativeImage.compileClasspath += sourceSets.main.get().output + configurations.named("runtimeClasspath").get()
+
+val nativeExecutable by tasks.registering(Exec::class) {
+    description = "Builds the native executable build/native/ooa with GraalVM native-image."
+    group = "distribution"
+    val out = layout.buildDirectory.dir("native")
+    // the vendor's license tools stay out, as in the customer distribution
+    val classpath = files(tasks.named("jar"), nativeImage.output) +
+        configurations.named("runtimeClasspath").get().filter { !it.name.startsWith("vendor-tools") }
+    inputs.files(classpath)
+    outputs.dir(out)
+    doFirst {
+        val graal = System.getenv("GRAALVM_HOME") ?: System.getenv("JAVA_HOME")
+            ?: throw GradleException("Set GRAALVM_HOME to GraalVM for JDK 21 (https://www.graalvm.org/downloads/)")
+        val windows = System.getProperty("os.name").lowercase().contains("win")
+        val tool = File(graal, "bin/native-image" + if (windows) ".cmd" else "")
+        if (!tool.exists()) throw GradleException("No native-image in $graal: point GRAALVM_HOME at GraalVM for JDK 21")
+        out.get().asFile.mkdirs()
+        executable = tool.path
+        args("-cp", classpath.asPath, "-o", out.get().file("ooa").asFile.path, "--no-fallback", "-march=compatibility",
+            "com.oneofficeautomation.cli.OoaNative")
     }
 }
 

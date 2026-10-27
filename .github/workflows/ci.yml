@@ -6,6 +6,7 @@
 #   postgres     Linux: the Command Center tests against a real PostgreSQL 16 (a throwaway container)
 #   headless     Linux (every push) and macOS (master): a Command Center and a headless runner end to end, the runner and
 #                SDK tests and the shared conformance cases, so runners for API, data and browser-free work run there (R14)
+#   native       Linux and Windows: the native executable (GraalVM), checked against the Java program (Q13)
 name: CI
 
 on:
@@ -197,6 +198,53 @@ jobs:
           path: |
             platform/*/build/reports/tests/
           retention-days: 7
+
+  native:
+    name: Native executable (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: "21"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: gradle
+      - name: Build the native executable and the Java install
+        run: |
+          chmod +x gradlew
+          ./gradlew :cli:nativeExecutable :cli:installDist --console=plain
+          ls -l cli/build/native
+      - name: Same answers as the Java program
+        run: |
+          OOA=cli/build/native/ooa
+          JAVA_OOA=cli/build/install/ooa/bin/ooa
+          time "$OOA" --version
+          "$OOA" --help
+          # every example automation, Office, email, PDF and browser ones included
+          find ../examples -name '*.flow.json' -print0 | xargs -0 "$OOA" validate
+          "$OOA" conformance ../contracts/conformance/cases
+          "$OOA" manifest --summary > native.txt
+          "$JAVA_OOA" manifest --summary > java.txt
+          diff java.txt native.txt && echo "Both know $(wc -l < native.txt) toolkits"
+          # a step of a toolkit it cannot run fails with a clear message
+          echo '{"kind":"TaskBot","id":"native_excel","name":"Native Excel","requires":{"packages":{"ooa.excel":"^1.0.0"}},"steps":[{"id":"open","action":"ooa.excel/open","args":{"path":"book.xlsx"}}]}' > excel.flow.json
+          if "$OOA" run excel.flow.json > run.txt 2>&1; then cat run.txt; exit 1; fi
+          grep -q "ACTION.NOT_IN_THIS_PROGRAM" run.txt || { cat run.txt; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ooa-native-${{ runner.os }}
+          path: platform/cli/build/native/ooa*
+          retention-days: 14
 
   container:
     name: Container image (Linux)

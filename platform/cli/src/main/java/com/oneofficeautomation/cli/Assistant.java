@@ -76,9 +76,8 @@ final class Assistant {
 
     // ---------- start ----------
 
-    static int run(String[] a) throws Exception {
-        Map<String, String> o = Ooa.options(a);
-        if (Arrays.asList(a).contains("--sign-out")) { Files.deleteIfExists(settingsFile()); System.out.println("Signed out: " + settingsFile() + " removed."); return 0; }
+    static int run(Map<String, String> o) throws Exception {
+        if (o.containsKey("sign-out")) { Files.deleteIfExists(settingsFile()); System.out.println("Signed out: " + settingsFile() + " removed."); return 0; }
         if (GraphicsEnvironment.isHeadless() || !SystemTray.isSupported()) {
             System.err.println("The assistant needs a desktop with a notification area (Windows). Runs for this person can still be started from One Command Center.");
             return 1;

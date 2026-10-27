@@ -19,10 +19,8 @@ import java.util.*;
 final class ToolkitCommand {
     private ToolkitCommand() { }
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
-        switch (a[0]) {
+    static int run(String verb, Map<String, String> o) throws Exception {
+        switch (verb) {
             case "keygen" -> {
                 String pub = o.get("publisher");
                 if (pub == null || !pub.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")) { System.err.println("Give --publisher NAME (letters, digits, . _ -)"); return 1; }
@@ -33,7 +31,6 @@ final class ToolkitCommand {
                 return 0;
             }
             case "sign" -> {
-                if (o.get("jar") == null || o.get("class") == null || o.get("key") == null) { usage(); return 1; }
                 PackageSigning.PublisherKey key = ToolkitJar.readKey(Path.of(o.get("key")));
                 Path out = o.get("out") == null ? null : Path.of(o.get("out"));
                 PackageSigning.Signature sig = ToolkitJar.sign(Path.of(o.get("jar")), o.get("class"), key, out);
@@ -41,7 +38,6 @@ final class ToolkitCommand {
                 return 0;
             }
             case "inspect" -> {
-                if (o.get("jar") == null) { usage(); return 1; }
                 ToolkitJar.Loaded l = ToolkitJar.load(Path.of(o.get("jar")).toAbsolutePath(), ToolkitCommand.class.getClassLoader());
                 var info = PackageIntrospector.inspect(l.cls());
                 System.out.println(info.meta().id() + " " + info.meta().version() + "  (" + l.cls().getName() + ")");
@@ -51,11 +47,7 @@ final class ToolkitCommand {
                 System.out.println("  sha256:    " + l.sha256());
                 return 0;
             }
-            default -> { usage(); return 1; }
+            default -> throw new IllegalArgumentException("Unknown toolkit command " + verb);
         }
-    }
-
-    private static void usage() {
-        System.err.println("ooa toolkit keygen --publisher NAME [--out DIR] | sign --jar FILE --class NAME --key FILE [--out FILE] | inspect --jar FILE");
     }
 }

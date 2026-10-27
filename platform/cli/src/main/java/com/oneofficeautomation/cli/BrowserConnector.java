@@ -23,16 +23,14 @@ public final class BrowserConnector {
 
     private BrowserConnector() {}
 
-    static int main(String[] args) throws IOException, InterruptedException {
-        String cmd = args.length > 0 ? args[0] : "status";
-        Path home = null;
-        for (int i = 1; i < args.length - 1; i++) if (args[i].equals("--home")) home = Path.of(args[i + 1]);
+    /** install, status or uninstall; home is the install folder, or null for this program's. */
+    static int run(String cmd, Path home) throws IOException, InterruptedException {
         if (home == null) home = installHome();
         return switch (cmd) {
             case "install" -> install(home);
             case "uninstall" -> uninstall();
             case "status" -> status(home);
-            default -> { System.err.println("usage: ooa browser-connector install | status | uninstall [--home INSTALL_DIR]"); yield 1; }
+            default -> throw new IllegalArgumentException("Unknown connector command " + cmd);
         };
     }
 

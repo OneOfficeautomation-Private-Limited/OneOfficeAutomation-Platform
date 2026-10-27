@@ -1130,6 +1130,11 @@ public final class Runner {
                         "Report this to the toolkit publisher with the run id.");
             } catch (IllegalAccessException e) {
                 throw new ActionException("ACTION.UNEXPECTED", "Cannot call " + pkg.id() + "/" + spec.id() + ": " + e.getMessage());
+            } catch (Error e) {
+                if (e instanceof VirtualMachineError) throw e;
+                // the native executable knows every toolkit's commands but runs only the built-in toolkits
+                throw new ActionException("ACTION.NOT_IN_THIS_PROGRAM", pkg.id() + "/" + spec.id() + " cannot run in this program: " + e.getMessage(),
+                        "Run the automation with the full install (bin\\ooa.bat run) or on a runner.");
             }
         }
 

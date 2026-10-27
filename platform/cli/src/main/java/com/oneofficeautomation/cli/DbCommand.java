@@ -26,12 +26,10 @@ import java.util.*;
 final class DbCommand {
     private DbCommand() { }
 
-    static int run(String[] a) {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
+    static int run(String verb, Map<String, String> o) {
         Path data = Ooa.dataDir(o);
         Path file = o.containsKey("config") ? Path.of(o.get("config")) : DbConfig.defaultFile(data);
-        return switch (a[0]) {
+        return switch (verb) {
             case "configure" -> configure(file, o);
             case "set-password" -> setPassword(file, data, o);
             case "test" -> test(DbConfig.load(file), data);
@@ -39,12 +37,8 @@ final class DbCommand {
             case "migrate" -> migrate(DbConfig.load(file), data);
             case "script" -> script(o.getOrDefault("engine", Files.exists(file) ? DbConfig.load(file).engine() : "sqlserver"));
             case "copy" -> copy(DbConfig.load(file), data, o);
-            default -> { usage(); yield 1; }
+            default -> throw new IllegalArgumentException("Unknown database command " + verb);
         };
-    }
-
-    static void usage() {
-        System.err.println("usage: ooa db configure|set-password|test|init|migrate|script|copy [--data DIR] [--config FILE]  (see docs/DATABASE.md)");
     }
 
     /** A Windows account for SQL Server: DOMAIN\\name, or DOMAIN\\name$ for a group managed service account. */

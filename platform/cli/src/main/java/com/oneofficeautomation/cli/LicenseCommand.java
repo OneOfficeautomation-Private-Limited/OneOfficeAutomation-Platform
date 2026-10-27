@@ -4,6 +4,7 @@ import com.oneofficeautomation.controlroom.License;
 import com.oneofficeautomation.sdk.OoaException;
 
 import java.nio.file.*;
+import java.util.*;
 
 /**
  * {@code ooa license show FILE}: the terms of a license file and whether this release accepts its signature. Customers
@@ -20,22 +21,14 @@ final class LicenseCommand {
         try { Class.forName(VENDOR_TOOLS); return true; } catch (ClassNotFoundException e) { return false; }
     }
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        if (a[0].equals("show")) return show(a.length > 1 ? a[1] : null);
-        if ((a[0].equals("keygen") || a[0].equals("issue") || a[0].equals("ui")) && vendorBuild())
-            return (int) Class.forName(VENDOR_TOOLS).getMethod("run", String[].class).invoke(null, (Object) a);
-        usage();
-        return 1;
-    }
-
-    static void usage() {
-        System.err.println(vendorBuild() ? "usage: ooa license ui [--key FILE] | keygen --out DIR | issue --key FILE --customer NAME --expires YYYY-MM-DD [seats] --out FILE | show FILE"
-            : "usage: ooa license show FILE   (install licenses in Administration > Licenses)");
+    /** ui, keygen or issue in the vendor build: the vendor tools read their own options. */
+    static int vendor(String verb, List<String> args) throws Exception {
+        List<String> a = new ArrayList<>(List.of(verb));
+        a.addAll(args);
+        return (int) Class.forName(VENDOR_TOOLS).getMethod("run", String[].class).invoke(null, (Object) a.toArray(String[]::new));
     }
 
     static int show(String file) throws Exception {
-        if (file == null) { usage(); return 1; }
         String text = Files.readString(Path.of(file));
         try {
             License l = License.verify(text, License.publicKey(License.VENDOR_PUBLIC_KEY));

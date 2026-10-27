@@ -19,7 +19,7 @@ Jackson/networknt adapters and the CLI. It passes the same conformance suite as 
 | `adapters-jackson` | `JacksonJsonCodec`, `NetworkntFlowSchemaValidator` | Jackson, networknt |
 | `control-room` | Control Room: users and roles, public repository with check-in/check-out and versions, devices, runs, schedules, triggers, credential lockers, global values, audit log, web console | H2 (embedded) or PostgreSQL |
 | `agent` | Bot Agent: device registration, heartbeats, jobs, one worker process per run, file triggers | none |
-| `cli` | `ooa manifest`, `validate`, `run`, `conformance`, `studio`, `control-room`, `agent register`, `agent start` | Logback |
+| `cli` | The `ooa` command line: `ooa --help` lists every command, `ooa COMMAND --help` its options; also a native executable | picocli, Logback |
 
 **Optional modules** are listed in `gradle.properties` (`ooa.optionalModules`). If one fails to build on your machine,
 remove it from that line: everything else keeps working and you can keep testing the other commands.
@@ -42,6 +42,25 @@ Run the CLI:
 .\gradlew.bat :cli:run --args="manifest --summary"
 .\gradlew.bat :cli:run --args="validate ../examples/refund/bots/issue_refund.flow.json"
 ```
+
+### The command line
+
+picocli reads the command line: `ooa --help` lists the commands and `ooa db configure --help` (any command) shows
+its options. An unknown or misspelt option, a missing required one or a port that is not a number is refused before
+anything runs, with the help shown (exit code 1). Options take `--name value` or `--name=value`; given twice, the last
+one counts. `source <(ooa completion)` adds Tab completion to bash and zsh. The commands are declared in
+`cli/.../CoreCommands.java` and `FullCommands.java`.
+
+### Native executable
+
+`.\gradlew.bat :cli:nativeExecutable` builds `cli\build\native\ooa.exe` (or `ooa` on Linux and macOS) with GraalVM
+for JDK 21 (`GRAALVM_HOME`, or `JAVA_HOME` pointing at GraalVM; on Windows run it from a Visual Studio developer
+prompt). It starts at once and needs no Java runtime, for build pipelines and quick checks, and has the commands that
+need no Command Center: `validate`, `run`, `manifest`, `conformance`, `license show` and `release verify`. It knows
+every toolkit's commands, so `validate` checks any automation, but `run` runs only the built-in toolkits: an Office,
+email, PDF, browser or Windows desktop step stops with `ACTION.NOT_IN_THIS_PROGRAM`; run those with the full install
+(`bin\ooa.bat`) or on a runner. CI builds it on Linux and Windows, checks that it gives the Java program's answers,
+and keeps both as build artifacts for 14 days.
 
 ### One step: everything on one address
 

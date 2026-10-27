@@ -18,15 +18,14 @@ import java.util.*;
 final class BackupCommand {
     private BackupCommand() { }
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, a[0].equals("restore") ? 2 : 1, a.length));
+    /** now, list, or restore FILE. */
+    static int run(String verb, Map<String, String> o, String restoreFile) throws Exception {
         Path data = Ooa.dataDir(o);
-        switch (a[0]) {
+        switch (verb) {
             case "now", "list" -> {
                 Ooa.ControlRoomSetup s = Ooa.openControlRoom(o);
                 try {
-                    if (a[0].equals("now")) {
+                    if (verb.equals("now")) {
                         ControlRoom.User system = new ControlRoom.User("system", "system", "admin", "system", false);
                         Map<String, Object> r = s.cr().backups.backupNow(system, null);
                         System.out.println("Backup written: " + s.cr().backups.status(system).get("folder") + "\\" + r.get("file") + " (" + r.get("rows") + " rows, " + r.get("size_mb") + " MB)");
@@ -38,8 +37,7 @@ final class BackupCommand {
                 return 0;
             }
             case "restore" -> {
-                if (a.length < 2) { usage(); return 1; }
-                Path file = Path.of(a[1]);
+                Path file = Path.of(restoreFile);
                 Path cfgFile = DbConfig.defaultFile(data);
                 Vault vault = new Vault(data);
                 String pw = o.containsKey("db-password-env") ? System.getenv(o.get("db-password-env")) : "";
@@ -53,9 +51,7 @@ final class BackupCommand {
                 }
                 return 0;
             }
-            default -> { usage(); return 1; }
+            default -> throw new IllegalArgumentException("Unknown backup command " + verb);
         }
     }
-
-    static void usage() { System.err.println("usage: ooa backup now | list | restore FILE [--replace]  [--data DIR] [--db-url URL --db-user U --db-password-env VAR]"); }
 }

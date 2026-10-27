@@ -17,8 +17,7 @@ final class CheckCommand {
 
     record Result(String level, String what, String detail) {}
 
-    static int run(String[] a) {
-        Map<String, String> o = Ooa.options(a);
+    static int run(Map<String, String> o) {
         List<Result> out = checks(Ooa.dataDir(o), Integer.parseInt(o.getOrDefault("port", "8720")));
         int fails = 0;
         for (Result r : out) {

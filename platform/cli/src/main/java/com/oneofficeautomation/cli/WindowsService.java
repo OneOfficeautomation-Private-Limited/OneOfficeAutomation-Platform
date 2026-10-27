@@ -28,23 +28,17 @@ final class WindowsService {
 
     static final String DEFAULT_SERVER = "OOA Command Center", DEFAULT_RUNNER = "OOA Runner";
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
+    static int run(String verb, Map<String, String> o) throws Exception {
         String mode = o.getOrDefault("mode", "server");
         String name = o.getOrDefault("name", mode.equals("agent") ? DEFAULT_RUNNER : DEFAULT_SERVER);
-        return switch (a[0]) {
+        return switch (verb) {
             case "install" -> install(name, mode, o);
             case "uninstall" -> uninstall(name);
             case "start" -> control(name, true);
             case "stop" -> control(name, false);
             case "status" -> status(name);
-            default -> { usage(); yield 1; }
+            default -> throw new IllegalArgumentException("Unknown service command " + verb);
         };
-    }
-
-    static void usage() {
-        System.err.println("usage: ooa service install [--mode server|control-room|agent] [--name NAME] [--data DIR] [--port N] [--account USER --password-env VAR] [--no-start] | uninstall | start | stop | status [--name NAME]");
     }
 
     private static int ok(String msg) { System.out.println(msg); return 0; }
@@ -241,9 +235,9 @@ final class WindowsService {
             Thread worker = new Thread(() -> {
                 try {
                     switch (mode) {
-                        case "server" -> Ooa.server(args);
-                        case "control-room" -> Ooa.controlRoom(args);
-                        case "agent" -> Ooa.agent(args);
+                        case "server" -> Ooa.server(o);
+                        case "control-room" -> Ooa.controlRoom(o);
+                        case "agent" -> Ooa.agent(args[0], Ooa.options(Arrays.copyOfRange(args, 1, args.length)));
                         default -> throw new IllegalArgumentException("Unknown mode " + mode);
                     }
                 } catch (Throwable t) {

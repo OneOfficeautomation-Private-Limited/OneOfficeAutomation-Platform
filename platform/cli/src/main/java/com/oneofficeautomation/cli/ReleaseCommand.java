@@ -27,38 +27,26 @@ final class ReleaseCommand {
 
     static final String FORMAT = "ooa-release-1";
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        switch (a[0]) {
-            case "verify" -> {
-                if (a.length < 2) { usage(); return 1; }
-                Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 2, a.length));
-                Path manifest = Path.of(a[1]);
-                if (!Files.isRegularFile(manifest)) { System.err.println("No manifest at " + manifest.toAbsolutePath()); return 2; }
-                Path dir = o.containsKey("dir") ? Path.of(o.get("dir")) : manifest.toAbsolutePath().getParent();
-                try {
-                    List<String> lines = verify(Files.readString(manifest), License.publicKey(License.VENDOR_PUBLIC_KEY), dir);
-                    lines.forEach(System.out::println);
-                    return lines.stream().anyMatch(l -> l.startsWith("FAIL")) ? 2 : 0;
-                } catch (OoaException e) { System.err.println(e.getMessage()); return 2; }
-            }
-            case "sign" -> {
-                if (!LicenseCommand.vendorBuild()) { System.err.println("Release signing is only in the vendor build."); return 1; }
-                Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
-                if (!o.containsKey("dir") || !o.containsKey("version") || !o.containsKey("key")) { usage(); return 1; }
-                Path dir = Path.of(o.get("dir"));
-                String text = sign(dir, o.get("version"), License.privateKey(Files.readString(Path.of(o.get("key")))));
-                Path out = Path.of(o.getOrDefault("out", dir.resolve("ooa-" + o.get("version") + ".manifest.json").toString()));
-                Files.writeString(out, text, StandardCharsets.UTF_8);
-                System.out.println("Signed manifest written: " + out);
-                return 0;
-            }
-            default -> { usage(); return 1; }
-        }
+    /** ooa release verify MANIFEST [--dir DIR]: the folder defaults to the manifest's. */
+    static int verify(String manifestFile, String dirOption) throws Exception {
+        Path manifest = Path.of(manifestFile);
+        if (!Files.isRegularFile(manifest)) { System.err.println("No manifest at " + manifest.toAbsolutePath()); return 2; }
+        Path dir = dirOption != null ? Path.of(dirOption) : manifest.toAbsolutePath().getParent();
+        try {
+            List<String> lines = verify(Files.readString(manifest), License.publicKey(License.VENDOR_PUBLIC_KEY), dir);
+            lines.forEach(System.out::println);
+            return lines.stream().anyMatch(l -> l.startsWith("FAIL")) ? 2 : 0;
+        } catch (OoaException e) { System.err.println(e.getMessage()); return 2; }
     }
 
-    static void usage() {
-        System.err.println("usage: ooa release verify MANIFEST [--dir DIR]" + (LicenseCommand.vendorBuild() ? " | release sign --dir DIR --version V --key private.key [--out FILE]" : ""));
+    /** ooa release sign --dir DIR --version V --key private.key [--out FILE] (vendor build). */
+    static int sign(Map<String, String> o) throws Exception {
+        Path dir = Path.of(o.get("dir"));
+        String text = sign(dir, o.get("version"), License.privateKey(Files.readString(Path.of(o.get("key")))));
+        Path out = Path.of(o.getOrDefault("out", dir.resolve("ooa-" + o.get("version") + ".manifest.json").toString()));
+        Files.writeString(out, text, StandardCharsets.UTF_8);
+        System.out.println("Signed manifest written: " + out);
+        return 0;
     }
 
     /** The signed manifest of every release file in dir (zip, msi, json, txt; not manifests themselves). */
