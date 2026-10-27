@@ -84,6 +84,12 @@ final class FullCommands {
                 .required("--key", "FILE", "The vendor private key.").opt("--out", "FILE", "The manifest to write.");
         }
 
+        c.command("release page", "Write the public releases page from a repository's GitHub releases.", a -> ReleasePage.run(a.o()))
+            .required("--repo", "OWNER/NAME", "The release repository, such as VirupakshaPrabhu/OOA_Customer_Build.")
+            .required("--out", "DIR", "Where to write index.html and releases.json.")
+            .opt("--token-env", "VAR", "The environment variable with a GitHub token (for a private repository).")
+            .opt("--api", "URL", "The GitHub API address (default https://api.github.com).");
+
         c.command("check", "Check whether this computer is ready for a Command Center.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
 

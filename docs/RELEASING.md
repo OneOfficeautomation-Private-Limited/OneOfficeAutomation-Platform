@@ -1,13 +1,13 @@
 # Releasing to customers
 
-Customer releases are published to the private repository
-[VirupakshaPrabhu/OOA_Customer_Build](https://github.com/VirupakshaPrabhu/OOA_Customer_Build). Development stays
-here in `oneofficeautomation`.
+Customer releases are published to the public repository
+[VirupakshaPrabhu/OOA_Customer_Build](https://github.com/VirupakshaPrabhu/OOA_Customer_Build), with a public
+releases page (Q10). Development stays here in `oneofficeautomation`.
 
 | Repository | Holds |
 | --- | --- |
 | `oneofficeautomation` | All source code, tests, the vendor tools (License Studio) and these documents |
-| `OOA_Customer_Build` | Customer-facing `README.md`, `INSTALL.md` and `RELEASES.md`; each release's `ooa-customer-<version>.zip` under Releases |
+| `OOA_Customer_Build` | Customer-facing `README.md`, `INSTALL.md` and `RELEASES.md`; each release's zips, signed manifest and SBOM under Releases; the releases page in `docs/` |
 
 ## Publish a release
 
@@ -26,7 +26,8 @@ here in `oneofficeautomation`.
      `%USERPROFILE%\OOA License Keys\private.key` (`-SigningKey` for another place), and checks it;
    - signs in with the GitHub account git already uses;
    - creates release `v<version>` with the zips, `ooa-<version>.manifest.json` and `ooa-<version>-sbom.cdx.json`
-     attached, noting the source commit it was built from.
+     attached, noting the source commit it was built from;
+   - refreshes the releases page (below).
 
    Add `-Draft` to check a release on GitHub before customers can see it, and `-Preview` for a sandbox preview (below).
 
@@ -54,13 +55,23 @@ here in `oneofficeautomation`.
 
 ## Give customers the release
 
-The repository is private, so a download link only works for people signed in to GitHub with access. Either:
+Releases are public: send customers the releases page, https://virupakshaprabhu.github.io/OOA_Customer_Build/. It
+lists every release, newest first (sandbox previews marked), with each file's download link, size and SHA-256, and
+`releases.json` for scripts. `ooa release page --repo VirupakshaPrabhu/OOA_Customer_Build --out DIR` writes it from
+the repository's GitHub releases. It checks each release's signed manifest with the vendor key built into the product
+and shows checksums only from a manifest that checks out; drafts are left out, and only https links are made.
 
-- send the zip yourself (download it from the release), together with the customer's `.lic` file from License
-  Studio; or
-- invite the customer's GitHub user as a read-only collaborator of `OOA_Customer_Build` (Settings > Collaborators).
+The publish script refreshes the page after each release (not for `-Draft`). To refresh it alone:
 
-License files are never published: each customer gets their own `.lic` directly from you.
+```
+powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -PageOnly
+```
+
+It puts `docs/index.html` and `docs/releases.json` on the `main` branch of `OOA_Customer_Build`. Set up once:
+Settings > Pages > Deploy from a branch: `main`, folder `/docs`.
+
+License files are never published: each customer gets their own `.lic` directly from you. Without one, a new
+install runs the 30-day evaluation.
 
 ## How customers check a download
 

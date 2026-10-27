@@ -1,5 +1,8 @@
-# Publishes a customer release of ONEOFFICEAUTOMATION to the private repository VirupakshaPrabhu/OOA_Customer_Build.
+# Publishes a customer release of ONEOFFICEAUTOMATION to the public repository VirupakshaPrabhu/OOA_Customer_Build.
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft] [-Preview]
+#   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -PageOnly
+# After a release, and alone with -PageOnly, it refreshes the public releases page (Q10): docs\index.html and
+# docs\releases.json in that repository, which GitHub Pages serves (Settings > Pages: branch main, folder /docs).
 # -Preview publishes v<version>-preview as a GitHub pre-release, for customers' sandbox Command Centers about three weeks
 # before the general release v<version> of the same version (docs\RELEASING.md, Release cadence).
 # It builds the customer zip (gradlew :cli:customerDistZip), checks that the vendor tools are not in it, creates the
@@ -11,11 +14,50 @@ param(
     [string]$Notes = "",
     [switch]$Draft,
     [switch]$Preview,
+    [switch]$PageOnly,
     [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build",
     [string]$SigningKey = (Join-Path $env:USERPROFILE "OOA License Keys\private.key")
 )
 $ErrorActionPreference = "Stop"
 $platform = Split-Path -Parent $PSScriptRoot
+$ooa = Join-Path $platform "cli\build\install\ooa\bin\ooa.bat"
+
+# sign in with git's GitHub credential
+# (the request goes through a file: Windows PowerShell changes text it pipes to programs, and git then rejects it)
+function Get-GitHubToken {
+    $req = [System.IO.Path]::GetTempFileName()
+    [System.IO.File]::WriteAllText($req, "protocol=https`nhost=github.com`n`n", (New-Object System.Text.UTF8Encoding $false))
+    try { $cred = cmd /c "git credential fill < `"$req`"" } finally { Remove-Item $req -Force }
+    $t = ($cred | Where-Object { $_ -like "password=*" }) -replace "^password=", ""
+    if (-not $t) { throw "No GitHub credential: push once to GitHub from this PC, then run this again" }
+    return $t
+}
+
+# the public releases page: written by ooa release page, then put in the repository's docs folder
+function Update-ReleasesPage([string]$Token) {
+    $h = @{ Authorization = "Bearer $Token"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
+    $pageDir = Join-Path $platform "cli\build\releases-page"
+    $env:OOA_RELEASE_PAGE_TOKEN = $Token
+    try { & $ooa release page --repo $Repository --out $pageDir --token-env OOA_RELEASE_PAGE_TOKEN } finally { Remove-Item Env:OOA_RELEASE_PAGE_TOKEN }
+    if ($LASTEXITCODE -ne 0) { throw "Making the releases page failed" }
+    foreach ($f in "index.html", "releases.json") {
+        $uri = "https://api.github.com/repos/$Repository/contents/docs/$f"
+        $old = $null
+        try { $old = (Invoke-RestMethod -Headers $h -Uri "$($uri)?ref=main").sha } catch { }
+        $put = @{ message = "Releases page"; branch = "main"; content = [Convert]::ToBase64String([System.IO.File]::ReadAllBytes((Join-Path $pageDir $f))) }
+        if ($old) { $put.sha = $old }
+        Invoke-RestMethod -Method Put -Headers $h -Uri $uri -ContentType "application/json" -Body ($put | ConvertTo-Json) | Out-Null
+    }
+    $owner, $name = $Repository.Split("/")
+    Write-Host "Releases page updated: https://$($owner.ToLower()).github.io/$name/ (once GitHub Pages serves main /docs)"
+}
+
+if ($PageOnly) {
+    Push-Location $platform
+    try { & .\gradlew.bat :cli:installDist --console=plain -q; if ($LASTEXITCODE -ne 0) { throw "The build failed" } } finally { Pop-Location }
+    Update-ReleasesPage (Get-GitHubToken)
+    return
+}
 
 # 1. version and build
 $version = ([regex]'version = "([^"]+)"').Match((Get-Content (Join-Path $platform "build.gradle.kts") -Raw)).Groups[1].Value
@@ -47,18 +89,13 @@ New-Item -ItemType Directory $stage | Out-Null
 Copy-Item $zip, $setup $stage
 Copy-Item (Join-Path $platform "cli\build\sbom\sbom.cdx.json") (Join-Path $stage "ooa-$version-sbom.cdx.json")
 $manifest = Join-Path $stage "ooa-$version.manifest.json"
-& (Join-Path $platform "cli\build\install\ooa\bin\ooa.bat") release sign --dir $stage --version $version --key $SigningKey --out $manifest
+& $ooa release sign --dir $stage --version $version --key $SigningKey --out $manifest
 if ($LASTEXITCODE -ne 0) { throw "Signing the manifest failed" }
-& (Join-Path $platform "cli\build\install\ooa\bin\ooa.bat") release verify $manifest
+& $ooa release verify $manifest
 if ($LASTEXITCODE -ne 0) { throw "The signed manifest does not check out" }
 
 # 3. sign in with git's GitHub credential
-# (the request goes through a file: Windows PowerShell changes text it pipes to programs, and git then rejects it)
-$req = [System.IO.Path]::GetTempFileName()
-[System.IO.File]::WriteAllText($req, "protocol=https`nhost=github.com`n`n", (New-Object System.Text.UTF8Encoding $false))
-try { $cred = cmd /c "git credential fill < `"$req`"" } finally { Remove-Item $req -Force }
-$token = ($cred | Where-Object { $_ -like "password=*" }) -replace "^password=", ""
-if (-not $token) { throw "No GitHub credential: push once to GitHub from this PC, then run this again" }
+$token = Get-GitHubToken
 $headers = @{ Authorization = "Bearer $token"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
 
 # 4. the release (refused when it exists already: raise the version for a new release)
@@ -81,4 +118,7 @@ foreach ($f in "ooa-$version.manifest.json", "ooa-$version-sbom.cdx.json") {
     Invoke-RestMethod -Method Post -Headers $headers -Uri "$($uploadUrl)?name=$f" -ContentType "application/json" -InFile (Join-Path $stage $f) | Out-Null
 }
 Write-Host "Published $tag : $($release.html_url)"
-Write-Host "Download (signed-in GitHub users with access): $($asset.browser_download_url)"
+Write-Host "Download: $($asset.browser_download_url)"
+
+# 6. the public releases page (not for a draft, which customers cannot see yet)
+if (-not $Draft) { Update-ReleasesPage $token }

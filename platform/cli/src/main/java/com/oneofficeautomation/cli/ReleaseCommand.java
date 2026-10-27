@@ -86,6 +86,23 @@ final class ReleaseCommand {
      */
     @SuppressWarnings("unchecked")
     static List<String> verify(String text, PublicKey key, Path dir) throws IOException {
+        Map<String, Object> body = readManifest(text, key);
+        List<String> out = new ArrayList<>();
+        out.add("Signed by ONEOFFICEAUTOMATION: release " + body.get("version") + " of " + body.get("created"));
+        for (Map<String, Object> f : (List<Map<String, Object>>) body.get("files")) {
+            String name = String.valueOf(f.get("name"));
+            if (name.contains("/") || name.contains("\\") || name.contains("..")) { out.add("FAIL     " + name + " (not a plain file name)"); continue; }
+            Path file = dir.resolve(name);
+            if (!Files.isRegularFile(file)) { out.add("MISSING  " + name); continue; }
+            out.add(sha256(file).equalsIgnoreCase(String.valueOf(f.get("sha256"))) && Files.size(file) == ((Number) f.get("size")).longValue()
+                ? "PASS     " + name : "FAIL     " + name + " (changed: do not install it)");
+        }
+        return out;
+    }
+
+    /** The signed content of a manifest (product, version, created, files), or an exception when its signature is not valid. */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> readManifest(String text, PublicKey key) {
         Map<String, Object> m;
         try { m = (Map<String, Object>) JsonLite.parse(text.trim()); } catch (RuntimeException e) { throw new OoaException("RELEASE.BAD_MANIFEST", "Not a ONEOFFICEAUTOMATION release manifest"); }
         if (!FORMAT.equals(m.get("format")) || !(m.get("payload") instanceof String p) || !(m.get("signature") instanceof String s))
@@ -99,18 +116,7 @@ final class ReleaseCommand {
             if (!v.verify(Base64.getDecoder().decode(s))) throw new OoaException("RELEASE.BAD_SIGNATURE", "The manifest's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION");
         } catch (OoaException e) { throw e; }
         catch (Exception e) { throw new OoaException("RELEASE.BAD_SIGNATURE", "The manifest's signature is not valid: it was changed or not made by ONEOFFICEAUTOMATION"); }
-        Map<String, Object> body = (Map<String, Object>) JsonLite.parse(new String(payload, StandardCharsets.UTF_8));
-        List<String> out = new ArrayList<>();
-        out.add("Signed by ONEOFFICEAUTOMATION: release " + body.get("version") + " of " + body.get("created"));
-        for (Map<String, Object> f : (List<Map<String, Object>>) body.get("files")) {
-            String name = String.valueOf(f.get("name"));
-            if (name.contains("/") || name.contains("\\") || name.contains("..")) { out.add("FAIL     " + name + " (not a plain file name)"); continue; }
-            Path file = dir.resolve(name);
-            if (!Files.isRegularFile(file)) { out.add("MISSING  " + name); continue; }
-            out.add(sha256(file).equalsIgnoreCase(String.valueOf(f.get("sha256"))) && Files.size(file) == ((Number) f.get("size")).longValue()
-                ? "PASS     " + name : "FAIL     " + name + " (changed: do not install it)");
-        }
-        return out;
+        return (Map<String, Object>) JsonLite.parse(new String(payload, StandardCharsets.UTF_8));
     }
 
     static String sha256(Path p) throws IOException {
