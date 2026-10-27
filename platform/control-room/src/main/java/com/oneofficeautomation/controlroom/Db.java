@@ -13,14 +13,18 @@ import java.util.*;
 public final class Db implements AutoCloseable {
     private final String url, user, password;
     private final int poolMax;
+    /** A tenant's schema in a shared database (SaaS), or null: every connection of this Db works in it. */
+    private final String schema;
     private final Deque<Connection> pool = new ArrayDeque<>();
     private final ThreadLocal<Connection> txConn = new ThreadLocal<>();
     public final boolean postgres, sqlServer, h2;
 
     public Db(String url, String user, String password) { this(url, user, password, 10); }
 
-    public Db(String url, String user, String password, int poolMax) {
-        this.url = url; this.user = user; this.password = password; this.poolMax = poolMax;
+    public Db(String url, String user, String password, int poolMax) { this(url, user, password, poolMax, null); }
+
+    private Db(String url, String user, String password, int poolMax, String schema) {
+        this.url = url; this.user = user; this.password = password; this.poolMax = poolMax; this.schema = schema;
         this.postgres = url.startsWith("jdbc:postgresql:");
         this.sqlServer = url.startsWith("jdbc:sqlserver:");
         this.h2 = url.startsWith("jdbc:h2:");
@@ -32,7 +36,9 @@ public final class Db implements AutoCloseable {
     public static Db open(DbConfig cfg, java.nio.file.Path dataDir, Vault vault, boolean setup) {
         if (cfg.engine().equals("h2")) return embedded(dataDir);
         if (setup && !cfg.hasSetupAccount()) throw new OoaException("CR.DB_CONFIG", "No setup account in " + cfg.file, "Add setup.user and run: ooa db set-password --setup");
-        return new Db(cfg.url(dataDir, false), setup ? cfg.get("setup.user") : cfg.get("user"), cfg.password(vault, setup), cfg.poolMax());
+        // Windows sign-in: the process's own account, unless a SQL login is named for setting up the schema
+        if (cfg.integrated(setup)) return new Db(cfg.url(dataDir, false, setup), "", "", cfg.poolMax());
+        return new Db(cfg.url(dataDir, false, setup), setup ? cfg.get("setup.user") : cfg.get("user"), cfg.password(vault, setup), cfg.poolMax());
     }
 
     public static Db embedded(java.nio.file.Path dir) {
@@ -47,23 +53,69 @@ public final class Db implements AutoCloseable {
     }
 
     /**
-     * Test runs only (-Pooa.test.db=jdbc:sqlserver://host:port;encrypt=false with ooa.test.db.user and
-     * ooa.test.db.password): each data folder gets its own SQL Server database named after the folder, so the whole
-     * test suite runs against SQL Server unchanged. The databases are named ooa_t_* and dropped after the run.
+     * Test runs only (-Pooa.test.db=jdbc:sqlserver://host:port;encrypt=false, or jdbc:postgresql://host:port/, with
+     * ooa.test.db.user and ooa.test.db.password): each data folder gets its own database named after the folder, so the
+     * whole test suite runs against SQL Server or PostgreSQL unchanged. The databases are named ooa_t_*.
      */
     private static Db testDatabase(String base, java.nio.file.Path dir) {
         String user = System.getProperty("ooa.test.db.user", ""), pw = System.getProperty("ooa.test.db.password", "");
         String name = "ooa_t_" + Security.sha256(dir.toAbsolutePath().normalize().toString()).substring(0, 20);
+        if (base.startsWith("jdbc:postgresql:")) {
+            String server = base.endsWith("/") ? base : base + "/";
+            try (Connection c = DriverManager.getConnection(server + "postgres", user, pw); Statement s = c.createStatement()) {
+                try (ResultSet r = s.executeQuery("SELECT 1 FROM pg_database WHERE datname = '" + name + "'")) {
+                    if (!r.next()) s.execute("CREATE DATABASE " + name);
+                }
+            } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }
+            return new Db(server + name, user, pw);
+        }
         try (Connection c = DriverManager.getConnection(base + ";databaseName=master", user, pw); Statement s = c.createStatement()) {
             s.execute("IF DB_ID('" + name + "') IS NULL BEGIN CREATE DATABASE [" + name + "]; ALTER DATABASE [" + name + "] SET READ_COMMITTED_SNAPSHOT ON; END");
         } catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create the test database: " + e.getMessage()); }
         return new Db(base + ";databaseName=" + name + ";sendTimeAsDatetime=false", user, pw);
     }
 
+    static final java.util.regex.Pattern SCHEMA_NAME = java.util.regex.Pattern.compile("^[a-z][a-z0-9_]{0,62}$");
+
+    /**
+     * The same database server, working in another schema (created when missing): a SaaS tenant's own tables, or the
+     * region's tenant catalog. PostgreSQL and H2 only. A small pool, since a region holds many tenants.
+     */
+    public Db inSchema(String name, int poolMax) {
+        if (!SCHEMA_NAME.matcher(name).matches()) throw new OoaException("CR.DB_CONFIG", "Not a schema name: " + name);
+        if (sqlServer) throw new OoaException("CR.DB_CONFIG", "Tenants need PostgreSQL (or H2 for tests), not SQL Server");
+        try (Connection c = open(); Statement s = c.createStatement()) { s.execute("CREATE SCHEMA IF NOT EXISTS " + name); }
+        catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create schema " + name + ": " + e.getMessage()); }
+        return new Db(url, user, password, poolMax, name);
+    }
+
+    /** Removes a schema with everything in it (a deleted tenant). */
+    public void dropSchema(String name) {
+        if (!SCHEMA_NAME.matcher(name).matches() || name.equals(schema)) throw new OoaException("CR.DB_CONFIG", "Not a schema to remove: " + name);
+        try (Connection c = open(); Statement s = c.createStatement()) { s.execute("DROP SCHEMA IF EXISTS " + name + " CASCADE"); }
+        catch (SQLException e) { throw new OoaException("CR.DB_ERROR", "Cannot remove schema " + name + ": " + e.getMessage()); }
+    }
+
+    /** The schema this Db works in, or null for the database's default. */
+    public String schema() { return schema; }
+
+    /** Closes the pooled connections that wait unused (a tenant nobody used for a while); the next use opens new ones. */
+    public synchronized void closeIdle() {
+        for (Connection c : pool) try { c.close(); } catch (SQLException ignored) { }
+        pool.clear();
+    }
+
     /** The account this connection signs in with (shown on the console, never the password). */
     public String user() { return user; }
 
-    private Connection open() throws SQLException { return DriverManager.getConnection(url, user, password); }
+    private Connection open() throws SQLException {
+        Connection c = user.isEmpty() && password.isEmpty() && url.contains("integratedSecurity=true") ? DriverManager.getConnection(url) : DriverManager.getConnection(url, user, password);
+        if (schema != null) {
+            try { c.setSchema(schema); }
+            catch (SQLException e) { c.close(); throw e; }
+        }
+        return c;
+    }
 
     private synchronized Connection borrow() throws SQLException {
         Connection c = pool.pollFirst();
@@ -165,7 +217,34 @@ public final class Db implements AutoCloseable {
         SqlServerDialect.Statement st = sqlServer ? SqlServerDialect.statement(sql0) : null;
         String sql = st == null ? sql0 : st.sql();
         Object[] params = st == null ? params0 : st.reorder(params0);
-        return withConn(c -> { try (PreparedStatement ps = c.prepareStatement(sql)) { bind(ps, params); return ps.executeUpdate(); } });
+        int n = withConn(c -> { try (PreparedStatement ps = c.prepareStatement(sql)) { bind(ps, params); return ps.executeUpdate(); } });
+        if (n > 0 && shown(sql0)) changed();
+        return n;
+    }
+
+    // ---------- the change feed for the console (live updates) ----------
+
+    /** Counts writes that people see in the console on this node; the console's change feed waits on it. */
+    private final java.util.concurrent.atomic.AtomicLong changes = new java.util.concurrent.atomic.AtomicLong();
+    private final Object changeSignal = new Object();
+
+    long changeCount() { return changes.get(); }
+
+    private void changed() {
+        changes.incrementAndGet();
+        synchronized (changeSignal) { changeSignal.notifyAll(); }
+    }
+
+    /** Waits up to ms for a write (returns at once if one came after the count seen). */
+    void awaitChange(long seen, long ms) throws InterruptedException {
+        synchronized (changeSignal) { if (changes.get() == seen) changeSignal.wait(Math.max(1, ms)); }
+    }
+
+    /** Writes that change what the console shows: not heartbeats, sign-in bookkeeping or the cluster lease. */
+    private static boolean shown(String sql) {
+        String s = sql.length() > 60 ? sql.substring(0, 60) : sql;
+        return !(s.startsWith("UPDATE devices SET last_seen") || s.contains("cluster_") || s.contains("auth_pending") || s.contains("sessions")
+            || s.startsWith("UPDATE users SET last_") || s.contains("settings") || s.contains("license_usage"));
     }
 
     private static final String[] SCHEMA_V1 = {
@@ -342,9 +421,107 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE devices ADD COLUMN after_run VARCHAR(20)",
     };
 
+    /** Version 11: two-step sign-in (the secret encrypted with the vault key, recovery codes as hashes, the last code used). */
+    private static final String[] SCHEMA_V11 = {
+        "ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN",
+        "ALTER TABLE users ADD COLUMN mfa_secret VARCHAR(500)",
+        "ALTER TABLE users ADD COLUMN mfa_recovery VARCHAR(1000)",
+        "ALTER TABLE users ADD COLUMN mfa_last_step BIGINT",
+    };
+
+    /** Version 12: requests for a version to go live in production, approved by someone else (ProductionApproval). */
+    private static final String[] SCHEMA_V12 = {
+        "CREATE TABLE production_requests (id VARCHAR(40) PRIMARY KEY, path VARCHAR(400) NOT NULL, version INT NOT NULL, requested_by VARCHAR(80) NOT NULL, " +
+            "requested TIMESTAMP NOT NULL, comment VARCHAR(2000), status VARCHAR(20) NOT NULL, decided_by VARCHAR(80), decided TIMESTAMP, note VARCHAR(2000))",
+        "CREATE INDEX production_requests_status ON production_requests (status)",
+    };
+
+    /** Version 13: the build of each runner's program files, and an update an administrator asked for (RunnerUpdates). */
+    private static final String[] SCHEMA_V13 = {
+        "ALTER TABLE devices ADD COLUMN build VARCHAR(40)",
+        "ALTER TABLE devices ADD COLUMN update_requested BOOLEAN",
+    };
+
+    /** Version 14: temporary runners (VDI) and runner secret rotation (the previous secret stays valid a few minutes). */
+    private static final String[] SCHEMA_V14 = {
+        "ALTER TABLE registration_keys ADD COLUMN temporary BOOLEAN",
+        "ALTER TABLE devices ADD COLUMN lifespan VARCHAR(20)",
+        "ALTER TABLE devices ADD COLUMN secret_set TIMESTAMP",
+        "ALTER TABLE devices ADD COLUMN secret_prev_hash VARCHAR(64)",
+        "ALTER TABLE devices ADD COLUMN secret_prev_until TIMESTAMP",
+    };
+
+    /** Version 15: the toolkits each runner has (id@version, comma separated). */
+    private static final String[] SCHEMA_V15 = {
+        "ALTER TABLE devices ADD COLUMN toolkits VARCHAR(20000)",
+    };
+
+    /** Version 16: how each audit entry is chained (null: SHA-256; h1: HMAC-SHA256 with the audit key). */
+    private static final String[] SCHEMA_V16 = {
+        "ALTER TABLE audit ADD COLUMN alg VARCHAR(8)",
+    };
+
+    /** Version 17: password history (recent hashes) and when the password was last changed (expiry). */
+    private static final String[] SCHEMA_V17 = {
+        "ALTER TABLE users ADD COLUMN password_history VARCHAR(4000)",
+        "ALTER TABLE users ADD COLUMN password_changed TIMESTAMP",
+    };
+
+    /** Version 18: several nodes (Cluster): the leader lease, the nodes, and sign-ins in progress shared by them. */
+    private static final String[] SCHEMA_V18 = {
+        "CREATE TABLE cluster_lease (name VARCHAR(40) PRIMARY KEY, holder VARCHAR(120) NOT NULL, expires TIMESTAMP NOT NULL)",
+        "CREATE TABLE cluster_nodes (node_id VARCHAR(120) PRIMARY KEY, started TIMESTAMP NOT NULL, last_seen TIMESTAMP NOT NULL, leader_since TIMESTAMP)",
+        "CREATE TABLE auth_pending (token VARCHAR(200) PRIMARY KEY, kind VARCHAR(20) NOT NULL, data VARCHAR(2000), expires TIMESTAMP NOT NULL)",
+    };
+
+    /** Version 19: licence use per day, for the usage trend (Licensing.usage); model connection budgets and limits. */
+    private static final String[] SCHEMA_V19 = {
+        "CREATE TABLE license_usage (snap_day VARCHAR(10) NOT NULL, license_type VARCHAR(40) NOT NULL, used INT NOT NULL, total INT NOT NULL, PRIMARY KEY (snap_day, license_type))",
+        // model budgets and limits (A4): tokens a month, calls a minute and calls a run per connection (0 = none)
+        "ALTER TABLE model_connections ADD COLUMN monthly_tokens BIGINT",
+        "ALTER TABLE model_connections ADD COLUMN calls_per_minute INT",
+        "ALTER TABLE model_connections ADD COLUMN calls_per_run INT",
+        "ALTER TABLE ai_calls ADD COLUMN connection VARCHAR(60)",
+    };
+
+    /** Version 20: test sets and scores (TestSets). */
+    private static final String[] SCHEMA_V20 = {
+        "CREATE TABLE test_sets (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, bot_path VARCHAR(400) NOT NULL, description VARCHAR(2000), cases VARCHAR(100000) NOT NULL, "
+            + "created_by VARCHAR(80), updated TIMESTAMP NOT NULL, updated_by VARCHAR(80))",
+        "CREATE TABLE test_runs (id VARCHAR(40) PRIMARY KEY, set_id VARCHAR(40) NOT NULL, bot_path VARCHAR(400) NOT NULL, version INT, started TIMESTAMP NOT NULL, started_by VARCHAR(80), "
+            + "finished TIMESTAMP, total INT NOT NULL, passed INT NOT NULL, status VARCHAR(20) NOT NULL)",
+        "CREATE INDEX test_runs_set ON test_runs (set_id, started)",
+        "CREATE TABLE test_results (run_id VARCHAR(40) PRIMARY KEY, test_run_id VARCHAR(40) NOT NULL, case_name VARCHAR(200), status VARCHAR(20) NOT NULL, passed BOOLEAN NOT NULL, "
+            + "detail VARCHAR(4000), finished TIMESTAMP)",
+        "CREATE INDEX test_results_run ON test_results (test_run_id)",
+    };
+
+    /** Version 21: PII analyzer and content check per model connection (A3). */
+    private static final String[] SCHEMA_V21 = {
+        "ALTER TABLE model_connections ADD COLUMN pii_analyzer_url VARCHAR(500)",
+        "ALTER TABLE model_connections ADD COLUMN content_check VARCHAR(20)",
+    };
+
+    /** Version 22: business KPIs recorded by runs, and dashboards (Dashboards). */
+    private static final String[] SCHEMA_V22 = {
+        "CREATE TABLE kpi_values (id VARCHAR(40) PRIMARY KEY, run_id VARCHAR(40), bot_path VARCHAR(400) NOT NULL, name VARCHAR(80) NOT NULL, num DECIMAL(24,6), "
+            + "text_value VARCHAR(200), ts TIMESTAMP NOT NULL)",
+        "CREATE INDEX kpi_values_name ON kpi_values (name, ts)",
+        "CREATE TABLE dashboards (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, description VARCHAR(1000), owner VARCHAR(80) NOT NULL, "
+            + "shared_with VARCHAR(2000), widgets VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL)",
+    };
+
+    /** Version 23: custom toolkits uploaded as signed jars, and the publishers trusted to sign them (CustomToolkits). */
+    private static final String[] SCHEMA_V23 = {
+        "CREATE TABLE toolkit_publishers (publisher VARCHAR(80) PRIMARY KEY, public_key VARCHAR(200) NOT NULL, added_by VARCHAR(80), added TIMESTAMP NOT NULL)",
+        "CREATE TABLE custom_toolkits (id VARCHAR(40) PRIMARY KEY, toolkit_id VARCHAR(120) NOT NULL, version VARCHAR(40) NOT NULL, name VARCHAR(200), "
+            + "publisher VARCHAR(80) NOT NULL, sha256 VARCHAR(64) NOT NULL, size_bytes BIGINT, uploaded_by VARCHAR(80), uploaded TIMESTAMP NOT NULL)",
+        "CREATE UNIQUE INDEX custom_toolkits_version ON custom_toolkits (toolkit_id, version)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 10;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10 };
+    public static final int LATEST = 23;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22, SCHEMA_V23 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {
@@ -462,6 +639,6 @@ public final class Db implements AutoCloseable {
     @Override public synchronized void close() {
         for (Connection c : pool) try { c.close(); } catch (SQLException ignored) { }
         pool.clear();
-        if (url.startsWith("jdbc:h2:file:")) try (Connection c = open(); Statement s = c.createStatement()) { s.execute("SHUTDOWN"); } catch (SQLException ignored) { }
+        if (url.startsWith("jdbc:h2:file:") && schema == null) try (Connection c = open(); Statement s = c.createStatement()) { s.execute("SHUTDOWN"); } catch (SQLException ignored) { }
     }
 }

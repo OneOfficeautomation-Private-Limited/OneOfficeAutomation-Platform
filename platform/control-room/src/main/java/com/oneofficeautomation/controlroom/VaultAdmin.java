@@ -284,7 +284,8 @@ public final class VaultAdmin {
     public Map<String, Object> status(User by) {
         cr.require(by, "lockers.manage", "administer the vault");
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("key_source", cr.vault.keyFile == null ? "environment" : "file");
+        m.put("key_source", cr.vault.keyFile != null ? "file" : cr.vault.keySource.startsWith("environment") ? "environment" : "external");
+        m.put("key_source_detail", cr.vault.keySource);
         m.put("key_fingerprint", cr.vault.fingerprint());
         m.put("can_rotate", cr.vault.keyFile != null);
         m.put("vault_folders", cr.count("SELECT COUNT(*) AS n FROM lockers"));
@@ -300,11 +301,33 @@ public final class VaultAdmin {
      * the old one first (master.key.next), then replaces it; the old key is kept as master.key.old-&lt;time&gt; until an
      * administrator removes it. With OOA_MASTER_KEY the key cannot be changed here.
      */
+    /**
+     * Re-encrypts the enc: values of a properties file with the next key (bound to prefix + key name, as DbConfig and
+     * TlsConfig bind them; the TLS file binds its password as ooa-tls:password). Returns how many it changed.
+     */
+    private int reencryptConfig(Path file, String prefix, Vault next) {
+        if (!Files.exists(file)) return 0;
+        try {
+            Files.copy(file, file.resolveSibling(file.getFileName() + ".before-rotate"), StandardCopyOption.REPLACE_EXISTING);
+            Properties p = new Properties();
+            try (var r = Files.newBufferedReader(file, java.nio.charset.StandardCharsets.UTF_8)) { p.load(r); }
+            int k = 0;
+            for (String name : p.stringPropertyNames()) {
+                String v = p.getProperty(name).trim();
+                if (!v.startsWith("enc:")) continue;
+                String bound = prefix + name;
+                DbConfig.setValue(file, name, "enc:" + next.encrypt(cr.vault.decrypt(v.substring(4), bound), bound));
+                k++;
+            }
+            return k;
+        } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot re-encrypt " + file + ": " + e.getMessage()); }
+    }
+
     public Map<String, Object> rotate(User by, String ip) {
         cr.require(by, "lockers.manage", "administer the vault");
         Path file = cr.vault.keyFile;
-        if (file == null) throw new OoaException("CR.VAULT_KEY", "The master key comes from OOA_MASTER_KEY, so it cannot be changed here",
-                "Rotate it where OOA_MASTER_KEY is managed, with a planned restart.");
+        if (file == null) throw new OoaException("CR.VAULT_KEY", "The master key comes from " + cr.vault.keySource + ", so it cannot be changed here",
+                "Rotate it where the key is kept, with a planned restart.");
         Vault next = Vault.fresh();
         Path nextFile = file.resolveSibling("master.key.next");
         try { Files.writeString(nextFile, next.keyBase64()); } catch (IOException e) { throw new OoaException("CR.VAULT_KEY", "Cannot write the new key: " + e.getMessage()); }
@@ -329,8 +352,25 @@ public final class VaultAdmin {
                     db.update("UPDATE lockers SET external_secret = ? WHERE name = ?", next.encrypt(cr.vault.decrypt((String) l.get("external_secret"), bound), bound), l.get("name"));
                     k++;
                 }
+                // values the Command Center keeps for itself: evaluation start, install id, audit chain key
+                for (String[] s : new String[][] { {"evaluation_started", "evaluation"}, {"install_id", "install-id"}, {"audit_chain_key", "audit-chain"} }) {
+                    Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = ?", s[0]);
+                    if (r == null) continue;
+                    String plain = cr.vault.decrypt(String.valueOf(com.oneofficeautomation.sdk.JsonLite.parse((String) r.get("json_value"))), s[1]);
+                    db.update("UPDATE settings SET json_value = ? WHERE name = ?", com.oneofficeautomation.sdk.JsonLite.write(next.encrypt(plain, s[1])), s[0]);
+                    k++;
+                }
+                // two-step sign-in secrets
+                for (Map<String, Object> u : db.query("SELECT id, mfa_secret FROM users WHERE mfa_secret IS NOT NULL")) {
+                    String bound = "mfa:" + u.get("id");
+                    db.update("UPDATE users SET mfa_secret = ? WHERE id = ?", next.encrypt(cr.vault.decrypt((String) u.get("mfa_secret"), bound), bound), u.get("id"));
+                    k++;
+                }
                 return k;
             });
+            // passwords in the configuration files (database, HTTPS certificate): each file is kept as .before-rotate first
+            n += reencryptConfig(DbConfig.defaultFile(cr.dataDir), "ooa-db:", next);
+            n += reencryptConfig(TlsConfig.defaultFile(cr.dataDir), "ooa-tls:", next);
             String old = cr.vault.fingerprint();
             try {
                 Files.move(file, file.resolveSibling("master.key.old-" + now().toString().replace(":", "")), StandardCopyOption.ATOMIC_MOVE);

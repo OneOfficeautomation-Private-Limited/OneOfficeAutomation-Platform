@@ -3,3 +3,4 @@
 *.cmd text eol=crlf
 gradlew text eol=lf
 *.sh text eol=lf
+*.service text eol=lf

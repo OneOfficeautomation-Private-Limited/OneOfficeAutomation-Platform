@@ -1,0 +1,9 @@
+{
+  "name": "REST API data into a database",
+  "description": "Calls a REST API, turns the answer into a table and loads it into a database table.",
+  "category": "IT",
+  "version": "1",
+  "agents": {
+    "IT/REST API to database.flow.json": "../../examples/use-cases/O4-rest-api-to-database.flow.json"
+  }
+}

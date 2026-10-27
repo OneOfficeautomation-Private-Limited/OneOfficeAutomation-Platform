@@ -61,6 +61,7 @@ async function api(method, path, body) {
     const e = data.error || {};
     if (e.code === "CR.UNAUTHENTICATED") { showLogin(); }
     if (e.code === "CR.PASSWORD_CHANGE_REQUIRED") { showPassword(); }
+    if (e.code === "CR.MFA_SETUP_REQUIRED" && $("modal").hidden) { mfaDialog(true).catch(() => {}); }
     const err = new Error((e.message || res.statusText) + (e.suggestedFix ? " (" + e.suggestedFix + ")" : ""));
     err.code = e.code; throw err;
   }
@@ -123,9 +124,57 @@ function showLogin() {
   api("GET", "auth/sso").then((r) => {
     const box = $("sso-box");
     if (!box) return;
-    box.replaceChildren(...(r.enabled ? [h("div", { class: "sso-or", text: "or" }), h("a", { class: "button-link sso-button", href: "/api/auth/sso/start" }, ic("key", "#2563eb", "sm"), r.label)] : []));
+    const saml = r.saml && r.saml.enabled;
+    box.replaceChildren(...(r.enabled || saml ? [h("div", { class: "sso-or", text: "or" })] : []),
+      ...(r.enabled ? [h("a", { class: "button-link sso-button", href: "/api/auth/sso/start" }, ic("key", "#2563eb", "sm"), r.label)] : []),
+      ...(saml ? [h("a", { class: "button-link sso-button", href: "/api/auth/saml/start" }, ic("key", "#2563eb", "sm"), r.saml.label)] : []));
   }).catch(() => {});
 }
+/** After the password: the code box replaces the user name and password (token = null goes back). */
+function loginCodeStep(token) {
+  S.mfaToken = token;
+  for (const id of ["login-user", "login-pass"]) { $(id).closest("label").hidden = !!token; $(id).required = !token; }
+  $("login-code-row").hidden = !token; $("login-code").required = !!token; $("login-code").value = "";
+  if (token) $("login-code").focus();
+}
+
+function afterSignIn() {
+  if (S.user.must_change) { showPassword(); return; }
+  showApp();
+  watchChanges();
+  if (S.user.mfa_setup_required) mfaDialog(true).catch((e) => toast(e.message, true));
+}
+
+/** Two-step sign-in for the signed-in person: set it up, see the recovery codes once, or turn it off. forced: required by the administrator. */
+async function mfaDialog(forced) {
+  const st = await api("GET", "auth/mfa/status");
+  if (st.sso) { modal("Two-step sign-in", [h("p", { text: "You sign in through your organisation's identity provider, which handles two-step sign-in." })], []); return; }
+  if (st.enabled) {
+    const pw = h("input", { type: "password", autocomplete: "current-password" }), code = h("input", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: "12" });
+    modal("Two-step sign-in", [h("p", { text: "On. " + st.recovery_codes_left + " recovery code(s) left." }),
+      st.required ? h("p", { class: "muted", text: "Your administrator requires it for your account, so it cannot be turned off. If you lose your phone, an administrator can reset it." })
+        : [h("p", { class: "muted", text: "To turn it off, enter your password and a current code." }), h("label", {}, "Password", pw), h("label", {}, "Code", code)]],
+      st.required ? [] : [h("button", { type: "button", class: "danger", onclick: async () => {
+        try { await api("POST", "auth/mfa/disable", { password: pw.value, code: code.value }); closeModal(); toast("Two-step sign-in is off"); } catch (e) { toast(e.message, true); } } }, "Turn off")]);
+    return;
+  }
+  const s = await api("POST", "auth/mfa/setup");
+  const code = h("input", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6" });
+  modal(forced ? "Set up two-step sign-in (required)" : "Set up two-step sign-in", [
+    forced ? h("p", { class: "note warn", text: "Your administrator requires a code from an authenticator app as well as your password." }) : null,
+    h("p", { text: "1. In an authenticator app (Microsoft Authenticator, Google Authenticator or another TOTP app), add an account with this key:" }),
+    h("p", {}, h("code", { class: "secret", text: s.secret })),
+    h("p", { class: "muted" }, "On a phone you can also ", h("a", { href: s.otpauth_uri }, "open it in the app"), ". Type: time-based, 6 digits."),
+    h("p", { text: "2. Enter the 6-digit code the app shows:" }), h("label", {}, "Code", code)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const r = await api("POST", "auth/mfa/enable", { code: code.value });
+      S.user = await api("GET", "auth/me");
+      modal("Recovery codes", [h("p", { text: "Two-step sign-in is on. Keep these recovery codes somewhere safe: each one signs you in once if you lose your phone. They are shown only now." }),
+        h("pre", { class: "secret", text: r.recovery_codes.join("\n") })], [h("button", { type: "button", class: "primary", onclick: () => { closeModal(); if (forced) go(S.page); } }, "I have saved them")]);
+    } catch (e) { toast(e.message, true); } } }, "Turn on")]);
+}
+
 function showPassword() { $("app").hidden = true; $("login-view").hidden = true; $("password-view").hidden = false; $("pw-current").focus(); }
 function showApp() {
   $("login-view").hidden = true; $("password-view").hidden = true; $("app").hidden = false;
@@ -140,14 +189,14 @@ function showApp() {
 }
 
 const PAGES = [
-  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
+  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["templates", "Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
   ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
-  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"],
+  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage", "key", "#b45309"]];
 
@@ -156,9 +205,9 @@ const PAGES = [
  * Pages not listed here (admin) are reached from inside other pages.
  */
 const NAV_GROUPS = [
-  ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks"]],
+  ["automation", "Build", "bot", ["automation", "templates", "studio", "workflows", "apitasks", "tests"]],
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
-  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
+  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
   ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
 ];
@@ -253,7 +302,38 @@ function tabStrip(items, current, onPick) {
     "aria-selected": String(current === id), onclick: () => onPick(id) }, label)));
 }
 
-function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+function stopTimer() { if (S.timer) { clearInterval(S.timer); S.timer = null; } S.live = null; }
+
+/**
+ * Live updates: the open page's refresh (S.live) runs as soon as the Command Center reports a change (a long request
+ * to /api/changes that it answers at once when something changes), at most every 1.5 seconds. Each page's own timer
+ * stays as a slower fallback. Started once after sign-in; stops when the person is signed out.
+ */
+function every(cb, ms) { S.live = cb; return setInterval(cb, S.liveOk ? Math.max(ms * 4, 20000) : ms); }
+
+async function watchChanges() {
+  if (S.watching) return;
+  S.watching = true;
+  let token = "", last = 0, failures = 0;
+  while (S.user) {
+    try {
+      const r = await api("GET", "changes?wait=25&since=" + encodeURIComponent(token));
+      failures = 0; S.liveOk = true;
+      token = r.token;
+      if (r.changed && S.live && !document.hidden) {
+        const wait = Math.max(0, 1500 - (Date.now() - last));
+        if (wait) await new Promise((res) => setTimeout(res, wait));
+        last = Date.now();
+        try { await S.live(); } catch (_) { /* the fallback timer tries again */ }
+      }
+    } catch (e) {
+      if (["CR.UNAUTHENTICATED", "CR.PASSWORD_CHANGE_REQUIRED", "CR.MFA_SETUP_REQUIRED", "CR.LICENSE_EXPIRED"].includes(e.code)) break;
+      failures++; S.liveOk = false;
+      await new Promise((res) => setTimeout(res, Math.min(30000, 2000 * failures)));
+    }
+  }
+  S.watching = false;
+}
 
 /**
  * Pages that show live figures but have no live view of their own are drawn again quietly while they stay open
@@ -272,7 +352,7 @@ async function go(page) {
   $("main").replaceChildren(main);
   try { await VIEWS[page](main); } catch (e) { main.replaceChildren(h("p", { class: "error", text: e.message })); }
   if (main.isConnected) $("main").focus();
-  if (main.isConnected && AUTO_REFRESH[page] && !S.timer) S.timer = setInterval(() => { quietRefresh(page).catch(() => {}); }, AUTO_REFRESH[page]);
+  if (main.isConnected && AUTO_REFRESH[page] && !S.timer) S.timer = every(() => quietRefresh(page).catch(() => {}), AUTO_REFRESH[page]);
 }
 
 /**
@@ -337,23 +417,37 @@ function dataTable({ columns, rows, onRow, search = "Search", pageSize = 25, emp
     if (st.sort !== null) { const c = columns[st.sort]; l = l.slice().sort((a, b) => { const x = value(c, a), y = value(c, b); return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * st.dir; }); }
     return l;
   };
+  // columns the viewer switched off, per table (only labelled columns; the actions column always shows)
+  const colKey = exportName ? "ooa.columns." + exportName : null;
+  let hidden = new Set();
+  try { if (colKey) hidden = new Set(JSON.parse(localStorage.getItem(colKey) || "[]")); } catch (_) { /* storage off: all columns */ }
+  const shown = () => columns.map((c, i) => i).filter((i) => !columns[i].label || !hidden.has(columns[i].label));
+  const chooser = h("div", { class: "col-chooser", hidden: true });
+  const colBtn = colKey && columns.filter((c) => c.label).length > 2 ? h("button", { type: "button", "aria-expanded": "false", onclick: (e) => {
+    chooser.hidden = !chooser.hidden; e.currentTarget.setAttribute("aria-expanded", String(!chooser.hidden));
+    chooser.replaceChildren(...columns.filter((c) => c.label).map((c) => h("label", { class: "check" }, h("input", { type: "checkbox", checked: !hidden.has(c.label), onchange: (ev) => {
+      if (ev.target.checked) hidden.delete(c.label); else if (shown().filter((i) => columns[i].label).length > 1) hidden.add(c.label); else { ev.target.checked = true; return; }
+      try { localStorage.setItem(colKey, JSON.stringify([...hidden])); } catch (_) { /* kept for this page only */ }
+      render(); } }), c.label)));
+  } }, "Columns") : null;
   const exp = exportName ? h("button", { type: "button", onclick: () => download(exportName + ".csv", csv([columns.filter((c) => c.value).map((c) => c.label), ...list().map((r) => columns.filter((c) => c.value).map((c) => value(c, r)))]), "text/csv") }, ic("download", "#475569", "sm"), "Export CSV") : null;
   function render() {
     const l = list(), pages = Math.max(1, Math.ceil(l.length / pageSize));
     if (st.page >= pages) st.page = pages - 1;
     const slice = l.slice(st.page * pageSize, st.page * pageSize + pageSize);
-    const ths = columns.map((c, i) => c.sort === false || !c.value ? h("th", { text: c.label })
+    const vis = shown();
+    const ths = vis.map((i) => [columns[i], i]).map(([c, i]) => c.sort === false || !c.value ? h("th", { text: c.label })
       : h("th", { "aria-sort": st.sort === i ? (st.dir > 0 ? "ascending" : "descending") : "none" },
         h("button", { type: "button", class: "th-sort", onclick: () => { if (st.sort === i) st.dir = -st.dir; else { st.sort = i; st.dir = 1; } render(); } }, c.label, h("span", { class: "arrow", text: st.sort === i ? (st.dir > 0 ? " \u25B2" : " \u25BC") : "" }))));
     const body = slice.length ? slice.map((r) => {
-      const tr = h("tr", { class: onRow ? "clickable" : "" }, columns.map((c) => h("td", { class: c.cls || null }, c.render ? c.render(r) : String(value(c, r)))));
+      const tr = h("tr", { class: onRow ? "clickable" : "" }, vis.map((i) => columns[i]).map((c) => h("td", { class: c.cls || null }, c.render ? c.render(r) : String(value(c, r)))));
       if (onRow) { tr.tabIndex = 0; tr.addEventListener("click", (e) => { if (!e.target.closest("button, a, input, select")) onRow(r); }); tr.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target === tr) onRow(r); }); }
       return tr;
-    }) : [h("tr", {}, h("td", { colspan: String(columns.length), class: "muted empty-cell", text: st.q ? "No matches." : empty }))];
+    }) : [h("tr", {}, h("td", { colspan: String(vis.length), class: "muted empty-cell", text: st.q ? "No matches." : empty }))];
     box.replaceChildren(h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ths)), h("tbody", {}, body))),
       l.length > pageSize ? pager(st.page, pages, l.length, pageSize, (p) => { st.page = p; render(); }) : null);
   }
-  wrap.append(h("div", { class: "toolbar" }, q, ...tools, h("span", { class: "spacer" }), exp), box);
+  wrap.append(h("div", { class: "toolbar" }, q, ...tools, h("span", { class: "spacer" }), colBtn, exp), chooser, box);
   render();
   return wrap;
 }
@@ -394,7 +488,8 @@ async function loadRefs() {
   S.bots = b.bots; S.devices = d.devices;
 }
 const botSelect = (val) => { const s = h("select", {}, S.bots.filter((b) => b.production_version && isAgent(b.path)).map((b) => h("option", { value: b.path, text: botName(b.path) }))); if (val) s.value = val; return s; };
-const deviceSelect = (val) => { const s = h("select", {}, S.devices.filter((d) => d.enabled).map((d) => h("option", { value: d.id, text: d.name + " (" + d.status + ")" }))); if (val) s.value = val; return s; };
+// the serverless virtual runner takes only serverless API tasks, so it is not offered as a runner
+const deviceSelect = (val) => { const s = h("select", {}, S.devices.filter((d) => d.enabled && d.device_type !== "serverless").map((d) => h("option", { value: d.id, text: d.name + " (" + d.status + ")" }))); if (val) s.value = val; return s; };
 function parseJson(text, fallback) { if (!text.trim()) return fallback; try { return JSON.parse(text); } catch (e) { throw new Error("Invalid JSON: " + e.message); } }
 const deviceName = (id) => (S.devices.find((d) => d.id === id) || {}).name || id;
 
@@ -422,6 +517,16 @@ const VIEWS = {
         d.queue_items_waiting !== undefined ? tile(d.queue_items_waiting, "Work items waiting", "inbox", "#9333ea", () => go("queues")) : null,
         tile((d.hours_saved_30d || 0) + " h", "Hours saved (30 days)", "timer", "#16a34a"),
         tile(d.open_tasks || 0, "Tasks waiting for you", "tasks", "#0d9488", () => go("inbox")))];
+    const myAgents = d.my_recent_agents || [], myRuns = d.my_recent_runs || [];
+    if (myAgents.length || myRuns.length) {
+      parts.push(h("div", { class: "card" }, h("h2", { text: "Pick up where you left off" }), h("div", { class: "grid-2 flat" },
+        h("div", {}, h("h3", { text: "Your agents" }), myAgents.length ? myAgents.map((b) => h("button", { type: "button", class: "list-row", onclick: () => openBot(b) }, ic("bot", "#6d28d9", "sm"),
+          h("div", { class: "lr-main" }, h("strong", { text: botName(b.path) }), h("div", { class: "muted small", text: "v" + b.latest_version + (b.locked_by ? " \u00B7 checked out by " + b.locked_by : "") })),
+          h("span", { class: "muted small", text: ago(b.updated) }))) : h("p", { class: "muted", text: "Agents you check in or check out show here." })),
+        h("div", {}, h("h3", { text: "Your runs" }), myRuns.length ? myRuns.map((r) => h("button", { type: "button", class: "list-row", onclick: () => openRun(r.id) }, h("span", { class: "dot " + (r.status === "success" ? "online" : r.status === "failed" ? "offline" : "busy") }),
+          h("div", { class: "lr-main" }, h("strong", { text: botName(r.bot_path) }), h("div", { class: "muted small", text: r.status })),
+          h("span", { class: "muted small", text: ago(r.finished || r.created) }))) : h("p", { class: "muted", text: "Agents you run show here." })))));
+    }
     if (d.days) {
       const max = Math.max(1, ...d.days.map((x) => x.success + x.failed + x.stopped + x.active));
       const chart = h("div", { class: "chart", role: "img", "aria-label": "Runs per day for the last 7 days" }, d.days.map((x) => {
@@ -465,10 +570,42 @@ const VIEWS = {
     if (fillDevices) fillDevices();
   },
 
+  /** Templates (K7): ready-made agents from ONEOFFICEAUTOMATION's catalogue and, in the SaaS service, the region's shared ones. */
+  async templates(main) {
+    const l = await api("GET", "templates");
+    S.tplCategory = S.tplCategory || "";
+    const q = h("input", { type: "search", placeholder: "Search templates", "aria-label": "Search templates", value: S.tplQuery || "" });
+    const cat = h("select", { "aria-label": "Category" }, h("option", { value: "", text: "All categories" }), l.categories.map((c) => h("option", { value: c, text: c })));
+    cat.value = S.tplCategory;
+    const grid = h("div", { class: "tpl-grid" });
+    const draw = () => {
+      S.tplQuery = q.value; S.tplCategory = cat.value;
+      const words = q.value.trim().toLowerCase();
+      const shown = l.templates.filter((t) => (!cat.value || t.category === cat.value)
+        && (!words || (t.name + " " + t.description + " " + t.publisher).toLowerCase().includes(words)));
+      grid.replaceChildren(...(shown.length ? shown.map((t) => h("div", { class: "card" },
+        h("div", { class: "muted small", text: t.category + " \u00B7 " + (t.source === "region" ? "shared by " + t.publisher : t.publisher) }),
+        h("h3", { text: t.name }), h("p", { text: t.description || "" }),
+        h("div", { class: "muted small", text: t.agents.length === 1 ? "1 agent: " + botName(t.agents[0]) : t.agents.length + " agents" }),
+        can("lifecycle.import") ? h("button", { type: "button", class: "primary", onclick: () => installTemplate(t) }, "Install") : null))
+        : [h("p", { class: "muted", text: l.templates.length ? "No template matches." : "No templates yet." })]));
+    };
+    q.addEventListener("input", draw); cat.addEventListener("change", draw);
+    main.replaceChildren(...header("Templates", "Ready-made agents to install into your agent repository and adapt: from ONEOFFICEAUTOMATION" + (l.can_share ? " and shared in your region" : "") + ".",
+      l.can_share ? h("button", { type: "button", onclick: () => shareTemplateDialog() }, "Share an agent") : null,
+      can("settings.manage") ? h("button", { type: "button", onclick: () => uploadCatalogueDialog() }, "Upload a catalogue file") : null),
+      l.problem ? h("p", { class: "error", text: l.problem }) : null,
+      h("div", { class: "toolbar" }, q, cat), grid);
+    draw();
+  },
+
   async automation(main) {
     await loadRefs();
     S.repoFolder = S.repoFolder || "";
-    const [r, f] = await Promise.all([api("GET", "repo" + (S.repoFolder ? "?folder=" + encodeURIComponent(S.repoFolder) : "")), api("GET", "repo/folders")]);
+    const [r, f, pr] = await Promise.all([api("GET", "repo" + (S.repoFolder ? "?folder=" + encodeURIComponent(S.repoFolder) : "")), api("GET", "repo/folders"),
+      api("GET", "repo/production-requests?status=pending").catch(() => ({ requests: [], approval_on: false }))]);
+    S.approvalOn = pr.approval_on;
+    const toDecide = pr.requests.filter((x) => x.can_decide).length;
     S.folders = f.folders;
     const folderSel = h("select", { "aria-label": "Folder", onchange: (e) => { S.repoFolder = e.target.value; go("automation"); } },
       h("option", { value: "", text: "All folders" }), f.folders.map((x) => h("option", { value: x.path, text: "\u00A0".repeat(2 * (x.path.split("/").length - 1)) + x.path.split("/").pop()
@@ -491,6 +628,8 @@ const VIEWS = {
       can("lifecycle.export") ? h("button", { type: "button", onclick: () => exportDialog(r.bots) }, ic("download", "#475569", "sm"), "Export / promote") : null,
       can("lifecycle.import") ? h("button", { type: "button", onclick: () => importDialog() }, "Import") : null,
       can("repo.delete") ? h("button", { type: "button", onclick: () => deletedDialog() }, "Deleted agents") : null,
+      S.approvalOn || pr.requests.length ? h("button", { type: "button", class: toDecide ? "primary" : "", onclick: () => approvalsDialog().catch((e) => toast(e.message, true)) },
+        "Production approvals" + (pr.requests.length ? " (" + pr.requests.length + " waiting)" : "")) : null,
       h("button", { type: "button", onclick: () => policyDialog() }, "Code analysis")),
       dataTable({ rows: r.bots, search: "Search agents by name, id or description", exportName: "bots", onRow: openBot, empty: "No agents yet. In Agent Studio, open an agent and press Agent check-in.", tools,
         columns: [
@@ -607,7 +746,7 @@ const VIEWS = {
     renderTabs(); renderFilters();
     main.replaceChildren(...header("Agent Runs", "Runs on all runners: what is running now, and the history of every run. Select a run for its live step log, inputs, outputs and errors."), tabs, filters, list);
     await refresh();
-    if (main.isConnected) S.timer = setInterval(() => { if (st.tab === "active" || !st.offset) refresh().catch(() => {}); }, 2500);
+    if (main.isConnected) S.timer = every(() => { if (st.tab === "active" || !st.offset) refresh().catch(() => {}); }, 2500);
   },
 
   async devices(main) {
@@ -615,16 +754,7 @@ const VIEWS = {
     if (S.devTab === "pools") return VIEWS.pools(main);
     const r = await api("GET", "devices");
     S.devices = r.devices;
-    const actions = can("devices.manage") ? [h("button", { type: "button", class: "primary", onclick: async () => {
-      try {
-        const k = await api("POST", "devices/registration-key", { hours: 24 });
-        modal("Register a runner", [
-          h("p", { text: "On the Windows machine that will run agents, open PowerShell in the platform folder and run:" }),
-          secretBox("Command to run", '.\\gradlew.bat :cli:run --args="agent register --url ' + location.origin + " --key " + k.key + '"', "The key works once and expires in 24 hours. It is shown only now."),
-          h("p", { class: "muted", text: "Then start the agent with:  .\\gradlew.bat :cli:run --args=\"agent start\"" }),
-          h("p", { class: "muted", text: "On this computer you do not need this: ooa server (or start-ooa.bat) registers and starts a One Runner for this computer automatically." })], []);
-      } catch (e) { toast(e.message, true); }
-    } }, "Register a runner")] : [];
+    const actions = can("devices.manage") ? [h("button", { type: "button", class: "primary", onclick: () => registerRunnerDialog() }, "Register a runner")] : [];
     const online = r.devices.filter((d) => d.status === "online").length;
     if (can("devices.manage") && r.devices.length) actions.unshift(h("button", { type: "button", onclick: () => runnerSettingsDialog(r.devices) }, "Update runners"));
     main.replaceChildren(...header("Runners", "Machines running the One Runner. A runner is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
@@ -637,15 +767,21 @@ const VIEWS = {
           { label: "Agent", value: (d) => d.agent_version || "", render: (d) => d.version_status && d.version_status !== "ok"
             ? h("span", { class: "pill failed", title: "This runner is newer than the Command Center and gets no work until the Command Center is updated", text: (d.agent_version || "") + " – update the Command Center" })
             : h("span", { text: d.agent_version || "" }) },
-          { label: "Type", value: (d) => d.device_type === "single_user" ? "Single-user" : "Multi-user" },
+          { label: "Type", value: (d) => (d.device_type === "serverless" ? "Serverless (in the Command Center)" : d.device_type === "single_user" ? "Single-user" : "Multi-user") + (d.lifespan === "temporary" ? ", temporary" : ""),
+            render: (d) => h("span", {}, d.device_type === "serverless" ? "Serverless (in the Command Center)" : d.device_type === "single_user" ? "Single-user" : "Multi-user", d.lifespan === "temporary" ? [" ", h("span", { class: "pill pending", title: "Removed by itself after a time without contact (Settings)", text: "Temporary" })] : null) },
           { label: "Default users", value: (d) => (d.default_users || []).join(", "), render: (d) => (d.default_users || []).length ? h("div", { class: "chips" }, d.default_users.map((x) => h("span", { class: "chip", text: x }))) : "\u2014" },
           { label: "Log level", value: (d) => d.log_level || "info" },
           { label: "Screen", value: (d) => SCREEN[d.session_state] || "", render: (d) => d.session_state ? h("span", { class: "pill " + (d.session_state === "unlocked" ? "online" : d.session_state === "locked" ? "locked" : "offline"), title: SCREEN_HELP[d.session_state], text: SCREEN[d.session_state] }) : "—" },
           { label: "After a run", value: (d) => AFTER_RUN[d.after_run || "nothing"] },
+          { label: "Program", value: (d) => d.up_to_date === undefined ? "" : d.up_to_date ? "Up to date" : "Update available",
+            render: (d) => d.up_to_date === undefined ? "\u2014" : d.up_to_date ? h("span", { class: "pill online", text: "Up to date" })
+              : h("span", {}, h("span", { class: "pill pending", text: d.update_requested ? "Updating" : "Update available" }), " ",
+                can("devices.manage") && !d.update_requested ? h("button", { type: "button", title: "The runner updates itself when it is idle, then starts again", onclick: async () => {
+                  try { const r = await api("POST", "devices/update", { ids: [d.id] }); toast("Runner " + d.name + " updates to " + r.version + " when it is idle"); go("devices"); } catch (e) { toast(e.message, true); } } }, "Update") : null) },
           { label: "Last seen", value: (d) => d.last_seen || "", render: (d) => h("span", { title: local(d.last_seen) }, ago(d.last_seen)) },
           { label: "Registered", value: (d) => d.registered, render: (d) => ago(d.registered) + " by " + (d.registered_by || "") },
           { label: "", sort: false, render: (d) => can("devices.manage") ? h("button", { type: "button", onclick: async () => { try { await api("PATCH", "devices/" + d.id, { enabled: !d.enabled }); go("devices"); } catch (e) { toast(e.message, true); } } }, d.enabled ? "Disable" : "Enable") : "" }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "devices" && S.devTab === "runners" && $("modal").hidden && $("drawer").hidden) go("devices"); }, 15000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "devices" && S.devTab === "runners" && $("modal").hidden && $("drawer").hidden) go("devices"); }, 15000);
   },
 
   async pools(main) {
@@ -688,7 +824,7 @@ const VIEWS = {
           { label: "Processing", value: (q) => q.processing ? "On" : "Off", render: (q) => q.processing ? pill("running") : pill("stopped") },
           { label: "", sort: false, render: (q) => can("queues.work") ? h("button", { type: "button", onclick: async () => {
             try { await api("POST", "queues/" + q.id + (q.processing ? "/stop" : "/start")); go("queues"); } catch (e) { toast(e.message, true); } } }, q.processing ? "Stop" : "Start") : "" }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "queues" && $("modal").hidden && $("drawer").hidden) go("queues"); }, 5000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "queues" && $("modal").hidden && $("drawer").hidden) go("queues"); }, 5000);
   },
 
   async inbox(main) {
@@ -707,7 +843,7 @@ const VIEWS = {
           { label: "Assigned to", value: (t) => t.claimed_by ? t.claimed_by + " (working on it)" : t.assignee },
           { label: "Due", value: (t) => t.due || "", render: (t) => t.due ? h("span", { class: t.overdue ? "pill failed" : "", title: local(t.due), text: (t.overdue ? "Overdue " : "") + ago(t.due) }) : "\u2014" },
           { label: S.inboxTab === "open" ? "Created" : "Outcome", value: (t) => S.inboxTab === "open" ? t.created : t.outcome, render: (t) => S.inboxTab === "open" ? ago(t.created) : pill(t.outcome || t.status) }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "inbox" && $("modal").hidden && $("drawer").hidden) go("inbox"); }, 10000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "inbox" && $("modal").hidden && $("drawer").hidden) go("inbox"); }, 10000);
   },
 
   async workflows(main) {
@@ -726,7 +862,7 @@ const VIEWS = {
           { label: "Started by", value: (w) => w.started_by || "" },
           { label: "Started", value: (w) => w.created, render: (w) => h("span", { title: local(w.created) }, ago(w.created)) },
           { label: "Updated", value: (w) => w.updated, render: (w) => ago(w.updated) }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "workflows" && $("modal").hidden && $("drawer").hidden) go("workflows"); }, 5000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "workflows" && $("modal").hidden && $("drawer").hidden) go("workflows"); }, 5000);
   },
 
   async governance(main) {
@@ -776,14 +912,48 @@ const VIEWS = {
       const txt = (k, ph) => h("input", { type: "text", value: String(st[k] || ""), placeholder: ph || "" });
       const pub = txt("public_url", location.origin), ssoIssuer = txt("sso_issuer", "https://login.microsoftonline.com/<tenant>/v2.0"), ssoClient = txt("sso_client_id"),
         ssoSecret = txt("sso_client_secret_ref", "sso/oidc/client_secret"), ssoRole = txt("sso_default_role", "viewer"), ssoLabel = txt("sso_label", "Sign in with your organisation account"),
-        mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600);
+        mcpAgents = txt("mcp_agents", "Finance/Invoice lookup.flow.json"), mcpRunner = txt("mcp_runner"), mcpTimeout = num("mcp_timeout_seconds", 10, 3600),
+        mcpAud = txt("mcp_oauth_audience", "api://ooa-mcp (empty = API keys only)"), mcpScope = txt("mcp_oauth_scope", "mcp.use (optional)");
       const inactive = num("inactive_user_days", 0, 3650), session = num("session_hours", 1, 720), upload = num("max_upload_mb", 1, 1024), poll = num("queue_poll_seconds", 3, 3600), saved = num("default_minutes_saved", 0, 100000);
-      const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500);
-      const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64);
+      const keepRuns = num("run_retention_days", 0, 36500), keepLogs = num("run_log_retention_days", 0, 36500), keepAudit = num("audit_retention_days", 0, 36500);
+      const maxSessions = num("max_sessions_per_user", 1, 50), pwMin = num("password_min_length", 12, 64), pwHist = num("password_history", 0, 24), pwDays = num("password_max_days", 0, 3650);
+      const keepAi = num("ai_call_retention_days", 0, 36500), keepItems = num("work_item_retention_days", 0, 36500);
       const blockExe = h("input", { type: "checkbox", checked: Number(st.block_executable_uploads) === 1 });
+      const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
+      const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
+      const tempHours = num("temporary_runner_hours", 1, 720), secretDays = num("runner_secret_days", 0, 365);
+      const repoShared = txt("repo_files_folder", "\\\\fileserver\\ooa\\repo-files (for several nodes)");
+      const tplUrl = txt("template_catalog_url", "(empty: ONEOFFICEAUTOMATION's catalogue; off: none)");
+      const nodesBox = h("div", { class: "muted" });
+      api("GET", "cluster").then((c) => nodesBox.replaceChildren(h("p", { text: c.nodes.length + " node(s): " + c.nodes.map((n) => n.node_id + (n.leader ? " (leads background work)" : "") + (n.this_node ? " (this one)" : "")).join(", ") }))).catch(() => {});
+      const bkHours = num("backup_hours", 0, 168), bkKeep = num("backup_keep_days", 1, 3650), bkFolder = txt("backup_folder", "(the data folder's backups folder)");
+      const bkState = h("div", { class: "muted" });
+      const showBk = (b) => bkState.replaceChildren(h("p", { text: (b.backups.length ? b.backups.length + " backup(s) in " + b.folder + ", newest " + local(b.backups[0].created) + " (" + b.backups[0].size_mb + " MB)." : "No backups in " + b.folder + " yet.") + (b.state === "failed" ? " Last attempt failed: " + b.error : "") }), h("p", { class: "note warn", text: b.key_note }));
+      api("GET", "backups").then(showBk).catch(() => {});
+      const samlUrl = txt("saml_idp_sso_url", "https://login.microsoftonline.com/<tenant>/saml2"), samlIdp = txt("saml_idp_entity_id", "https://sts.windows.net/<tenant>/"),
+        samlSp = txt("saml_sp_entity_id", (st.public_url || location.origin) + "/api/auth/saml/metadata"), samlLabel = txt("saml_label", "Sign in with SAML");
+      const samlCert = h("textarea", { rows: 3, value: st.saml_idp_certificate || "", placeholder: "-----BEGIN CERTIFICATE-----" });
+      const gitUrl = txt("git_remote_url", "https://github.com/acme/agents.git"), gitBranch = txt("git_branch", "main"), gitUser = txt("git_username", "(any, for a token)"),
+        gitToken = txt("git_token_ref", "git/agents-repo/token");
+      const gitAuto = h("input", { type: "checkbox", checked: Number(st.git_auto_push) === 1 });
+      const gitState = h("p", { class: "muted" });
+      const showGit = (g) => gitState.textContent = !g.configured ? "Not set up." : g.state === "never" ? "Not synced yet." : g.state === "ok" ? "Last sync " + local(g.at) + ": " + g.agents + " agent(s)" + (g.changed ? ", commit " + String(g.commit).slice(0, 8) : ", nothing changed") + "." : "Last sync failed " + local(g.at) + ": " + g.error;
+      api("GET", "git/status").then(showGit).catch(() => {});
+      const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
+        h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
       const syslogTarget = txt("syslog_target", "siem.example.com:514");
       const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
+      const offNow = String(st.switched_off_roles || "").split(",").filter(Boolean);
+      const roleOff = ["bot_creator", "bot_runner", "viewer"].map((r) => [r, h("input", { type: "checkbox", checked: offNow.includes(r) }), roleLabel(r)]);
+      const proxy = txt("outbound_proxy", "http://proxy.example.com:8080"), proxyBypass = txt("outbound_proxy_bypass", "*.example.com, 10.*");
+      const mailHost = txt("mail_smtp_host", "smtp.office365.com"), mailPort = num("mail_smtp_port", 1, 65535), mailUser = txt("mail_smtp_user", "ooa@example.com"),
+        mailPw = txt("mail_smtp_password_ref", "mail/smtp/password"), mailFrom = txt("mail_from", "ooa@example.com"), licMailTo = txt("license_mail_to", "licences@example.com");
+      const mailSec = h("select", {}, h("option", { value: "starttls", text: "STARTTLS (port 587)" }), h("option", { value: "ssl", text: "SSL/TLS (port 465)" }),
+        h("option", { value: "none", text: "None (trusted network only)" })); mailSec.value = st.mail_smtp_security || "starttls";
+      const mailTestTo = h("input", { type: "text", placeholder: "(your own address)" });
+      const mailSettings = () => ({ mail_smtp_host: mailHost.value.trim(), mail_smtp_port: Number(mailPort.value), mail_smtp_security: mailSec.value, mail_smtp_user: mailUser.value.trim(),
+        mail_smtp_password_ref: mailPw.value.trim(), mail_from: mailFrom.value.trim(), license_mail_to: licMailTo.value.trim() });
       const lic = await api("GET", "license").catch(() => null);
       const dbi = await api("GET", "database").catch(() => null);
       main.replaceChildren(...head, tabs, h("div", { class: "card form-card" },
@@ -797,24 +967,77 @@ const VIEWS = {
         h("div", { class: "grid2" }, h("label", {}, "Issuer URL", ssoIssuer), h("label", {}, "Client id", ssoClient),
           h("label", {}, "Client secret (vault reference folder/credential/attribute)", ssoSecret), h("label", {}, "Role for new people (empty = existing accounts only)", ssoRole),
           h("label", {}, "Button text", ssoLabel)),
+        h("h3", {}, ic("key", "#2563eb", "sm"), "Single sign-on (SAML 2.0)"),
+        h("p", { class: "muted", text: "For Entra ID, Okta, ADFS and other SAML identity providers. Give the provider this Command Center's metadata: " + (st.public_url || location.origin) + "/api/auth/saml/metadata (sign-in address " + (st.public_url || location.origin) + "/api/auth/saml/acs). Sign the assertion or the response; do not encrypt it. New people get the role for new people above." }),
+        h("div", { class: "grid2" }, h("label", {}, "Identity provider sign-in address (SAML SSO URL)", samlUrl), h("label", {}, "Identity provider entity id (issuer)", samlIdp),
+          h("label", {}, "This Command Center's entity id (empty = the metadata address)", samlSp), h("label", {}, "Button text", samlLabel)),
+        h("label", {}, "Identity provider signing certificate (PEM)", samlCert),
+        h("h3", {}, ic("code", "#475569", "sm"), "Git sync of the agent repository"),
+        h("p", { class: "muted", text: "Mirrors the agent repository to a Git branch (GitHub, GitLab, Azure DevOps): the latest version of every agent as JSON, and which version is live. The Command Center stays the source of truth; changes made in Git are overwritten. Keep the access token in the vault." }),
+        h("div", { class: "grid2" }, h("label", {}, "Remote (https://...git)", gitUrl), h("label", {}, "Branch", gitBranch),
+          h("label", {}, "User name", gitUser), h("label", {}, "Access token (vault reference folder/credential/attribute)", gitToken),
+          h("label", { class: "check" }, gitAuto, "Push after every check-in, production change and deletion"),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async (e) => {
+            e.target.disabled = true;
+            try { await api("PUT", "settings", { git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0 });
+              const r = await api("POST", "git/sync"); showGit(Object.assign({ configured: true }, r)); toast(r.changed ? "Pushed to Git" : "Git is up to date"); }
+            catch (err) { toast(err.message, true); api("GET", "git/status").then(showGit).catch(() => {}); } finally { e.target.disabled = false; } } }, "Save and sync now"))),
+        gitState,
         h("h3", {}, ic("bolt", "#7c3aed", "sm"), "AI assistants (Model Context Protocol)"),
         h("p", { class: "muted", text: "Assistants connect to " + location.origin + "/api/mcp with a user's API key and can run the agents listed here as tools, with that user's permissions." }),
         h("div", { class: "grid2" }, h("label", {}, "Agents offered as tools (paths, comma separated; * for all)", mcpAgents), h("label", {}, "Runner or runner pool id (empty = any online runner)", mcpRunner),
           h("label", {}, "Wait for a result (seconds)", mcpTimeout)),
+        h("p", { class: "muted", text: "Sign-in with OAuth: assistants can also send an access token from your identity provider (the single sign-on issuer above), meant for the audience below. The person must already have an account here. Assistants find this at " + location.origin + "/.well-known/oauth-protected-resource." }),
+        h("div", { class: "grid2" }, h("label", {}, "Token audience (the application id URI of the MCP app in your identity provider)", mcpAud), h("label", {}, "Scope the token must carry", mcpScope)),
         h("h3", {}, ic("shield", "#475569", "sm"), "Security"),
         h("p", { class: "muted", text: "Sign-in sessions per person (the oldest end first), the shortest password allowed, and which addresses may use the Command Center. An empty allow list lets every address in; this computer is always allowed." }),
         h("div", { class: "grid2" }, h("label", {}, "Sign-ins per person at once", maxSessions), h("label", {}, "Shortest password (characters)", pwMin),
-          h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads")),
+          h("label", {}, "Passwords that cannot be used again (the last N, 0 = no rule)", pwHist), h("label", {}, "Change passwords every (days, 0 = never)", pwDays),
+          h("label", {}, "Two-step sign-in (authenticator app codes; single sign-on users are left to their identity provider)", mfaReq),
+          h("label", { class: "check" }, blockExe, "Block programs and scripts (.exe, .dll, .ps1 and similar) in repository uploads"),
+          h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live"),
+          h("label", { class: "check" }, autoUpdate, "Update runners automatically to this Command Center's version when they are idle"),
+          h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
+          h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays)),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
+        h("p", { class: "muted", text: "Switch off built-in roles you do not use: they then give no permissions and cannot be given to anyone. People who still have one keep only their other roles." }),
+        h("div", { class: "grid2" }, roleOff.map(([, box, l]) => h("label", { class: "check" }, box, "Switch off " + l))),
+        h("h3", {}, ic("globe", "#475569", "sm"), "Outgoing connections"),
+        h("p", { class: "muted", text: "The Command Center's own connections to the internet (single sign-on, Git, AI model connections, external vaults) go through this proxy when set. This computer is always reached directly. Runners have their own proxy setting (ooa agent network)." }),
+        h("div", { class: "grid2" }, h("label", {}, "Proxy (http://host:port, empty = direct)", proxy), h("label", {}, "Reach these directly (host names, * allowed)", proxyBypass)),
         h("h3", {}, ic("pulse", "#475569", "sm"), "Audit forwarding (SIEM)"),
         h("p", { class: "muted", text: "Every audit entry is also sent to your SIEM as a syslog message (RFC 5424). Leave the target empty to switch this off." }),
         h("div", { class: "grid2" }, h("label", {}, "Syslog target (host:port)", syslogTarget), h("label", {}, "Protocol", syslogProto),
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
             try { await api("PUT", "settings", { syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value }); await api("POST", "settings/syslog-test"); toast("Test message sent to " + syslogTarget.value.trim()); }
             catch (e) { toast(e.message, true); } } }, "Send a test message"))),
+        h("h3", {}, ic("inbox", "#475569", "sm"), "E-mail"),
+        h("p", { class: "muted", text: "The Command Center sends its own e-mail (licence expiry reminders to administrators, workflow e-mail steps) through your mail server. The password is a vault reference, never typed here." }),
+        h("div", { class: "grid2" }, h("label", {}, "Outgoing mail server", mailHost), h("label", {}, "Port", mailPort), h("label", {}, "Security", mailSec),
+          h("label", {}, "Account (empty = no sign-in)", mailUser), h("label", {}, "Password (vault reference folder/credential/attribute)", mailPw), h("label", {}, "Sender address", mailFrom),
+          h("label", {}, "Also send licence reminders to (addresses, separated by commas)", licMailTo),
+          h("label", {}, "Send a test e-mail to", mailTestTo),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
+            try { await api("PUT", "settings", mailSettings()); const r = await api("POST", "settings/mail-test", { to: mailTestTo.value.trim() }); toast("Test e-mail sent to " + r.to); }
+            catch (e) { toast(e.message, true); } } }, "Send a test e-mail"))),
+        h("h3", {}, ic("desktop", "#475569", "sm"), "Several nodes"),
+        h("p", { class: "muted", text: "Start more Command Centers on the same database behind a load balancer for high availability. Each serves everything; one leads the background work and another takes over within about 30 seconds if it stops. Put repository files in a shared folder every node can reach." }),
+        nodesBox, h("label", {}, "Shared folder for repository files (empty = the data folder)", repoShared),
+        h("label", {}, "Template catalogue (an https address of templates.json)", tplUrl),
+        h("h3", {}, ic("download", "#475569", "sm"), "Backups"),
+        h("p", { class: "muted", text: "Every table, the repository files and the configuration, in one zip per backup. Restore with: bin\\ooa.bat backup restore FILE (the server stopped)." }),
+        h("div", { class: "grid2" }, h("label", {}, "Back up every (hours, 0 = never)", bkHours), h("label", {}, "Keep backups for (days)", bkKeep),
+          h("label", {}, "Backup folder", bkFolder),
+          h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async (e) => {
+            e.target.disabled = true;
+            try { const r = await api("POST", "backups"); toast("Backup made: " + r.file + " (" + r.size_mb + " MB)"); api("GET", "backups").then(showBk); }
+            catch (err) { toast(err.message, true); } finally { e.target.disabled = false; } } }, "Back up now"))),
+        bkState,
         h("h3", {}, ic("clock", "#475569", "sm"), "Run history"),
         h("p", { class: "muted", text: "Old run history is removed once an hour: step logs after the first period, whole runs after the second (0 keeps them). Queued and running runs are never removed." }),
         h("div", { class: "grid2" }, h("label", {}, "Keep step logs for (days, 0 = always)", keepLogs), h("label", {}, "Keep runs for (days, 0 = always)", keepRuns),
+          h("label", {}, "Keep audit entries for (days, at least 90; 0 = always). Older ones go to audit-archive in the data folder first", keepAudit),
+          h("label", {}, "Keep AI call records for (days, 0 = always)", keepAi), h("label", {}, "Keep finished work-queue items for (days, 0 = always)", keepItems),
           h("div", { class: "row-actions" }, h("button", { type: "button", onclick: async () => {
             const d = Number(keepRuns.value), l = Number(keepLogs.value);
             if (!d && !l) { toast("Set a number of days first", true); return; }
@@ -834,9 +1057,13 @@ const VIEWS = {
             await api("PUT", "settings", { announcement: ann.value.trim(), inactive_user_days: Number(inactive.value), session_hours: Number(session.value), max_upload_mb: Number(upload.value),
               queue_poll_seconds: Number(poll.value), default_minutes_saved: Number(saved.value), public_url: pub.value.trim(), sso_issuer: ssoIssuer.value.trim(), sso_client_id: ssoClient.value.trim(),
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
-              mcp_timeout_seconds: Number(mcpTimeout.value), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value),
-              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), block_executable_uploads: blockExe.checked ? 1 : 0,
-              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value });
+              mcp_timeout_seconds: Number(mcpTimeout.value), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
+              max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
+              ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
+              saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
+              git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
+              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
+              switched_off_roles: roleOff.filter(([, b]) => b.checked).map(([r]) => r).join(","), outbound_proxy: proxy.value.trim(), outbound_proxy_bypass: proxyBypass.value.trim() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));
     } else if (tab === "roles") {
@@ -844,7 +1071,7 @@ const VIEWS = {
       main.replaceChildren(...head, tabs, h("div", { class: "toolbar" }, h("span", { class: "spacer" }), h("button", { type: "button", class: "primary", onclick: () => roleDialog(null, r.permissions) }, "New role")),
         dataTable({ rows: r.roles, search: "Search roles", exportName: "roles",
           columns: [
-            { label: "Role", value: (x) => roleLabel(x.name), render: (x) => h("div", {}, h("strong", { text: roleLabel(x.name) }), x.builtin ? h("span", { class: "tag", text: "built-in" }) : h("code", { class: "small", text: " " + x.name }), h("div", { class: "muted small", text: x.description || "" })) },
+            { label: "Role", value: (x) => roleLabel(x.name), render: (x) => h("div", {}, h("strong", { text: roleLabel(x.name) }), x.builtin ? h("span", { class: "tag", text: x.switched_off ? "built-in, switched off" : "built-in" }) : h("code", { class: "small", text: " " + x.name }), h("div", { class: "muted small", text: x.description || "" })) },
             { label: "Permissions", value: (x) => x.permissions.join(" "), render: (x) => h("div", { class: "chips" }, x.permissions.map((p) => h("span", { class: "chip", text: p }))) },
             { label: "Users", value: (x) => x.users === undefined ? "" : x.users },
             { label: "", sort: false, render: (x) => x.builtin ? "" : h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => roleDialog(x, r.permissions) }, "Edit"),
@@ -859,16 +1086,22 @@ const VIEWS = {
             { label: "Provider", value: (c) => c.provider }, { label: "Model", value: (c) => c.model || "", render: (c) => h("span", {}, c.model || "", c.model_type === "fine_tuned" ? h("span", { class: "tag", text: "Fine-tuned" }) : null) },
             { label: "Roles", value: (c) => (c.allowed_roles || []).join(", "), render: (c) => (c.allowed_roles || []).length ? h("div", { class: "chips" }, c.allowed_roles.map((x) => h("span", { class: "chip", text: roleLabel(x) }))) : h("span", { class: "muted", text: "every role" }) },
             { label: "Endpoint", value: (c) => c.base_url || "", render: (c) => h("span", { class: "mono small", text: c.base_url || "provider default" }) },
+            { label: "Tokens this month", value: (c) => c.tokens_this_month || 0, render: (c) => c.monthly_tokens ? h("div", {}, (c.tokens_this_month || 0) + " of " + c.monthly_tokens,
+              progressBar(100 * (c.tokens_this_month || 0) / c.monthly_tokens, c.tokens_this_month >= c.monthly_tokens ? "bad" : "")) : String(c.tokens_this_month || 0) },
             { label: "Key", value: (c) => c.key_ref || "", render: (c) => c.key_ref ? h("span", {}, ic("lock", "#dc2626", "sm"), h("code", { text: c.key_ref })) : h("span", { class: "muted", text: "none" }) },
             { label: "Updated", value: (c) => c.updated || "", render: (c) => ago(c.updated) + " by " + (c.updated_by || "") },
             { label: "", sort: false, render: (c) => h("div", { class: "row-actions tight" }, h("button", { type: "button", onclick: () => connectionDialog(c) }, "Edit"),
               h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete connection " + c.name + "?")) { try { await api("DELETE", "connections/" + encodeURIComponent(c.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else {
       const r = await api("GET", "toolkits");
-      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Switch a toolkit off to stop agents that use it from being checked in or run. The core toolkit is always on." }),
+      const manage = can("toolkits.manage");
+      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Switch a toolkit off to stop agents that use it from being checked in or run. The core toolkit is always on. Your own toolkits are signed jars from trusted publishers; several versions stay installed side by side." }),
+        manage ? h("div", { class: "toolbar" }, h("button", { type: "button", class: "primary", onclick: uploadToolkitDialog }, "Upload toolkit"),
+          h("button", { type: "button", onclick: publishersDialog }, "Trusted publishers"), h("button", { type: "button", onclick: customVersionsDialog }, "Your toolkit versions")) : null,
         dataTable({ rows: r.toolkits, search: "Search toolkits", exportName: "toolkits", pageSize: 100,
           columns: [
-            { label: "Toolkit", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: t.id + " " + (t.version || "") }), h("div", { class: "muted small", text: t.description || "" })) },
+            { label: "Toolkit", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), t.custom ? h("span", { class: "pill", text: "your own" }) : null,
+              h("div", { class: "muted small mono", text: t.id + " " + (t.versions ? t.versions.join(", ") + " (default " + t.version + ")" : t.version || "") }), h("div", { class: "muted small", text: t.description || "" })) },
             { label: "Actions", value: (t) => t.actions + t.conditions, render: (t) => t.actions + (t.conditions ? " + " + t.conditions + " conditions" : "") },
             { label: "Used by", value: (t) => t.used_by, render: (t) => t.used_by ? h("button", { type: "button", class: "link", onclick: async () => {
               const u = await api("GET", "toolkits/" + encodeURIComponent(t.id) + "/used-by");
@@ -942,7 +1175,7 @@ const VIEWS = {
             h("button", { type: "button", onclick: () => act(() => api("POST", "triggers/" + t.id + (t.enabled ? "/pause" : "/resume"))) }, t.enabled ? "Pause" : "Resume"),
             h("button", { type: "button", onclick: () => triggerEditDialog(t) }, "Edit"),
             h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete trigger " + t.name + "?")) act(() => api("DELETE", "triggers/" + t.id)); } }, "Delete")) : "" }]}));
-    if (main.isConnected) S.timer = setInterval(() => { if (S.page === "triggers" && $("modal").hidden && $("drawer").hidden) go("triggers"); }, 30000);
+    if (main.isConnected) S.timer = every(() => { if (S.page === "triggers" && $("modal").hidden && $("drawer").hidden) go("triggers"); }, 30000);
   },
 
   async credentials(main) {
@@ -1056,9 +1289,53 @@ const VIEWS = {
             h("button", { type: "button", onclick: async () => { try { await api("PATCH", "users/" + u.id, { enabled: !u.enabled }); go("users"); } catch (e) { toast(e.message, true); } } }, u.enabled ? "Disable" : "Enable"),
             h("button", { type: "button", onclick: async () => { if (!confirm("Reset the password of " + u.username + "?")) return; const p = await api("POST", "users/" + u.id + "/reset-password");
               modal("Temporary password", [secretBox(u.username, p.temporary_password, "Give it to the user securely. They must change it at first sign-in. Shown only once.")], []); } }, "Reset password"),
+            u.mfa_enabled ? h("button", { type: "button", title: "For a lost phone: they set two-step sign-in up again at their next sign-in", onclick: async () => {
+              if (!confirm("Reset two-step sign-in for " + u.username + "? Their sign-ins end, and they set it up again.")) return;
+              try { await api("POST", "users/" + u.id + "/reset-mfa"); toast("Two-step sign-in reset for " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Reset two-step") : null,
             u.username !== S.user.username ? h("button", { type: "button", class: "danger", onclick: async () => {
               if (!confirm("Delete " + u.username + "? Their sign-ins, API keys, team places, own vault values and every rule naming them go. The audit trail keeps their name.")) return;
               try { await api("DELETE", "users/" + u.id); toast("Deleted " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
+  },
+
+  async dashboards(main) {
+    const r = await api("GET", "dashboards");
+    S.dashId = r.dashboards.some((d) => d.id === S.dashId) ? S.dashId : (r.dashboards[0] || {}).id;
+    const cur = r.dashboards.find((d) => d.id === S.dashId);
+    const pick = h("select", { "aria-label": "Dashboard", onchange: (e) => { S.dashId = e.target.value; go("dashboards"); } }, r.dashboards.map((d) => h("option", { value: d.id, text: d.name })));
+    if (cur) pick.value = cur.id;
+    const grid = h("div", { class: "dash-grid" });
+    main.replaceChildren(...header("Dashboards", "Business figures your agents record (outputs marked KPI) and figures about the runs, on dashboards you keep to yourself or share with roles and teams.",
+      h("button", { type: "button", class: "primary", onclick: () => dashboardDialog(null) }, "New dashboard")),
+      r.dashboards.length ? h("div", { class: "toolbar" }, pick, cur && cur.can_edit ? h("button", { type: "button", onclick: () => dashboardDialog(cur) }, "Edit") : null,
+        cur && cur.can_edit ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the dashboard " + cur.name + "?")) return; try { await api("DELETE", "dashboards/" + cur.id); S.dashId = null; go("dashboards"); } catch (e) { toast(e.message, true); } } }, "Delete") : null,
+        cur && cur.shared_with.length ? h("span", { class: "muted small", text: "Shared with " + cur.shared_with.join(", ") }) : null) : h("p", { class: "muted", text: "No dashboards yet. Mark an agent's outputs as KPI in Agent Studio, then make a dashboard." }),
+      grid);
+    if (!cur) return;
+    let tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) { /* UTC */ }
+    const d = await api("GET", "dashboards/" + cur.id + "/data" + (tz ? "?tz=" + encodeURIComponent(tz) : ""));
+    grid.replaceChildren(...d.widgets.map(widgetCard));
+  },
+
+  async tests(main) {
+    await loadRefs();
+    const [r, pools] = await Promise.all([api("GET", "test-sets"), can("devices.view") ? api("GET", "pools").catch(() => ({ pools: [] })) : { pools: [] }]);
+    S.pools = pools.pools;
+    const score = (x) => x ? (x.status === "running" ? "running…" : x.passed + " / " + x.total) : "not run";
+    main.replaceChildren(...header("Agent tests", "Test sets run an agent with chosen inputs and check what it gives back, also for AI answers (contains, matches, close to a number, one of). Each run of a set is scored and kept.",
+      can("repo.checkin") ? h("button", { type: "button", class: "primary", onclick: () => testSetDialog(null) }, "New test set") : null),
+      dataTable({ rows: r.sets, search: "Search test sets", exportName: "test-sets", empty: "No test sets yet.",
+        columns: [
+          { label: "Test set", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small", text: t.description || "" })) },
+          { label: "Agent", value: (t) => botName(t.bot_path) },
+          { label: "Cases", value: (t) => t.cases.length },
+          { label: "Last score", value: (t) => t.last_run ? t.last_run.passed / Math.max(1, t.last_run.total) : -1,
+            render: (t) => t.last_run ? h("button", { type: "button", class: "link", onclick: () => testRunDialog(t.last_run.id) }, h("span", { class: "pill " + (t.last_run.status === "passed" ? "success" : t.last_run.status === "running" ? "running" : "failed"), text: score(t.last_run) }), " ", ago(t.last_run.started)) : h("span", { class: "muted", text: "not run" }) },
+          { label: "", sort: false, render: (t) => h("div", { class: "row-actions tight" },
+            can("runs.start") ? h("button", { type: "button", class: "primary", onclick: () => runTestSetDialog(t) }, "Run") : null,
+            h("button", { type: "button", onclick: () => testHistoryDialog(t) }, "History"),
+            can("repo.checkin") ? h("button", { type: "button", onclick: () => testSetDialog(t) }, "Edit") : null,
+            can("repo.checkin") ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the test set " + t.name + " and its results?")) return;
+              try { await api("DELETE", "test-sets/" + t.id); go("tests"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }] }));
   },
 
   async apitasks(main) {
@@ -1071,7 +1348,7 @@ const VIEWS = {
         columns: [
           { label: "API task", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: "POST " + location.origin + t.url })) },
           { label: "Agent", value: (t) => botName(t.bot_path) },
-          { label: "Runs on", value: (t) => t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
+          { label: "Runs on", value: (t) => t.serverless ? "Command Center (serverless)" : t.pool_id ? "Pool " + ((S.pools.find((p) => p.id === t.pool_id) || {}).name || t.pool_id) : deviceName(t.device_id) },
           { label: "Waits up to", value: (t) => t.timeout_seconds, render: (t) => t.timeout_seconds + " s" },
           { label: "Calls", value: (t) => t.calls, render: (t) => h("span", {}, String(t.calls), t.last_used ? h("span", { class: "muted small", text: " \u00B7 last " + ago(t.last_used) }) : null) },
           { label: "Status", value: (t) => t.enabled ? "On" : "Off", render: (t) => pill(t.enabled ? "active" : "paused") },
@@ -1101,7 +1378,8 @@ const VIEWS = {
   },
 
   async licenses(main) {
-    const [st, asg, ur, dv] = await Promise.all([api("GET", "license"), api("GET", "license/assignments"), api("GET", "users"), api("GET", "devices").catch(() => ({ devices: [] }))]);
+    const [st, asg, ur, dv, use] = await Promise.all([api("GET", "license"), api("GET", "license/assignments"), api("GET", "users"), api("GET", "devices").catch(() => ({ devices: [] })),
+      api("GET", "license/usage?days=90").catch(() => null)]);
     const L = st.license || {};
     const TYPES = [["developer", "Developer", "user"], ["citizen_developer", "Citizen Developer", "user"], ["attended_runner", "Attended Runner", "user"], ["unattended_runner", "Unattended Runner", "device"]];
     const held = new Set(asg.assignments.map((a) => a.principal_type + "|" + a.principal + "|" + a.license_type));
@@ -1146,6 +1424,7 @@ const VIEWS = {
           columns: [{ label: "License type", value: (x) => x.label }, { label: "In use", value: (x) => x.used },
             { label: "Seats", value: (x) => x.total < 0 ? "unlimited" : x.total },
             { label: "", sort: false, render: (x) => x.total < 0 ? h("span", { class: "muted", text: "no license" }) : h("div", { class: "seat-bar" }, progressBar(x.total ? 100 * x.used / x.total : 100, x.used >= x.total ? "bad" : "")) }] })),
+      use ? licenseUsageCard(use) : null,
       h("div", { class: "card" }, h("h2", { text: "People" }),
         dataTable({ rows: ur.users.filter((u) => u.enabled !== false), search: "Search people", exportName: "license-people",
           columns: [{ label: "User", value: (u) => u.username, render: (u) => h("div", {}, h("strong", { text: u.username }), u.display_name ? h("div", { class: "small muted", text: u.display_name }) : null) },
@@ -1258,6 +1537,8 @@ async function openRun(id) {
     const r = await api("GET", "runs/" + id + "?after=" + st.after);
     st.run = r;
     for (const e of r.events) { st.events.push(e); st.after = Math.max(st.after, e.seq); }
+    // AI calls are recorded when the run ends
+    if (!["queued", "running"].includes(r.status) && st.ai === undefined) st.ai = (await api("GET", "runs/" + id + "/ai-calls").catch(() => ({ calls: [] }))).calls;
     render();
     if (!["queued", "running"].includes(r.status) && S.drawerTimer) { clearInterval(S.drawerTimer); S.drawerTimer = null; }
   }
@@ -1300,6 +1581,7 @@ async function openRun(id) {
     const elapsed = r.duration_ms || (r.started ? Date.now() - Date.parse(r.started) : null);
     const pct = x.total ? 100 * x.finished / x.total : r.status === "success" ? 100 : 0;
     const tabsDef = [["steps", "Steps (" + x.steps.length + ")"], ["log", "Log (" + st.events.length + ")"], ["vars", "Variables (" + x.vars.size + ")"], ["io", "Inputs and outputs"]];
+    if (st.ai && st.ai.length) tabsDef.push(["ai", "AI calls (" + st.ai.length + ")"]);
     const tabs = h("div", { class: "tabs small", role: "tablist" }, tabsDef.map(([k, l]) => h("button", { type: "button", role: "tab", class: "tab" + (st.tab === k ? " active" : ""), "aria-selected": String(st.tab === k), onclick: () => { st.tab = k; S.runTab = k; render(); } }, l)));
     let pane;
     if (st.tab === "steps") {
@@ -1313,6 +1595,13 @@ async function openRun(id) {
       const lines = st.events.map((e) => line(e, x.t0)).filter((l) => st.filter === "all" || (st.filter === "errors" ? l.failed || l.kind === "step.retry" : st.filter === "logs" ? l.kind === "log" : l.kind === "variable.set"));
       const fsel = h("div", { class: "seg" }, [["all", "All"], ["errors", "Errors"], ["logs", "Log messages"], ["vars", "Variables"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String(st.filter === k), onclick: () => { st.filter = k; render(); } }, l)));
       pane = h("div", {}, h("div", { class: "toolbar" }, fsel), h("div", { class: "events" }, lines.length ? lines.map((l) => h("div", { class: l.failed ? "failed" : "" }, h("span", { class: "t", text: l.t }), l.step ? h("span", { class: "sid", text: "[" + l.step + "] " }) : null, l.text)) : [h("div", { class: "muted", text: "Nothing to show." })]));
+    } else if (st.tab === "ai") {
+      // each model call in order: what it was for, the model and connection, tokens and time, what was masked and the tools it asked for (prompts are never kept)
+      pane = table(["When", "Purpose", "Model", "Tokens", "Time", "Masked", "Tools"], (st.ai || []).map((c) => ({ cells: [
+        "+" + ((Date.parse(c.ts) - Date.parse(r.started || c.ts)) / 1000).toFixed(1) + "s", c.purpose || "", (c.model || "") + (c.connection ? " (" + c.connection + ")" : ""),
+        (c.input_tokens || 0) + " + " + (c.output_tokens || 0), c.latency_ms ? dur(c.latency_ms) : "",
+        c.masked && Object.keys(c.masked).length ? Object.entries(c.masked).map(([k, n]) => k + " " + n).join(", ") : "",
+        Array.isArray(c.tool_calls) ? c.tool_calls.join(", ") : ""] })));
     } else if (st.tab === "vars") {
       pane = x.vars.size ? table(["Variable", "Last value"], [...x.vars.entries()].map(([k, v]) => ({ data: k, cells: [h("code", { text: k }), h("code", { class: "val", text: String(v) })] })))
         : h("p", { class: "muted", text: "No variables were set yet. Credentials always show as ****." });
@@ -1394,7 +1683,7 @@ async function openDevice(d) {
     body.replaceChildren(
       kv([["Status", pill(d.status)], ["Host name", d.hostname], ["Operating system", d.os], ["Agent version", (d.agent_version || "") + (d.version_status && d.version_status !== "ok" ? " (newer than the Command Center: it gets no work until the Command Center is updated)" : "")], ["Last seen", local(d.last_seen) + " (" + ago(d.last_seen) + ")"],
         ["Type", d.device_type === "single_user" ? "Single-user" : "Multi-user"], ["Default runner of", (d.default_users || []).join(", ") || "nobody"], ["Log level", d.log_level || "info"],
-        ["Screen", d.session_state ? SCREEN[d.session_state] + ": " + SCREEN_HELP[d.session_state] : "not reported yet"], ["After unattended runs", AFTER_RUN[d.after_run || "nothing"]],
+        ["Screen", d.session_state ? SCREEN[d.session_state] + ": " + SCREEN_HELP[d.session_state] : "not reported yet"], ["After unattended runs", AFTER_RUN[d.after_run || "nothing"]], ["Toolkits", d.toolkits ? h("details", {}, h("summary", { text: d.toolkits.split(",").length + " toolkits" }), h("div", { class: "muted", text: d.toolkits.split(",").join(", ") })) : "not reported yet"],
         ["Registered", local(d.registered) + " by " + (d.registered_by || "")], ["Runner id", h("code", { text: d.id })]]),
       h("h3", { text: "Now" }), active.runs.length ? runTable(active.runs, (r) => openRun(r.id)) : h("p", { class: "muted", text: "Idle." }),
       h("h3", { text: "History" }), runTable(hist.runs, (r) => openRun(r.id)));
@@ -1413,6 +1702,27 @@ async function openUser(u) {
 }
 
 // ---------- dialogs ----------
+/** Requests for versions to go live: approve or reject (someone else's), withdraw (your own); the latest decisions below. */
+async function approvalsDialog() {
+  const [pending, all] = await Promise.all([api("GET", "repo/production-requests?status=pending"), api("GET", "repo/production-requests")]);
+  const decide = (q, how) => async () => {
+    const note = how === "withdraw" ? "" : prompt((how === "approve" ? "Approve" : "Reject") + " v" + q.version + " of " + botName(q.path) + ". Note (optional):", "");
+    if (note === null) return;
+    try { await api("POST", "repo/production-requests/" + q.id + "/" + how, { note }); toast(how === "approve" ? "v" + q.version + " is live" : how === "reject" ? "Rejected" : "Withdrawn"); approvalsDialog(); }
+    catch (e) { toast(e.message, true); }
+  };
+  const done = all.requests.filter((q) => q.status !== "pending").slice(0, 20);
+  modal("Production approvals", [
+    h("p", { class: "muted", text: pending.approval_on ? "A version goes live in production only when someone with the approval right, other than the person who asked, approves it." : "Approval before production is off (Administration > Settings); requests made before still wait here." }),
+    pending.requests.length ? table(["Agent", "Version", "Asked by", "When", "What changed", ""], pending.requests.map((q) => ({ data: q, cells: [botName(q.path), "v" + q.version, q.requested_by, ago(q.requested), q.comment || "",
+      h("div", { class: "row-actions tight" },
+        q.can_decide ? h("button", { type: "button", class: "primary", onclick: decide(q, "approve") }, "Approve") : null,
+        q.can_decide ? h("button", { type: "button", class: "danger", onclick: decide(q, "reject") }, "Reject") : null,
+        q.requested_by === S.user.username ? h("button", { type: "button", onclick: decide(q, "withdraw") }, "Withdraw") : null)] })))
+      : h("p", { text: "Nothing is waiting." }),
+    done.length ? [h("h3", { text: "Decided" }), table(["Agent", "Version", "Asked by", "Result", "By", "When", "Note"], done.map((q) => ({ data: q, cells: [botName(q.path), "v" + q.version, q.requested_by, q.status, q.decided_by || "", ago(q.decided), q.note || ""] })))] : null], []);
+}
+
 async function versionsDialog(b) {
   const r = await api("GET", "repo/versions?path=" + encodeURIComponent(b.path));
   const picks = new Set();
@@ -1425,8 +1735,13 @@ async function versionsDialog(b) {
         try { await api("DELETE", "repo/labels?path=" + encodeURIComponent(b.path) + "&label=" + encodeURIComponent(l)); versionsDialog(b); } catch (e) { toast(e.message, true); } } }, "\u00D7") : null))),
       v.author, local(v.created), v.comment || "",
       h("div", { class: "row-actions tight" },
-        can("repo.production") && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
-          try { await api("POST", "repo/production", { path: b.path, version: v.version }); toast("Live production is now v" + v.version); closeModal(); go("automation"); } catch (e) { toast(e.message, true); } } }, "Set as production") : null,
+        (S.approvalOn ? can("repo.checkin") : can("repo.production")) && v.version !== b.production_version ? h("button", { type: "button", onclick: async () => {
+          let comment;
+          if (S.approvalOn && (comment = prompt("Ask for v" + v.version + " to go live in production. What changed (for the approver)?", "")) === null) return;
+          try {
+            const res = await api("POST", "repo/production", { path: b.path, version: v.version, comment });
+            toast(res.production_request ? "Sent for approval: v" + v.version : "Live production is now v" + v.version); closeModal(); go("automation");
+          } catch (e) { toast(e.message, true); } } }, S.approvalOn ? "Ask to make live" : "Set as production") : null,
         can("repo.checkin") ? h("button", { type: "button", onclick: async () => {
           const l = prompt("Label for v" + v.version + " (for example UAT or Release-3). A label moves from the version that has it.", "UAT");
           if (!l) return;
@@ -1770,12 +2085,17 @@ function apiTaskDialog() {
   const name = h("input", { placeholder: "Invoice lookup" }), bot = botSelect(), dev = deviceSelect();
   const pool = h("select", { "aria-label": "Runner pool" }, h("option", { value: "", text: "(none: use the runner)" }), (S.pools || []).map((p) => h("option", { value: p.id, text: p.name })));
   const timeout = h("input", { type: "number", min: "1", max: "300", value: "60" });
-  modal("New API task", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool)),
-    h("label", {}, "Wait for the result up to (seconds, 1-300)", timeout),
+  const runners = h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool));
+  const serverless = h("input", { type: "checkbox", onchange: () => { runners.hidden = serverless.checked; } });
+  modal("New API task", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot),
+    h("label", { class: "check" }, serverless, " Run on the Command Center, with no runner (serverless)"),
+    h("p", { class: "muted small", text: "Serverless suits agents that only call web services and work on data: REST, SOAP, the cloud apps, Excel, PDF, JSON and the like. They run for at most 5 minutes, four at a time, with files only in their own workspace." }),
+    runners, h("label", {}, "Wait for the result up to (seconds, 1-300)", timeout),
     h("p", { class: "muted", text: "Calls run as you, at high priority. When the agent takes longer than the wait, the caller gets 202 with the run id and asks again." })],
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try {
-      const r = await api("POST", "apitasks", { name: name.value, bot_path: bot.value, device_id: pool.value ? null : dev.value, pool_id: pool.value || null, timeout_seconds: Number(timeout.value) });
+      const r = await api("POST", "apitasks", serverless.checked ? { name: name.value, bot_path: bot.value, serverless: true, timeout_seconds: Number(timeout.value) }
+        : { name: name.value, bot_path: bot.value, device_id: pool.value ? null : dev.value, pool_id: pool.value || null, timeout_seconds: Number(timeout.value) });
       apiTaskShown(name.value, r.url, r.token); go("apitasks");
     } catch (e) { toast(e.message, true); } } }, "Create")]);
 }
@@ -1945,6 +2265,27 @@ function userEditDialog(u) {
 const SCREEN = { unlocked: "Unlocked", locked: "Locked", no_desktop: "No desktop" };
 const SCREEN_HELP = { unlocked: "someone is signed in and the screen is usable", locked: "agents that use the screen cannot run until someone signs in", no_desktop: "the runner is a Windows service: only agents that need no screen can run" };
 const AFTER_RUN = { nothing: "Leave the screen as it is", lock: "Lock the screen", sign_out: "Sign out" };
+
+/** A one-time key and the commands that register a runner with it: an installed copy, the MSI, or the setup package. */
+function registerRunnerDialog() {
+  const temp = h("input", { type: "checkbox" });
+  modal("Register a runner", [
+    h("p", { text: "Creates a one-time key (valid 24 hours) and shows the command for the runner machine." }),
+    h("label", { class: "check" }, temp, "Temporary runner (VDI or pooled desktop): removed by itself after a time without contact, freeing its seat")],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const k = await api("POST", "devices/registration-key", { hours: 24, temporary: temp.checked });
+      const url = location.origin;
+      modal("Register a runner", [
+        h("p", { text: "On the runner machine, run one of these (the key works once, expires in 24 hours and is shown only now):" }),
+        secretBox("ONEOFFICEAUTOMATION already installed (in its folder)", "bin\\ooa.bat agent register --url " + url + " --key " + k.key, "Then: bin\\ooa.bat agent install-task (starts at sign-in, for agents that use the screen)."),
+        secretBox("With the MSI (runs as a Windows service)", "msiexec /i ooa.msi /qn ROLE=Runner URL=" + url + " REGISTRATION_KEY=" + k.key, ""),
+        secretBox("With the setup package", "Install.cmd -Silent -Role Runner -Url " + url + " -RegistrationKey " + k.key, ""),
+        k.temporary ? h("p", { class: "note warn", text: "Temporary: this runner is removed after the time set in Settings without contact." }) : null,
+        h("p", { class: "muted", text: "On the Command Center computer itself you do not need this: ooa server (START-OOA.cmd) registers a runner for it." })], []);
+    } catch (e) { toast(e.message, true); }
+  } }, "Create key")]);
+}
 
 function runnerSettingsDialog(devices) {
   const picked = new Set();
@@ -2230,7 +2571,7 @@ function addItemsDialog(q, after) {
 
 async function openQueue(q) {
   const st = { status: "", q: "" }, sel = new Set();
-  const status = h("select", { "aria-label": "Item status" }, [["", "All items"], ["new", "New"], ["in_progress", "In progress"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]]
+  const status = h("select", { "aria-label": "Item status" }, [["", "All items"], ["new", "New"], ["in_progress", "In progress"], ["review", "To validate"], ["retry", "Waiting to retry"], ["success", "Succeeded"], ["failed", "Failed"], ["deferred", "Deferred"]]
     .map(([v, l]) => h("option", { value: v, text: l })));
   const search = h("input", { type: "search", placeholder: "Search reference or data", "aria-label": "Search items" });
   const list = h("div"), summary = h("div", { class: "q-summary" });
@@ -2242,8 +2583,9 @@ async function openQueue(q) {
   async function load() {
     const [r, all] = await Promise.all([api("GET", "queues/" + q.id + "/items?limit=200&status=" + st.status + "&q=" + encodeURIComponent(st.q)), api("GET", "queues")]);
     const cur = all.queues.find((x) => x.id === q.id) || q;
-    summary.replaceChildren(...["new", "in_progress", "retry", "success", "failed", "deferred"].map((k) => h("span", { class: "pill " + ({ new: "queued", in_progress: "running", retry: "pending", success: "success", failed: "failed", deferred: "stopped" })[k],
-      text: k.replace("_", " ") + ": " + (cur.counts[k] || 0) })), cur.overdue ? h("span", { class: "pill failed", text: cur.overdue + " past service level" }) : null);
+    summary.replaceChildren(...["new", "in_progress", "review", "retry", "success", "failed", "deferred"].filter((k) => k !== "review" || cur.counts.review)
+      .map((k) => h("span", { class: "pill " + ({ new: "queued", in_progress: "running", review: "pending", retry: "pending", success: "success", failed: "failed", deferred: "stopped" })[k],
+      text: (k === "review" ? "to validate" : k.replace("_", " ")) + ": " + (cur.counts[k] || 0) })), cur.overdue ? h("span", { class: "pill failed", text: cur.overdue + " past service level" }) : null);
     list.replaceChildren(table(["", "Reference", "Status", "Attempts", "Priority", "Added", "Result or error", ""], r.items.map((it) => {
       const box = h("input", { type: "checkbox", "aria-label": "Select " + (it.reference || it.id), checked: sel.has(it.id), onchange: (e) => { if (e.target.checked) sel.add(it.id); else sel.delete(it.id); } });
       const err = parseMaybe(it.error), res = parseMaybe(it.result);
@@ -2251,7 +2593,8 @@ async function openQueue(q) {
         pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
         it.run_id ? h("button", { type: "button", class: "link", onclick: () => openRun(it.run_id) }, err ? (err.code || "") + " " + (err.message || "") : res ? JSON.stringify(res).slice(0, 80) : "view run")
           : h("span", { class: "muted", text: err ? (err.code || JSON.stringify(err)) : "" }),
-        h("button", { type: "button", onclick: () => itemDialog(q, it.id, load) }, it.status === "in_progress" ? "View" : "Open")] };
+        it.status === "review" && can("queues.work") ? h("button", { type: "button", class: "primary", onclick: () => validateDialog(q, it, load) }, "Validate")
+          : h("button", { type: "button", onclick: () => itemDialog(q, it.id, load) }, it.status === "in_progress" ? "View" : "Open")] };
     })), r.total > r.items.length ? h("p", { class: "muted", text: "Showing " + r.items.length + " of " + r.total + ". Narrow the search to see more." }) : null);
   }
   status.addEventListener("change", () => { st.status = status.value; load(); });
@@ -2350,6 +2693,47 @@ function exportDialog(bots) {
   [h("button", { type: "button", class: "primary", onclick: async () => {
     try { const b = await api("POST", "lifecycle/export", req()); download("agents-" + new Date().toISOString().slice(0, 10) + ".ooabundle.json", JSON.stringify(b, null, 2), "application/json"); toast("Exported " + b.agents.length + " agents"); }
     catch (e) { toast(e.message, true); } } }, "Download bundle")]);
+}
+
+function installTemplate(t) {
+  const folder = h("input", { value: "Templates", "aria-label": "Folder" });
+  const out = h("div");
+  modal("Install " + t.name, [h("p", { class: "muted", text: "The template's agents go into the agent repository under this folder, as new agents you can change. Agents already there are kept as they are." }),
+    h("label", {}, "Folder", folder), out],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const r = await api("POST", "templates/install", { source: t.source, id: t.id, folder: folder.value.trim() || "Templates" });
+      out.replaceChildren(table(["Agent", "Result", "Problem"], r.results.map((x) => ({ data: x, cells: [botName(x.path), pill(x.status === "created" ? "success" : x.status === "skipped" ? "stopped" : "failed"), x.error ? x.error.message : x.status] }))));
+      toast(r.ok ? "Installed in " + r.folder : "Nothing installed: fix the problems listed", !r.ok);
+      if (r.ok) { S.repoFolder = r.folder; closeModal(); go("automation"); }
+    } catch (e) { toast(e.message, true); } } }, "Install")]);
+}
+
+async function shareTemplateDialog() {
+  await loadRefs();
+  const agent = botSelect();
+  const name = h("input", { maxlength: 120, "aria-label": "Template name" });
+  const description = h("textarea", { rows: 3, maxlength: 2000, "aria-label": "Description" });
+  const category = h("select", {}, ["Finance", "Human resources", "Sales", "Customer service", "IT", "Operations", "Documents", "Other"].map((c) => h("option", { value: c, text: c })));
+  agent.addEventListener("change", () => { if (!name.value) name.value = botName(agent.value); });
+  modal("Share an agent as a template", [h("p", { class: "muted", text: "Its live production version and the agents it calls go to your region's template catalogue. Once the service's operators approve it, every company in the region can install it. Only the agents are shared: never credentials, shared values or runs." }),
+    h("label", {}, "Agent", agent), h("label", {}, "Template name", name), h("label", {}, "What it does", description), h("label", {}, "Category", category)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      await api("POST", "templates/share", { path: agent.value, name: name.value.trim() || botName(agent.value), description: description.value.trim(), category: category.value });
+      closeModal(); toast("Sent for approval: it shows in Templates once approved");
+    } catch (e) { toast(e.message, true); } } }, "Share")]);
+}
+
+function uploadCatalogueDialog() {
+  const file = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Catalogue file" });
+  modal("Upload a template catalogue", [h("p", { class: "muted", text: "For a Command Center without internet access: download templates.json from the releases page and upload it here. It must carry ONEOFFICEAUTOMATION's signature." }), file],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try {
+      const f = file.files[0]; if (!f) throw new Error("Choose the catalogue file");
+      const r = await api("POST", "templates/catalogue", { text: await f.text() });
+      closeModal(); toast(r.templates + " templates available"); go("templates");
+    } catch (e) { toast(e.message, true); } } }, "Upload")]);
 }
 
 function importDialog() {
@@ -2454,6 +2838,34 @@ async function membersDialog(q) {
   [h("button", { type: "button", class: "primary", onclick: async () => { try { await api("PUT", "queues/" + q.id + "/members", { members: rows }); closeModal(); toast("Members saved"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
+/**
+ * Validation (A1): the fields an agent read with too little confidence, the unsure ones marked. Approve sends the item
+ * back to the agent with the checked values; Reject fails it with a reason.
+ */
+function validateDialog(q, it, after) {
+  const res = parseMaybe(it.result) || {};
+  const v = res.validation || {}, fields = v.fields || {}, conf = v.confidence || {}, min = Number(v.min_confidence || 0);
+  const inputs = {};
+  const rows = Object.keys(fields).map((k) => {
+    const c = conf[k] === undefined ? null : Number(conf[k]);
+    const unsure = c !== null && c < min;
+    const el = h("input", { type: "text", value: fields[k] === null || fields[k] === undefined ? "" : String(fields[k]), "aria-label": k, class: unsure ? "unsure" : "" });
+    inputs[k] = el;
+    return h("label", {}, h("span", {}, k, c !== null ? h("span", { class: "pill " + (unsure ? "failed" : "success"), text: Math.round(c * 100) + "%" }) : null), el);
+  });
+  const reason = h("input", { type: "text", placeholder: "Why it is rejected (needed to reject)" });
+  modal("Validate " + (it.reference || it.id), [
+    h("p", { class: "muted", text: "The agent was not sure of the fields marked red (below " + Math.round(min * 100) + "%). Check them against the document, correct them and approve: the item goes back to the agent with these values." }),
+    h("div", { class: "grid2" }, rows), h("label", {}, "Reject instead", reason)],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    const out = {}; for (const k of Object.keys(inputs)) out[k] = inputs[k].value === "" ? null : inputs[k].value;
+    try { const r = await api("POST", "queues/" + q.id + "/items/" + it.id + "/validate", { fields: out }); closeModal(); toast(r.changed.length ? "Approved with " + r.changed.length + " correction(s)" : "Approved"); if (after) after(); }
+    catch (e) { toast(e.message, true); } } }, "Approve"),
+   h("button", { type: "button", class: "danger", onclick: async () => {
+    try { await api("POST", "queues/" + q.id + "/items/" + it.id + "/validate", { reject: true, reason: reason.value.trim() }); closeModal(); toast("Rejected"); if (after) after(); }
+    catch (e) { toast(e.message, true); } } }, "Reject")]);
+}
+
 async function itemDialog(q, itemId, after) {
   let it, full;
   try { [it, full] = await Promise.all([api("GET", "queues/" + q.id + "/items/" + itemId), api("GET", "queues/" + q.id)]); } catch (e) { toast(e.message, true); return; }
@@ -2527,16 +2939,30 @@ function connectionDialog(c) {
   const model = h("input", { value: c ? c.model || "" : "", placeholder: "model or deployment name" }), base = h("input", { value: c ? c.base_url || "" : "", placeholder: "https://... (optional)" });
   const key = h("input", { value: c ? c.key_ref || "" : "", placeholder: "vault folder/credential/attribute" }), desc = h("input", { value: c ? c.description || "" : "" });
   const roles = h("input", { value: c ? (c.allowed_roles || []).join(", ") : "", placeholder: "every role" });
+  const lim = (k, max) => h("input", { type: "number", min: "0", max: String(max), value: c && c[k] ? String(c[k]) : "", placeholder: "no limit" });
+  const monthly = lim("monthly_tokens", 1e12), perMinute = lim("calls_per_minute", 100000), perRun = lim("calls_per_run", 1000000);
+  const analyzer = h("input", { value: c ? c.pii_analyzer_url || "" : "", placeholder: "https://presidio-analyzer.internal (optional)" });
+  const contentCheck = h("select", {}, h("option", { value: "none", text: "No content check" }), h("option", { value: "moderation", text: "Check answers with the provider's moderation endpoint" }));
+  contentCheck.value = c && c.content_check === "moderation" ? "moderation" : "none";
   const help = h("p", { class: "muted small" });
   const result = h("div");
   if (c) { provider.value = c.provider; type.value = c.model_type || "standard"; }
   const showHelp = () => { help.textContent = PROVIDER_HELP[provider.value] || ""; };
   provider.onchange = showHelp; showHelp();
   const values = () => ({ provider: provider.value, model_type: type.value, model: model.value.trim() || null, base_url: base.value.trim() || null, key_ref: key.value.trim() || null, description: desc.value,
-    allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean) });
+    allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean),
+    monthly_tokens: Number(monthly.value || 0), calls_per_minute: Number(perMinute.value || 0), calls_per_run: Number(perRun.value || 0),
+    pii_analyzer_url: analyzer.value.trim() || null, content_check: contentCheck.value });
   modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
     help, h("label", {}, "Endpoint", base),
     h("label", {}, "API key from the One Agent Vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
+    h("h3", { text: "Privacy and safety" }),
+    h("div", { class: "grid2" }, h("label", {}, "Microsoft Presidio analyzer (masks names, places and IDs before the model sees them, with Hide personal data)", analyzer),
+      h("label", {}, "Content check", contentCheck)),
+    h("h3", { text: "Budget and limits" }),
+    h("div", { class: "grid2" }, h("label", {}, "Tokens a month (in and out)" + (c && c.tokens_this_month ? "; " + c.tokens_this_month + " used this month" : ""), monthly),
+      h("label", {}, "Calls a minute, per run (more calls wait)", perMinute), h("label", {}, "Calls a run (more calls fail)", perRun)),
+    h("p", { class: "muted small", text: "When the month's tokens are used up, runs get the connection blocked and its AI steps fail with AI.BUDGET_REACHED until the next month or a higher budget. Empty or 0: no limit." }),
     h("p", { class: "muted", text: "Only the vault reference is stored here. Runners read the key from the vault while an agent runs, and only for agents whose owner may use that vault folder. Runs of other roles do not receive the connection." }),
     result],
   [h("button", { type: "button", onclick: async () => {
@@ -2547,6 +2973,148 @@ function connectionDialog(c) {
   h("button", { type: "button", class: "primary", onclick: async () => {
     try { await api("PUT", "connections/" + encodeURIComponent(name.value.trim()), values());
       closeModal(); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, "Save connection")]);
+}
+
+/** One dashboard widget drawn from its figures: a number, bars, a line or a table. */
+function widgetCard(w) {
+  const title = w.title || (w.source === "runs" ? (w.metric || "runs").replace(/_/g, " ") : (w.agg || "sum") + " of " + w.kpi);
+  const fmtNum = (v) => v === null || v === undefined ? "\u2014" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }) + (w.metric === "success_rate" ? "%" : "");
+  let body;
+  if (w.error) body = h("p", { class: "error", text: w.error });
+  else if (w.type === "number" || !w.type) body = h("div", { class: "kpi-value", text: fmtNum(w.value) });
+  else if (w.type === "table") body = table([w.group === "agent" ? "Agent" : w.group === "value" ? "Value" : "Period", "Figure"], (w.points || []).map((p) => ({ cells: [p.label, fmtNum(p.value)] })));
+  else if (w.type === "bars") {
+    const pts = w.points || [], max = Math.max(1, ...pts.map((p) => Number(p.value) || 0));
+    body = pts.length ? h("div", { class: "hbars" }, pts.map((p) => h("div", { class: "hbar" }, h("span", { class: "hbar-label", text: p.label }),
+      h("span", { class: "hbar-track" }, (() => { const b = h("span", { class: "hbar-fill" }); b.style.width = (100 * (Number(p.value) || 0) / max) + "%"; return b; })()), h("span", { class: "hbar-value", text: fmtNum(p.value) })))) : h("p", { class: "muted", text: "No figures in this period." });
+  } else {
+    const pts = (w.points || []).filter((p) => p.value !== null), W = 320, H = 120;
+    if (!pts.length) body = h("p", { class: "muted", text: "No figures in this period." });
+    else {
+      const max = Math.max(...pts.map((p) => Number(p.value))), min = Math.min(0, ...pts.map((p) => Number(p.value)));
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 " + W + " " + (H + 18)); svg.setAttribute("class", "dash-line"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", title);
+      const x = (i) => pts.length === 1 ? W / 2 : 6 + i * (W - 12) / (pts.length - 1), y = (v) => H - 4 - (H - 8) * (v - min) / Math.max(1e-9, max - min);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("points", pts.map((p, i) => x(i).toFixed(1) + "," + y(Number(p.value)).toFixed(1)).join(" ")); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#2563eb"); line.setAttribute("stroke-width", "2");
+      svg.append(line);
+      if (pts.length <= 60) pts.forEach((p, i) => { const c = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c.setAttribute("cx", x(i).toFixed(1)); c.setAttribute("cy", y(Number(p.value)).toFixed(1)); c.setAttribute("r", "3"); c.setAttribute("fill", "#2563eb"); svg.append(c); });
+      for (const [i, p] of pts.length === 1 ? [[0, pts[0]]] : [[0, pts[0]], [pts.length - 1, pts[pts.length - 1]]]) {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", String(Math.min(W - 40, Math.max(0, x(i) - 20)))); t.setAttribute("y", String(H + 14)); t.setAttribute("font-size", "10"); t.setAttribute("fill", "currentColor"); t.textContent = p.label;
+        svg.append(t);
+      }
+      body = h("div", {}, svg, h("div", { class: "muted small", text: "Last: " + fmtNum(pts[pts.length - 1].value) + "  \u00B7  highest " + fmtNum(max) }));
+    }
+  }
+  return h("div", { class: "card dash-card" + (w.type === "number" || !w.type ? " kpi" : "") }, h("div", { class: "muted small", text: /days?/.test(title) ? title : title + " (" + (w.days || 30) + " days)" }), body);
+}
+
+const DASH_EXAMPLE = [
+  { title: "Amount paid", type: "number", kpi: "amount", agg: "sum", days: 30 },
+  { title: "Amount by category", type: "bars", kpi: "amount", agg: "sum", group: "value", by: "category", days: 30 },
+  { title: "Invoices per day", type: "line", kpi: "amount", agg: "count", group: "day", days: 30 },
+  { title: "Success rate", type: "number", source: "runs", metric: "success_rate", days: 7 }];
+
+/** Upload a signed toolkit jar (ooa toolkit sign); its publisher must be trusted first. */
+function uploadToolkitDialog() {
+  const file = h("input", { type: "file", accept: ".jar", "aria-label": "Toolkit jar" });
+  modal("Upload toolkit", [h("label", {}, "Signed toolkit jar (10 MB at most)", file),
+    h("p", { class: "muted small", text: "Developers build the toolkit with the OOA SDK and sign it: ooa toolkit sign --jar FILE --class NAME --key FILE. A new version is installed beside the ones already here; agents use the newest version their range allows." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    const f = file.files && file.files[0];
+    if (!f) { toast("Choose the jar", true); return; }
+    try {
+      const res = await fetch("/api/toolkits/custom", { method: "POST", credentials: "same-origin", headers: { "X-OOA-Request": "1", "Content-Type": "application/java-archive" }, body: f });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { const e = data.error || {}; throw new Error((e.message || res.statusText) + (e.suggestedFix ? " (" + e.suggestedFix + ")" : "")); }
+      closeModal(); toast(data.unchanged ? data.toolkit_id + " " + data.version + " was already installed" : "Installed " + data.toolkit_id + " " + data.version); go(S.adminTab || "toolkits");
+    } catch (e) { toast(e.message, true); } } }, "Upload")]);
+}
+
+async function publishersDialog() {
+  const r = await api("GET", "toolkits/publishers");
+  const name = h("input", { placeholder: "acme" }), key = h("textarea", { rows: 2, class: "mono", placeholder: "The contents of the publisher's .pub file (ooa toolkit keygen)" });
+  modal("Trusted publishers", [r.publishers.length ? table(["Publisher", "Key", "Added", ""], r.publishers.map((p) => ({ cells: [p.publisher, h("code", { text: p.public_key.slice(-16) }), ago(p.added) + " by " + (p.added_by || ""),
+      h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Stop trusting " + p.publisher + "?")) return; try { await api("DELETE", "toolkits/publishers/" + encodeURIComponent(p.publisher)); closeModal(); publishersDialog(); } catch (e) { toast(e.message, true); } } }, "Remove")] })))
+      : h("p", { class: "muted", text: "No publishers yet. Only jars signed by a publisher trusted here can be uploaded." }),
+    h("div", { class: "grid2" }, h("label", {}, "Publisher name (as in the key file)", name), h("label", {}, "Public key", key))],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { await api("POST", "toolkits/publishers", { publisher: name.value.trim(), public_key: key.value.trim() }); closeModal(); publishersDialog(); } catch (e) { toast(e.message, true); } } }, "Trust publisher")]);
+}
+
+async function customVersionsDialog() {
+  const r = await api("GET", "toolkits/custom");
+  modal("Your toolkit versions", [r.versions.length ? table(["Toolkit", "Version", "Publisher", "Uploaded", "SHA-256", ""], r.versions.map((v) => ({ cells: [v.name || v.toolkit_id, v.version, v.publisher, ago(v.uploaded) + " by " + (v.uploaded_by || ""),
+      h("code", { text: v.sha256.slice(0, 12) }), h("button", { type: "button", class: "danger", onclick: async () => {
+        if (!confirm("Delete " + v.toolkit_id + " " + v.version + "?")) return;
+        try { await api("DELETE", "toolkits/custom/" + v.id); closeModal(); customVersionsDialog(); } catch (e) { toast(e.message, true); } } }, "Delete")] })))
+    : h("p", { class: "muted", text: "No toolkits uploaded yet." })], []);
+}
+
+async function dashboardDialog(d) {
+  const k = await api("GET", "dashboards/kpis").catch(() => ({ kpis: [] }));
+  const name = h("input", { value: d ? d.name : "" }), desc = h("input", { value: d ? d.description || "" : "" });
+  const shared = h("input", { value: d ? d.shared_with.join(", ") : "", placeholder: "role:viewer, team:finance or * (empty = only you)" });
+  const widgets = h("textarea", { rows: 12, class: "mono", value: JSON.stringify(d ? d.widgets : DASH_EXAMPLE, null, 2) });
+  modal(d ? "Edit " + d.name : "New dashboard", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Share with", shared)), h("label", {}, "Description", desc),
+    h("label", {}, "Widgets (JSON)", widgets),
+    h("p", { class: "muted small", text: "A widget: title; type number, bars, line or table; source kpi (with kpi, agg sum/avg/count/min/max/last, optionally bot) or runs (metric runs, success_rate, failed, avg_seconds, hours_saved); group none, day, week, month, agent or value (with by: another KPI of the same run); days 1 to 365." }),
+    k.kpis.length ? h("p", { class: "muted small", text: "KPIs recorded so far: " + k.kpis.map((x) => x.name + " (" + botName(x.bot_path) + ")").join(", ") }) : h("p", { class: "muted small", text: "No KPI values yet: mark outputs as KPI in Agent Studio and run the agent." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const body = { name: name.value.trim(), description: desc.value.trim(), shared_with: shared.value.split(",").map((x) => x.trim()).filter(Boolean), widgets: parseJson(widgets.value, []) };
+      const r = await api(d ? "PUT" : "POST", "dashboards" + (d ? "/" + d.id : ""), body); S.dashId = r.id; closeModal(); go("dashboards"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+const TEST_EXAMPLE = [
+  { name: "urgent mail", inputs: { text: "The server is down!" }, expect: { outputs: { label: { op: "one_of", value: ["urgent", "high"] } } } },
+  { name: "thank you", inputs: { text: "Thanks a lot" }, expect: { outputs: { label: "low" } } },
+  { name: "empty text fails", inputs: { text: "" }, expect: { status: "failed", error_code: "TRIAGE.*" } }];
+
+function testSetDialog(t) {
+  const name = h("input", { value: t ? t.name : "" }), desc = h("input", { value: t ? t.description || "" : "" });
+  const bot = botSelect(t ? t.bot_path : null);
+  if (t) { const known = [...bot.options].some((o) => o.value === t.bot_path); if (!known) bot.append(h("option", { value: t.bot_path, text: botName(t.bot_path) })); bot.value = t.bot_path; }
+  const cases = h("textarea", { rows: 14, class: "mono", value: JSON.stringify(t ? t.cases : TEST_EXAMPLE, null, 2) });
+  modal(t ? "Edit " + t.name : "New test set", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Agent", bot)), h("label", {}, "Description", desc),
+    h("label", {}, "Cases (JSON)", cases),
+    h("p", { class: "muted small", text: "Each case: a name, the agent's inputs, and expect: status (success or failed), error_code (EMAIL.* allowed) and outputs. An output is equal to a value, or {op, value}: contains, not_contains, matches (regular expression), approx (with tolerance), one_of (a list), not_empty." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const body = { name: name.value.trim(), description: desc.value.trim(), bot_path: bot.value, cases: parseJson(cases.value, []) };
+      await api(t ? "PUT" : "POST", "test-sets" + (t ? "/" + t.id : ""), body); closeModal(); go("tests"); } catch (e) { toast(e.message, true); } } }, "Save")]);
+}
+
+function runTestSetDialog(t) {
+  const where = h("select", {}, h("optgroup", { label: "Runners" }, S.devices.filter((d) => d.enabled).map((d) => h("option", { value: "d:" + d.id, text: d.name + " (" + d.status + ")" }))),
+    h("optgroup", { label: "Runner pools" }, (S.pools || []).map((p) => h("option", { value: "p:" + p.id, text: p.name }))));
+  modal("Run " + t.name, [h("p", { class: "muted", text: t.cases.length + " case(s) run the live production version of " + botName(t.bot_path) + ", one run each." }), h("label", {}, "Run on", where)],
+    [h("button", { type: "button", class: "primary", onclick: async () => {
+      const v = where.value || "";
+      try { const r = await api("POST", "test-sets/" + t.id + "/run", v.startsWith("p:") ? { pool_id: v.slice(2) } : { device_id: v.slice(2) });
+        closeModal(); toast(r.started + " of " + r.cases + " case(s) started"); testRunDialog(r.test_run_id); } catch (e) { toast(e.message, true); } } }, "Run")]);
+}
+
+async function testRunDialog(id) {
+  const body = h("div");
+  const load = async () => {
+    const r = await api("GET", "test-sets/runs/" + id);
+    body.replaceChildren(kv([["Agent", botName(r.bot_path) + " v" + r.version], ["Started", local(r.started) + " by " + (r.started_by || "")], ["Score", r.status === "running" ? "running…" : r.passed + " of " + r.total + " passed"]]),
+      table(["Case", "Result", "Why", ""], r.results.map((x) => ({ cells: [x.case_name, x.status === "running" ? pill("running") : h("span", { class: "pill " + (x.passed ? "success" : "failed"), text: x.passed ? "passed" : "failed" }),
+        h("span", { class: "small", text: x.detail || "" }), x.run_id && !x.run_id.startsWith("norun") ? h("button", { type: "button", class: "link", onclick: () => openRun(x.run_id) }, "run") : ""] }))));
+    return r.status === "running";
+  };
+  modal("Test run", [body], []);
+  let more = await load().catch((e) => { toast(e.message, true); return false; });
+  while (more && !$("modal").hidden) { await new Promise((res) => setTimeout(res, 2000)); more = await load().catch(() => false); }
+}
+
+async function testHistoryDialog(t) {
+  try {
+    const r = await api("GET", "test-sets/" + t.id + "/history");
+    modal("History of " + t.name, [r.runs.length ? table(["Started", "Version", "Score", ""], r.runs.map((x) => ({ cells: [local(x.started), "v" + x.version,
+      h("span", { class: "pill " + (x.status === "passed" ? "success" : x.status === "running" ? "running" : "failed"), text: x.status === "running" ? "running" : x.passed + " / " + x.total }),
+      h("button", { type: "button", class: "link", onclick: () => testRunDialog(x.id) }, "details")] }))) : h("p", { class: "muted", text: "Not run yet." })], []);
+  } catch (e) { toast(e.message, true); }
 }
 
 /** The files kept in the current folder of the repository (templates, workbooks, lists), with upload. */
@@ -2678,11 +3246,18 @@ async function boot() {
     e.preventDefault();
     $("login-error").hidden = true;
     try {
-      const r = await api("POST", "auth/login", { username: $("login-user").value, password: $("login-pass").value });
+      // two steps for accounts with two-step sign-in: the password, then the code
+      const r = S.mfaToken ? await api("POST", "auth/mfa", { mfa_token: S.mfaToken, code: $("login-code").value })
+        : await api("POST", "auth/login", { username: $("login-user").value, password: $("login-pass").value });
       $("login-pass").value = "";
+      if (r.mfa_required) { loginCodeStep(r.mfa_token); return; }
+      loginCodeStep(null);
       S.user = r.user;
-      if (S.user.must_change) showPassword(); else showApp();
-    } catch (err) { $("login-error").textContent = err.message; $("login-error").hidden = false; }
+      afterSignIn();
+    } catch (err) {
+      if (err.code === "CR.MFA_EXPIRED") loginCodeStep(null);
+      $("login-error").textContent = err.message; $("login-error").hidden = false;
+    }
   });
   $("password-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -2691,11 +3266,12 @@ async function boot() {
     try {
       await api("POST", "auth/password", { current: $("pw-current").value, new: $("pw-new").value });
       for (const id of ["pw-current", "pw-new", "pw-repeat"]) $(id).value = "";
-      S.user = await api("GET", "auth/me"); toast("Password changed"); showApp();
+      S.user = await api("GET", "auth/me"); toast("Password changed"); afterSignIn();
     } catch (err) { $("pw-error").textContent = err.message; $("pw-error").hidden = false; }
   });
   $("btn-logout").addEventListener("click", async () => { try { await api("POST", "auth/logout"); } catch (_) { /* already signed out */ } S.user = null; showLogin(); });
   $("btn-change-pw").addEventListener("click", showPassword);
+  $("btn-mfa").addEventListener("click", () => mfaDialog(false).catch((e) => toast(e.message, true)));
   $("btn-apikeys").addEventListener("click", () => apiKeysDialog().catch((e) => toast(e.message, true)));
   // the user menu in the top bar: name and role, API keys, password, sign out
   const userPop = $("user-pop"), userBtn = $("btn-user");
@@ -2708,7 +3284,37 @@ async function boot() {
   $("drawer-close").addEventListener("click", closeDrawer);
   $("drawer").addEventListener("click", (e) => { if (e.target === $("drawer")) closeDrawer(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("modal").hidden && !$("drawer").hidden) closeDrawer(); });
-  try { S.user = await api("GET", "auth/me"); if (S.user.must_change) showPassword(); else showApp(); } catch (_) { showLogin(); }
+  try { S.user = await api("GET", "auth/me"); afterSignIn(); } catch (_) { showLogin(); }
 }
 
 if (typeof window !== "undefined" && !window.__OOA_TEST__) boot();
+
+/** Licence use: seats in use per type over time, who holds each seat and whether it was used in the last 30 days. */
+function licenseUsageCard(use) {
+  const NAMES = { developer: "Developer", citizen_developer: "Citizen Developer", attended_runner: "Attended Runner", unattended_runner: "Unattended Runner" };
+  const spark = (type) => {
+    const pts = use.trend.filter((r) => r.license_type === type);
+    const max = Math.max(1, ...pts.map((r) => Math.max(r.used, r.total))), w = 160, ht = 28;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 " + w + " " + ht); svg.setAttribute("width", w); svg.setAttribute("height", ht); svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", NAMES[type] + " seats in use over " + pts.length + " day(s)");
+    if (pts.length) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("points", pts.map((r, i) => (pts.length === 1 ? w : i * w / (pts.length - 1)).toFixed(1) + "," + (ht - 2 - (ht - 4) * r.used / max).toFixed(1)).join(" "));
+      line.setAttribute("fill", "none"); line.setAttribute("stroke", "#2563eb"); line.setAttribute("stroke-width", "2");
+      svg.appendChild(line);
+    }
+    return svg;
+  };
+  return h("div", { class: "card" },
+    h("h2", { text: "Usage" }),
+    h("p", { class: "muted", text: "Seats in use each day over the last 90 days, and who holds each seat. A seat whose holder has not signed in (or, for a runner, been online) and has started no runs for 30 days is marked idle: a candidate to take back." }),
+    table(["License type", "In use", "Idle", "Last 90 days"], Object.entries(use.seats).map(([t, x]) => ({ cells: [x.label, x.used + (x.total >= 0 ? " of " + x.total : ""), String(x.idle), spark(t)] }))),
+    dataTable({ rows: use.holders, search: "Search seat holders", exportName: "license-use",
+      columns: [{ label: "Holder", value: (x) => x.name, render: (x) => h("div", {}, h("strong", { text: x.name }), x.name !== x.principal ? h("div", { class: "small muted", text: x.principal }) : null) },
+        { label: "License", value: (x) => NAMES[x.license_type] || x.license_type },
+        { label: "Since", value: (x) => x.assigned, render: (x) => local(x.assigned) },
+        { label: "Last active", value: (x) => x.last_active || "", render: (x) => x.last_active ? local(x.last_active) : h("span", { class: "muted", text: "never" }) },
+        { label: "Runs (30 days)", value: (x) => x.runs_30_days },
+        { label: "", value: (x) => x.idle ? 1 : 0, render: (x) => x.idle ? h("span", { class: "pill queued", text: "idle" }) : null }] }));
+}

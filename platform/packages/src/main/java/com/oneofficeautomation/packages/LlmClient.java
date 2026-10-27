@@ -37,7 +37,8 @@ final class LlmClient {
         Config(String provider, String model, Object apiKey, String baseUrl, double temperature, int maxTokens, boolean maskPii, Object accessKeyId, String region) {
             this(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, null);
         }
-        Config with(Options o) { return new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o); }
+        /** The same settings with call options; it stays linked to its model connection (limits, masking, content check). */
+        Config with(Options o) { Config c = new Config(provider, model, apiKey, baseUrl, temperature, maxTokens, maskPii, accessKeyId, region, o); ModelConnections.carry(this, c); return c; }
         Options opts() { return options == null ? Options.NONE : options; }
     }
 
@@ -119,6 +120,53 @@ final class LlmClient {
         return out;
     }
 
+    /**
+     * Masks what a Microsoft Presidio analyzer finds (names, places, IDs in many languages) besides the built-in patterns
+     * (A3): POST {analyzer}/analyze, each span replaced by the same kind of token, restored in the answer. Without an
+     * analyzer the text is returned as it is. The analyzer runs inside the company, so the text does not leave it.
+     */
+    static String presidio(ActionContext ctx, String analyzer, String text, Map<String, String> mapping, Map<String, Integer> counts) {
+        if (analyzer == null || analyzer.isBlank() || text == null || text.isBlank()) return text;
+        Object found = HttpJson.req(P, "POST", analyzer.replaceAll("/+$", "") + "/analyze").json(Map.of("text", text, "language", "en")).timeout(30).send(ctx).json();
+        if (!(found instanceof List<?> spans) || spans.isEmpty()) return text;
+        List<Map<?, ?>> sorted = new ArrayList<>();
+        for (Object o : spans) if (o instanceof Map<?, ?> m && m.get("start") instanceof Number && m.get("end") instanceof Number) sorted.add(m);
+        sorted.sort((a, b) -> Integer.compare(((Number) b.get("start")).intValue(), ((Number) a.get("start")).intValue()));
+        StringBuilder sb = new StringBuilder(text);
+        int lastStart = Integer.MAX_VALUE;
+        for (Map<?, ?> m : sorted) {
+            int st = ((Number) m.get("start")).intValue(), en = ((Number) m.get("end")).intValue();
+            if (st < 0 || en > text.length() || st >= en || en > lastStart) continue;   // overlapping spans: the later one wins
+            String value = text.substring(st, en);
+            if (value.startsWith("<") && value.endsWith(">")) continue;   // already a token
+            String kind = String.valueOf(m.get("entity_type")).replaceAll("[^A-Z_]", "");
+            String t = token(kind.isEmpty() ? "PII" : kind, value);
+            mapping.put(t, value);
+            counts.merge(kind.isEmpty() ? "PII" : kind, 1, Integer::sum);
+            sb.replace(st, en, t);
+            lastStart = st;
+        }
+        return sb.toString();
+    }
+
+    /** The provider's moderation check on an answer (OpenAI and OpenAI-compatible endpoints); a flagged answer fails the step. */
+    @SuppressWarnings("unchecked")
+    static void moderate(ActionContext ctx, Config cfg, String provider, String text) {
+        if (!List.of("openai", "openai_compatible", "azure_openai").contains(provider))
+            throw new ActionException(P + ".NO_MODERATION", "The content check uses an OpenAI-style moderation endpoint; " + provider + " has none", "Turn the content check off for this connection.");
+        String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
+        HttpJson.Req req = provider.equals("azure_openai") ? HttpJson.req(P, "POST", base + "/openai/moderations?api-version=2024-06-01") : HttpJson.req(P, "POST", base + "/moderations");
+        if (cfg.apiKey() instanceof SecureString k) { if (provider.equals("azure_openai")) req.header("api-key", k.reveal()); else req.bearer(k); }
+        Map<String, Object> r = req.json(Map.of("input", text)).timeout(30).send(ctx).map();
+        if (r.get("results") instanceof List<?> l && !l.isEmpty() && l.get(0) instanceof Map<?, ?> first && Boolean.TRUE.equals(first.get("flagged"))) {
+            List<String> why = new ArrayList<>();
+            if (first.get("categories") instanceof Map<?, ?> cats) for (var e : cats.entrySet()) if (Boolean.TRUE.equals(e.getValue())) why.add(String.valueOf(e.getKey()));
+            ctx.warn("The model's answer was flagged by the content check: " + why);
+            throw new ActionException("AI.CONTENT_FLAGGED", "The model's answer was flagged by the content check" + (why.isEmpty() ? "" : ": " + String.join(", ", why)),
+                "Rephrase the prompt, or have a person review this case.");
+        }
+    }
+
     static String unmask(String text, Map<String, String> mapping) {
         if (text == null) return null;
         String out = text;
@@ -141,17 +189,19 @@ final class LlmClient {
      */
     @SuppressWarnings("unchecked")
     static Reply chat(ActionContext ctx, Config cfg, List<Map<String, Object>> messages, List<Map<String, Object>> tools, boolean jsonMode, String purpose) {
+        ModelConnections.beforeCall(ctx, cfg);
         Map<String, String> mapping = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
+        String analyzer = ModelConnections.option(cfg, "pii_analyzer_url");
         List<Map<String, Object>> msgs = new ArrayList<>();
         for (Map<String, Object> m : messages) {
             Map<String, Object> c = new LinkedHashMap<>(m);
-            if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", mask(s, mapping, counts));
+            if (cfg.maskPii() && !"system".equals(m.get("role")) && m.get("content") instanceof String s) c.put("content", presidio(ctx, analyzer, mask(s, mapping, counts), mapping, counts));
             if (cfg.maskPii() && m.get("content") instanceof List<?> parts) {
                 List<Object> masked = new ArrayList<>();
                 for (Object p : parts) {
                     Map<String, Object> part = new LinkedHashMap<>((Map<String, Object>) p);
-                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", mask(s, mapping, counts));
+                    if ("text".equals(part.get("type")) && part.get("text") instanceof String s) part.put("text", presidio(ctx, analyzer, mask(s, mapping, counts), mapping, counts));
                     masked.add(part);
                 }
                 c.put("content", masked);
@@ -181,6 +231,8 @@ final class LlmClient {
         List<String> choices = null;
         if (r.choices() != null) { choices = new ArrayList<>(); for (String c : r.choices()) choices.add(unmask(c, mapping)); }
         Reply out = new Reply(unmask(r.text(), mapping), calls, r.inTokens(), r.outTokens(), counts, choices);
+        // the connection's content check: the answer goes to the provider's moderation endpoint before anyone uses it
+        if ("moderation".equals(ModelConnections.option(cfg, "content_check")) && out.text() != null && !out.text().isBlank()) moderate(ctx, cfg, provider, out.text());
         govern(ctx, cfg, provider, purpose, out, System.currentTimeMillis() - t0, msgs);
         return out;
     }
@@ -194,6 +246,8 @@ final class LlmClient {
             rec.put("purpose", purpose);
             rec.put("provider", provider);
             rec.put("model", cfg.model());
+            String connection = ModelConnections.connectionOf(cfg);
+            if (connection != null) rec.put("connection", connection);
             rec.put("input_tokens", r.inTokens());
             rec.put("output_tokens", r.outTokens());
             rec.put("latency_ms", ms);
@@ -759,6 +813,77 @@ final class LlmClient {
         for (String s : b64) out.add(dec.decode(s));
         govern(ctx, cfg, provider, "generate_image", new Reply(null, List.of(), 0, 0, counts), System.currentTimeMillis() - t0, List.of(Map.of("role", "user", "content", text)));
         return out;
+    }
+
+    /**
+     * Embeddings (A5): one vector per text, for knowledge search. OpenAI, Azure OpenAI and OpenAI-compatible servers
+     * (Ollama, vLLM, LiteLLM) take a batch per call; Vertex AI and Bedrock (Titan or Cohere) as their APIs allow. Texts
+     * are masked first when the connection masks, so names and numbers are not sent.
+     */
+    @SuppressWarnings("unchecked")
+    static List<float[]> embed(ActionContext ctx, Config cfg, List<String> texts) {
+        ModelConnections.beforeCall(ctx, cfg);
+        String provider = cfg.provider() == null ? "openai" : cfg.provider();
+        Map<String, String> mapping = new LinkedHashMap<>();
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        List<String> in = new ArrayList<>();
+        for (String t : texts) in.add(cfg.maskPii() ? mask(t, mapping, counts) : t);
+        long t0 = System.currentTimeMillis();
+        int timeout = cfg.opts().timeout(), tokens = 0;
+        List<float[]> out = new ArrayList<>();
+        switch (provider) {
+            case "openai", "openai_compatible", "azure_openai" -> {
+                HttpJson.Req req;
+                Map<String, Object> body = new LinkedHashMap<>(Map.of("input", in));
+                if (provider.equals("azure_openai")) {
+                    if (cfg.baseUrl() == null || cfg.baseUrl().isBlank()) throw new ActionException(P + ".NO_ENDPOINT", "Azure OpenAI needs base_url (your resource endpoint)");
+                    if (!(cfg.apiKey() instanceof SecureString k)) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                    req = HttpJson.req(P, "POST", cfg.baseUrl().replaceAll("/+$", "") + "/openai/deployments/" + HttpJson.enc(cfg.model()) + "/embeddings?api-version=2024-10-21").header("api-key", k.reveal());
+                } else {
+                    body.put("model", cfg.model() == null || cfg.model().isBlank() ? "text-embedding-3-small" : cfg.model());
+                    String base = cfg.baseUrl() == null || cfg.baseUrl().isBlank() ? "https://api.openai.com/v1" : cfg.baseUrl().replaceAll("/+$", "");
+                    req = HttpJson.req(P, "POST", base + "/embeddings");
+                    if (cfg.apiKey() instanceof SecureString) req.bearer(cfg.apiKey());
+                    else if (provider.equals("openai")) throw new ActionException(P + ".NO_KEY", "An API key from the vault is required");
+                }
+                Map<String, Object> r = req.json(body).timeout(timeout).send(ctx).map();
+                List<Object> data = new ArrayList<>((List<Object>) r.getOrDefault("data", List.of()));
+                data.sort(Comparator.comparingInt(o -> num(((Map<String, Object>) o).get("index"))));
+                for (Object o : data) out.add(vector(((Map<String, Object>) o).get("embedding")));
+                if (r.get("usage") instanceof Map<?, ?> u) tokens = num(u.get("prompt_tokens"));
+            }
+            case "google_vertex" -> {
+                List<Object> inst = new ArrayList<>();
+                for (String t : in) inst.add(Map.of("content", t));
+                Map<String, Object> r = HttpJson.req(P, "POST", vertexBase(cfg) + "/publishers/google/models/" + HttpJson.enc(cfg.model()) + ":predict")
+                        .header("Authorization", "Bearer " + vertexToken(ctx, cfg)).json(Map.of("instances", inst)).timeout(timeout).send(ctx).map();
+                for (Object o : (List<?>) r.getOrDefault("predictions", List.of()))
+                    out.add(vector(((Map<String, Object>) ((Map<String, Object>) o).get("embeddings")).get("values")));
+            }
+            case "aws_bedrock" -> {
+                boolean cohere = String.valueOf(cfg.model()).startsWith("cohere.");
+                if (cohere) {
+                    Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/invoke", Map.of("texts", in, "input_type", "search_document")).map();
+                    for (Object v : (List<?>) r.getOrDefault("embeddings", List.of())) out.add(vector(v));
+                } else for (String t : in) {
+                    Map<String, Object> r = awsPost(ctx, cfg, "bedrock-runtime", "bedrock", "/model/" + HttpJson.enc(cfg.model()) + "/invoke", Map.of("inputText", t)).map();
+                    out.add(vector(r.get("embedding")));
+                    tokens += num(r.get("inputTextTokenCount"));
+                }
+            }
+            default -> throw new ActionException(P + ".NOT_SUPPORTED", "Embeddings are not available for " + provider,
+                    "Use openai, azure_openai, openai_compatible (Ollama and similar), google_vertex or aws_bedrock.");
+        }
+        if (out.size() != texts.size()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned " + out.size() + " vectors for " + texts.size() + " texts", null, true);
+        govern(ctx, cfg, provider, "embed", new Reply(null, List.of(), tokens, 0, counts), System.currentTimeMillis() - t0, List.of(Map.of("role", "user", "content", String.join("\n", in))));
+        return out;
+    }
+
+    private static float[] vector(Object v) {
+        if (!(v instanceof List<?> l) || l.isEmpty()) throw new ActionException(P + ".BAD_RESPONSE", "The model returned no vector", null, true);
+        float[] f = new float[l.size()];
+        for (int i = 0; i < f.length; i++) f[i] = ((Number) l.get(i)).floatValue();
+        return f;
     }
 
     static String aspect(int w, int h) {

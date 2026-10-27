@@ -29,6 +29,10 @@ class CorePackage:
                     Input("iterator_args", "Dictionary", required=False, description="Arguments for a package iterator."),
                     Input("as", "String", required=False, description="Declared variable that receives the current item."),
                     Input("index", "String", required=False, description="Declared Number variable that receives the zero-based index."),
+                    Input("start", "Number", required=False, description="Times loops: the first value given to 'as' (0 by default)."),
+                    Input("step", "Number", required=False, description="Times loops: how much 'as' grows each pass (1 by default)."),
+                    Input("from_index", "Number", required=False, description="First position to visit (0-based)."),
+                    Input("to_index", "Number", required=False, description="Last position to visit (0-based, included)."),
                     Input("max_iterations", "Number", required=False, default=100000, description="Safety limit; the loop fails with LOOP.LIMIT when reached.")])
     def loop(self, ctx, **a): _interp()
 

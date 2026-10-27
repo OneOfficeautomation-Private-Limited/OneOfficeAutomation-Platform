@@ -33,6 +33,9 @@ public final class ExcelPackage {
         String selection;
         /** Opened with read_only: saving over the opened file is refused. */
         boolean readOnly;
+        /** Opened from OneDrive or SharePoint (X2): the drive path, drive, token and Graph address it is saved back to. */
+        String cloudPath, cloudDrive, cloudBase;
+        Object cloudToken;
         /** Password the file was opened with; save writes the file encrypted again. */
         String password;
         /** Default for the header input of the table-reading actions, set by open. */
@@ -41,7 +44,8 @@ public final class ExcelPackage {
         @Override public void close() throws IOException { wb.close(); }
     }
 
-    private static WorkbookSession session(ActionContext ctx, String name) { return ctx.session(name, WorkbookSession.class); }
+    /** The step's workbook: its session, or the one open workbook when the step keeps the default name (T1). */
+    private static WorkbookSession session(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "excel", WorkbookSession.class); }
 
     private static Sheet sheet(WorkbookSession s, String name) {
         if (name == null || name.isBlank()) return s.wb.getSheetAt(s.wb.getActiveSheetIndex());
@@ -109,9 +113,23 @@ public final class ExcelPackage {
         return open(ctx, path, session, create, null, false, null, true);
     }
 
+    public Map<String, Object> open(ActionContext ctx, String path, String session, boolean create, String sheet, boolean readOnly, Object password, boolean header) {
+        return open(ctx, path, session, create, sheet, readOnly, password, header, null, null, null);
+    }
+
+    static final String CLOUD = "onedrive:";
+
+    /** The OneDrive/SharePoint path of "onedrive:Folder/Book.xlsx", or null for a local path. */
+    static String cloudPath(String path) {
+        if (path == null || !path.regionMatches(true, 0, CLOUD, 0, CLOUD.length())) return null;
+        String r = path.substring(CLOUD.length()).replace('\\', '/').replaceAll("^/+", "");
+        if (r.isBlank() || r.contains("..")) throw new ActionException("EXCEL.BAD_PATH", "Give the workbook's path in the drive after onedrive:, for example onedrive:Reports/2026/sales.xlsx");
+        return r;
+    }
+
     @Action(id = "open", name = "Open workbook", category = "Workbook", capabilities = "filesystem",
             description = "Open an .xlsx or .xls workbook, or create a new one, as a named session; can open encrypted files and open read-only.",
-            panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password] | create, session")
+            panel = "path, header, [Open a named sheet: sheet], read_only, [The file has a password: password], [The file is on OneDrive or SharePoint: access_token, drive] | create, session, graph_url")
     public Map<String, Object> open(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Workbook path.") String path,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Session name used by later steps.") String session,
@@ -122,7 +140,23 @@ public final class ExcelPackage {
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
                     description = "Password of an encrypted workbook; save keeps the file encrypted with the same password.") Object password,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true",
-                    description = "Whether sheets start with a row of column names; used by get_all_cells, get_range, filter and sort_range when their header input is empty.") boolean header) {
+                    description = "Whether sheets start with a row of column names; used by get_all_cells, get_range, filter and sort_range when their header input is empty.") boolean header,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false,
+                    description = "For a path starting onedrive: (onedrive:Reports/sales.xlsx): a Microsoft Graph access token from the vault. The workbook is downloaded, and save and close with save upload it back.") Object accessToken,
+            @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"",
+                    description = "For onedrive: paths: me/drive (the signed-in user's OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}.") String drive,
+            @Input(name = "graph_url", type = OoaType.STRING, required = false, defaultValue = "\"https://graph.microsoft.com/v1.0\"",
+                    description = "Microsoft Graph address (national clouds, tests).") String graphUrl) {
+        String cloud = cloudPath(path);
+        if (cloud != null) {
+            if (accessToken == null) throw new ActionException("EXCEL.NO_TOKEN", "A onedrive: path needs access_token", "Pick the Microsoft Graph token from the vault.");
+            String local = ".cloud/" + Path.of(cloud).getFileName();
+            if (create) {
+                try { new com.oneofficeautomation.packages.Microsoft365Package().download(ctx, accessToken, cloud, local, true, drive, graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl); }
+                catch (RuntimeException notThere) { try { Files.deleteIfExists(ctx.resolvePath(local)); } catch (IOException ignored) { } }   // created on the first save
+            } else new com.oneofficeautomation.packages.Microsoft365Package().download(ctx, accessToken, cloud, local, true, drive, graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl);
+            path = local;
+        }
         Path p = ctx.resolvePath(path);
         String pw = OfficeCrypto.secret(password);
         Workbook wb;
@@ -135,6 +169,7 @@ public final class ExcelPackage {
         s.readOnly = readOnly;
         s.password = pw;
         s.header = header;
+        if (cloud != null) { s.cloudPath = cloud; s.cloudToken = accessToken; s.cloudDrive = drive; s.cloudBase = graphUrl == null || graphUrl.isBlank() ? "https://graph.microsoft.com/v1.0" : graphUrl; }
         if (sheet != null && !sheet.isBlank()) {
             try { activate(s, s.wb.getSheetIndex(sheet(s, sheet))); }
             catch (ActionException e) { try { wb.close(); } catch (IOException ignored) { } throw e; }
@@ -524,7 +559,15 @@ public final class ExcelPackage {
         refuseReadOnly(s, target);
         String pw = OfficeCrypto.secret(password);
         writeFile(s, target, pw != null ? pw : s.password);
+        uploadBack(ctx, s, target);
         return Map.of();
+    }
+
+    /** A workbook opened from OneDrive/SharePoint goes back there when the opened file was written. */
+    private static void uploadBack(ActionContext ctx, WorkbookSession s, Path written) {
+        if (s.cloudPath == null || !written.toAbsolutePath().normalize().equals(s.path.toAbsolutePath().normalize())) return;
+        new com.oneofficeautomation.packages.Microsoft365Package().upload(ctx, s.cloudToken, s.path.toString(), s.cloudPath, "replace", s.cloudDrive, s.cloudBase);
+        ctx.info("Saved to OneDrive/SharePoint: " + s.cloudPath);
     }
 
     private static void refuseReadOnly(WorkbookSession s, Path target) {
@@ -539,9 +582,11 @@ public final class ExcelPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+        session = ctx.sessionNameOrOnly(session, "excel", WorkbookSession.class);
         if (save && ctx.sessions().get(session) instanceof WorkbookSession w) {
             refuseReadOnly(w, w.path);
             writeFile(w, w.path, w.password);
+            uploadBack(ctx, w, w.path);
         }
         Object s = ctx.sessions().remove(session);
         if (s instanceof WorkbookSession w) try { w.close(); } catch (IOException ignored) { }

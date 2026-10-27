@@ -17,6 +17,8 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class Platform {
     private final ControlRoom cr;
+
+    ControlRoom cr() { return cr; }
     private final Db db;
     private final PackageRegistry registry;
 
@@ -50,6 +52,43 @@ public final class Platform {
         DEFAULTS.put("max_sessions_per_user", 5);
         DEFAULTS.put("password_min_length", 12);
         DEFAULTS.put("block_executable_uploads", 0);
+        DEFAULTS.put("mfa_required", 0);
+        DEFAULTS.put("production_approval", 0);
+        DEFAULTS.put("runner_auto_update", 0);
+        DEFAULTS.put("git_remote_url", "");
+        DEFAULTS.put("git_branch", "main");
+        DEFAULTS.put("git_username", "");
+        DEFAULTS.put("git_token_ref", "");
+        DEFAULTS.put("git_auto_push", 0);
+        DEFAULTS.put("temporary_runner_hours", 8);
+        DEFAULTS.put("audit_retention_days", 0);
+        DEFAULTS.put("backup_hours", 0);
+        DEFAULTS.put("repo_files_folder", "");
+        DEFAULTS.put("password_history", 0);
+        DEFAULTS.put("password_max_days", 0);
+        DEFAULTS.put("ai_call_retention_days", 0);
+        DEFAULTS.put("work_item_retention_days", 0);
+        DEFAULTS.put("backup_keep_days", 7);
+        DEFAULTS.put("backup_folder", "");
+        DEFAULTS.put("template_catalog_url", "");
+        DEFAULTS.put("runner_secret_days", 30);
+        DEFAULTS.put("saml_idp_sso_url", "");
+        DEFAULTS.put("saml_idp_entity_id", "");
+        DEFAULTS.put("saml_idp_certificate", "");
+        DEFAULTS.put("saml_sp_entity_id", "");
+        DEFAULTS.put("saml_label", "");
+        DEFAULTS.put("mail_smtp_host", "");
+        DEFAULTS.put("mail_smtp_port", 587);
+        DEFAULTS.put("mail_smtp_security", "starttls");
+        DEFAULTS.put("mail_smtp_user", "");
+        DEFAULTS.put("mail_smtp_password_ref", "");
+        DEFAULTS.put("mail_from", "");
+        DEFAULTS.put("license_mail_to", "");
+        DEFAULTS.put("switched_off_roles", "");
+        DEFAULTS.put("mcp_oauth_audience", "");
+        DEFAULTS.put("mcp_oauth_scope", "");
+        DEFAULTS.put("outbound_proxy", "");
+        DEFAULTS.put("outbound_proxy_bypass", "");
     }
 
     /** The allowed range of each number setting (the console uses the same limits). */
@@ -64,7 +103,21 @@ public final class Platform {
         Map.entry("run_log_retention_days", new long[] { 0, 36500 }),
         Map.entry("max_sessions_per_user", new long[] { 1, 50 }),
         Map.entry("password_min_length", new long[] { 12, 64 }),
-        Map.entry("block_executable_uploads", new long[] { 0, 1 }));
+        Map.entry("block_executable_uploads", new long[] { 0, 1 }),
+        Map.entry("mfa_required", new long[] { 0, 2 }),
+        Map.entry("production_approval", new long[] { 0, 1 }),
+        Map.entry("runner_auto_update", new long[] { 0, 1 }),
+        Map.entry("git_auto_push", new long[] { 0, 1 }),
+        Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
+        Map.entry("audit_retention_days", new long[] { 0, 36500 }),
+        Map.entry("backup_hours", new long[] { 0, 168 }),
+        Map.entry("password_history", new long[] { 0, 24 }),
+        Map.entry("password_max_days", new long[] { 0, 3650 }),
+        Map.entry("ai_call_retention_days", new long[] { 0, 36500 }),
+        Map.entry("work_item_retention_days", new long[] { 0, 36500 }),
+        Map.entry("backup_keep_days", new long[] { 1, 3650 }),
+        Map.entry("runner_secret_days", new long[] { 0, 365 }),
+        Map.entry("mail_smtp_port", new long[] { 1, 65535 }));
 
     /** Settings are read on every request (session length, upload size), so they are kept for a few seconds; a change clears the copy. */
     private volatile Map<String, Object> cached;
@@ -82,6 +135,36 @@ public final class Platform {
 
     public Object setting(String name) { return settings().get(name); }
 
+    /** The built-in roles switched off in Settings (read on every permission check, so kept with the settings copy). */
+    Set<String> switchedOffRoles() {
+        String s = String.valueOf(setting("switched_off_roles"));
+        if (s.isBlank()) return Set.of();
+        return new HashSet<>(Arrays.asList(s.split(",")));
+    }
+
+    /**
+     * The Command Center's own outgoing connections (single sign-on, SAML metadata, Git, model connections, external
+     * vaults, webhooks it calls) go through this proxy when set: http://host:port, with host names to reach directly.
+     * Applied at start and when the setting changes, through Java's proxy settings.
+     */
+    private volatile boolean proxyApplied;
+
+    void applyOutboundProxy() {
+        String p = String.valueOf(setting("outbound_proxy")).trim(), bypass = String.valueOf(setting("outbound_proxy_bypass")).trim();
+        if (p.isEmpty()) {
+            // only undo what this setting did: proxy properties given to Java at start (JAVA_OPTS) stay
+            if (proxyApplied) for (String k : List.of("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")) System.clearProperty(k);
+            proxyApplied = false;
+            return;
+        }
+        proxyApplied = true;
+        java.net.URI u = java.net.URI.create(p);
+        for (String scheme : List.of("http", "https")) { System.setProperty(scheme + ".proxyHost", u.getHost()); System.setProperty(scheme + ".proxyPort", String.valueOf(u.getPort())); }
+        // this computer is always reached directly (the built-in runner and Studio listener)
+        String direct = "localhost|127.*|[::1]" + (bypass.isEmpty() ? "" : "|" + String.join("|", bypass.split("[,;\\s|]+")));
+        System.setProperty("http.nonProxyHosts", direct);
+    }
+
     int intSetting(String name) { Object v = setting(name); return v instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(v)); }
 
     /** Checks every change first (known name, whole number in its range, address format), then saves them all in one transaction. */
@@ -97,15 +180,51 @@ public final class Platform {
                 try { n = v instanceof Number num ? num.longValue() : Long.parseLong(String.valueOf(v).trim()); }
                 catch (NumberFormatException x) { throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' needs a whole number"); }
                 long[] r = RANGES.getOrDefault(k, new long[] { 0, 100000 });
+                if (k.equals("audit_retention_days") && n > 0 && n < 90) throw new OoaException("CR.BAD_INPUT", "Keep audit entries for at least 90 days (0 keeps them always)");
                 if (n < r[0] || n > r[1]) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be from " + r[0] + " to " + r[1]);
                 v = n;
             } else {
                 String s = String.valueOf(v == null ? "" : v).trim();
-                if (s.length() > 2000) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
+                if (s.length() > (k.equals("saml_idp_certificate") ? 10000 : 2000)) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
+                // a SaaS tenant's files stay in its own folder of the shared server
+                if (cr.tenant != null && (k.equals("repo_files_folder") || k.equals("backup_folder")) && !s.isEmpty())
+                    throw ControlRoom.notInSaas("Choosing a folder on the server");
+                if (k.equals("saml_idp_sso_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s]+"))
+                    throw new OoaException("CR.BAD_INPUT", "The identity provider's sign-in address starts with https://");
+                if (k.equals("saml_idp_certificate") && !s.isEmpty()) {
+                    try { java.security.cert.CertificateFactory.getInstance("X.509").generateCertificate(new java.io.ByteArrayInputStream(
+                            Base64.getDecoder().decode(s.replaceAll("-----(BEGIN|END) CERTIFICATE-----", "").replaceAll("\\s", "")))); }
+                    catch (Exception x) { throw new OoaException("CR.BAD_INPUT", "The identity provider certificate is not a PEM certificate", "Paste the signing certificate from the identity provider's SAML set-up or metadata."); }
+                }
+                if (k.equals("template_catalog_url") && !s.isEmpty() && !s.equalsIgnoreCase("off") && !s.matches("(?i)https://[^\\s/?#]+[^\\s]*"))
+                    throw new OoaException("CR.BAD_INPUT", "The template catalogue address starts with https:// (or is off)");
                 if ((k.equals("public_url") || k.equals("sso_issuer")) && !s.isEmpty() && !s.matches("(?i)https?://[^\\s/?#]+[^\\s]*"))
                     throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' must be a web address starting with https:// (or http:// on a test system)");
+                if (k.equals("git_remote_url") && !s.isEmpty() && !s.matches("(?i)(https?://[^\\s]+|file:[^\\s]+)"))
+                    throw new OoaException("CR.BAD_INPUT", "The Git remote is an https:// address, for example https://github.com/acme/agents.git");
+                if (k.equals("git_branch") && !s.isEmpty() && !s.matches("[A-Za-z0-9._/-]{1,100}") ) throw new OoaException("CR.BAD_INPUT", "Not a branch name: " + s);
+                if (k.equals("git_token_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The token is a vault reference: vault folder/credential/attribute");
                 if (k.equals("syslog_target") && !s.isEmpty() && !s.matches("[A-Za-z0-9.\\-\\[\\]:]+:\\d{1,5}"))
                     throw new OoaException("CR.BAD_INPUT", "The syslog target is host:port, for example siem.example.com:514");
+                if (k.equals("switched_off_roles") && !s.isEmpty()) {
+                    List<String> off = new ArrayList<>();
+                    for (String r : s.split("[,;\\s]+")) {
+                        if (r.isEmpty()) continue;
+                        if (r.equals("admin")) throw new OoaException("CR.BAD_INPUT", "The administrator role cannot be switched off");
+                        if (!Rbac.ROLES.contains(r)) throw new OoaException("CR.BAD_INPUT", "Only built-in roles are switched off here: " + r, "Delete a custom role on the Roles page instead.");
+                        if (!off.contains(r)) off.add(r);
+                    }
+                    s = String.join(",", off);
+                }
+                if (k.equals("outbound_proxy") && !s.isEmpty() && !s.matches("(?i)http://[A-Za-z0-9.\\-]+:\\d{1,5}/?"))
+                    throw new OoaException("CR.BAD_INPUT", "The proxy is http://host:port, for example http://proxy.example.com:8080");
+                if (k.equals("outbound_proxy_bypass") && !s.isEmpty() && !s.matches("[A-Za-z0-9.*\\-|,; ]+"))
+                    throw new OoaException("CR.BAD_INPUT", "List host names to reach directly, for example *.example.com, 10.*");
+                if (k.equals("mail_smtp_security") && !List.of("starttls", "ssl", "none").contains(s)) throw new OoaException("CR.BAD_INPUT", "The mail security is starttls, ssl or none");
+                if (k.equals("mail_smtp_password_ref") && !s.isEmpty() && s.split("/").length != 3) throw new OoaException("CR.BAD_INPUT", "The mail password is a vault reference: vault folder/credential/attribute");
+                if (k.equals("mail_smtp_host") && !s.isEmpty() && !s.matches("[A-Za-z0-9.-]+")) throw new OoaException("CR.BAD_INPUT", "The mail server is a host name, for example smtp.office365.com");
+                if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
+                if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
                 if (k.equals("ip_allow_list")) {
                     IpAllowList l = IpAllowList.parse(s);
@@ -130,6 +249,7 @@ public final class Platform {
             return null;
         });
         cached = null;
+        if (clean.containsKey("outbound_proxy") || clean.containsKey("outbound_proxy_bypass")) applyOutboundProxy();
         return settings();
     }
 
@@ -161,7 +281,7 @@ public final class Platform {
     public List<Map<String, Object>> roles(User by) {
         cr.require(by, "users.manage", "manage roles");
         List<Map<String, Object>> out = new ArrayList<>();
-        for (String r : Rbac.ROLES) out.add(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role"));
+        for (String r : Rbac.ROLES) out.add(Map.of("name", r, "builtin", true, "permissions", Rbac.permissions(r), "description", "Built-in role", "switched_off", cr.roleSwitchedOff(r)));
         for (Map<String, Object> r : db.query("SELECT * FROM roles ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", r.get("name")); m.put("builtin", false); m.put("permissions", csv(r.get("permissions")));
@@ -310,16 +430,32 @@ public final class Platform {
             Instant ts;
             try { ts = Instant.parse(String.valueOf(c.get("ts"))); } catch (RuntimeException e) { ts = now(); }
             Object masked = c.get("masked"), tools = c.get("tool_calls");
-            db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256) " +
-                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
+            db.update("INSERT INTO ai_calls (id, run_id, bot_path, requested_by, ts, purpose, provider, model, input_tokens, output_tokens, latency_ms, masked, tool_calls, prompt_sha256, connection) " +
+                            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id("ai"), run.get("id"), run.get("bot_path"), run.get("requested_by"), ts,
                     cut(c.get("purpose"), 80), cut(c.get("provider"), 40), cut(c.get("model"), 200), num(c.get("input_tokens")), num(c.get("output_tokens")),
                     c.get("latency_ms") instanceof Number n ? n.longValue() : null,
-                    masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64));
+                    masked == null ? null : cut(masked instanceof String ms ? ms : JsonLite.write(masked), 1000), tools == null ? null : cut(JsonLite.write(tools), 2000), cut(c.get("prompt_sha256"), 64),
+                    cut(c.get("connection"), 60));
         }
     }
 
     private static String cut(Object v, int max) { if (v == null) return null; String s = String.valueOf(v); return s.length() > max ? s.substring(0, max) : s; }
     private static Integer num(Object v) { return v instanceof Number n ? n.intValue() : null; }
+
+    /** The AI calls of one run in order (A3 trace): purpose, model, connection, tokens, time, masking and tools used. Prompts are never kept. */
+    public List<Map<String, Object>> aiCallsOfRun(User by, String runId) {
+        cr.require(by, "runs.view", "view runs");
+        Map<String, Object> r = db.one("SELECT bot_path FROM runs WHERE id = ?", runId);
+        if (r == null) throw notFound("Run");
+        cr.folders.require(by, (String) r.get("bot_path"), "view", "view this agent's runs");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> c : db.query("SELECT ts, purpose, provider, model, connection, input_tokens, output_tokens, latency_ms, masked, tool_calls FROM ai_calls WHERE run_id = ? ORDER BY ts", runId)) {
+            Map<String, Object> m = new LinkedHashMap<>(c);
+            for (String k : List.of("masked", "tool_calls")) if (c.get(k) instanceof String sv && !sv.isBlank()) { try { m.put(k, JsonLite.parse(sv)); } catch (RuntimeException ignored) { } }
+            out.add(m);
+        }
+        return out;
+    }
 
     /** Totals by model, agent and day, masking and tool use, and the latest calls, for the last N days. */
     public Map<String, Object> aiGovernance(User by, int days) {
@@ -358,7 +494,7 @@ public final class Platform {
 
     Map<String, Object> counts(String queueId) {
         Map<String, Object> c = new LinkedHashMap<>();
-        for (String s : List.of("new", "in_progress", "retry", "success", "failed", "deferred")) c.put(s, 0L);
+        for (String s : List.of("new", "in_progress", "review", "retry", "success", "failed", "deferred")) c.put(s, 0L);
         for (Map<String, Object> r : db.query("SELECT status, COUNT(*) AS n FROM queue_items WHERE queue_id = ? GROUP BY status", queueId)) c.put((String) r.get("status"), r.get("n"));
         return c;
     }
@@ -968,6 +1104,12 @@ public final class Platform {
         lastPurge = now();
         int runDays = ((Number) setting("run_retention_days")).intValue(), logDays = ((Number) setting("run_log_retention_days")).intValue();
         if (runDays > 0 || logDays > 0) purge(runDays, logDays, "system", null);
+        // AI call records and finished work-queue items (D2)
+        int aiDays = intSetting("ai_call_retention_days"), itemDays = intSetting("work_item_retention_days");
+        if (aiDays > 0) { int n = db.update("DELETE FROM ai_calls WHERE ts < ?", now().minus(Duration.ofDays(aiDays))); if (n > 0) cr.audit.record("system", "ai.calls_purged", "ai", null, Map.of("removed", n, "days", aiDays), "ok", null); }
+        if (itemDays > 0) { int n = db.update("DELETE FROM queue_items WHERE status IN ('success', 'failed') AND finished < ?", now().minus(Duration.ofDays(itemDays))); if (n > 0) cr.audit.record("system", "queue.items_purged", "queue", null, Map.of("removed", n, "days", itemDays), "ok", null); }
+        int auditDays = intSetting("audit_retention_days");
+        if (auditDays > 0) cr.audit.purgeOlderThan(auditDays);
     }
 
     /**
@@ -993,7 +1135,7 @@ public final class Platform {
         return purge(runDays, logDays, by.username(), ip);
     }
 
-    /** What this Command Center is and holds. It is not licensed per seat: there are no limits on people, runners or agents. */
+    /** What this Command Center is and holds: the edition from the license (or the evaluation) and what it has in use. */
     public Map<String, Object> license(User by) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("product", "ONEOFFICEAUTOMATION One Command Center");
@@ -1056,7 +1198,7 @@ public final class Platform {
      * Gives each idle runner of a processing queue's pool the next item (priority, then age). The agent receives the item
      * as an input named work_item (and work_item_id) when it declares them. Called by the server clock.
      */
-    public int dispatch() {
+    public synchronized int dispatch() {
         int started = 0;
         for (Map<String, Object> q : db.query("SELECT * FROM queues WHERE processing = TRUE")) {
             for (int guard = 0; guard < 50; guard++) {
@@ -1072,10 +1214,10 @@ public final class Platform {
                     if (declared.containsKey("work_item")) inputs.put("work_item", JsonLite.parse((String) next.get("data")));
                     if (declared.containsKey("work_item_id")) inputs.put("work_item_id", next.get("id"));
                     Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", q.get("run_as"));
+                    // the run carries its work item from the start: a quick agent may finish before this method goes on
                     Map<String, Object> run = cr.startRun((String) q.get("run_as"), creator == null ? "viewer" : (String) creator.get("role"), (String) q.get("bot_path"), device,
-                            inputs, "queue:" + q.get("id"), null);
+                            null, inputs, "queue:" + q.get("id"), null, 0, null, null, null, (String) next.get("id"));
                     db.update("UPDATE queue_items SET run_id = ? WHERE id = ?", run.get("run_id"), next.get("id"));
-                    db.update("UPDATE runs SET queue_item_id = ? WHERE id = ?", next.get("id"), run.get("run_id"));
                     started++;
                 } catch (OoaException e) {
                     db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ? WHERE id = ?", JsonLite.write(e.toMap()), now(), next.get("id"));
@@ -1111,9 +1253,48 @@ public final class Platform {
         if (item == null) return;
         String next = "success".equals(status) ? "success"
                 : ((Number) item.get("attempts")).intValue() < ((Number) item.get("max_attempts")).intValue() && !"stopped".equals(status) ? "retry" : "failed";
+        // the agent asked a person to check what it read (A1): the item waits in "review" until validated
+        if (next.equals("success") && outputs instanceof Map<?, ?> o && o.get("validation") instanceof Map<?, ?> v && v.get("fields") instanceof Map<?, ?>) next = "review";
         db.update("UPDATE queue_items SET status = ?, error = ?, result = ?, updated = ?, finished = ? WHERE id = ?", next,
                 error == null ? null : JsonLite.write(error), outputs == null ? null : JsonLite.write(outputs), now(),
-                next.equals("retry") ? null : now(), item.get("id"));
+                next.equals("retry") || next.equals("review") ? null : now(), item.get("id"));
+        if (next.equals("review")) cr.audit.record("system", "queue.item_review", "work_item", (String) item.get("id"), Map.of("queue", item.get("queue_id")), "ok", null);
+    }
+
+    /**
+     * The validation queue (A1): a person checks the fields an agent read with too little confidence. Approve puts the
+     * item back in its queue with the checked values (data.validated_fields, validated, validated_by), so the agent's
+     * next run uses them; reject fails it with the reason.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> validateItem(User by, String qid, String itemId, Map<String, Object> b, String ip) {
+        cr.require(by, "queues.work", "validate work items");
+        requireQueue(by, qid, "process", "validate work items in this queue");
+        Map<String, Object> i = db.one("SELECT * FROM queue_items WHERE id = ? AND queue_id = ?", itemId, qid);
+        if (i == null) throw notFound("Work item");
+        if (!"review".equals(i.get("status"))) throw new OoaException("CR.CONFLICT", "The item is not waiting for validation");
+        Map<String, Object> result = i.get("result") == null ? Map.of() : (Map<String, Object>) JsonLite.parse((String) i.get("result"));
+        Map<String, Object> asked = result.get("validation") instanceof Map<?, ?> v && v.get("fields") instanceof Map<?, ?> f ? (Map<String, Object>) f : Map.of();
+        if (Boolean.TRUE.equals(b.get("reject"))) {
+            String reason = b.get("reason") == null ? "" : String.valueOf(b.get("reason")).trim();
+            if (reason.isEmpty()) throw new OoaException("CR.BAD_INPUT", "Say why the document is rejected");
+            db.update("UPDATE queue_items SET status = 'failed', error = ?, updated = ?, finished = ? WHERE id = ?",
+                JsonLite.write(Map.of("code", "VALIDATION.REJECTED", "message", reason, "suggestedFix", "Rejected by " + by.username())), now(), now(), itemId);
+            cr.audit.record(by.username(), "queue.item_reject", "work_item", itemId, Map.of("queue", qid, "reason", reason), "ok", ip);
+            return Map.of("status", "failed");
+        }
+        Map<String, Object> checked = new LinkedHashMap<>();
+        Map<String, Object> given = b.get("fields") instanceof Map<?, ?> g ? (Map<String, Object>) g : Map.of();
+        for (String k : asked.keySet()) checked.put(k, given.containsKey(k) ? given.get(k) : asked.get(k));   // only the fields the agent asked about
+        List<String> changed = new ArrayList<>();
+        for (String k : asked.keySet()) if (!Objects.equals(String.valueOf(asked.get(k)), String.valueOf(checked.get(k)))) changed.add(k);
+        Map<String, Object> data = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse((String) i.get("data")));
+        data.put("validated_fields", checked);
+        data.put("validated", true);
+        data.put("validated_by", by.username());
+        db.update("UPDATE queue_items SET status = 'new', data = ?, updated = ?, finished = NULL WHERE id = ?", JsonLite.write(data), now(), itemId);
+        cr.audit.record(by.username(), "queue.item_validate", "work_item", itemId, Map.of("queue", qid, "changed", changed), "ok", ip);
+        return Map.of("status", "new", "changed", changed);
     }
 
     // ===================== model connections =====================
@@ -1123,10 +1304,12 @@ public final class Platform {
 
     public List<Map<String, Object>> modelConnections(User by) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, updated, updated_by FROM model_connections ORDER BY name")) {
+        for (Map<String, Object> c : db.query("SELECT name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, pii_analyzer_url, content_check, updated, updated_by FROM model_connections ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(c);
             m.put("allowed_roles", csv(c.get("allowed_roles")));
             if (m.get("model_type") == null) m.put("model_type", "standard");
+            for (String k : List.of("monthly_tokens", "calls_per_minute", "calls_per_run")) if (m.get(k) == null) m.put(k, 0);
+            m.put("tokens_this_month", tokensThisMonth((String) c.get("name")));
             out.add(m);
         }
         return out;
@@ -1151,10 +1334,19 @@ public final class Platform {
             roles.add(r);
         }
         String rolesCsv = roles.isEmpty() ? null : String.join(",", roles);
-        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, updated = ?, updated_by = ? WHERE name = ?",
-                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, now(), by.username(), name) == 0)
-            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, now(), by.username());
+        long monthly = limit(c.get("monthly_tokens"), 1_000_000_000_000L, "Tokens a month");
+        int perMinute = (int) limit(c.get("calls_per_minute"), 100_000, "Calls a minute"), perRun = (int) limit(c.get("calls_per_run"), 1_000_000, "Calls a run");
+        String analyzer = c.get("pii_analyzer_url") == null ? null : blankToNull(String.valueOf(c.get("pii_analyzer_url")).trim());
+        if (analyzer != null && !analyzer.matches("(?i)(https://|http://(localhost|127\\.0\\.0\\.1)(:|/|$))\\S*"))
+            throw new OoaException("CR.BAD_INPUT", "The PII analyzer address starts with https:// (http:// only on this computer)", "For example https://presidio.internal.example");
+        String check = c.get("content_check") == null || String.valueOf(c.get("content_check")).isBlank() ? "none" : String.valueOf(c.get("content_check"));
+        if (!check.equals("none") && !check.equals("moderation")) throw new OoaException("CR.BAD_INPUT", "The content check is none or moderation");
+        if (check.equals("moderation") && !List.of("openai", "azure_openai", "openai_compatible").contains(provider))
+            throw new OoaException("CR.BAD_INPUT", "The content check uses an OpenAI-style moderation endpoint, which " + provider + " does not have");
+        if (db.update("UPDATE model_connections SET provider = ?, model = ?, base_url = ?, key_ref = ?, description = ?, allowed_roles = ?, model_type = ?, monthly_tokens = ?, calls_per_minute = ?, calls_per_run = ?, pii_analyzer_url = ?, content_check = ?, updated = ?, updated_by = ? WHERE name = ?",
+                provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, analyzer, check, now(), by.username(), name) == 0)
+            db.update("INSERT INTO model_connections (name, provider, model, base_url, key_ref, description, allowed_roles, model_type, monthly_tokens, calls_per_minute, calls_per_run, pii_analyzer_url, content_check, updated, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    name, provider, c.get("model"), c.get("base_url"), blankToNull(keyRef), c.get("description"), rolesCsv, type, monthly, perMinute, perRun, analyzer, check, now(), by.username());
         cr.audit.record(by.username(), "connection.save", "connection", name, Map.of("provider", provider, "allowed_roles", roles), "ok", ip);
     }
 
@@ -1179,9 +1371,27 @@ public final class Platform {
         cr.audit.record(by.username(), "connection.delete", "connection", name, null, "ok", ip);
     }
 
+    /** A budget or limit from the dialog: a whole number from 0 (none) to max. */
+    private static long limit(Object v, long max, String what) {
+        if (v == null || String.valueOf(v).isBlank()) return 0;
+        long n;
+        try { n = v instanceof Number num ? num.longValue() : Long.parseLong(String.valueOf(v).trim()); }
+        catch (NumberFormatException e) { throw new OoaException("CR.BAD_INPUT", what + " needs a whole number"); }
+        if (n < 0 || n > max) throw new OoaException("CR.BAD_INPUT", what + " must be from 0 (no limit) to " + max);
+        return n;
+    }
+
+    /** Input and output tokens used through a connection since the start of this month (UTC). */
+    long tokensThisMonth(String connection) {
+        Instant month = java.time.LocalDate.now(java.time.ZoneOffset.UTC).withDayOfMonth(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        Map<String, Object> r = db.one("SELECT SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS n FROM ai_calls WHERE connection = ? AND ts >= ?", connection, month);
+        return r == null || r.get("n") == null ? 0 : ((Number) r.get("n")).longValue();
+    }
+
     /**
      * The connections handed to runners with each job: keys stay vault references ({"$credential": ref}). Only the
-     * connections the run's role may use are sent.
+     * connections the run's role may use are sent. A connection whose monthly token budget is used up goes as blocked
+     * (its AI steps fail with AI.BUDGET_REACHED); its call limits go along for the runner to keep.
      */
     Map<String, Object> connectionsForJob(List<String> runRoles) {
         List<Object> list = new ArrayList<>();
@@ -1193,6 +1403,13 @@ public final class Platform {
             if (c.get("model") != null) m.put("model", c.get("model"));
             if (c.get("base_url") != null) m.put("base_url", c.get("base_url"));
             if (c.get("key_ref") != null) m.put("api_key", Map.of("$credential", c.get("key_ref")));
+            long monthly = c.get("monthly_tokens") instanceof Number n ? n.longValue() : 0;
+            if (monthly > 0 && tokensThisMonth((String) c.get("name")) >= monthly)
+                m.put("blocked", "The connection's budget of " + monthly + " tokens this month is used up");
+            if (c.get("calls_per_minute") instanceof Number n && n.intValue() > 0) m.put("calls_per_minute", n.intValue());
+            if (c.get("calls_per_run") instanceof Number n && n.intValue() > 0) m.put("calls_per_run", n.intValue());
+            if (c.get("pii_analyzer_url") instanceof String pa && !pa.isBlank()) m.put("pii_analyzer_url", pa);
+            if ("moderation".equals(c.get("content_check"))) m.put("content_check", "moderation");
             list.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -1266,6 +1483,9 @@ public final class Platform {
             t.put("conditions", ((List<Object>) m.getOrDefault("conditions", List.of())).size());
             t.put("enabled", enabled.getOrDefault(pid, true));
             t.put("used_by", used.getOrDefault(pid, 0));
+            List<String> versions = registry.versions(pid);
+            if (versions.size() > 1) t.put("versions", versions);
+            t.put("custom", cr.customToolkits != null && cr.customToolkits.isCustom(pid));
             out.add(t);
         }
         out.sort(Comparator.comparing(t -> String.valueOf(t.get("name"))));

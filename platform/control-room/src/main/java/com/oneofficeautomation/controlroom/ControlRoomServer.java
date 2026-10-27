@@ -44,8 +44,12 @@ public final class ControlRoomServer {
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
         this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
-        maxBody = () -> cr.platform.maxBodyBytes();
+        // a SaaS region sets one request limit for all its tenants (TenantHost)
+        if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
+
+    /** A tenant's Command Center inside a SaaS region: no port of its own; the region's server hands it requests (TenantHost). */
+    static ControlRoomServer forTenant(ControlRoom cr) { return new ControlRoomServer(cr, null, 0); }
 
     /** True when the browser reached the Command Center over HTTPS: served here directly, or through a TLS proxy that says so. */
     private static boolean overHttps(HttpExchange ex) { return ex instanceof HttpsExchange || "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
@@ -109,7 +113,8 @@ public final class ControlRoomServer {
         catch (java.net.BindException e) {
             throw new OoaException("CR.PORT_IN_USE", "Port " + port + " is already in use; another Command Center may still be running", "Stop it, or start with --port " + (port + 1) + ".");
         }
-        server.setExecutor(Executors.newFixedThreadPool(16, r -> { Thread t = new Thread(r, "ooa-cr-http"); t.setDaemon(true); return t; }));
+        // one virtual thread per request: runners waiting for work (long polls) cost almost nothing while they wait
+        server.setExecutor(Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("ooa-cr-http-", 0).factory()));
         server.createContext("/", this::handle);
         mounts.forEach(server::createContext);
         server.start();
@@ -119,33 +124,52 @@ public final class ControlRoomServer {
             mounts.forEach(internal::createContext);
             internal.start();
         }
-        clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
-        clock.scheduleAtFixedRate(() -> { try { cr.tickSchedules(); cr.reap(); } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(() -> { try { cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(() -> { try { cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
-        clock.scheduleWithFixedDelay(() -> { try { cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
+        startBackground();
+    }
+
+    /** Schedules, triggers, queues, workflows and serverless runs: the work that goes on without requests. */
+    void startBackground() {
+        clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock" + (cr.tenant == null ? "" : "-" + cr.tenant)); t.setDaemon(true); return t; });
+        // with several nodes on one database, only the leader runs the background work (Cluster)
+        cr.cluster.tick();
+        // the outgoing proxy from Settings, checked every minute so a change made on another node arrives here too; it is
+        // process-wide, so a SaaS region's tenants do not set it
+        if (cr.tenant == null) clock.scheduleAtFixedRate(() -> { try { cr.platform.applyOutboundProxy(); } catch (RuntimeException ignored) { } }, 0, 60, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { cr.cluster.tick(); } catch (RuntimeException ignored) { } }, Cluster.RENEW_SECONDS, Cluster.RENEW_SECONDS, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
+        clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.workflows.tick(); } catch (RuntimeException ignored) { } }, 4, 5, TimeUnit.SECONDS);
+        cr.serverless.start();
+        clock.scheduleWithFixedDelay(() -> { try { if (cr.cluster.isLeader()) cr.triggerPollers.tick(); } catch (RuntimeException ignored) { } }, 7, 5, TimeUnit.SECONDS);
     }
 
     public int port() { return server.getAddress().getPort(); }
 
-    public void stop() { if (clock != null) clock.shutdownNow(); if (server != null) server.stop(0); if (internal != null) internal.stop(0); }
+    public void stop() { if (clock != null) clock.shutdownNow(); cr.cluster.release(); if (server != null) server.stop(0); if (internal != null) internal.stop(0); }
 
     // ------------------------------------------------------------------
-    private void handle(HttpExchange ex) throws IOException {
+    void handle(HttpExchange ex) throws IOException {
         try {
             String path = ex.getRequestURI().getPath();
+            if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
             if (path.startsWith("/api/")) api(ex, path.substring(5));
             else serveStatic(ex, path);
         } catch (OoaException e) {
             int status = switch (e.code()) {
-                case "CR.UNAUTHENTICATED", "CR.LOGIN_FAILED" -> 401;
-                case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "VAULT.DENIED", "CR.CSRF", "CR.LICENSE_REQUIRED", "CR.LICENSE_EXPIRED", "CR.IP_BLOCKED", "CR.FILE_TYPE_BLOCKED" -> 403;
+                case "CR.UNAUTHENTICATED", "CR.LOGIN_FAILED", "CR.MFA_WRONG_CODE", "CR.MFA_EXPIRED" -> 401;
+                case "CR.FORBIDDEN", "CR.PASSWORD_CHANGE_REQUIRED", "CR.MFA_SETUP_REQUIRED", "VAULT.DENIED", "CR.CSRF", "CR.LICENSE_REQUIRED", "CR.LICENSE_EXPIRED", "CR.IP_BLOCKED", "CR.FILE_TYPE_BLOCKED" -> 403;
                 case "CR.NOT_FOUND", "VAULT.NOT_FOUND" -> 404;
                 case "CR.LOCKED", "CR.CONFLICT", "CR.NOT_CHECKED_OUT", "CR.DUPLICATE_ID", "CR.IN_USE", "CR.DELETED", "CR.LICENSE_LIMIT", "LICENSE.TOO_FEW_SEATS" -> 409;
                 case "CR.POLICY_VIOLATION" -> 422;
                 case "CR.LOCKED_OUT", "CR.RATE_LIMITED" -> 429;
                 default -> 400;
             };
+            if (status == 401 && ex.getRequestURI().getPath().equals("/api/mcp")) {
+                // tells MCP clients where to learn how to get a token (RFC 9728)
+                String base = String.valueOf(cr.platform.setting("public_url")).replaceAll("/+$", "");
+                if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
+                ex.getResponseHeaders().set("WWW-Authenticate", "Bearer resource_metadata=\"" + base + "/.well-known/oauth-protected-resource\"");
+            }
             sendJson(ex, status, Map.of("error", e.toMap()));
         } catch (RuntimeException | Error e) {
             // Any failure still gets an answer, so a client never sees a dropped connection.
@@ -187,14 +211,36 @@ public final class ControlRoomServer {
         return null;
     }
 
+    /**
+     * OAuth protected resource metadata (RFC 9728) for MCP clients: this Command Center's MCP address and the identity
+     * provider that issues tokens for it. Empty of authorization servers until MCP over OAuth is set up.
+     */
+    private void protectedResource(HttpExchange ex) throws IOException {
+        String base = String.valueOf(cr.platform.setting("public_url")).replaceAll("/+$", "");
+        if (base.isEmpty()) base = (tls != null ? "https://" : "http://") + ex.getRequestHeaders().getFirst("Host");
+        String issuer = String.valueOf(cr.platform.setting("sso_issuer")).trim(), audience = String.valueOf(cr.platform.setting("mcp_oauth_audience")).trim();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("resource", audience.isEmpty() ? base + "/api/mcp" : audience);
+        m.put("authorization_servers", issuer.isEmpty() || audience.isEmpty() ? List.of() : List.of(issuer));
+        m.put("bearer_methods_supported", List.of("header"));
+        String scope = String.valueOf(cr.platform.setting("mcp_oauth_scope")).trim();
+        if (!scope.isEmpty()) m.put("scopes_supported", List.of(scope));
+        m.put("resource_name", "ONEOFFICEAUTOMATION Command Center (MCP)");
+        sendJson(ex, 200, m);
+    }
+
     private ControlRoom.User user(HttpExchange ex, boolean allowMustChange) {
         String t = token(ex);
-        ControlRoom.User u = t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
+        // MCP clients may send an OAuth access token (a JWT) from the identity provider instead of an API key
+        boolean jwt = t != null && !t.startsWith("ooak_") && t.chars().filter(ch -> ch == '.').count() == 2 && ex.getRequestURI().getPath().equals("/api/mcp");
+        ControlRoom.User u = jwt ? cr.oauthUser(sso, t, ex.getRemoteAddress().getAddress().getHostAddress()) : t != null && t.startsWith("ooak_") ? cr.platform.apiKeyUser(t) : cr.session(t);
         if (u == null) throw new OoaException("CR.UNAUTHENTICATED", "Please sign in", null);
         boolean viaCookie = ex.getRequestHeaders().getFirst("Authorization") == null;
         if (viaCookie && !Set.of("GET", "HEAD").contains(ex.getRequestMethod()) && !"1".equals(ex.getRequestHeaders().getFirst("X-OOA-Request")))
             throw new OoaException("CR.CSRF", "Missing request header X-OOA-Request");
         if (u.mustChange() && !allowMustChange) throw new OoaException("CR.PASSWORD_CHANGE_REQUIRED", "Change your password before continuing");
+        if (!allowMustChange && !t.startsWith("ooak_") && !jwt && cr.mfa.setupNeeded(u))
+            throw new OoaException("CR.MFA_SETUP_REQUIRED", "Set up two-step sign-in before continuing", "Your administrator requires it for your account.");
         return u;
     }
 
@@ -236,7 +282,15 @@ public final class ControlRoomServer {
         // ---------- public ----------
         if (m.equals("POST") && route.equals("auth/login")) {
             Map<String, Object> b = map(body(ex));
-            Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), ip);
+            Map<String, Object> r = cr.login((String) b.get("username"), (String) b.get("password"), (String) b.get("code"), ip);
+            if (r.get("token") == null) { sendJson(ex, 200, r); return; }   // two-step sign-in: the code comes next (auth/mfa)
+            ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
+            sendJson(ex, 200, r);
+            return;
+        }
+        if (m.equals("POST") && route.equals("auth/mfa")) {
+            Map<String, Object> b = map(body(ex));
+            Map<String, Object> r = cr.loginMfa((String) b.get("mfa_token"), (String) b.get("code"), ip);
             ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
             sendJson(ex, 200, r);
             return;
@@ -258,7 +312,35 @@ public final class ControlRoomServer {
             else notFound(ex);
             return;
         }
-        if (m.equals("GET") && route.equals("auth/sso")) { sendJson(ex, 200, sso.info()); return; }
+        if (m.equals("GET") && route.equals("auth/sso")) { Map<String, Object> info = new LinkedHashMap<>(sso.info()); info.put("saml", cr.saml.info()); sendJson(ex, 200, info); return; }
+        if (m.equals("GET") && route.equals("auth/saml/metadata")) {
+            byte[] b = cr.saml.metadata(origin(ex)).getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().set("Content-Type", "application/samlmetadata+xml; charset=utf-8");
+            ex.sendResponseHeaders(200, b.length); ex.getResponseBody().write(b); ex.close();
+            return;
+        }
+        if (m.equals("GET") && route.equals("auth/saml/start")) {
+            ex.getResponseHeaders().set("Location", cr.saml.start(origin(ex)));
+            ex.sendResponseHeaders(302, -1); ex.close();
+            return;
+        }
+        if (m.equals("POST") && route.equals("auth/saml/acs")) {
+            // the identity provider posts the form back (HTTP-POST binding)
+            Map<String, String> form = new HashMap<>();
+            for (String pair : new String(ex.getRequestBody().readNBytes(3_000_000), StandardCharsets.UTF_8).split("&")) {
+                int i = pair.indexOf('=');
+                if (i > 0) form.put(java.net.URLDecoder.decode(pair.substring(0, i), StandardCharsets.UTF_8), java.net.URLDecoder.decode(pair.substring(i + 1), StandardCharsets.UTF_8));
+            }
+            try {
+                Map<String, Object> r = cr.saml.acs(form.get("SAMLResponse"), origin(ex), ip);
+                ex.getResponseHeaders().add("Set-Cookie", COOKIE + "=" + r.get("token") + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=" + cr.platform.sessionLength().toSeconds() + secureFlag(ex));
+                html(ex, 200, "<meta http-equiv=\"refresh\" content=\"0;url=/\"></head><body><p>Signed in. <a href=\"/\">Continue to One Command Center</a></p></body></html>");
+            } catch (OoaException e) {
+                html(ex, 400, "</head><body style=\"font-family:sans-serif;padding:40px\"><h1>Sign-in did not work</h1><p>" + esc(e.getMessage()) + "</p>"
+                        + (e.suggestedFix() == null ? "" : "<p>" + esc(e.suggestedFix()) + "</p>") + "<p><a href=\"/\">Back to the sign-in page</a></p></body></html>");
+            }
+            return;
+        }
         if (m.equals("GET") && route.equals("auth/sso/start")) {
             ex.getResponseHeaders().set("Location", sso.start(origin(ex) + "/api/auth/sso/callback"));
             ex.getResponseHeaders().set("Cache-Control", "no-store");
@@ -306,7 +388,14 @@ public final class ControlRoomServer {
             }
             Map<String, Object> d = device(ex);
             if (m.equals("POST") && route.equals("agent/heartbeat")) sendJson(ex, 200, cr.heartbeat(d, map(body(ex))));
-            else if (m.equals("POST") && route.equals("agent/jobs/next")) { Map<String, Object> job = cr.claimNext(d); sendJson(ex, 200, job == null ? Map.of("job", false) : Map.of("job", job)); }
+            else if (m.equals("POST") && route.equals("agent/rotate")) sendJson(ex, 200, cr.rotateSecret(d, ip));
+            else if (m.equals("GET") && route.equals("agent/update/manifest")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); if (mf == null) notFound(ex); else sendJson(ex, 200, mf); }
+            else if (m.equals("GET") && route.equals("agent/update/file")) sendBytes(ex, cr.runnerUpdates.file(q.get("name")), "application/java-archive", q.get("name"));
+            else if (m.equals("POST") && route.equals("agent/jobs/next")) {
+                // ?wait=SECONDS: hold the request until work arrives (at most 25 s); without it, answer at once (older runners)
+                long wait = q.get("wait") != null && q.get("wait").matches("\\d{1,3}") ? Long.parseLong(q.get("wait")) * 1000 : 0;
+                sendJson(ex, 200, cr.nextJob(d, wait));
+            }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("events")) { cr.appendEvents(d, seg[2], (List<Object>) map(body(ex)).getOrDefault("events", List.of())); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && seg.length == 4 && seg[1].equals("runs") && seg[3].equals("finish")) { cr.finish(d, seg[2], map(map(body(ex)).getOrDefault("result", Map.of()))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/credential")) {
@@ -340,6 +429,18 @@ public final class ControlRoomServer {
             sendJson(ex, 200, r);
             return;
         }
+        if (route.startsWith("auth/mfa/")) {
+            ControlRoom.User u = user(ex, true);
+            Map<String, Object> b = m.equals("POST") ? map(body(ex)) : Map.of();
+            switch (route) {
+                case "auth/mfa/status" -> sendJson(ex, 200, cr.mfa.status(u));
+                case "auth/mfa/setup" -> sendJson(ex, 200, cr.mfa.setup(u, ip));
+                case "auth/mfa/enable" -> sendJson(ex, 200, cr.mfa.enable(u, (String) b.get("code"), ip));
+                case "auth/mfa/disable" -> { cr.mfa.disable(u, (String) b.get("password"), (String) b.get("code"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                default -> notFound(ex);
+            }
+            return;
+        }
         if (route.equals("auth/password") && m.equals("POST")) {
             ControlRoom.User u = user(ex, true);
             Map<String, Object> b = map(body(ex));
@@ -350,16 +451,39 @@ public final class ControlRoomServer {
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
+            case "changes" -> sendJson(ex, 200, cr.changes(u, q.get("since"), ControlRoom.intOr(q.get("wait"), 0)));
             case "license" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.licensing.install(u, (String) map(body(ex)).get("content"), ip));
                 else if (m.equals("GET") && route.equals("license/assignments")) sendJson(ex, 200, cr.licensing.assignments(u));
+                else if (m.equals("GET") && route.equals("license/usage")) sendJson(ex, 200, cr.licensing.usage(u, ControlRoom.intOr(q.get("days"), 90)));
+                else if (m.equals("GET") && route.equals("license/usage/export")) sendText(ex, 200, "text/csv; charset=utf-8", cr.licensing.usageCsv(u), "license-use.csv");
                 else if (m.equals("PUT") && route.equals("license/assignments")) {
                     Map<String, Object> b = map(body(ex));
                     sendJson(ex, 200, cr.licensing.assign(u, (String) b.get("license_type"), (String) b.get("principal"), !Boolean.FALSE.equals(b.get("assigned")), ip));
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "dashboards" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("dashboards", cr.dashboards.list(u)));
+                else if (m.equals("GET") && route.equals("dashboards/kpis")) sendJson(ex, 200, Map.of("kpis", cr.dashboards.kpis(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.dashboards.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.dashboards.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.dashboards.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("data")) sendJson(ex, 200, cr.dashboards.data(u, seg[1], q.get("tz")));
+                else notFound(ex);
+            }
+            case "test-sets" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("sets", cr.testSets.list(u, q.get("bot"))));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.testSets.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.testSets.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.testSets.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("run")) { Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.testSets.run(u, seg[1], (String) b.get("device_id"), (String) b.get("pool_id"), b.get("version") == null ? null : String.valueOf(b.get("version")), ip)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("history")) sendJson(ex, 200, Map.of("runs", cr.testSets.history(u, seg[1])));
+                else if (m.equals("GET") && seg.length == 3 && seg[1].equals("runs")) sendJson(ex, 200, cr.testSets.testRun(u, seg[2]));
+                else notFound(ex);
+            }
             case "mcp" -> {
                 if (!m.equals("POST")) { ex.getResponseHeaders().set("Allow", "POST"); ex.sendResponseHeaders(405, -1); return; }
                 Map<String, Object> res = mcp.handle(u, body(ex), ip);
@@ -391,6 +515,7 @@ public final class ControlRoomServer {
             }
             case "settings" -> {
                 if (m.equals("POST") && route.equals("settings/syslog-test")) { cr.require(u, "settings.manage", "test the syslog connection"); sendJson(ex, 200, cr.syslog.test(u.username())); }
+                else if (m.equals("POST") && route.equals("settings/mail-test")) sendJson(ex, 200, cr.mailer.test(u, (String) map(body(ex)).get("to"), ip));
                 else if (m.equals("GET")) sendJson(ex, 200, cr.platform.settings());
                 else if (m.equals("PUT")) sendJson(ex, 200, cr.platform.updateSettings(u, map(body(ex)), ip));
                 else notFound(ex);
@@ -473,6 +598,17 @@ public final class ControlRoomServer {
                 } else if (m.equals("POST") && route.equals("lifecycle/promote")) sendJson(ex, 200, cr.lifecycle.promote(u, map(body(ex)), ip));
                 else notFound(ex);
             }
+            case "templates" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.templates.list(u));
+                else if (m.equals("POST") && route.equals("templates/install")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.templates.install(u, (String) b.get("source"), (String) b.get("id"), (String) b.get("folder"), ip));
+                } else if (m.equals("POST") && route.equals("templates/share")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.templates.share(u, (String) b.get("path"), (String) b.get("name"), (String) b.get("description"), (String) b.get("category"), ip));
+                } else if (m.equals("POST") && route.equals("templates/catalogue")) sendJson(ex, 200, cr.templates.upload(u, (String) map(body(ex)).get("text"), ip));
+                else notFound(ex);
+            }
             case "queues" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("queues", cr.platform.queues(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.platform.queue(u, seg[1]));
@@ -493,6 +629,7 @@ public final class ControlRoomServer {
                     sendJson(ex, 200, cr.platform.items(u, seg[1], q.get("status"), q.get("q"), ControlRoom.intOr(q.get("limit"), 100), ControlRoom.intOr(q.get("offset"), 0)));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("items")) sendJson(ex, 200, cr.platform.addItems(u, seg[1], (List<Object>) map(body(ex)).get("items"), ip));
                 else if (m.equals("POST") && seg.length == 4 && seg[2].equals("items")) { cr.platform.updateItems(u, seg[1], (List<Object>) map(body(ex)).get("ids"), seg[3], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("POST") && seg.length == 5 && seg[2].equals("items") && seg[4].equals("validate")) sendJson(ex, 200, cr.platform.validateItem(u, seg[1], seg[3], map(body(ex)), ip));
                 else notFound(ex);
             }
             case "connections" -> {
@@ -510,6 +647,15 @@ public final class ControlRoomServer {
             }
             case "toolkits" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("toolkits", cr.platform.toolkits(u)));
+                else if (m.equals("GET") && route.equals("toolkits/custom")) sendJson(ex, 200, Map.of("versions", cr.customToolkits.list(u)));
+                else if (m.equals("POST") && route.equals("toolkits/custom")) {
+                    // the request body is the signed jar itself
+                    sendJson(ex, 200, cr.customToolkits.upload(u, ex.getRequestBody().readNBytes(CustomToolkits.MAX_BYTES + 1), ip));
+                }
+                else if (m.equals("DELETE") && seg.length == 3 && seg[1].equals("custom")) { cr.customToolkits.delete(u, seg[2], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && route.equals("toolkits/publishers")) sendJson(ex, 200, Map.of("publishers", cr.customToolkits.publishers(u)));
+                else if (m.equals("POST") && route.equals("toolkits/publishers")) { Map<String, Object> b = map(body(ex)); cr.customToolkits.addPublisher(u, (String) b.get("publisher"), (String) b.get("public_key"), ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("DELETE") && seg.length == 3 && seg[1].equals("publishers")) { cr.customToolkits.removePublisher(u, URLDecoder.decode(seg[2], StandardCharsets.UTF_8), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("used-by")) sendJson(ex, 200, Map.of("agents", cr.platform.toolkitUsers(u, seg[1])));
                 else if (m.equals("GET") && seg.length == 3 && seg[2].equals("versions")) sendJson(ex, 200, cr.platform.toolkitVersions(u, seg[1]));
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("update-agents")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.updateToolkitRange(u, seg[1], (String) b.get("range"), b.get("paths") instanceof List<?> l ? (List<Object>) l : null, ip)); }
@@ -523,6 +669,7 @@ public final class ControlRoomServer {
                 else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createUser(u, (String) b.get("username"), (String) b.get("display_name"), (String) b.get("role"), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) { cr.updateUser(u, seg[1], map(body(ex)), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-password")) sendJson(ex, 200, cr.resetPassword(u, seg[1], ip));
+                else if (m.equals("POST") && seg.length == 3 && seg[2].equals("reset-mfa")) { cr.mfa.reset(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PUT") && seg.length == 3 && seg[2].equals("default-device")) { cr.setDefaultDevice(u, seg[1], (String) map(body(ex)).get("device_id"), ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
@@ -576,8 +723,14 @@ public final class ControlRoomServer {
                     sendJson(ex, 200, cr.checkin(u, (String) b.get("path"), map(b.get("flow")), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), ip));
                 } else if (m.equals("POST") && route.equals("repo/production")) {
                     Map<String, Object> b = map(body(ex));
-                    cr.setProduction(u, (String) b.get("path"), ((Number) b.get("version")).intValue(), ip);
-                    sendJson(ex, 200, Map.of("ok", true));
+                    sendJson(ex, 200, cr.setOrRequestProduction(u, (String) b.get("path"), ((Number) b.get("version")).intValue(), (String) b.get("comment"), ip));
+                } else if (m.equals("GET") && route.equals("repo/production-requests")) sendJson(ex, 200, Map.of("requests", cr.approvals.list(u, q.get("status")), "approval_on", cr.approvals.enabled()));
+                else if (m.equals("POST") && route.equals("repo/production-requests")) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, cr.approvals.request(u, (String) b.get("path"), ((Number) b.get("version")).intValue(), (String) b.get("comment"), ip));
+                } else if (m.equals("POST") && seg.length == 4 && seg[1].equals("production-requests") && Set.of("approve", "reject", "withdraw").contains(seg[3])) {
+                    Map<String, Object> b = map(body(ex));
+                    sendJson(ex, 200, seg[3].equals("withdraw") ? cr.approvals.withdraw(u, seg[2], ip) : cr.approvals.decide(u, seg[2], seg[3].equals("approve"), (String) b.get("note"), ip));
                 } else notFound(ex);
             }
             case "skills" -> {
@@ -589,13 +742,29 @@ public final class ControlRoomServer {
                 else if (m.equals("DELETE") && seg.length == 2) { cr.promptSkills.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
+            case "cluster" -> { cr.require(u, "settings.manage", "see the Command Center nodes"); sendJson(ex, 200, Map.of("nodes", cr.cluster.nodes(), "this_node", cr.cluster.nodeId)); }
+            case "backups" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.backups.status(u));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.backups.backupNow(u, ip));
+                else notFound(ex);
+            }
+            case "git" -> {
+                if (m.equals("GET") && route.equals("git/status")) sendJson(ex, 200, cr.gitSync.status(u));
+                else if (m.equals("POST") && route.equals("git/sync")) {
+                    try { sendJson(ex, 200, cr.gitSync.syncNow(u, ip)); }
+                    catch (OoaException e) { throw e; } catch (Exception e) { throw new OoaException("CR.GIT", "Git sync failed: " + e.getMessage()); }
+                }
+                else notFound(ex);
+            }
             case "devices" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.devicesPage(u, q));
                 else if (m.equals("GET") && route.equals("devices/runasusers")) sendJson(ex, 200, Map.of("users", cr.runAsUsers(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.deviceDetail(u, seg[1]));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteDevice(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PATCH") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.updateDevices(u, ControlRoom.csv(b.get("ids")), b, ip)); }
-                else if (m.equals("POST") && route.equals("devices/registration-key")) sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) map(body(ex)).getOrDefault("hours", 24)).intValue(), ip));
+                else if (m.equals("POST") && route.equals("devices/update")) sendJson(ex, 200, cr.runnerUpdates.request(u, ControlRoom.csv(map(body(ex)).get("ids")), ip));
+                else if (m.equals("GET") && route.equals("devices/update")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); sendJson(ex, 200, mf == null ? Map.of("available", false) : Map.of("available", true, "build", mf.get("build"), "version", mf.get("version"), "auto", cr.platform.intSetting("runner_auto_update") == 1)); }
+                else if (m.equals("POST") && route.equals("devices/registration-key")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) b.getOrDefault("hours", 24)).intValue(), Boolean.TRUE.equals(b.get("temporary")), ip)); }
                 else if (m.equals("PATCH") && seg.length == 2) {
                     Map<String, Object> b = map(body(ex));
                     if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);
@@ -608,6 +777,7 @@ public final class ControlRoomServer {
             case "runs" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.runsPage(u, q));
                 else if (m.equals("POST") && route.equals("runs/purge")) sendJson(ex, 200, cr.platform.purgeNow(u, map(body(ex)), ip));
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("ai-calls")) sendJson(ex, 200, Map.of("calls", cr.platform.aiCallsOfRun(u, seg[1])));
                 else if (m.equals("POST") && seg.length == 1) {
                     Map<String, Object> b = map(body(ex));
                     // several targets at once (run-as users and/or runners): one run each
@@ -731,13 +901,15 @@ public final class ControlRoomServer {
         writeBody(ex, status, b);
     }
 
-    private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml");
+    private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8", "css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml",
+        "json", "application/json; charset=utf-8");
 
     private void serveStatic(HttpExchange ex, String path) throws IOException {
         String name = path.equals("/") ? "index.html" : path.substring(1);
         if (!name.matches("^[A-Za-z0-9_.-]+$")) { sendJson(ex, 404, Map.of("error", "not found")); return; }
-        // The shared design system (ooa-tokens.css, ooa-components.css) lives in /ooa-ui/; Agent Studio serves the same files.
-        String folder = name.startsWith("ooa-") && name.endsWith(".css") ? "/ooa-ui/" : "/console/";
+        // The shared design system (ooa-tokens.css, ooa-components.css) and the interface languages (ooa-i18n.js and its
+        // catalogs) live in /ooa-ui/; Agent Studio serves the same files.
+        String folder = name.startsWith("ooa-") && name.matches(".*\\.(css|js|json)$") ? "/ooa-ui/" : "/console/";
         try (InputStream in = ControlRoomServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { sendJson(ex, 404, Map.of("error", "not found")); return; }
             byte[] b = in.readAllBytes();

@@ -1,0 +1,42 @@
+# A Command Center with SQL Server 2022 for a test or small production set-up:
+#   docker compose -f docker/compose.yaml up -d
+# Set the passwords and the vault key in a .env file beside this file (never commit it):
+#   SA_PASSWORD=...        the SQL Server administrator (used once by ooa-db-init to create the database and account)
+#   OOA_DB_PASSWORD=...    the Command Center's own database account
+#   OOA_MASTER_KEY=...     the vault key: openssl rand -base64 32 (keep a copy apart from backups)
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD:?set SA_PASSWORD in .env}
+    volumes: [ "sql-data:/var/opt/mssql" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1" ]
+      interval: 10s
+      retries: 30
+
+  ooa-db-init:
+    # creates the database and the data-only account once, then exits
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on: { sql: { condition: service_healthy } }
+    environment:
+      SA_PASSWORD: ${SA_PASSWORD}
+      OOA_DB_PASSWORD: ${OOA_DB_PASSWORD:?set OOA_DB_PASSWORD in .env}
+    entrypoint: [ "bash", "-c", "/opt/mssql-tools18/bin/sqlcmd -C -S sql -U sa -P \"$$SA_PASSWORD\" -Q \"IF DB_ID('ooa_command_center') IS NULL CREATE DATABASE ooa_command_center; ALTER DATABASE ooa_command_center SET READ_COMMITTED_SNAPSHOT ON; IF SUSER_ID('ooa_app') IS NULL CREATE LOGIN ooa_app WITH PASSWORD = '$$OOA_DB_PASSWORD';\" && /opt/mssql-tools18/bin/sqlcmd -C -S sql -U sa -P \"$$SA_PASSWORD\" -d ooa_command_center -Q \"IF USER_ID('ooa_app') IS NULL CREATE USER ooa_app FOR LOGIN ooa_app; ALTER ROLE db_owner ADD MEMBER ooa_app;\"" ]
+
+  command-center:
+    image: ooa-command-center:0.1.1
+    depends_on: { ooa-db-init: { condition: service_completed_successfully } }
+    ports: [ "8720:8720" ]
+    environment:
+      OOA_MASTER_KEY: ${OOA_MASTER_KEY:?set OOA_MASTER_KEY in .env}
+      OOA_DB_URL: "jdbc:sqlserver://sql:1433;databaseName=ooa_command_center;encrypt=true;trustServerCertificate=true"
+      OOA_DB_USER: ooa_app
+      OOA_DB_PASSWORD: ${OOA_DB_PASSWORD}
+    volumes: [ "ooa-data:/data" ]
+    restart: unless-stopped
+
+volumes:
+  sql-data:
+  ooa-data:

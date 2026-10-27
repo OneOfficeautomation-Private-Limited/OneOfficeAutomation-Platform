@@ -6,7 +6,7 @@ in one relational database. Pick it in `config\ooa-db.properties` in the data fo
 | Engine | Use | Tested |
 | --- | --- | --- |
 | Microsoft SQL Server 2019 or later | Production (the usual choice) | Every Command Center test, the end-to-end suites and the console UI test, on SQL Server 2022 Express |
-| PostgreSQL 14 or later | Production | Configured, not yet run against a real server |
+| PostgreSQL 14 or later | Production | Every Command Center test on PostgreSQL 16 in CI |
 | H2, embedded | Evaluation on one computer; the default when there is no configuration file | Every test |
 
 Repository files (`repo-files`) and the vault key file (`master.key`) stay in the data folder.
@@ -31,6 +31,21 @@ CREATE LOGIN ooa_app WITH PASSWORD = N'...', CHECK_POLICY = ON;
 
 A DBA who prefers to create the schema by hand runs the output of `ooa db script --engine sqlserver` in an empty
 database. They then give the runtime account `db_datareader` and `db_datawriter`.
+
+### Windows sign-in (service account or gMSA)
+
+Instead of a SQL login and a stored password, the Command Center can sign in to SQL Server as the Windows account it
+runs as: a domain service account or a group managed service account (gMSA), whose password Windows manages.
+
+1. Run the Command Center service as that account: `ooa service install --account CORP\ooa-svc$` (a gMSA needs no
+   password), or change the service's Log On account.
+2. Configure: `ooa db configure --host sql01 --windows-auth --windows-login CORP\ooa-svc$`. No `--user` and no
+   `set-password`: nothing secret is stored.
+3. `ooa db init`, run by a Windows user who may create databases (or with `--setup-user` and its password, a SQL
+   login), creates the database and gives `CORP\ooa-svc$` a login with `db_datareader` and `db_datawriter`.
+
+The SQL Server driver's Windows sign-in library (`lib\mssql-jdbc_auth-12.8.1.x64.dll`) comes with the product, and
+the start scripts and services load it. Windows sign-in works from Windows only (not from the Linux container).
 
 ## Setting it up
 

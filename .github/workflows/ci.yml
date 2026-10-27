@@ -3,6 +3,11 @@
 #   sqlserver    Linux: the Command Center tests against a real SQL Server 2022 (a throwaway container)
 #   ui           Linux: the console and Studio UI tests (jsdom) against real servers started from the build
 #   msi          Windows: builds the MSI, installs it as a Command Center service, adds a runner service, uninstalls
+#   postgres     Linux: the Command Center tests against a real PostgreSQL 16 (a throwaway container)
+#   headless     Linux (every push) and macOS (master): a Command Center and a headless runner end to end, the runner and
+#                SDK tests and the shared conformance cases, so runners for API, data and browser-free work run there (R14)
+#   native       Linux and Windows: the native executable (GraalVM), checked against the Java program (Q13)
+#   container    Linux: the image alone, with PostgreSQL, backup and restore, and a SaaS region with two tenants (C3)
 name: CI
 
 on:
@@ -38,6 +43,8 @@ jobs:
         env:
           OOA_INTERNET_SAMPLES: "0"   # live public websites are too slow and changeable to fail a build on; run them locally
         run: ./gradlew.bat build --continue --console=plain
+      - name: Short load test (many runners, a work queue, the audit trail)
+        run: ./gradlew.bat :cli:loadTest "-Pooa.load.runners=20" "-Pooa.load.items=300" "-Pooa.load.audit=2000" --console=plain
       - name: Customer zip without vendor tools
         shell: pwsh
         run: |
@@ -58,10 +65,16 @@ jobs:
           try { $names = $a.Entries.FullName } finally { $a.Dispose() }
           $bad = $names | Where-Object { $_ -match "vendor-tools|private\.key|\.lic$" }
           if ($bad) { throw "The setup package holds vendor files: $($bad -join ', ')" }
-          foreach ($need in "runtime/bin/java.exe", "runtime/bin/keytool.exe", "Install.cmd", "Install-OOA.ps1", "Uninstall-OOA.ps1", "bin/ooa.bat") {
+          foreach ($need in "runtime/bin/java.exe", "runtime/bin/keytool.exe", "Install.cmd", "Install-OOA.ps1", "Uninstall-OOA.ps1", "bin/ooa.bat", "sbom.cdx.json") {
             if (-not ($names | Where-Object { $_ -like "*/$need" })) { throw "The setup package lacks $need" }
           }
           Write-Host "Setup package OK: $($zip.Name), $([math]::Round($zip.Length / 1MB)) MB"
+      - name: Software bill of materials
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: platform/cli/build/sbom/sbom.cdx.json
+          retention-days: 30
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@v4
@@ -104,6 +117,240 @@ jobs:
           name: test-reports-sqlserver
           path: platform/control-room/build/reports/tests/
           retention-days: 7
+
+  postgres:
+    name: Command Center on PostgreSQL (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Start PostgreSQL 16
+        run: |
+          # a throwaway password for this job's container only
+          PW="Ci-$(openssl rand -hex 12)"
+          echo "::add-mask::$PW"
+          echo "PG_PW=$PW" >> "$GITHUB_ENV"
+          docker run -d --name pg -e "POSTGRES_PASSWORD=$PW" -p 5432:5432 postgres:16
+          for i in $(seq 1 60); do
+            docker exec pg pg_isready -U postgres >/dev/null 2>&1 && echo "PostgreSQL is up" && exit 0
+            sleep 2
+          done
+          docker logs pg; exit 1
+      - name: Command Center tests on PostgreSQL
+        run: |
+          chmod +x gradlew
+          ./gradlew :control-room:test --console=plain "-Pooa.test.db=jdbc:postgresql://localhost:5432/" -Pooa.test.db.user=postgres "-Pooa.test.db.password=$PG_PW"
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-postgres
+          path: platform/control-room/build/reports/tests/
+          retention-days: 7
+
+  python:
+    name: Python reference runner (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: reference
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install and run its tests (the shared conformance cases among them)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+          python -m pytest -q
+
+  headless:
+    name: Headless runner (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS minutes cost more, so macOS runs for master only
+        os: ${{ github.ref == 'refs/heads/master' && fromJSON('["ubuntu-latest", "macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Command Center and runner end to end, runner and SDK tests, conformance cases
+        run: |
+          chmod +x gradlew
+          ./gradlew :sdk:test :runner:test :agent:test :cli:test --tests "*ControlRoomE2ETest*" --tests "*ConformanceTest*" --tests "*RunnerLifecycleTest*" --tests "*TriggerRunnerE2ETest*" --console=plain
+      - name: Test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-headless-${{ matrix.os }}
+          path: |
+            platform/*/build/reports/tests/
+          retention-days: 7
+
+  native:
+    name: Native executable (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm-community
+          java-version: "21"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          cache: gradle
+      - name: Build the native executable and the Java install
+        run: |
+          chmod +x gradlew
+          ./gradlew :cli:nativeExecutable :cli:installDist --console=plain
+          ls -l cli/build/native
+      - name: Same answers as the Java program
+        run: |
+          OOA=cli/build/native/ooa
+          JAVA_OOA=cli/build/install/ooa/bin/ooa
+          time "$OOA" --version
+          "$OOA" --help
+          # every check runs, so one run shows every difference
+          bad=0
+          "$OOA" manifest --summary > native.txt || bad=1
+          "$JAVA_OOA" manifest --summary > java.txt
+          diff java.txt native.txt && echo "Both know $(wc -l < native.txt) toolkits" || bad=1
+          # every example automation, Office, email, PDF and browser ones included
+          find ../examples -name '*.flow.json' -print0 | xargs -0 "$OOA" validate | grep -v ": OK$" || true
+          find ../examples -name '*.flow.json' -print0 | xargs -0 "$OOA" validate > /dev/null || bad=1
+          "$OOA" conformance ../contracts/conformance/cases | grep -v "^PASS" || true
+          "$OOA" conformance ../contracts/conformance/cases > /dev/null || bad=1
+          # a step of a toolkit it cannot run fails with a clear message
+          echo '{"kind":"TaskBot","id":"native_excel","name":"Native Excel","requires":{"packages":{"ooa.excel":"^1.0.0"}},"steps":[{"id":"open","action":"ooa.excel/open","args":{"path":"book.xlsx"}}]}' > excel.flow.json
+          "$OOA" run excel.flow.json > run.txt 2>&1 && bad=1
+          grep -q "ACTION.NOT_IN_THIS_PROGRAM" run.txt || { cat run.txt; bad=1; }
+          exit $bad
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ooa-native-${{ runner.os }}
+          path: platform/cli/build/native/ooa*
+          retention-days: 14
+
+  container:
+    name: Container image (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build the image
+        run: |
+          chmod +x gradlew
+          ./gradlew :cli:installCustomerDist --console=plain
+          docker build -f docker/Dockerfile -t ooa-command-center:ci .
+      - name: The customer package on Linux without a container (I8)
+        run: |
+          D=$(mktemp -d)
+          cli/build/install/ooa-customer/bin/ooa check --data "$D" --port 8790 || true
+          cli/build/install/ooa-customer/bin/ooa control-room --host 127.0.0.1 --port 8790 --data "$D" > "$D/server.log" 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8790/api/health/ready >/dev/null && echo "ready" && break; sleep 2; done
+          curl -sf http://127.0.0.1:8790/api/health/ready
+          kill %1
+      - name: Start it alone and with PostgreSQL, and check health
+        run: |
+          # throwaway secrets for this job's containers only
+          PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"
+          echo "::add-mask::$PW"; echo "::add-mask::$KEY"
+          wait_ready() {
+            for i in $(seq 1 60); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$1/api/health/ready" || true)
+              [ "$code" = "200" ] && echo "ready on $1" && return 0
+              sleep 2
+            done
+            docker logs "$2"; return 1
+          }
+          docker run -d --name alone -p 8720:8720 -e "OOA_MASTER_KEY=$KEY" ooa-command-center:ci
+          wait_ready 8720 alone
+          test "$(docker exec alone id -un)" = "ooa"
+          docker network create ooa
+          docker run -d --name pg --network ooa -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_DB=ooa postgres:16
+          for i in $(seq 1 60); do docker exec pg pg_isready -U postgres >/dev/null 2>&1 && break; sleep 2; done
+          docker run -d --name withdb --network ooa -p 8721:8720 -e "OOA_MASTER_KEY=$KEY" -e "OOA_DB_URL=jdbc:postgresql://pg:5432/ooa" \
+            -e OOA_DB_USER=postgres -e "OOA_DB_PASSWORD=$PW" ooa-command-center:ci
+          wait_ready 8721 withdb
+          docker exec pg psql -U postgres -d ooa -tAc "SELECT COUNT(*) FROM users" | grep -qx 1
+          for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' alone)" = "healthy" ] && break; sleep 5; done
+          docker inspect -f '{{.State.Health.Status}}' alone | grep -qx healthy
+          # back up, then restore into another database (moving a Command Center, C9)
+          docker exec withdb /opt/ooa/docker-entrypoint.sh backup now
+          docker stop withdb
+          docker exec pg psql -U postgres -c "CREATE DATABASE ooa2"
+          FILE=$(docker run --rm --volumes-from withdb --entrypoint bash ooa-command-center:ci -c 'ls /data/backups | head -1')
+          docker run --rm --volumes-from withdb --network ooa -e "OOA_MASTER_KEY=$KEY" -e "OOA_DB_URL=jdbc:postgresql://pg:5432/ooa2" \
+            -e OOA_DB_USER=postgres -e "OOA_DB_PASSWORD=$PW" ooa-command-center:ci backup restore "/data/backups/$FILE"
+          docker exec pg psql -U postgres -d ooa2 -tAc "SELECT COUNT(*) FROM users" | grep -qx 1
+      - name: A SaaS region with two tenants on PostgreSQL (C3)
+        run: |
+          PW="Ci-$(openssl rand -hex 12)"; KEY="$(openssl rand -base64 32)"
+          echo "::add-mask::$PW"; echo "::add-mask::$KEY"
+          OUT=$(docker run --rm ooa-command-center:ci region token)
+          OP=$(echo "$OUT" | awk '/^Token/ {print $NF}'); SHA=$(echo "$OUT" | awk '/^SHA-256/ {print $NF}')
+          echo "::add-mask::$OP"
+          docker network create saas
+          docker run -d --name spg --network saas -e "POSTGRES_PASSWORD=$PW" -e POSTGRES_USER=ooa_region -e POSTGRES_DB=ooa postgres:16
+          for i in $(seq 1 60); do docker exec spg pg_isready -U ooa_region >/dev/null 2>&1 && break; sleep 2; done
+          docker run -d --name region --network saas -p 8730:8720 -e OOA_REGION=in -e OOA_DOMAIN=in.ooa.test \
+            -e "OOA_DB_URL=jdbc:postgresql://spg:5432/ooa" -e OOA_DB_USER=ooa_region -e "OOA_DB_PASSWORD=$PW" -e "OOA_MASTER_KEY=$KEY" \
+            -e "OOA_OPERATOR_TOKEN_SHA256=$SHA" ooa-command-center:ci region start --data /data
+          for i in $(seq 1 60); do curl -sf http://localhost:8730/healthz && break; sleep 2; done
+          curl -sf http://localhost:8730/healthz || { docker logs region; exit 1; }
+          op() { docker exec -e "OOA_OP_TOKEN=$OP" region /opt/ooa/bin/ooa region tenant "$@" --url http://127.0.0.1:8720 --token-env OOA_OP_TOKEN; }
+          APW=$(op create --slug acme --name "Acme Ltd" --seats developer=2 | grep -o "one-time password  [^ ]*" | awk '{print $3}')
+          GPW=$(op create --slug globex --name "Globex" | grep -o "one-time password  [^ ]*" | awk '{print $3}')
+          echo "::add-mask::$APW"; echo "::add-mask::$GPW"
+          test -n "$APW" && test -n "$GPW"
+          op list
+          code() { curl -s -o /dev/null -w '%{http_code}' -H "Host: $1" "${@:3}" "http://localhost:8730$2"; }
+          login() { curl -s -H "Host: $1" -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"$2\"}" http://localhost:8730/api/auth/login; }
+          test "$(code acme.in.ooa.test /api/auth/me)" = 401
+          test "$(code acme.in.ooa.test /)" = 200
+          test "$(code nobody.in.ooa.test /api/auth/me)" = 404
+          # each administrator signs in to their own tenant only; a session of one is nothing in the other
+          TOKEN=$(login acme.in.ooa.test "$APW" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+          echo "::add-mask::$TOKEN"; test -n "$TOKEN"
+          login globex.in.ooa.test "$APW" | grep -q "CR.LOGIN_FAILED"
+          test "$(code globex.in.ooa.test /api/auth/me -H "Authorization: Bearer $TOKEN")" = 401
+          # one schema each in the shared database
+          test "$(docker exec spg psql -U ooa_region -d ooa -tAc "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name LIKE 't\_%'")" = 2
+          op suspend globex
+          test "$(code globex.in.ooa.test /api/auth/me)" = 404
+          op resume globex
+          test "$(code globex.in.ooa.test /api/auth/me)" = 401
+          op suspend globex
+          op delete globex
+          test "$(docker exec spg psql -U ooa_region -d ooa -tAc "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name LIKE 't\_%'")" = 1
+          for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' region)" = "healthy" ] && break; sleep 5; done
+          docker inspect -f '{{.State.Health.Status}}' region | grep -qx healthy || { docker logs region | tail -50; exit 1; }
 
   ui:
     name: Console and Studio UI tests (Linux)

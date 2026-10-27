@@ -17,18 +17,26 @@ import java.util.regex.Pattern;
  * agents, runs, schedules, triggers, credential lockers and global values. Every change is written to the audit log.
  */
 public final class ControlRoom {
-    public record User(String id, String username, String role, String displayName, boolean mustChange) {}
+    /** A signed-in person. mfaEnabled: two-step sign-in is on; sso: the account signs in through the identity provider. */
+    public record User(String id, String username, String role, String displayName, boolean mustChange, boolean mfaEnabled, boolean sso) {
+        public User(String id, String username, String role, String displayName, boolean mustChange) { this(id, username, role, displayName, mustChange, false, false); }
+    }
 
     public final Db db;
     public final Audit audit;
     public final Vault vault;
     public final Platform platform;
-    final ExternalVaults externalVaults = new ExternalVaults();
+    final ExternalVaults externalVaults = new ExternalVaults(this);
     public final Workflows workflows;
+    public final TestSets testSets;
+    public final Dashboards dashboards;
+    public final CustomToolkits customToolkits;
+    public final ServerlessRuns serverless;
     /** Repository folders and folder permissions. */
     final Folders folders;
     /** Export, import and promotion of agents between Command Centers. */
     public final Lifecycle lifecycle;
+    public final Templates templates;
     /** Teams of people, named team:x in access rules. */
     public final Teams teams;
     /** Vault folder members, credential owners, people's own values and the master key. */
@@ -51,9 +59,17 @@ public final class ControlRoom {
     static final Pattern PATH = Pattern.compile("^[A-Za-z0-9 _.()-]+(/[A-Za-z0-9 _.()-]+){0,8}\\.(flow|process|form)\\.json$");
     static final Pattern NAME = Pattern.compile("^[A-Za-z0-9_.-]{1,80}$");
 
-    private final Path dataDir;
+    final Path dataDir;
     final SyslogForwarder syslog;
     public final Licensing licensing;
+    public final Mfa mfa;
+    public final Cluster cluster;
+    public final ProductionApproval approvals;
+    public final RunnerUpdates runnerUpdates;
+    public final GitSync gitSync;
+    final Saml saml;
+    public final Backups backups;
+    final Mailer mailer;
 
     /**
      * Readiness for load balancers and monitoring: the database answers and holds the schema this release needs, the
@@ -83,28 +99,65 @@ public final class ControlRoom {
         return m;
     }
 
+    /** The SaaS tenant this Command Center serves (its id in the region's catalog), or null for an on-premises install. */
+    public final String tenant;
+
+    /**
+     * Whether serverless API tasks may run in this Command Center. Always on premises; for a SaaS tenant only when the
+     * region allows them (its network then limits where the server may connect, docs/SAAS.md).
+     */
+    public volatile boolean serverlessAllowed = true;
+
+    /** A SaaS tenant's seats from the region's catalog (license type -> count; empty: no limit). */
+    public volatile Map<String, Integer> tenantSeats = Map.of();
+
+    static OoaException notInSaas(String what) {
+        return new OoaException("SAAS.NOT_AVAILABLE", what + " is not available in the SaaS service", "Use a runner in your own network for it.");
+    }
+
     public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema) {
+        this(db, dataDir, registry, schema, new Vault(dataDir), null);
+    }
+
+    /** One tenant of a SaaS region: its own schema, data folder and vault key (Tenants). */
+    public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema, Vault vault, String tenant) {
+        this.tenant = tenant;
         this.dataDir = dataDir;
         this.db = db;
         this.audit = new Audit(db);
-        this.vault = new Vault(dataDir);
+        this.vault = vault;
         this.validator = new FlowValidator(registry, schema);
         this.registry = registry;
         db.migrate();
         this.platform = new Platform(this, registry);
         this.syslog = new SyslogForwarder(platform);
         this.licensing = new Licensing(this);
+        this.cluster = new Cluster(db);
+        this.mfa = new Mfa(this);
+        this.approvals = new ProductionApproval(this);
+        this.runnerUpdates = new RunnerUpdates(this);
+        this.gitSync = new GitSync(this, dataDir);
+        this.saml = new Saml(this);
+        this.backups = new Backups(this);
+        this.mailer = new Mailer(this);
         audit.onRecord(syslog::forward);
+        audit.protect(this::auditKey, dataDir);
         this.workflows = new Workflows(this);
+        this.testSets = new TestSets(this);
+        this.dashboards = new Dashboards(this);
         this.teams = new Teams(this);
         this.folders = new Folders(this);
         this.lifecycle = new Lifecycle(this);
+        this.templates = new Templates(this);
         this.vaultAdmin = new VaultAdmin(this);
         this.analytics = new Analytics(this);
         this.codeAnalysis = new CodeAnalysis(this);
         this.apiTasks = new ApiTasks(this);
         this.repoFiles = new RepoFiles(this, dataDir);
         this.promptSkills = new PromptSkills(this);
+        this.customToolkits = new CustomToolkits(this, registry);
+        customToolkits.loadAll();
+        this.serverless = new ServerlessRuns(this, registry, dataDir);
         loadRoles();
         loadUserRoles();
     }
@@ -144,6 +197,7 @@ public final class ControlRoom {
     final Map<String, Set<String>> customRoles = new java.util.concurrent.ConcurrentHashMap<>();
 
     public boolean allowed(String role, String permission) {
+        if (roleSwitchedOff(role)) return false;
         Set<String> custom = customRoles.get(role);
         return custom != null ? custom.contains(permission) : Rbac.allowed(role, permission);
     }
@@ -161,6 +215,15 @@ public final class ControlRoom {
     }
 
     public boolean roleExists(String role) { return Rbac.ROLES.contains(role) || customRoles.containsKey(role); }
+
+    /** A built-in role switched off in Settings (switched_off_roles): it grants nothing and cannot be given to anyone (S11). */
+    public boolean roleSwitchedOff(String role) { return role != null && !role.equals("admin") && Rbac.ROLES.contains(role) && platform.switchedOffRoles().contains(role); }
+
+    /** Refuses a role that does not exist or is switched off, for giving it to someone. */
+    void requireAssignable(String role) {
+        if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
+        if (roleSwitchedOff(role)) throw new OoaException("CR.BAD_INPUT", "The built-in role '" + role + "' is switched off", "Choose another role, or switch it on again in Administration > Settings > Security.");
+    }
 
     void loadRoles() {
         customRoles.clear();
@@ -181,10 +244,17 @@ public final class ControlRoom {
     }
 
     static User user(Map<String, Object> r) {
-        return new User((String) r.get("id"), (String) r.get("username"), (String) r.get("role"), (String) r.get("display_name"), Boolean.TRUE.equals(r.get("must_change")));
+        return new User((String) r.get("id"), (String) r.get("username"), (String) r.get("role"), (String) r.get("display_name"), Boolean.TRUE.equals(r.get("must_change")),
+                Boolean.TRUE.equals(r.get("mfa_enabled")), r.get("sso_subject") != null);
     }
 
-    public Map<String, Object> login(String username, String password, String ip) {
+    public Map<String, Object> login(String username, String password, String ip) { return login(username, password, null, ip); }
+
+    /**
+     * Signs in with a password. With two-step sign-in on, the answer is {mfa_required, mfa_token} and the session comes
+     * from {@link #loginMfa} with a code; a code sent along here (Studio, scripts) completes the sign-in in one step.
+     */
+    public Map<String, Object> login(String username, String password, String code, String ip) {
         Map<String, Object> r = db.one("SELECT * FROM users WHERE username = ?", username == null ? "" : username.trim());
         OoaException bad = new OoaException("CR.LOGIN_FAILED", "Wrong user name or password", null);
         if (r == null) { Security.hashPassword("timing".toCharArray()); audit.record(String.valueOf(username), "auth.login", "user", String.valueOf(username), null, "failed", ip); throw bad; }
@@ -193,13 +263,40 @@ public final class ControlRoom {
         if (lu != null && Instant.parse(lu.toString()).isAfter(now()))
             throw new OoaException("CR.LOCKED_OUT", "Too many failed sign-ins; try again after " + lu, "Wait 15 minutes or ask an administrator to reset your password.");
         if (!Security.verifyPassword(password == null ? new char[0] : password.toCharArray(), (String) r.get("password_hash"))) {
-            int failed = ((Number) r.get("failed")).intValue() + 1;
-            db.update("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?", failed % 5 == 0 ? 0 : failed, failed % 5 == 0 ? now().plus(Duration.ofMinutes(15)) : null, r.get("id"));
-            audit.record(username, "auth.login", "user", username, failed % 5 == 0 ? "account locked for 15 minutes" : null, "failed", ip);
+            countFailedSignIn(r, ip);
             throw bad;
+        }
+        int maxDays = platform.intSetting("password_max_days");
+        if (maxDays > 0 && r.get("sso_subject") == null && !Boolean.TRUE.equals(r.get("must_change"))) {
+            Object changed = r.get("password_changed") != null ? r.get("password_changed") : r.get("created");
+            if (changed != null && Instant.parse(changed.toString()).isBefore(now().minus(Duration.ofDays(maxDays)))) {
+                db.update("UPDATE users SET must_change = TRUE WHERE id = ?", r.get("id"));
+                r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));
+                audit.record(username, "user.password_expired", "user", username, Map.of("days", maxDays), "ok", ip);
+            }
+        }
+        String challenge = mfa.challenge(r);
+        if (challenge != null) {
+            if (code != null && !code.isBlank()) { r = mfa.complete(challenge, code, ip); audit.record(username, "auth.login", "user", username, Map.of("mfa", true), "ok", ip); return newSession(r, ip); }
+            audit.record(username, "auth.password", "user", username, Map.of("next", "code"), "ok", ip);
+            return Map.of("mfa_required", true, "mfa_token", challenge);
         }
         audit.record(username, "auth.login", "user", username, null, "ok", ip);
         return newSession(r, ip);
+    }
+
+    /** The second step: the code for a sign-in that passed the password. */
+    public Map<String, Object> loginMfa(String mfaToken, String code, String ip) {
+        Map<String, Object> r = mfa.complete(mfaToken, code, ip);
+        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), Map.of("mfa", true), "ok", ip);
+        return newSession(r, ip);
+    }
+
+    /** A wrong password or too many wrong codes: every fifth failure locks the account for 15 minutes. */
+    void countFailedSignIn(Map<String, Object> r, String ip) {
+        int failed = ((Number) db.one("SELECT failed FROM users WHERE id = ?", r.get("id")).get("failed")).intValue() + 1;
+        db.update("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?", failed % 5 == 0 ? 0 : failed, failed % 5 == 0 ? now().plus(Duration.ofMinutes(15)) : null, r.get("id"));
+        audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), failed % 5 == 0 ? "account locked for 15 minutes" : null, "failed", ip);
     }
 
     private Map<String, Object> newSession(Map<String, Object> r, String ip) {
@@ -266,7 +363,7 @@ public final class ControlRoom {
                 r = db.one("SELECT * FROM users WHERE LOWER(username) = ? AND sso_subject IS NULL", candidate);
             }
             if (r == null) {
-                if (defaultRole.isEmpty() || !roleExists(defaultRole)) {
+                if (defaultRole.isEmpty() || !roleExists(defaultRole) || roleSwitchedOff(defaultRole)) {
                     audit.record(String.valueOf(email != null ? email : preferred), "auth.sso", "user", null, "no account", "failed", ip);
                     throw new OoaException("SSO.NO_ACCOUNT", "There is no Command Center account for " + (email != null ? email : preferred), "Ask an administrator to create your account.");
                 }
@@ -288,6 +385,36 @@ public final class ControlRoom {
         r = db.one("SELECT * FROM users WHERE id = ?", r.get("id"));
         audit.record((String) r.get("username"), "auth.login", "user", (String) r.get("username"), Map.of("via", "sso"), "ok", ip);
         return newSession(r, ip);
+    }
+
+    /**
+     * MCP over OAuth (S10): the person an access token from the company's identity provider stands for. The token must
+     * be signed by the single sign-on issuer, meant for this Command Center (Settings mcp_oauth_audience), unexpired and,
+     * when mcp_oauth_scope is set, carry that scope. Only existing accounts are used (linked by single sign-on, or with
+     * the same e-mail or user name); none is created or changed here.
+     */
+    User oauthUser(Sso sso, String jwt, String ip) {
+        String audience = String.valueOf(platform.setting("mcp_oauth_audience")).trim();
+        if (audience.isEmpty()) throw new OoaException("CR.UNAUTHENTICATED", "MCP sign-in with OAuth is not set up", "An administrator sets the MCP audience in Settings > AI assistants.");
+        Map<String, Object> claims;
+        try { claims = sso.verify(jwt, audience, null); }
+        catch (OoaException e) { audit.record("mcp", "auth.mcp_oauth", "user", null, e.getMessage(), "failed", ip); throw new OoaException("CR.UNAUTHENTICATED", "The access token was refused: " + e.getMessage()); }
+        String scope = String.valueOf(platform.setting("mcp_oauth_scope")).trim();
+        if (!scope.isEmpty()) {
+            String granted = claims.get("scp") instanceof String sc ? sc : claims.get("scope") instanceof String sc2 ? sc2 : "";
+            if (!Arrays.asList(granted.split("\\s+")).contains(scope)) throw new OoaException("CR.FORBIDDEN", "The access token lacks the scope " + scope);
+        }
+        Map<String, Object> r = db.one("SELECT * FROM users WHERE sso_subject = ?", claims.get("iss") + "|" + claims.get("sub"));
+        for (String k : new String[] { "email", "preferred_username", "upn" }) {
+            if (r != null) break;
+            if (claims.get(k) instanceof String v && !v.isBlank()) r = db.one("SELECT * FROM users WHERE LOWER(username) = ?", v.trim().toLowerCase(Locale.ROOT));
+        }
+        if (r == null) throw new OoaException("CR.UNAUTHENTICATED", "No Command Center account belongs to this access token", "Sign in to the Command Center once with single sign-on, or ask an administrator for an account.");
+        if (!Boolean.TRUE.equals(r.get("enabled"))) throw new OoaException("CR.UNAUTHENTICATED", "This account is disabled");
+        User u = user(r);
+        licensing.checkSignIn(u);
+        // signed in through the identity provider: the local first-time password change does not apply (as for SSO sign-in)
+        return new User(u.id(), u.username(), u.role(), u.displayName(), false, u.mfaEnabled(), true);
     }
 
     /** A credential the Command Center itself needs (for example the SSO client secret), from a vault folder or its external vault. */
@@ -314,6 +441,7 @@ public final class ControlRoom {
         String temp = Security.token(12);
         db.update("UPDATE users SET password_hash = ?, must_change = TRUE, enabled = TRUE, failed = 0, locked_until = NULL WHERE id = ?",
                 Security.hashPassword(temp.toCharArray()), r.get("id"));
+        mfa.clear((String) r.get("id"));   // a lost authenticator is a common reason for recovery; it is set up again
         db.update("DELETE FROM sessions WHERE user_id = ?", r.get("id"));
         audit.record("system (local console)", "user.recover", "user", username, Map.of("role", r.get("role")), "ok", null);
         return temp;
@@ -324,7 +452,7 @@ public final class ControlRoom {
 
     public static Map<String, Object> publicUser(User u) {
         return Map.of("id", u.id(), "username", u.username(), "role", u.role(), "display_name", u.displayName() == null ? u.username() : u.displayName(),
-                "must_change", u.mustChange(), "permissions", Rbac.permissions(u.role()));
+                "must_change", u.mustChange(), "permissions", Rbac.permissions(u.role()), "mfa_enabled", u.mfaEnabled());
     }
 
     /** The signed-in user with permissions from custom roles too. */
@@ -332,6 +460,7 @@ public final class ControlRoom {
         Map<String, Object> m = new LinkedHashMap<>(publicUser(u));
         m.put("permissions", permissionsOf(u));
         m.put("roles", rolesOf(u.username(), u.role()));
+        if (mfa.setupNeeded(u)) m.put("mfa_setup_required", true);
         Object note = platform.setting("announcement");
         if (note instanceof String n && !n.isBlank()) m.put("announcement", n);
         Map<String, Object> lic = licensing.status(u);
@@ -356,7 +485,7 @@ public final class ControlRoom {
     }
 
     public void changePassword(User u, String current, String next, String token, String ip) {
-        Map<String, Object> r = db.one("SELECT password_hash FROM users WHERE id = ?", u.id());
+        Map<String, Object> r = db.one("SELECT password_hash, password_history FROM users WHERE id = ?", u.id());
         if (!Security.verifyPassword(current == null ? new char[0] : current.toCharArray(), (String) r.get("password_hash"))) {
             audit.record(u.username(), "user.change_password", "user", u.username(), null, "failed", ip);
             throw new OoaException("CR.LOGIN_FAILED", "The current password is wrong");
@@ -364,8 +493,15 @@ public final class ControlRoom {
         String problem = Security.passwordProblem(next, u.username(), platform.intSetting("password_min_length"));
         if (problem != null) throw new OoaException("CR.WEAK_PASSWORD", problem);
         if (current.equals(next)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a different password from the current one.");
+        // password history: none of the last N passwords again
+        int keep = platform.intSetting("password_history");
+        List<String> history = new ArrayList<>(r.get("password_history") == null || ((String) r.get("password_history")).isBlank() ? List.of() : List.of(((String) r.get("password_history")).split(",")));
+        if (keep > 0) for (String old : history.subList(0, Math.min(keep, history.size())))
+            if (Security.verifyPassword(next.toCharArray(), old)) throw new OoaException("CR.WEAK_PASSWORD", "Choose a password you have not used for your last " + keep + " passwords.");
+        history.add(0, (String) r.get("password_hash"));
+        String kept = keep > 0 ? String.join(",", history.subList(0, Math.min(keep, history.size()))) : null;
         db.tx(() -> {
-            db.update("UPDATE users SET password_hash = ?, must_change = FALSE WHERE id = ?", Security.hashPassword(next.toCharArray()), u.id());
+            db.update("UPDATE users SET password_hash = ?, must_change = FALSE, password_history = ?, password_changed = ? WHERE id = ?", Security.hashPassword(next.toCharArray()), kept, now(), u.id());
             db.update("DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?", u.id(), Security.sha256(token));
             return null;
         });
@@ -374,13 +510,13 @@ public final class ControlRoom {
 
     public List<Map<String, Object>> users(User by) {
         require(by, "users.manage", "manage users");
-        return db.query("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until FROM users ORDER BY username");
+        return db.query("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until, mfa_enabled FROM users ORDER BY username");
     }
 
     /** One user with their teams and default runner (by id or user name). */
     public Map<String, Object> userDetail(User by, String idOrName) {
         require(by, "users.manage", "manage users");
-        Map<String, Object> u = db.one("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until FROM users WHERE id = ? OR username = ?", idOrName, idOrName);
+        Map<String, Object> u = db.one("SELECT id, username, display_name, first_name, last_name, description, email, role, enabled, must_change, last_login, created, locked_until, mfa_enabled FROM users WHERE id = ? OR username = ?", idOrName, idOrName);
         if (u == null) throw notFound("User");
         Map<String, Object> m = new LinkedHashMap<>(u);
         m.put("roles", rolesOf((String) u.get("username"), (String) u.get("role")));
@@ -452,7 +588,7 @@ public final class ControlRoom {
     public Map<String, Object> createUser(User by, String username, String display, String role, String ip) {
         require(by, "users.manage", "manage users");
         if (username == null || !username.matches("^[A-Za-z0-9_.@-]{3,80}$")) throw new OoaException("CR.BAD_INPUT", "User names use 3-80 letters, digits, . _ @ -");
-        if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
+        requireAssignable(role);
         String temp = Security.token(12);
         db.update("INSERT INTO users (id, username, display_name, password_hash, role, enabled, must_change, failed, created) VALUES (?,?,?,?,?,?,?,?,?)",
                 id("usr"), username, display == null || display.isBlank() ? username : display, Security.hashPassword(temp.toCharArray()), role, true, true, 0, now());
@@ -470,7 +606,7 @@ public final class ControlRoom {
         db.tx(() -> {
             if (changes.containsKey("role")) {
                 String role = String.valueOf(changes.get("role"));
-                if (!roleExists(role)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + role + "'", "Use a built-in role or create the role first.");
+                requireAssignable(role);
                 if (self && !role.equals("admin")) throw new OoaException("CR.BAD_INPUT", "You cannot remove your own administrator role");
                 if ("admin".equals(r.get("role")) && !role.equals("admin") && enabledAdmins() <= 1) throw new OoaException("CR.BAD_INPUT", "At least one enabled administrator is required");
                 db.update("UPDATE users SET role = ? WHERE id = ?", role, userId);
@@ -497,7 +633,7 @@ public final class ControlRoom {
                 // roles beyond the main one; administrator stays a main role, so admin counts stay exact
                 List<String> extra = new ArrayList<>();
                 for (String x : csv(changes.get("further_roles"))) {
-                    if (!roleExists(x)) throw new OoaException("CR.BAD_INPUT", "Unknown role '" + x + "'", "Use a built-in role or create the role first.");
+                    requireAssignable(x);
                     if (x.equals("admin")) throw new OoaException("CR.BAD_INPUT", "Administrator can only be a main role");
                     if (!extra.contains(x)) extra.add(x);
                 }
@@ -643,7 +779,18 @@ public final class ControlRoom {
      * it (import), the agent must not be checked out by someone else.
      */
     @SuppressWarnings("unchecked")
-    Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, boolean checkedOut, String ip) {
+    Map<String, Object> storeVersion(User by, String path, Map<String, Object> flow, String comment, boolean asProduction, boolean checkedOut, String ip) {
+        // with approval before production, "as production" becomes a request that someone else approves
+        boolean askApproval = asProduction && approvals.enabled(), makeProduction = asProduction && !askApproval;
+        Map<String, Object> stored = storeVersionNow(by, path, flow, comment, makeProduction, checkedOut, ip);
+        if (!askApproval) return stored;
+        Map<String, Object> out = new LinkedHashMap<>(stored);
+        out.put("production_request", approvals.request(by, path, ((Number) stored.get("version")).intValue(), comment, ip));
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> storeVersionNow(User by, String path, Map<String, Object> flow, String comment, boolean makeProduction, boolean checkedOut, String ip) {
         require(by, "repo.checkin", "check in agents");
         if (path == null || !PATH.matcher(path).matches() || path.contains(".."))
             throw new OoaException("CR.BAD_PATH", "Invalid agent repository path '" + path + "'", "Use folders and a name ending in .flow.json, e.g. Finance/Invoice approval.flow.json");
@@ -682,18 +829,28 @@ public final class ControlRoom {
             db.update("INSERT INTO bot_versions (path, version, content, sha256, comment, author, created) VALUES (?,?,?,?,?,?,?)",
                     path, version, json, Security.sha256(json), comment == null ? "" : comment, by.username(), now());
             audit.record(by.username(), checkedOut ? "repo.checkin" : "repo.import", "bot", path, Map.of("version", version, "production", makeProduction, "comment", comment == null ? "" : comment), "ok", ip);
+            gitSync.changed(by.username(), path + " v" + version + (comment == null || comment.isBlank() ? "" : ": " + comment.strip()));
             // the code analysis report of the new version, against today's policy
             if (CodeAnalysis.analysable(path)) codeAnalysis.store(path, version, codeAnalysis.check(flow), by.username());
             return Map.of("path", path, "version", version, "created", b == null);
         });
     }
 
+    /** Makes a version live, or with approval before production asks for it; returns {ok} or {production_request}. */
+    public Map<String, Object> setOrRequestProduction(User by, String path, int version, String comment, String ip) {
+        if (approvals.enabled()) return Map.of("production_request", approvals.request(by, path, version, comment, ip));
+        setProduction(by, path, version, ip);
+        return Map.of("ok", true);
+    }
+
     public void setProduction(User by, String path, int version, String ip) {
+        if (approvals.enabled()) throw new OoaException("CR.APPROVAL_REQUIRED", "Production versions need approval", "Ask for approval; another person with the approval right decides.");
         require(by, "repo.production", "set live production versions");
         folders.require(by, path, "manage", "set live production versions");
         if (db.one("SELECT version FROM bot_versions WHERE path = ? AND version = ?", path, version) == null) throw notFound("Version " + version + " of " + path);
         db.update("UPDATE bots SET production_version = ?, updated = ?, updated_by = ? WHERE path = ?", version, now(), by.username(), path);
         audit.record(by.username(), "repo.set_production", "bot", path, Map.of("version", version), "ok", ip);
+        gitSync.changed(by.username(), path + ": v" + version + " is live in production");
     }
 
     /**
@@ -713,6 +870,7 @@ public final class ControlRoom {
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
         audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
+        gitSync.changed(by.username(), path + " deleted");
         return Map.of("deleted", path, "called_by", parentsOf((String) b.get("bot_id")));
     }
 
@@ -860,12 +1018,19 @@ public final class ControlRoom {
 
     // ===================== devices and agents =====================
 
-    public Map<String, Object> createRegistrationKey(User by, int hours, String ip) {
+    public Map<String, Object> createRegistrationKey(User by, int hours, String ip) { return createRegistrationKey(by, hours, false, ip); }
+
+    /**
+     * A one-time registration key. {@code temporary}: runners registered with it (VDI, pooled desktops) are removed by
+     * themselves after {@code temporary_runner_hours} without contact, freeing their license seat.
+     */
+    public Map<String, Object> createRegistrationKey(User by, int hours, boolean temporary, String ip) {
         require(by, "devices.manage", "register runners");
         String key = "ooareg_" + Security.token(24);
-        db.update("INSERT INTO registration_keys (key_hash, created_by, created, expires) VALUES (?,?,?,?)", Security.sha256(key), by.username(), now(), now().plus(Duration.ofHours(Math.max(1, Math.min(168, hours)))));
-        audit.record(by.username(), "device.registration_key", "device", null, Map.of("hours", hours), "ok", ip);
-        return Map.of("key", key, "expires_in_hours", hours);
+        db.update("INSERT INTO registration_keys (key_hash, created_by, created, expires, temporary) VALUES (?,?,?,?,?)", Security.sha256(key), by.username(), now(),
+            now().plus(Duration.ofHours(Math.max(1, Math.min(168, hours)))), temporary);
+        audit.record(by.username(), "device.registration_key", "device", null, Map.of("hours", hours, "temporary", temporary), "ok", ip);
+        return Map.of("key", key, "expires_in_hours", hours, "temporary", temporary);
     }
 
     /** One-hour key for the Bot Agent that `ooa server` starts on this machine; no signed-in user is involved. */
@@ -885,8 +1050,8 @@ public final class ControlRoom {
             }
             String deviceId = id("dev"), secret = Security.token(32);
             String nm = name == null || name.isBlank() ? hostname : name;
-            db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    deviceId, nm, hostname, os, agentVersion, Security.sha256(secret), true, now(), now(), k.get("created_by"));
+            db.update("INSERT INTO devices (id, name, hostname, os, agent_version, secret_hash, enabled, last_seen, registered, registered_by, lifespan, secret_set) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    deviceId, nm, hostname, os, agentVersion, Security.sha256(secret), true, now(), now(), k.get("created_by"), Boolean.TRUE.equals(k.get("temporary")) ? "temporary" : "persistent", now());
             db.update("UPDATE registration_keys SET used_by = ? WHERE key_hash = ?", deviceId, k.get("key_hash"));
             audit.record("agent:" + hostname, "device.register", "device", deviceId, Map.of("name", nm), "ok", ip);
             return Map.of("device_id", deviceId, "secret", secret, "name", nm);
@@ -896,8 +1061,33 @@ public final class ControlRoom {
     public Map<String, Object> device(String deviceId, String secret) {
         if (deviceId == null || secret == null) return null;
         Map<String, Object> d = db.one("SELECT * FROM devices WHERE id = ?", deviceId);
-        if (d == null || !Boolean.TRUE.equals(d.get("enabled")) || !Security.constantEquals(Security.sha256(secret), (String) d.get("secret_hash"))) return null;
-        return d;
+        if (d == null || !Boolean.TRUE.equals(d.get("enabled"))) return null;
+        String h = Security.sha256(secret);
+        if (Security.constantEquals(h, (String) d.get("secret_hash"))) return d;
+        // just after a rotation the previous secret still works for a few minutes (requests already on their way)
+        boolean previous = d.get("secret_prev_hash") != null && d.get("secret_prev_until") != null && Instant.parse(d.get("secret_prev_until").toString()).isAfter(now())
+            && Security.constantEquals(h, (String) d.get("secret_prev_hash"));
+        return previous ? d : null;
+    }
+
+    /**
+     * Gives a runner a new secret (it asked, after its heartbeat said rotate); the old one keeps working for 10 minutes.
+     * Returns the new secret once; only its hash is stored.
+     */
+    public Map<String, Object> rotateSecret(Map<String, Object> d, String ip) {
+        String secret = Security.token(32);
+        db.update("UPDATE devices SET secret_prev_hash = secret_hash, secret_prev_until = ?, secret_hash = ?, secret_set = ? WHERE id = ?",
+            now().plus(Duration.ofMinutes(10)), Security.sha256(secret), now(), d.get("id"));
+        audit.record("agent:" + d.get("name"), "device.rotate_secret", "device", (String) d.get("id"), null, "ok", ip);
+        return Map.of("secret", secret);
+    }
+
+    /** True when the runner's secret is older than runner_secret_days (0: never). */
+    boolean secretDue(Map<String, Object> d) {
+        int days = platform.intSetting("runner_secret_days");
+        if (days <= 0) return false;
+        Object set = d.get("secret_set") != null ? d.get("secret_set") : d.get("registered");
+        return set != null && Instant.parse(set.toString()).isBefore(now().minus(Duration.ofDays(days)));
     }
 
     public List<Map<String, Object>> devices(User by) {
@@ -905,10 +1095,12 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, List<String>> defaults = new HashMap<>();
         for (Map<String, Object> u : db.query("SELECT username, device_id FROM user_devices ORDER BY username")) defaults.computeIfAbsent((String) u.get("device_id"), k -> new ArrayList<>()).add((String) u.get("username"));
-        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run FROM devices ORDER BY name")) {
+        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested, lifespan, toolkits FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
             if (m.get("log_level") == null) m.put("log_level", "info");
             if (m.get("after_run") == null) m.put("after_run", "nothing");
+            Map<String, Object> mf = runnerUpdates.manifest();
+            if (mf != null && m.get("build") != null) m.put("up_to_date", mf.get("build").equals(m.get("build")));
             if (m.get("device_type") == null) m.put("device_type", "multi_user");
             m.put("default_users", defaults.getOrDefault((String) d.get("id"), List.of()));
             boolean online = d.get("last_seen") != null && Instant.parse(d.get("last_seen").toString()).isAfter(now().minus(ONLINE));
@@ -990,8 +1182,13 @@ public final class ControlRoom {
     public Map<String, Object> heartbeat(Map<String, Object> d, Map<String, Object> info) {
         String did = (String) d.get("id");
         String session = SESSION_STATES.contains(String.valueOf(info.get("session"))) ? (String) info.get("session") : null;
-        db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state) WHERE id = ?",
-                now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, did);
+        String build = info.get("build") instanceof String b && b.matches("[0-9a-f]{16}") ? b : null;
+        if (info.get("toolkits") instanceof List<?> tk) {
+            String list = String.join(",", tk.stream().map(String::valueOf).filter(x -> x.matches("[A-Za-z0-9._-]{1,80}@[A-Za-z0-9._-]{1,40}")).sorted().toList());
+            if (list.length() <= 20000) db.update("UPDATE devices SET toolkits = ? WHERE id = ?", list, did);
+        }
+        db.update("UPDATE devices SET last_seen = ?, agent_version = ?, hostname = COALESCE(?, hostname), os = COALESCE(?, os), session_state = COALESCE(?, session_state), build = COALESCE(?, build) WHERE id = ?",
+                now(), String.valueOf(info.getOrDefault("agent_version", d.get("agent_version"))), (String) info.get("hostname"), (String) info.get("os"), session, build, did);
         List<Object> cancel = new ArrayList<>(), pause = new ArrayList<>(), resume = new ArrayList<>();
         for (Map<String, Object> r : db.query("SELECT id, cancel_requested, pause_requested FROM runs WHERE device_id = ? AND status = 'running'", did)) {
             if (Boolean.TRUE.equals(r.get("cancel_requested"))) cancel.add(r.get("id"));
@@ -1007,8 +1204,13 @@ public final class ControlRoom {
             m.put("config", TriggerKinds.publicConfig(TriggerPollers.config(t)));
             local.add(m);
         }
-        return Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers, "local_triggers", local,
-                "log_level", d.get("log_level") == null ? "info" : d.get("log_level"), "after_run", d.get("after_run") == null ? "nothing" : d.get("after_run"));
+        Map<String, Object> out = new LinkedHashMap<>(Map.of("cancel", cancel, "pause", pause, "resume", resume, "file_triggers", triggers, "local_triggers", local,
+                "log_level", d.get("log_level") == null ? "info" : d.get("log_level"), "after_run", d.get("after_run") == null ? "nothing" : d.get("after_run")));
+        Map<String, Object> update = runnerUpdates.forHeartbeat(d, build, !cancel.isEmpty() || !pause.isEmpty() || !resume.isEmpty());
+        if (update != null) out.put("update", update);
+        if (secretDue(d)) out.put("rotate", true);
+        if (d.get("toolkits") == null && !(info.get("toolkits") instanceof List)) out.put("send_toolkits", true);   // runners send their toolkit list when asked
+        return out;
     }
 
     // ===================== runs =====================
@@ -1031,9 +1233,18 @@ public final class ControlRoom {
      * agent's credentials are checked against that user. The mode is unattended (default), attended (someone is at the
      * runner) or headless (no desktop: the agent must not need one).
      */
-    @SuppressWarnings("unchecked")
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl, String runAs, String mode) {
+        return startRun(requestedBy, role, path, deviceId, poolId, inputs, source, ip, priority, callbackUrl, runAs, mode, null);
+    }
+
+    /**
+     * As above, for the work item the run processes. Everything a runner reads about the run (run-as user, mode, work
+     * item) is written with it: a runner may claim and even finish a run the moment it exists.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
+                                        int priority, String callbackUrl, String runAs, String mode, String queueItemId) {
         if (rolesOf(requestedBy, role).stream().noneMatch(r -> allowed(r, "runs.start"))) throw denied("start runs");
         if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from One Workflow; forms run inside workflows.");
         folders.require(requestedBy, role, path, "run", "run agents");
@@ -1052,10 +1263,14 @@ public final class ControlRoom {
             if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
         }
         if (deviceId == null || deviceId.isBlank()) throw new OoaException("CR.BAD_INPUT", "Choose a runner or a runner pool");
+        boolean serverlessRun = ServerlessRuns.DEVICE.equals(deviceId);
+        if (serverlessRun && (source == null || !source.startsWith("api_task:")))
+            throw new OoaException("CR.BAD_INPUT", "Only serverless API tasks run on " + ServerlessRuns.NAME, "Choose a runner.");
         if (callbackUrl != null && !callbackUrl.isBlank() && !callbackUrl.matches("^https?://\\S+$")) throw new OoaException("CR.BAD_INPUT", "The callback must be an http(s) URL");
         Map<String, Object> c = content(path, "production");
         Map<String, Object> flow = (Map<String, Object>) c.get("flow");
         platform.checkToolkits(flow);
+        if (serverlessRun) serverless.check(flow);
         if (runMode.equals("headless") && flow.get("requires") instanceof Map<?, ?> req && req.get("capabilities") instanceof List<?> caps && caps.contains("desktop"))
             throw new OoaException("CR.BAD_INPUT", "This agent needs a desktop, so it cannot run headless", "Run it unattended or attended.");
         Map<String, Object> dev = db.one("SELECT enabled FROM devices WHERE id = ?", deviceId);
@@ -1076,16 +1291,18 @@ public final class ControlRoom {
             clean.put(e.getKey(), e.getValue());
         }
         String runId = id("run");
-        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                runId, path, c.get("version"), deviceId, "queued", JsonLite.write(clean), requestedBy, source, now(), false, false, priority,
-                callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl);
         String asUser = runAs == null || runAs.isBlank() ? null : runAs;
-        if (asUser != null || !runMode.equals("unattended")) db.update("UPDATE runs SET run_as = ?, run_mode = ? WHERE id = ?", asUser, runMode, runId);
+        db.update("INSERT INTO runs (id, bot_path, version, device_id, status, inputs, requested_by, source, created, cancel_requested, pause_requested, priority, callback_url, run_as, run_mode, queue_item_id) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                runId, path, c.get("version"), deviceId, "queued", JsonLite.write(clean), requestedBy, source, now(), false, false, priority,
+                callbackUrl == null || callbackUrl.isBlank() ? null : callbackUrl, asUser, runMode.equals("unattended") && asUser == null ? null : runMode, queueItemId);
         Map<String, Object> details = new LinkedHashMap<>(Map.of("bot", path, "version", c.get("version"), "device", deviceId, "source", source, "mode", runMode));
         if (asUser != null) details.put("run_as", asUser);
         audit.record(requestedBy, "run.start", "run", runId, details, "ok", ip);
         Map<String, Object> out = new LinkedHashMap<>(Map.of("run_id", runId, "version", c.get("version"), "device_id", deviceId));
         if (asUser != null) out.put("run_as", asUser);
+        if (serverlessRun) serverless.kick();
+        else wake(deviceId, false);
         return out;
     }
 
@@ -1167,10 +1384,35 @@ public final class ControlRoom {
                 List<String> devs = new ArrayList<>(csv(p.get("devices")));
                 if (devs.remove(deviceId)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
             }
+            db.update("DELETE FROM license_assignments WHERE principal_type = 'device' AND principal = ?", deviceId);   // its seat is free again
             db.update("DELETE FROM devices WHERE id = ?", deviceId);
             return null;
         });
         audit.record(by.username(), "device.delete", "device", deviceId, null, "ok", ip);
+    }
+
+    /**
+     * Removes temporary runners (VDI) not heard from for temporary_runner_hours, with their seat and default-runner and
+     * pool entries. One with queued or running work, or used by a schedule or trigger, stays (and is retried later).
+     */
+    void expireTemporaryRunners() {
+        Instant cutoff = now().minus(Duration.ofHours(Math.max(1, platform.intSetting("temporary_runner_hours"))));
+        for (Map<String, Object> d : db.query("SELECT id, name FROM devices WHERE lifespan = 'temporary' AND last_seen < ?", cutoff)) {
+            String id = (String) d.get("id");
+            if (count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status IN ('queued', 'running')", id) > 0) continue;
+            if (count("SELECT COUNT(*) AS n FROM schedules WHERE device_id = ?", id) > 0 || count("SELECT COUNT(*) AS n FROM triggers WHERE device_id = ?", id) > 0) continue;
+            db.tx(() -> {
+                db.update("DELETE FROM user_devices WHERE device_id = ?", id);
+                for (Map<String, Object> p : db.query("SELECT id, devices FROM device_pools")) {
+                    List<String> devs = new ArrayList<>(csv(p.get("devices")));
+                    if (devs.remove(id)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
+                }
+                db.update("DELETE FROM license_assignments WHERE principal_type = 'device' AND principal = ?", id);
+                db.update("DELETE FROM devices WHERE id = ?", id);
+                return null;
+            });
+            audit.record("system", "device.expired", "device", id, Map.of("name", d.get("name"), "offline_since_before", cutoff.toString()), "ok", null);
+        }
     }
 
     /** Atomically assigns the oldest queued run of this device and returns its job (bot bundle, inputs, global values). */
@@ -1192,6 +1434,86 @@ public final class ControlRoom {
     static String versionStatus(Object runnerVersion) {
         if (runnerVersion == null || String.valueOf(runnerVersion).isBlank() || "null".equals(String.valueOf(runnerVersion))) return "ok";
         return compareVersions(String.valueOf(runnerVersion), VERSION) > 0 ? "newer_than_command_center" : "ok";
+    }
+
+    // ---------- waiting for work (the runner's long poll) ----------
+    private final Object wakeUp = new Object();
+    /** Runners told to send a heartbeat now (a run of theirs was stopped, paused or resumed). */
+    private final Set<String> checkNow = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private volatile byte[] auditKey;
+
+    /** The audit chain key: 32 random bytes made once, kept in settings encrypted with the vault key. */
+    byte[] auditKey() {
+        byte[] k = auditKey;
+        if (k != null) return k;
+        Map<String, Object> r = db.one("SELECT json_value FROM settings WHERE name = 'audit_chain_key'");
+        if (r == null) {
+            byte[] fresh = new byte[32];
+            Security.RANDOM.nextBytes(fresh);
+            try {
+                db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", "audit_chain_key",
+                    JsonLite.write(vault.encrypt(Base64.getEncoder().encodeToString(fresh), "audit-chain")), now(), "system");
+            } catch (OoaException e) { return auditKey(); }   // made by another request at the same moment
+            return auditKey = fresh;
+        }
+        return auditKey = Base64.getDecoder().decode(vault.decrypt(String.valueOf(JsonLite.parse((String) r.get("json_value"))), "audit-chain"));
+    }
+
+    /** Wakes runners waiting for work: a run was queued, or a run of theirs needs controlling (deviceId null: all). */
+    void wake(String deviceId, boolean control) {
+        if (control && deviceId != null) checkNow.add(deviceId);
+        synchronized (wakeUp) { wakeUp.notifyAll(); }
+    }
+
+    /**
+     * The next job for a runner, waiting up to {@code waitMs} for one (a long poll: the runner gets work the moment it is
+     * queued, without asking every few seconds). Answers {job}, {job: false}, or {job: false, check: true} when the runner
+     * should send a heartbeat at once (a run of its own was stopped or paused). Checks again every 2 seconds in any case,
+     * for work queued without a wake-up (runner pools, other Command Center nodes).
+     */
+    public Map<String, Object> nextJob(Map<String, Object> d, long waitMs) {
+        String did = (String) d.get("id");
+        long end = System.currentTimeMillis() + Math.max(0, Math.min(waitMs, 25_000));
+        while (true) {
+            Map<String, Object> job = claimNext(d);
+            if (job != null) return Map.of("job", job);
+            if (checkNow.remove(did)) return Map.of("job", false, "check", true);
+            long left = end - System.currentTimeMillis();
+            if (left <= 0) return Map.of("job", false);
+            synchronized (wakeUp) {
+                try { wakeUp.wait(Math.min(left, 2000)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return Map.of("job", false); }
+            }
+        }
+    }
+
+    /**
+     * The toolkits an agent and the agents it calls use (from their steps), and which of them a runner lacks. A runner
+     * that has not reported its toolkits yet (an older one) is not checked.
+     */
+    @SuppressWarnings("unchecked")
+    static Set<String> missingToolkits(Object runnerToolkits, Map<String, Object> main, Map<String, Object> bundle) {
+        if (runnerToolkits == null || String.valueOf(runnerToolkits).isBlank()) return Set.of();
+        Set<String> has = new HashSet<>();
+        for (String t : String.valueOf(runnerToolkits).split(",")) has.add(t.substring(0, Math.max(0, t.indexOf('@'))));
+        Set<String> missing = new TreeSet<>();
+        List<Map<String, Object>> flows = new ArrayList<>(List.of(main));
+        for (Object b : bundle.values()) if (b instanceof Map<?, ?> m) flows.add((Map<String, Object>) m);
+        for (Map<String, Object> f : flows)
+            for (Map<String, Object> s : com.oneofficeautomation.runner.Steps.walk((List<Object>) f.getOrDefault("steps", List.of()))) {
+                String a = String.valueOf(s.get("action"));
+                if (!a.contains("/")) continue;
+                String pid = a.substring(0, a.indexOf('/'));
+                if (!has.contains(pid)) missing.add(pid);
+            }
+        return missing;
+    }
+
+    private void requireToolkits(Map<String, Object> d, Map<String, Object> main, Map<String, Object> bundle) {
+        Set<String> missing = new TreeSet<>(missingToolkits(d.get("toolkits"), main, bundle));
+        missing.removeIf(customToolkits::isCustom);   // custom toolkits go with the run
+        if (!missing.isEmpty()) throw new OoaException("RUN.TOOLKIT_MISSING", "The runner " + d.get("name") + " does not have the toolkit(s) " + String.join(", ", missing),
+            "Update the runner (Runners > Update), or send the run to a runner that has them.", false, Map.of("missing", new ArrayList<>(missing)));
     }
 
     public Map<String, Object> claimNext(Map<String, Object> d) {
@@ -1223,7 +1545,10 @@ public final class ControlRoom {
             Map<String, Object> user = db.one("SELECT role FROM users WHERE username = ?", principal);
             String role = user == null ? "viewer" : (String) user.get("role");
             Map<String, Object> files, skills;
+            List<Map<String, Object>> custom;
             try {
+                requireToolkits(d, main, bundle);
+                custom = customToolkits.forJob(main, bundle);
                 files = repoFiles.forJob(main, String.valueOf(principal), role);
                 skills = promptSkills.forJob(main, bundle, String.valueOf(principal));
             } catch (OoaException e) {
@@ -1240,6 +1565,7 @@ public final class ControlRoom {
             if (!saved.isEmpty()) job.put("connections", saved);
             if (!files.isEmpty()) job.put("files", files);
             if (!skills.isEmpty()) job.put("skills", skills);
+            if (!custom.isEmpty()) job.put("custom_toolkits", custom);
             return job;
         }
         return null;
@@ -1298,6 +1624,10 @@ public final class ControlRoom {
                 JsonLite.write(result.getOrDefault("outputs", Map.of())), result.get("stepsExecuted") instanceof Number n ? n.intValue() : null, runId);
         audit.record("agent:" + d.get("name"), "run.finish", "run", runId, Map.of("status", status), "ok", null);
         platform.itemFinished(runId, status, result.get("error"), result.get("outputs"));
+        // a queue's runner is free again: give it the next item now rather than at the next clock tick (the leader only)
+        if (r.get("queue_item_id") != null && cluster.isLeader()) Thread.ofVirtual().start(() -> { try { platform.dispatch(); } catch (RuntimeException ignored) { } });
+        if (status.equals("success")) try { dashboards.recordKpis(r, result.get("outputs")); } catch (RuntimeException e) { audit.record("system", "kpi.record", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
+        try { testSets.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("system", "testset.judge", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         try { workflows.onRunFinished(r, status, result); } catch (RuntimeException e) { audit.record("workflow", "workflow.resume", "run", runId, String.valueOf(e.getMessage()), "failed", null); }
         if (r.get("callback_url") != null) callback((String) r.get("callback_url"), runId, status, result);
     }
@@ -1308,6 +1638,8 @@ public final class ControlRoom {
         body.put("run_id", runId); body.put("status", status);
         body.put("outputs", result.getOrDefault("outputs", Map.of())); body.put("error", result.get("error"));
         Thread t = new Thread(() -> {
+            try { NetGuard.check(this, url, "The callback address"); }
+            catch (OoaException e) { audit.record("system", "run.callback", "run", runId, Map.of("error", e.getMessage()), "failed", null); return; }
             java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
             for (int attempt = 1; attempt <= 3; attempt++) {
                 try {
@@ -1338,6 +1670,8 @@ public final class ControlRoom {
             case "resume" -> db.update("UPDATE runs SET pause_requested = FALSE WHERE id = ?", runId);
             default -> throw new OoaException("CR.BAD_INPUT", "Unknown action " + action);
         }
+        Map<String, Object> dev = db.one("SELECT device_id FROM runs WHERE id = ?", runId);
+        if (dev != null && dev.get("device_id") != null) wake((String) dev.get("device_id"), true);
         audit.record(by.username(), "run." + action, "run", runId, null, "ok", ip);
     }
 
@@ -1454,6 +1788,25 @@ public final class ControlRoom {
         return out;
     }
 
+    /**
+     * The console's change feed (live updates): returns as soon as something people see changes, or after wait seconds.
+     * The token joins the newest audit entry (changes made on any node, through the shared database) with this node's
+     * own write count (run progress, queue items); a token from before differs from the current one when anything
+     * changed. The console redraws the open page when changed is true.
+     */
+    public Map<String, Object> changes(User by, String since, int waitSeconds) {
+        long deadline = System.currentTimeMillis() + Math.max(0, Math.min(25, waitSeconds)) * 1000L;
+        while (true) {
+            long local = db.changeCount();
+            Map<String, Object> a = db.one("SELECT MAX(seq) AS s FROM audit");
+            String token = (a == null || a.get("s") == null ? "0" : String.valueOf(a.get("s"))) + "." + local;
+            long left = deadline - System.currentTimeMillis();
+            if (since == null || since.isBlank() || !token.equals(since) || left <= 0) return Map.of("token", token, "changed", since != null && !since.isBlank() && !token.equals(since));
+            try { db.awaitChange(local, Math.min(left, 2000)); }   // a write here wakes it at once; changes on other nodes within 2 seconds
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return Map.of("token", token, "changed", false); }
+        }
+    }
+
     /** Fails running jobs whose device stopped reporting (2 minutes), and marks schedules due. Called by the server clock. */
     public void reap() {
         try { platform.purgeIfDue(); } catch (RuntimeException ignored) { /* retention never stops the clock */ }
@@ -1465,6 +1818,10 @@ public final class ControlRoom {
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
         platform.disableInactiveUsers();
+        try { expireTemporaryRunners(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { audit.checkpointIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { backups.tickIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
+        try { licensing.mailIfDue(); } catch (RuntimeException ignored) { /* retried at the next tick */ }
     }
 
     // ===================== schedules =====================
@@ -2272,6 +2629,20 @@ public final class ControlRoom {
         if (can(by, "queues.view"))
             m.put("queue_items_waiting", count("SELECT COUNT(*) AS n FROM queue_items WHERE status IN ('new', 'retry')"));
         m.put("open_tasks", workflows.openTaskCount(by));
+        // the person's own recent work, for "Pick up where you left off"
+        if (can(by, "repo.view")) {
+            Map<String, Map<String, String>> perms = folders.entries();
+            List<String> mine = teams.principalsOf(by.username(), by.role());
+            List<Map<String, Object>> agents = new ArrayList<>();
+            for (Map<String, Object> b : db.query("SELECT path, latest_version, production_version, locked_by, updated FROM bots WHERE deleted_at IS NULL AND (updated_by = ? OR locked_by = ?) ORDER BY updated DESC LIMIT 20", by.username(), by.username())) {
+                if (folders.accessToFolder(mine, by.role(), Folders.folderOf((String) b.get("path")), perms).equals("none")) continue;
+                agents.add(b);
+                if (agents.size() == 6) break;
+            }
+            m.put("my_recent_agents", agents);
+        }
+        if (can(by, "runs.view"))
+            m.put("my_recent_runs", db.query("SELECT id, bot_path, status, created, finished FROM runs WHERE requested_by = ? ORDER BY created DESC LIMIT 6", by.username()));
         m.put("user", me(by));
         return m;
     }

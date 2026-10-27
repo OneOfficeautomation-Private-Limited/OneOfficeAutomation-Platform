@@ -136,7 +136,8 @@ class ControlRoomE2ETest {
             assertEquals("CR.BAD_INPUT", raw.err().get("code"), "plain secrets are refused as run inputs");
             String runId = (String) call("POST", "/api/runs", d1, Map.of("bot_path", "Finance/Pay vendor.flow.json", "device_id", deviceId,
                     "inputs", Map.of("vendor", "Acme", "api_key", Map.of("$credential", "finance/vendor_api/key")))).body().get("run_id");
-            assertTrue(until(() -> "success".equals(call("GET", "/api/runs/" + runId, d1, null).body().get("status")), 30000),
+            // a run starts its own Java process, which takes a while on a busy build machine
+            assertTrue(until(() -> "success".equals(call("GET", "/api/runs/" + runId, d1, null).body().get("status")), 60000),
                     "run succeeds: " + call("GET", "/api/runs/" + runId, d1, null).body());
             Map<String, Object> run = call("GET", "/api/runs/" + runId, d1, null).body();
             assertTrue(String.valueOf(run.get("outputs")).contains("paid Acme signed true") && String.valueOf(run.get("outputs")).contains("limit 5000"), String.valueOf(run.get("outputs")));

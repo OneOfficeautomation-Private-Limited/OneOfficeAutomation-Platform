@@ -71,3 +71,9 @@ requirements; where a row above says Planned or Partial, this table is the curre
 | SSO | Single sign-on | Built | `Sso` | OpenID Connect with PKCE, signature and nonce checks |
 | FR-INS-* | Insights | Partial | Home dashboard, hours saved, AI governance | Business KPI dashboards from tagged values remain |
 | FR-VOX-* | Voice | Planned | — | |
+| FR-AI-002 | Model budgets and rate limits | Built | `Platform.connectionsForJob`, `ModelConnections.beforeCall` | Tokens a month, calls a minute, calls a run per connection |
+| NFR-008 | Signed supply chain | Built | `ReleaseCommand`, `:cli:sbom` | Signed release manifest, CycloneDX SBOM; licences signed with Ed25519 |
+| NFR-011 | Immutable, hash-chained audit | Built | `Audit` | Keyed chain, checkpoints outside the database, archived retention, syslog forwarding |
+| FR-CC-RES003/004 | Vault master key | Built | `Vault`, `KeySources` | Key file, environment, Azure Key Vault, AWS Secrets Manager, Google Secret Manager or typed at start |
+| FR-AI-009 | MCP over OAuth | Built | `ControlRoom.oauthUser`, protected resource metadata | Access tokens from the SSO issuer, audience and scope checked; existing accounts only |
+| FR-PKG-005 | Dependency isolation | Planned | — | All toolkits share one class path |

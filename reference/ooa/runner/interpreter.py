@@ -16,6 +16,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
@@ -234,7 +235,39 @@ class _Run:
 
     # ---------- execution ----------
     def lookup(self, name: str) -> Any:
+        # $sys and $global are built in (as in the Java runner): facts about the run, and shared values
+        if name == "sys":
+            return self._system_values()
+        if name == "global":
+            return self._global_values()
         return self.scope.get(name)
+
+    def _system_values(self) -> dict:
+        import datetime, getpass, os, platform as pf, socket, tempfile
+        now = datetime.datetime.now().replace(microsecond=0)
+        return {"date": now.date().isoformat(), "time": now.time().isoformat(), "year": Decimal(now.year), "month": Decimal(now.month),
+                "day": Decimal(now.day), "weekday": now.strftime("%A"), "hour": Decimal(now.hour), "minute": Decimal(now.minute),
+                "second": Decimal(now.second), "day_of_year": Decimal(now.timetuple().tm_yday), "timestamp": Decimal(int(time.time() * 1000)),
+                "user": getpass.getuser(), "machine": socket.gethostname(), "os": pf.system(), "os_version": pf.release(),
+                "processors": Decimal(os.cpu_count() or 1), "home_folder": os.path.expanduser("~"), "file_separator": os.sep,
+                "run_id": self.run_id, "bot_id": str(self.flow.get("id", "")), "bot_name": str(self.flow.get("name", "")),
+                "principal": self.r.principal, "workspace": str(self.r.work_dir), "temp_folder": tempfile.gettempdir(),
+                "newline": "\n", "tab": "\t", "empty": ""}
+
+    def _global_values(self) -> dict:
+        svc = self.r.services.get("global_values")
+        if svc is not None:
+            v = svc() if callable(svc) else svc
+            return v if isinstance(v, dict) else {}
+        path = self.r.work_dir / "global-values.json"
+        if not path.is_file():
+            return {}
+        import json
+        try:
+            v = json.loads(path.read_text(encoding="utf-8"), parse_float=Decimal)
+        except ValueError as e:
+            raise OoaError(f"global-values.json is not valid JSON: {e}", code="GLOBALS.INVALID", suggested_fix="Fix the file in the workspace.")
+        return v if isinstance(v, dict) else {}
 
     def _check(self) -> None:
         if self.cancel.is_set():
@@ -367,8 +400,24 @@ class _Run:
         sid = step["id"]
         limit = int(coerce(resolve(a.get("max_iterations", 100000), self.lookup), "Number"))
         it = a["iterator"]
+        def whole(name):
+            v = resolve(a.get(name), self.lookup)
+            if v is None or v == "":
+                return None
+            d = coerce(v, "Number")
+            if d != d.to_integral_value() or d < 0:
+                raise OoaError(f"'{name}' must be a whole number from 0", code="LOOP.BAD_RANGE", suggested_fix="Positions start at 0.")
+            return int(d)
+        lo, hi = whole("from_index"), whole("to_index")
+        positions = None
         if it == "times":
-            items = range(int(coerce(resolve(a.get("count"), self.lookup), "Number")))
+            # each pass gives a value (start, start + step ...) to "as" and its position (0, 1, 2 ...) to "index"
+            n = int(coerce(resolve(a.get("count"), self.lookup), "Number"))
+            st = resolve(a.get("start"), self.lookup)
+            by = resolve(a.get("step"), self.lookup)
+            start = Decimal(0) if st in (None, "") else coerce(st, "Number")
+            step_by = Decimal(1) if by in (None, "") else coerce(by, "Number")
+            items = [start + step_by * k for k in range(n)]
         elif it == "while":
             items = _while(lambda: self.condition(a.get("condition"), sid))
         elif it in ("list", "dictionary", "table_rows"):
@@ -388,6 +437,11 @@ class _Run:
                 raise OoaError(f"Unknown iterator '{it}'", code="FLOW.UNKNOWN_ITERATOR")
             args = self._prepare_args(spec, resolve(a.get("iterator_args", {}), self.lookup))
             items = spec.fn(pkg.instance, self._ctx(sid), **args)
+        if it != "while" and (lo is not None or hi is not None):
+            # only part of the items: positions from_index to to_index, both included
+            items = list(items)
+            positions = list(range(lo or 0, min(len(items) - 1, hi) + 1 if hi is not None else len(items)))
+            items = [items[k] for k in positions]
         for i, item in enumerate(items):
             if i >= limit:
                 raise OoaError(f"Loop exceeded {limit} iterations", code="LOOP.LIMIT",
@@ -396,7 +450,7 @@ class _Run:
             if a.get("as"):
                 self.scope.set(a["as"], item)
             if a.get("index"):
-                self.scope.set(a["index"], i)
+                self.scope.set(a["index"], positions[i] if positions is not None else i)
             try:
                 self._exec_steps(step.get("children"))
             except _Continue:

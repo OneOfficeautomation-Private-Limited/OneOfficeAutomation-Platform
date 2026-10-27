@@ -24,12 +24,26 @@ public final class Agent {
     private final AgentClient client;
     private volatile Worker active;
     private volatile boolean stopping;
+    /** The build of this runner's program files (null for a build from source); sent with each heartbeat. */
+    private final String build = Updater.build(Updater.lib());
+    private volatile boolean updating;
+    /** The toolkits this runner has (id@version), sent with the first heartbeat and when the Command Center asks. */
+    static final List<String> TOOLKITS = toolkits();
+    private volatile boolean toolkitsSent;
+
+    static List<String> toolkits() {
+        List<String> out = new ArrayList<>();
+        for (Map<String, Object> m : com.oneofficeautomation.packages.FirstPartyPackages.registry().allManifests()) out.add(m.get("id") + "@" + m.get("version"));
+        return out;
+    }
     private final ExecutorService io = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r, "ooa-agent-io"); t.setDaemon(true); return t; });
     private final LocalTriggers localTriggers;
     long heartbeatMs = 10_000, pollMs = 2_000, triggerPollMs = 2_000;
+    /** How long the Command Center may hold a request for work before answering (the long poll), in seconds. */
+    long waitSeconds = 25;
 
-    /** Heartbeat and job-poll intervals in milliseconds (defaults 10 s and 2 s). */
-    public Agent intervals(long heartbeat, long poll) { heartbeatMs = heartbeat; pollMs = poll; return this; }
+    /** Heartbeat and job-poll intervals in milliseconds (defaults 10 s and 2 s); a poll under a second also turns the long poll off. */
+    public Agent intervals(long heartbeat, long poll) { heartbeatMs = heartbeat; pollMs = poll; if (poll < 1000) waitSeconds = 0; return this; }
 
     // ---------------- configuration ----------------
     public static Path defaultConfig() { return Path.of(System.getProperty("user.home"), ".ooa-agent", "agent.json"); }
@@ -40,21 +54,28 @@ public final class Agent {
     public static Map<String, Object> register(String url, String key, String name, Path configFile) throws IOException { return register(url, key, name, configFile, null); }
 
     /** As above; {@code ca} is a certificate to trust for an HTTPS Command Center (copied next to the config as ca.cer). */
-    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException {
+    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca) throws IOException { return register(url, key, name, configFile, ca, null, null, null); }
+
+    /**
+     * As above, with the network settings: {@code proxy} system, none or http://host:port; {@code proxyUser} and
+     * {@code proxyPassword} (plain text here; stored encrypted) for a proxy that asks for them.
+     */
+    public static Map<String, Object> register(String url, String key, String name, Path configFile, Path ca, String proxy, String proxyUser, String proxyPassword) throws IOException {
         Path keptCa = null;
         if (ca != null) {
             Files.createDirectories(configFile.getParent());
             keptCa = configFile.resolveSibling("ca.cer");
             if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING);
         }
-        Map<String, Object> r = new AgentClient(url, null, null, keptCa).post("register",
+        Network net = new Network(keptCa, proxy, proxyUser, proxyUser == null || proxyPassword == null ? null : Network.protect(proxyPassword));
+        Map<String, Object> r = new AgentClient(url, null, null, net).post("register",
                 Map.of("key", key, "name", name == null ? hostname() : name, "hostname", hostname(), "os", System.getProperty("os.name") + " " + System.getProperty("os.version"), "agent_version", VERSION));
         Map<String, Object> cfg = new LinkedHashMap<>();
         cfg.put("url", url.replaceAll("/+$", ""));
         cfg.put("device_id", r.get("device_id"));
         cfg.put("secret", r.get("secret"));
         cfg.put("name", r.get("name"));
-        if (keptCa != null) cfg.put("ca", keptCa.toString());
+        net.into(cfg);
         Files.createDirectories(configFile.getParent());
         Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
         try { Files.setPosixFilePermissions(configFile, PosixFilePermissions.fromString("rw-------")); } catch (UnsupportedOperationException ignored) { /* Windows: user profile ACLs apply */ }
@@ -68,12 +89,110 @@ public final class Agent {
         this.config = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
         this.workspace = workspace;
         Files.createDirectories(workspace.resolve("logs"));
-        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"),
-                config.get("ca") == null ? null : Path.of((String) config.get("ca")));
+        this.client = new AgentClient((String) config.get("url"), (String) config.get("device_id"), (String) config.get("secret"), Network.from(config));
         this.localTriggers = new LocalTriggers(new LocalTriggers.Reporter() {
             public void fired(String id, Map<String, Object> event) { client.post("trigger-fired", Map.of("trigger_id", id, "event", event)); }
             public void status(String id, String error) { Map<String, Object> b = new HashMap<>(); b.put("trigger_id", id); b.put("error", error); client.post("trigger-status", b); }
         }, new LocalTriggers.SystemProbe(), LocalTriggers.systemHotkeys(), this::log);
+    }
+
+    /**
+     * Changes the network settings in a runner's config file (ooa agent network); null leaves a value as it is. Returns
+     * the settings now in force, without the password.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> network(Path configFile, String proxy, String proxyUser, String proxyPassword, Path ca) throws IOException {
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
+        Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
+        Network now = Network.from(cfg);
+        Path keptCa = now.ca();
+        if (ca != null) { keptCa = configFile.resolveSibling("ca.cer"); if (!ca.toAbsolutePath().equals(keptCa.toAbsolutePath())) Files.copy(ca, keptCa, StandardCopyOption.REPLACE_EXISTING); }
+        String user = proxyUser == null ? now.proxyUser() : proxyUser.isBlank() ? null : proxyUser;
+        String pw = user == null ? null : proxyPassword != null ? Network.protect(proxyPassword) : now.proxyPassword();
+        Network next = new Network(keptCa, proxy == null ? now.proxy() : proxy, user, pw);
+        next.into(cfg);
+        Files.writeString(configFile, JsonLite.write(cfg), StandardCharsets.UTF_8);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("proxy", next.proxy()); out.put("proxy_user", next.proxyUser() == null ? "" : next.proxyUser()); out.put("ca", next.ca() == null ? "" : next.ca().toString());
+        return out;
+    }
+
+    /**
+     * Points a registered runner at a new Command Center address (ooa agent move), keeping its registration: for a
+     * Command Center that moved (to the cloud, a new server) with its data copied or restored. The new address must
+     * accept this runner's credentials before anything is saved; a new certificate authority file may come along.
+     */
+    @SuppressWarnings("unchecked")
+    public static String moveTo(Path configFile, String url, Path ca) throws IOException {
+        if (!Files.exists(configFile)) throw new OoaException("AGENT.NOT_REGISTERED", "This runner is not registered (no " + configFile + ")");
+        if (url == null || !url.matches("(?i)https?://[^\\s/]+.*")) throw new OoaException("AGENT.BAD_URL", "The Command Center address starts with https:// (or http://)");
+        Map<String, Object> cfg = new LinkedHashMap<>((Map<String, Object>) JsonLite.parse(Files.readString(configFile)));
+        Network now = Network.from(cfg);
+        Path newCa = null;
+        if (ca != null) { newCa = configFile.resolveSibling("ca.cer.new"); Files.copy(ca, newCa, StandardCopyOption.REPLACE_EXISTING); }
+        String clean = url.replaceAll("/+$", "");
+        try {
+            new AgentClient(clean, (String) cfg.get("device_id"), (String) cfg.get("secret"), new Network(newCa != null ? newCa : now.ca(), now.proxy(), now.proxyUser(), now.proxyPassword()))
+                .post("heartbeat", Map.of("agent_version", VERSION, "diagnose", true));
+        } catch (RuntimeException e) {
+            if (newCa != null) Files.deleteIfExists(newCa);
+            throw new OoaException("AGENT.MOVE_REFUSED", "The Command Center at " + clean + " did not accept this runner: " + e.getMessage(),
+                "Copy or restore the old Command Center's data there first (its runners come with it), or register this runner again");
+        }
+        Path keptCa = now.ca();
+        if (newCa != null) { keptCa = configFile.resolveSibling("ca.cer"); Files.move(newCa, keptCa, StandardCopyOption.REPLACE_EXISTING); }
+        new Network(keptCa, now.proxy(), now.proxyUser(), now.proxyPassword()).into(cfg);
+        String old = String.valueOf(cfg.get("url"));
+        cfg.put("url", clean);
+        Path tmp = configFile.resolveSibling(configFile.getFileName() + ".new");
+        Files.writeString(tmp, JsonLite.write(cfg), StandardCharsets.UTF_8);
+        Files.move(tmp, configFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        return old;
+    }
+
+    /**
+     * Updates the program files from the Command Center (it asked, and nothing is running): stages them, starts the helper
+     * that swaps them once this process ends, and exits. A service is started again by Windows; a runner started at sign-in
+     * by the helper. Failing leaves everything as it was.
+     */
+    void update(Map<String, Object> u) {
+        Path lib = Updater.lib();
+        try {
+            if (lib == null || !DesktopSession.WINDOWS) { log("info", "Command Center offers update " + u.get("version") + ", but this runner is not an installation on Windows; update it by hand"); return; }
+            log("Updating to " + u.get("version") + " (build " + u.get("build") + ") from Command Center");
+            Updater.stage(lib, new Updater.Source() {
+                public Map<String, Object> manifest() { return client.getJson("update/manifest"); }
+                public byte[] file(String name) { return client.getBytes("update/file?name=" + java.net.URLEncoder.encode(name, StandardCharsets.UTF_8)); }
+            });
+            if (active != null) { log("warning", "A run started while updating; the update waits for the next heartbeat"); Updater.deleteTree(lib.getParent().resolve("update")); return; }
+            stopping = true;
+            String task = System.getProperty("ooa.runner.task");
+            Updater.launch(lib.getParent(), task);
+            log("Update staged; restarting " + (task != null ? "through the task " + task : System.getProperty("ooa.runner.service") != null ? "(Windows starts the service again)" : "(start the runner again)"));
+            System.exit(75);
+        } catch (Exception e) {
+            log("error", "Update failed, staying on this version: " + e.getMessage());
+        } finally { updating = false; }
+    }
+
+    /**
+     * Takes a new secret from the Command Center (its heartbeat asked for it) and saves it in the config file: written to
+     * a new file first, then moved over the old one, so the file always holds a working secret.
+     */
+    synchronized void rotateSecret() {
+        try {
+            Map<String, Object> r = client.post("rotate", Map.of());
+            String s = (String) r.get("secret");
+            if (s == null || s.isBlank()) return;
+            Map<String, Object> cfg = new LinkedHashMap<>(config);
+            cfg.put("secret", s);
+            Path tmp = configFile.resolveSibling(configFile.getFileName() + ".new");
+            Files.writeString(tmp, JsonLite.write(cfg), StandardCharsets.UTF_8);
+            Files.move(tmp, configFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            config.put("secret", s);
+            client.secret(s);
+            log("Runner secret rotated");
+        } catch (Exception e) { log("warning", "Could not rotate the runner secret (the old one keeps working): " + e.getMessage()); }
     }
 
     /** The runner's log level, set in Command Center and received with each heartbeat: error, warning, info or debug. */
@@ -99,8 +218,12 @@ public final class Agent {
         while (!stopping) {
             try {
                 if (active == null) {
-                    Map<String, Object> r = client.post("jobs/next", Map.of());
+                    long asked = System.currentTimeMillis();
+                    Map<String, Object> r = client.post(waitSeconds > 0 ? "jobs/next?wait=" + waitSeconds : "jobs/next", Map.of());
                     if (r.get("job") instanceof Map<?, ?> job) { @SuppressWarnings("unchecked") Map<String, Object> j = (Map<String, Object>) job; execute(j); continue; }
+                    if (Boolean.TRUE.equals(r.get("check"))) io.submit(this::heartbeat);
+                    // the Command Center held the request (long poll): ask again at once; an older one answers at once, so wait as before
+                    if (System.currentTimeMillis() - asked >= pollMs) continue;
                 }
             } catch (OoaException e) { log("warning", "Command Center: " + e.getMessage()); }
             try { Thread.sleep(pollMs); } catch (InterruptedException e) { break; }
@@ -115,8 +238,12 @@ public final class Agent {
     void heartbeat() {
         try {
             Worker w = active;
-            Map<String, Object> r = client.post("heartbeat", Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
-                    "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state()));
+            Map<String, Object> beat = new HashMap<>(Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
+                    "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state(), "build", build == null ? "" : build));
+            if (!toolkitsSent) beat.put("toolkits", TOOLKITS);
+            Map<String, Object> r = client.post("heartbeat", beat);
+            toolkitsSent = !Boolean.TRUE.equals(r.get("send_toolkits"));
+            if (r.get("update") instanceof Map<?, ?> u && w == null && !updating) { updating = true; io.submit(() -> update((Map<String, Object>) u)); }
             if (w != null) {
                 if (((List<Object>) r.getOrDefault("cancel", List.of())).contains(w.runId)) w.cancel();
                 else if (((List<Object>) r.getOrDefault("pause", List.of())).contains(w.runId)) w.send(Map.of("type", "pause"));
@@ -125,6 +252,7 @@ public final class Agent {
             localTriggers.update(r.get("local_triggers") instanceof List<?> l ? (List<Object>) l : (List<Object>) r.getOrDefault("file_triggers", List.of()));
             if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by Command Center"); }
             if (r.get("after_run") instanceof String ar && !ar.equals(afterRun)) { afterRun = ar; log("After unattended runs: " + ar + " (set in Command Center)"); }
+            if (Boolean.TRUE.equals(r.get("rotate"))) rotateSecret();
         } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }

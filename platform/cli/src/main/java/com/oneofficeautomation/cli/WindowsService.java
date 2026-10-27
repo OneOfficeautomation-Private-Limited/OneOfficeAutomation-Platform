@@ -28,23 +28,17 @@ final class WindowsService {
 
     static final String DEFAULT_SERVER = "OOA Command Center", DEFAULT_RUNNER = "OOA Runner";
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
+    static int run(String verb, Map<String, String> o) throws Exception {
         String mode = o.getOrDefault("mode", "server");
         String name = o.getOrDefault("name", mode.equals("agent") ? DEFAULT_RUNNER : DEFAULT_SERVER);
-        return switch (a[0]) {
+        return switch (verb) {
             case "install" -> install(name, mode, o);
             case "uninstall" -> uninstall(name);
             case "start" -> control(name, true);
             case "stop" -> control(name, false);
             case "status" -> status(name);
-            default -> { usage(); yield 1; }
+            default -> throw new IllegalArgumentException("Unknown service command " + verb);
         };
-    }
-
-    static void usage() {
-        System.err.println("usage: ooa service install [--mode server|control-room|agent] [--name NAME] [--data DIR] [--port N] [--account USER --password-env VAR] [--no-start] | uninstall | start | stop | status [--name NAME]");
     }
 
     private static int ok(String msg) { System.out.println(msg); return 0; }
@@ -60,7 +54,7 @@ final class WindowsService {
 
     /** java.exe plus the class path and main class: what the service (or the sign-in task) starts. */
     static List<String> javaCommand(Path home, String... args) {
-        List<String> c = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(), "-Xmx1g", "-Dfile.encoding=UTF-8",
+        List<String> c = new ArrayList<>(List.of(Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(), "-Xmx1g", "-Dfile.encoding=UTF-8", "-Djava.library.path=" + home.resolve("lib"),
             "-cp", home.resolve("lib").toString() + "\\*", Ooa.class.getName()));
         c.addAll(List.of(args));
         return c;
@@ -113,7 +107,8 @@ final class WindowsService {
         String account = o.get("account"), pw = null;
         if (account != null) {
             pw = o.containsKey("password-env") ? System.getenv(o.get("password-env")) : null;
-            if (pw == null) { System.err.println("Give --password-env VAR with the account's password in that environment variable."); return 1; }
+            // a group managed service account (DOMAIN\name$) has no password: Windows manages it
+            if (pw == null && !account.endsWith("$")) { System.err.println("Give --password-env VAR with the account's password in that environment variable (a gMSA, DOMAIN\\name$, needs none)."); return 1; }
         }
         Advapi32 api = Advapi32.INSTANCE;
         Winsvc.SC_HANDLE scm = api.OpenSCManager(null, null, SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE);
@@ -223,6 +218,7 @@ final class WindowsService {
         System.setOut(log);
         System.setErr(log);
         System.out.println("---- " + LocalDateTime.now() + " service starting: " + mode);
+        System.setProperty("ooa.runner.service", "1");   // a runner service that updates itself is started again by Windows
         Winsvc.SERVICE_MAIN_FUNCTION main = (argc, argv) -> {
             handle = Advapi32.INSTANCE.RegisterServiceCtrlHandlerEx("", (control, eventType, eventData, context) -> {
                 if (control == Winsvc.SERVICE_CONTROL_STOP || control == Winsvc.SERVICE_CONTROL_SHUTDOWN) {
@@ -239,9 +235,9 @@ final class WindowsService {
             Thread worker = new Thread(() -> {
                 try {
                     switch (mode) {
-                        case "server" -> Ooa.server(args);
-                        case "control-room" -> Ooa.controlRoom(args);
-                        case "agent" -> Ooa.agent(args);
+                        case "server" -> Ooa.server(o);
+                        case "control-room" -> Ooa.controlRoom(o);
+                        case "agent" -> Ooa.agent(args[0], Ooa.options(Arrays.copyOfRange(args, 1, args.length)));
                         default -> throw new IllegalArgumentException("Unknown mode " + mode);
                     }
                 } catch (Throwable t) {
@@ -274,7 +270,8 @@ final class WindowsService {
         String config = o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString());
         String ws = o.getOrDefault("workspace", Path.of(System.getProperty("user.home"), "OOA Agent Workspace").toString());
         if (!Files.exists(Path.of(config))) { System.err.println("Register the runner first: ooa agent register --url ... --key ..."); return 1; }
-        List<String> cmd = javaCommand(home, "agent", "start", "--config", config, "--workspace", ws);
+        List<String> cmd = new ArrayList<>(javaCommand(home, "agent", "start", "--config", config, "--workspace", ws));
+        cmd.add(1, "-Dooa.runner.task=OOA Runner");   // after an update the runner starts this task again
         String java = cmd.get(0).replace("java.exe", "javaw.exe");   // no console window at sign-in
         String args = commandLine(cmd.subList(1, cmd.size()));
         String ps = "$a = New-ScheduledTaskAction -Execute '" + java.replace("'", "''") + "' -Argument '" + args.replace("'", "''") + "' -WorkingDirectory '" + home.toString().replace("'", "''") + "';"

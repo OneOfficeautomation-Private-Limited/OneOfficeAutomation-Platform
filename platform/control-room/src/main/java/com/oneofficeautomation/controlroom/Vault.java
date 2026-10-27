@@ -24,6 +24,12 @@ public final class Vault {
 
     private Vault(SecretKeySpec key, String keySource, Path keyFile) { this.key = key; this.keySource = keySource; this.keyFile = keyFile; }
 
+    /** A vault with a given key: a SaaS tenant's own key, kept encrypted in the region's tenant catalog. */
+    public static Vault ofKey(byte[] raw, String source) {
+        if (raw.length != 32) throw new OoaException("CR.VAULT_KEY", "The vault master key must be 32 bytes");
+        return new Vault(new SecretKeySpec(raw.clone(), "AES"), source, null);
+    }
+
     /** A vault with a new random key (for rotating the master key). */
     static Vault fresh() {
         byte[] k = new byte[32];
@@ -40,9 +46,15 @@ public final class Vault {
     synchronized void adopt(Vault next) { this.key = next.key; }
 
     public Vault(Path dataDir) {
-        String env = System.getenv("OOA_MASTER_KEY");
+        String env = System.getenv("OOA_MASTER_KEY"), external = KeySources.env.apply("OOA_MASTER_KEY_SOURCE");
         byte[] raw;
         if (env != null && !env.isBlank()) { raw = Base64.getDecoder().decode(env.trim()); keySource = "environment variable OOA_MASTER_KEY"; keyFile = null; }
+        else if (external != null && !external.isBlank()) {
+            // kept in a key store outside the Command Center (Azure Key Vault, AWS, Google) or typed in at start (S7)
+            raw = KeySources.fetch(external);
+            keySource = KeySources.describe(external);
+            keyFile = null;
+        }
         else {
             Path f = dataDir.resolve("master.key");
             keyFile = f;

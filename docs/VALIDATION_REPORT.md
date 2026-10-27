@@ -107,7 +107,8 @@ repository with check-in/check-out) gets its own report.
 - Control Room serves plain HTTP; use an HTTPS reverse proxy (IIS, nginx) when other machines connect.
 - The agent runs as a scheduled task in the signed-in user's session; unattended auto-login and a Windows service wrapper
   are part of the installer phase.
-- Process Composer / Co-Pilot (forms and human tasks) and the Bot Store remain planned.
+- Process Composer / Co-Pilot (forms and human tasks) and the Bot Store remained planned at the time. (Since built:
+  workflows with forms and the Task inbox; the Bot Store is still open.)
 
 ---
 
@@ -143,7 +144,8 @@ repository with check-in/check-out) gets its own report.
 
 ## Known limitations (tracked)
 
-- Processes are designed and saved, but running them needs the Assist portal (task inbox), which is still planned.
+- Processes were designed and saved, but running them needed the task inbox, then still planned. (Since built: One
+  Workflow runs them on One Command Center.)
 - Document automation generates an extraction bot for PDF and text files; scanned images need an OCR step first.
 - The PGP test needs the Windows `gpg`; run the Java tests from PowerShell or cmd, not Git Bash.
 - Activity refreshes by polling every 2 to 2.5 seconds; a push channel can replace it when Control Room moves to the production stack.
@@ -588,3 +590,28 @@ Tests:
 - **Upgrade safety:** the first version made every runner single-user, which refused existing setups where several
   people share one runner (`TeamsVaultAuditAnalyticsTest` caught it). Runners nobody set are now multi-user; single-user
   is a choice. **Java suites:** 502 tests, 0 failed, 1 skipped.
+
+## Load test (Q5), 26 October 2026
+
+`gradlew :cli:loadTest` drives one Command Center over HTTP: simulated runners (heartbeat, then a long poll for work,
+then events and the result), a work queue and a large audit trail. Laptop, embedded H2, 50 runners, 1,000 items:
+
+| Measure | Before the fixes | After |
+| --- | --- | --- |
+| Work queue drained | 999 of 1,000 in 200 s (5 items/s); 1 item stuck "in progress" | 1,000 of 1,000 in 10.7 s (93 items/s) |
+| Heartbeat (p50 / p95) | 0 / 2 ms (runners mostly idle) | 86 / 333 ms (under full load) |
+| Long poll that brought work (p50 / p95) | 4 / 31 ms | 86 / 2,361 ms |
+| Events + finish (p50 / p95) | 2 / 5 ms | 189 / 348 ms |
+| Audit trail | 50,000 records at about 150 a second; verifying the whole chain 356 ms | unchanged |
+
+Two real problems found and fixed:
+
+- **A work item could stay "in progress" for ever.** A run was linked to its work item just after it was created; an
+  agent that finished within milliseconds reported back before the link existed, so the item never finished. The run
+  now carries its work item, run-as user and mode from the moment it exists (`ControlRoom.startRun`).
+- **Queues waited for the 3-second clock.** A runner that finished an item got the next one at the next tick only. The
+  leader now hands out the next item as soon as a queue run finishes (`Platform.dispatch`, now synchronized).
+
+Known limit: each audit record is one database transaction, serialized to keep the chain intact (about 150 a second
+on this laptop's H2). A run writes two or three, so audit writing caps runs at roughly 50 to 70 a second per database.
+CI runs a short version (20 runners, 300 items, 2,000 audit records) on every push.

@@ -24,9 +24,15 @@ public final class RepoFiles {
     private final Db db;
     private final Path store;
 
+    /** Where contents are kept: the shared folder of the setting repo_files_folder (UNC, DFS or NFS, for several nodes), else the data folder's. */
+    Path store() {
+        String shared = cr.tenant != null ? "" : String.valueOf(cr.platform.setting("repo_files_folder")).trim();
+        return shared.isEmpty() ? store : Path.of(shared);
+    }
+
     RepoFiles(ControlRoom cr, Path dataDir) {
         this.cr = cr; this.db = cr.db;
-        this.store = dataDir.resolve("repo-files");
+        this.store = dataDir.resolve("repo-files");   // unless repo_files_folder names a shared folder (store())
     }
 
     static String check(String path) {
@@ -67,8 +73,9 @@ public final class RepoFiles {
         if (db.one("SELECT path FROM bots WHERE path = ?", p) != null) throw new OoaException("CR.CONFLICT", "An agent is at " + p);
         String sha = sha256(content);
         try {
-            Files.createDirectories(store);
-            Path f = store.resolve(sha);
+            Path dir = store();
+            Files.createDirectories(dir);
+            Path f = dir.resolve(sha);
             if (!Files.exists(f)) Files.write(f, content);
         } catch (IOException e) { throw new OoaException("CR.IO", "Cannot store the file: " + e.getMessage()); }
         String type = contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType;
@@ -98,7 +105,7 @@ public final class RepoFiles {
     Map<String, Object> read(String p) {
         Map<String, Object> f = db.one("SELECT sha256, content_type FROM repo_files WHERE path = ?", p);
         if (f == null) throw notFound("File " + p);
-        try { return Map.of("content", Files.readAllBytes(store.resolve((String) f.get("sha256"))), "content_type", f.get("content_type")); }
+        try { return Map.of("content", Files.readAllBytes(store().resolve((String) f.get("sha256"))), "content_type", f.get("content_type")); }
         catch (IOException e) { throw new OoaException("CR.IO", "The stored content of " + p + " is missing: " + e.getMessage()); }
     }
 

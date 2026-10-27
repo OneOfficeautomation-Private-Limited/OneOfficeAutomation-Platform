@@ -62,10 +62,11 @@ final class SyslogForwarder {
         return v == null ? "" : String.valueOf(v).replace("\\", "\\\\").replace("\"", "\\\"").replace("]", "\\]");
     }
 
-    private static void send(String target, String protocol, String line) throws Exception {
+    private void send(String target, String protocol, String line) throws Exception {
         int colon = target.lastIndexOf(':');
         if (colon < 1) throw new IllegalArgumentException("syslog_target must be host:port");
         String host = target.substring(0, colon).replace("[", "").replace("]", "");
+        NetGuard.check(platform.cr(), host, "The syslog collector");
         int port = Integer.parseInt(target.substring(colon + 1));
         byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
         if ("tcp".equalsIgnoreCase(protocol)) {

@@ -99,7 +99,8 @@ class TeamsVaultAuditAnalyticsTest {
         // key rotation: everything still reads, the key changed, the old key is kept
         String before = (String) cr.vaultAdmin.status(admin).get("key_fingerprint");
         Map<String, Object> rot = cr.vaultAdmin.rotate(admin, null);
-        assertEquals(4, ((Number) rot.get("re_encrypted")).intValue());
+        // four vault values, plus what the Command Center keeps for itself (install id, audit chain key)
+        assertEquals(4 + db.query("SELECT name FROM settings WHERE name IN ('evaluation_started', 'install_id', 'audit_chain_key')").size(), ((Number) rot.get("re_encrypted")).intValue());
         assertNotEquals(before, rot.get("key_fingerprint"));
         try (var s = Files.list(data)) { assertTrue(s.anyMatch(f -> f.getFileName().toString().startsWith("master.key.old-"))); }
         String runBob2 = (String) cr.startRun("admin", "admin", "Ops/Backup.flow.json", null, null, Map.of(), "manual", null, 0, null, "bob", null).get("run_id");

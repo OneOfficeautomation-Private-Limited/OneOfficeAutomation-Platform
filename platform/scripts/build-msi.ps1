@@ -4,7 +4,7 @@
 # The MSI installs for all users into Program Files\ONEOFFICEAUTOMATION, with a Start menu entry, and sets the
 # computer up from its properties (Install-OOA.ps1 -ConfigureOnly), for example:
 #   msiexec /i ooa-0.1.1.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720
-#   msiexec /i ooa-0.1.1.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... [RUNNER_NAME=..] [CA_FILE=..]
+#   msiexec /i ooa-0.1.1.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... [RUNNER_NAME=..] [CA_FILE=..] [PROXY=..]
 # Without ROLE it only installs the files. Uninstalling removes the services first; data folders are kept.
 param(
     [string]$Wix = "wix",
@@ -51,7 +51,7 @@ Walk $Source "" "INSTALLFOLDER" 4
 $files = $n
 
 $ps = "[System64Folder]WindowsPowerShell\v1.0\powershell.exe"
-$configure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Install-OOA.ps1&quot; -ConfigureOnly -Silent -Role [ROLE] -ServiceFlag &quot;[SERVICE]&quot; -Port [PORT] -DataDir &quot;[DATA_DIR]&quot; -Url &quot;[URL]&quot; -RegistrationKey &quot;[REGISTRATION_KEY]&quot; -RunnerName &quot;[RUNNER_NAME]&quot; -CaFile &quot;[CA_FILE]&quot;"
+$configure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Install-OOA.ps1&quot; -ConfigureOnly -Silent -Role [ROLE] -ServiceFlag &quot;[SERVICE]&quot; -Port [PORT] -DataDir &quot;[DATA_DIR]&quot; -Url &quot;[URL]&quot; -RegistrationKey &quot;[REGISTRATION_KEY]&quot; -RunnerName &quot;[RUNNER_NAME]&quot; -CaFile &quot;[CA_FILE]&quot; -Proxy &quot;[PROXY]&quot;"
 $unconfigure = "&quot;$ps&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall-OOA.ps1&quot; -Silent -KeepFiles"
 
 $wxs = @"
@@ -70,6 +70,7 @@ $wxs = @"
     <Property Id="REGISTRATION_KEY" Secure="yes" Hidden="yes" />
     <Property Id="RUNNER_NAME" Secure="yes" />
     <Property Id="CA_FILE" Secure="yes" />
+    <Property Id="PROXY" Secure="yes" />
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="ONEOFFICEAUTOMATION">
 $($tree.ToString())      </Directory>

@@ -23,26 +23,21 @@ import java.util.*;
 final class TlsCommand {
     private TlsCommand() { }
 
-    static int run(String[] a) throws Exception {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
+    static int run(String verb, Map<String, String> o) throws Exception {
         Path data = Ooa.dataDir(o);
         Path file = TlsConfig.defaultFile(data);
-        return switch (a[0]) {
+        return switch (verb) {
             case "configure" -> configure(file, o);
             case "set-password" -> setPassword(file, data, o);
             case "self-signed" -> selfSigned(file, data, o);
             case "show" -> show(file, data);
             case "export-cert" -> exportCert(file, data, o);
             case "off" -> off(file);
-            default -> { usage(); yield 1; }
+            default -> throw new IllegalArgumentException("Unknown HTTPS command " + verb);
         };
     }
 
-    static void usage() { System.err.println("usage: ooa tls configure --pfx FILE | set-password | self-signed [--host NAME] | show | export-cert --out FILE | off  [--data DIR]"); }
-
     static int configure(Path file, Map<String, String> o) {
-        if (!o.containsKey("pfx")) { usage(); return 1; }
         Path pfx = Path.of(o.get("pfx"));
         if (!Files.exists(pfx)) { System.err.println("No such file: " + pfx); return 1; }
         TlsConfig.setKeystore(file, pfx);
@@ -102,7 +97,6 @@ final class TlsCommand {
     }
 
     static int exportCert(Path file, Path data, Map<String, String> o) throws Exception {
-        if (!o.containsKey("out")) { usage(); return 1; }
         TlsConfig cfg = TlsConfig.load(file);
         String pem = cfg.certificatePem(new Vault(data));
         Path out = Path.of(o.get("out"));

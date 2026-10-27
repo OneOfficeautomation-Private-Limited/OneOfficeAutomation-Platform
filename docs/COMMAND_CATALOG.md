@@ -29,6 +29,8 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | UI automation | Recorder | ooa.browser/record, ooa.browser/element_action (Capture), Studio Record, Capture and Pick | Partial | Web recorder and web Capture built; desktop, Java and SAP capture need the Bot Agent |
 | UI automation | Browser | ooa.browser | Built (library module, test on laptop) | Playwright; uses installed Edge or Chrome |
 | UI automation | Window | ooa.window | Built (library module, test on laptop) | Win32 via JNA |
+| UI automation | Desktop objects, legacy (MSAA) | ooa.desktop_ui/find_legacy_objects, legacy_object_action | Built | IAccessible through oleacc for older Win32, VB6 and Delphi applications: find by name and role, default action, set and get value |
+| UI automation | Java applications (Swing/AWT) | ooa.java_apps | Built | Java Attach API and the applications' own accessibility (no Java Access Bridge setting needed): list apps, find controls, set and get text, press, focus |
 | UI automation | Mouse | ooa.desktop/mouse_* | Built | Needs a desktop session |
 | UI automation | Simulate keystrokes | ooa.desktop/type_text, press_keys | Built | Needs a desktop session |
 | UI automation | Screen | ooa.desktop/capture_screen | Built | Window capture comes with the Window package |
@@ -41,9 +43,10 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | UI automation | Citrix / remote desktop | ooa.image, ooa.ocr | Partial | Image + OCR built; in-session agent later |
 | UI automation | App-specific recorders | - | Planned | After the Recorder |
 | Office & files | Excel advanced (needs Excel) | ooa.excel_desktop | Built | Windows + Excel; macros, refresh, PDF export, convert |
-| Office & files | Excel basic (no Excel needed) | ooa.excel | Built (library module, test on laptop) | Already verified on your laptop |
+| Integration & system | Outlook desktop (needs Outlook) | ooa.outlook_desktop | Built | Windows + Outlook with a mail profile; find, read, send, reply, forward, move, mark, save attachments, folders, shared mailboxes |
+| Office & files | Excel basic (no Excel needed) | ooa.excel | Built (library module, test on laptop) | Already verified on your laptop. Steps that keep the session name "excel" use the one open workbook, whatever it was opened as (Word and PowerPoint the same). A path such as onedrive:Reports/sales.xlsx (with a Graph token, and a SharePoint library as drive) is downloaded on open and saved back on save |
 | Office & files | Office 365 Excel / Google Sheets | ooa.microsoft365 (Excel online), ooa.google (Sheets) | Built |  |
-| Office & files | Microsoft Word | ooa.word | Built (library module, test on laptop) |  |
+| Office & files | Microsoft Word | ooa.word | Built (library module, test on laptop) | Extract text also reads old .doc and .rtf files |
 | Office & files | CSV/TXT | ooa.csv | Built |  |
 | Office & files | PDF | ooa.pdf | Built (library module, test on laptop) |  |
 | Office & files | File | ooa.file | Built | Printing via ooa.printer |
@@ -51,12 +54,12 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Office & files | XML | ooa.xml | Built |  |
 | Office & files | JSON | ooa.json | Built |  |
 | Office & files | Printer | ooa.printer | Built |  |
-| Integration & system | Email | ooa.email, ooa.microsoft365, ooa.google | Built (library module, test on laptop) | SMTP/IMAP with OAuth, Outlook via Graph, Gmail API; Outlook desktop planned |
+| Integration & system | Email | ooa.email, ooa.microsoft365, ooa.google | Built (library module, test on laptop) | SMTP/IMAP with OAuth, Outlook via Graph, Gmail API |
 | Integration & system | Office 365 / Google Calendar | ooa.microsoft365, ooa.google | Built |  |
 | Integration & system | OneDrive / SharePoint / Google Drive | ooa.microsoft365, ooa.google | Built |  |
 | Integration & system | Microsoft Teams / Slack | ooa.microsoft365/teams_message, ooa.slack | Built |  |
 | Integration & system | REST Web Service | ooa.rest | Built |  |
-| Integration & system | SOAP Web Service | ooa.soap | Built | WSDL import planned |
+| Integration & system | SOAP Web Service | ooa.soap | Built | Read WSDL lists the operations (SOAP 1.1 and 1.2) with SOAPAction, endpoint and a request body from the schema, imports included |
 | Integration & system | Database | ooa.database | Built | Database drivers installed per device |
 | Integration & system | FTP/SFTP | ooa.file_transfer | Built (library module, test on laptop) | FTP, FTPS, SFTP with host key pinning |
 | Integration & system | Active Directory | ooa.active_directory | Built | Compiled and unit-tested; needs a directory server for a full test |
@@ -71,16 +74,17 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | PowerShell | ooa.script/run_powershell | Built |  |
 | Integration & system | System | ooa.system | Built | Power actions need confirm = true |
 | Integration & system | Services | ooa.services | Built | Windows; start and stop need administrator rights |
-| Integration & system | Ping / SNMP | ooa.network | Built | SNMP v2c get, get next, walk, set and traps |
+| Integration & system | Ping / SNMP | ooa.network | Built | SNMP v1, v2c and v3 get, get next, walk and set (v3: MD5, SHA, SHA-256, SHA-512 sign-in; DES or AES-128 privacy); v2c traps |
 | Integration & system | Hash / Cryptography | ooa.crypto | Built | Hashes, HMAC, AES-256-GCM, RSA encrypt/sign |
 | Integration & system | PGP | ooa.pgp | Built | Needs GnuPG installed; tested with real GnuPG |
 | Integration & system | Credential / Vault | Credential type + Control Room lockers | Built | AES-256-GCM, owners and consumers, just-in-time delivery, audited |
-| Integration & system | Triggers (event) | Studio triggers + Control Room triggers on agents | Partial | File, schedule and webhook built in both; email, window, hotkey and service triggers planned |
+| Integration & system | Triggers (event) | Studio triggers + Command Center triggers on agents | Built | File, schedule and webhook in both; email (IMAP, Microsoft 365), window, process, hotkey and service triggers on runners |
 | Integration & system | Salesforce / ServiceNow / Workday / Jira | ooa.salesforce, ooa.servicenow, ooa.workday, ooa.jira | Built | Workday: workers + generic REST/RaaS |
 | Integration & system | GitHub / Azure DevOps / Asana / Zendesk | ooa.github, ooa.azure_devops, ooa.asana, ooa.zendesk | Built | REST toolkits; base URL input for GitHub Enterprise, Azure DevOps Server and Zendesk subdomains |
 | Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |
 | Integration & system | Snowflake / Databricks / Kafka | ooa.snowflake, ooa.databricks, ooa.kafka | Built | REST only, no drivers: Snowflake SQL API v2, Databricks SQL/Jobs/Clusters/Files, Kafka REST Proxy |
 | AI, workload & process | Document Automation / IQ Bot | - | Excluded for now (your request) |  |
+| AI, workload & process | Knowledge Q&A | ooa.knowledge | Built | Index text, Markdown, HTML, CSV, JSON, XML, .docx and PDF files into one index file (embeddings optional: OpenAI, Azure OpenAI, OpenAI-compatible such as Ollama, Vertex AI, Bedrock Titan/Cohere); search by words (BM25) and meaning; answers that cite their passages and say when the documents do not say |
 | AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock (Converse, SigV4), Google Vertex AI (Gemini; service-account key or token), Hugging Face, Amazon SageMaker endpoints (SigV4), self-hosted; prompts and chats with pictures; picture generation (OpenAI, Azure OpenAI, Vertex AI Imagen, Bedrock); detect language, key phrases, named entities; PII masking; governance log |
 | AI, workload & process | AI Skills / AI Agent | ooa.ai_skills, ooa.ai_agent | Built | Agents call bots as tools; sensitive bots need approval; step and token limits. Prompt Skills kept in the Command Center (shared, versioned, templates) reach runs with the job |
 | AI, workload & process | Web goal agent | ooa.web_agent | Built | Start session, Reach a goal (an AI model works the page: click, type, select, scroll, go to, finish), End session; allowed sites; vault secrets typed through placeholders the model never sees; password-only check |

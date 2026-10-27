@@ -26,12 +26,10 @@ import java.util.*;
 final class DbCommand {
     private DbCommand() { }
 
-    static int run(String[] a) {
-        if (a.length == 0) { usage(); return 1; }
-        Map<String, String> o = Ooa.options(Arrays.copyOfRange(a, 1, a.length));
+    static int run(String verb, Map<String, String> o) {
         Path data = Ooa.dataDir(o);
         Path file = o.containsKey("config") ? Path.of(o.get("config")) : DbConfig.defaultFile(data);
-        return switch (a[0]) {
+        return switch (verb) {
             case "configure" -> configure(file, o);
             case "set-password" -> setPassword(file, data, o);
             case "test" -> test(DbConfig.load(file), data);
@@ -39,12 +37,14 @@ final class DbCommand {
             case "migrate" -> migrate(DbConfig.load(file), data);
             case "script" -> script(o.getOrDefault("engine", Files.exists(file) ? DbConfig.load(file).engine() : "sqlserver"));
             case "copy" -> copy(DbConfig.load(file), data, o);
-            default -> { usage(); yield 1; }
+            default -> throw new IllegalArgumentException("Unknown database command " + verb);
         };
     }
 
-    static void usage() {
-        System.err.println("usage: ooa db configure|set-password|test|init|migrate|script|copy [--data DIR] [--config FILE]  (see docs/DATABASE.md)");
+    /** A Windows account for SQL Server: DOMAIN\\name, or DOMAIN\\name$ for a group managed service account. */
+    static String windowsLogin(String v) {
+        if (!v.matches("[A-Za-z0-9_.\\-]{1,64}\\\\[A-Za-z0-9_.\\-]{1,64}\\$?")) throw new OoaException("CR.DB_CONFIG", "A Windows account is DOMAIN\\name (a gMSA ends in $): " + v);
+        return v;
     }
 
     private static final java.util.regex.Pattern NAME = java.util.regex.Pattern.compile("[A-Za-z0-9_.\\-]{1,128}");
@@ -59,12 +59,17 @@ final class DbCommand {
         Map<String, String> v = new LinkedHashMap<>();
         v.put("engine", engine);
         if (!engine.equals("h2")) {
-            if (!o.containsKey("host") || !o.containsKey("user")) { System.err.println("Give --host and --user (and --setup-user for the account that creates the schema)."); return 1; }
+            boolean windows = o.containsKey("windows-auth");
+            if (windows && !engine.equals("sqlserver")) { System.err.println("--windows-auth is for SQL Server only."); return 1; }
+            if (!o.containsKey("host") || (!o.containsKey("user") && !windows)) { System.err.println("Give --host and --user, or --windows-auth (and --setup-user for the account that creates the schema)."); return 1; }
             v.put("host", o.get("host"));
             v.put("port", o.getOrDefault("port", engine.equals("postgresql") ? "5432" : "1433"));
             if (o.containsKey("instance")) v.put("instance", o.get("instance"));
             v.put("database", name(o.getOrDefault("database", "ooa_command_center"), "The database name"));
-            v.put("user", name(o.get("user"), "The user"));
+            if (windows) {
+                v.put("auth", "windows");
+                if (o.containsKey("windows-login")) v.put("windows.login", windowsLogin(o.get("windows-login")));
+            } else v.put("user", name(o.get("user"), "The user"));
             if (o.containsKey("setup-user")) v.put("setup.user", name(o.get("setup-user"), "The setup user"));
             v.put("tls", o.getOrDefault("tls", "required"));
             if (o.containsKey("tls-ca")) v.put("tls.ca", o.get("tls-ca"));
@@ -75,11 +80,12 @@ final class DbCommand {
         try {
             Files.createDirectories(file.getParent());
             List<String> lines = new ArrayList<>(List.of("# One Command Center database connection (ooa db configure). Passwords: ooa db set-password [--setup]."));
-            for (var e : v.entrySet()) lines.add(e.getKey() + "=" + e.getValue());
+            for (var e : v.entrySet()) lines.add(e.getKey() + "=" + e.getValue().replace("\\", "\\\\"));   // a properties file reads \ as an escape (paths, DOMAIN\account)
             Files.write(file, lines);
         } catch (java.io.IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage()); }
         System.out.println("Wrote " + file);
-        if (!engine.equals("h2")) System.out.println("Next: ooa db set-password, ooa db set-password --setup, then ooa db init.");
+        if (v.containsKey("auth")) System.out.println("Windows sign-in: give the Command Center's account (for example DOMAIN\\ooa-svc$) a login and db_owner, then run ooa db init as that account" + (v.containsKey("setup.user") ? " (or set the setup password: ooa db set-password --setup)." : "."));
+        else if (!engine.equals("h2")) System.out.println("Next: ooa db set-password, ooa db set-password --setup, then ooa db init.");
         return 0;
     }
 
@@ -131,10 +137,13 @@ final class DbCommand {
     static int init(DbConfig cfg, Path data) {
         if (cfg.engine().equals("h2")) { System.out.println("The embedded database needs no setup; it is created at the first start."); return 0; }
         Vault vault = new Vault(data);
-        String db = name(cfg.database(), "The database name"), runtime = name(cfg.get("user"), "The user");
+        boolean win = cfg.windowsAuth();
+        String db = name(cfg.database(), "The database name"), runtime = win ? (cfg.get("windows.login").isEmpty() ? "" : windowsLogin(cfg.get("windows.login"))) : name(cfg.get("user"), "The user");
         String setupUser = cfg.get("setup.user");
-        if (setupUser.isEmpty()) { System.err.println("Add setup.user to " + cfg.file + " and run: ooa db set-password --setup"); return 1; }
-        try (Connection c = DriverManager.getConnection(cfg.url(data, true), setupUser, cfg.password(vault, true)); Statement s = c.createStatement()) {
+        if (setupUser.isEmpty() && !win) { System.err.println("Add setup.user to " + cfg.file + " and run: ooa db set-password --setup"); return 1; }
+        if (setupUser.isEmpty()) setupUser = System.getProperty("user.name") + " (Windows sign-in)";
+        try (Connection c = cfg.integrated(true) ? DriverManager.getConnection(cfg.url(data, true, true))
+                : DriverManager.getConnection(cfg.url(data, true, true), setupUser, cfg.password(vault, true)); Statement s = c.createStatement()) {
             if (cfg.engine().equals("sqlserver")) {
                 try (ResultSet rs = s.executeQuery("SELECT DB_ID('" + db + "')")) { rs.next(); if (rs.getObject(1) == null) {
                     s.execute("CREATE DATABASE [" + db + "]");
@@ -151,7 +160,8 @@ final class DbCommand {
             throw new OoaException("CR.DB_SETUP", "Cannot create the database with " + setupUser + ": " + e.getMessage(), "The setup account needs the right to create databases (dbcreator on SQL Server)");
         }
         int r = migrate(cfg, data);
-        if (r == 0) grantRuntime(cfg, data, vault, runtime);
+        if (r == 0 && !runtime.isEmpty()) grantRuntime(cfg, data, vault, runtime);
+        else if (r == 0 && win) System.out.println("Give the Command Center's Windows account a login with db_datareader and db_datawriter in " + db + ", or add windows.login to " + cfg.file + " and run ooa db init again.");
         return r;
     }
 
@@ -162,6 +172,7 @@ final class DbCommand {
             System.out.println(before == Db.LATEST ? "Schema is current (version " + Db.LATEST + ")." : "Schema upgraded from version " + before + " to " + Db.LATEST + ".");
         }
         if (cfg.engine().equals("postgresql")) grantRuntime(cfg, data, new Vault(data), name(cfg.get("user"), "The user"));
+        else if (cfg.windowsAuth() && !cfg.get("windows.login").isEmpty()) grantRuntime(cfg, data, new Vault(data), windowsLogin(cfg.get("windows.login")));
         return 0;
     }
 
@@ -172,6 +183,8 @@ final class DbCommand {
             db.withConnection(c -> {
                 try (Statement s = c.createStatement()) {
                     if (db.sqlServer) {
+                        // a Windows account (DOMAIN\name or a gMSA DOMAIN\name$) gets its login here too
+                        if (runtime.contains("\\")) s.execute("IF SUSER_ID('" + runtime + "') IS NULL CREATE LOGIN [" + runtime + "] FROM WINDOWS");
                         s.execute("IF USER_ID('" + runtime + "') IS NULL CREATE USER [" + runtime + "] FOR LOGIN [" + runtime + "]");
                         s.execute("ALTER ROLE db_datareader ADD MEMBER [" + runtime + "]");
                         s.execute("ALTER ROLE db_datawriter ADD MEMBER [" + runtime + "]");

@@ -71,10 +71,18 @@ final class ControlRoomLink {
     }
 
     @SuppressWarnings("unchecked")
-    Map<String, Object> connect(String crUrl, String username, String password) throws IOException {
+    Map<String, Object> connect(String crUrl, String username, String password) throws IOException { return connect(crUrl, username, password, null); }
+
+    /** As above; {@code code} is the authenticator code for an account with two-step sign-in. */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> connect(String crUrl, String username, String password, String code) throws IOException {
         if (crUrl == null || !crUrl.matches("^https?://[A-Za-z0-9.\\-:\\[\\]]+(/.*)?$")) throw new OoaException("STUDIO.BAD_URL", "Enter the Command Center address, e.g. http://localhost:8720");
         url = crUrl.replaceAll("/+$", "");
-        Map<String, Object> r = call("POST", "auth/login", Map.of("username", username == null ? "" : username, "password", password == null ? "" : password), false);
+        Map<String, Object> login = new java.util.HashMap<>(Map.of("username", username == null ? "" : username, "password", password == null ? "" : password));
+        if (code != null && !code.isBlank()) login.put("code", code.trim());
+        Map<String, Object> r = call("POST", "auth/login", login, false);
+        if (Boolean.TRUE.equals(r.get("mfa_required")))
+            throw new OoaException("STUDIO.CR_MFA_CODE", "This account uses two-step sign-in", "Enter the code from your authenticator app in the Code box, then connect again.");
         Map<String, Object> u = (Map<String, Object>) r.get("user");
         if (Boolean.TRUE.equals(u.get("must_change")))
             throw new OoaException("STUDIO.CR_PASSWORD_CHANGE", "Your Command Center password must be changed first", "Sign in to Command Center in the browser (" + url + "), choose a new password, then connect again.");
@@ -154,7 +162,9 @@ final class ControlRoomLink {
         Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", true), true);
         m.put(local, repoPath);
         saveMapping(m);
-        return Map.of("path", repoPath, "version", r.get("version"), "local", local);
+        Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local));
+        if (r.get("production_request") != null) out.put("production_request", r.get("production_request"));   // approval before production is on
+        return out;
     }
 
     void undoCheckout(String repoPath) { call("POST", "repo/undo-checkout", Map.of("path", repoPath), true); }

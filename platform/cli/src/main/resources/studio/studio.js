@@ -96,6 +96,7 @@ const GROUP_LIST = [
   ["pdf", "PDF", "doc", "#dc2626", "Office documents", "ooa.pdf"],
   ["browser", "Browser", "globe", "#ea580c", "Web and desktop", "ooa.browser"],
   ["desktop_ui", "Capture / Desktop objects", "cursor", "#d97706", "Web and desktop", "ooa.desktop_ui"],
+  ["java_apps", "Java applications", "cursor", "#b45309", "Web and desktop", "ooa.java_apps"],
   ["window", "Window", "window", "#b45309", "Web and desktop", "ooa.window"],
   ["mouse_keyboard", "Mouse and keyboard", "mouse", "#a16207", "Web and desktop", "ooa.desktop"],
   ["application", "Application", "desktop", "#9a3412", "Web and desktop", "ooa.application"],
@@ -116,6 +117,7 @@ const GROUP_LIST = [
   ["databricks", "Databricks", "data", "#dc2626", "APIs and databases", "ooa.databricks"],
   ["kafka", "Kafka", "queue", "#334155", "APIs and databases", "ooa.kafka"],
   ["email", "Email", "mail", "#0891b2", "Email and collaboration", "ooa.email"],
+  ["outlook_desktop", "Outlook desktop", "mail", "#1d4ed8", "Email and collaboration", "ooa.outlook_desktop"],
   ["microsoft365", "Microsoft 365", "cloud", "#2563eb", "Email and collaboration", "ooa.microsoft365"],
   ["google", "Google Workspace", "cloud", "#16a34a", "Email and collaboration", "ooa.google"],
   ["slack", "Slack", "chat", "#7e22ce", "Email and collaboration", "ooa.slack"],
@@ -132,6 +134,7 @@ const GROUP_LIST = [
   ["zendesk", "Zendesk", "chat", "#065f46", "Business applications", "ooa.zendesk"],
   ["genai", "Generative AI", "spark", "#db2777", "AI", "ooa.genai"],
   ["ai_skills", "Prompt Skills", "spark", "#c026d3", "AI", "ooa.ai_skills"],
+  ["knowledge", "Knowledge Q&A", "spark", "#7c3aed", "AI", "ooa.knowledge"],
   ["ai_agent", "AI agents", "bot", "#9333ea", "AI", "ooa.ai_agent"],
   ["python", "Python", "code", "#2563eb", "Scripts", "script:python"],
   ["javascript", "JavaScript", "code", "#ca8a04", "Scripts", "script:javascript"],
@@ -976,7 +979,7 @@ function quoteIfText(v) { return typeof v === "string" && !v.startsWith("$") && 
 function loopText(a) {
   const it = a.iterator || "list";
   const as = a.as ? " as $" + a.as : "";
-  if (it === "times") return (a.count !== undefined ? plainValue(a.count) : "?") + " times" + (a.index ? ", counter $" + a.index : "");
+  if (it === "times") { const counter = a.as || a.index; return (a.count !== undefined ? plainValue(a.count) : "?") + " times" + (counter ? ", counter $" + counter + (a.as && a.start !== undefined && a.start !== "" && a.start !== 0 ? " from " + plainValue(a.start) : "") : ""); }
   if (it === "while") return "while " + conditionText(a.condition);
   const what = { list: "each item in ", table_rows: "each row in ", dictionary: "each key and value in ", dictionary_keys: "each key in ", dictionary_values: "each value in " }[it];
   if (what) return what + (a.over !== undefined ? plainValue(a.over) : "?") + as;
@@ -1011,11 +1014,17 @@ function keyArgs(step, n) {
   });
 }
 
+/** A selector for step cards: long ones show their end, where selectors that look alike differ (//td[2]//a[1]). */
+function selectorText(sel) {
+  if (typeof sel !== "string") return plainValue(sel, 50);
+  return sel.length > 50 ? "…" + sel.slice(-49) : sel;
+}
+
 function summary(step) {
   const a = step.args || {};
   const outs = Object.values(step.out || {}).filter(Boolean).map((v) => "$" + String(v).replace(/^\$/, ""));
   const result = outs.length ? "  \u2192 " + outs.join(", ") : "";
-  const target = a.object && typeof a.object === "object" ? objectLabel(a.object) : a.selector ? plainValue(a.selector, 50) : "";
+  const target = a.object && typeof a.object === "object" ? objectLabel(a.object) : a.selector ? selectorText(a.selector) : "";
   const where = windowLabel(a.window);
   const inWin = where ? " in \u201C" + where + "\u201D" : "";
   switch (step.action) {
@@ -2505,10 +2514,36 @@ function conditionEditor(value, onChange) {
         h("button", { type: "button", onclick: () => { model.rows.push(newRow()); commit(); } }, "+ Condition"),
         h("button", { type: "button", title: "Conditions combined the other way inside this group, e.g. A and (B or C)",
           onclick: () => { model.rows.push({ kind: "group", match: model.match === "all" ? "any" : "all", rows: [newRow(), newRow()], not: false }); commit(); } }, "+ Group"),
-        h("button", { type: "button", class: "link-btn", onclick: () => { model.mode = "expr"; model.text = ""; onChange(undefined); render(); } }, "Write an expression instead")));
+        h("button", { type: "button", class: "link-btn", onclick: () => { model.mode = "expr"; model.text = ""; onChange(undefined); render(); } }, "Write an expression instead")),
+      conditionCheck(() => serializeCondition(model)));
   }
   render();
   return box;
+}
+
+/**
+ * Under the If builder: the condition as a sentence, and Test, which judges it once with sample values for the
+ * variables it uses (their defaults to start with), exactly as a run would.
+ */
+function conditionCheck(current) {
+  const cond = current();
+  if (cond === undefined) return null;
+  const sentence = h("div", { class: "help", text: "Reads: If " + conditionText(cond) });
+  const names = [...new Set((JSON.stringify(cond).match(/\$\{?([A-Za-z_][A-Za-z0-9_]*)/g) || []).map((x) => x.replace(/^\$\{?/, "")))];
+  const known = names.map((n) => (state.flow && state.flow.variables.find((v) => v.name === n)) || { name: n, type: "Any" });
+  const boxes = known.map((v) => [v, h("input", { type: "text", "aria-label": "Sample value of $" + v.name, value: v.default !== undefined ? showValue(v.default) : "", placeholder: v.type })]);
+  const result = h("span", { class: "muted", "aria-live": "polite" });
+  const run = async () => {
+    result.textContent = "Checking\u2026";
+    try {
+      const r = await api("POST", "condition/test", { condition: current(), variables: boxes.map(([v, b]) => ({ name: v.name, type: v.type, value: b.value === "" ? undefined : parseLoose(b.value) })) });
+      result.textContent = r.error ? (r.error.message || "Could not check it") : r.result ? "True: the steps inside If run." : "False: the Else steps run.";
+      result.className = r.error ? "error" : r.result ? "ok-text" : "muted";
+    } catch (e) { result.textContent = e.message; result.className = "error"; }
+  };
+  return h("details", { class: "cond-test" }, h("summary", {}, sentence),
+    boxes.length ? h("div", { class: "grid2" }, boxes.map(([v, b]) => h("label", {}, "$" + v.name, b))) : null,
+    h("div", { class: "row-actions" }, h("button", { type: "button", onclick: run }, "Test"), result));
 }
 
 /**
@@ -2602,8 +2637,19 @@ function loopPanel(step) {
 
   if (mode === "times") {
     nodes.push(field("Number of times", textBox("count", "e.g. 3 or $count", "Number"), "How many times the steps inside repeat.", true, "count"));
-    nodes.push(field("Counter (optional)", varPick("index", "Number", "counter"), "A Number variable that holds 0, 1, 2 … on each pass.", false, "index"));
-    more.push(field("Start counting at", textBox("start", "0", "Number"), null, false, "start"), field("Count up by", textBox("step", "1", "Number"), null, false, "step"));
+    // the runner gives the counter in "as" from start and step (start, start + step …) and the position in "index"
+    // (0, 1, 2 …); the counter field uses "as" as soon as a start or step is set, so they take effect
+    const counted = () => (args.start !== undefined && Number(args.start) !== 0) || (args.step !== undefined && Number(args.step) !== 1);
+    const moveCounter = () => { if (counted() && args.index !== undefined && args.as === undefined) { args.as = args.index; delete args.index; return true; } return false; };
+    if (moveCounter()) changed();   // an agent saved before start took effect: its counter now counts from the start
+    const counterKey = args.as !== undefined || counted() ? "as" : "index";
+    nodes.push(field("Counter (optional)", varPick(counterKey, "Number", "counter"), "A Number variable that holds the pass number: 0, 1, 2 … by default, or 1, 2, 3 … with Start counting at 1.", false, counterKey));
+    const startBox = textBox("start", "0", "Number");
+    startBox.addEventListener("change", () => { moveCounter(); changed(); renderProps(); });
+    nodes.push(field("Start counting at", startBox, "1 to count passes like a person does (1, 2, 3 …).", false, "start"));
+    const stepBox = textBox("step", "1", "Number");
+    stepBox.addEventListener("change", () => { moveCounter(); changed(); renderProps(); });
+    more.push(field("Count up by", stepBox, null, false, "step"));
   } else if (mode === "while") {
     nodes.push(field("Repeat while", conditionEditor(args.condition, (v) => set("condition", v)), "Checked before each pass; the loop ends when it is false.", true, "condition"));
     const atEnd = h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!args.check_at_end, onchange: (e) => set("check_at_end", e.target.checked || undefined) }),
@@ -2870,9 +2916,10 @@ function renderProps() {
         h("div", { class: "field" }, h("label", { text: "Error message to" }), varSel(c.message_to, setKey("message_to"), "String", "Error message variable")),
         h("div", { class: "field" }, h("label", { text: "Line number to" }), varSel(c.line_to, setKey("line_to"), "Number", "Line number variable")),
         h("div", { class: "field" }, h("label", { text: "All error details to" }), varSel(c.as, setKey("as"), "Dictionary", "Error details variable"),
-          h("div", { class: "help", text: "A Dictionary with code, message, suggestedFix, line, action and stepId." })),
+          h("div", { class: "help", text: "A Dictionary with code, message, suggestedFix, line, action and stepId (and screenshot, when taken)." })),
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!c.screenshot, onchange: (e) => { if (e.target.checked) c.screenshot = true; else delete c.screenshot; changed(); } }),
-          "Take a screenshot when the error is caught (its path is in the error details)"),
+          "Take a screenshot when the error is caught"),
+        h("div", { class: "help", text: "Saved as screenshots\\<run>_<step>_<time>.png in the agent's workspace; the full path is in the error details as screenshot. No separate Take screenshot step is needed." }),
         h("label", { class: "check" }, h("input", { type: "checkbox", checked: !!c.rethrow, onchange: (e) => { if (e.target.checked) c.rethrow = true; else delete c.rethrow; changed(); } }),
           "Raise the error again after this Catch (the agent still fails)"));
     });
@@ -3177,11 +3224,15 @@ function editVariable(existing, preset = {}) {
   const renderDir = () => {
     // as in the reference product: two independent ticks, so a variable can be an input, an output or both
     const setDir = (inp, out) => { keepDefault(); const d = inp && out ? "in_out" : inp ? "input" : out ? "output" : null; if (d) v.direction = d; else delete v.direction; renderDir(); renderDefault(); };
-    dirSeg.replaceChildren(
+    dirSeg.replaceChildren(...[
       h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "input", checked: isInputVar(v), onchange: (e) => setDir(e.target.checked, isOutputVar(v)) }),
         "Use as input", h("span", { class: "help", text: " given when the agent starts (by a person, a schedule or a parent agent)" })),
       h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "output", checked: isOutputVar(v), onchange: (e) => setDir(isInputVar(v), e.target.checked) }),
-        "Use as output", h("span", { class: "help", text: " returned when the agent ends" })));
+        "Use as output", h("span", { class: "help", text: " returned when the agent ends" })),
+      // business figures for Command Center dashboards (K5)
+      isOutputVar(v) && ["Number", "String", "Boolean"].includes(v.type) ? h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "kpi", checked: !!v.kpi,
+        onchange: (e) => { if (e.target.checked) v.kpi = true; else delete v.kpi; } }), "Business figure (KPI)", h("span", { class: "help", text: " each successful run records it for dashboards in One Command Center" })) : null].filter(Boolean));
+    if (!isOutputVar(v)) delete v.kpi;
     reqBox.hidden = !isInputVar(v);
   };
   const renderDefault = () => {
@@ -4112,12 +4163,14 @@ function renderCr() {
     const url = h("input", { type: "text", value: cr.url || "http://localhost:8720", "aria-label": "Command Center address" });
     const user = h("input", { type: "text", autocomplete: "username", "aria-label": "User name" });
     const pass = h("input", { type: "password", autocomplete: "current-password", "aria-label": "Password" });
+    const code = h("input", { type: "text", inputmode: "numeric", autocomplete: "one-time-code", placeholder: "if asked", "aria-label": "Two-step code" });
     const go = h("button", { type: "button", class: "primary", onclick: async () => {
-      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value }); pass.value = ""; toast("Connected to Command Center"); renderCr(); crLoadRepo(); }
+      try { state.cr = await api("POST", "cr/connect", { url: url.value, username: user.value, password: pass.value, code: code.value }); pass.value = ""; code.value = ""; toast("Connected to Command Center"); renderCr(); crLoadRepo(); }
       catch (e) { toast(e.message, true); }
     } }, "Connect");
     pass.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
-    body.replaceChildren(h("div", { class: "cr-form" }, h("label", {}, "Address", url), h("label", {}, "User name", user), h("label", {}, "Password", pass), go,
+    code.addEventListener("keydown", (e) => { if (e.key === "Enter") go.click(); });
+    body.replaceChildren(h("div", { class: "cr-form" }, h("label", {}, "Address", url), h("label", {}, "User name", user), h("label", {}, "Password", pass), h("label", {}, "Two-step code", code), go,
       h("div", { class: "hint", text: "Your workspace above is private. Connect to share agents through the public agent repository with check-in and check-out." })));
     return;
   }
@@ -4172,7 +4225,7 @@ async function crCheckin() {
   if (comment === null) return;
   try {
     const r = await api("POST", "cr/checkin", { local: state.file, comment });
-    toast("Checked in " + r.path + " as version " + r.version);
+    toast("Checked in " + r.path + " as version " + r.version + (r.production_request ? "; sent for approval before it goes live" : ""));
     crLoadRepo();
   } catch (e) {
     toast(e.message, true);
@@ -4568,6 +4621,7 @@ function processDesigner(it) {
         field("If true, go to", targetSelect(st.if_true, (v) => set("if_true", v))), field("If false, go to", targetSelect(st.if_false, (v) => set("if_false", v))));
     } else if (st.type === "notify") {
       parts.push(field("To", h("input", { type: "text", value: st.to || "", placeholder: "user:jane, role:admin or an email address", onchange: (e) => set("to", e.target.value) })),
+        field("E-mail subject (for e-mail addresses)", h("input", { type: "text", value: st.subject || "", placeholder: "Order ${order} approved", onchange: (e) => set("subject", e.target.value) })),
         field("Message", h("textarea", { rows: 4, value: st.message || "", onchange: (e) => set("message", e.target.value) })));
     }
     parts.push(field("Notes", h("textarea", { rows: 2, value: st.description || "", onchange: (e) => set("description", e.target.value) })),
@@ -5571,7 +5625,7 @@ function captureEditor(step, value, set, nested) {
     const props = Array.isArray(obj.properties) ? obj.properties : (obj.properties = []);
     const head = nested ? null : h("div", { class: "cap-head" },
       h("span", { class: "chip", text: desktop ? "Desktop" : "Web" }),
-      h("span", { class: "cap-where", title: desktop ? "" : (obj.page && obj.page.url) || "", text: desktop ? ((obj.window && obj.window.title) || "") + (obj.window && obj.window.process ? " (" + obj.window.process + ")" : "")
+      h("span", { class: "cap-where", title: desktop ? "" : (obj.page && obj.page.url) || "", text: desktop ? (typeof obj.window === "string" ? "window " + obj.window : ((obj.window && obj.window.title) || "") + (obj.window && obj.window.process ? " (" + obj.window.process + ")" : ""))
         : ((obj.page && (obj.page.title || obj.page.url)) || "") }),
       h("span", { class: "spacer" }),
       h("button", { type: "button", class: "btn", onclick: recapture }, "Recapture"),
@@ -5603,6 +5657,14 @@ function captureEditor(step, value, set, nested) {
           sel(CAPTURE_MATCHES, pg.url_match || "starts_with", (v) => { pg.url_match = v; save(); }, "Address match")),
         h("div", { class: "cap-opts" }, h("label", {}, "Title ", h("input", { type: "text", value: pg.title || "", onchange: (e) => { pg.title = e.target.value; save(); } })),
           sel([["", "(ignore the title)"]].concat(CAPTURE_MATCHES), pg.title_match || "", (v) => { if (v) pg.title_match = v; else delete pg.title_match; save(); }, "Title match")));
+    } else if (desktop && typeof obj.window === "string") {
+      // a window shared by several steps (T2): one Dictionary variable holds it, changed once in Variables
+      place = h("details", { class: "cap-page", open: "" }, h("summary", { text: "Window" }),
+        h("div", { class: "cap-opts" }, h("span", { text: "The window in " + obj.window + ", shared with other steps. Change its title in Variables." })),
+        h("div", { class: "cap-opts" }, h("button", { type: "button", class: "btn", onclick: () => {
+          const v = state.flow.variables.find((x) => "$" + x.name === obj.window);
+          obj.window = v && v.default && typeof v.default === "object" ? JSON.parse(JSON.stringify(v.default)) : { title: "", title_match: "wildcard" };
+          save(); render(); } }, "Use a window of this step only")));
     } else if (desktop && obj.window) {
       const w = obj.window;
       const size = w.resize || w.size || {};
@@ -5621,12 +5683,45 @@ function captureEditor(step, value, set, nested) {
         h("div", { class: "cap-opts" }, h("label", {}, "Process ", h("input", { type: "text", value: w.process || "", onchange: (e) => { w.process = e.target.value; save(); } }))),
         w.path ? h("div", { class: "cap-opts" }, h("span", { class: "help", title: w.path, text: "Program: " + w.path })) : null,
         h("div", { class: "cap-opts" }, h("label", { class: "check", title: "Set the window to this size before looking for the control, so positions match the capture" }, rz, "Resize window"),
-          w.resize ? h("label", {}, "Width ", num("width")) : null, w.resize ? h("label", {}, "Height ", num("height")) : null));
+          w.resize ? h("label", {}, "Width ", num("width")) : null, w.resize ? h("label", {}, "Height ", num("height")) : null),
+        nested || w.preset ? null : h("div", { class: "cap-opts" }, h("button", { type: "button", class: "btn", title: "Keep the window in one variable, so a changed title is set once",
+          onclick: () => { const n = shareDesktopWindow(w); obj.window = "$" + n; save(); render(); renderVariables(); } }, "Use one window for all steps in it")));
     }
     wrap.replaceChildren(head, tabs, shot, propertyTable(props), opts, frames, place);
   }
   render();
   return wrap;
+}
+
+/**
+ * T2: moves a desktop window choice into a Dictionary variable and points every desktop step of the agent that uses
+ * the same window (title and program) at it, so a changed title is set once. Returns the variable name.
+ */
+function shareDesktopWindow(w) {
+  const same = (x) => x && typeof x === "object" && (x.title || "") === (w.title || "") && (x.process || "") === (w.process || "") && !x.preset;
+  const existing = state.flow.variables.find((v) => v.type === "Dictionary" && v.default && same(v.default) && /^window_/.test(v.name));
+  const base = "window_" + (String(w.process || w.title || "app").replace(/\.exe$/i, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase() || "app");
+  const name = existing ? existing.name : addVariable(base, "Dictionary");
+  if (!existing) {
+    const v = state.flow.variables.find((x) => x.name === name);
+    const def = JSON.parse(JSON.stringify(w));
+    delete def.resize;
+    v.default = def;
+    v.description = "The application window that the desktop steps use; change its title here once.";
+  }
+  let moved = 0;
+  for (const st of allSteps(state.flow.steps)) {
+    const o = st.args && st.args.object;
+    if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) {
+      const resize = o.window.resize;
+      o.window = "$" + name;
+      if (resize) toast("A step resized its window; that size is no longer set for it.");
+      moved++;
+    }
+  }
+  changed();
+  toast(moved > 1 ? moved + " steps now use the window in $" + name : "This step uses the window in $" + name + "; other steps can choose it too");
+  return name;
 }
 
 /** Captures a control in a Windows application and adds a Desktop objects step for it. */
@@ -5838,3 +5933,17 @@ function wire() {
 }
 
 if (typeof window !== "undefined" && !window.__OOA_NO_AUTOSTART__) document.addEventListener("DOMContentLoaded", init);
+
+/**
+ * A $name inside other text stays as typed ("Dear $name" is sent literally); ${name} puts the value in. Say so as soon
+ * as such text is entered in a step's settings. Whole references, calculations and conditions are left alone.
+ */
+document.addEventListener("change", (e) => {
+  const el = e.target;
+  if (!el || !el.closest || !el.closest("#props") || !el.matches("input[type=text], textarea")) return;
+  if (el.getAttribute("aria-label") === "Calculation" || el.closest(".cond")) return;
+  const v = String(el.value || "");
+  const m = /(^|[^{$\w\])\$([A-Za-z_]\w*)/.exec(v);
+  if (!m || isVarRef(v) || looksLikeCalc(v) || v.includes("${" + m[2])) return;
+  toast("Inside text, write ${" + m[2] + "} to put in the value of $" + m[2] + ". As typed, “$" + m[2] + "” stays literally in the text.");
+}, true);

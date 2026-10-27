@@ -1,0 +1,9 @@
+{
+  "name": "Collect invoice emails",
+  "description": "Reads a mailbox, picks out the invoice emails and saves their attachments for processing.",
+  "category": "Finance",
+  "version": "1",
+  "agents": {
+    "Finance/Collect invoice emails.flow.json": "../../examples/use-cases/O2-invoice-emails.flow.json"
+  }
+}

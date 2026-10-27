@@ -60,10 +60,13 @@ Edge / Chrome                         this computer
 
 ## Limits
 
-- Run JavaScript and Call JavaScript function run in the page itself, so pages with a strict content security policy
-  refuse them (the error says so). Everything else works on such pages.
+- Run JavaScript on a page whose content security policy forbids evaluating code goes through the browser's debugging
+  interface instead, so the browser briefly shows its "being debugged" bar. Call JavaScript function still needs the
+  page to allow it.
 - Events are created by the page script, so a page that accepts only real (trusted) input events may ignore them.
-- Upload file and drag-to are not available through the connector yet.
+- Upload file sends the files' contents to the page (50 MB at most in all): a file field gets them as if chosen, any
+  other element (a drop zone) gets them dropped on it. Drag-to sends both HTML drag events and pointer moves, for
+  drag libraries that listen to either.
 - A screenshot of a window hidden behind other windows uses the browser's debugging interface for a moment, so the
   browser briefly shows its "being debugged" bar.
 - Firefox is not supported (Edge and Chrome only).

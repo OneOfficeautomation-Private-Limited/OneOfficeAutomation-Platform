@@ -31,7 +31,7 @@ public final class WordPackage {
             throw new ActionException("WORD.READ_ONLY", "The document was opened read-only", "Use save_as with another path, or open it without read_only.");
     }
 
-    private static DocSession s(ActionContext ctx, String name) { return ctx.session(name, DocSession.class); }
+    private static DocSession s(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "word", DocSession.class); }
 
     /**
      * A new paragraph at the end. A new document holds one blank paragraph (a .docx needs one); the first text added
@@ -92,6 +92,14 @@ public final class WordPackage {
 
     public Map<String, Object> readText(ActionContext ctx, String session, boolean includeTables, boolean includeHf, Integer from, Integer to) {
         return readText(ctx, session, includeTables, includeHf, from, to, null, null);
+    }
+
+    @Action(id = "extract_text", name = "Extract text from a file", category = "Text", idempotent = true, capabilities = "filesystem",
+            description = "Return the whole text of a .doc, .docx or .rtf file without opening it as a session; old .doc and .rtf files included.",
+            panel = "path")
+    @Output(name = "text", type = OoaType.STRING, description = "The document's text.")
+    public Map<String, Object> extractText(ActionContext ctx, @Input(name = "path", type = OoaType.FILE, description = "The .doc, .docx or .rtf file.") String path) {
+        return Map.of("text", DocumentText.text(ctx.resolvePath(path), false));
     }
 
     @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true,
@@ -521,6 +529,7 @@ public final class WordPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+        session = ctx.sessionNameOrOnly(session, "word", DocSession.class);
         if (save && ctx.sessions().get(session) instanceof DocSession d) { refuseReadOnly(d, d.path); writeTo(d, d.path, d.password); }
         Object o = ctx.sessions().remove(session);
         if (o instanceof DocSession d) try { d.close(); } catch (IOException ignored) { }

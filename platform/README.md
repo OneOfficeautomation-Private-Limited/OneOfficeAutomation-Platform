@@ -19,7 +19,7 @@ Jackson/networknt adapters and the CLI. It passes the same conformance suite as 
 | `adapters-jackson` | `JacksonJsonCodec`, `NetworkntFlowSchemaValidator` | Jackson, networknt |
 | `control-room` | Control Room: users and roles, public repository with check-in/check-out and versions, devices, runs, schedules, triggers, credential lockers, global values, audit log, web console | H2 (embedded) or PostgreSQL |
 | `agent` | Bot Agent: device registration, heartbeats, jobs, one worker process per run, file triggers | none |
-| `cli` | `ooa manifest`, `validate`, `run`, `conformance`, `studio`, `control-room`, `agent register`, `agent start` | Logback |
+| `cli` | The `ooa` command line: `ooa --help` lists every command, `ooa COMMAND --help` its options; also a native executable | picocli, Logback |
 
 **Optional modules** are listed in `gradle.properties` (`ooa.optionalModules`). If one fails to build on your machine,
 remove it from that line: everything else keeps working and you can keep testing the other commands.
@@ -42,6 +42,25 @@ Run the CLI:
 .\gradlew.bat :cli:run --args="manifest --summary"
 .\gradlew.bat :cli:run --args="validate ../examples/refund/bots/issue_refund.flow.json"
 ```
+
+### The command line
+
+picocli reads the command line: `ooa --help` lists the commands and `ooa db configure --help` (any command) shows
+its options. An unknown or misspelt option, a missing required one or a port that is not a number is refused before
+anything runs, with the help shown (exit code 1). Options take `--name value` or `--name=value`; given twice, the last
+one counts. `source <(ooa completion)` adds Tab completion to bash and zsh. The commands are declared in
+`cli/.../CoreCommands.java` and `FullCommands.java`.
+
+### Native executable
+
+`.\gradlew.bat :cli:nativeExecutable` builds `cli\build\native\ooa.exe` (or `ooa` on Linux and macOS) with GraalVM
+for JDK 21 (`GRAALVM_HOME`, or `JAVA_HOME` pointing at GraalVM; on Windows run it from a Visual Studio developer
+prompt). It starts at once and needs no Java runtime, for build pipelines and quick checks, and has the commands that
+need no Command Center: `validate`, `run`, `manifest`, `conformance`, `license show` and `release verify`. It knows
+every toolkit's commands, so `validate` checks any automation, but `run` runs only the built-in toolkits: an Office,
+email, PDF, browser or Windows desktop step stops with `ACTION.NOT_IN_THIS_PROGRAM`; run those with the full install
+(`bin\ooa.bat`) or on a runner. CI builds it on Linux and Windows, checks that it gives the Java program's answers,
+and keeps both as build artifacts for 14 days.
 
 ### One step: everything on one address
 
@@ -73,15 +92,15 @@ The Studio keeps your work in a **workspace folder outside the project**: by def
 with an `Examples` folder (the refund bots), a `data` folder and an empty `My Bots` folder.
 Use `--args="studio --workspace D:\Bots --port 8710"` to choose another folder. Press Ctrl+C to stop.
 
-Studio features (design A): multi-select (Ctrl/Shift+click), cut, copy, paste, delete, undo/redo, a shared clipboard between bots, a right-click menu and keyboard shortcuts; resizable and collapsible panels; a condition builder for If, Else if, Wait and While; system ($sys), global ($global) and bot variables; live runs with step highlighting, pause, resume and stop; Capture and Pick for web elements; search across bots; icon rail with Explorer, Commands, Variables and Triggers; header buttons to collapse the left, right and run panels; four colour themes plus a dark theme and two densities (gear button); foldable If/Loop/Try blocks with Expand/Collapse all; foldable command groups and settings sections; a run dock that can sit at the bottom, on the right, float or shrink to a mini bar; a Record button for web actions; triggers (file arrives, schedule, local webhook) that run bots while Studio is open. Explorer with folders and sub-folders (create, rename, drag to move, delete to the workspace's
+Studio features (design A): multi-select (Ctrl/Shift+click), cut, copy, paste, delete, undo/redo, a shared clipboard between bots, a right-click menu and keyboard shortcuts; resizable and collapsible panels; a condition builder for If, Else if, Wait and While that reads the condition back as a sentence and can Test it with sample values; system ($sys), global ($global) and bot variables; live runs with step highlighting, pause, resume and stop; Capture and Pick for web elements; search across bots; icon rail with Explorer, Commands, Variables and Triggers; header buttons to collapse the left, right and run panels; four colour themes plus a dark theme and two densities (gear button); foldable If/Loop/Try blocks with Expand/Collapse all; foldable command groups and settings sections; a run dock that can sit at the bottom, on the right, float or shrink to a mini bar; a Record button for web actions; triggers (file arrives, schedule, local webhook) that run bots while Studio is open. Explorer with folders and sub-folders (create, rename, drag to move, delete to the workspace's
 hidden `.trash` folder); command library with search, click-to-add and drag-and-drop; canvas with drag-to-reorder
 and drop into If/Loop/Try blocks; command settings generated from package manifests; variables; live validation;
 run console with outputs, errors and run log; JSON view.
 
 Studio (Part 3): an **Automation** home lists everything in the workspace with type filters, search and sorting, and a
 **+ Create** menu makes Task Bots, API Tasks, bots from templates, **Forms** (`*.form.json`, form designer with preview),
-**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; running them needs the
-planned Assist portal), **Document automations** (`*.doc.json`, fields to extract; generates an AI extraction bot), **AI Skills**
+**Processes** (`*.process.json`, stage designer: bot task, human task, approval, decision, notification; they run on One Command Center,
+with human tasks in its Task inbox), **Document automations** (`*.doc.json`, fields to extract; generates an AI extraction bot), **AI Skills**
 (`ai-skills/*.json`, prompt editor) and **scripts** (Python, PowerShell, VBScript, JavaScript; code editor with Run).
 Commands, canvas steps and If/Loop/Try blocks are colour-coded by category. The **Variables** pane groups inputs, outputs
 and working variables; every type (including Table, List, Dictionary, Record, DateTime, File, Window, UIElement and Credential)
@@ -97,7 +116,7 @@ starting (e.g. `test/api/token` reads `OOA_SECRET_TEST_API_TOKEN`).
 In IntelliJ IDEA: File > Open, select the `platform` folder, and trust the Gradle project.
 
 The Studio preview is a developer workbench: it binds to 127.0.0.1 only, refuses cross-site requests and only
-touches files in its workspace. The production Studio is the React app served by Control Center.
+touches files in its workspace. `ooa server` serves the same Studio from One Command Center, at `/studio/`.
 
 ## Writing a package
 
@@ -136,4 +155,5 @@ Production hardening: PF4J classloader isolation and a compile-time manifest pro
 introspection, a push channel instead of polling for live views, signed custom toolkit uploads, Git sync for the agent
 repository, SAP BAPI (needs the customer's SAP JCo), and macOS and Linux runners.
 
-One Command Center and One Runner setup: see `../docs/CONTROL_ROOM_AND_AGENT.md`.
+One Command Center and One Runner setup: see `../docs/CONTROL_ROOM_AND_AGENT.md`. The multi-tenant service in
+regions (`ooa region start`, `ooa directory start`): see `../docs/SAAS.md`.

@@ -181,6 +181,7 @@ public final class Lifecycle {
         body.put("production", Boolean.TRUE.equals(req.get("production")));
         if (req.get("target_folder") instanceof String tf && !tf.isBlank()) body.put("target_folder", tf);
         HttpResponse<String> res;
+        NetGuard.check(cr, target, "The other Command Center");
         try {
             res = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build().send(HttpRequest.newBuilder(URI.create(target + "/api/lifecycle/import"))
                     .timeout(Duration.ofSeconds(120)).header("Content-Type", "application/json").header("Authorization", "Bearer " + key)

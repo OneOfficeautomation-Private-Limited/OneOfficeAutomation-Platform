@@ -18,8 +18,8 @@ final class RateLimiter {
 
     /** The limit group of a route, or null when the route is not limited (signed-in calls). */
     static String group(String method, String route) {
-        if (!method.equals("POST") && !route.startsWith("auth/sso")) return null;
-        if (route.equals("auth/login") || route.equals("auth/token") || route.startsWith("auth/sso")) return "auth";
+        if (!method.equals("POST") && !route.startsWith("auth/sso") && !route.startsWith("auth/saml")) return null;
+        if (route.equals("auth/login") || route.equals("auth/mfa") || route.equals("auth/mfa/enable") || route.equals("auth/mfa/disable") || route.equals("auth/token") || route.startsWith("auth/sso") || route.startsWith("auth/saml")) return "auth";
         if (route.equals("agent/register")) return "register";
         if (route.startsWith("hooks/") || route.startsWith("apitasks/") && route.endsWith("/run") || route.equals("mcp")) return "calls";
         return null;

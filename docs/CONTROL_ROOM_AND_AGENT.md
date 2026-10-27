@@ -23,8 +23,28 @@ The database upgrades itself on start (schema versions 1 to 3).
 | `--data D:\OOA\cr` | Keep data elsewhere |
 | `ooa db configure ...`, then `ooa db init` | Use SQL Server or PostgreSQL ([DATABASE.md](DATABASE.md)); the server then reads `config\ooa-db.properties` |
 
+**Outgoing proxy** (Administration > Settings > Outgoing connections): the Command Center's own connections to the
+internet (single sign-on, Git, AI model connections, external vaults) go through `http://host:port` when set, except
+the host names listed to reach directly and this computer. Every node picks a change up within a minute.
+
 Production: set the environment variable `OOA_MASTER_KEY` (32 random bytes, Base64) and keep it outside the data folder.
-Without it a key file is created next to the database.
+Without it a key file is created next to the database. Or keep the key in a key store and set `OOA_MASTER_KEY_SOURCE`:
+
+| `OOA_MASTER_KEY_SOURCE` | The key is read from | Signed in with |
+| --- | --- | --- |
+| `azure-keyvault:https://NAME.vault.azure.net/secrets/SECRET` | An Azure Key Vault secret | The machine's managed identity, or `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` |
+| `aws-secrets:REGION/SECRET-ID` | An AWS Secrets Manager secret | `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, the container's task role, or the EC2 instance role |
+| `gcp-secret:projects/P/secrets/S/versions/latest` | A Google Secret Manager secret | The machine's service account |
+| `prompt` | Nobody stores it: an operator types it when the Command Center starts (manual unlock; not for a service) | |
+
+The secret holds the key as Base64 (`openssl rand -base64 32`). It is read at start and kept only in memory. Give the
+machine's identity read access to that one secret. Rotate it in the key store, with a planned restart. Hardware
+security modules (PKCS#11) are not supported yet.
+
+**Before going live**, `bin\ooa.bat check` tests what the install needs: Java, memory, free disk space, the port, the data
+folder, the vault key, the database connection and schema, and HTTPS. Each line is PASS, WARN or FAIL;
+the installer runs it first. For a cloud virtual machine or the Linux container image see
+[CLOUD_INSTALL.md](CLOUD_INSTALL.md).
 
 ### HTTPS
 
@@ -52,7 +72,7 @@ already trust needs nothing more. For a self-signed one, copy `ooa.cer` to the r
 
 Customers install from `ooa-setup-<version>.zip` (Install.cmd, guided or `-Silent`) or `ooa-<version>.msi`
 (`msiexec /qn ROLE=CommandCenter SERVICE=1` or `ROLE=Runner URL=... REGISTRATION_KEY=...`). Both bring their own
-Java. Build them with `gradlew :cli:setupDistZip` and `scriptsuild-msi.ps1` (WiX Toolset 5); CI builds and
+Java. Build them with `gradlew :cli:setupDistZip` and `scripts\build-msi.ps1` (WiX Toolset 5); CI builds and
 install-tests the MSI on every push. The package's README.txt lists every option.
 
 ### Run as a Windows service
@@ -88,6 +108,8 @@ The menu on the left has **Home** and three groups (each can be collapsed):
 
 People only see the pages their role allows.
 
+Pages update by themselves: the console keeps one request open to the Command Center (`GET /api/changes?since=TOKEN&wait=25`), which answers the moment something changes, and the open page is drawn again within about a second. Lists with an export also have **Columns**, to hide columns you do not need (remembered in this browser).
+
 ## 2. People, roles and sign-in
 
 | Built-in role | Can |
@@ -97,8 +119,22 @@ People only see the pages their role allows.
 | Agent operator | View agents, run and stop them, add and work on work queue items |
 | Viewer | Read-only |
 
+- **SAML single sign-on** (Administration > Settings > Single sign-on (SAML 2.0)): for Entra ID, Okta, ADFS and other
+  SAML identity providers. Give the provider the metadata address shown there (`/api/auth/saml/metadata`), then fill in
+  its sign-in address, entity id and signing certificate. The sign-in page gets a SAML button; new people get the
+  role for new people, as with OpenID Connect. Have the provider sign the assertion (or the response) and leave it
+  unencrypted: encrypted assertions are refused. Sign-ins must start at the Command Center's sign-in page.
+- **Two-step sign-in**: anyone with a local password can turn on codes from an authenticator app (Microsoft
+  Authenticator, Google Authenticator or another time-based app) in the user menu > Two-step sign-in. They get ten
+  one-time recovery codes. Administration > Settings > Security can require it for administrators or for everyone;
+  people who still need to set it up can do nothing else until they have. Single sign-on users are left to their
+  identity provider, and API keys are not affected. For a lost phone, an administrator uses Reset two-step on the
+  Users page (`ooa reset-admin` also clears it). Studio's connect form has a Code box for these accounts.
 - **Custom roles** (Administration > Roles): tick the permissions a role needs, for example a "queue clerk" that may
   only see and add work items. Roles in use cannot be deleted.
+- **Switching off built-in roles** (Administration > Settings > Security): a built-in role you do not use (Agent
+  builder, Agent operator, Viewer) can be switched off. It then gives no permissions and cannot be given to anyone;
+  people who still have it keep only their other roles. The Administrator role cannot be switched off.
 - **Several roles per person** (Users > Edit): besides the main role, a person can have **further roles**. They have every
   permission of each of their roles, and rules that name a role (`role:bot_runner` in folder permissions, vault folders,
   work queues, workflow tasks, model connections) apply to them for each role. Administrator is only ever a main role.
@@ -106,6 +142,9 @@ People only see the pages their role allows.
 - **New users** (Users > New user) get a one-time temporary password and must change it at first sign-in. Five wrong
   passwords lock an account for 15 minutes. Administration > Settings can disable accounts that have not signed in for
   a number of days.
+- **Password rules** (Administration > Settings > Security): minimum length, how many earlier passwords may not be used
+  again, and after how many days a password expires. Someone whose password has expired signs in and must choose a new
+  one before doing anything else. Single sign-on users are not affected.
 - **Single sign-on** (Administration > Settings > Single sign-on): enter the OpenID Connect issuer URL and client id of
   Microsoft Entra ID, Okta, Google, Keycloak or another provider. The client secret is a vault reference, never typed into
   settings. Register the redirect address shown there with the provider. The sign-in page then shows a "Sign in with
@@ -143,7 +182,13 @@ People only see the pages their role allows.
        .\gradlew.bat :cli:run --args="agent start"
 
    For a Command Center on HTTPS with a self-signed certificate, add `--ca ooa.cer` (from `ooa tls export-cert`). The
-   runner keeps a copy next to its settings and trusts it from then on.
+   runner keeps a copy next to its settings and trusts it from then on. Runners on Windows also trust the Windows
+   certificate store, so a company certificate authority rolled out by Group Policy needs nothing more.
+
+   **Proxies:** by default the runner uses the Windows proxy settings (including automatic configuration scripts).
+   Use `--proxy none` or `--proxy http://proxy.corp:8080` to choose, and `--proxy-user USER --proxy-password-env VAR`
+   for a proxy that asks for a user name and password (stored encrypted with Windows DPAPI). Change them later with
+   `ooa agent network`. Proxies that only accept Windows (NTLM) sign-in are not supported.
 
 3. To start the runner automatically at sign-in (and restart it if it stops):
 
@@ -152,6 +197,25 @@ People only see the pages their role allows.
    (`ooa agent uninstall-task` removes it; from a source checkout, `scripts\install-agent-task.ps1` does the same.)
    Runners that drive the desktop must run this way, in a signed-in session. A runner for work without a desktop can
    instead be a Windows service: `ooa service install --mode agent`.
+
+**Temporary runners** (pooled virtual desktops, short-lived build machines): tick **Temporary runner** when making
+the registration key. Such a runner is removed by itself once it has been offline for the hours set in Administration
+> Settings (8 by default), and its licence seat is freed. Deleting any runner frees its seat too.
+
+**Runner secrets** are replaced by themselves every 30 days (Settings > Runner secret days; 0 turns it off): the runner
+asks for a new secret with its heartbeat and saves it, and the old one keeps working for a short while in case the
+save is interrupted. No one has to visit the machine.
+
+**Toolkits on the runner**: each runner reports which toolkit versions it has, shown in its details. A run that needs a
+toolkit (or version) the runner lacks does not start there: it fails at once with `RUN.TOOLKIT_MISSING`, naming what is
+missing.
+
+**When the Command Center moves** to a new address with its data, run `ooa agent move --url https://new-address:8720`
+on each runner (and restart it): it keeps its registration. See [CLOUD_INSTALL.md](CLOUD_INSTALL.md).
+
+**When a runner will not connect**, run `ooa agent diagnose` on it. It checks the runner's settings, name lookup, the proxy and
+network, the certificate, the clock, the Command Center's answer, the runner's sign-in, the screen, free disk space
+and toolkits, and says what to fix.
 
 The runner runs each agent in its own process, so a crashing agent never stops the runner. Its log files are in
 `C:\Users\<you>\OOA Agent Workspace\logs`.
@@ -165,6 +229,15 @@ use the screen signed in and unlocked (for example a dedicated account with the 
 
 **Runner pools** (Runners > Runner pools) group runners. A run, schedule or work queue sent to a pool goes to its least
 busy online runner.
+
+**Runner updates**: the Runners list shows whether each runner is on this Command Center's program files. **Update**
+on a runner (or Settings > Update runners automatically) makes an idle runner download the files it needs, check
+every checksum, swap its program folder and start again. A runner service is started again by Windows, a runner at
+sign-in by its task. The bundled Java is not updated this way. A runner installed for all users but started at a
+user's sign-in may not be allowed to write to Program Files; update it with the MSI instead.
+
+**Work arrives at once**: a waiting runner keeps one request open (up to 25 seconds), and the Command Center answers it
+the moment a run is queued or one of its runs is stopped, so runs start without the old polling delay.
 
 **Runner settings** (Runners > Update runners): tick runners, then change for all of them at once:
 
@@ -182,6 +255,16 @@ busy online runner.
 - In Studio, connect at the bottom of the Explorer (One Command Center section).
 - **Agent check-in** sends the open agent as a new version. Agents are validated first; problems block the check-in.
   Workflows and forms are published with **Publish to Command Center** in their designers.
+- **Approval before production** (Administration > Settings > Security): a version then goes live only when a second
+  person with the approval right (administrators, or a custom role with *repo.approve*) approves it. Check-in "as
+  production", **Ask to make live** in the version list and imports as production create a request; **Production
+  approvals** in the Agent repository lists them. Nobody decides their own request; every step is in the audit trail.
+- **Git sync** (Administration > Settings > Git sync of the agent repository): mirrors the repository to a Git branch
+  on GitHub, GitLab, Azure DevOps or any Git server, with the latest version of every agent as indented JSON under
+  `agents/` and `ooa-repository.json` listing each one's latest and live version. Give the remote, the branch and an
+  access token kept in the vault (a vault reference); tick "Push after every check-in" or use **Save and sync now**.
+  Each change becomes a commit with its comment and author. The Command Center stays the source of truth: changes
+  made in Git are overwritten at the next sync.
 - **Agent check-out** locks a public agent for you and copies it into your workspace; others see who has it. Checking
   in releases the lock; **Undo check-out** releases it without a new version.
 - Administrators choose the **live production version**. Runs, schedules, triggers, work queues and workflows always use it.
@@ -335,6 +418,39 @@ API: `POST /api/repo/analyze`, `GET /api/repo/analysis?path=`, `GET /api/repo/an
   run has finished; when it takes longer, the answer is 202 and the caller asks `GET /api/apitasks/{id}/runs/{run_id}`.
 - The token is shown once, works only for its task, and can be replaced; the task can be switched off.
 
+**Serverless API tasks** run inside the Command Center, with no runner: tick **Run on the Command Center** when making the
+task. This suits agents that only call web services and work on data.
+
+- **Toolkits allowed:** the data toolkits (text, numbers, dates, lists, tables, JSON, CSV, XML, crypto, PGP), REST and
+  SOAP, the cloud apps (Microsoft 365, Google, Salesforce, ServiceNow and the others), Email, AI prompts and skills,
+  work queues, and Excel, Word, PowerPoint and PDF files.
+- **Not allowed:** desktop, browser, programs, scripts, databases, server files and custom toolkits. The task is
+  refused when the agent, or an agent it calls, uses one of these (`CR.NOT_SERVERLESS`).
+- **Limits:** every file path must stay inside the run's own temporary workspace (`FILE.OUTSIDE_WORKSPACE` otherwise),
+  which is removed afterwards. At most four runs go at once on each Command Center node, and a run lasts at most
+  5 minutes.
+- **How runs show up:** they run on the virtual runner **Command Center (serverless)**. It is made with the first such
+  task, and only serverless API tasks can use it. Its runs are queued, logged, audited and finished like any other
+  run.
+- **Licensing:** while a license is installed, the virtual runner needs an Unattended Runner seat, like other runners.
+- **Restarts:** a run cut off by a stopped node is failed once it is past the longest time a run may take.
+
+Agents can still reach any address the Command Center can reach through REST and the cloud apps. Make serverless
+tasks only for agents whose addresses you trust.
+
+## 5a. Agent tests
+
+Build > **Agent tests** keeps test sets: an agent, and cases with its inputs and what it should give back. **Run** starts
+one run per case on a runner or pool (the live production version), and the test run is scored when every case has
+answered: each case passed or failed, with the reason (for example `label: got "low", expected "urgent"`). **History**
+shows the scores over time.
+
+A case expects `status` (success by default, or failed), an `error_code` (`EMAIL.*` allowed) and `outputs`. An output
+equals a value (numbers by value), or is checked with `{"op": ..., "value": ...}`: `contains`, `not_contains`,
+`matches` (a regular expression), `approx` (with `tolerance`), `one_of` (a list) or `not_empty`, which suit AI answers
+and Prompt Skills that word things differently each time. API: `/api/test-sets` (GET, POST, PUT, DELETE),
+`POST /api/test-sets/{id}/run` with `device_id` or `pool_id`, `GET /api/test-sets/runs/{run}` and `/{id}/history`.
+
 ## 6. Work queues
 
 Work queues hold items (invoices, tickets, orders) that an agent processes one at a time on a runner pool.
@@ -355,6 +471,12 @@ Work queues hold items (invoices, tickets, orders) that an agent processes one a
    - Failed or deferred items can be retried, waiting items can be deferred, and items not being worked on can be deleted.
    - **Open** an item to change its data, reference or priority (the form follows the model).
    - **Export CSV** downloads the items (filtered by status). Cells that a spreadsheet would read as a formula are made safe.
+   - **Validation**: an agent that is not sure what it read (Extract fields with *Min confidence*, 0.8 for example,
+     gives `needs_review` and `validation`) returns `validation` as an output named `validation`. The item then waits
+     as **To validate**: **Validate** shows each field with how sure the agent was, the unsure ones in red. Correct them
+     and **Approve**, and the item goes back to the agent with `validated_fields`, `validated` and `validated_by` in its
+     `work_item`; or **Reject** it with a reason, and it fails. Both are audited. API:
+     `POST /api/queues/{id}/items/{item}/validate` with `{fields}` or `{reject: true, reason}`.
 5. **Export definition** saves a queue's settings, work item model, members and, if you choose, its waiting items as
    a file. **Import queue** makes a queue from such a file:
    - the model is reused when one with the same name and fields exists;
@@ -381,7 +503,7 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
 | Human task | Puts a form in the Task inbox of a user or role (`user:jane`, `role:bot_runner`), optionally with a due time. The answers join the data, also as `$form.field`. |
 | Approval | Asks a person to approve or reject. A rejection ends the workflow, continues anyway, or jumps to a stage you choose. |
 | Decision | Evaluates a condition such as `$amount > 1000` and goes to one stage or another. |
-| Notification | Sends an inbox notice. Text can use `${name}`. |
+| Notification | Sends an inbox notice to `user:` and `role:` recipients, and an e-mail to plain addresses (once e-mail is set up, section 10b; with an optional subject). Text can use `${name}`. |
 
 1. Publish the workflow and the forms it uses (**Publish to Command Center**), and check in the agents it calls.
 2. Start it from **One Workflow** (or Start in the agent repository), optionally with starting data such as `{"amount": 1200}`.
@@ -440,6 +562,17 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
   generative AI and web goal agent actions.
   - **Type**: standard or fine-tuned model.
   - **Roles that may use it**: runs of people with none of these roles do not receive the connection. Empty means every role.
+  - **Budget and limits**: tokens a month (in and out, counted from the AI calls runs report), calls a minute and calls a
+    run. When the month's tokens are used up, AI steps through the connection fail with `AI.BUDGET_REACHED` until the
+    next month or a higher budget. Past calls a minute, a run waits; past calls a run, the step fails with `AI.CALL_LIMIT`.
+    The list shows each connection's tokens this month.
+  - **Privacy and safety**: a *Microsoft Presidio analyzer* address (run inside the company) adds what Presidio finds
+    (names, places, IDs, in many languages) to the built-in masking when *Hide personal data* is on; the values are put
+    back in the answer and the counts appear in AI governance. The *content check* sends each answer to the provider's
+    moderation endpoint (OpenAI, Azure OpenAI and OpenAI-compatible); a flagged answer fails the step with
+    `AI.CONTENT_FLAGGED`, naming the categories.
+- **AI calls of a run**: the run's details have an *AI calls* tab: each model call in order, with its purpose, model and
+  connection, tokens, time, what was masked and the tools it asked for. Prompts and answers are never stored.
   - **Test connection** sends one very small request ("Answer with OK") with the key from the vault and shows the answer
     and the time. The key is used for that request only; the test is audited.
   - Amazon Bedrock: the model or inference profile id, the endpoint `https://bedrock-runtime.REGION.amazonaws.com`, and
@@ -469,15 +602,49 @@ A workflow chains agents, people and decisions. Design it in One Agent Studio (C
     and with that user's permissions.
   - Agent inputs become the tool's input schema; credential inputs are never offered.
   - Each call is a normal run (source "AI assistant (MCP)") in Agent Runs and the One Audit Trail.
+  - **Sign-in with OAuth**: instead of an API key, an assistant can send an access token from the company's identity
+    provider (the single sign-on issuer). Register an MCP application there, put its application id URI in Settings >
+    AI assistants > Token audience (and a scope it must carry, if you like). Assistants find the issuer at
+    `/.well-known/oauth-protected-resource`, and a 401 from `/api/mcp` points them there. The token is checked like a
+    sign-in (signature, issuer, audience, expiry, scope); it must belong to an existing account, and it works for MCP
+    only, never as a console session.
 
 **Shared values people change for themselves.** In Shared values, Edit > **People may set their own value** lets each
 person keep their own value (**My value**). Their runs, and runs as them, read it instead of the shared one. Turning it
 off removes everyone's own values.
 
+### Knowledge Q&A (answers from your documents)
+
+The **Knowledge Q&A** toolkit (`ooa.knowledge`) answers questions from a company's own documents:
+
+1. **Build index** reads files and folders and writes one index file. It reads text, Markdown, HTML, CSV, JSON, XML,
+   Word `.docx`, and PDF (on runners with the PDF toolkit). It also takes texts an agent already has, for example from
+   OCR. Each document is split into passages (1,000 characters by default, overlapping by 150). With a model connection
+   for embeddings (OpenAI, Azure OpenAI, OpenAI-compatible servers such as Ollama, Vertex AI, or Bedrock Titan and
+   Cohere), each passage also gets a vector.
+2. **Search** returns the passages that best match a question. It always matches by words (BM25). When the index has
+   vectors, it also matches by meaning, so "reimbursement" finds a passage about refunds.
+3. **Ask** gives the best passages to a chat model, which answers from them only, cites them like `[1]`, and says when
+   the documents do not say. When no passage matches, the model is not called.
+
+The index is a plain file (`.json`, or `.json.gz` to keep it smaller). Keep it in the repository files so the runs
+that need it get it. Rebuild it when the documents change. Embedding and answer calls go through One Model
+Connections: their budgets, masking and the AI calls tab apply. Use a saved connection for the embeddings, so
+Search and Ask can reach the same model.
+
 ## 10. One Audit Trail
 
 Every sign-in, change, run, credential use, task and workflow event is recorded and hash-chained. One Audit Trail >
 Verify integrity re-checks the whole chain and reports any record that was edited or deleted.
+
+The chain is keyed with a secret kept encrypted by the vault key, so someone who can write to the database cannot
+rebuild a consistent chain after an edit. Every hour the last record's position and hash are also written to
+`audit-checkpoints.log` in the data folder (copy it to a log collector or write-once storage); Verify compares the
+database with it, so deleting the newest records is found too.
+
+**Audit retention** (Administration > Settings, 90 days at least, 0 keeps everything): older records are moved to
+compressed files in the data folder's `audit-archive` folder before they leave the database, and a record of the cut
+keeps the chain verifiable.
 
 Search by any text, who, action (a prefix such as `repo.` or an exact action), object type, result and a date range,
 newest or oldest first, with paging and the total. **Export CSV** downloads the search (up to 50,000 records); the
@@ -490,6 +657,37 @@ Administration > Toolkits > **Versions** lists the agents that use a toolkit, th
 whether the installed version fits. **Update agents** sets a new range (for example `^2.0.0` after an upgrade) on all
 of them. Each agent gets a new version; its live version stays until you choose the new one. Agents that someone else
 has checked out are left as they are and reported.
+
+## 9b. Your own toolkits (signed jars)
+
+A company's developers can write toolkits of their own with the SDK (`@OoaPackage`, `@Action`, as in the product's
+toolkits) and give them an id of their own, for example `com.acme.billing`. They pack the classes in a jar and sign it:
+
+```
+ooa toolkit keygen --publisher acme --out keys      (once: acme.key stays with the developers, acme.pub goes to the admins)
+ooa toolkit sign --jar billing.jar --class com.acme.billing.BillingToolkit --key keys/acme.key
+ooa toolkit inspect --jar billing.jar               (id, version, publisher, whether the signature matches the code)
+```
+
+The signature covers the toolkit's declared commands and its class, so changing either after signing is refused.
+In Administration > Toolkits, someone with `toolkits.manage`:
+
+1. adds the publisher under **Trusted publishers**, pasting the contents of its `.pub` file;
+2. uploads the signed jar with **Upload toolkit**. It is refused if it is unsigned, signed by a publisher not trusted
+   here or with another key, uses an id that comes with the product or that another publisher uses, or reuses a version
+   number with different contents.
+
+Each version is loaded in a class loader of its own, so several versions stay installed side by side. Agents choose
+one with their version range (`requires.packages`, see 9a). Without a range they get the newest version. The jars are
+kept with the repository files (the shared `repo_files_folder` in a cluster) and loaded again when the Command Center
+starts. A run that uses a custom toolkit carries the versions it needs. The runner checks each jar's SHA-256 and its
+publisher signature again before loading it, and the run fails with `RUN.TOOLKIT_LOAD` if either check fails. A
+version can be deleted (**Your toolkit versions**) unless it is the only one and agents use it. A publisher can be
+removed once none of its versions are left.
+
+A trusted publisher's code runs with the runner's rights, as the product's own toolkits do. Trust only publishers
+whose code you would install yourself. API: `GET/POST /api/toolkits/custom` (the POST body is the jar),
+`DELETE /api/toolkits/custom/{id}`, `GET/POST /api/toolkits/publishers`, `DELETE /api/toolkits/publishers/{name}`.
 
 ## 10a. Operations
 
@@ -505,8 +703,167 @@ profile**: for each output, how often it had a value, its most common values and
 
 **Run history retention** (Administration > Settings): step logs and whole runs older than the periods you set are
 removed once an hour, and **Remove now** removes them at once. Queued and running runs are never removed.
-Settings also shows **This Command Center**: the edition (self-hosted, no limits on people, runners or agents) and
+Settings also shows **This Command Center**: the edition (from the license, or the evaluation; seats are on the Licenses page) and
 what it holds. An agent's **Statistics** (agent details, or a
 click in these lists) shows its errors and runners. Only agents the person may see (folder permissions) are counted.
 API: `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=`, `GET /api/analytics/agent?path=`,
 `GET /api/analytics/export?report=most_run|longest|most_failed|by_runner|by_day|by_source|run_history`.
+
+**Other retention** (Administration > Settings): AI calls and finished work items older than the days you set are
+removed with the run history (0 keeps them).
+
+## 10a-2. Dashboards and business figures (KPIs)
+
+In Agent Studio, tick **Business figure (KPI)** on an output variable (Number, String or Boolean). Each successful run
+records its value. Operations > **Dashboards** shows dashboards of widgets:
+
+- **Source**: a KPI (`kpi`, aggregated with `sum`, `avg`, `count`, `min`, `max` or `last`, optionally for one `bot`) or the
+  runs (`metric`: `runs`, `success_rate`, `failed`, `avg_seconds`, `hours_saved`).
+- **Group**: none, `day`, `week`, `month`, `agent`, or `value`, which groups by the KPI's own value or, with `by`, by
+  another KPI of the same run (the amount by category).
+- **Type**: a number, bars, a line or a table, over the last 1 to 365 `days` (30 by default).
+
+A dashboard is its maker's until shared with `role:...`, `team:...`, `user:...` or `*` (everyone with `analytics.view`).
+Only agents the viewer may see are counted. API: `/api/dashboards` (GET, POST, PUT, DELETE),
+`GET /api/dashboards/{id}/data?tz=...`, `GET /api/dashboards/kpis`.
+
+## 10b. E-mail from the Command Center
+
+Administration > Settings > E-mail: the company's outgoing mail server, port, security (STARTTLS, SSL/TLS, or none on
+a trusted network only), the account and its password as a vault reference (`folder/credential/attribute`), and the
+sender address. **Send a test e-mail** checks it. The Command Center uses it for licence reminders
+([LICENSING.md](LICENSING.md)). Messages are plain text; the server's certificate must name the server.
+
+## 10c. Backups
+
+Administration > Settings > Backups makes a backup every few hours (0 turns it off) into the data folder's `backups`
+folder or a folder you choose, and keeps them for the days you set. **Back up now** makes one at once. A backup is
+one zip with every table and the repository files. It holds vault values encrypted but never the vault key: keep
+`OOA_MASTER_KEY` (or `master.key`) safely apart.
+
+From `bin`: `ooa backup now`, `ooa backup list` and, with the Command Center stopped, `ooa backup restore FILE` (into an
+empty database; `--replace` to overwrite). Restore refuses a backup made with another vault key. With SQL Server or
+PostgreSQL, keep the database's own backups as well.
+
+## 10d. Several Command Center nodes
+
+Two or more Command Centers can share one SQL Server or PostgreSQL database behind a load balancer (no sticky
+sessions needed). Every node serves the console, the API and runners; one node at a time leads the background work
+(schedules, triggers, queues, housekeeping, backups) and another takes over within about 30 seconds if it stops.
+Administration > Settings > Several nodes lists the nodes and which leads. Put repository files on a shared folder
+there (for example `\\fileserver\ooa\repo-files`) and give every node the same `OOA_MASTER_KEY`.
+
+## 10e. A disaster recovery site
+
+A second site takes over when the main one is lost. It needs three things kept in step with the main site:
+
+| What | How to keep the copy | How far behind it may be |
+|---|---|---|
+| The database | SQL Server: an Always On availability group with an asynchronous replica at the second site, or log shipping. PostgreSQL: streaming replication. | Seconds (availability group, streaming) to the log backup interval (log shipping) |
+| Repository files and custom toolkits (the `repo_files_folder` share) | DFS Replication, storage replication, or a scheduled `robocopy /MIR` | The copy interval |
+| The vault key | The same `OOA_MASTER_KEY` on every node of both sites, kept in your secrets store | Never changes |
+
+Install the Command Center on the second site's servers like the main nodes, with the same `ooa-db.properties`. Point
+them at the database's listener or DNS name, not at one server. Leave them stopped while the main site runs: the
+replica is read-only, and only one site may write. Runners and people should reach the Command Center by a DNS name
+(for example `ooa.company.com`) that you can point at either site.
+
+**Rehearse it** (at least twice a year), and after a real loss:
+
+1. Fail the database over to the second site (or restore the latest backup there), so it can be written.
+2. Make the second site's copy of the shared folder the live one.
+3. Run `ooa check` on a second-site node. Besides the computer, it checks two things. First, that the vault key opens
+   the stored credentials. Second, that every repository file and toolkit jar the database lists is in the folder.
+   Fix any FAIL first.
+4. Start the second site's nodes, then point the DNS name (or the load balancer) at them. One node becomes the leader
+   within about 30 seconds.
+5. Runners reconnect by themselves through the DNS name. A runner registered with a server's own name needs
+   `ooa agent move --url https://ooa.company.com`.
+6. A run that was going when the main site was lost finishes if its runner reaches the second site. Otherwise the
+   housekeeping fails it once its runner has not reported for two minutes; serverless runs fail after their time
+   limit. Queued runs, schedules and work queues carry on. With an asynchronous copy, the last few seconds of changes
+   before the loss may be missing.
+
+To go back, copy the database and the folder the other way and repeat the steps. The backups (10c) are the fallback
+when the replica cannot be used. Restore the latest one at the second site with `ooa backup restore`.
+
+## 10f. Interface languages
+
+One Command Center and One Agent Studio are available in English, Deutsch, Français, Español and 日本語. Choose a
+language under **Language** in the user menu (Command Center) or the view menu (Studio). The choice is kept per
+browser. Without a choice, the browser's own language is used when there is a catalog for it.
+
+Names, ids, data and code are never translated, and nor are messages from the server or toolkit command reference.
+A text without a translation shows in English.
+
+For developers: interface texts are written in English in `cr.js`, `studio.js` and the two `index.html` files.
+`ooa-ui/ooa-i18n.js` swaps each visible text, placeholder, tooltip and accessible name for the chosen language as the
+page draws it. After changing texts:
+
+1. Run `python scripts/i18n-extract.py`. It refreshes `ooa-i18n-keys.json`.
+2. Write the new translations as numbered lines and run `python scripts/i18n-merge.py <language> <file>`.
+3. Run `I18nCatalogsTest`. It fails when a catalog loses its `{}` places or covers less than 85% of the texts.
+
+Texts built from parts (`"Delete " + name + "?"`) become keys with `{}` (`Delete {}?`). Elements with the class `mono`
+or the attribute `data-no-i18n` are left as they are.
+
+## 10g. The assistant in the notification area (attended desktop app)
+
+`ooa assistant` (Windows, from `bin`) puts ONEOFFICEAUTOMATION in the notification area for people who work beside
+their agents. It runs as the signed-in person:
+
+- **Run an agent** lists the agents with a live production version that the person may see. It asks for each input
+  (a Credential input takes a vault reference such as `finance/sap/password`). It then starts the agent attended on
+  the person's default runner, as them.
+- **Task inbox (n)** counts the open workflow tasks for them. A notice appears when a new one arrives.
+- A notice appears when one of their runs finishes, fails or is stopped. Clicking it opens the page in One Command
+  Center.
+- **My runs** and **Open One Command Center** open the console. **Sign out** forgets the address and key.
+
+The first start asks for the Command Center address and an API key, which the person makes under their name > API
+keys. The key is stored in `%APPDATA%\ONEOFFICEAUTOMATION\assistant.json`, protected for that Windows user with
+DPAPI. It answers to whatever the key's owner may do; revoking the key stops the assistant. To start it at sign-in, put
+a shortcut to `bin\ooa.bat assistant` in the person's Startup folder.
+
+## 10h. Older Windows applications and Java applications
+
+**Legacy (MSAA) objects** (Desktop objects toolkit): some older programs (owner-drawn Win32, VB6, Delphi and many
+ERP or terminal front ends) describe their controls through MSAA (IAccessible) better than through UI Automation.
+**Find legacy objects** lists the controls of a window. For each it gives name, role, value, default action, state
+and position, and a path such as `0.3.1`. **Legacy object action** finds a control by name and role (or by path).
+It then does its default action (press, check, open), sets or reads its value, selects it, or reads its properties.
+
+**Java applications (Swing/AWT)** works with desktop programs written in Java. The runner loads a small agent into
+the program (Java Attach API) and uses the program's own accessibility information, as screen readers do. The Java
+Access Bridge need not be switched on.
+- **Get Java applications** lists the Java programs with windows.
+- **Find Java objects** lists the controls of a window: name, role, text, state, actions and path.
+- **Java object action** presses a control, sets or reads text, gives it the focus, or reads its properties.
+
+The program must run as the runner's user, on Java 8 or later, without `-XX:-EnableDynamicAgentLoading`. The agent
+answers only on 127.0.0.1, and only to requests with the token it gave this runner. Programs named like developer
+tools (Gradle, Maven, IDEs) are left alone unless named in `process`.
+
+SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`).
+
+## 10i. Templates
+
+**Build > Templates** lists ready-made agents to install into the agent repository and adapt (K7):
+
+- **ONEOFFICEAUTOMATION's catalogue**, published with each release beside the releases page (`templates.json`):
+  invoice summary and overdue invoice report in Excel, collecting invoice emails, letters from PDF invoices, REST API
+  data into a database, and sorting support tickets with AI. The catalogue carries ONEOFFICEAUTOMATION's signature; one
+  that was changed is refused as a whole. Settings > *Template catalogue* sets another address (https), or `off`.
+  Without internet access, download `templates.json` from the releases page and use **Upload a catalogue file**.
+- **The region's shared templates** (SaaS service only): **Share an agent** offers one of your agents (its live
+  production version and the agents it calls) to the other companies in your region. It shows once the service's
+  operators approve it (`ooa region template list|approve|reject`). Only the agents are shared, never credentials,
+  shared values or runs.
+
+**Install** puts the template's agents under a folder (default `Templates`) as Lifecycle import does: every agent is
+checked first, nothing is installed unless all pass, and agents already there are kept. Installing needs the *import
+agents* permission; sharing needs *export agents*.
+
+The templates themselves are in `templates/` of the source repository: a folder per template with `template.json`
+(name, description, category and its agents, which are the examples in `examples/`). `ooa release templates` signs
+them into `templates.json`; the publish script does it with each release.

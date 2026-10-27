@@ -22,7 +22,8 @@ subprojects {
     }
 
     tasks.withType<Test>().configureEach {
-        useJUnitPlatform()
+        // load and soak tests (@Tag("load")) run only through gradlew :cli:loadTest
+        useJUnitPlatform { if (name != "loadTest") excludeTags("load") else includeTags("load") }
         systemProperty("ooa.contracts", rootProject.file("../contracts").absolutePath)
         systemProperty("ooa.examples", rootProject.file("../examples").absolutePath)
         // -Pooa.test.db=jdbc:sqlserver://localhost:1433;encrypt=false (+ ooa.test.db.user, ooa.test.db.password) runs the tests on SQL Server

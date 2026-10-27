@@ -35,7 +35,7 @@ public final class PowerPointPackage {
         @Override public void close() throws IOException { ppt.close(); }
     }
 
-    private static DeckSession s(ActionContext ctx, String name) { return ctx.session(name, DeckSession.class); }
+    private static DeckSession s(ActionContext ctx, String name) { return ctx.sessionOrOnly(name, "powerpoint", DeckSession.class); }
 
     private static int lastSlide(DeckSession d) { return d.ppt.getSlides().size(); }
 
@@ -193,6 +193,7 @@ public final class PowerPointPackage {
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"powerpoint\"", description = "Presentation session.") String session,
             @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+        session = ctx.sessionNameOrOnly(session, "powerpoint", DeckSession.class);
         if (save && ctx.sessions().get(session) instanceof DeckSession d) write(d, d.path);
         Object o = ctx.sessions().remove(session);
         if (o instanceof DeckSession d) try { d.close(); } catch (IOException ignored) { }
@@ -407,6 +408,16 @@ public final class PowerPointPackage {
     private static final String D_MATCH_CASE = "Match upper/lower case exactly.";
     private static final String D_WHOLE_WORD = "Only match the text as a whole word, not inside a longer word.";
     private static final String D_OCCURRENCE = "Which occurrences to change, in slide order: all, the first or the last.";
+
+    @Action(id = "extract_text", name = "Extract text from a file", category = "Text", idempotent = true, capabilities = "filesystem",
+            description = "Return the whole text of a .ppt or .pptx file without opening it as a session, optionally with the speaker notes; old .ppt files included.",
+            panel = "path, include_notes")
+    @Output(name = "text", type = OoaType.STRING, description = "The presentation's text, slide after slide.")
+    public Map<String, Object> extractText(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "The .ppt or .pptx file.") String path,
+            @Input(name = "include_notes", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also return the speaker notes.") boolean notes) {
+        return Map.of("text", DocumentText.text(ctx.resolvePath(path), notes));
+    }
 
     @Action(id = "read_text", name = "Read text", category = "Text", idempotent = true, description = "Return the text of every slide, one entry per slide in slide order.",
             panel = "session")

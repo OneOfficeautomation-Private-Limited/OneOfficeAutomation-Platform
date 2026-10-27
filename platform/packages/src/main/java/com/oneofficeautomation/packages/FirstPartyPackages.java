@@ -17,8 +17,8 @@ public final class FirstPartyPackages {
             XmlPackage.class, LogPackage.class, BooleanPackage.class, ApplicationPackage.class, ScriptPackage.class, NetworkPackage.class,
             SoapPackage.class, ActiveDirectoryPackage.class, PrinterPackage.class, ServicesPackage.class, DesktopPackage.class, InterruptsPackage.class, ImagePackage.class,
             Microsoft365Package.class, GooglePackage.class, SalesforcePackage.class, ServiceNowPackage.class, JiraPackage.class, SlackPackage.class,
-            WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, ExcelDesktopPackage.class,
-            OcrPackage.class, PgpPackage.class, GenAiPackage.class, AiSkillsPackage.class, AiAgentPackage.class,
+            WorkdayPackage.class, SoundPackage.class, RunContextPackage.class, GlobalValuesPackage.class, ExcelDesktopPackage.class, OutlookDesktopPackage.class,
+            OcrPackage.class, PgpPackage.class, GenAiPackage.class, AiSkillsPackage.class, AiAgentPackage.class, KnowledgePackage.class,
             WorkloadPackage.class, InsightsPackage.class, TerminalPackage.class, SapPackage.class, ConnectorPackage.class,
             FuzzyPackage.class, CurrencyPackage.class, TriggerLoopPackage.class,
             GitHubPackage.class, AzureDevOpsPackage.class, AsanaPackage.class, ZendeskPackage.class,
@@ -36,7 +36,7 @@ public final class FirstPartyPackages {
             "com.oneofficeautomation.packages.transfer.FileTransferPackage",
             "com.oneofficeautomation.packages.windows.WindowPackage",
             "com.oneofficeautomation.packages.windows.DllPackage",
-            "com.oneofficeautomation.packages.windows.DesktopUiPackage",
+            "com.oneofficeautomation.packages.windows.DesktopUiPackage", "com.oneofficeautomation.packages.windows.JavaAppsPackage",
             "com.oneofficeautomation.packages.windows.CredentialManagerPackage");
 
     /** Development registry: signs with an ephemeral first-party key. Release builds ship pre-signed JARs. */

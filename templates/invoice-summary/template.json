@@ -1,0 +1,9 @@
+{
+  "name": "Invoice summary in Excel",
+  "description": "Reads invoices from an Excel workbook, totals them, and writes the ones above a threshold to a Review sheet, largest first.",
+  "category": "Finance",
+  "version": "1",
+  "agents": {
+    "Finance/Invoice summary.flow.json": "../../examples/excel/invoice_summary.flow.json"
+  }
+}

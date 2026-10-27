@@ -312,6 +312,102 @@ public final class DesktopUiPackage {
         }
     }
 
+    // ---------- MSAA (IAccessible), for older applications ----------
+    private static final String D_WIN_TITLE = "Title of the application window: text it contains, or a pattern with * and ?.";
+    private static final String D_WIN_PROCESS = "Program of the window, e.g. myerp.exe (optional, narrows the search).";
+    private static final String D_MSAA_ROLE = "MSAA role, e.g. push button, editable text, list item, check box (contains, or * and ?).";
+
+    /** The first window that matches, or an error naming what was looked for. */
+    static Object msaaWindow(ActionContext ctx, String title, String process) {
+        if ((title == null || title.isBlank()) && (process == null || process.isBlank()))
+            throw new ActionException("DESKTOP_UI.BAD_INPUT", "Give the window title or its program");
+        String match = title != null && (title.contains("*") || title.contains("?")) ? "wildcard" : "contains";
+        List<Object> h = windowHandles(ctx, new DesktopObject.WindowSpec(title, match, process, null));
+        if (h.isEmpty()) throw new ActionException("DESKTOP_UI.OBJECT_NOT_FOUND", "No open window matches " + (title == null || title.isBlank() ? process : "'" + title + "'"),
+                "Open the application first, or check the title.", true);
+        return h.get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<Object> msaaFind(ActionContext ctx, Object handle, String name, String role, String value, int max) {
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("handle", handle); req.put("name", name == null ? "" : name); req.put("role", role == null ? "" : role); req.put("value", value == null ? "" : value);
+        req.put("max", BigDecimal.valueOf(max));
+        return (List<Object>) call(ctx, "msaa_find", req);
+    }
+
+    @Action(id = "find_legacy_objects", name = "Find legacy (MSAA) objects", category = "Capture", idempotent = true, capabilities = "desktop",
+            description = "List the controls of an older application through MSAA (IAccessible), for programs UI Automation does not describe well: name, role, value, default action, state and position, each with its path.",
+            panel = "window_title, name, role, value | process, max")
+    @Output(name = "objects", type = OoaType.LIST, description = "Matching objects: path, name, role, value, description, default_action, state, unavailable, checked, invisible, focusable, bounds.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching objects.")
+    public Map<String, Object> findLegacyObjects(ActionContext ctx,
+            @Input(name = "window_title", type = OoaType.STRING, required = false, description = D_WIN_TITLE) String title,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "Name of the control (contains, or * and ?); empty for any.") String name,
+            @Input(name = "role", type = OoaType.STRING, required = false, description = D_MSAA_ROLE) String role,
+            @Input(name = "value", type = OoaType.STRING, required = false, description = "Value of the control (contains, or * and ?); empty for any.") String value,
+            @Input(name = "process", type = OoaType.STRING, required = false, description = D_WIN_PROCESS) String process,
+            @Input(name = "max", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, max = 5000, description = "At most this many objects.") int max) {
+        UiGuard.before(ctx);
+        List<Object> list = msaaFind(ctx, msaaWindow(ctx, title, process), name, role, value, max);
+        return Map.of("objects", list, "count", BigDecimal.valueOf(list.size()));
+    }
+
+    @Action(id = "legacy_object_action", name = "Legacy (MSAA) object action", category = "Capture", timeoutSeconds = 600, capabilities = "desktop",
+            description = "Act on a control of an older application through MSAA: its default action (press a button, check a box), set or get its value, select it, or read its properties. Find it by name and role, or by path.",
+            panel = "window_title, (Find the control by: Name and role = name, role, index / Path = path), action, value | process, timeout_seconds")
+    @Output(name = "result", description = "The value read (get_value), the properties (get_properties), or true.")
+    @Output(name = "object", type = OoaType.DICTIONARY, description = "The object acted on: path, name, role, value and the rest.")
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> legacyObjectAction(ActionContext ctx,
+            @Input(name = "window_title", type = OoaType.STRING, required = false, description = D_WIN_TITLE) String title,
+            @Input(name = "name", type = OoaType.STRING, required = false, description = "Name of the control (contains, or * and ?).") String name,
+            @Input(name = "role", type = OoaType.STRING, required = false, description = D_MSAA_ROLE) String role,
+            @Input(name = "index", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, description = "Which match to use when several do, 0 for the first.") int index,
+            @Input(name = "path", type = OoaType.STRING, required = false, example = "0.3.1", description = "The object's path from Find legacy objects, instead of name and role.") String path,
+            @Input(name = "action", type = OoaType.STRING, required = false, defaultValue = "\"default_action\"", enumValues = {"default_action", "set_value", "get_value", "select", "get_properties"},
+                    description = "default_action presses, checks or opens it as the application defines; set_value types the value into it.") String action,
+            @Input(name = "value", type = OoaType.STRING, required = false, visibleWhen = "action=set_value", description = "The value to set.") String value,
+            @Input(name = "process", type = OoaType.STRING, required = false, description = D_WIN_PROCESS) String process,
+            @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 0, description = "How long to wait for the window and the control, in seconds.") double timeout) {
+        UiGuard.before(ctx);
+        String act = action == null || action.isBlank() ? "default_action" : action;
+        long end = System.currentTimeMillis() + (long) (Math.max(0, timeout) * 1000);
+        Map<String, Object> target = null;
+        Object handle = null;
+        while (true) {
+            try {
+                handle = msaaWindow(ctx, title, process);
+                if (path != null && !path.isBlank()) {
+                    target = (Map<String, Object>) call(ctx, "msaa_act", Map.of("handle", handle, "path", path.strip(), "action", "properties"));
+                } else {
+                    if ((name == null || name.isBlank()) && (role == null || role.isBlank())) throw new ActionException("DESKTOP_UI.BAD_INPUT", "Give the control's name, role or path");
+                    List<Object> found = msaaFind(ctx, handle, name, role, null, index + 1);
+                    if (found.size() > index) target = (Map<String, Object>) found.get(index);
+                }
+            } catch (ActionException e) {
+                if (!"DESKTOP_UI.OBJECT_NOT_FOUND".equals(e.code()) || System.currentTimeMillis() >= end) throw e;
+            }
+            if (target != null || System.currentTimeMillis() >= end) break;
+            ctx.checkCancelled();
+            SelfHealing.SYSTEM.sleep(400);
+        }
+        if (target == null) throw new ActionException("DESKTOP_UI.OBJECT_NOT_FOUND", "No control " + (name == null || name.isBlank() ? "" : "named '" + name + "' ") + (role == null || role.isBlank() ? "" : "with role '" + role + "' ") + "in the window",
+                "Use Find legacy objects to see the names and roles the application gives its controls.", true);
+        Object result = switch (act) {
+            case "get_properties" -> target;
+            default -> {
+                Map<String, Object> req = new LinkedHashMap<>(Map.of("handle", handle, "path", target.get("path"), "action", act.equals("get_value") ? "get_value" : act));
+                if (act.equals("set_value")) req.put("value", value == null ? "" : value);
+                yield call(ctx, "msaa_act", req);
+            }
+        };
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("result", result);
+        out.put("object", target);
+        return out;
+    }
+
     @Action(id = "find_objects", name = "Find desktop objects", category = "Capture", idempotent = true, capabilities = "desktop",
             description = "Return every control that matches the object's used properties (the index is ignored), with their recorded properties.",
             panel = "object | timeout_seconds")

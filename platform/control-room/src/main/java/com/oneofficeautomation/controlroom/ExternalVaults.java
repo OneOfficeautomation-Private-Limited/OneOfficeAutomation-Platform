@@ -32,6 +32,9 @@ public final class ExternalVaults {
     public static final List<String> PROVIDERS = List.of("hashicorp", "azure_keyvault", "aws_secrets_manager", "cyberark_ccp");
 
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final ControlRoom cr;
+
+    ExternalVaults(ControlRoom cr) { this.cr = cr; }
     /** Azure access tokens, cached until shortly before they expire. */
     private final Map<String, Object[]> tokens = new ConcurrentHashMap<>();
 
@@ -84,6 +87,7 @@ public final class ExternalVaults {
     private static String enc(String s) { return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20"); }
 
     private Map<String, Object> send(HttpRequest req, String what) throws Exception {
+        NetGuard.check(cr, req.uri().toString(), "The external vault");
         HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
         if (r.statusCode() == 404) throw new OoaException("VAULT.NOT_FOUND", what + " was not found in the external vault");
         if (r.statusCode() == 401 || r.statusCode() == 403) throw new OoaException("VAULT.EXTERNAL_DENIED", "The external vault refused access to " + what + " (HTTP " + r.statusCode() + ")",

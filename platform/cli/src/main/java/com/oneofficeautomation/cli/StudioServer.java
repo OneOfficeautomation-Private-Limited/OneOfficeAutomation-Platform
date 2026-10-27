@@ -133,15 +133,16 @@ public final class StudioServer {
     private void asset(HttpExchange ex, String path) throws IOException {
         String name = switch (path) {
             case "/", "/index.html" -> "index.html";
-            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css" -> path.substring(1);
-            default -> null;
+            case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css", "/ooa-i18n.js" -> path.substring(1);
+            // interface language catalogs
+            default -> path.matches("^/ooa-i18n-[a-z]{2}\\.json$") ? path.substring(1) : null;
         };
         if (name == null) { send(ex, 404, "text/plain", "Not found"); return; }
         // The shared design system comes from the Command Center module, so both applications use the same files.
         String folder = name.startsWith("ooa-") ? "/ooa-ui/" : "/studio/";
         try (InputStream in = StudioServer.class.getResourceAsStream(folder + name)) {
             if (in == null) { send(ex, 404, "text/plain", "Missing asset " + name); return; }
-            String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8"
+            String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".json") ? "application/json; charset=utf-8"
                     : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
             sendBytes(ex, 200, type, in.readAllBytes());
         }
@@ -239,6 +240,8 @@ public final class StudioServer {
             sendJson(ex, 200, assistantBuild((Map<String, Object>) body(ex)));
         } else if (method.equals("GET") && route.equals("deps")) {
             sendJson(ex, 200, dependencies(query(ex).getOrDefault("path", "")));
+        } else if (method.equals("POST") && route.equals("condition/test")) {
+            sendJson(ex, 200, testCondition((Map<String, Object>) body(ex)));
         } else if (method.equals("POST") && route.equals("validate")) {
             sendJson(ex, 200, Map.of("problems", validator().validate((Map<String, Object>) body(ex))));
         } else if (method.equals("POST") && route.equals("run")) {
@@ -261,7 +264,7 @@ public final class StudioServer {
                 st.put("sameServer", sameServerControlRoom != null);
                 sendJson(ex, 200, st);
             }
-            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"))); }
+            else if (method.equals("POST") && r.equals("connect")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.connect((String) b.get("url"), (String) b.get("username"), (String) b.get("password"), (String) b.get("code"))); }
             else if (method.equals("POST") && r.equals("disconnect")) { cr.disconnect(); sendJson(ex, 200, cr.status()); }
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
@@ -803,6 +806,41 @@ public final class StudioServer {
             }
         }
         return out;
+    }
+
+    /**
+     * The If builder's Test (T6): runs the condition once with sample values for the variables it uses, in a one-step
+     * agent (If, then a true or false answer), so it is judged exactly as in a run. {condition, variables: [{name, type,
+     * value}]} gives {result} or {error}.
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> testCondition(Map<String, Object> req) {
+        List<Object> vars = new ArrayList<>();
+        Map<String, Object> inputs = new LinkedHashMap<>();
+        if (req.get("variables") instanceof List<?> l) for (Object o : l) {
+            if (!(o instanceof Map<?, ?> v) || !(v.get("name") instanceof String n) || !n.matches("[A-Za-z_][A-Za-z0-9_]*") || n.equals("ooa_condition_result")) continue;
+            Map<String, Object> d = new LinkedHashMap<>();
+            d.put("name", n);
+            d.put("type", v.get("type") instanceof String t ? t : "Any");
+            d.put("direction", "input");
+            vars.add(d);
+            if (v.containsKey("value")) inputs.put(n, v.get("value"));
+        }
+        vars.add(Map.of("name", "ooa_condition_result", "type", "Boolean", "direction", "output"));
+        Map<String, Object> flow = new LinkedHashMap<>();
+        flow.put("kind", "TaskBot"); flow.put("id", "condition_test"); flow.put("name", "Condition test");
+        flow.put("variables", vars);
+        Map<String, Object> ifStep = new LinkedHashMap<>();
+        ifStep.put("id", "test"); ifStep.put("action", "core/if");
+        ifStep.put("args", Map.of("condition", req.get("condition") == null ? false : req.get("condition")));
+        ifStep.put("children", List.of(Map.of("id", "yes", "action", "core/set", "args", Map.of("variable", "ooa_condition_result", "value", true))));
+        ifStep.put("else", List.of(Map.of("id", "no", "action", "core/set", "args", Map.of("variable", "ooa_condition_result", "value", false))));
+        flow.put("steps", List.of(ifStep));
+        try {
+            RunResult r = runner(new EventSink.ListSink()).run(flow, inputs, new Runner.RunOptions().maxRunSeconds(30));
+            if (!r.ok()) { Map<String, Object> m = r.toMap(); return Map.of("error", m.get("error") == null ? "The condition could not be checked" : m.get("error")); }
+            return Map.of("result", Boolean.TRUE.equals(r.outputs().get("ooa_condition_result")));
+        } catch (OoaException e) { return Map.of("error", e.toMap()); }
     }
 
     /** One configured Runner: repository, vault and bot invoker services (agents can call bots; nesting is limited). */

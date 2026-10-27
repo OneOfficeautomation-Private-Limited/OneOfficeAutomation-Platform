@@ -1,0 +1,42 @@
+# One SaaS region with PostgreSQL, for trying the multi-tenant service (docs/SAAS.md):
+#   docker compose -f docker/compose.saas.yaml up -d
+# Set these in a .env file beside this file (never commit it):
+#   OOA_DB_PASSWORD=...              the region's database account
+#   OOA_MASTER_KEY=...               the region's master key: openssl rand -base64 32 (it encrypts every tenant's key)
+#   OOA_OPERATOR_TOKEN_SHA256=...    from: docker run --rm ooa-command-center:0.1.1 region token (keep the token itself safe)
+# Tenants are NAME.in.localtest.me:8720 (localtest.me and its sub-domains point to 127.0.0.1). Create one with:
+#   docker compose -f docker/compose.saas.yaml exec -e OOA_OP_TOKEN=<token> region /opt/ooa/bin/ooa region tenant create \
+#     --url http://127.0.0.1:8720 --token-env OOA_OP_TOKEN --slug acme --name "Acme Ltd"
+# For production put TLS in front (a wildcard certificate for *.DOMAIN) and follow docs/SAAS.md: egress rules, backups.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ooa
+      POSTGRES_USER: ooa_region
+      POSTGRES_PASSWORD: ${OOA_DB_PASSWORD:?set OOA_DB_PASSWORD in .env}
+    volumes: [ "region-db:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ooa_region -d ooa" ]
+      interval: 5s
+      retries: 30
+
+  region:
+    image: ooa-command-center:0.1.1
+    command: [ "region", "start", "--data", "/data" ]
+    depends_on: { db: { condition: service_healthy } }
+    ports: [ "8720:8720" ]
+    environment:
+      OOA_REGION: in
+      OOA_DOMAIN: in.localtest.me
+      OOA_DB_URL: "jdbc:postgresql://db:5432/ooa"
+      OOA_DB_USER: ooa_region
+      OOA_DB_PASSWORD: ${OOA_DB_PASSWORD}
+      OOA_MASTER_KEY: ${OOA_MASTER_KEY:?set OOA_MASTER_KEY in .env}
+      OOA_OPERATOR_TOKEN_SHA256: ${OOA_OPERATOR_TOKEN_SHA256:?set OOA_OPERATOR_TOKEN_SHA256 in .env}
+    volumes: [ "region-data:/data" ]
+    restart: unless-stopped
+
+volumes:
+  region-db:
+  region-data:

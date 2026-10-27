@@ -88,6 +88,7 @@ public final class RunWorker {
         writeFiles(workspace, (Map<String, Object>) job.getOrDefault("files", Map.of()));
         Map<String, Object> skills = (Map<String, Object>) job.getOrDefault("skills", Map.of());
         PackageRegistry registry = FirstPartyPackages.registry();
+        String toolkitProblem = loadCustomToolkits(registry, workspace, (List<Object>) job.getOrDefault("custom_toolkits", List.of()));
         EventSink sink = e -> send(Map.of("type", "event", "event", e.toMap()));
         String principal = String.valueOf(job.getOrDefault("principal", "agent"));
         Runner[] holder = new Runner[1];
@@ -107,8 +108,11 @@ public final class RunWorker {
         long aiStart = 0;
         try { aiStart = java.nio.file.Files.exists(aiLog) ? java.nio.file.Files.size(aiLog) : 0; } catch (IOException ignored) { }
         try {
+            if (toolkitProblem != null) throw new OoaException("RUN.TOOLKIT_LOAD", toolkitProblem);
             result = holder[0].run(main, (Map<String, Object>) job.getOrDefault("inputs", Map.of()),
                     new Runner.RunOptions().runId(String.valueOf(job.get("run_id"))).cancel(cancel).pause(pause).maxRunSeconds(24 * 3600.0));
+        } catch (OoaException e) {
+            result = new RunResult(String.valueOf(job.get("run_id")), String.valueOf(main.get("id")), "failed", Map.of(), e.toMap(), 0, null, 0);
         } catch (RuntimeException e) {
             result = new RunResult(String.valueOf(job.get("run_id")), String.valueOf(main.get("id")), "failed", Map.of(),
                     Map.of("code", "AGENT.RUN_CRASHED", "message", String.valueOf(e)), 0, null, 0);
@@ -118,6 +122,31 @@ public final class RunWorker {
         if (!aiCalls.isEmpty()) resultMap.put("ai_calls", aiCalls);
         send(Map.of("type", "result", "result", resultMap));
         System.exit(0);
+    }
+
+    /**
+     * Custom toolkits the Command Center sent with the run (K6): each jar's hash and publisher signature are checked here
+     * again before it is loaded in a class loader of its own. Returns why one could not be loaded, or null.
+     */
+    @SuppressWarnings("unchecked")
+    static String loadCustomToolkits(PackageRegistry registry, Path workspace, List<Object> toolkits) {
+        for (Object o : toolkits) {
+            Map<String, Object> t = (Map<String, Object>) o;
+            String name = t.get("id") + " " + t.get("version");
+            try {
+                byte[] jar = Base64.getDecoder().decode(String.valueOf(t.get("jar")));
+                if (!ToolkitJar.sha256(jar).equals(t.get("sha256"))) return "The jar of " + name + " was changed on the way";
+                Path f = workspace.resolve(".ooa-toolkits").resolve(t.get("sha256") + ".jar");
+                java.nio.file.Files.createDirectories(f.getParent());
+                java.nio.file.Files.write(f, jar);
+                ToolkitJar.Loaded l = ToolkitJar.load(f, RunWorker.class.getClassLoader());
+                if (l.signature() == null || !String.valueOf(t.get("publisher")).equals(l.signature().publisher())) return name + " is not signed by its publisher";
+                registry.trust(new PackageSigning.PublisherKey(String.valueOf(t.get("publisher")), null, ToolkitJar.publicKey(String.valueOf(t.get("public_key")))));
+                registry.install(l.cls(), l.signature());
+            } catch (OoaException e) { return "Cannot load " + name + ": " + e.getMessage(); }
+            catch (IOException | IllegalArgumentException e) { return "Cannot load " + name + ": " + e; }
+        }
+        return null;
     }
 
     /** The AI call records this run appended to the governance log (at most 500), for the Command Center's AI governance view. */

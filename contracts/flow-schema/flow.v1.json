@@ -80,6 +80,11 @@
         "required": {"type": "boolean", "default": false, "description": "For inputs: the run is rejected when the value is missing and no default exists."},
         "default": {"description": "Initial value. Not allowed for Credential variables."},
         "description": {"type": "string", "description": "Shown in Studio and given to agents as the tool parameter description."},
+        "kpi": {
+          "type": "boolean",
+          "default": false,
+          "description": "For outputs: the value is a business figure; each successful run records it for dashboards in the Command Center."
+        },
         "enum": {"type": "array", "description": "Allowed values for an input."}
       }
     },

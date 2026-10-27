@@ -1,0 +1,4 @@
+# only the customer distribution and the start script go into the image
+*
+!cli/build/install/ooa-customer
+!docker/docker-entrypoint.sh

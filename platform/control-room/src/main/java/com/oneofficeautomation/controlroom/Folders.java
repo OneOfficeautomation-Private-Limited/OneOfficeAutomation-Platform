@@ -78,6 +78,9 @@ final class Folders {
     }
     void require(User u, String path, String level, String what) { require(u.username(), u.role(), path, level, what); }
 
+    /** Whether the person may at least see the agent at this path. */
+    boolean mayView(User u, String path) { return atLeast(access(u.username(), u.role(), path), "view"); }
+
     /** Every folder (made explicitly or holding agents), with the caller's access, agent count and whether it has its own permissions. */
     List<Map<String, Object>> list(User by) {
         cr.require(by, "repo.view", "view the agent repository");

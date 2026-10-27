@@ -123,6 +123,23 @@ async function crop(tab, rect, ratio) {
   return btoa(bin);
 }
 
+/** run_js for pages with a strict content security policy: Runtime.evaluate through the debugger protocol. */
+async function runJsByDebugger(tabId, code, args) {
+  const target = { tabId };
+  await chrome.debugger.attach(target, "1.3");
+  try {
+    // the code is placed in the expression itself (eval would still be refused): first as an expression, then as
+    // statements with return
+    const wrap = (body) => "(async (args) => { let v = " + body + "; if (typeof v === 'function') v = v(...args); v = await v; return v === undefined ? null : JSON.parse(JSON.stringify(v)); })("
+      + JSON.stringify(args) + ")";
+    let r = await chrome.debugger.sendCommand(target, "Runtime.evaluate", { expression: wrap("(" + code + "\n)"), awaitPromise: true, returnByValue: true, userGesture: true });
+    if (r.exceptionDetails && /SyntaxError/.test(JSON.stringify(r.exceptionDetails)))
+      r = await chrome.debugger.sendCommand(target, "Runtime.evaluate", { expression: wrap("await (async () => {\n" + code + "\n})()"), awaitPromise: true, returnByValue: true, userGesture: true });
+    if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text || "The script failed");
+    return r.result ? (r.result.value === undefined ? null : r.result.value) : null;
+  } finally { await chrome.debugger.detach(target).catch(() => {}); }
+}
+
 const OPS = {
   async ping() { return { browser: BROWSER, version: chrome.runtime.getManifest().version }; },
   async list_tabs() { return Promise.all((await chrome.tabs.query({})).map(tabRow)); },
@@ -153,20 +170,31 @@ const OPS = {
     if (a.what === "window") await chrome.windows.remove(t.windowId); else await chrome.tabs.remove(t.id);
     return true;
   },
-  /** Runs the agent's JavaScript in the page itself (main world), returning its value. */
+  /**
+   * Runs the agent's JavaScript in the page itself (main world), returning its value. A page whose content security
+   * policy forbids evaluating code (no 'unsafe-eval') gets it through the browser's debugger protocol instead, which
+   * the policy does not cover (the browser shows its "is debugging this browser" bar meanwhile).
+   */
   async run_js(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id, frameIds: a.frame_id != null ? [a.frame_id] : undefined }, world: "MAIN",
-      func: (code, args) => {
-        // An expression ("document.title"), a function ("() => ...") or statements with return. Pages with a strict
-        // content security policy refuse this; the error says so.
-        let fn;
-        try { fn = new Function("args", "return (" + code + ");"); } catch (e) { fn = new Function("args", code); }
-        let v = fn(args);
-        if (typeof v === "function") v = v(...(args || []));
-        return Promise.resolve(v).then((x) => (x === undefined ? null : JSON.parse(JSON.stringify(x))));
-      }, args: [a.code, a.args || []] });
-    return result;
+    try {
+      const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id, frameIds: a.frame_id != null ? [a.frame_id] : undefined }, world: "MAIN",
+        func: (code, args) => {
+          // An expression ("document.title"), a function ("() => ...") or statements with return.
+          let fn;
+          try { fn = new Function("args", "return (" + code + ");"); } catch (e) {
+            if (e instanceof EvalError || /unsafe-eval|Content Security Policy/i.test(String(e && e.message))) throw new Error("OOA_CSP");
+            fn = new Function("args", code);
+          }
+          let v = fn(args);
+          if (typeof v === "function") v = v(...(args || []));
+          return Promise.resolve(v).then((x) => (x === undefined ? null : JSON.parse(JSON.stringify(x))));
+        }, args: [a.code, a.args || []] });
+      return result;
+    } catch (e) {
+      if (!/OOA_CSP|unsafe-eval|Content Security Policy|EvalError/i.test(String(e && e.message))) throw e;
+      return runJsByDebugger(t.id, a.code, a.args || []);
+    }
   },
   async call_function(a) {
     const t = await findTab(a);

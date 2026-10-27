@@ -60,6 +60,7 @@
 .user-pop-head .muted { font-size: var(--text-sm); }
 .topbar .user-pop button { justify-content: flex-start; width: 100%; padding: 7px 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-1); text-align: left; }
 .topbar .user-pop button:hover { background: var(--surface-2); color: var(--text-1); }
+.topbar .user-pop .lang-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; color: var(--text-1); }
 .topbar .user-pop #btn-logout { color: var(--danger); }
 .announcement {
   display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-5);
@@ -142,6 +143,7 @@ body.nav-mini .nav .nav-fly button, body.nav-mini .nav .nav-fly a.nav-link { jus
 .grid-2.tight { gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--space-3); }
 .grid2 > label { justify-content: space-between; } /* fields in a row line up even when a label wraps */
+.grid2 > label.check { justify-content: flex-start; } /* a tick box stays next to its words */
 .card.inset { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); box-shadow: none; background: var(--surface-2); }
 .card h2 { font-size: var(--text-md); font-weight: var(--weight-semibold); margin: 0 0 var(--space-3); }
 
@@ -219,17 +221,24 @@ button.tile { border: 1px solid var(--border-2); background: var(--surface-1); b
 .list-row:not(.static):hover { background: var(--surface-hover); border-color: var(--border-1); }
 .list-row .bar { width: 90px; }
 .lr-main { flex: 1; min-width: 0; }
+.lr-main > strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row > .muted.small:last-child { flex: 0 0 auto; white-space: nowrap; }
 .lr-main .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dot { width: 8px; height: 8px; flex: 0 0 auto; display: inline-block; border-radius: 50%; background: var(--text-3); }
 .dot.online { background: var(--success-solid); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success-solid) 20%, transparent); }
 .dot.offline { background: var(--danger-solid); }
 .dot.disabled { background: var(--border-2); }
+.dot.busy { background: var(--warning-solid); }
 
 /* ---------- 9. lists, filters, chips ---------- */
 .toolbar > input:not([type="checkbox"]):not([type="radio"]), .toolbar > select { width: auto; flex: 0 1 220px; }
 .toolbar > input[type="search"] { flex-basis: 280px; }
 .toolbar label.inline input[type="date"] { width: 150px; }
 .dt > .toolbar { margin-bottom: var(--space-3); }
+.col-chooser { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding: var(--space-3); margin-bottom: var(--space-3); background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg); }
+.col-chooser[hidden] { display: none; }
+.col-chooser label.check { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 400; }
+.grid-2.flat h3 { margin-top: 0; }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-3); background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--radius-lg); }
 .filters:empty { display: none; }
 .filters input[type="search"] { width: 260px; }
@@ -300,6 +309,7 @@ ol.timeline li::before { content: ""; position: absolute; left: -6px; top: 11px;
 .diff .d.gap { color: var(--text-3); }
 pre.json { max-height: 260px; overflow: auto; font-size: var(--text-sm); }
 .secret-box { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3); word-break: break-all; background: var(--warning-bg); border: 1px solid color-mix(in srgb, var(--warning-solid) 45%, transparent); border-radius: var(--radius-md); }
+code.secret, pre.secret { display: block; box-sizing: border-box; max-width: 100%; margin: 0; overflow-x: auto; padding: var(--space-2) var(--space-3); font-size: var(--text-md); letter-spacing: .06em; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-md); user-select: all; white-space: pre-wrap; }
 
 /* ---------- 11. vault, administration ---------- */
 .locker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: var(--space-4); }
@@ -405,3 +415,14 @@ button.tile { border-radius: var(--radius-md); }
   .modal-card > .row-actions { margin: var(--space-4) calc(-1 * var(--space-4)) calc(-1 * var(--space-4)); padding: var(--space-3) var(--space-4); }
   .toolbar > input:not([type="checkbox"]):not([type="radio"]), .toolbar > select { flex: 1 1 100%; }
 }
+input.unsure { border-color: var(--danger-solid); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger-solid) 18%, transparent); }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-4); margin-top: var(--space-4); }
+.dash-card .kpi-value { font-size: 2rem; font-weight: 600; margin-top: var(--space-2); }
+.dash-line { width: 100%; height: auto; display: block; margin-top: var(--space-2); }
+
+/* Templates (K7): one card per template, as many columns as fit */
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.tpl-grid .card { display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; margin: 0; }
+.tpl-grid .card h3 { margin: 0; }
+.tpl-grid .card p { margin: 0; }
+.tpl-grid .card button { align-self: flex-start; margin-top: auto; }

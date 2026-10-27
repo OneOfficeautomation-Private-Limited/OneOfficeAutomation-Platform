@@ -9,7 +9,7 @@ import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-@OoaPackage(id = "ooa.network", name = "Network", version = "1.0.0", description = "Check whether hosts and ports are reachable, and read or change devices over SNMP v2c.")
+@OoaPackage(id = "ooa.network", name = "Network", version = "1.0.0", description = "Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3.")
 public final class NetworkPackage {
 
     @Action(id = "ping", name = "Ping", category = "Network", idempotent = true, capabilities = "network", description = "Check whether a host answers, and how fast.",
@@ -284,7 +284,8 @@ public final class NetworkPackage {
             return switch (v == null || v.isBlank() ? "v2c" : v.strip().toLowerCase(Locale.ROOT)) {
                 case "v1", "1" -> VERSION_1;
                 case "v2c", "2c", "2" -> VERSION_2C;
-                default -> throw new ActionException("SNMP.BAD_VERSION", "Unsupported SNMP version '" + v + "'", "Use v1 or v2c; SNMP v3 is not supported yet.");
+                case "v3", "3" -> SnmpV3.VERSION_3;
+                default -> throw new ActionException("SNMP.BAD_VERSION", "Unsupported SNMP version '" + v + "'", "Use v1, v2c or v3.");
             };
         }
 
@@ -358,13 +359,51 @@ public final class NetworkPackage {
     }
 
     private static final String D_HOST = "Device host name or IP address.";
-    private static final String D_COMMUNITY = "SNMP v2c community (text or a Credential); public when empty.";
+    private static final String D_COMMUNITY = "SNMP v1 or v2c community (text or a Credential); public when empty.";
     private static final String D_TIMEOUT = "How long to wait for each answer, in milliseconds.";
+    private static final String D_V3_USER = "SNMP v3 security user name (v3 uses it instead of a community).";
+    private static final String D_V3_AUTH = "SNMP v3 sign-in protocol: none, md5, sha (SHA-1), sha256 or sha512.";
+    private static final String D_V3_PRIV = "SNMP v3 privacy (encryption): none, des or aes128.";
+
+    private static byte[] secret(Object v) {
+        if (v == null) return null;
+        String t = v instanceof SecureString s ? s.reveal() : com.oneofficeautomation.runner.Values.text(v);
+        return t.isEmpty() ? null : t.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** The v3 security settings when the version is v3, else null. */
+    static SnmpV3.Security v3(String user, String auth, Object authPw, String priv, Object privPw, String context, String version) {
+        if (Snmp.version(version) != SnmpV3.VERSION_3) return null;
+        byte[] ap = secret(authPw), pp = secret(privPw);
+        // a protocol without its password means none, so a user without privacy need not clear the field
+        return new SnmpV3.Security(user, ap == null ? "none" : auth, ap, pp == null ? "none" : priv, pp, context);
+    }
+
+    static Snmp.Message send(ActionContext ctx, String host, int port, Object community, int pduType, List<Snmp.VarBind> vars, int timeout, int retries, String version, SnmpV3.Security sec) {
+        if (sec != null) return SnmpV3.request(ctx, host, port, sec, pduType, vars, timeout, retries);
+        return Snmp.request(ctx, host, port, community(community), pduType, vars, timeout, retries, Snmp.version(version));
+    }
+
+    public Map<String, Object> snmpGet(ActionContext ctx, String host, Object oids, Object community, int port, int timeout, int retries, String version) {
+        return snmpGet(ctx, host, oids, community, port, timeout, retries, version, null, null, null, null, null, null);
+    }
+
+    public Map<String, Object> snmpGetNext(ActionContext ctx, String host, String oid, Object community, int port, int timeout, int retries, String version) {
+        return snmpGetNext(ctx, host, oid, community, port, timeout, retries, version, null, null, null, null, null, null);
+    }
+
+    public Map<String, Object> snmpWalk(ActionContext ctx, String host, String oid, Object community, int port, int maxRows, int timeout, int retries, String version) {
+        return snmpWalk(ctx, host, oid, community, port, maxRows, timeout, retries, version, null, null, null, null, null, null);
+    }
+
+    public Map<String, Object> snmpSet(ActionContext ctx, String host, String oid, Object value, String type, Object community, int port, int timeout, int retries, String version) {
+        return snmpSet(ctx, host, oid, value, type, community, port, timeout, retries, version, null, null, null, null, null, null);
+    }
     private static final String D_RETRIES = "Extra attempts after a timeout.";
 
     @Action(id = "snmp_get", name = "SNMP get", category = "SNMP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
-            description = "Read one or more values from a device with SNMP v2c.",
-            panel = "host, version, community, oids | timeout_ms, port, retries")
+            description = "Read one or more values from a device with SNMP v1, v2c or v3.",
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oids | context_name, timeout_ms, port, retries")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "OID to value; empty for objects the device does not have.")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     public Map<String, Object> snmpGet(ActionContext ctx,
@@ -374,12 +413,18 @@ public final class NetworkPackage {
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
             @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
-            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c", "v3"}, description = "SNMP version the device speaks.") String version,
+            @Input(name = "security_user", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = D_V3_USER) String v3User,
+            @Input(name = "auth_protocol", type = OoaType.STRING, required = false, defaultValue = "\"sha\"", enumValues = {"none", "md5", "sha", "sha256", "sha512"}, visibleWhen = "version=v3", description = D_V3_AUTH) String v3Auth,
+            @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
+            @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
+            @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
         List<String> list = HttpJson.addressList(oids);
         if (list.isEmpty()) throw new ActionException("SNMP.BAD_OID", "Give at least one OID", "For example 1.3.6.1.2.1.1.5.0 (device name).");
         List<Snmp.VarBind> vars = new ArrayList<>();
         for (String o : list) { Snmp.parseOid(o); vars.add(new Snmp.VarBind(o.startsWith(".") ? o.substring(1) : o, Snmp.NULL, null)); }
-        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GET, vars, timeout, retries, Snmp.version(version));
+        Snmp.Message m = send(ctx, host, port, community, Snmp.GET, vars, timeout, retries, version, v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version));
         Map<String, Object> values = new LinkedHashMap<>();
         List<Object> rows = new ArrayList<>();
         for (Snmp.VarBind vb : m.vars()) { values.put(vb.oid(), vb.value()); rows.add(new ArrayList<>(row(vb).values())); }
@@ -387,8 +432,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_get_next", name = "SNMP get next", category = "SNMP", idempotent = true, timeoutSeconds = 120, capabilities = "network",
-            description = "Read the object that follows an OID in the device's tree (SNMP v2c GETNEXT).",
-            panel = "host, version, community, oid | timeout_ms, port, retries")
+            description = "Read the object that follows an OID in the device's tree (SNMP GETNEXT).",
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid | context_name, timeout_ms, port, retries")
     @Output(name = "oid", type = OoaType.STRING, description = "OID of the next object.")
     @Output(name = "type", type = OoaType.STRING, description = "Value type, e.g. integer, string, end_of_mib_view.")
     @Output(name = "value", description = "Value of the next object.")
@@ -399,16 +444,22 @@ public final class NetworkPackage {
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
             @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
-            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c", "v3"}, description = "SNMP version the device speaks.") String version,
+            @Input(name = "security_user", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = D_V3_USER) String v3User,
+            @Input(name = "auth_protocol", type = OoaType.STRING, required = false, defaultValue = "\"sha\"", enumValues = {"none", "md5", "sha", "sha256", "sha512"}, visibleWhen = "version=v3", description = D_V3_AUTH) String v3Auth,
+            @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
+            @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
+            @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
         Snmp.parseOid(oid);
-        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.GETNEXT, List.of(new Snmp.VarBind(oid, Snmp.NULL, null)), timeout, retries, Snmp.version(version));
+        Snmp.Message m = send(ctx, host, port, community, Snmp.GETNEXT, List.of(new Snmp.VarBind(oid, Snmp.NULL, null)), timeout, retries, version, v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version));
         if (m.vars().isEmpty()) throw Snmp.bad("the answer has no values");
         return row(m.vars().get(0));
     }
 
     @Action(id = "snmp_walk", name = "SNMP walk", category = "SNMP", idempotent = true, timeoutSeconds = 600, capabilities = "network",
             description = "Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests.",
-            panel = "host, version, community, oid | timeout_ms, port, retries, max_rows")
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid | context_name, timeout_ms, port, retries, max_rows")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of objects read.")
     public Map<String, Object> snmpWalk(ActionContext ctx,
@@ -419,17 +470,23 @@ public final class NetworkPackage {
             @Input(name = "max_rows", type = OoaType.NUMBER, required = false, defaultValue = "10000", min = 1, description = "Safety limit on objects read.") int maxRows,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
             @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
-            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c", "v3"}, description = "SNMP version the device speaks.") String version,
+            @Input(name = "security_user", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = D_V3_USER) String v3User,
+            @Input(name = "auth_protocol", type = OoaType.STRING, required = false, defaultValue = "\"sha\"", enumValues = {"none", "md5", "sha", "sha256", "sha512"}, visibleWhen = "version=v3", description = D_V3_AUTH) String v3Auth,
+            @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
+            @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
+            @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
         Snmp.parseOid(oid);
         String root = oid.strip().startsWith(".") ? oid.strip().substring(1) : oid.strip();
-        String c = community(community);
         int ver = Snmp.version(version);
+        SnmpV3.Security sec = v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version);
         List<Object> rows = new ArrayList<>();
         String current = root;
         while (rows.size() < Math.max(1, maxRows)) {
             ctx.checkCancelled();
             Snmp.Message m;
-            try { m = Snmp.request(ctx, host, port, c, Snmp.GETNEXT, List.of(new Snmp.VarBind(current, Snmp.NULL, null)), timeout, retries, ver); }
+            try { m = send(ctx, host, port, community, Snmp.GETNEXT, List.of(new Snmp.VarBind(current, Snmp.NULL, null)), timeout, retries, version, sec); }
             catch (ActionException e) {
                 if (ver == Snmp.VERSION_1 && "SNMP.ERROR".equals(e.code()) && e.getMessage().contains("noSuchName")) break;  // v1 ends a walk this way
                 throw e;
@@ -444,8 +501,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_set", name = "SNMP set", category = "SNMP", timeoutSeconds = 120, capabilities = "network",
-            description = "Change one value on a device with SNMP v2c; the community must have write access.",
-            panel = "host, version, community, oid, value_type, value | timeout_ms, port, retries")
+            description = "Change one value on a device with SNMP; the community (or v3 user) must have write access.",
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid, value_type, value | context_name, timeout_ms, port, retries")
     @Output(name = "value", description = "Value the device reports after the change.")
     public Map<String, Object> snmpSet(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = D_HOST) String host,
@@ -457,12 +514,18 @@ public final class NetworkPackage {
             @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "161", min = 1, max = 65535, description = "UDP port of the SNMP agent.") int port,
             @Input(name = "timeout_ms", type = OoaType.NUMBER, required = false, defaultValue = "3000", min = 1, description = D_TIMEOUT) int timeout,
             @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 0, max = 10, description = D_RETRIES) int retries,
-            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c"}, description = "SNMP version the device speaks.") String version) {
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c", "v3"}, description = "SNMP version the device speaks.") String version,
+            @Input(name = "security_user", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = D_V3_USER) String v3User,
+            @Input(name = "auth_protocol", type = OoaType.STRING, required = false, defaultValue = "\"sha\"", enumValues = {"none", "md5", "sha", "sha256", "sha512"}, visibleWhen = "version=v3", description = D_V3_AUTH) String v3Auth,
+            @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
+            @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
+            @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
         Snmp.parseOid(oid);
         int t = Snmp.typeCode(type);
         Object v = value instanceof SecureString s ? s.reveal() : com.oneofficeautomation.runner.Values.text(value);
         Snmp.value(t, v);  // validates before anything is sent
-        Snmp.Message m = Snmp.request(ctx, host, port, community(community), Snmp.SET, List.of(new Snmp.VarBind(oid, t, v)), timeout, retries, Snmp.version(version));
+        Snmp.Message m = send(ctx, host, port, community, Snmp.SET, List.of(new Snmp.VarBind(oid, t, v)), timeout, retries, version, v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("value", m.vars().isEmpty() ? null : m.vars().get(0).value());
         return out;

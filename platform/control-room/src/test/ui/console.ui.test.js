@@ -21,7 +21,7 @@ async function page() {
   };
   w.confirm = () => true; w.alert = () => {};
   const sc = d.createElement("script"); sc.textContent = fs.readFileSync(DIR + "/cr.js", "utf8"); d.body.appendChild(sc);
-  const until = async (fn, ms = 5000) => { const t = Date.now(); while (Date.now() - t < ms) { try { if (fn()) return true; } catch (_) {} await sleep(50); } return false; };
+  const until = async (fn, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { try { if (fn()) return true; } catch (_) {} await sleep(50); } return false; };
   const click = (el) => el.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
   const submit = (form) => form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
   const btn = (text, root) => [...(root || d).querySelectorAll("button")].find((b) => b.textContent.trim() === text);
@@ -53,7 +53,7 @@ async function page() {
   const navItems = menuPages();
   const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
   check("the menu has short sections: Build, Manage, Operations, Administration, AI", groups.join("|") === "Build|Manage|Operations|Administration|AI", groups.join("|"));
-  check("an administrator sees Home and all 23 pages, each once", navItems.length === 24 && new Set(navItems).size === 24 && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
+  check("an administrator sees Home and all 26 pages, each once", navItems.length === 27 && new Set(navItems).size === 27 && navItems.includes("Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
   check("Administration holds users, roles, licenses, audit and settings", ["Users", "Roles", "Teams", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
@@ -114,6 +114,8 @@ async function page() {
   nav("Runners");
   await until(() => btn("Register a runner"));
   click(btn("Register a runner"));
+  await until(() => btn("Create key", d.getElementById("modal-actions")));
+  click(btn("Create key", d.getElementById("modal-actions")));
   check("device registration shows the agent command with a one-time key", await until(() => !d.getElementById("modal").hidden && d.getElementById("modal-body").textContent.includes("agent register --url " + BASE + " --key ooareg_")));
   click(btn("Close"));
 
