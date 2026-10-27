@@ -96,6 +96,7 @@ const GROUP_LIST = [
   ["pdf", "PDF", "doc", "#dc2626", "Office documents", "ooa.pdf"],
   ["browser", "Browser", "globe", "#ea580c", "Web and desktop", "ooa.browser"],
   ["desktop_ui", "Capture / Desktop objects", "cursor", "#d97706", "Web and desktop", "ooa.desktop_ui"],
+  ["java_apps", "Java applications", "cursor", "#b45309", "Web and desktop", "ooa.java_apps"],
   ["window", "Window", "window", "#b45309", "Web and desktop", "ooa.window"],
   ["mouse_keyboard", "Mouse and keyboard", "mouse", "#a16207", "Web and desktop", "ooa.desktop"],
   ["application", "Application", "desktop", "#9a3412", "Web and desktop", "ooa.application"],

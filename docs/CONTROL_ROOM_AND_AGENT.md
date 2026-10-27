@@ -824,3 +824,24 @@ The first start asks for the Command Center address and an API key, which the pe
 keys. The key is stored in `%APPDATA%\ONEOFFICEAUTOMATION\assistant.json`, protected for that Windows user with
 DPAPI. It answers to whatever the key's owner may do; revoking the key stops the assistant. To start it at sign-in, put
 a shortcut to `bin\ooa.bat assistant` in the person's Startup folder.
+
+## 10h. Older Windows applications and Java applications
+
+**Legacy (MSAA) objects** (Desktop objects toolkit): some older programs (owner-drawn Win32, VB6, Delphi and many
+ERP or terminal front ends) describe their controls through MSAA (IAccessible) better than through UI Automation.
+**Find legacy objects** lists the controls of a window. For each it gives name, role, value, default action, state
+and position, and a path such as `0.3.1`. **Legacy object action** finds a control by name and role (or by path).
+It then does its default action (press, check, open), sets or reads its value, selects it, or reads its properties.
+
+**Java applications (Swing/AWT)** works with desktop programs written in Java. The runner loads a small agent into
+the program (Java Attach API) and uses the program's own accessibility information, as screen readers do. The Java
+Access Bridge need not be switched on.
+- **Get Java applications** lists the Java programs with windows.
+- **Find Java objects** lists the controls of a window: name, role, text, state, actions and path.
+- **Java object action** presses a control, sets or reads text, gives it the focus, or reads its properties.
+
+The program must run as the runner's user, on Java 8 or later, without `-XX:-EnableDynamicAgentLoading`. The agent
+answers only on 127.0.0.1, and only to requests with the token it gave this runner. Programs named like developer
+tools (Gradle, Maven, IDEs) are left alone unless named in `process`.
+
+SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`).

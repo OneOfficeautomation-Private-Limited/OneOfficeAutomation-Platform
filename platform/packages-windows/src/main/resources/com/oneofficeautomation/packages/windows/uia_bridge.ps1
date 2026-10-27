@@ -6,7 +6,7 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$names = @('UIAutomationClient', 'UIAutomationTypes', 'WindowsBase', 'System.Drawing', 'System.Windows.Forms', 'System.Web.Extensions')
+$names = @('UIAutomationClient', 'UIAutomationTypes', 'WindowsBase', 'System.Drawing', 'System.Windows.Forms', 'System.Web.Extensions', 'Accessibility')
 foreach ($n in $names) { Add-Type -AssemblyName $n }
 $refs = @([System.Uri].Assembly.Location)
 foreach ($a in [AppDomain]::CurrentDomain.GetAssemblies()) { if ($names -contains $a.GetName().Name) { $refs += $a.Location } }
@@ -246,6 +246,9 @@ public static class Bridge {
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
             case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true));
             case "resize": return Resize(Int(req, "handle", 0), Int(req, "width", 0), Int(req, "height", 0));
+            case "msaa_find": return Msaa.Find(req);
+            case "msaa_act": return Msaa.Act(req);
+            case "msaa_at": return Msaa.At(Int(req, "x", 0), Int(req, "y", 0));
             default: throw new BridgeError("BAD_REQUEST", "Unknown operation '" + op + "'");
         }
     }
@@ -966,6 +969,140 @@ public static class Bridge {
         } finally {
             foreach (Frame f in frames) { f.Close(); f.Dispose(); }
         }
+    }
+}
+
+/// <summary>
+/// MSAA (IAccessible, oleacc.dll), for older applications whose controls UI Automation does not describe well
+/// (owner-drawn Win32, VB6, Delphi, Access Bridge-less Java, many terminal and ERP front ends). An object is addressed
+/// by its path of child positions from the window's client object, e.g. "0.3.1".
+/// </summary>
+public static class Msaa {
+    [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint dwId, ref Guid riid, [MarshalAs(UnmanagedType.IUnknown)] out object ppvObject);
+    [DllImport("oleacc.dll")] static extern int AccessibleChildren(Accessibility.IAccessible paccContainer, int iChildStart, int cChildren, [Out] object[] rgvarChildren, out int pcObtained);
+    [DllImport("oleacc.dll", CharSet = CharSet.Unicode)] static extern uint GetRoleText(uint dwRole, System.Text.StringBuilder lpszRole, uint cchRoleMax);
+    [DllImport("oleacc.dll")] static extern int AccessibleObjectFromPoint(PointStruct pt, [MarshalAs(UnmanagedType.Interface)] out Accessibility.IAccessible ppacc, [MarshalAs(UnmanagedType.Struct)] out object pvarChild);
+    [StructLayout(LayoutKind.Sequential)] public struct PointStruct { public int X; public int Y; }
+    static readonly Guid IID_IAccessible = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71");
+    const uint OBJID_CLIENT = 0xFFFFFFFC;
+
+    class Node { public Accessibility.IAccessible Acc; public int Child; public string Path; }
+
+    static string Str(IDictionary<string, object> m, string k) { object v; return m.TryGetValue(k, out v) && v != null ? Convert.ToString(v, CultureInfo.InvariantCulture) : ""; }
+    static int Int(IDictionary<string, object> m, string k, int d) { object v; return m.TryGetValue(k, out v) && v != null ? Convert.ToInt32(v, CultureInfo.InvariantCulture) : d; }
+
+    static Node Root(long handle) {
+        object o; Guid g = IID_IAccessible;
+        if (AccessibleObjectFromWindow(new IntPtr(handle), OBJID_CLIENT, ref g, out o) != 0 || o == null)
+            throw new BridgeError("NOT_FOUND", "The window offers no accessible (MSAA) object");
+        return new Node { Acc = (Accessibility.IAccessible)o, Child = 0, Path = "" };
+    }
+
+    static List<Node> Kids(Node n) {
+        List<Node> res = new List<Node>();
+        if (n.Child != 0) return res;
+        int count = 0;
+        try { count = n.Acc.accChildCount; } catch (Exception) { return res; }
+        if (count <= 0) return res;
+        object[] arr = new object[count]; int got;
+        try { if (AccessibleChildren(n.Acc, 0, count, arr, out got) != 0) return res; } catch (Exception) { return res; }
+        for (int i = 0; i < got; i++) {
+            string p = n.Path.Length == 0 ? i.ToString(CultureInfo.InvariantCulture) : n.Path + "." + i.ToString(CultureInfo.InvariantCulture);
+            if (arr[i] is Accessibility.IAccessible) res.Add(new Node { Acc = (Accessibility.IAccessible)arr[i], Child = 0, Path = p });
+            else if (arr[i] is int) res.Add(new Node { Acc = n.Acc, Child = (int)arr[i], Path = p });
+        }
+        return res;
+    }
+
+    static string Safe(Func<string> f) { try { return f() ?? ""; } catch (Exception) { return ""; } }
+
+    static Dictionary<string, object> Props(Node n) {
+        object c = n.Child;
+        Dictionary<string, object> d = new Dictionary<string, object>();
+        d["path"] = n.Path;
+        d["name"] = Safe(() => n.Acc.get_accName(c));
+        d["value"] = Safe(() => n.Acc.get_accValue(c)).TrimEnd(new char[] { (char)13, (char)10 });   // single-line edits end with a line break
+        d["description"] = Safe(() => n.Acc.get_accDescription(c));
+        d["default_action"] = Safe(() => n.Acc.get_accDefaultAction(c));
+        string role = "";
+        try {
+            object r = n.Acc.get_accRole(c);
+            if (r is int) { System.Text.StringBuilder sb = new System.Text.StringBuilder(128); GetRoleText((uint)(int)r, sb, 128); role = sb.ToString(); }
+            else role = Convert.ToString(r, CultureInfo.InvariantCulture);
+        } catch (Exception) { }
+        d["role"] = role;
+        int st = 0;
+        try { st = Convert.ToInt32(n.Acc.get_accState(c), CultureInfo.InvariantCulture); } catch (Exception) { }
+        d["state"] = st;
+        d["unavailable"] = (st & 0x1) != 0;
+        d["checked"] = (st & 0x10) != 0;
+        d["invisible"] = (st & 0x8000) != 0;
+        d["focusable"] = (st & 0x100000) != 0;
+        try { int x, y, w, h; n.Acc.accLocation(out x, out y, out w, out h, c); d["bounds"] = x + "," + y + "," + w + "," + h; } catch (Exception) { d["bounds"] = ""; }
+        return d;
+    }
+
+    /// <summary>Empty matches everything; * and ? are wildcards; otherwise a case-insensitive "contains".</summary>
+    static bool Like(string text, string pattern) {
+        if (string.IsNullOrEmpty(pattern)) return true;
+        text = text ?? "";
+        if (pattern.IndexOf('*') < 0 && pattern.IndexOf('?') < 0) return text.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0;
+        string rx = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+        return System.Text.RegularExpressions.Regex.IsMatch(text, rx, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    public static object Find(IDictionary<string, object> req) {
+        long handle = Convert.ToInt64(req["handle"], CultureInfo.InvariantCulture);
+        string name = Str(req, "name"), role = Str(req, "role"), value = Str(req, "value");
+        int max = Int(req, "max", 500), maxDepth = Int(req, "max_depth", 12), visited = 0;
+        List<object> res = new List<object>();
+        Stack<KeyValuePair<Node, int>> todo = new Stack<KeyValuePair<Node, int>>();
+        todo.Push(new KeyValuePair<Node, int>(Root(handle), 0));
+        while (todo.Count > 0 && res.Count < max && visited < 20000) {
+            KeyValuePair<Node, int> cur = todo.Pop();
+            visited++;
+            if (cur.Key.Path.Length > 0) {
+                Dictionary<string, object> d = Props(cur.Key);
+                if (Like((string)d["name"], name) && Like((string)d["role"], role) && Like((string)d["value"], value)) res.Add(d);
+            }
+            if (cur.Value >= maxDepth) continue;
+            List<Node> kids = Kids(cur.Key);
+            for (int i = kids.Count - 1; i >= 0; i--) todo.Push(new KeyValuePair<Node, int>(kids[i], cur.Value + 1));
+        }
+        return res;
+    }
+
+    static Node ByPath(long handle, string path) {
+        Node n = Root(handle);
+        if (string.IsNullOrEmpty(path)) return n;
+        foreach (string part in path.Split('.')) {
+            int i = int.Parse(part, CultureInfo.InvariantCulture);
+            List<Node> kids = Kids(n);
+            if (i < 0 || i >= kids.Count) throw new BridgeError("NOT_FOUND", "No MSAA object at " + path + " (the window changed)");
+            n = kids[i];
+        }
+        return n;
+    }
+
+    public static object Act(IDictionary<string, object> req) {
+        Node n = ByPath(Convert.ToInt64(req["handle"], CultureInfo.InvariantCulture), Str(req, "path"));
+        object c = n.Child;
+        string action = Str(req, "action");
+        switch (action) {
+            case "default_action": n.Acc.accDoDefaultAction(c); return true;
+            case "set_value": n.Acc.set_accValue(c, Str(req, "value")); return true;
+            case "select": n.Acc.accSelect(0x1 | 0x2, c); return true;   // take focus and selection
+            case "get_value": return Safe(() => n.Acc.get_accValue(c)).TrimEnd(new char[] { (char)13, (char)10 });
+            case "properties": return Props(n);
+            default: throw new BridgeError("BAD_REQUEST", "Unknown MSAA action '" + action + "'");
+        }
+    }
+
+    public static object At(int x, int y) {
+        Accessibility.IAccessible acc; object child;
+        PointStruct pt = new PointStruct(); pt.X = x; pt.Y = y;
+        if (AccessibleObjectFromPoint(pt, out acc, out child) != 0 || acc == null) throw new BridgeError("NOT_FOUND", "No MSAA object at " + x + "," + y);
+        return Props(new Node { Acc = acc, Child = child is int ? (int)child : 0, Path = "" });
     }
 }
 }

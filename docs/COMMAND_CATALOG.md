@@ -29,6 +29,8 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | UI automation | Recorder | ooa.browser/record, ooa.browser/element_action (Capture), Studio Record, Capture and Pick | Partial | Web recorder and web Capture built; desktop, Java and SAP capture need the Bot Agent |
 | UI automation | Browser | ooa.browser | Built (library module, test on laptop) | Playwright; uses installed Edge or Chrome |
 | UI automation | Window | ooa.window | Built (library module, test on laptop) | Win32 via JNA |
+| UI automation | Desktop objects, legacy (MSAA) | ooa.desktop_ui/find_legacy_objects, legacy_object_action | Built | IAccessible through oleacc for older Win32, VB6 and Delphi applications: find by name and role, default action, set and get value |
+| UI automation | Java applications (Swing/AWT) | ooa.java_apps | Built | Java Attach API and the applications' own accessibility (no Java Access Bridge setting needed): list apps, find controls, set and get text, press, focus |
 | UI automation | Mouse | ooa.desktop/mouse_* | Built | Needs a desktop session |
 | UI automation | Simulate keystrokes | ooa.desktop/type_text, press_keys | Built | Needs a desktop session |
 | UI automation | Screen | ooa.desktop/capture_screen | Built | Window capture comes with the Window package |
