@@ -207,7 +207,7 @@ public final class BrowserPackage {
                     description = "Edge and Chrome: leave the window open when the agent ends (only Close browser closes it), and let Studio and later agents reach it. "
                             + "False closes the browser with the run, as before.") boolean keepOpen,
             @Input(name = "engine", type = OoaType.STRING, required = false, defaultValue = "\"auto\"", enumValues = {"auto", "connector", "playwright"},
-                    description = "connector: open a window in the person's own Edge or Chrome through the ONEOFFICEAUTOMATION Browser Connector extension; "
+                    description = "connector: open a window in the person's own Edge, Chrome or Firefox through the ONEOFFICEAUTOMATION Browser Connector extension; "
                             + "playwright: a browser the agent starts itself; auto: the connector when that browser has it, else playwright.") String engine,
             @Input(name = "open_in", type = OoaType.STRING, required = false, defaultValue = "\"new_window\"", enumValues = {"new_window", "new_tab", "existing_tab"},
                     description = "new_window: a new browser window; new_tab: a new tab next to the chosen one; existing_tab: load the address in the chosen tab.") String openIn,
@@ -234,8 +234,9 @@ public final class BrowserPackage {
         }
         if ("headless".equals(System.getProperty("ooa.runMode"))) headless = true;   // a headless run has no desktop to show a window on
         boolean installed = which.equals("edge") || which.equals("chrome");
-        boolean connector ="connector".equals(engine) || ("auto".equals(engine == null ? "auto" : engine) && installed && !headless && downloads == null && keepOpen
-                && ExtensionBridge.browsers().contains(which));
+        // Firefox counts as the person's own browser when its connector is there (Playwright would download another Firefox)
+        boolean connector ="connector".equals(engine) || ("auto".equals(engine == null ? "auto" : engine) && (installed || which.equals("firefox")) && !headless
+                && downloads == null && keepOpen && ExtensionBridge.browsers().contains(which));
         if (connector) {
             @SuppressWarnings("unchecked")
             Map<String, Object> t = (Map<String, Object>) ExtensionBridge.call(which, "open", Map.of("mode", "new_window", "url", url == null || url.isBlank() ? "about:blank" : url), 90000);

@@ -167,8 +167,12 @@ val nativeExecutable by tasks.registering(Exec::class) {
 distributions {
     main {
         contents {
-            from(rootProject.file("browser-extension")) { into("browser-extension") }
+            from(rootProject.file("browser-extension")) { into("browser-extension"); exclude("manifest.firefox.json") }
             from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension") }
+            // the same extension for Firefox, with its own manifest
+            from(rootProject.file("browser-extension")) { into("browser-extension-firefox"); exclude("manifest.json", "manifest.firefox.json") }
+            from(rootProject.file("browser-extension/manifest.firefox.json")) { into("browser-extension-firefox"); rename { "manifest.json" } }
+            from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js")) { into("browser-extension-firefox") }
             from(nativeLibs) { into("lib"); rename { "mssql-jdbc_auth-12.8.1.x64.dll" } }
         }
     }

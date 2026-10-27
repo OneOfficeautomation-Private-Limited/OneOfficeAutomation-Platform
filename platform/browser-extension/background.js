@@ -1,9 +1,11 @@
-// ONEOFFICEAUTOMATION Browser Connector: background service worker.
+// ONEOFFICEAUTOMATION Browser Connector: background service worker (Edge, Chrome), or background script (Firefox:
+// manifest.firefox.json, which has no debugger interface; see FIREFOX below).
 // Talks to the native-messaging host (com.oneofficeautomation.bridge), which relays requests from agents and Agent
 // Studio. Tab and window work happens here; element work is passed to the content script of the right frame.
 
 const HOST = "com.oneofficeautomation.bridge";
-const BROWSER = (navigator.userAgentData && navigator.userAgentData.brands || []).some((b) => /Edge/i.test(b.brand)) ? "edge"
+const FIREFOX = /Firefox\//.test(navigator.userAgent);
+const BROWSER = FIREFOX ? "firefox" : (navigator.userAgentData && navigator.userAgentData.brands || []).some((b) => /Edge/i.test(b.brand)) ? "edge"
   : /Edg\//.test(navigator.userAgent) ? "edge" : "chrome";
 let port = null;
 let status = { connected: false, error: null, since: null };
@@ -13,13 +15,28 @@ function connect() {
   try {
     port = chrome.runtime.connectNative(HOST);
   } catch (e) { status = { connected: false, error: String(e), since: Date.now() }; return; }
-  status = { connected: true, error: null, since: Date.now() };
+  // connected once the host is still there a moment later: a host that cannot start disconnects at once
+  const mine = port;
+  status = { connected: false, error: "Starting the connector on this computer...", since: Date.now() };
+  setTimeout(() => { if (port === mine) status = { connected: true, error: null, since: Date.now() }; }, 2000);
   port.onMessage.addListener(onRequest);
-  port.onDisconnect.addListener(() => {
-    status = { connected: false, error: chrome.runtime.lastError ? chrome.runtime.lastError.message : "Disconnected", since: Date.now() };
+  port.onDisconnect.addListener((p) => {
+    // Chrome and Edge give the reason in runtime.lastError, Firefox in the port's error
+    const why = (p && p.error && p.error.message) || (chrome.runtime.lastError && chrome.runtime.lastError.message) || "Disconnected";
+    status = { connected: false, error: why, since: Date.now() };
     port = null;
   });
   send({ event: "hello", browser: BROWSER, version: chrome.runtime.getManifest().version });
+}
+
+/**
+ * scripting.executeScript that fails when the script fails. Chrome and Edge reject the call; Firefox resolves it and
+ * puts the error in the result's error, which would otherwise read as an empty result.
+ */
+async function executeScript(details) {
+  const results = await chrome.scripting.executeScript(details);
+  for (const r of results || []) if (r && r.error) throw (r.error instanceof Error ? r.error : new Error((r.error && r.error.message) || String(r.error)));
+  return results;
 }
 
 function send(msg) { if (port) { try { port.postMessage(msg); } catch (e) { /* reconnect on the next alarm */ } } }
@@ -36,8 +53,8 @@ async function injectIntoOpenTabs() {
   for (const t of await chrome.tabs.query({})) {
     if (!/^(https?|file):/.test(t.url || "")) continue;
     try {
-      const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => !!window.__ooaContent });
-      if (!result) await chrome.scripting.executeScript({ target: { tabId: t.id, allFrames: true }, files: ["ooa-page.js", "content.js"] });
+      const [{ result }] = await executeScript({ target: { tabId: t.id }, func: () => !!window.__ooaContent });
+      if (!result) await executeScript({ target: { tabId: t.id, allFrames: true }, files: ["ooa-page.js", "content.js"] });
     } catch (e) { /* pages the browser protects */ }
   }
 }
@@ -73,7 +90,7 @@ async function toFrames(tabId, msg) {
   try { return await chrome.tabs.sendMessage(tabId, msg); }
   catch (e) {
     // the page was loaded before the extension: add the scripts and try once more
-    await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["ooa-page.js", "content.js"] }).catch(() => {});
+    await executeScript({ target: { tabId, allFrames: true }, files: ["ooa-page.js", "content.js"] }).catch(() => {});
     return chrome.tabs.sendMessage(tabId, msg);
   }
 }
@@ -94,6 +111,8 @@ async function visibleTab(windowId) {
  * "being debugged" bar for a moment). Returns a data URL like captureVisibleTab.
  */
 async function renderedTab(tabId) {
+  // Firefox: tabs.captureTab pictures any tab, shown or not
+  if (FIREFOX) return browser.tabs.captureTab(tabId, { format: "png" });
   const target = { tabId };
   await chrome.debugger.attach(target, "1.3");
   try {
@@ -125,6 +144,7 @@ async function crop(tab, rect, ratio) {
 
 /** run_js for pages with a strict content security policy: Runtime.evaluate through the debugger protocol. */
 async function runJsByDebugger(tabId, code, args) {
+  if (FIREFOX) throw new Error("This page's security policy blocks scripts, and Firefox has no other way in: run this step in Edge or Chrome");
   const target = { tabId };
   await chrome.debugger.attach(target, "1.3");
   try {
@@ -156,7 +176,7 @@ const OPS = {
   async navigate(a) { const t = await findTab(a); await chrome.tabs.update(t.id, { url: a.url }); await settled(t.id, a.timeout_ms || 60000); return tabRow(await chrome.tabs.get(t.id)); },
   async back(a) {
     const t = await findTab(a);
-    const [{ result: len }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => history.length });
+    const [{ result: len }] = await executeScript({ target: { tabId: t.id }, func: () => history.length });
     const steps = Math.max(1, Number(a.steps || 1));
     if (a.strict && steps >= len) throw new Error("The tab's history has only " + (len - 1) + " page(s) to go back to");
     for (let i = 0; i < steps; i++) { await chrome.tabs.goBack(t.id).catch(() => {}); await settled(t.id, 15000); }
@@ -178,7 +198,7 @@ const OPS = {
   async run_js(a) {
     const t = await findTab(a);
     try {
-      const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id, frameIds: a.frame_id != null ? [a.frame_id] : undefined }, world: "MAIN",
+      const [{ result }] = await executeScript({ target: { tabId: t.id, frameIds: a.frame_id != null ? [a.frame_id] : undefined }, world: "MAIN",
         func: (code, args) => {
           // An expression ("document.title"), a function ("() => ...") or statements with return.
           let fn;
@@ -198,7 +218,7 @@ const OPS = {
   },
   async call_function(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, world: "MAIN",
+    const [{ result }] = await executeScript({ target: { tabId: t.id }, world: "MAIN",
       func: (name, args) => {
         const f = name.split(".").reduce((o, k) => (o == null ? o : o[k]), window);
         if (typeof f !== "function") throw new Error("The page has no function " + name);
@@ -208,14 +228,14 @@ const OPS = {
   },
   async page_source(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => "<!DOCTYPE html>\n" + document.documentElement.outerHTML });
+    const [{ result }] = await executeScript({ target: { tabId: t.id }, func: () => "<!DOCTYPE html>\n" + document.documentElement.outerHTML });
     return result;
   },
   async info(a) { return tabRow(await findTab(a)); },
   /** Links on the page (no page script needed, so strict pages work too). */
   async links(a) {
     const t = await findTab(a);
-    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => ({ url: location.href, links: Array.from(document.querySelectorAll("a[href], area[href]")).map((x) => x.href) }) });
+    const [{ result }] = await executeScript({ target: { tabId: t.id }, func: () => ({ url: location.href, links: Array.from(document.querySelectorAll("a[href], area[href]")).map((x) => x.href) }) });
     return result;
   },
   /** Clicks the element that starts a download and waits for the file; returns where the browser saved it. */

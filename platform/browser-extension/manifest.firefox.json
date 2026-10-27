@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "ONEOFFICEAUTOMATION Browser Connector",
+  "short_name": "OOA Connector",
+  "version": "1.1.0",
+  "description": "Lets ONEOFFICEAUTOMATION agents and Agent Studio see, capture, record and automate tabs in this browser.",
+  "browser_specific_settings": { "gecko": { "id": "browser-connector@oneofficeautomation.com", "strict_min_version": "128.0" } },
+  "permissions": ["tabs", "scripting", "nativeMessaging", "webNavigation", "storage", "alarms", "downloads"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "scripts": ["background.js"] },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "all_frames": true,
+    "match_about_blank": true,
+    "run_at": "document_idle",
+    "js": ["ooa-page.js", "content.js"]
+  }],
+  "action": { "default_title": "ONEOFFICEAUTOMATION Browser Connector", "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" } },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}
