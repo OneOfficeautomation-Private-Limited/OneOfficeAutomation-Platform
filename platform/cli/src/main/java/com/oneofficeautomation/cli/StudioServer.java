@@ -35,6 +35,10 @@ public final class StudioServer {
     private TriggerService triggers;
     private ControlRoomLink cr;
     private final Map<String, LiveRun> live = new java.util.concurrent.ConcurrentHashMap<>();
+    /** Each agent's variable values from its last run here, for Run from here (by agent id; the 50 most recent agents). */
+    private final Map<String, Runner.ValueTrail> trails = java.util.Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(Map.Entry<String, Runner.ValueTrail> e) { return size() > 50; }
+    });
 
     /** A run started from Studio in the background, so the UI can follow it live and pause or stop it. */
     static final class LiveRun {
@@ -174,6 +178,12 @@ public final class StudioServer {
                         a.put("id", f.getOrDefault("id", ""));
                         a.put("name", f.getOrDefault("name", ""));
                         a.put("variables", f.getOrDefault("variables", List.of()));
+                        // the agents it runs (Run agent steps), for the "Run by" note in Studio
+                        Set<Object> runs = new LinkedHashSet<>();
+                        if (f.get("steps") instanceof List<?> steps)
+                            for (Map<String, Object> st : Steps.walk((List<Object>) steps))
+                                if ("core/run_bot".equals(st.get("action")) && st.get("args") instanceof Map<?, ?> args && args.get("automation") instanceof String id && !id.isBlank()) runs.add(id);
+                        a.put("runs", new ArrayList<>(runs));
                         agents.add(a);
                     } catch (RuntimeException | IOException ignored) { /* not a readable agent */ }
                 }
@@ -292,6 +302,16 @@ public final class StudioServer {
             // Step menu: "Run this step only" (only_step) and "Run from here" (start_at); see Runner.RunOptions.
             if (req.get("only_step") instanceof String only && !only.isBlank()) opts.onlyStep(only);
             else if (req.get("start_at") instanceof String from && !from.isBlank()) opts.startAt(from);
+            // ...with the values the agent's last run here had at that step (carry_over), in place of the skipped steps' work
+            String agentKey = String.valueOf(flow.getOrDefault("id", flow.getOrDefault("name", "")));
+            Runner.ValueTrail lastTrail = trails.get(agentKey), trail = new Runner.ValueTrail();
+            opts.trail(trail);
+            String carried = null;
+            String from = req.get("only_step") instanceof String o && !o.isBlank() ? o : req.get("start_at") instanceof String s && !s.isBlank() ? s : null;
+            if (from != null && !Boolean.FALSE.equals(req.get("carry_over")) && lastTrail != null && lastTrail.before(from) != null) {
+                opts.carryOver(lastTrail.before(from));
+                carried = lastTrail.reached(from) ? "step" : "end";
+            }
             // "Convert selectors to captured objects": the run notes every element its web steps find by selector
             if (Boolean.TRUE.equals(req.get("record_objects"))) {
                 try { lr.objectsFile = Files.createTempFile("ooa-objects-", ".jsonl"); }
@@ -302,7 +322,10 @@ public final class StudioServer {
             Thread t = new Thread(() -> {
                 try { lr.result = runner(lr.sink).run(flow, inputs, opts); }
                 catch (RuntimeException e) { lr.result = new RunResult(id, null, "failed", Map.of(), Map.of("code", "STUDIO.RUN_CRASHED", "message", String.valueOf(e.getMessage())), System.currentTimeMillis() - lr.startedAt, null, 0); }
-                finally { lr.finishedAt = System.currentTimeMillis(); if (lr.objectsFile != null) recordObjects(null); }
+                finally {
+                    lr.finishedAt = System.currentTimeMillis(); if (lr.objectsFile != null) recordObjects(null);
+                    if (trail.atEnd() != null) trails.put(agentKey, trail.keepFrom(lastTrail));
+                }
             }, "ooa-studio-run-" + id);
             t.setDaemon(true);
             t.start();
@@ -315,7 +338,10 @@ public final class StudioServer {
                 RunWindow.open(String.valueOf(flow.getOrDefault("name", "Agent")), flow, lr.sink, lr.pause, lr.cancel, () -> lr.result != null,
                         a -> names.getOrDefault(a, a));
             }
-            sendJson(ex, 202, Map.of("run_id", id));
+            Map<String, Object> started = new LinkedHashMap<>();
+            started.put("run_id", id);
+            if (carried != null) started.put("carried_over", carried);
+            sendJson(ex, 202, started);
         } else if (method.equals("GET") && route.matches("runs/run_[a-f0-9]{16}/objects")) {
             LiveRun lr = live.get(route.substring(5, route.indexOf("/objects")));
             if (lr == null || lr.objectsFile == null) throw new OoaException("STUDIO.NOT_FOUND", "This run did not record objects");

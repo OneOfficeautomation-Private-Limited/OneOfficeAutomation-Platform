@@ -327,7 +327,10 @@ Code: `packages-browser/.../BrowserWindows.java`.
      and emit no events. Blocks that hold the start step are entered **without being evaluated**: an If's condition is
      not checked, a Loop runs one pass without setting its item or index variable, and a Parallel runs only the branch
      with the start step. A Try keeps its Catch and Finally when the start step is in the Try part. After those blocks
-     the run carries on normally. Variables keep their inputs and defaults, since skipped steps never set them.
+     the run carries on normally. Skipped steps never set their variables: they keep their inputs and defaults, or
+     take the values given with `carryOver(map)`. A `ValueTrail` (`trail(...)`) notes a run's variables (never
+     credentials or secret values) when each step starts for the first time and at the end; Studio keeps the last
+     trail of each agent and hands the values at the start step to the next Run from here.
    - `onlyStep(stepId)` ("Run this step only") does the same and ends the run successfully after that step (for a
      block, after everything inside it). Both apply to the agent being run, not to its child agents.
 6. **Events** (`RunEvent`):
@@ -365,9 +368,13 @@ studio.js ──HTTP──► StudioServer ──► Workspace (files in My Work
   `deps`, `record`, `capture`, `clipboard`, `connections`, `connectors`, `triggers`, `assistant/build`, `info`.
   Command Center link: `cr/connect`, `cr/disconnect`, `cr/status`, `cr/repo`, `cr/checkin`, `cr/checkout`,
   `cr/undo-checkout`, `cr/versions`.
-- **Runs:** `POST runs {flow, inputs, debug?, breakpoints?, start_at?, only_step?}` starts a run in the background;
-  `start_at` and `only_step` map to `RunOptions.startAt` and `onlyStep` (the step menu's Run from here and Run this
-  step only). `GET runs/{id}?after=n` returns new events, state and the result; `pause`, `resume`, `stop`, `debug`,
+- **Runs:** `POST runs {flow, inputs, debug?, breakpoints?, start_at?, only_step?, carry_over?}` starts a run in the
+  background; `start_at` and `only_step` map to `RunOptions.startAt` and `onlyStep` (the step menu's Run from here and
+  Run this step only). With either, the variables start with the values this agent's last run in Studio had at that
+  step (or the values it ended with, when it failed or stopped before reaching it); the answer then says
+  `carried_over: "step"` or `"end"`. `carry_over: false` (Run from here with default values) leaves them at their
+  defaults. `GET agents` lists each agent's id, name, variables and `runs` (the agents its Run agent steps run), for
+  the Run agent settings and the "Run by" note. `GET runs/{id}?after=n` returns new events, state and the result; `pause`, `resume`, `stop`, `debug`,
   `breakpoints` and `variable` control it. Studio follows the run in the Run dock and in the floating Run window.
 - **Explorer files (`files/...`):** `folder`, `bot`, `item`, `rename`, `move`, `copy` (`{path, to}`; a taken name gets
   " - Copy"), `duplicate` (a duplicated agent gets its own agent id), `delete` (to `.trash`), `upload`

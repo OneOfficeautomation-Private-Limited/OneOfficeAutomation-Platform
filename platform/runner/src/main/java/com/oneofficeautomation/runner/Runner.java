@@ -72,6 +72,8 @@ public final class Runner {
         r.debugger = opts.debugger;
         r.startAt = opts.startAt;
         r.onlyStep = opts.onlyStep;
+        r.carryOver = opts.carryOver;
+        r.trail = opts.trail;
         return r.execute(inputs == null ? Map.of() : inputs, true);
     }
 
@@ -106,17 +108,51 @@ public final class Runner {
      *       part. After the enclosing blocks end, the run carries on normally with the steps that follow them.</li>
      *   <li>With onlyStep, the run ends successfully once the start step (and, for a block, everything inside it) has run.</li>
      * </ul>
-     * Variables keep their defaults and inputs, because the skipped steps never set them.
+     * The skipped steps never set their variables, so these keep their defaults and inputs, unless {@link #carryOver(Map)}
+     * gives values (usually the ones an earlier run had when it reached the start step, from its {@link ValueTrail}).
      */
     public static final class RunOptions {
         String runId; AtomicBoolean cancel; Double maxRunSeconds; AtomicBoolean pause; Debugger debugger; String startAt; boolean onlyStep;
+        Map<String, Object> carryOver; ValueTrail trail;
         public RunOptions startAt(String stepId) { startAt = stepId == null || stepId.isBlank() ? null : stepId; return this; }
+        /**
+         * With startAt: values for the agent's variables before the start step, in place of the ones the skipped steps
+         * would have set. Inputs given to the run win; credentials, undeclared names and values of the wrong type are left out.
+         */
+        public RunOptions carryOver(Map<String, Object> values) { carryOver = values; return this; }
+        /** Notes the agent's variable values as the run goes, for a later Run from here (see ValueTrail). */
+        public RunOptions trail(ValueTrail t) { trail = t; return this; }
         public RunOptions onlyStep(String stepId) { startAt(stepId); onlyStep = startAt != null; return this; }
         public RunOptions debugger(Debugger d) { debugger = d; return this; }
         public RunOptions pause(AtomicBoolean p) { pause = p; return this; }
         public RunOptions runId(String id) { runId = id; return this; }
         public RunOptions cancel(AtomicBoolean c) { cancel = c; return this; }
         public RunOptions maxRunSeconds(double s) { maxRunSeconds = s; return this; }
+    }
+
+    /**
+     * The variable values of a run (the agent being run, not its child agents): as they were when each step started for the
+     * first time, and at the end. Credentials and secret values are never kept. Values are copies, as plain JSON values.
+     */
+    public static final class ValueTrail {
+        final Map<String, Map<String, Object>> atStep = new ConcurrentHashMap<>();
+        volatile Map<String, Object> atEnd;
+        volatile boolean endedEarly;
+        /**
+         * The values when the run first reached `stepId`. When it never did because it failed or was stopped before, the
+         * values it ended with; otherwise (a step it skipped or never got to on success) null.
+         */
+        public Map<String, Object> before(String stepId) {
+            Map<String, Object> m = stepId == null ? null : atStep.get(stepId);
+            return m != null ? m : endedEarly ? atEnd : null;
+        }
+        public boolean reached(String stepId) { return stepId != null && atStep.containsKey(stepId); }
+        public Map<String, Object> atEnd() { return atEnd; }
+        /** After a Run from here: the steps this run skipped keep the values an earlier run noted for them. */
+        public ValueTrail keepFrom(ValueTrail older) {
+            if (older != null && older != this) older.atStep.forEach(atStep::putIfAbsent);
+            return this;
+        }
     }
 
     // internal control-flow signals
@@ -191,6 +227,8 @@ public final class Runner {
         boolean onlyStep;
         Set<String> startPath = Set.of();
         volatile boolean reached, onlyDone;
+        Map<String, Object> carryOver;
+        ValueTrail trail;
         Run parent;
         String parentStep;
         volatile int nesting;
@@ -346,9 +384,14 @@ public final class Runner {
                             "Choose a step of the agent being run.");
                     startPath = Set.copyOf(path.subList(0, path.size() - 1));
                 }
+                List<String> carried = startAt != null && carryOver != null ? applyCarryOver(inputs) : List.of();
                 emit("run.started", null, data("automation", aid, "kind", flow.get("kind"), "planHash", planHash, "depth", depth,
                         "totalSteps", Steps.walk((List<Object>) flow.get("steps")).size(), "startAt", startAt, "onlyStep", onlyStep));
                 if (startAt != null) log("info", (onlyStep ? "Running only step " : "Running from step ") + startAt + "; earlier steps are skipped", null);
+                if (!carried.isEmpty()) {
+                    log("info", "Values from the last run: " + String.join(", ", carried), null);
+                    for (String n : carried) emit("variable.set", null, data("name", n, "value", Values.safeRepr(scope.values.get(n)), "carried", true));
+                }
                 execSteps((List<Object>) flow.get("steps"), true);
             } catch (OoaException e) {
                 status = "RUN.CANCELLED".equals(e.code()) ? "stopped" : "failed";
@@ -374,6 +417,7 @@ public final class Runner {
                 if (java.util.Arrays.asList("output", "in_out").contains(v.get("direction"))) outputs.put((String) v.get("name"), scope.values.get(v.get("name")));
             }
             long dur = (System.nanoTime() - t0) / 1_000_000;
+            if (trail != null && depth == 0) { trail.endedEarly = !"success".equals(status); trail.atEnd = snapshot(); }
             emit("run.finished", null, data("status", status, "durationMs", dur, "error", error, "outputs", outputs));
             if (depth == 0) { secureValues.forEach(SecureString::wipe); secrets.clear(); }
             return new RunResult(runId, aid, status, outputs, error, dur, planHash, stepsExecuted.get());
@@ -412,6 +456,31 @@ public final class Runner {
                             v.get("description") != null ? (String) v.get("description") : "Provide a " + v.get("type") + " value for '" + name + "'.");
                 }
             }
+        }
+
+        /** Run from here: the carried-over values that were set, by name; see RunOptions.carryOver. */
+        List<String> applyCarryOver(Map<String, Object> inputs) {
+            List<String> set = new ArrayList<>();
+            for (var e : carryOver.entrySet()) {
+                String name = e.getKey(), type = scope.types.get(name);
+                if (type == null || "Credential".equals(type) || inputs.containsKey(name) || e.getValue() == null) continue;
+                try { scope.set(name, Values.deepCopy(e.getValue())); set.add(name); }
+                catch (OoaException ignored) { /* the variable's type changed since: keep its default */ }
+            }
+            return set;
+        }
+
+        /** The variables as plain JSON copies, without credentials or secret values (ValueTrail). */
+        Map<String, Object> snapshot() {
+            Map<String, Object> out = new LinkedHashMap<>();
+            synchronized (scope) {
+                for (var e : scope.types.entrySet()) {
+                    Object v = scope.values.get(e.getKey());
+                    if (v == null || "Credential".equals(e.getValue()) || v instanceof SecureString || (v instanceof String s && secrets.contains(s))) continue;
+                    out.put(e.getKey(), Values.toJsonable(v));
+                }
+            }
+            return out;
         }
 
         /** Same Flow + inputs + package versions -> same plan (determinism, replay, audit). */
@@ -571,6 +640,7 @@ public final class Runner {
             check();
             if (debugger != null) { debugger.beforeStep(frame(step)); check(); }
             String sid = String.valueOf(step.get("id")), act = String.valueOf(step.get("action"));
+            if (trail != null && depth == 0 && !trail.atStep.containsKey(sid)) trail.atStep.put(sid, snapshot());
             emit("step.started", sid, data("action", act));
             long t0 = System.nanoTime();
             try {

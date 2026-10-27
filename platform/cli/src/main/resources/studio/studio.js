@@ -359,14 +359,77 @@ function renderCrumbs() {
   if (!state.file) { c.replaceChildren(home); return; }
   const parts = state.file.split("/");
   const type = state.item ? state.item.type : "bot";
-  c.replaceChildren(home, h("span", { text: " / " + parts.slice(0, -1).map((p) => p + " / ").join("") }), h("strong", { text: displayName({ name: parts[parts.length - 1], type }) }));
+  const name = h("strong", { text: displayName({ name: parts[parts.length - 1], type }) });
+  // opened from a Run agent step: the way back to that step instead of the folder path
+  const trail = !state.item && state.parentTrail ? state.parentTrail : [];
+  if (trail.length) {
+    const back = trail.flatMap((t, i) => [h("span", { text: " / " }), h("a", { class: "crumb-parent", href: "#", "data-parent-step": t.stepId,
+      title: "Back to " + t.name + ", at the Run agent step (line " + t.line + ")", onclick: (e) => { e.preventDefault(); backToParent(i); } }, t.name + " \u203A line " + t.line)]);
+    c.replaceChildren(home, ...back, h("span", { text: " / " }), name, callersNote());
+    return;
+  }
+  c.replaceChildren(home, h("span", { text: " / " + parts.slice(0, -1).map((p) => p + " / ").join("") }), name, callersNote());
 }
 
-async function openBot(path) {
+/** In a child agent: which agents of the workspace run it (Run agent steps), each a link that opens it. */
+function callersNote() {
+  if (state.item || !state.flow || !state.flow.id || !state.agents) return null;
+  const callers = state.agents.filter((a) => a.path !== state.file && (a.runs || []).includes(state.flow.id));
+  if (!callers.length) return null;
+  return h("span", { class: "crumb-callers", title: "Agents in this workspace with a Run agent step for this agent" }, " \u00B7 Run by ",
+    ...callers.flatMap((a, i) => [i ? ", " : "", h("a", { href: "#", onclick: (e) => { e.preventDefault(); openCaller(a); } }, a.name || a.id)]));
+}
+
+/** Opens an agent that runs this one, at its (first) Run agent step for this agent. */
+async function openCaller(a) {
+  const child = state.flow && state.flow.id;
+  await openBot(a.path);
+  if (state.file !== a.path) return;
+  const step = allSteps(state.flow.steps).find((s) => s.action === "core/run_bot" && s.args && s.args.automation === child);
+  if (step) selectStepById(step.id);
+}
+
+/** Run agent step: opens the agent it runs, remembering the way back (breadcrumb). */
+async function openChildAgent(step) {
+  const list = state.agents = await loadAgents(true);
+  const child = list.find((a) => a.id === (step.args && step.args.automation));
+  if (!child) { toast(step.args && step.args.automation ? "Agent " + step.args.automation + " is not in this workspace." : "Choose the agent to run first.", true); return; }
+  const here = { file: state.file, name: state.flow.name || state.flow.id || displayName({ name: state.file, type: "bot" }), stepId: step.id, line: stepNumbers(state.flow).get(step.id) || "?" };
+  const trail = (state.parentTrail || []).concat(here);
+  await openBot(child.path, { trail });
+}
+
+/** Breadcrumb: back to the parent agent at index i of the trail, at its Run agent step. */
+async function backToParent(i) {
+  const t = state.parentTrail[i];
+  await openBot(t.file, { trail: state.parentTrail.slice(0, i) });
+  if (state.file === t.file) selectStepById(t.stepId);
+}
+
+function selectStepById(id) {
+  const walk = (steps, path) => {
+    for (let i = 0; i < (steps || []).length; i++) {
+      const s = steps[i], p = path.concat(i);
+      if (s.id === id) return p;
+      for (const [k] of sectionsOf(s)) { const kk = Array.isArray(k) ? k : [k]; const f = walk(getAt(s, kk), p.concat(kk)); if (f) return f; }
+    }
+    return null;
+  };
+  const p = walk(state.flow.steps, ["steps"]);
+  if (!p) return;
+  select(p);
+  const row = document.querySelector('#steps [data-step-id="' + CSS.escape(id) + '"]');
+  if (row) row.scrollIntoView({ block: "center" });
+}
+
+async function openBot(path, opts = {}) {
   if (state.dirty && path !== state.file && !confirm("Discard unsaved changes to the open agent?")) return;
   const data = await api("GET", "bot?path=" + encodeURIComponent(path));
+  state.parentTrail = opts.trail || [];
   setFlow(data.flow, path);
   switchSide("commands");
+  // the agents of the workspace, for Run agent steps and the "Run by" note
+  loadAgents(true).then((list) => { state.agents = list; if (state.file === path) { renderCrumbs(); renderSteps(); } });
 }
 
 function setFlow(flow, file) {
@@ -1042,7 +1105,7 @@ function summary(step) {
     case "core/comment": return plainValue(a.text, 100);
     case "core/delay": return "Wait " + plainValue(a.seconds) + " " + (a.unit || "seconds");
     case "core/break": case "core/continue": return a.label ? "loop " + a.label : "innermost loop";
-    case "core/run_bot": return plainValue(a.bot || a.path || "") + result;
+    case "core/run_bot": { const c = childAgent(step); return (c ? c.name || c.id : plainValue(a.automation || a.bot || a.path || "")) + result; }
     case "ooa.browser/open": case "ooa.browser/navigate": return plainValue(a.url, 80) + (a.browser ? " in " + a.browser : "");
     case "ooa.browser/click": return (target || "?") + inWin;
     case "ooa.browser/type_text": return quoteIfText(a.text) + " into " + (target || "?") + inWin;
@@ -1569,7 +1632,9 @@ function showContextMenu(e, p, step, opener) {
   const row = () => document.querySelector('[data-step-id="' + CSS.escape(step.id) + '"]');
   openMenu([
     ["Run from here", "", () => runFrom(step.id, false), !state.running],
+    ["Run from here with default values", "", () => runFrom(step.id, false, true), !state.running],
     ["Run this step only", "", () => runFrom(step.id, true), !state.running],
+    ...(step.action === "core/run_bot" ? [["Open the agent it runs", "", () => openChildAgent(step).catch((e) => toast(e.message, true)), !!(step.args && step.args.automation)]] : []),
     "-",
     ["Copy" + many, "Ctrl+C", () => copySelection()],
     ["Cut" + many, "Ctrl+X", cutSelection],
@@ -2044,7 +2109,8 @@ function inputControl(step, name, prop, required) {
   let control;
   if (step.action === "core/run_bot" && name === "automation") {
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Agent to run", required ? h("span", { class: "req", text: " *" }) : null,
-      infoTip("An agent of this workspace (published to Command Center under the same agent id when it runs there).")), runAgentPicker(step, current, set));
+      infoTip("An agent of this workspace (published to Command Center under the same agent id when it runs there).")), runAgentPicker(step, current, set),
+      current ? h("button", { type: "button", class: "link-btn", id: "btn-open-child", onclick: () => openChildAgent(step).catch((e) => toast(e.message, true)) }, "Open this agent") : null);
   }
   if (step.action === "core/run_bot" && name === "inputs") {
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Input values", infoTip("A value for each input variable of the agent to run: text, a number, or a $variable of this agent.")),
@@ -3596,11 +3662,18 @@ async function runFlow(flow, inputs, opts = {}) {
   try {
     const body = Object.assign({ flow, inputs }, opts.debug ? { debug: true, breakpoints: [...breakpointSet()], stopAtStart: !!opts.stopAtStart } : {});
     if (opts.onlyStep) body.only_step = opts.onlyStep; else if (opts.startAt) body.start_at = opts.startAt;
+    if (opts.freshValues) body.carry_over = false;
     // the run window on the desktop stays on top of the applications the agent brings forward
     if (prefs().desktopRunWindow !== false) body.run_window = true;
     if (opts.recordObjects) body.record_objects = true;
     const start = await api("POST", "runs", body);
     state.live.id = start.run_id;
+    // Run from here: the skipped steps' variables come from this agent's last run in Studio
+    if (start.carried_over) {
+      state.live.carried = start.carried_over;
+      toast(start.carried_over === "step" ? "Variables start with the values the last run had at this step"
+        : "Variables start with the values the last run ended with (it did not reach this step)");
+    }
     if (opts.recordObjects) state.recordRunId = start.run_id;
     while (true) {
       const r = await api("GET", "runs/" + state.live.id + "?after=" + state.live.seq);
@@ -3639,12 +3712,18 @@ async function runFlow(flow, inputs, opts = {}) {
   }
 }
 
-/** Run from here (start_at) or Run this step only (only_step), from the step menu. */
-function runFrom(id, only) {
+/**
+ * Run from here (start_at) or Run this step only (only_step), from the step menu. The steps before it are skipped, so
+ * their variables take the values this agent's last run in Studio had when it reached the step (or, when it never did,
+ * the values it ended with); "with default values" leaves them at their defaults instead.
+ */
+function runFrom(id, only, freshValues) {
   if (!state.flow) return;
   if (state.running) { toast("A run is already in progress.", true); return; }
   toast(only ? "Running only step " + id : "Running from step " + id + "; earlier steps are skipped");
-  return runFlow(state.flow, collectInputs(), only ? { onlyStep: id } : { startAt: id });
+  const opts = only ? { onlyStep: id } : { startAt: id };
+  if (freshValues) opts.freshValues = true;
+  return runFlow(state.flow, collectInputs(), opts);
 }
 
 /** Keeps the step that is running in view on the canvas. */

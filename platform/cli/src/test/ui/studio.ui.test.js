@@ -845,6 +845,12 @@ function restoreWorkspace() {
   stepById("m2").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
   click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Run this step only"));
   check("Run this step only sends only_step and runs one step", await until(() => sent.length === 2 && sent[1].only_step === "m2" && w.eval("state.lastRun && state.lastRun.result.outputs.out") === "v2", 8000));
+  await until(() => !w.eval("state.running"), 8000);
+  stepById("m3").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Run from here with default values"));
+  check("Run from here with default values asks for no carried-over values", await until(() => sent.length === 3 && sent[2].start_at === "m3" && sent[2].carry_over === false),
+    JSON.stringify(sent.map((s) => ({ start_at: s.start_at, carry_over: s.carry_over }))));
+  await until(() => !w.eval("state.running"), 8000);
   w.fetch = realFetch;
   w.eval("state.live = null; renderRunWindow()");
 
@@ -1048,6 +1054,25 @@ function restoreWorkspace() {
     check("a connector step offers a saved connection", await until(() => d.querySelector("#props .conn-field select")));
     w.eval(`state.dirty = false`);
   }
+
+  // ---- parent and child agents: open the agent a Run agent step runs, breadcrumb back, "Run by" ----
+  fs.writeFileSync(path.join(WS, "My Agents", "nav_child.flow.json"), JSON.stringify({ kind: "TaskBot", id: "nav_child", name: "Nav child", description: "", variables: [],
+    steps: [{ id: "k1", action: "core/comment", args: { text: "child" } }] }));
+  fs.writeFileSync(path.join(WS, "My Agents", "nav_parent.flow.json"), JSON.stringify({ kind: "TaskBot", id: "nav_parent", name: "Nav parent", description: "", variables: [],
+    steps: [{ id: "n1", action: "core/comment", args: { text: "first" } }, { id: "n2", action: "core/if", args: { condition: { op: "eq", left: 1, right: 1 } },
+      children: [{ id: "n3", action: "core/run_bot", args: { automation: "nav_child" } }] }] }));
+  w.eval("state.dirty = false; openBot('My Agents/nav_parent.flow.json')");
+  await until(() => w.eval("state.file") === "My Agents/nav_parent.flow.json" && stepById("n3"));
+  check("a Run agent step shows the name of the agent it runs", await until(() => stepById("n3").querySelector(".summary").textContent.includes("Nav child")));
+  stepById("n3").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
+  click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Open the agent it runs"));
+  check("Open the agent it runs opens the child with a breadcrumb back to the step", await until(() => w.eval("state.file") === "My Agents/nav_child.flow.json"
+    && d.querySelector("#crumbs .crumb-parent") && d.querySelector("#crumbs .crumb-parent").textContent === "Nav parent › line 3"), d.getElementById("crumbs").textContent);
+  check("the child says which agents run it", await until(() => d.querySelector("#crumbs .crumb-callers") && d.querySelector("#crumbs .crumb-callers").textContent.includes("Nav parent")));
+  click(d.querySelector("#crumbs .crumb-parent"));
+  check("the breadcrumb goes back to the parent, at the Run agent step", await until(() => w.eval("state.file") === "My Agents/nav_parent.flow.json" && w.eval("[...state.multi].join()") === "n3"
+    && !d.querySelector("#crumbs .crumb-parent")));
+  fs.unlinkSync(path.join(WS, "My Agents", "nav_child.flow.json")); fs.unlinkSync(path.join(WS, "My Agents", "nav_parent.flow.json"));
 
   // ================= Part 2: Control Room section in Studio =================
   click(d.querySelector('.rail-btn[data-side="explorer"]'));

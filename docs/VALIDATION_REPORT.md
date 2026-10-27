@@ -229,7 +229,7 @@ repository with check-in/check-out) gets its own report.
 | --- | --- |
 | Action groups | One group per technology under section headings (Flow and control, Data and variables, Data formats, Files and folders, Office documents, Web and desktop, APIs and databases, Email and collaboration, Business applications, AI, Scripts, Operations, System and security). Excel, Excel desktop, Word, PowerPoint and PDF; XML, JSON and CSV/Text; REST, SOAP and Database; Email, Microsoft 365 and Google Workspace; Browser, Capture/Desktop objects, Window and Mouse and keyboard are separate. The Scripts toolkit is split into Python, JavaScript, VBScript and VBA, and PowerShell by action id. `ooa.terminal` is the **Terminal emulator** group. Toolkits without a listed group get their own group. Search covers group names too. |
 | Canvas multi-select | Click, Ctrl+click (add or remove), Shift+click (range from the last clicked step, same list), Ctrl+A (canvas focus), Esc. "N steps selected" in the toolbar. Copy, Cut, Paste (after the last selected step), Delete, Duplicate, Disable/Enable, Move up/down and Copy to shared act on the whole selection from the toolbar, keys (Ctrl+C/X/V/D, Del, Ctrl+/, Alt+Up/Down) and menus. |
-| Step menu | A ⋮ button on every step card (list and flow view), right-click, Shift+F10 or the menu key. Run from here, Run this step only, Copy, Cut, Paste after, Duplicate, Delete, Disable/Enable, Toggle breakpoint, Move up/down, Add note, shared clipboard. Arrow keys, Home/End, Esc (focus returns), Tab and outside clicks. |
+| Step menu | A ⋮ button on every step card (list and flow view), right-click, Shift+F10 or the menu key. Run from here (with the last run's values, or with default values), Run this step only, Open the agent it runs (Run agent steps; the breadcrumb then leads back to that step, and a child agent shows which agents run it), Copy, Cut, Paste after, Duplicate, Delete, Disable/Enable, Toggle breakpoint, Move up/down, Add note, shared clipboard. Arrow keys, Home/End, Esc (focus returns), Tab and outside clicks. |
 | Run from here | `Runner.RunOptions.startAt` / `onlyStep`; `POST runs` accepts `start_at` and `only_step`. Blocks around the start step are entered without evaluating them (documented in ARCHITECTURE 5.3). |
 | Layout | The workbench row gives the side panels and the canvas minimum widths; side panels shrink first, the canvas clips instead of covering a neighbour, and the workbench scrolls sideways when even the minimums do not fit. Measured in a real browser: 1280 px (side 52-340, canvas 341-939, settings 940-1280), 1024 px (52-340, 341-683, 684-1024), 800 px (52-257, 258-558, 559-800); with the dock on the right at 800 px the workbench scrolls instead of overlapping. |
 | Density | Compact (new default) and Comfortable in Theme and density. Compact cards: smaller padding, icon tiles, numbers and fonts. |
@@ -251,7 +251,9 @@ repository with check-in/check-out) gets its own report.
 - Ctrl+W is reserved by most browsers for closing the tab, so the ✕ button is the dependable way to close an item.
 - jsdom has no layout engine: the UI test reads the CSS rules and checks the flex arithmetic; the real pixel positions above were measured in a browser.
 - The `GET windows` endpoint and the toolkit side of the `window` option belong to another change; until they land, the pick list says that open windows are not available.
-- Run from here does not replay skipped steps, so variables those steps would set keep their defaults.
+- Run from here does not run the skipped steps again: their variables take the values the agent's last run in Studio
+  had at the start step (T5, 2026-10-28). Without such a run (or with Run from here with default values) they keep
+  their defaults. Side effects of the skipped steps (an open browser, a written file) are not repeated.
 
 ## Part 6 additions merged with it
 

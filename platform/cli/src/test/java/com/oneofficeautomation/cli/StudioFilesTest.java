@@ -77,6 +77,24 @@ class StudioFilesTest {
                         Map.of("id", "s2", "action", "core/set", "args", Map.of("variable", "b", "value", "two"))));
         assertEquals(Map.of("a", "-", "b", "two"), runOutputs(base, Map.of("flow", flow, "start_at", "s2")));
         assertEquals(Map.of("a", "one", "b", "-"), runOutputs(base, Map.of("flow", flow, "only_step", "s1")));
+
+        // after a full run, Run from here starts with the values that run had at the step
+        assertEquals(Map.of("a", "one", "b", "two"), runOutputs(base, Map.of("flow", flow)));
+        Map<String, Object> from = new java.util.HashMap<>(Map.of("flow", flow, "start_at", "s2"));
+        assertEquals("step", call(base, "POST", "/api/runs", from).get("carried_over"));
+        assertEquals(Map.of("a", "one", "b", "two"), runOutputs(base, from), "a comes from the last run although s1 is skipped");
+        from.put("carry_over", false);
+        assertEquals(Map.of("a", "-", "b", "two"), runOutputs(base, from), "with default values");
+
+        // the agents list says which agents each one runs (Run agent steps, also inside blocks), for Studio's "Run by" note
+        Files.writeString(root.resolve("Agents/parent.flow.json"), "{\"kind\":\"TaskBot\",\"id\":\"parent\",\"name\":\"parent\",\"variables\":[],\"steps\":["
+                + "{\"id\":\"p1\",\"action\":\"core/run_bot\",\"args\":{\"automation\":\"one\"}},"
+                + "{\"id\":\"p2\",\"action\":\"core/if\",\"args\":{\"condition\":true},\"children\":[{\"id\":\"p3\",\"action\":\"core/run_bot\",\"args\":{\"automation\":\"two\"}},"
+                + "{\"id\":\"p4\",\"action\":\"core/run_bot\",\"args\":{\"automation\":\"one\"}}]}]}");
+        List<Map<String, Object>> agents = (List<Map<String, Object>>) call(base, "GET", "/api/agents", null).get("agents");
+        Map<String, Object> parent = agents.stream().filter(a -> "parent".equals(a.get("id"))).findFirst().orElseThrow();
+        assertEquals(List.of("one", "two"), parent.get("runs"));
+        assertEquals(List.of(), agents.stream().filter(a -> "one".equals(a.get("id"))).findFirst().orElseThrow().get("runs"));
     }
 
     @SuppressWarnings("unchecked")

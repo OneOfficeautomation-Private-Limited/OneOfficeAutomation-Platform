@@ -67,6 +67,12 @@ a.link { color: var(--accent-text); cursor: pointer; text-decoration: underline;
 .crumbs strong { color: var(--frame-text); font-weight: var(--weight-semibold); }
 .crumb-home { color: var(--frame-accent); text-decoration: none; font-weight: var(--weight-semibold); }
 .crumb-home:hover { text-decoration: underline; color: var(--frame-accent); }
+/* opened from a Run agent step: the way back to it, and the agents that run this one */
+.crumb-parent { color: var(--frame-accent); text-decoration: none; }
+.crumb-parent:hover, .crumb-callers a:hover { text-decoration: underline; }
+.crumb-callers { font-size: var(--text-sm); }
+.crumb-callers a { color: var(--frame-accent); text-decoration: none; }
+#btn-open-child { margin-top: 4px; padding: 0; color: var(--accent); }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-left: auto; }
 .dirty { display: inline-flex; align-items: center; gap: var(--space-15); font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ooa-amber-300); }
 .dirty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }

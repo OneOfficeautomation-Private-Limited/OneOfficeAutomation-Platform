@@ -104,4 +104,59 @@ class RunFromStepTest {
         assertFalse(started.contains("s2"));
         assertTrue(started.contains("s6"));
     }
+
+    @Test void theTrailKeepsTheValuesEachStepStartedWith() {
+        Runner.ValueTrail trail = new Runner.ValueTrail();
+        assertTrue(run(new Runner.RunOptions().trail(trail)).ok());
+        assertEquals("-", trail.before("s1").get("a"), "before s1 nothing is set yet");
+        assertEquals("one", trail.before("s6").get("a"));
+        assertEquals("else", trail.before("s6").get("b"));
+        assertEquals(new java.math.BigDecimal("0"), trail.before("s7").get("n"));
+        assertEquals(new java.math.BigDecimal("0"), trail.before("s9").get("n"), "a step in a loop: its first pass");
+        assertEquals("caught", trail.atEnd().get("e"));
+        assertFalse(trail.reached("nope"));
+        assertNull(trail.before("nope"), "a successful run that never reached a step has no values for it");
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void aRunThatFailedEarlyLeavesTheValuesItEndedWith() {
+        Map<String, Object> f = (Map<String, Object>) JsonLite.parse("""
+            {"kind":"TaskBot","id":"early","name":"early","variables":[{"name":"a","type":"String","default":"-"}],
+             "steps":[{"id":"t1","action":"core/set","args":{"variable":"a","value":"set"}},
+                      {"id":"t2","action":"core/throw","args":{"code":"BUSINESS.X","message":"boom"}},
+                      {"id":"t3","action":"core/log","args":{"message":"after"}}]}""");
+        Runner.ValueTrail trail = new Runner.ValueTrail();
+        assertFalse(Runner.builder(RunnerTest.registry()).build().run(f, Map.of(), new Runner.RunOptions().trail(trail)).ok());
+        assertFalse(trail.reached("t3"));
+        assertEquals("set", trail.before("t3").get("a"), "it stopped before t3: the values it ended with");
+    }
+
+    @Test void runFromHereUsesTheValuesOfTheLastRun() {
+        Runner.ValueTrail last = new Runner.ValueTrail();
+        assertTrue(run(new Runner.RunOptions().trail(last)).ok());
+        EventSink.ListSink sink = new EventSink.ListSink();
+        RunResult r = Runner.builder(RunnerTest.registry()).sink(sink).build()
+                .run(flow(), Map.of(), new Runner.RunOptions().startAt("s6").carryOver(last.before("s6")));
+        assertTrue(r.ok(), String.valueOf(r.error()));
+        assertEquals("one", r.outputs().get("a"), "set by the skipped s1 in the last run");
+        assertEquals("else", r.outputs().get("b"));
+        assertEquals("end", r.outputs().get("d"));
+        assertTrue(sink.events().stream().anyMatch(e -> e.type().equals("log") && String.valueOf(e.data().get("message")).startsWith("Values from the last run: a, b")));
+        assertTrue(sink.events().stream().anyMatch(e -> e.type().equals("variable.set") && Boolean.TRUE.equals(e.data().get("carried"))));
+    }
+
+    @Test void carriedValuesOfAnotherTypeOrNameAreLeftOut() {
+        Map<String, Object> old = new HashMap<>(Map.of("a", "one", "n", "not a number", "gone", "x"));
+        RunResult r = run(new Runner.RunOptions().startAt("s6").carryOver(old));
+        assertTrue(r.ok(), String.valueOf(r.error()));
+        assertEquals("one", r.outputs().get("a"));
+        assertEquals(new java.math.BigDecimal("3"), r.outputs().get("n"), "n kept its default 0; the loop counted to 3");
+    }
+
+    @Test void carriedValuesNeedAStartStep() {
+        RunResult r = run(new Runner.RunOptions().carryOver(Map.of("d", "old")));
+        assertTrue(r.ok());
+        assertEquals("one", r.outputs().get("a"));
+        assertEquals("end", r.outputs().get("d"), "a full run starts from its defaults");
+    }
 }
