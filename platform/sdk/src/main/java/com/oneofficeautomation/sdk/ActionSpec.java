@@ -140,7 +140,7 @@ public record ActionSpec(String kind, String id, String name, String description
             if (!Double.isNaN(max)) s.put("maximum", java.math.BigDecimal.valueOf(max).stripTrailingZeros());
             if (visibleWhen != null && !visibleWhen.isBlank()) s.put("x-ooa-visible-when", visibleRule());
             s.put("x-ooa-type", type.flowName());
-            s.put("x-ooa-label", label.isEmpty() ? Character.toUpperCase(name.charAt(0)) + name.substring(1).replace('_', ' ') : label);
+            s.put("x-ooa-label", label.isEmpty() ? FieldLabels.of(name) : label);
             return s;
         }
     }

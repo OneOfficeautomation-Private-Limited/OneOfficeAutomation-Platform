@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .errors import PackageError, RunCancelled
+from .labels import label_of
 from .types import MASK, OoaType, SecureString, json_schema_for
 
 MANIFEST_VERSION = 1
@@ -69,7 +70,7 @@ class Input:
         if self.visible_when:
             s["x-ooa-visible-when"] = self.visible_rule()
         s["x-ooa-type"] = self.type
-        s["x-ooa-label"] = self.label or self.name.replace("_", " ").capitalize()
+        s["x-ooa-label"] = self.label or label_of(self.name)
         return s
 
 

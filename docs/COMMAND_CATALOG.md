@@ -103,3 +103,30 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 - **Planned**: 3 AA packages
 
 Control Room features (users, roles, devices, schedules, queues, vault screens, audit) and the Windows Bot Agent are platform systems rather than commands and follow in their own phases, as described in the Technical Architecture.
+
+## AA packages not in the catalogue yet (X9, first draft)
+
+Drafted on 2026-10-27 from AA's public list of Automation 360 packages (the docs' package compatibility matrix and the
+v.37 package page), in our own words. It still needs checking against AA's real screens, with a signed-in AA session.
+Several packages on AA's list are under other names above (Logging is Log to file, Text file is CSV/TXT, Wait is
+Delay / Wait, SharePoint is OneDrive / SharePoint, Interactive Forms is ooa.forms, Process Composer is One Workflow).
+The rest:
+
+| AA package | What it does in AA | OOA today | Proposal |
+| --- | --- | --- | --- |
+| AWS EC2 | Create, start, stop and end EC2 virtual machines | Nothing | **Build** (small): a cloud-machines toolkit over AWS's API with an access key from the vault |
+| AI (SageMaker, Hugging Face) | Calls machine-learning and generative models | ooa.genai has Hugging Face and AWS Bedrock (SageMaker) model connections | Covered; check the inference options against AA |
+| EnterpriseClaw | Starts autonomous agents next to the data | ooa.ai_agent and API tasks | Covered in purpose; compare once AA shows it |
+| UI Agents | Desktop and web automation from a plain-language goal | ooa.web_agent for web pages | **Partly**: a desktop version (Windows UI Automation) could follow |
+| Genesys | Contact-centre contacts: onboard and update | Nothing; REST toolkit or a custom connector works | **Build later** if customers ask; a connector (OpenAPI import) covers it today |
+| Google Application Integration | Runs Google Application Integration flows | Nothing; REST toolkit works | **Not needed now**: one REST call |
+| Google Document AI | Structured data from documents with Google's models | Nothing | With Document Automation, **excluded for now (your request)** |
+| Document Classifier, Document Extraction, Advanced Classifier, IQ Bot, IQ Bot Pre-processor, IQ Bot Bridge | AA's document automation | Nothing | **Excluded for now (your request)**, as Document Automation above |
+| App Integration | Reads a window's text into a variable | ooa.desktop_ui (find objects, read text) | Covered |
+| Pipeline Accelerator | Syncs AA CoE Manager data with other apps | Nothing | **Not needed**: AA-specific product |
+| Goto, V11 Task Bot, Legacy AISense | Moving bots from other tools or older AA versions | Nothing | **Not needed**: AA-specific migration |
+| Apple Calendar, Keynote, Mail, Numbers, Pages, AppleScript, Outlook (macOS) | Mac desktop applications | macOS runners run headless agents only | **Later**: needs a macOS desktop runner first |
+| Aisera, anomaly detection | Named in the open item; not on AA's package list (likely Bot Store or AI add-ons) | Nothing | Check in a signed-in AA session |
+
+Triggers on AA's list (email, file and folder, hot key, interface, service, web, window, and the app triggers) are in
+Triggers (event) above.
