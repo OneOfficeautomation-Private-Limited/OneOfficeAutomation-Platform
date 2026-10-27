@@ -79,6 +79,8 @@ public final class CustomToolkits {
 
     public Map<String, Object> upload(User by, byte[] jar, String ip) {
         cr.require(by, "toolkits.manage", "manage toolkits");
+        // loading a toolkit runs its code in the server, which SaaS tenants share
+        if (cr.tenant != null) throw ControlRoom.notInSaas("Uploading custom toolkits");
         if (jar == null || jar.length == 0) throw new OoaException("CR.BAD_INPUT", "Send the toolkit's jar file");
         if (jar.length > MAX_BYTES) throw new OoaException("CR.TOO_LARGE", "Toolkit jars are at most 10 MB");
         String sha = ToolkitJar.sha256(jar);
@@ -124,6 +126,7 @@ public final class CustomToolkits {
 
     /** Loads every stored toolkit when the Command Center starts; one that no longer checks out is reported and left out. */
     void loadAll() {
+        if (cr.tenant != null) return;
         for (Map<String, Object> r : db.query("SELECT toolkit_id, version, publisher, sha256 FROM custom_toolkits")) {
             try {
                 Path f = file((String) r.get("sha256"));

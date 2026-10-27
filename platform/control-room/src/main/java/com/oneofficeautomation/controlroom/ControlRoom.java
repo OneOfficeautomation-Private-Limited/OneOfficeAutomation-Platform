@@ -26,7 +26,7 @@ public final class ControlRoom {
     public final Audit audit;
     public final Vault vault;
     public final Platform platform;
-    final ExternalVaults externalVaults = new ExternalVaults();
+    final ExternalVaults externalVaults = new ExternalVaults(this);
     public final Workflows workflows;
     public final TestSets testSets;
     public final Dashboards dashboards;
@@ -100,6 +100,16 @@ public final class ControlRoom {
 
     /** The SaaS tenant this Command Center serves (its id in the region's catalog), or null for an on-premises install. */
     public final String tenant;
+
+    /**
+     * Whether serverless API tasks may run in this Command Center. Always on premises; for a SaaS tenant only when the
+     * region allows them (its network then limits where the server may connect, docs/SAAS.md).
+     */
+    public volatile boolean serverlessAllowed = true;
+
+    static OoaException notInSaas(String what) {
+        return new OoaException("SAAS.NOT_AVAILABLE", what + " is not available in the SaaS service", "Use a runner in your own network for it.");
+    }
 
     public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema) {
         this(db, dataDir, registry, schema, new Vault(dataDir), null);
@@ -1623,6 +1633,8 @@ public final class ControlRoom {
         body.put("run_id", runId); body.put("status", status);
         body.put("outputs", result.getOrDefault("outputs", Map.of())); body.put("error", result.get("error"));
         Thread t = new Thread(() -> {
+            try { NetGuard.check(this, url, "The callback address"); }
+            catch (OoaException e) { audit.record("system", "run.callback", "run", runId, Map.of("error", e.getMessage()), "failed", null); return; }
             java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
             for (int attempt = 1; attempt <= 3; attempt++) {
                 try {

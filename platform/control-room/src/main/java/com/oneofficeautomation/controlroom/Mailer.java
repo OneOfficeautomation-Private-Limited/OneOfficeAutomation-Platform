@@ -41,6 +41,7 @@ final class Mailer {
         int port = cr.platform.intSetting("mail_smtp_port");
         String user = str("mail_smtp_user"), ref = str("mail_smtp_password_ref"), from = address(str("mail_from"));
         String password = ref.isEmpty() ? null : cr.systemCredential(ref);
+        NetGuard.check(cr, host, "The mail server");
         try (Socket plain = new Socket()) {
             plain.connect(new InetSocketAddress(host, port), TIMEOUT_MS);
             plain.setSoTimeout(TIMEOUT_MS);

@@ -73,6 +73,8 @@ public final class TriggerPollers {
         boolean fireExisting = Boolean.TRUE.equals(cfg.get("fire_existing"));
         Poll p;
         try {
+            if (kind.equals("servicenow")) NetGuard.check(cr, String.valueOf(cfg.get("instance_url")), "The ServiceNow instance");
+            if (kind.equals("http_poll")) NetGuard.check(cr, String.valueOf(cfg.get("url")), "The watched address");
             p = switch (kind) {
                 case "email", "outlook" -> pollMail(mailSources.apply(withSecrets(c)), cfg, cursor, fireExisting);
                 case "servicenow" -> pollServiceNow(cfg, cursor, fireExisting, ref -> secret(c, ref));
@@ -136,6 +138,8 @@ public final class TriggerPollers {
     }
 
     private MailSource openMail(Map<String, Object> m) {
+        if ("email".equals(m.get("kind"))) NetGuard.check(cr, String.valueOf(m.get("host")), "The mail server");
+        else if (m.get("login_url") instanceof String login && !login.isBlank()) NetGuard.check(cr, login, "The sign-in address");
         if ("email".equals(m.get("kind")))
             return new ImapMailSource((String) m.get("host"), ((Number) m.get("port")).intValue(), !Boolean.FALSE.equals(m.get("ssl")), (String) m.get("username"),
                     (String) m.get("password"), (String) m.getOrDefault("mail_folder", "INBOX"), 30_000);

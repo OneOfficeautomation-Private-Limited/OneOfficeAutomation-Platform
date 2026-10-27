@@ -52,6 +52,7 @@ final class Sso {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> getJson(String url) {
+        NetGuard.check(cr, url, "The identity provider");
         try {
             HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(15)).GET().build(), HttpResponse.BodyHandlers.ofString());
             if (r.statusCode() >= 300) throw new OoaException("SSO.PROVIDER", "The identity provider answered HTTP " + r.statusCode() + " for " + url);

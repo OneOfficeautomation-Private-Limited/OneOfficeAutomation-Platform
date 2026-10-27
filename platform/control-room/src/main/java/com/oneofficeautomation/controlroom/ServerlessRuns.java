@@ -75,6 +75,7 @@ public final class ServerlessRuns {
     /** Refuses an agent (or an agent it calls) that uses a toolkit serverless runs may not use. */
     @SuppressWarnings("unchecked")
     void check(Map<String, Object> main) {
+        if (cr.tenant != null && !cr.serverlessAllowed) throw ControlRoom.notInSaas("Running agents in the Command Center (serverless)");
         Map<String, Object> bundle = new LinkedHashMap<>();
         cr.collect(main, bundle, 0);
         List<Map<String, Object>> flows = new ArrayList<>(List.of(main));

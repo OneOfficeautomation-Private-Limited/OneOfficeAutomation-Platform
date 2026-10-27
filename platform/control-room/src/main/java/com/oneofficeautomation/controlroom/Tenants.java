@@ -58,6 +58,8 @@ public final class Tenants implements AutoCloseable {
     private final Supplier<PackageRegistry> registries;
     private final FlowSchemaValidator schema;
     private final Map<String, Tenant> open = new ConcurrentHashMap<>();
+    /** Whether tenants may run agents in the Command Center (serverless API tasks): off unless the region's network allows it. */
+    public volatile boolean serverless = false;
 
     /**
      * @param base       the region's database (PostgreSQL; H2 in tests), signed in with an account that may create schemas
@@ -174,6 +176,7 @@ public final class Tenants implements AutoCloseable {
         try { Files.createDirectories(dir); } catch (IOException e) { throw new OoaException("SAAS.FOLDER", "Cannot create " + dir + ": " + e.getMessage()); }
         Db db = base.inSchema(schemaOf(i.id()), 3);
         ControlRoom cr = new ControlRoom(db, dir, registries.get(), schema, Vault.ofKey(key, "tenant key in the region catalog"), i.id());
+        cr.serverlessAllowed = serverless;
         // its own address, for sign-in redirects, secure cookies and links in mail (it may set another in Settings)
         if (cr.db.one("SELECT name FROM settings WHERE name = 'public_url'") == null)
             cr.db.update("INSERT INTO settings (name, json_value, updated, updated_by) VALUES (?,?,?,?)", "public_url",

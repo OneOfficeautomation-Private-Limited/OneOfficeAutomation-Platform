@@ -17,6 +17,8 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class Platform {
     private final ControlRoom cr;
+
+    ControlRoom cr() { return cr; }
     private final Db db;
     private final PackageRegistry registry;
 
@@ -183,6 +185,9 @@ public final class Platform {
             } else {
                 String s = String.valueOf(v == null ? "" : v).trim();
                 if (s.length() > (k.equals("saml_idp_certificate") ? 10000 : 2000)) throw new OoaException("CR.BAD_INPUT", "Setting '" + k + "' is too long");
+                // a SaaS tenant's files stay in its own folder of the shared server
+                if (cr.tenant != null && (k.equals("repo_files_folder") || k.equals("backup_folder")) && !s.isEmpty())
+                    throw ControlRoom.notInSaas("Choosing a folder on the server");
                 if (k.equals("saml_idp_sso_url") && !s.isEmpty() && !s.matches("(?i)https?://[^\\s]+"))
                     throw new OoaException("CR.BAD_INPUT", "The identity provider's sign-in address starts with https://");
                 if (k.equals("saml_idp_certificate") && !s.isEmpty()) {

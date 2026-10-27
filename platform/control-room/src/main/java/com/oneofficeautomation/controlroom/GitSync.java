@@ -65,6 +65,11 @@ public final class GitSync {
     /** One sync: fetch, reset to the remote branch, write the repository, commit when it changed, push. Runs on the worker. */
     synchronized Map<String, Object> sync(String who, String message) throws Exception {
         String url = String.valueOf(cr.platform.setting("git_remote_url")).trim(), branch = branch();
+        if (cr.tenant != null) {
+            if (!url.matches("(?i)(https|ssh)://.+|[A-Za-z0-9._-]+@[A-Za-z0-9.-]+:.+"))
+                throw new OoaException("CR.GIT", "In the SaaS service the Git remote is an https:// or SSH address", "Use the address your Git server shows for cloning.");
+            NetGuard.check(cr, url, "The Git remote");
+        }
         CredentialsProvider creds = credentials();
         try {
             Git git = open(url, creds);

@@ -26,7 +26,7 @@ public final class RepoFiles {
 
     /** Where contents are kept: the shared folder of the setting repo_files_folder (UNC, DFS or NFS, for several nodes), else the data folder's. */
     Path store() {
-        String shared = String.valueOf(cr.platform.setting("repo_files_folder")).trim();
+        String shared = cr.tenant != null ? "" : String.valueOf(cr.platform.setting("repo_files_folder")).trim();
         return shared.isEmpty() ? store : Path.of(shared);
     }
 

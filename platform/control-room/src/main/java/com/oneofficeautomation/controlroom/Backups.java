@@ -29,7 +29,7 @@ public final class Backups {
     Backups(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
     Path folder() {
-        String f = String.valueOf(cr.platform.setting("backup_folder")).trim();
+        String f = cr.tenant != null ? "" : String.valueOf(cr.platform.setting("backup_folder")).trim();
         return f.isEmpty() ? cr.dataDir.resolve("backups") : Path.of(f);
     }
 
