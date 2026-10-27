@@ -196,7 +196,7 @@ const PAGES = [
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
-  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"],
+  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage", "key", "#b45309"]];
 
@@ -207,7 +207,7 @@ const PAGES = [
 const NAV_GROUPS = [
   ["automation", "Build", "bot", ["automation", "studio", "workflows", "apitasks", "tests"]],
   ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
-  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations"]],
+  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
   ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
 ];
@@ -1259,6 +1259,25 @@ const VIEWS = {
             u.username !== S.user.username ? h("button", { type: "button", class: "danger", onclick: async () => {
               if (!confirm("Delete " + u.username + "? Their sign-ins, API keys, team places, own vault values and every rule naming them go. The audit trail keeps their name.")) return;
               try { await api("DELETE", "users/" + u.id); toast("Deleted " + u.username); go("users"); } catch (e) { toast(e.message, true); } } }, "Delete") : null) }]}));
+  },
+
+  async dashboards(main) {
+    const r = await api("GET", "dashboards");
+    S.dashId = r.dashboards.some((d) => d.id === S.dashId) ? S.dashId : (r.dashboards[0] || {}).id;
+    const cur = r.dashboards.find((d) => d.id === S.dashId);
+    const pick = h("select", { "aria-label": "Dashboard", onchange: (e) => { S.dashId = e.target.value; go("dashboards"); } }, r.dashboards.map((d) => h("option", { value: d.id, text: d.name })));
+    if (cur) pick.value = cur.id;
+    const grid = h("div", { class: "dash-grid" });
+    main.replaceChildren(...header("Dashboards", "Business figures your agents record (outputs marked KPI) and figures about the runs, on dashboards you keep to yourself or share with roles and teams.",
+      h("button", { type: "button", class: "primary", onclick: () => dashboardDialog(null) }, "New dashboard")),
+      r.dashboards.length ? h("div", { class: "toolbar" }, pick, cur && cur.can_edit ? h("button", { type: "button", onclick: () => dashboardDialog(cur) }, "Edit") : null,
+        cur && cur.can_edit ? h("button", { type: "button", class: "danger", onclick: async () => { if (!confirm("Delete the dashboard " + cur.name + "?")) return; try { await api("DELETE", "dashboards/" + cur.id); S.dashId = null; go("dashboards"); } catch (e) { toast(e.message, true); } } }, "Delete") : null,
+        cur && cur.shared_with.length ? h("span", { class: "muted small", text: "Shared with " + cur.shared_with.join(", ") }) : null) : h("p", { class: "muted", text: "No dashboards yet. Mark an agent's outputs as KPI in Agent Studio, then make a dashboard." }),
+      grid);
+    if (!cur) return;
+    let tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (_) { /* UTC */ }
+    const d = await api("GET", "dashboards/" + cur.id + "/data" + (tz ? "?tz=" + encodeURIComponent(tz) : ""));
+    grid.replaceChildren(...d.widgets.map(widgetCard));
   },
 
   async tests(main) {
@@ -2872,6 +2891,61 @@ function connectionDialog(c) {
   h("button", { type: "button", class: "primary", onclick: async () => {
     try { await api("PUT", "connections/" + encodeURIComponent(name.value.trim()), values());
       closeModal(); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } }, "Save connection")]);
+}
+
+/** One dashboard widget drawn from its figures: a number, bars, a line or a table. */
+function widgetCard(w) {
+  const title = w.title || (w.source === "runs" ? (w.metric || "runs").replace(/_/g, " ") : (w.agg || "sum") + " of " + w.kpi);
+  const fmtNum = (v) => v === null || v === undefined ? "\u2014" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }) + (w.metric === "success_rate" ? "%" : "");
+  let body;
+  if (w.error) body = h("p", { class: "error", text: w.error });
+  else if (w.type === "number" || !w.type) body = h("div", { class: "kpi-value", text: fmtNum(w.value) });
+  else if (w.type === "table") body = table([w.group === "agent" ? "Agent" : w.group === "value" ? "Value" : "Period", "Figure"], (w.points || []).map((p) => ({ cells: [p.label, fmtNum(p.value)] })));
+  else if (w.type === "bars") {
+    const pts = w.points || [], max = Math.max(1, ...pts.map((p) => Number(p.value) || 0));
+    body = pts.length ? h("div", { class: "hbars" }, pts.map((p) => h("div", { class: "hbar" }, h("span", { class: "hbar-label", text: p.label }),
+      h("span", { class: "hbar-track" }, (() => { const b = h("span", { class: "hbar-fill" }); b.style.width = (100 * (Number(p.value) || 0) / max) + "%"; return b; })()), h("span", { class: "hbar-value", text: fmtNum(p.value) })))) : h("p", { class: "muted", text: "No figures in this period." });
+  } else {
+    const pts = (w.points || []).filter((p) => p.value !== null), W = 320, H = 120;
+    if (!pts.length) body = h("p", { class: "muted", text: "No figures in this period." });
+    else {
+      const max = Math.max(...pts.map((p) => Number(p.value))), min = Math.min(0, ...pts.map((p) => Number(p.value)));
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 " + W + " " + (H + 18)); svg.setAttribute("class", "dash-line"); svg.setAttribute("role", "img"); svg.setAttribute("aria-label", title);
+      const x = (i) => pts.length === 1 ? W / 2 : 6 + i * (W - 12) / (pts.length - 1), y = (v) => H - 4 - (H - 8) * (v - min) / Math.max(1e-9, max - min);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      line.setAttribute("points", pts.map((p, i) => x(i).toFixed(1) + "," + y(Number(p.value)).toFixed(1)).join(" ")); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#2563eb"); line.setAttribute("stroke-width", "2");
+      svg.append(line);
+      if (pts.length <= 60) pts.forEach((p, i) => { const c = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c.setAttribute("cx", x(i).toFixed(1)); c.setAttribute("cy", y(Number(p.value)).toFixed(1)); c.setAttribute("r", "3"); c.setAttribute("fill", "#2563eb"); svg.append(c); });
+      for (const [i, p] of pts.length === 1 ? [[0, pts[0]]] : [[0, pts[0]], [pts.length - 1, pts[pts.length - 1]]]) {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", String(Math.min(W - 40, Math.max(0, x(i) - 20)))); t.setAttribute("y", String(H + 14)); t.setAttribute("font-size", "10"); t.setAttribute("fill", "currentColor"); t.textContent = p.label;
+        svg.append(t);
+      }
+      body = h("div", {}, svg, h("div", { class: "muted small", text: "Last: " + fmtNum(pts[pts.length - 1].value) + "  \u00B7  highest " + fmtNum(max) }));
+    }
+  }
+  return h("div", { class: "card dash-card" + (w.type === "number" || !w.type ? " kpi" : "") }, h("div", { class: "muted small", text: /days?/.test(title) ? title : title + " (" + (w.days || 30) + " days)" }), body);
+}
+
+const DASH_EXAMPLE = [
+  { title: "Amount paid", type: "number", kpi: "amount", agg: "sum", days: 30 },
+  { title: "Amount by category", type: "bars", kpi: "amount", agg: "sum", group: "value", by: "category", days: 30 },
+  { title: "Invoices per day", type: "line", kpi: "amount", agg: "count", group: "day", days: 30 },
+  { title: "Success rate", type: "number", source: "runs", metric: "success_rate", days: 7 }];
+
+async function dashboardDialog(d) {
+  const k = await api("GET", "dashboards/kpis").catch(() => ({ kpis: [] }));
+  const name = h("input", { value: d ? d.name : "" }), desc = h("input", { value: d ? d.description || "" : "" });
+  const shared = h("input", { value: d ? d.shared_with.join(", ") : "", placeholder: "role:viewer, team:finance or * (empty = only you)" });
+  const widgets = h("textarea", { rows: 12, class: "mono", value: JSON.stringify(d ? d.widgets : DASH_EXAMPLE, null, 2) });
+  modal(d ? "Edit " + d.name : "New dashboard", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Share with", shared)), h("label", {}, "Description", desc),
+    h("label", {}, "Widgets (JSON)", widgets),
+    h("p", { class: "muted small", text: "A widget: title; type number, bars, line or table; source kpi (with kpi, agg sum/avg/count/min/max/last, optionally bot) or runs (metric runs, success_rate, failed, avg_seconds, hours_saved); group none, day, week, month, agent or value (with by: another KPI of the same run); days 1 to 365." }),
+    k.kpis.length ? h("p", { class: "muted small", text: "KPIs recorded so far: " + k.kpis.map((x) => x.name + " (" + botName(x.bot_path) + ")").join(", ") }) : h("p", { class: "muted small", text: "No KPI values yet: mark outputs as KPI in Agent Studio and run the agent." })],
+  [h("button", { type: "button", class: "primary", onclick: async () => {
+    try { const body = { name: name.value.trim(), description: desc.value.trim(), shared_with: shared.value.split(",").map((x) => x.trim()).filter(Boolean), widgets: parseJson(widgets.value, []) };
+      const r = await api(d ? "PUT" : "POST", "dashboards" + (d ? "/" + d.id : ""), body); S.dashId = r.id; closeModal(); go("dashboards"); } catch (e) { toast(e.message, true); } } }, "Save")]);
 }
 
 const TEST_EXAMPLE = [

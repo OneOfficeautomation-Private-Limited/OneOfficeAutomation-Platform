@@ -461,9 +461,18 @@ public final class Db implements AutoCloseable {
         "ALTER TABLE model_connections ADD COLUMN content_check VARCHAR(20)",
     };
 
+    /** Version 22: business KPIs recorded by runs, and dashboards (Dashboards). */
+    private static final String[] SCHEMA_V22 = {
+        "CREATE TABLE kpi_values (id VARCHAR(40) PRIMARY KEY, run_id VARCHAR(40), bot_path VARCHAR(400) NOT NULL, name VARCHAR(80) NOT NULL, num DECIMAL(24,6), "
+            + "text_value VARCHAR(200), ts TIMESTAMP NOT NULL)",
+        "CREATE INDEX kpi_values_name ON kpi_values (name, ts)",
+        "CREATE TABLE dashboards (id VARCHAR(40) PRIMARY KEY, name VARCHAR(120) NOT NULL, description VARCHAR(1000), owner VARCHAR(80) NOT NULL, "
+            + "shared_with VARCHAR(2000), widgets VARCHAR(100000) NOT NULL, updated TIMESTAMP NOT NULL)",
+    };
+
     /** The schema version this release needs. */
-    public static final int LATEST = 21;
-    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21 };
+    public static final int LATEST = 22;
+    private static final String[][] SCHEMA = { SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8, SCHEMA_V9, SCHEMA_V10, SCHEMA_V11, SCHEMA_V12, SCHEMA_V13, SCHEMA_V14, SCHEMA_V15, SCHEMA_V16, SCHEMA_V17, SCHEMA_V18, SCHEMA_V19, SCHEMA_V20, SCHEMA_V21, SCHEMA_V22 };
 
     /** The schema version recorded in the database (0 when it is empty). */
     public int schemaVersion() {

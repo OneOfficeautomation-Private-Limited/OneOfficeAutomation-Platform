@@ -415,3 +415,6 @@ button.tile { border-radius: var(--radius-md); }
   .toolbar > input:not([type="checkbox"]):not([type="radio"]), .toolbar > select { flex: 1 1 100%; }
 }
 input.unsure { border-color: var(--danger-solid); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger-solid) 18%, transparent); }
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-4); margin-top: var(--space-4); }
+.dash-card .kpi-value { font-size: 2rem; font-weight: 600; margin-top: var(--space-2); }
+.dash-line { width: 100%; height: auto; display: block; margin-top: var(--space-2); }

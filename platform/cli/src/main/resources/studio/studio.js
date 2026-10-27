@@ -3221,11 +3221,15 @@ function editVariable(existing, preset = {}) {
   const renderDir = () => {
     // as in the reference product: two independent ticks, so a variable can be an input, an output or both
     const setDir = (inp, out) => { keepDefault(); const d = inp && out ? "in_out" : inp ? "input" : out ? "output" : null; if (d) v.direction = d; else delete v.direction; renderDir(); renderDefault(); };
-    dirSeg.replaceChildren(
+    dirSeg.replaceChildren(...[
       h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "input", checked: isInputVar(v), onchange: (e) => setDir(e.target.checked, isOutputVar(v)) }),
         "Use as input", h("span", { class: "help", text: " given when the agent starts (by a person, a schedule or a parent agent)" })),
       h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "output", checked: isOutputVar(v), onchange: (e) => setDir(isInputVar(v), e.target.checked) }),
-        "Use as output", h("span", { class: "help", text: " returned when the agent ends" })));
+        "Use as output", h("span", { class: "help", text: " returned when the agent ends" })),
+      // business figures for Command Center dashboards (K5)
+      isOutputVar(v) && ["Number", "String", "Boolean"].includes(v.type) ? h("label", { class: "check" }, h("input", { type: "checkbox", "data-use": "kpi", checked: !!v.kpi,
+        onchange: (e) => { if (e.target.checked) v.kpi = true; else delete v.kpi; } }), "Business figure (KPI)", h("span", { class: "help", text: " each successful run records it for dashboards in One Command Center" })) : null].filter(Boolean));
+    if (!isOutputVar(v)) delete v.kpi;
     reqBox.hidden = !isInputVar(v);
   };
   const renderDefault = () => {

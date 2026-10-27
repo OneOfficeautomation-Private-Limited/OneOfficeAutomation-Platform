@@ -453,6 +453,15 @@ public final class ControlRoomServer {
                 } else notFound(ex);
             }
             case "catalog" -> sendJson(ex, 200, Map.of("actions", cr.actionNames()));
+            case "dashboards" -> {
+                if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("dashboards", cr.dashboards.list(u)));
+                else if (m.equals("GET") && route.equals("dashboards/kpis")) sendJson(ex, 200, Map.of("kpis", cr.dashboards.kpis(u)));
+                else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.dashboards.save(u, null, map(body(ex)), ip));
+                else if (m.equals("PUT") && seg.length == 2) sendJson(ex, 200, cr.dashboards.save(u, seg[1], map(body(ex)), ip));
+                else if (m.equals("DELETE") && seg.length == 2) { cr.dashboards.delete(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
+                else if (m.equals("GET") && seg.length == 3 && seg[2].equals("data")) sendJson(ex, 200, cr.dashboards.data(u, seg[1], q.get("tz")));
+                else notFound(ex);
+            }
             case "test-sets" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("sets", cr.testSets.list(u, q.get("bot"))));
                 else if (m.equals("POST") && seg.length == 1) sendJson(ex, 200, cr.testSets.save(u, null, map(body(ex)), ip));

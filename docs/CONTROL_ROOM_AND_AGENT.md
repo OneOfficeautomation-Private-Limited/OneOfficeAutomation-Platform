@@ -642,6 +642,21 @@ API: `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=`, `GET /api/
 **Other retention** (Administration > Settings): AI calls and finished work items older than the days you set are
 removed with the run history (0 keeps them).
 
+## 10a-2. Dashboards and business figures (KPIs)
+
+In Agent Studio, tick **Business figure (KPI)** on an output variable (Number, String or Boolean). Each successful run
+records its value. Operations > **Dashboards** shows dashboards of widgets:
+
+- **Source**: a KPI (`kpi`, aggregated with `sum`, `avg`, `count`, `min`, `max` or `last`, optionally for one `bot`) or the
+  runs (`metric`: `runs`, `success_rate`, `failed`, `avg_seconds`, `hours_saved`).
+- **Group**: none, `day`, `week`, `month`, `agent`, or `value`, which groups by the KPI's own value or, with `by`, by
+  another KPI of the same run (the amount by category).
+- **Type**: a number, bars, a line or a table, over the last 1 to 365 `days` (30 by default).
+
+A dashboard is its maker's until shared with `role:...`, `team:...`, `user:...` or `*` (everyone with `analytics.view`).
+Only agents the viewer may see are counted. API: `/api/dashboards` (GET, POST, PUT, DELETE),
+`GET /api/dashboards/{id}/data?tz=...`, `GET /api/dashboards/kpis`.
+
 ## 10b. E-mail from the Command Center
 
 Administration > Settings > E-mail: the company's outgoing mail server, port, security (STARTTLS, SSL/TLS, or none on
