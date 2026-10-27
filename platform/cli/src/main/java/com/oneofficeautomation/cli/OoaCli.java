@@ -36,7 +36,9 @@ final class OoaCli {
 
     OoaCli(String version) {
         root = spec("ooa", "ONEOFFICEAUTOMATION: build, run and manage automations.", null);
-        root.mixinStandardHelpOptions(true).version("ONEOFFICEAUTOMATION " + version);
+        // declared here, not with picocli's mixin, which reads annotations (the native executable has none of them)
+        root.version("ONEOFFICEAUTOMATION " + version);
+        root.addOption(OptionSpec.builder("-V", "--version").versionHelp(true).description("Show the version.").build());
         root.usageMessage().footer("", "Run 'ooa COMMAND --help' for a command's options.");
         command("completion", "Print a completion script for bash and zsh: source <(ooa completion)",
             a -> { System.out.print(AutoComplete.bash("ooa", new CommandLine(root))); return 0; });
@@ -175,7 +177,7 @@ final class OoaCli {
         CommandSpec s = h == null ? CommandSpec.create() : CommandSpec.wrapWithoutInspection(h);
         s.name(name).exitCodeOnInvalidInput(1);
         s.usageMessage().description(description);
-        if (!name.equals("ooa")) s.addOption(OptionSpec.builder("-h", "--help").usageHelp(true).description("Show this help.").build());
+        s.addOption(OptionSpec.builder("-h", "--help").usageHelp(true).description("Show this help.").build());
         return s;
     }
 
