@@ -87,7 +87,8 @@ public final class TenantHost {
                 if (t != null) { t.server.handle(ex); return; }
             }
             if ("".equals(slug) && ex.getRequestURI().getPath().startsWith("/api/operator/") && !operatorTokenSha256.isEmpty()) { operator(ex); return; }
-            if ("".equals(slug) && (ex.getRequestURI().getPath().equals("/healthz") || ex.getRequestURI().getPath().equals("/api/health"))) {
+            // health for load balancers and the container, also without a host name (HTTP/1.0 checks)
+            if ((slug == null || slug.isEmpty()) && (ex.getRequestURI().getPath().equals("/healthz") || ex.getRequestURI().getPath().equals("/api/health"))) {
                 send(ex, 200, Map.of("status", "ok", "region", tenants.region, "tenants_open", tenants.opened().size()));
                 return;
             }

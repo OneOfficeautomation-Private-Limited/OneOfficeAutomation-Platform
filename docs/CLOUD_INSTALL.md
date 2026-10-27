@@ -5,6 +5,8 @@ same product, your network, your data. This page covers the two usual ways: a Wi
 Linux container image. Runners that work with the screen stay on Windows machines (virtual or physical); runners for
 agents without a screen can run anywhere Windows runs.
 
+To run ONEOFFICEAUTOMATION as a multi-tenant service for many customers, in regions, see [SAAS.md](SAAS.md).
+
 ## Pieces in any cloud
 
 | Piece | AWS | Azure | Google Cloud |
