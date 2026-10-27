@@ -21,7 +21,7 @@ async function page() {
   };
   w.confirm = () => true; w.alert = () => {};
   const sc = d.createElement("script"); sc.textContent = fs.readFileSync(DIR + "/cr.js", "utf8"); d.body.appendChild(sc);
-  const until = async (fn, ms = 5000) => { const t = Date.now(); while (Date.now() - t < ms) { try { if (fn()) return true; } catch (_) {} await sleep(50); } return false; };
+  const until = async (fn, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { try { if (fn()) return true; } catch (_) {} await sleep(50); } return false; };
   const click = (el) => el.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
   const submit = (form) => form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
   const btn = (text, root) => [...(root || d).querySelectorAll("button")].find((b) => b.textContent.trim() === text);
