@@ -98,11 +98,20 @@ public final class ControlRoom {
         return m;
     }
 
+    /** The SaaS tenant this Command Center serves (its id in the region's catalog), or null for an on-premises install. */
+    public final String tenant;
+
     public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema) {
+        this(db, dataDir, registry, schema, new Vault(dataDir), null);
+    }
+
+    /** One tenant of a SaaS region: its own schema, data folder and vault key (Tenants). */
+    public ControlRoom(Db db, Path dataDir, PackageRegistry registry, FlowSchemaValidator schema, Vault vault, String tenant) {
+        this.tenant = tenant;
         this.dataDir = dataDir;
         this.db = db;
         this.audit = new Audit(db);
-        this.vault = new Vault(dataDir);
+        this.vault = vault;
         this.validator = new FlowValidator(registry, schema);
         this.registry = registry;
         db.migrate();

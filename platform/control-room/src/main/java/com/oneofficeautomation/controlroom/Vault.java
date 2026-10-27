@@ -24,6 +24,12 @@ public final class Vault {
 
     private Vault(SecretKeySpec key, String keySource, Path keyFile) { this.key = key; this.keySource = keySource; this.keyFile = keyFile; }
 
+    /** A vault with a given key: a SaaS tenant's own key, kept encrypted in the region's tenant catalog. */
+    public static Vault ofKey(byte[] raw, String source) {
+        if (raw.length != 32) throw new OoaException("CR.VAULT_KEY", "The vault master key must be 32 bytes");
+        return new Vault(new SecretKeySpec(raw.clone(), "AES"), source, null);
+    }
+
     /** A vault with a new random key (for rotating the master key). */
     static Vault fresh() {
         byte[] k = new byte[32];

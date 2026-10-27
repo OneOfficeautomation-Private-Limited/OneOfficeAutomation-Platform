@@ -13,14 +13,18 @@ import java.util.*;
 public final class Db implements AutoCloseable {
     private final String url, user, password;
     private final int poolMax;
+    /** A tenant's schema in a shared database (SaaS), or null: every connection of this Db works in it. */
+    private final String schema;
     private final Deque<Connection> pool = new ArrayDeque<>();
     private final ThreadLocal<Connection> txConn = new ThreadLocal<>();
     public final boolean postgres, sqlServer, h2;
 
     public Db(String url, String user, String password) { this(url, user, password, 10); }
 
-    public Db(String url, String user, String password, int poolMax) {
-        this.url = url; this.user = user; this.password = password; this.poolMax = poolMax;
+    public Db(String url, String user, String password, int poolMax) { this(url, user, password, poolMax, null); }
+
+    private Db(String url, String user, String password, int poolMax, String schema) {
+        this.url = url; this.user = user; this.password = password; this.poolMax = poolMax; this.schema = schema;
         this.postgres = url.startsWith("jdbc:postgresql:");
         this.sqlServer = url.startsWith("jdbc:sqlserver:");
         this.h2 = url.startsWith("jdbc:h2:");
@@ -71,10 +75,47 @@ public final class Db implements AutoCloseable {
         return new Db(base + ";databaseName=" + name + ";sendTimeAsDatetime=false", user, pw);
     }
 
+    static final java.util.regex.Pattern SCHEMA_NAME = java.util.regex.Pattern.compile("^[a-z][a-z0-9_]{0,62}$");
+
+    /**
+     * The same database server, working in another schema (created when missing): a SaaS tenant's own tables, or the
+     * region's tenant catalog. PostgreSQL and H2 only. A small pool, since a region holds many tenants.
+     */
+    public Db inSchema(String name, int poolMax) {
+        if (!SCHEMA_NAME.matcher(name).matches()) throw new OoaException("CR.DB_CONFIG", "Not a schema name: " + name);
+        if (sqlServer) throw new OoaException("CR.DB_CONFIG", "Tenants need PostgreSQL (or H2 for tests), not SQL Server");
+        try (Connection c = open(); Statement s = c.createStatement()) { s.execute("CREATE SCHEMA IF NOT EXISTS " + name); }
+        catch (SQLException e) { throw new OoaException("CR.DB_UNAVAILABLE", "Cannot create schema " + name + ": " + e.getMessage()); }
+        return new Db(url, user, password, poolMax, name);
+    }
+
+    /** Removes a schema with everything in it (a deleted tenant). */
+    public void dropSchema(String name) {
+        if (!SCHEMA_NAME.matcher(name).matches() || name.equals(schema)) throw new OoaException("CR.DB_CONFIG", "Not a schema to remove: " + name);
+        try (Connection c = open(); Statement s = c.createStatement()) { s.execute("DROP SCHEMA IF EXISTS " + name + " CASCADE"); }
+        catch (SQLException e) { throw new OoaException("CR.DB_ERROR", "Cannot remove schema " + name + ": " + e.getMessage()); }
+    }
+
+    /** The schema this Db works in, or null for the database's default. */
+    public String schema() { return schema; }
+
+    /** Closes the pooled connections that wait unused (a tenant nobody used for a while); the next use opens new ones. */
+    public synchronized void closeIdle() {
+        for (Connection c : pool) try { c.close(); } catch (SQLException ignored) { }
+        pool.clear();
+    }
+
     /** The account this connection signs in with (shown on the console, never the password). */
     public String user() { return user; }
 
-    private Connection open() throws SQLException { return user.isEmpty() && password.isEmpty() && url.contains("integratedSecurity=true") ? DriverManager.getConnection(url) : DriverManager.getConnection(url, user, password); }
+    private Connection open() throws SQLException {
+        Connection c = user.isEmpty() && password.isEmpty() && url.contains("integratedSecurity=true") ? DriverManager.getConnection(url) : DriverManager.getConnection(url, user, password);
+        if (schema != null) {
+            try { c.setSchema(schema); }
+            catch (SQLException e) { c.close(); throw e; }
+        }
+        return c;
+    }
 
     private synchronized Connection borrow() throws SQLException {
         Connection c = pool.pollFirst();
@@ -598,6 +639,6 @@ public final class Db implements AutoCloseable {
     @Override public synchronized void close() {
         for (Connection c : pool) try { c.close(); } catch (SQLException ignored) { }
         pool.clear();
-        if (url.startsWith("jdbc:h2:file:")) try (Connection c = open(); Statement s = c.createStatement()) { s.execute("SHUTDOWN"); } catch (SQLException ignored) { }
+        if (url.startsWith("jdbc:h2:file:") && schema == null) try (Connection c = open(); Statement s = c.createStatement()) { s.execute("SHUTDOWN"); } catch (SQLException ignored) { }
     }
 }

@@ -44,8 +44,12 @@ public final class ControlRoomServer {
 
     public ControlRoomServer(ControlRoom cr, String host, int port) {
         this.cr = cr; this.host = host; this.port = port; this.mcp = new McpServer(cr); this.sso = new Sso(cr);
-        maxBody = () -> cr.platform.maxBodyBytes();
+        // a SaaS region sets one request limit for all its tenants (TenantHost)
+        if (cr.tenant == null) maxBody = () -> cr.platform.maxBodyBytes();
     }
+
+    /** A tenant's Command Center inside a SaaS region: no port of its own; the region's server hands it requests (TenantHost). */
+    static ControlRoomServer forTenant(ControlRoom cr) { return new ControlRoomServer(cr, null, 0); }
 
     /** True when the browser reached the Command Center over HTTPS: served here directly, or through a TLS proxy that says so. */
     private static boolean overHttps(HttpExchange ex) { return ex instanceof HttpsExchange || "https".equalsIgnoreCase(ex.getRequestHeaders().getFirst("X-Forwarded-Proto")); }
@@ -120,11 +124,17 @@ public final class ControlRoomServer {
             mounts.forEach(internal::createContext);
             internal.start();
         }
-        clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock"); t.setDaemon(true); return t; });
+        startBackground();
+    }
+
+    /** Schedules, triggers, queues, workflows and serverless runs: the work that goes on without requests. */
+    void startBackground() {
+        clock = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-cr-clock" + (cr.tenant == null ? "" : "-" + cr.tenant)); t.setDaemon(true); return t; });
         // with several nodes on one database, only the leader runs the background work (Cluster)
         cr.cluster.tick();
-        // the outgoing proxy from Settings; checked every minute so a change made on another node arrives here too
-        clock.scheduleAtFixedRate(() -> { try { cr.platform.applyOutboundProxy(); } catch (RuntimeException ignored) { } }, 0, 60, TimeUnit.SECONDS);
+        // the outgoing proxy from Settings, checked every minute so a change made on another node arrives here too; it is
+        // process-wide, so a SaaS region's tenants do not set it
+        if (cr.tenant == null) clock.scheduleAtFixedRate(() -> { try { cr.platform.applyOutboundProxy(); } catch (RuntimeException ignored) { } }, 0, 60, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { cr.cluster.tick(); } catch (RuntimeException ignored) { } }, Cluster.RENEW_SECONDS, Cluster.RENEW_SECONDS, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) { cr.tickSchedules(); cr.reap(); } } catch (RuntimeException ignored) { } }, 5, 15, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> { try { if (cr.cluster.isLeader()) cr.platform.dispatch(); } catch (RuntimeException ignored) { } }, 3, 3, TimeUnit.SECONDS);
@@ -138,7 +148,7 @@ public final class ControlRoomServer {
     public void stop() { if (clock != null) clock.shutdownNow(); cr.cluster.release(); if (server != null) server.stop(0); if (internal != null) internal.stop(0); }
 
     // ------------------------------------------------------------------
-    private void handle(HttpExchange ex) throws IOException {
+    void handle(HttpExchange ex) throws IOException {
         try {
             String path = ex.getRequestURI().getPath();
             if (path.equals("/.well-known/oauth-protected-resource") || path.equals("/.well-known/oauth-protected-resource/api/mcp")) { protectedResource(ex); return; }
