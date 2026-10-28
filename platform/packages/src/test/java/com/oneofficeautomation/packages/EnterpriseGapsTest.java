@@ -224,6 +224,36 @@ class EnterpriseGapsTest {
         }
     }
 
+    @Test void workdayIntegrationEventByAnotherIdType() throws Exception {
+        String wid = "abcdef0123456789abcdef0123456789";
+        try (Fake f = new Fake()) {
+            f.on("POST /ccx/service/acme/Integrations/v42.0", c -> ok("<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\"><env:Body>"
+                    + "<wd:Get_Integration_Events_Response xmlns:wd=\"urn:com.workday/bsvc\"><wd:Response_Data><wd:Integration_Event><wd:Integration_Event_Data>"
+                    + "<wd:Background_Process_Instance_Data><wd:Background_Process_Instance_Status_Reference><wd:ID wd:type=\"Background_Process_Instance_Status_ID\">Processing</wd:ID>"
+                    + "</wd:Background_Process_Instance_Status_Reference></wd:Background_Process_Instance_Data></wd:Integration_Event_Data></wd:Integration_Event></wd:Response_Data>"
+                    + "</wd:Get_Integration_Events_Response></env:Body></env:Envelope>"));
+            var wd = new WorkdayPackage();
+            var ctx = ctx();
+
+            Map<String, Object> ev = wd.getIntegrationEvent(ctx, f.url(), "acme", "INT_EVENT_0042", "v42.0", null, null, TOK, "Integration_Event_ID");
+            assertEquals("Processing", ev.get("status"));
+            assertEquals(false, ev.get("done"));
+            String sent = f.last("POST", ".*").text();
+            assertTrue(sent.contains("<bsvc:Integration_Event_Reference><bsvc:ID bsvc:type=\"Integration_Event_ID\">INT_EVENT_0042</bsvc:ID></bsvc:Integration_Event_Reference>"), sent);
+
+            wd.getIntegrationEvent(ctx, f.url(), "acme", wid, "v42.0", null, null, TOK, "wid");
+            assertTrue(f.last("POST", ".*").text().contains("<bsvc:ID bsvc:type=\"WID\">" + wid + "</bsvc:ID>"), "wid in any case is sent as WID");
+            wd.getIntegrationEvent(ctx, f.url(), "acme", wid, "v42.0", null, null, TOK, " ");
+            assertTrue(f.last("POST", ".*").text().contains("bsvc:type=\"WID\""), "WID when empty");
+
+            int calls = f.calls.size();
+            assertEquals("WORKDAY.BAD_ID", assertThrows(ActionException.class, () -> wd.getIntegrationEvent(ctx, f.url(), "acme", "INT_EVENT_0042", "v42.0", null, null, TOK, "WID")).code());
+            assertEquals("WORKDAY.BAD_ID_TYPE", assertThrows(ActionException.class, () -> wd.getIntegrationEvent(ctx, f.url(), "acme", wid, "v42.0", null, null, TOK, "a\" b")).code());
+            assertEquals("WORKDAY.BAD_ID", assertThrows(ActionException.class, () -> wd.getIntegrationEvent(ctx, f.url(), "acme", "<x/>", "v42.0", null, null, TOK, "Integration_Event_ID")).code());
+            assertEquals(calls, f.calls.size(), "invalid input is rejected before any request");
+        }
+    }
+
     // ---------------------------------------------------------------- ServiceNow
 
     @Test void serviceNowDeleteAttachmentsAndChangedRecords() throws Exception {

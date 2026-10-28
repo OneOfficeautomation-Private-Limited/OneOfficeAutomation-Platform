@@ -256,9 +256,15 @@ public final class AsanaPackage {
         return Out.of("task", t, "completed", Boolean.TRUE.equals(t.get("completed")));
     }
 
+    /** Earlier signature, kept for callers written before parent_task_id. */
+    public Map<String, Object> updateTask(ActionContext ctx, String base, Object token, String task, String taskName, String notes, String assignee,
+            String due, Boolean completed, Map<String, Object> custom) {
+        return updateTask(ctx, base, token, task, taskName, notes, assignee, due, completed, custom, null);
+    }
+
     @Action(id = "update_task", name = "Update task", category = "Tasks", capabilities = "network",
-            description = "Change a task's name, notes, assignee, due date, completion or custom fields. Only the inputs you fill in are changed.",
-            panel = "token, task_id, name, assignee, due_on, notes, completed | custom_fields, base_url")
+            description = "Change a task's name, notes, assignee, due date, completion, custom fields or parent task. Only the inputs you fill in are changed.",
+            panel = "token, task_id, name, assignee, due_on, notes, completed | parent_task_id, custom_fields, base_url")
     public Map<String, Object> updateTask(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -268,7 +274,9 @@ public final class AsanaPackage {
             @Input(name = "assignee", type = OoaType.STRING, required = false, description = "New assignee: user id, email or me; none to unassign.") String assignee,
             @Input(name = "due_on", type = OoaType.STRING, required = false, description = "New due date as YYYY-MM-DD.") String due,
             @Input(name = "completed", type = OoaType.BOOLEAN, required = false, description = "true marks the task done, false reopens it.") Boolean completed,
-            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to new value.") Map<String, Object> custom) {
+            @Input(name = "custom_fields", type = OoaType.DICTIONARY, required = false, description = "Custom field id to new value.") Map<String, Object> custom,
+            @Input(name = "parent_task_id", type = OoaType.STRING, required = false,
+                    description = "Move the task under this parent task, making it a subtask; none makes it a top-level task again.") String parent) {
         Map<String, Object> b = new LinkedHashMap<>();
         if (taskName != null) b.put("name", taskName);
         if (notes != null) b.put("notes", notes);
@@ -276,8 +284,13 @@ public final class AsanaPackage {
         if (due != null) b.put("due_on", due.isBlank() ? null : due);
         if (completed != null) b.put("completed", completed);
         if (custom != null && !custom.isEmpty()) b.put("custom_fields", custom);
-        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in at least one field to change.");
-        data(ctx, "PUT", base, "/tasks/" + gid("task", task), token, b);
+        boolean move = parent != null && !parent.isBlank();
+        if (b.isEmpty() && !move) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in at least one field to change.");
+        String id = gid("task", task);
+        Map<String, Object> p = new LinkedHashMap<>();
+        if (move) p.put("parent", parent.strip().equalsIgnoreCase("none") ? null : gid("parent task", parent));
+        if (!b.isEmpty()) data(ctx, "PUT", base, "/tasks/" + id, token, b);
+        if (move) data(ctx, "POST", base, "/tasks/" + id + "/setParent", token, p);
         return Map.of();
     }
 
@@ -432,15 +445,51 @@ public final class AsanaPackage {
 
     // ---------------------------------------------------------------- comments and attachments
 
-    @Action(id = "add_comment", name = "Add comment", category = "Comments", capabilities = "network", description = "Post a comment on a task.",
-            panel = "token, task_id, text | base_url")
+    private static final String D_FORMAT = "plain sends the text as it is; html sends Asana rich text, wrapped in <body>...</body>, e.g. <body>Paid <strong>today</strong></body>.";
+
+    /** The story body for a comment: text or html_text, and is_pinned when given. */
+    static Map<String, Object> commentBody(String text, String format, Boolean pinned) {
+        String f = format == null || format.isBlank() ? "plain" : format.strip().toLowerCase(Locale.ROOT);
+        if (!f.equals("plain") && !f.equals("html"))
+            throw new ActionException(P + ".BAD_FORMAT", "Unknown comment format '" + format + "'", "Use plain or html.");
+        Map<String, Object> b = new LinkedHashMap<>();
+        if (text != null) b.put(f.equals("html") ? "html_text" : "text", text);
+        if (pinned != null) b.put("is_pinned", pinned);
+        return b;
+    }
+
+    /** Earlier signature, kept for callers written before text_format and pinned. */
+    public Map<String, Object> addComment(ActionContext ctx, String base, Object token, String task, String text) {
+        return addComment(ctx, base, token, task, text, "plain", false);
+    }
+
+    @Action(id = "add_comment", name = "Add comment", category = "Comments", capabilities = "network", description = "Post a comment on a task, as plain or rich text, optionally pinned to the top.",
+            panel = "token, task_id, text | text_format, pinned, base_url")
     @Output(name = "comment_id", type = OoaType.STRING, description = "Id of the new comment.")
     public Map<String, Object> addComment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
-            @Input(name = "text", type = OoaType.STRING, example = "Invoice approved by the finance agent.", description = "Comment text.") String text) {
-        return Out.of("comment_id", data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/stories", token, Map.of("text", text)).get("gid"));
+            @Input(name = "text", type = OoaType.STRING, example = "Invoice approved by the finance agent.", description = "Comment text.") String text,
+            @Input(name = "text_format", type = OoaType.STRING, required = false, defaultValue = "\"plain\"", enumValues = {"plain", "html"}, description = D_FORMAT) String format,
+            @Input(name = "pinned", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Pin the comment to the top of the task's activity.") boolean pinned) {
+        Map<String, Object> b = commentBody(text, format, pinned ? Boolean.TRUE : null);
+        return Out.of("comment_id", data(ctx, "POST", base, "/tasks/" + gid("task", task) + "/stories", token, b).get("gid"));
+    }
+
+    @Action(id = "get_comment", name = "Get comment", category = "Comments", idempotent = true, capabilities = "network",
+            description = "Read one comment (or other task story) by its id.",
+            panel = "token, comment_id | base_url")
+    @Output(name = "comment", type = OoaType.DICTIONARY, description = "gid, type, text, html_text, pinned, author, created_at, task, task_id.")
+    public Map<String, Object> getComment(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "comment_id", type = OoaType.STRING, description = "Comment id, from Add comment or List comments.") String comment) {
+        Map<String, Object> s = data(ctx, "GET", base, "/stories/" + gid("comment", comment)
+                + "?opt_fields=type,resource_subtype,text,html_text,is_pinned,created_by.name,created_at,target.name", token, null);
+        return Out.of("comment", Out.of("gid", s.get("gid"), "type", s.get("resource_subtype") != null ? s.get("resource_subtype") : s.get("type"),
+                "text", s.get("text"), "html_text", s.get("html_text"), "pinned", s.get("is_pinned"), "author", HttpJson.path(s, "created_by.name"),
+                "created_at", s.get("created_at"), "task", HttpJson.path(s, "target.name"), "task_id", HttpJson.path(s, "target.gid")));
     }
 
     @Action(id = "list_comments", name = "List comments", category = "Comments", idempotent = true, capabilities = "network",
@@ -484,14 +533,24 @@ public final class AsanaPackage {
         return upload(ctx, base, token, task, path, null);
     }
 
-    @Action(id = "update_comment", name = "Update comment", category = "Comments", capabilities = "network", description = "Change the text of a comment (only the comment's author can).",
-            panel = "token, comment_id, text | base_url")
+    /** Earlier signature, kept for callers written before text_format and pinned. */
+    public Map<String, Object> updateComment(ActionContext ctx, String base, Object token, String comment, String text) {
+        return updateComment(ctx, base, token, comment, text, "plain", null);
+    }
+
+    @Action(id = "update_comment", name = "Update comment", category = "Comments", capabilities = "network",
+            description = "Change the text of a comment (only the comment's author can), or pin or unpin it.",
+            panel = "token, comment_id, text | text_format, pinned, base_url")
     public Map<String, Object> updateComment(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "comment_id", type = OoaType.STRING, description = "Comment id, from Add comment or List comments.") String comment,
-            @Input(name = "text", type = OoaType.STRING, description = "New comment text.") String text) {
-        data(ctx, "PUT", base, "/stories/" + gid("comment", comment), token, Map.of("text", text));
+            @Input(name = "text", type = OoaType.STRING, required = false, description = "New comment text; leave empty to keep the text and only pin or unpin.") String text,
+            @Input(name = "text_format", type = OoaType.STRING, required = false, defaultValue = "\"plain\"", enumValues = {"plain", "html"}, description = D_FORMAT) String format,
+            @Input(name = "pinned", type = OoaType.BOOLEAN, required = false, description = "true pins the comment to the top of the task, false unpins it; empty leaves it as it is.") Boolean pinned) {
+        Map<String, Object> b = commentBody(text == null || text.isEmpty() ? null : text, format, pinned);
+        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in text or pinned.");
+        data(ctx, "PUT", base, "/stories/" + gid("comment", comment), token, b);
         return Map.of();
     }
 
@@ -652,6 +711,36 @@ public final class AsanaPackage {
         if (body.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name or team_description.");
         data(ctx, "PUT", base, "/teams/" + gid("team", team), token, body);
         return Map.of();
+    }
+
+    @Action(id = "list_teams", name = "List teams", category = "Teams", idempotent = true, capabilities = "network",
+            description = "List the teams of an organization workspace that the token's user can see.",
+            panel = "token, workspace_id | max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, description, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of teams returned.")
+    public Map<String, Object> listTeams(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = "Organization (workspace) id, from List workspaces.") String ws,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, description = D_MAX) int max) {
+        return result(pages(ctx, base, "/workspaces/" + gid("workspace", ws) + "/teams?opt_fields=name,description,permalink_url", token, Math.max(1, max)),
+                "gid", "name", "description", "url=permalink_url");
+    }
+
+    @Action(id = "list_user_teams", name = "List teams of user", category = "Teams", idempotent = true, capabilities = "network",
+            description = "List the teams a person belongs to in an organization workspace.",
+            panel = "token, user, workspace_id | max_results, base_url")
+    @Output(name = "table", type = OoaType.TABLE, description = "Columns: gid, name, description, url.")
+    @Output(name = "count", type = OoaType.NUMBER, description = "Number of teams returned.")
+    public Map<String, Object> listUserTeams(ActionContext ctx,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "user", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_USER) String u,
+            @Input(name = "workspace_id", type = OoaType.STRING, description = "Organization (workspace) id, from List workspaces.") String ws,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 1, description = D_MAX) int max) {
+        String path = "/users/" + HttpJson.enc(user(u == null || u.isBlank() ? "me" : u)) + "/teams?organization=" + gid("workspace", ws)
+                + "&opt_fields=name,description,permalink_url";
+        return result(pages(ctx, base, path, token, Math.max(1, max)), "gid", "name", "description", "url=permalink_url");
     }
 
     // ---------------------------------------------------------------- tags

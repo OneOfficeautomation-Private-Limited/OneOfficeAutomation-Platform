@@ -357,9 +357,16 @@ public final class WorkdayPackage {
                 : "application/octet-stream";
     }
 
+    /** Earlier signature, kept for callers written before id_type. */
+    public Map<String, Object> getIntegrationEvent(ActionContext ctx, String host, String tenant, String eventId, String version, String user, Object password, Object token) {
+        return getIntegrationEvent(ctx, host, tenant, eventId, version, user, password, token, "WID");
+    }
+
+    private static final Pattern ID_TYPE = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{0,63}$");
+
     @Action(id = "get_integration_event", name = "Get integration event", category = "Integrations", idempotent = true, timeoutSeconds = 120, capabilities = "network",
             description = "Read the status and timing of an integration run.",
-            panel = "host, tenant, event_id | (Sign in with: User name and password = user, password / An access token = access_token), version")
+            panel = "host, tenant, event_id | id_type, (Sign in with: User name and password = user, password / An access token = access_token), version")
     @Output(name = "status", type = OoaType.STRING, description = "Run status, e.g. Processing, Completed, Completed with Warnings or Failed.")
     @Output(name = "percent_complete", type = OoaType.NUMBER, description = "Progress percentage when Workday reports it.")
     @Output(name = "started", type = OoaType.STRING, description = "Start time.")
@@ -372,10 +379,20 @@ public final class WorkdayPackage {
             @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v42.0\"", description = "Web service version.") String version,
             @Input(name = "user", type = OoaType.STRING, required = false, description = "Integration system user with tenant (basic sign-in).") String user,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password from the vault (basic sign-in).") Object password,
-            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token) {
-        if (eventId == null || !eventId.matches("^[0-9a-fA-F]{32}$")) throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "An event id is a 32-character WID.");
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, required = false, description = "OAuth access token from the vault (instead of user and password).") Object token,
+            @Input(name = "id_type", type = OoaType.STRING, required = false, defaultValue = "\"WID\"", example = "WID",
+                    description = "Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns), or the name of another ID type "
+                            + "your tenant accepts for integration event references, written exactly as Workday names it.") String idType) {
+        String type = idType == null || idType.isBlank() ? "WID" : idType.strip();
+        if (!ID_TYPE.matcher(type).matches()) throw new ActionException(P + ".BAD_ID_TYPE", "Invalid id type '" + idType + "'", "Use WID, or a Workday ID type name such as the ones shown in the event's reference ids.");
+        boolean wid = type.equalsIgnoreCase("WID");
+        if (wid) type = "WID";
+        if (wid && (eventId == null || !eventId.matches("^[0-9a-fA-F]{32}$")))
+            throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "An event id is a 32-character WID.");
+        if (!wid && (eventId == null || !REF_ID.matcher(eventId.strip()).matches()))
+            throw new ActionException(P + ".BAD_ID", "Invalid integration event id '" + eventId + "'", "Use letters, digits, _ . : or - only.");
         String body = "<bsvc:Get_Integration_Events_Request bsvc:version=\"" + version + "\"><bsvc:Request_References>"
-                + "<bsvc:Integration_Event_Reference><bsvc:ID bsvc:type=\"WID\">" + eventId + "</bsvc:ID></bsvc:Integration_Event_Reference>"
+                + "<bsvc:Integration_Event_Reference><bsvc:ID bsvc:type=\"" + type + "\">" + xml(eventId.strip()) + "</bsvc:ID></bsvc:Integration_Event_Reference>"
                 + "</bsvc:Request_References></bsvc:Get_Integration_Events_Request>";
         org.w3c.dom.Document d = soap(ctx, host, tenant, version, body, user, password, token);
         String status = refId(d, "Background_Process_Instance_Status_Reference", "Background_Process_Instance_Status_ID");
