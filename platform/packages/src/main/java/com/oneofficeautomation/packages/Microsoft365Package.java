@@ -1857,10 +1857,16 @@ public final class Microsoft365Package {
         return Map.of("sheet_name", made, "address", cells.toUpperCase(Locale.ROOT));
     }
 
+    /** The signature before search_by was added. */
+    public Map<String, Object> excelFind(ActionContext ctx, Object token, String remote, String sheet, String text, String range, boolean matchCase, boolean whole,
+            String drive, String base) {
+        return excelFind(ctx, token, remote, sheet, text, range, matchCase, whole, drive, base, "rows");
+    }
+
     @Action(id = "excel_find", name = "Find in sheet (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
             description = "Search the used cells of a sheet, or a range, for text and return the addresses of the matching cells.",
-            panel = "access_token, remote_path, sheet, [Search only a range: range], text, match_case, whole_cell | drive, base_url")
-    @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in reading order.")
+            panel = "access_token, remote_path, sheet, [Search only a range: range], text, search_by, match_case, whole_cell | drive, base_url")
+    @Output(name = "cells", type = OoaType.LIST, description = "Addresses of the matches, e.g. B7, in search order.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matches.")
     public Map<String, Object> excelFind(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -1871,8 +1877,11 @@ public final class Microsoft365Package {
             @Input(name = "match_case", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Upper and lower case must match.") boolean matchCase,
             @Input(name = "whole_cell", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "The whole cell must equal the text.") boolean whole,
             @Input(name = "drive", type = OoaType.STRING, required = false, defaultValue = "\"me/drive\"", description = D_DRIVE) String drive,
-            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base,
+            @Input(name = "search_by", type = OoaType.STRING, required = false, defaultValue = "\"rows\"", enumValues = {"rows", "columns"},
+                    description = "Order of the results: rows goes across each row first, columns goes down each column first.") String searchBy) {
         if (text == null || text.isEmpty()) throw new ActionException(P + ".BAD_INPUT", "Give the text to find");
+        boolean byColumns = "columns".equals(choice(searchBy, "search_by", new LinkedHashSet<>(List.of("rows", "columns"))));
         String addr = range == null || range.isBlank() ? used(ctx, token, drive, base, remote, sheet) : range.trim();
         if (addr == null) return Map.of("cells", List.of(), "count", num(0));
         Map<String, Object> r = HttpJson.req(P, "GET", book(drive, base, remote, ws(sheet) + rangePath(addr)) + "?$select=address,text").bearer(token).send(ctx).map();
@@ -1880,7 +1889,12 @@ public final class Microsoft365Package {
         String needle = matchCase ? text : text.toLowerCase(Locale.ROOT);
         List<Object> found = new ArrayList<>();
         List<List<Object>> grid = matrix(r.get("text"));
-        for (int i = 0; i < grid.size(); i++) for (int j = 0; j < grid.get(i).size(); j++) {
+        int width = 0;
+        for (List<Object> row : grid) width = Math.max(width, row.size());
+        // k walks the cells row by row, or column by column with search_by columns
+        for (int k = 0; k < grid.size() * width; k++) {
+            int i = byColumns ? k % grid.size() : k / width, j = byColumns ? k / grid.size() : k % width;
+            if (j >= grid.get(i).size()) continue;
             String v = matchCase ? s(grid.get(i).get(j)) : s(grid.get(i).get(j)).toLowerCase(Locale.ROOT);
             if (whole ? v.equals(needle) : v.contains(needle)) found.add(colName(origin[0] + j) + (origin[1] + i));
         }
@@ -2084,6 +2098,19 @@ public final class Microsoft365Package {
         List<Object> out = new ArrayList<>();
         for (List<Object> rr : matrix(r.get("values"))) out.add(rr.isEmpty() ? null : rr.get(0));
         return Map.of("values", out);
+    }
+
+    @Action(id = "excel_column_name", name = "Get column name (Excel online)", category = "Excel online", idempotent = true,
+            description = "Split a cell address such as AB7 into its column letters, column number and row number; nothing is read from the workbook.",
+            panel = "cell")
+    @Output(name = "column_name", type = OoaType.STRING, description = "Column letters, e.g. AB.")
+    @Output(name = "column", type = OoaType.NUMBER, description = "Column number, starting at 1 for A.")
+    @Output(name = "row", type = OoaType.NUMBER, description = "Row number.")
+    public Map<String, Object> excelColumnName(ActionContext ctx,
+            @Input(name = "cell", type = OoaType.STRING, example = "AB7", description = "Cell address; a sheet name before ! and $ signs are ignored.") String address) {
+        if (address == null || address.isBlank()) throw new ActionException(P + ".BAD_RANGE", "Give a cell address", "Example: B2.");
+        int[] c = cell(address.substring(address.lastIndexOf('!') + 1));
+        return Map.of("column_name", colName(c[0]), "column", num(c[0]), "row", num(c[1]));
     }
 
     @Action(id = "excel_list_tables", name = "List tables (Excel online)", category = "Excel online", idempotent = true, capabilities = "network",
@@ -2390,6 +2417,41 @@ public final class Microsoft365Package {
         at.removeIf(a -> drop.contains(s(at(a, "emailAddress", "address")).toLowerCase(Locale.ROOT)));
         HttpJson.req(P, "PATCH", url).bearer(token).json(Map.of("attendees", at)).send(ctx);
         return Map.of("attendees", addresses(at));
+    }
+
+    @Action(id = "clear_event_details", name = "Clear event details", category = "Calendar", idempotent = true, capabilities = "network",
+            description = "Blank the ticked details of an event: title, location, description, reminder, repeat pattern or all-day setting.",
+            panel = "access_token, event_id, clear_subject, clear_location, clear_body, clear_reminder, clear_recurrence, clear_all_day | mailbox, base_url")
+    @Output(name = "web_link", type = OoaType.STRING, description = "Link to open the event in Outlook.")
+    public Map<String, Object> clearEventDetails(ActionContext ctx,
+            @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "event_id", type = OoaType.STRING, description = D_EVENT) String id,
+            @Input(name = "clear_subject", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the title.") boolean subject,
+            @Input(name = "clear_location", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the location.") boolean location,
+            @Input(name = "clear_body", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Empty the description.") boolean body,
+            @Input(name = "clear_reminder", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Turn the reminder off.") boolean reminder,
+            @Input(name = "clear_recurrence", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Stop the series repeating; for one occurrence the whole series is changed.") boolean recurrence,
+            @Input(name = "clear_all_day", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Make an all-day event a timed one, keeping its dates.") boolean allDay,
+            @Input(name = "mailbox", type = OoaType.STRING, required = false, defaultValue = "\"me\"", description = D_MAILBOX) String mailbox,
+            @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = GRAPH, description = D_BASE) String base) {
+        Map<String, Object> ev = new LinkedHashMap<>();
+        if (subject) ev.put("subject", "");
+        if (location) ev.put("location", Map.of("displayName", ""));
+        if (body) ev.put("body", Map.of("contentType", "Text", "content", ""));
+        if (reminder) ev.put("isReminderOn", false);
+        if (allDay) ev.put("isAllDay", false);
+        if (recurrence) ev.put("recurrence", null);
+        if (ev.isEmpty()) throw new ActionException(P + ".NOTHING_TO_DO", "Nothing was ticked to clear", "Tick at least one detail to clear.");
+        String url = event(base, mailbox, id);
+        if (recurrence) {
+            // the repeat pattern lives on the series master, as in update_event
+            Map<String, Object> current = HttpJson.req(P, "GET", url + "?$select=type,seriesMasterId").bearer(token).send(ctx).map();
+            String type = s(current.get("type"));
+            if ((type.equals("occurrence") || type.equals("exception")) && !s(current.get("seriesMasterId")).isEmpty())
+                url = event(base, mailbox, s(current.get("seriesMasterId")));
+        }
+        Map<String, Object> r = HttpJson.req(P, "PATCH", url).bearer(token).json(ev).send(ctx).map();
+        return Out.of("web_link", r.get("webLink"));
     }
 
     @Action(id = "add_event_attachment", name = "Add event attachment", category = "Calendar", capabilities = {"network", "filesystem"},
