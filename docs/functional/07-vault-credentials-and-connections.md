@@ -138,8 +138,12 @@ the vault holds.
 **Rotate key** makes a new key and re-encrypts, in one transaction, every shared value, every person's own value and
 every external-vault sign-in secret, and the encrypted entries of the Command Center's configuration files. The new key
 is written next to the old one first, then replaces it; the old key file is kept as `master.key.old-…` until an
-administrator removes it. With `OOA_MASTER_KEY` or a key store, the key cannot be rotated here (`CR.VAULT_KEY`); rotate
-it where it is managed.
+administrator removes it. With `OOA_MASTER_KEY` or a key store, the key cannot be rotated here (`CR.VAULT_KEY`).
+Instead, stop the Command Center and run `ooa vault rekey --new-key-env VAR`, with the new key (32 random bytes,
+Base64) in the environment variable `VAR`: every stored value is re-encrypted with it (`vault.rekey` is recorded, the
+key itself is never printed). Then put the new key where the old one is kept and start the Command Center again; until
+then it cannot read its secrets. With a key file, the command writes the new key into it and keeps the old one as
+`master.key.old-…`.
 
 ## 11. Saved connections
 

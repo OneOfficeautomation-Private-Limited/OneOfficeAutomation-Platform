@@ -123,6 +123,46 @@ public final class Ooa {
         } finally { s.db().close(); }
     }
 
+    /**
+     * ooa vault rekey: with the Command Center stopped, re-encrypts every stored secret with a new master key taken
+     * from an environment variable, for a key kept outside the data folder (OOA_MASTER_KEY or a key store), which the
+     * console's Rotate cannot change. The new key is never printed.
+     */
+    static int vaultRekey(Map<String, String> o) throws Exception {
+        String var = o.get("new-key-env");
+        String value = var == null ? null : System.getenv(var);
+        if (value == null || value.isBlank()) {
+            System.err.println("Put the new key (32 random bytes, Base64) in the environment variable " + var + " first, e.g. in PowerShell:");
+            System.err.println("  $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $env:" + var + " = [Convert]::ToBase64String($b)");
+            return 1;
+        }
+        byte[] key;
+        try { key = java.util.Base64.getDecoder().decode(value.trim()); }
+        catch (IllegalArgumentException e) { System.err.println("The new key in " + var + " is not Base64."); return 1; }
+        if (key.length != 32) { System.err.println("The new key must be 32 bytes (44 Base64 characters); it is " + key.length + "."); return 1; }
+        ControlRoomSetup s;
+        try { s = openControlRoom(o); }
+        catch (Exception e) {
+            System.err.println("Cannot open the Command Center database. Stop the Command Center first, then run this again.");
+            System.err.println("  (" + e.getMessage() + ")");
+            return 2;
+        }
+        try {
+            String source = s.cr().vault.keySource;
+            Map<String, Object> r = s.cr().vaultAdmin.rekey(key);
+            System.out.println("Re-encrypted " + r.get("re_encrypted") + " stored values with the new key (fingerprint " + r.get("key_fingerprint") + ").");
+            if (Boolean.TRUE.equals(r.get("key_file"))) System.out.println("The key file holds the new key; the old one is kept next to it as master.key.old-<time>.");
+            else {
+                System.out.println("Now replace the old key where it is kept (" + source + ") with the new one from " + var + ",");
+                System.out.println("then start the Command Center. Until then it cannot read its secrets.");
+            }
+            return 0;
+        } catch (OoaException e) {
+            System.err.println(e.getMessage());
+            return 1;
+        } finally { s.db().close(); }
+    }
+
     static int controlRoom(Map<String, String> o) throws Exception {
         int port = Integer.parseInt(o.getOrDefault("port", "8720"));
         String host = o.getOrDefault("host", "127.0.0.1");

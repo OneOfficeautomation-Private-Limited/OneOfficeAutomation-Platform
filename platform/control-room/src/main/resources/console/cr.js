@@ -1141,7 +1141,8 @@ const VIEWS = {
           { label: "", sort: false, render: (s) => can("schedules.manage") ? h("input", { type: "checkbox", "aria-label": "Select " + s.name, checked: picked.has(s.id),
             onchange: (e) => { if (e.target.checked) picked.add(s.id); else picked.delete(s.id); } }) : "" },
           { label: "Runner", value: (s) => s.pool_id ? "Pool: " + ((S.pools.find((p) => p.id === s.pool_id) || {}).name || s.pool_id) : s.device_id ? deviceName(s.device_id) : "default runner of " + s.run_as },
-          { label: "When", value: (s) => when(s) + " (" + s.time_zone + ")" + (s.holiday_calendar ? ", not on " + s.holiday_calendar : "") },
+          { label: "When", value: (s) => when(s) + " (" + s.time_zone + ")" + (s.holiday_calendar ? ", not on " + s.holiday_calendar : "")
+            + (s.missed_runs === "skip" ? ", skips missed times" : "") + (s.overlap === "skip" ? ", skips while the previous run is going" : "") },
           { label: "Owner", value: (s) => s.created_by || "", render: (s) => h("span", {}, s.created_by || "", s.run_as ? h("div", { class: "muted small", text: "runs as " + s.run_as }) : null) },
           { label: "Next run", value: (s) => s.enabled ? s.next_run || "" : "", render: (s) => s.enabled ? h("span", { title: local(s.next_run) }, ago(s.next_run)) : "\u2014" },
           { label: "Last run", value: (s) => s.last_run || "", render: (s) => s.last_run ? h("span", { title: local(s.last_run) }, ago(s.last_run)) : "never" },
@@ -1876,15 +1877,17 @@ async function scheduleDialog() {
   kind.addEventListener("change", sync); sync();
   const runAs = await runAsSelect();
   const noRunner = h("label", { class: "check" }, h("input", { type: "checkbox" }), "Use the run-as user's default runner");
+  const opts = scheduleOptionSelects();
   modal("New schedule", [h("label", {}, "Name", name), h("label", {}, "Agent (live production version)", bot), h("div", { class: "grid2" }, h("label", {}, "Runner", dev), h("label", {}, "Or a runner pool", pool)),
     h("div", { class: "grid2" }, h("label", {}, "Run as (credentials are checked against this person)", runAs), noRunner),
     h("label", {}, "Repeat", kind), everyBox, atBox, daysBox,
-    h("div", { class: "grid2" }, h("label", {}, "Time zone", tz), h("label", {}, "Skip the dates of a holiday calendar", cal)), h("label", {}, "Inputs (JSON, optional)", inputs)],
+    h("div", { class: "grid2" }, h("label", {}, "Time zone", tz), h("label", {}, "Skip the dates of a holiday calendar", cal)), opts.row, h("label", {}, "Inputs (JSON, optional)", inputs)],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
         const useDefault = runAs.value && noRunner.firstChild.checked;
         const body = { name: name.value || "Schedule", bot_path: bot.value, device_id: pool.value || useDefault ? null : dev.value, pool_id: useDefault ? null : pool.value || null, holiday_calendar: cal.value || null,
-          kind: kind.value, time_zone: tz.value, inputs: parseJson(inputs.value, {}), run_as: runAs.value || null };
+          kind: kind.value, time_zone: tz.value, inputs: parseJson(inputs.value, {}), run_as: runAs.value || null,
+          missed_runs: opts.missed.value, overlap: opts.overlap.value };
         if (kind.value === "every") body.every_minutes = parseInt(every.value, 10); else body.at_time = at.value;
         if (kind.value === "weekly") body.days = days.map((l) => l.firstChild).filter((c) => c.checked).map((c) => c.value).join(",");
         const r = await api("POST", "schedules", body); closeModal(); toast("Next run " + local(r.next_run)); go("schedules");
@@ -2072,10 +2075,10 @@ async function credentialDetails(l, name) {
 async function vaultKeyDialog() {
   let st;
   try { st = await api("GET", "vault/status"); } catch (e) { toast(e.message, true); return; }
-  modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : "OOA_MASTER_KEY environment variable"], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
+  modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : st.key_source === "environment" ? "OOA_MASTER_KEY environment variable" : st.key_source_detail], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
     ["Vault folders", String(st.vault_folders)], ["Shared values", String(st.values)], ["People's own values", String(st.personal_values)], ["External vault links", String(st.external_links)]]),
     h("p", { class: "muted", text: st.can_rotate ? "Rotating makes a new master key and encrypts every stored value again with it, in one transaction. The old key file is kept beside the new one (master.key.old-…) until you remove it; back it up with the database." :
-      "The key comes from OOA_MASTER_KEY, so it is rotated where that variable is managed." })],
+      "The key is kept outside the data folder, so it cannot be changed here. To change it: stop the Command Center, run ooa vault rekey --new-key-env VAR (every value is encrypted again with the new key), put the new key where the old one is kept, and start again." })],
   st.can_rotate ? [h("button", { type: "button", class: "danger", onclick: async () => {
     if (!confirm("Rotate the vault master key now? Agents keep working; every value is encrypted again.")) return;
     try { const r = await api("POST", "vault/rotate"); toast("Key rotated: " + r.re_encrypted + " values encrypted again. New fingerprint " + r.key_fingerprint); vaultKeyDialog(); } catch (e) { toast(e.message, true); } } }, "Rotate key")] : []);
@@ -2463,17 +2466,26 @@ async function openTask(t) {
     done && t.result ? h("details", {}, h("summary", { text: "Answer" }), h("pre", { class: "json", text: JSON.stringify(t.result, null, 2) })) : null].filter(Boolean), acts);
 }
 
+/** What a schedule does with times it missed, and when its previous run is still going (empty value = the default). */
+function scheduleOptionSelects(s) {
+  const missed = h("select", { "aria-label": "Missed times" }, h("option", { value: "once", text: "Run once for them" }), h("option", { value: "skip", text: "Skip them" }));
+  const overlap = h("select", { "aria-label": "Previous run still going" }, h("option", { value: "allow", text: "Start another run" }), h("option", { value: "skip", text: "Skip this time" }));
+  missed.value = (s && s.missed_runs) || "once"; overlap.value = (s && s.overlap) || "allow";
+  return { missed, overlap, row: h("div", { class: "grid2" }, h("label", {}, "Times missed while the Command Center was down", missed), h("label", {}, "When the previous run is still going", overlap)) };
+}
+
 async function scheduleEditDialog(s) {
   const name = h("input", { value: s.name });
   const runAs = await runAsSelect(s.run_as);
   const cal = h("select", { "aria-label": "Holiday calendar" }, h("option", { value: "", text: "(none)" }), (S.calendars || []).map((c) => h("option", { value: c.name, text: c.name })));
   cal.value = s.holiday_calendar || "";
   const owner = h("input", { value: s.created_by || "", placeholder: "user name" });
+  const opts = scheduleOptionSelects(s);
   modal("Edit " + s.name, [h("label", {}, "Name", name), h("label", {}, "Skip the dates of a holiday calendar", cal), h("label", {}, "Owner (runs use the owner's permissions)", owner),
-    h("label", {}, "Run as", runAs)],
+    h("label", {}, "Run as", runAs), opts.row],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       try {
-        const body = { name: name.value, holiday_calendar: cal.value || null, run_as: runAs.value || null };
+        const body = { name: name.value, holiday_calendar: cal.value || null, run_as: runAs.value || null, missed_runs: opts.missed.value, overlap: opts.overlap.value };
         if (owner.value.trim() && owner.value.trim() !== s.created_by) body.owner = owner.value.trim();
         await api("PUT", "schedules/" + s.id, body); closeModal(); go("schedules");
       } catch (e) { toast(e.message, true); } } }, "Save")]);
@@ -2578,7 +2590,18 @@ async function openQueue(q) {
   const act = (action) => h("button", { type: "button", onclick: async () => {
     if (!sel.size) { toast("Tick items first", true); return; }
     if (action === "delete" && !confirm("Delete " + sel.size + " item(s)? Items being worked on are kept.")) return;
-    try { await api("POST", "queues/" + q.id + "/items/" + action, { ids: [...sel] }); sel.clear(); load(); } catch (e) { toast(e.message, true); } } },
+    const body = { ids: [...sel] };
+    if (action === "defer") {
+      // a time: the item is picked up again by itself after it; empty: it waits until someone presses Retry
+      const when = prompt("Defer until when? (YYYY-MM-DD HH:MM, your time; empty = until someone presses Retry)", "");
+      if (when === null) return;
+      if (when.trim()) {
+        const d = new Date(when.trim().replace(" ", "T"));
+        if (isNaN(d)) { toast("Write the time like 2026-11-02 09:00", true); return; }
+        body.until = d.toISOString();
+      }
+    }
+    try { await api("POST", "queues/" + q.id + "/items/" + action, body); sel.clear(); load(); } catch (e) { toast(e.message, true); } } },
     action === "retry" ? "Retry selected" : action === "defer" ? "Defer selected" : "Delete selected");
   async function load() {
     const [r, all] = await Promise.all([api("GET", "queues/" + q.id + "/items?limit=200&status=" + st.status + "&q=" + encodeURIComponent(st.q)), api("GET", "queues")]);
@@ -2590,7 +2613,7 @@ async function openQueue(q) {
       const box = h("input", { type: "checkbox", "aria-label": "Select " + (it.reference || it.id), checked: sel.has(it.id), onchange: (e) => { if (e.target.checked) sel.add(it.id); else sel.delete(it.id); } });
       const err = parseMaybe(it.error), res = parseMaybe(it.result);
       return { data: it, cells: [can("queues.work") ? box : "", h("div", {}, h("strong", { text: it.reference || it.id }), h("div", { class: "muted small mono", text: String(it.data).slice(0, 120) })),
-        pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
+        it.status === "deferred" ? h("span", {}, pill(it.status), h("div", { class: "muted small", text: it.defer_until ? "until " + local(it.defer_until) : "until Retry" })) : pill(it.status), String(it.attempts), String(it.priority), ago(it.created),
         it.run_id ? h("button", { type: "button", class: "link", onclick: () => openRun(it.run_id) }, err ? (err.code || "") + " " + (err.message || "") : res ? JSON.stringify(res).slice(0, 80) : "view run")
           : h("span", { class: "muted", text: err ? (err.code || JSON.stringify(err)) : "" }),
         it.status === "review" && can("queues.work") ? h("button", { type: "button", class: "primary", onclick: () => validateDialog(q, it, load) }, "Validate")

@@ -867,6 +867,7 @@ public final class ControlRoom {
         for (Map<String, Object> r : db.query("SELECT name FROM schedules WHERE bot_path = ?", path)) users.add("schedule " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM triggers WHERE bot_path = ?", path)) users.add("trigger " + r.get("name"));
         for (Map<String, Object> r : db.query("SELECT name FROM queues WHERE bot_path = ?", path)) users.add("work queue " + r.get("name"));
+        for (Map<String, Object> r : db.query("SELECT name FROM api_tasks WHERE bot_path = ?", path)) users.add("API task " + r.get("name"));
         if (!users.isEmpty()) throw new OoaException("CR.IN_USE", "The agent is used by " + String.join(", ", users), "Delete or change those first.", false, Map.of("used_by", users));
         db.update("UPDATE bots SET deleted_at = ?, deleted_by = ?, locked_by = NULL, locked_at = NULL WHERE path = ?", now(), by.username(), path);
         audit.record(by.username(), "repo.delete", "bot", path, null, "ok", ip);
@@ -1726,6 +1727,13 @@ public final class ControlRoom {
 
     static int intOr(String v, int dflt) { try { return v == null ? dflt : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return dflt; } }
 
+    /** An ISO time (2026-11-02T09:00:00Z) from a request, or null when none is given; anything else is refused. */
+    static Instant instantOr(Object v) {
+        if (v == null || String.valueOf(v).isBlank()) return null;
+        try { return Instant.parse(String.valueOf(v).trim()); }
+        catch (java.time.format.DateTimeParseException e) { throw new OoaException("CR.BAD_INPUT", "Not a time: " + v, "Use an ISO time such as 2026-11-02T09:00:00Z."); }
+    }
+
     /** An instant, or a date (YYYY-MM-DD, UTC); for an end date the day is included. */
     static Instant instant(String v, boolean endOfDay) {
         if (v == null || v.isBlank()) return null;
@@ -1869,7 +1877,8 @@ public final class ControlRoom {
         db.update("INSERT INTO schedules (id, name, bot_path, device_id, kind, every_minutes, at_time, days, time_zone, inputs, enabled, next_run, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 sid, String.valueOf(s.getOrDefault("name", "Schedule")), s.get("bot_path"), s.get("device_id"), kind, s.get("every_minutes") instanceof Number n ? n.intValue() : null,
                 kind.equals("every") ? null : s.get("at_time"), kind.equals("weekly") ? s.get("days") : null, tz, JsonLite.write(s.getOrDefault("inputs", Map.of())), true, next, by.username());
-        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ? WHERE id = ?", pool, cal, runAs, sid);
+        db.update("UPDATE schedules SET pool_id = ?, holiday_calendar = ?, run_as = ?, missed_runs = ?, overlap = ? WHERE id = ?", pool, cal, runAs,
+                scheduleOption(s.get("missed_runs"), MISSED_RUNS), scheduleOption(s.get("overlap"), OVERLAP), sid);
         audit.record(by.username(), "schedule.create", "schedule", sid, Map.of("bot", s.get("bot_path"), "kind", kind), "ok", ip);
         return Map.of("id", sid, "next_run", next.toString());
     }
@@ -1898,6 +1907,8 @@ public final class ControlRoom {
             else if (cur.get("device_id") == null && cur.get("pool_id") == null) throw new OoaException("CR.BAD_INPUT", "The schedule has no runner of its own; keep a run-as user or set a runner");
             db.update("UPDATE schedules SET run_as = ? WHERE id = ?", ra, sid);
         }
+        if (changes.containsKey("missed_runs")) db.update("UPDATE schedules SET missed_runs = ? WHERE id = ?", scheduleOption(changes.get("missed_runs"), MISSED_RUNS), sid);
+        if (changes.containsKey("overlap")) db.update("UPDATE schedules SET overlap = ? WHERE id = ?", scheduleOption(changes.get("overlap"), OVERLAP), sid);
         if (changes.containsKey("enabled")) setScheduleEnabled(by, sid, Boolean.TRUE.equals(changes.get("enabled")), ip);
         audit.record(by.username(), "schedule.update", "schedule", sid, changes, "ok", ip);
     }
@@ -1965,14 +1976,37 @@ public final class ControlRoom {
         audit.record(by.username(), "schedule.delete", "schedule", sid, null, "ok", ip);
     }
 
+    /** What a schedule does with times it missed (the Command Center was down): run once for them (default), or skip them. */
+    static final List<String> MISSED_RUNS = List.of("once", "skip");
+    /** What a schedule does when its previous run is still queued or running: start another (default), or skip this time. */
+    static final List<String> OVERLAP = List.of("allow", "skip");
+    /** A due time later than this counts as missed (for missed_runs = skip); the clock looks every 15 s. */
+    static final java.time.Duration MISSED_AFTER = java.time.Duration.ofMinutes(15);
+
+    static String scheduleOption(Object v, List<String> allowed) {
+        if (v == null || String.valueOf(v).isBlank()) return null;
+        String s = String.valueOf(v).trim().toLowerCase(Locale.ROOT);
+        if (!allowed.contains(s)) throw new OoaException("CR.BAD_SCHEDULE", "Use one of " + String.join(", ", allowed) + ", not '" + v + "'");
+        return s.equals(allowed.get(0)) ? null : s;   // the default is kept as empty
+    }
+
     /** Starts due schedules; runs carry the schedule creator as requester (so vault permissions follow that person). */
     @SuppressWarnings("unchecked")
     public int tickSchedules() {
         int started = 0;
         for (Map<String, Object> s : db.query("SELECT * FROM schedules WHERE enabled = TRUE AND next_run <= ?", now())) {
+            Instant due = Instant.parse(s.get("next_run").toString());
             Instant next = nextRun(s, now());
-            if (db.update("UPDATE schedules SET last_run = ?, next_run = ? WHERE id = ? AND next_run = ?", now(), next, s.get("id"), Instant.parse(s.get("next_run").toString())) != 1) continue;
+            if (db.update("UPDATE schedules SET last_run = ?, next_run = ? WHERE id = ? AND next_run = ?", now(), next, s.get("id"), due) != 1) continue;
             if (platform.isHoliday(s, now())) { audit.record("scheduler", "schedule.skip_holiday", "schedule", (String) s.get("id"), s.get("holiday_calendar"), "ok", null); continue; }
+            if ("skip".equals(s.get("missed_runs")) && due.isBefore(now().minus(MISSED_AFTER))) {
+                audit.record("scheduler", "schedule.skip_missed", "schedule", (String) s.get("id"), Map.of("due", due.toString()), "ok", null);
+                continue;
+            }
+            if ("skip".equals(s.get("overlap")) && count("SELECT COUNT(*) AS n FROM runs WHERE source = ? AND status IN ('queued', 'running')", "schedule:" + s.get("id")) > 0) {
+                audit.record("scheduler", "schedule.skip_overlap", "schedule", (String) s.get("id"), "the previous run is still going", "ok", null);
+                continue;
+            }
             Map<String, Object> creator = db.one("SELECT role FROM users WHERE username = ? AND enabled = TRUE", s.get("created_by"));
             if (creator == null) { audit.record("scheduler", "schedule.fire", "schedule", (String) s.get("id"), "owner " + s.get("created_by") + " is disabled or deleted", "failed", null); continue; }
             try {

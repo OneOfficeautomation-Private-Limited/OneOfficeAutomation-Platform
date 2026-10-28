@@ -78,13 +78,14 @@ or none. A file needs a header row and at least one item. New items have status 
 | `review` | To validate | The agent asked a person to check what it read (section 8) |
 | `success` | Succeeded | Processed; the agent's outputs are kept as the result |
 | `failed` | Failed | Failed with no attempts left, stopped, rejected in validation, or its run could not start |
-| `deferred` | Deferred | Put aside by a person; not processed until retried |
+| `deferred` | Deferred | Put aside by a person; processed again after its time if one was given, otherwise only after a Retry |
 
 Transitions:
 
 | From | To | When |
 | --- | --- | --- |
 | new, retry | in_progress | Processing gives it to an idle runner (attempts + 1) |
+| deferred (with a time that has passed) | in_progress | Processing gives it to an idle runner (attempts + 1; the time is cleared) |
 | in_progress | success | The run succeeded |
 | in_progress | review | The run succeeded and returned an output `validation` holding `fields` |
 | in_progress | retry | The run failed (not stopped) and attempts used < attempts per item |
@@ -113,7 +114,8 @@ Transitions:
   in `retry`, so it is picked up again automatically.
 - A stopped run never leads to a retry.
 - A person can **Retry** failed or deferred items (attempts start again from 0), and **Defer** waiting or failed items
-  to put them aside. Deferred items are only processed after a Retry.
+  to put them aside, optionally until a time (`until`, an ISO time): once that time has passed, processing picks the
+  item up again by itself. Deferred items without a time are only processed after a Retry.
 
 ## 7. Service level
 

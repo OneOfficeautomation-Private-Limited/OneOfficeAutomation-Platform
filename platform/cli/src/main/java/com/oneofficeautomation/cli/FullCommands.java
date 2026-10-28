@@ -135,6 +135,10 @@ final class FullCommands {
         c.command("check", "Check whether this computer is ready for a Command Center.", a -> CheckCommand.run(a.o()))
             .opt("--data", "DIR", DATA).number("--port", "N", "The port it will use (default 8720).");
 
+        c.group("vault", "Look after the vault's master key.");
+        database(c.command("vault rekey", "Re-encrypt every stored secret with a new master key. Stop the server first.", a -> Ooa.vaultRekey(a.o()))
+            .required("--new-key-env", "VAR", "The environment variable with the new key (32 random bytes, Base64)."));
+
         c.group("backup", "Back up and restore the Command Center.");
         database(c.command("backup now", "Make a backup into the backup folder.", a -> BackupCommand.run("now", a.o(), null)));
         database(c.command("backup list", "List the backups, newest first.", a -> BackupCommand.run("list", a.o(), null)));

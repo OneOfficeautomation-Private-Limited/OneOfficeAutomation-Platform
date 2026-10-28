@@ -6,7 +6,7 @@ This document describes the Command Center's database: the supported engines, ho
 upgraded, every table grouped by business area with its purpose and key columns, what is kept outside the database,
 and how a SaaS region gives each tenant its own schema. It is for database administrators, developers adding features
 and security reviewers who need to know where sensitive data is stored. Table and column names come from
-`control-room/.../Db.java` (schema versions 1 to 23), `Tenants.java` and `RegionDirectory.java`.
+`control-room/.../Db.java` (schema versions 1 to 24), `Tenants.java` and `RegionDirectory.java`.
 
 ## Contents
 
@@ -59,7 +59,7 @@ and a **runtime** account with data read/write rights only.
 
 ## 3. Schema versions and migrations
 
-- The schema is a list of arrays `SCHEMA_V1` … `SCHEMA_V23` in `Db.java`; `Db.LATEST = 23`.
+- The schema is a list of arrays `SCHEMA_V1` … `SCHEMA_V24` in `Db.java`; `Db.LATEST = 24`.
 - The applied version is stored in `schema_version`. At start the missing versions are applied in order.
 - H2 upgrades itself. SQL Server and PostgreSQL stop with `CR.DB_UPGRADE_NEEDED` until `ooa db migrate` runs with the
   setup account.
@@ -91,6 +91,7 @@ and a **runtime** account with data read/write rights only.
 | 21 | PII analyzer and content check per model connection |
 | 22 | kpi_values, dashboards |
 | 23 | toolkit_publishers, custom_toolkits |
+| 24 | defer_until on queue_items; missed_runs and overlap on schedules |
 
 ## 4. Tables by area
 
@@ -136,11 +137,11 @@ and a **runtime** account with data read/write rights only.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `schedules` | Timed starts | `kind`, `every_minutes`, `at_time`, `days`, `time_zone`, `holiday_calendar`, `device_id`, `pool_id`, `run_as`, `inputs`, `next_run`, `last_run`, `enabled` |
+| `schedules` | Timed starts | `kind`, `every_minutes`, `at_time`, `days`, `time_zone`, `holiday_calendar`, `device_id`, `pool_id`, `run_as`, `missed_runs`, `overlap`, `inputs`, `next_run`, `last_run`, `enabled` |
 | `holiday_calendars` | Dates to skip | `name`, `dates` |
 | `triggers` | Event starts | `kind`, `device_id`, `folder`, `pattern`, `config` (JSON, vault references only), `secret_hash` (webhooks), `run_as`, `last_fired`, `fire_count`, `last_error`, `last_hash` (cursor) |
 | `queues` | Work queues | `bot_path`, `pool_id`, `run_as`, `sla_minutes`, `max_attempts`, `processing`, `model_id` |
-| `queue_items` | Work items | `queue_id`, `reference`, `data`, `status`, `priority`, `attempts`, `run_id`, `device_id`, `error`, `result` |
+| `queue_items` | Work items | `queue_id`, `reference`, `data`, `status`, `priority`, `attempts`, `run_id`, `device_id`, `defer_until`, `error`, `result` |
 | `work_item_models` | Typed item fields | `name`, `fields` |
 | `queue_members` | Queue roles | `queue_id`, `principal`, `member_role` (owner, participant, consumer) |
 | `workflow_runs` | Workflow instances | `path`, `version`, `status`, `stage`, `data`, `history`, `reference`, `started_by`, `error` |
