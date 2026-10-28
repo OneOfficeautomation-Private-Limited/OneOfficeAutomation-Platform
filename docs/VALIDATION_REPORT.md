@@ -340,7 +340,7 @@ Results: packages-browser 7 tests, cli 21, runner 39, 0 failed; Studio UI 216 pa
 # Validation report: Browser Connector
 
 Built to match how the reference product drives the person's own browser (extension + native-messaging host),
-in our own design and code. Details: docs/BROWSER_CONNECTOR.md.
+in our own design and code. Details: docs/user-guide/08-browser-connector-guide.md.
 
 | Check (real Edge with the extension, through a test Studio) | Result |
 | --- | --- |

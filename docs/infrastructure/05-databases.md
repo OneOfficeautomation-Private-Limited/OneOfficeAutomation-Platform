@@ -249,5 +249,5 @@ Upgrade procedure:
 - [06. High availability and scaling](06-high-availability-and-scaling.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
 - [08. Security hardening](08-security-hardening.md)
-- [Command Center database](../DATABASE.md)
-- [Licensing](../LICENSING.md)
+- [Functional 13. Licensing and editions](../functional/13-licensing-and-editions.md)
+- [Architecture 05. Data model](../architecture/05-data-model.md)

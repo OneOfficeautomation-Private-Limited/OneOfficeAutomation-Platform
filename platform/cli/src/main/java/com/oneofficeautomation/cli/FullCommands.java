@@ -47,7 +47,7 @@ final class FullCommands {
             .opt("--config", "FILE", "The registration.").opt("--workspace", "DIR", "The runner's workspace.");
         c.command("agent uninstall-task", "Stop starting the runner at sign-in.", a -> Ooa.agent("uninstall-task", a.o()));
 
-        c.group("db", "Set up and look after the Command Center database (docs/DATABASE.md).");
+        c.group("db", "Set up and look after the Command Center database (docs/infrastructure/05-databases.md).");
         db(c, "configure", "Save the database settings: SQL Server or PostgreSQL, the server and the accounts.")
             .opt("--engine", "ENGINE", "sqlserver (default) or postgresql.")
             .opt("--host", "HOST", "The database server.")
@@ -93,7 +93,7 @@ final class FullCommands {
             .opt("--token-env", "VAR", "The environment variable with a GitHub token (for a private repository).")
             .opt("--api", "URL", "The GitHub API address (default https://api.github.com).");
 
-        c.group("region", "Run the SaaS service: a region with its tenants (docs/SAAS.md).");
+        c.group("region", "Run the SaaS service: a region with its tenants (docs/infrastructure/09-saas-and-multi-region-operations.md).");
         c.command("region start", "Start a region: every tenant on one port, the host name picking the tenant.", a -> RegionCommand.start(a.o()))
             .opt("--data", "DIR", "The region's data folder, with config/ooa-region.properties.")
             .opt("--host", "HOST", "The address to listen on (default 0.0.0.0; TLS ends at the load balancer).")

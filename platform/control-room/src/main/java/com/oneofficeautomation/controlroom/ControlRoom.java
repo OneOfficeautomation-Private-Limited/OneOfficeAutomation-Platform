@@ -104,7 +104,7 @@ public final class ControlRoom {
 
     /**
      * Whether serverless API tasks may run in this Command Center. Always on premises; for a SaaS tenant only when the
-     * region allows them (its network then limits where the server may connect, docs/SAAS.md).
+     * region allows them (its network then limits where the server may connect, docs/infrastructure/09-saas-and-multi-region-operations.md).
      */
     public volatile boolean serverlessAllowed = true;
 

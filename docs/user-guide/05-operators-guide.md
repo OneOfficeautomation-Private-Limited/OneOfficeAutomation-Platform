@@ -419,4 +419,3 @@ figure (KPI)** on an output in Studio; each successful run then records its valu
 - [07 Runner guide](07-runner-guide.md)
 - [14 Business users](14-business-users.md)
 - [15 Publishing to the Command Center](15-publishing-to-command-center.md)
-- Reference: [CONTROL_ROOM_AND_AGENT.md](../CONTROL_ROOM_AND_AGENT.md)

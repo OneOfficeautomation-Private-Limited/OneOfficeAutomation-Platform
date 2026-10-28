@@ -217,5 +217,5 @@ These trust any process on the same computer; keep runner and builder machines s
 - [06. High availability and scaling](06-high-availability-and-scaling.md)
 - [08. Security hardening](08-security-hardening.md)
 - [11. Monitoring, logging and troubleshooting](11-monitoring-logging-and-troubleshooting.md)
-- [Enterprise checks](../ENTERPRISE_CHECKS.md)
-- [Browser connector](../BROWSER_CONNECTOR.md)
+- [Enterprise checks](08-security-hardening.md)
+- [Browser connector](../user-guide/08-browser-connector-guide.md)

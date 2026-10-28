@@ -7,7 +7,7 @@ platform itself: authentication (passwords, single sign-on, two-step sign-in, AP
 vault and its key hierarchy, secret masking in runs and logs, the audit hash chain with checkpoints, transport
 security, runner registration and secret rotation, toolkit signing and trusted publishers, the network guard in the
 SaaS service, and licence and release signatures. It is for security architects, penetration testers and auditors.
-Test cases and known gaps for a formal review are in [../SECURITY_REVIEW.md](../SECURITY_REVIEW.md).
+Scope, set-up, test cases and known gaps for a formal review are in section 14.
 
 ## Contents
 
@@ -24,7 +24,8 @@ Test cases and known gaps for a formal review are in [../SECURITY_REVIEW.md](../
 11. [SaaS isolation and the network guard](#11-saas-isolation-and-the-network-guard)
 12. [Secure coding rules](#12-secure-coding-rules)
 13. [Cryptography summary](#13-cryptography-summary)
-14. [Related documents](#related-documents)
+14. [Independent security review](#14-independent-security-review)
+15. [Related documents](#related-documents)
 
 ---
 
@@ -313,6 +314,74 @@ Enforced by `ArchitectureTest` and code review:
 
 All of it uses the JDK; there is no third-party crypto library.
 
+## 14. Independent security review
+
+An independent security review and penetration test (open item S1) has not been done yet. This section is the brief
+for the testing firm, so it can start without a walkthrough. Findings are reported as described in `SECURITY.md` at
+the repository root.
+
+### 14.1 Scope
+
+| Component | What it is | Network exposure |
+| --- | --- | --- |
+| One Command Center | Java server: web console, REST API, runner API, webhooks, API tasks, MCP endpoint | TCP 8720 (configurable), HTTP or HTTPS; with HTTPS also a plain-HTTP listener on 127.0.0.1 for this machine's own runner and Studio |
+| One Agent Studio | Web designer at `/studio/` | Same port; this computer only (loopback) |
+| One Runner | Java process (sign-in task or Windows service) that polls the Command Center and runs agents | Outbound only, to the Command Center |
+| Run workers | One Java process per run, started by the runner | None (stdin and stdout pipe to the runner) |
+| Browser connector | Edge, Chrome or Firefox extension plus a native messaging host | 127.0.0.1 with a random token |
+| Installers | Setup package (`Install.cmd`) and the MSI | Local |
+| Database | SQL Server or PostgreSQL (production), embedded H2 (evaluation) | The customer's database server |
+| License Studio | Vendor-only tool for issuing licence files; not in customer builds | 127.0.0.1 only, token in the address |
+
+Out of scope unless agreed: the customer's identity provider, external vaults and database server themselves, and the
+third-party systems agents automate.
+
+### 14.2 Test installation
+
+1. A Command Center on a Windows Server VM, installed as a service with the setup package or the MSI
+   ([../infrastructure/02-installation-windows.md](../infrastructure/02-installation-windows.md)), moved to SQL Server
+   or PostgreSQL with `ooa db configure` ([../infrastructure/05-databases.md](../infrastructure/05-databases.md)).
+2. HTTPS with `ooa tls configure --pfx server.pfx` and `ooa tls set-password`, then a restart; for a quick test
+   `ooa tls self-signed --host <name>`.
+3. Sign in as `admin` with the one-time password from `DATA\logs\service-server.log`, then create one account per
+   role for the testers: Administrator, Agent builder, Agent operator and Viewer, plus custom roles.
+4. A second VM as a runner (MSI with `ROLE=Runner`, or the setup package for a desktop runner).
+5. Optional: single sign-on against a test tenant, an external vault link, syslog to a collector.
+
+### 14.3 Suggested test cases
+
+| Area | Cases |
+| --- | --- |
+| Authentication | Brute force and lockout, password rules, two-step codes (replay, lockout), session fixation, sign-out and expiry, SSO token substitution (wrong audience, expired, unsigned, other issuer), SAML signature wrapping and XML entity attacks |
+| Authorization | Every API route with each role; folder permissions; access to other people's runs, credentials and work items; runner credentials used against user routes and the other way round |
+| Injection | SQL (SQL Server, PostgreSQL and H2), JSON path expressions, agent expressions, file paths in repository files and workspace writes, headers and syslog fields |
+| Web | Cross-site scripting in names, descriptions, run outputs and audit details shown in the console; CSRF; clickjacking; CSP bypass |
+| Secrets | Vault values in API answers, logs, audit entries, run outputs and error messages; master key handling; the TLS certificate password; runner configuration files |
+| Runner channel | Replayed or forged heartbeats and results; a runner reporting for another runner's run; registration key reuse; TLS downgrade or a wrong certificate |
+| Denial of service | Large uploads, many sessions, slow requests, deeply nested JSON |
+| Installers | File and folder permissions after install (program folder, data folder, runner configuration), service account rights, the MSI log (the registration key must not appear), what uninstall leaves behind |
+| Supply chain | Third-party libraries (`sbom.cdx.json` in the package, or `gradlew :cli:sbom`), the bundled Java runtime version, the signed release manifest |
+
+### 14.4 Known gaps (no need to report)
+
+- Encrypted SAML assertions and sign-ins started at the identity provider are refused.
+- Audit checkpoints go to a local file; copying it to write-once storage is up to the operator.
+- Runner configuration files hold the device secret in clear text, protected by the profile's file permissions.
+- Runner updates are checked by SHA-256 over the TLS connection, not separately signed.
+- The local listeners (Studio, the internal runner listener, the browser connector host) trust any process on the same
+  computer.
+- Unattended runners cannot sign a Windows user in by themselves; screen agents need a session that is signed in and
+  unlocked.
+- No hardware security module (PKCS#11) for the vault key.
+
+### 14.5 Before the test
+
+- Agree dates, test windows, source addresses and contacts. Give the testers this collection,
+  [../infrastructure/08-security-hardening.md](../infrastructure/08-security-hardening.md) and the administrator's
+  guide.
+- Decide whether they get the source (white box) or only the installers (black box).
+- Take a database backup: tests may lock accounts and fill the audit trail.
+
 ## Related documents
 
 - [README.md](README.md)
@@ -325,4 +394,5 @@ All of it uses the JDK; there is no third-party crypto library.
 - [08-ai-architecture.md](08-ai-architecture.md)
 - [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md)
 - [10-extensibility-and-integration.md](10-extensibility-and-integration.md)
-- [../SECURITY_REVIEW.md](../SECURITY_REVIEW.md), [../LICENSING.md](../LICENSING.md)
+- [11-developer-guide.md](11-developer-guide.md)
+- [../infrastructure/08-security-hardening.md](../infrastructure/08-security-hardening.md), [../LICENSING.md](../functional/13-licensing-and-editions.md)

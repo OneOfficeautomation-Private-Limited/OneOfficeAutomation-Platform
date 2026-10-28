@@ -84,9 +84,9 @@ recorded in the **One Audit Trail**.
 1. [01 Getting started](01-getting-started.md) on a test computer first.
 2. [06 Administrator's guide](06-administrators-guide.md), from start to end.
 3. [07 Runner guide](07-runner-guide.md), to roll runners out.
-4. The reference documents for production installs: [RUN_LOCALLY.md](../RUN_LOCALLY.md),
-   [CLOUD_INSTALL.md](../CLOUD_INSTALL.md), [DATABASE.md](../DATABASE.md), [LICENSING.md](../LICENSING.md) and
-   [CONTROL_ROOM_AND_AGENT.md](../CONTROL_ROOM_AND_AGENT.md).
+4. For production installs, the [infrastructure collection](../infrastructure/README.md): requirements, installation,
+   [databases](../infrastructure/05-databases.md), networks and HTTPS, backups and hardening; and
+   [licensing](../functional/13-licensing-and-editions.md).
 
 ### Runner owner (you look after the computers that run agents)
 
@@ -129,5 +129,3 @@ recorded in the **One Audit Trail**.
 - [06 Administrator's guide](06-administrators-guide.md)
 - [07 Runner guide](07-runner-guide.md)
 - [08 Browser connector guide](08-browser-connector-guide.md)
-- Reference: [CONTROL_ROOM_AND_AGENT.md](../CONTROL_ROOM_AND_AGENT.md), [LICENSING.md](../LICENSING.md),
-  [BROWSER_CONNECTOR.md](../BROWSER_CONNECTOR.md), [DATABASE.md](../DATABASE.md)

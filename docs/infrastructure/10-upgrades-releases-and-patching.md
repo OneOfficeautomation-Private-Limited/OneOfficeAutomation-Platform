@@ -22,6 +22,7 @@ administrators.
 11. Version compatibility
 12. Rolling back
 13. Patching the operating system and Java
+14. For the vendor: making a release
 
 ## 1. Release cadence
 
@@ -37,21 +38,31 @@ Upgrades need a short downtime of the Command Center (no rolling upgrades).
 
 Releases are on the public releases page `https://virupakshaprabhu.github.io/OOA_Customer_Build/`, which lists every
 release newest first (previews marked) with each file's download link, size and SHA-256, and `releases.json` for
-scripts. Checksums appear only for releases whose signed manifest checks out; drafts are not listed. Licence files
-are never published; each customer receives its own.
+scripts. Checksums appear only for releases whose signed manifest checks out; drafts are not listed, and only
+`https` links are made. Licence files are never published; each customer receives its own `.lic` file directly from
+the vendor, and a new install without one runs the 30-day evaluation.
+
+The files themselves are GitHub releases of the public repository `VirupakshaPrabhu/OOA_Customer_Build`, tagged
+`v<version>` (a sandbox preview: `v<version>-preview`, marked as a pre-release). That repository also holds the
+customer-facing `README.md`, `INSTALL.md` and `RELEASES.md` (what changed in each release). Source code, tests and the
+vendor's licence tools stay in the development repository and are never published.
 
 ## 3. What a release contains
 
 | File | Purpose |
 | --- | --- |
 | `ooa-setup-<version>.zip` | Setup package with Java and installer |
-| `ooa-<version>.msi` | Windows Installer package |
 | `ooa-customer-<version>.zip` | Product without Java (Linux package and plain zip) |
 | `ooa-<version>.manifest.json` | Signed manifest: product, version, creation time, and each file's name, size and SHA-256 |
 | `ooa-<version>-sbom.cdx.json` | CycloneDX 1.5 software bill of materials |
-| `templates.json` | Signed template catalogue (published beside the releases page) |
+| `templates.json` | Signed template catalogue (published beside the releases page, not attached to the release) |
 
-The manifest is signed with the vendor's Ed25519 key; the matching public key is built into the product.
+The manifest is signed with the vendor's Ed25519 key; the matching public key is built into the product. It covers
+the two zips and the SBOM.
+
+The MSI `ooa-<version>.msi` is built separately from the setup package (section 14) and is not attached by the
+publish script, so it is not in the signed manifest and `ooa release verify` does not check it. Where a verified
+download matters, install from the setup package.
 
 ## 4. Verifying a download: `ooa release verify`
 
@@ -175,6 +186,97 @@ A schema upgrade cannot be undone in place. To roll back:
   21).
 - Databases: patch per the DBA's plan; the nodes reconnect after a failover or restart.
 
+## 14. For the vendor: making a release
+
+This section is for ONEOFFICEAUTOMATION's own release manager. Customers do not need it.
+
+### What you need, once
+
+| Item | Detail |
+| --- | --- |
+| A source checkout | The development repository, with the vendor build (`gradlew :cli:installDist`) working |
+| The vendor signing key | `%USERPROFILE%\OOA License Keys\private.key`, the same key that signs licences (see [functional/13](../functional/13-licensing-and-editions.md), section 11). It never leaves the vendor's computer. Another place: `-SigningKey FILE`. |
+| GitHub access | Git on this computer must already be signed in to GitHub with an account that may publish releases to `VirupakshaPrabhu/OOA_Customer_Build` (push once from this computer; Git Credential Manager keeps the sign-in). The script reads that sign-in; it stores and prints nothing. |
+| GitHub Pages | In `OOA_Customer_Build`: Settings > Pages > Deploy from a branch, branch `main`, folder `/docs` |
+
+### Publishing a release
+
+1. Raise `version` in `platform\build.gradle.kts` (for example from `0.2.0` to `0.3.0`). The product's own version
+   comes from this line. A version can be published only once: the script refuses a tag that exists already.
+2. Write what changed at the top of `RELEASES.md` in `OOA_Customer_Build`, then commit and push that repository.
+3. From the `platform` folder run:
+   ```
+   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -Notes "What changed in one line"
+   ```
+4. Check the release address the script prints, and the releases page.
+
+| Option | Effect |
+| --- | --- |
+| `-Notes TEXT` | One line for the release text (default: "See RELEASES.md for what changed.") |
+| `-Draft` | Creates the release as a GitHub draft, which customers cannot see; the releases page is not refreshed. Publish the draft on GitHub when it is right. |
+| `-Preview` | Publishes `v<version>-preview` as a GitHub pre-release, the sandbox preview (section 6), about three weeks before the final release of the same version |
+| `-PageOnly` | Only refreshes the releases page and template catalogue |
+| `-SigningKey FILE` | Another place for the vendor key |
+| `-Repository OWNER/NAME` | Another release repository (default `VirupakshaPrabhu/OOA_Customer_Build`) |
+
+What the script does, in order:
+
+1. Reads the version from `platform\build.gradle.kts`.
+2. Builds the customer zip, the setup package, the SBOM and the vendor build
+   (`gradlew :cli:customerDistZip :cli:setupDistZip :cli:sbom :cli:installDist`).
+3. Opens both zips and **stops** if either holds the vendor tools (`vendor-tools`), a `private.key` or a `.lic` file.
+4. Copies the two zips and the SBOM (as `ooa-<version>-sbom.cdx.json`) into `cli\build\release-<version>`, signs the
+   manifest `ooa-<version>.manifest.json` over them with `ooa release sign` and the vendor key, and checks it at once
+   with `ooa release verify`.
+5. Signs in to GitHub with the credential git already uses.
+6. Creates release `v<version>` (or `v<version>-preview`) on the `main` branch, with install instructions and the short
+   commit id of the source it was built from in the release text.
+7. Uploads `ooa-customer-<version>.zip`, `ooa-setup-<version>.zip`, the manifest and the SBOM.
+8. Unless `-Draft`, refreshes the releases page (below).
+
+### The releases page and template catalogue
+
+The script (and `-PageOnly`) runs, in the vendor build:
+
+```
+ooa release page --repo VirupakshaPrabhu/OOA_Customer_Build --out DIR [--token-env VAR] [--api URL]
+ooa release templates --dir <repository>\templates --key private.key --out DIR\templates.json
+```
+
+`release page` reads the repository's GitHub releases and writes `index.html` and `releases.json`. It checks each
+release's signed manifest with the key built into the product and shows sizes and checksums only from a manifest that
+checks out; drafts are left out. `release templates` signs the template catalogue from the `templates` folder (one
+folder per template with `template.json` and its agents); Command Centers read it as the ONEOFFICEAUTOMATION template
+catalogue ([functional/08](../functional/08-repository-versions-and-templates.md)). The script then
+puts `docs/index.html`, `docs/releases.json` and `docs/templates.json` on the `main` branch of `OOA_Customer_Build`,
+which GitHub Pages serves at `https://virupakshaprabhu.github.io/OOA_Customer_Build/`.
+
+To refresh the page alone (for example after publishing a draft by hand):
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -PageOnly
+```
+
+### The MSI
+
+The MSI is built from the setup package with WiX Toolset 5 and is not part of the publish script:
+
+```
+dotnet tool install --global wix --version 5.0.2        (once)
+powershell -ExecutionPolicy Bypass -File scripts\build-msi.ps1 [-Wix PATH\wix.exe]
+```
+
+It writes `cli\build\distributions\ooa-<version>.msi`. CI also builds it on every push, installs it as a Command
+Center service with a runner service, and uninstalls it (`scripts\test-msi.ps1`).
+
+### After publishing
+
+- Tell customers the releases page address; it lists every release.
+- Licence files are never attached to a release: send each customer its own `.lic` file
+  ([functional/13](../functional/13-licensing-and-editions.md), section 11).
+- For a feature release, publish with `-Preview` first, fix what the sandboxes find, then publish the same version
+  without `-Preview` three weeks later (or a new fix version if anything changed).
+
 ## Related documents
 
 - [README](README.md)
@@ -183,4 +285,4 @@ A schema upgrade cannot be undone in place. To roll back:
 - [06. High availability and scaling](06-high-availability-and-scaling.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
 - [09. SaaS and multi-region operations](09-saas-and-multi-region-operations.md)
-- [Releasing to customers](../RELEASING.md)
+- [Functional 13. Licensing and editions](../functional/13-licensing-and-editions.md)

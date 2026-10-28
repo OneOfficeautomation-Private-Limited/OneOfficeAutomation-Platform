@@ -31,7 +31,7 @@ folders, and the CI workflow). Where an older document says something different,
 | # | Document | Read it when you |
 | --- | --- | --- |
 | 01 | [System requirements and sizing](01-system-requirements-and-sizing.md) | plan hardware, operating systems, databases, browsers and disk |
-| 02 | [Installation on Windows](02-installation-windows.md) | install with the setup package or the MSI, run services, uninstall |
+| 02 | [Installation on Windows](02-installation-windows.md) | install with the setup package or the MSI, run services, uninstall, install on a cloud virtual machine |
 | 03 | [Installation on Linux and in containers](03-installation-linux-and-containers.md) | use the Linux package with systemd, or the container image and compose files |
 | 04 | [Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md) | open firewalls, set up proxies, turn on HTTPS, make runners trust certificates |
 | 05 | [Databases](05-databases.md) | choose and set up SQL Server or PostgreSQL, accounts, Windows sign-in, schema upgrades |
@@ -39,7 +39,7 @@ folders, and the CI workflow). Where an older document says something different,
 | 07 | [Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md) | plan backups, restore, build a second site and rehearse failover |
 | 08 | [Security hardening](08-security-hardening.md) | protect the vault key, TLS, accounts, audit trail and network |
 | 09 | [SaaS and multi-region operations](09-saas-and-multi-region-operations.md) | operate the multi-tenant service in India, US and EU regions |
-| 10 | [Upgrades, releases and patching](10-upgrades-releases-and-patching.md) | verify downloads, upgrade in the right order, update runners |
+| 10 | [Upgrades, releases and patching](10-upgrades-releases-and-patching.md) | verify downloads, upgrade in the right order, update runners; the vendor's release procedure |
 | 11 | [Monitoring, logging and troubleshooting](11-monitoring-logging-and-troubleshooting.md) | watch health, find logs and fix common problems |
 
 ## Deployment decision guide
@@ -55,7 +55,7 @@ next with a backup and restore (see [07](07-backup-restore-and-disaster-recovery
 | A pilot or a small team, a few runners | **B. One Command Center server, separate runners** | SQL Server or PostgreSQL (needed for a licence) | Setup package `-Service -DbServer ...`, or MSI and `ooa db` commands |
 | Production in one data centre | **C. Two or more Command Center nodes behind a load balancer** | SQL Server (Always On) or PostgreSQL with high availability | As B on each node, shared repository folder, same vault key |
 | Production with a second site | **D. Active site plus a cold standby site** | SQL Server availability group with an asynchronous replica, log shipping, or PostgreSQL streaming replication | As C on both sites, standby nodes stopped |
-| Your own cloud account (AWS, Azure, Google Cloud) | **B or C on cloud machines or containers** | Managed SQL Server or PostgreSQL | Windows VM with the MSI, Linux package with systemd, or the container image |
+| Your own cloud account (AWS, Azure, Google Cloud) | **B or C on cloud machines or containers** | Managed SQL Server or PostgreSQL | Windows VM with the MSI ([02](02-installation-windows.md), section 13), Linux package with systemd, or the container image ([03](03-installation-linux-and-containers.md)) |
 | Run OOA as a service for many customers | **E. SaaS region(s)** | PostgreSQL per region | Container image with `region start`; optional global directory |
 
 ### Step 2: where do runners go?
@@ -103,12 +103,8 @@ A. Evaluation                 B. One server                     C. Several nodes
 
 ## Related documents
 
-- [Command Center and runner setup and daily use](../CONTROL_ROOM_AND_AGENT.md)
-- [Installing in a cloud](../CLOUD_INSTALL.md)
-- [Command Center database](../DATABASE.md)
-- [The SaaS service](../SAAS.md)
-- [Releasing to customers](../RELEASING.md)
-- [Enterprise checks and validations](../ENTERPRISE_CHECKS.md)
-- [Security review pack](../SECURITY_REVIEW.md)
-- [Licensing](../LICENSING.md)
-- [Browser connector](../BROWSER_CONNECTOR.md)
+- [Command Center and runner setup and daily use](../user-guide/00-README.md)
+- [Enterprise checks and validations](08-security-hardening.md)
+- [Security review pack](../architecture/06-security-architecture.md#14-independent-security-review)
+- [Licensing and editions (functional 13, with the vendor's licence issuing)](../functional/13-licensing-and-editions.md)
+- [Browser connector](../user-guide/08-browser-connector-guide.md)

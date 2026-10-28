@@ -251,6 +251,7 @@ The GraalVM native executable (`gradlew :cli:nativeExecutable`) contains `valida
 | New external vault | `control-room` (`ExternalVaults`) | A `kind` with its required settings and a read method |
 
 Keep to the module rules checked by `ArchitectureTest` ([02-components-and-modules.md](02-components-and-modules.md#4-dependencies-between-modules)).
+Step-by-step instructions, the test suites and Studio's own API are in [11-developer-guide.md](11-developer-guide.md).
 
 ## Related documents
 

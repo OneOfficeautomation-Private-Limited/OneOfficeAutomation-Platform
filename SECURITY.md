@@ -14,5 +14,5 @@ The latest release receives security fixes. Customers on an older release are as
 
 ## For security reviewers
 
-[docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) describes the scope, how to set up a test installation, the
+[docs/architecture/06-security-architecture.md#14-independent-security-review](docs/architecture/06-security-architecture.md#14-independent-security-review) describes the scope, how to set up a test installation, the
 controls in place and the known gaps.

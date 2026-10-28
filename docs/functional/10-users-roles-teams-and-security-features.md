@@ -226,5 +226,5 @@ changes, user and role changes, team changes, API key creation and revocation, a
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [Command Center and runner, section 2](../CONTROL_ROOM_AND_AGENT.md)
-- [Security review](../SECURITY_REVIEW.md)
+- [Command Center and runner, section 2](../user-guide/00-README.md)
+- [Security review](../architecture/06-security-architecture.md#14-independent-security-review)

@@ -35,7 +35,8 @@ security operations and administrators preparing for production or an audit.
 | Runner channel | One-time registration keys; device secrets stored as hashes and rotated; TLS with certificate checks |
 | Releases | Signed manifest (Ed25519) and SBOM |
 
-Full control list: [Security review pack](../SECURITY_REVIEW.md).
+Full control list: [Security architecture](../architecture/06-security-architecture.md); scope and test cases for a
+penetration test: its section 14.
 
 ## 2. The vault master key
 
@@ -142,9 +143,18 @@ for narrow duties; switch off unused built-in roles (`switched_off_roles`).
 | SAML settings (`saml_idp_*`) | SAML 2.0 | - | Signed assertion or response, unencrypted; sign-ins start at the Command Center |
 | `sso_default_role` | A role | Empty | Empty (existing accounts only) or the least role |
 
-Built in, not configurable: lockout for 15 minutes after five failures; passwords stored with PBKDF2-HMAC-SHA256
-(210,000 iterations); rate limits of 60 a minute per address for sign-in, tokens, SSO and runner registration, and
-1,200 for webhooks, API tasks and MCP (429 `CR.RATE_LIMITED`).
+Built in, not configurable:
+
+- **Password rules:** at least `password_min_length` and at most 128 characters; letters and digits; not the user
+  name; no character four times in a row; not a common password, whatever its case and with digits or symbols added.
+- **Lockout:** 15 minutes after five failed sign-ins. Five wrong two-step codes end the sign-in and count as one
+  failure.
+- **Two-step codes:** authenticator app codes (RFC 6238) with the secret encrypted by the vault key, each code accepted
+  once; one-time recovery codes stored as hashes.
+- Passwords stored with PBKDF2-HMAC-SHA256 (210,000 iterations).
+- Rate limits of 60 a minute per address for sign-in, tokens, SSO and runner registration, and 1,200 for webhooks, API
+  tasks and MCP (429 `CR.RATE_LIMITED` with `Retry-After`). Calls made on this computer without a proxy are not
+  limited.
 
 Single sign-on users follow the identity provider's MFA policy; enforce it there.
 
@@ -177,7 +187,7 @@ Single sign-on users follow the identity provider's MFA policy; enforce it there
 | Secret | Rotation |
 | --- | --- |
 | Runner device secrets | Automatic every `runner_secret_days` (0 to 365, default 30): the runner asks with its heartbeat, saves the new secret atomically; the old one works for a short overlap |
-| Registration keys | One use, at most 24 hours |
+| Registration keys | One use; valid for the hours chosen when made, from 1 to 168 (7 days) |
 | API keys (`ooak_...`) | Optional expiry; revoke any time; only a hash stored |
 | Session tokens from API keys | 8 hours, extended while used; `POST /api/auth/refresh` replaces them |
 | Database passwords | Change in the database, then `ooa db set-password [--setup]`, restart |
@@ -207,7 +217,36 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
 - `max_upload_mb` (1 to 1024, default 25) limits request size.
 - Vault attributes: keep **Masked** on; use **Password fields only** for passwords.
 
+Checks the Command Center makes on its own:
+
+- The SHA-256 of each agent version, taken at check-in, is checked again whenever the version is read. A version
+  changed in the database is never sent to a runner or an editor (`CR.AGENT_TAMPERED`).
+- A runner newer than the Command Center gets no work; the Runners page marks it "update the Command Center".
+- A run goes only to a runner that has the toolkits (and versions) the agent needs, otherwise it fails with
+  `RUN.TOOLKIT_MISSING`. Custom toolkits travel with the job and are checked again on the runner.
+- Licence seats apply to check-in and runs while a licence is installed; deleting a runner, or removing a temporary
+  runner, frees its seat ([functional 13](../functional/13-licensing-and-editions.md)).
+
 ## 13. Recommended settings checklist
+
+Administration > Settings checks every change before saving: a known setting name, a whole number in its range, the
+right address or host format. Then it saves all the changes in one transaction (all or nothing) and audits them as
+`settings.update`. Text values are limited to 2,000 characters. Besides the settings in the tables above, these
+security-relevant settings are checked:
+
+| Setting | Allowed | Effect |
+| --- | --- | --- |
+| `switched_off_roles` | `bot_creator`, `bot_runner`, `viewer` (never `admin`) | Built-in roles that grant nothing and cannot be given; custom roles are deleted on the Roles page instead |
+| `temporary_runner_hours` | 1 to 720 (default 8) | Offline hours after which a temporary runner is removed |
+| `runner_secret_days` | 0 to 365 (default 30, 0 never) | Days after which a runner's secret is replaced |
+| `backup_hours`, `backup_folder` | 0 to 168, a folder | Automatic backups and where they go (no folder choice in SaaS) |
+| `repo_files_folder` | A folder | Shared storage for repository files when several nodes run (no folder choice in SaaS) |
+| `outbound_proxy`, `outbound_proxy_bypass` | `http://host:port`; host names | The Command Center's own outgoing connections; this computer is always reached directly |
+| `mail_smtp_host`, `mail_smtp_port`, `mail_smtp_security`, `mail_smtp_password_ref`, `mail_from`, `license_mail_to` | Host name, port, `starttls`/`ssl`/`none`, a vault reference, addresses | Mail sent by the Command Center; the password is a vault reference, never a value |
+| `syslog_target`, `syslog_protocol` | `host:port`; `udp` or `tcp` | Audit forwarding (section 9) |
+| `public_url`, `sso_issuer` | `https://` addresses (`http://` only on a test system) | |
+| `sso_default_role` | An existing role | |
+| `ip_allow_list`, `trusted_proxies` | Addresses or CIDR ranges | Section 8; a list that would shut out your own address is refused |
 
 - [ ] Vault key from `OOA_MASTER_KEY` or a cloud key store; no `master.key` on production servers; key backed up apart from backups.
 - [ ] HTTPS with a company certificate; `public_url` set to the HTTPS address; `ooa check` shows no HTTPS warning.
@@ -223,6 +262,9 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
 - [ ] `production_approval` = 1; code analysis refuses errors; `block_executable_uploads` = 1.
 - [ ] Runners for screen agents use dedicated non-admin accounts; after-run action set to lock or sign out where acceptable.
 - [ ] Downloads verified with `ooa release verify`; SBOM fed to the vulnerability scanner.
+- [ ] `ooa check` passes before every install and upgrade; `ooa agent diagnose` passes on each runner.
+- [ ] `/api/health/ready` watched by the load balancer or monitoring ([11](11-monitoring-logging-and-troubleshooting.md)).
+- [ ] `switched_off_roles` lists the built-in roles you do not use; few people hold Administrator.
 
 ## 14. Known gaps
 
@@ -232,6 +274,8 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
 - Local listeners (Studio, the internal runner listener, browser connector) trust any process on the same computer.
 - SAML assertions cannot be encrypted, and sign-ins started at the identity provider are refused.
 - No HSM support for the vault key.
+- Unattended runners cannot sign a Windows user in by themselves; screen agents need a session that is signed in and
+  unlocked.
 
 ## Related documents
 
@@ -239,5 +283,5 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
 - [04. Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md)
 - [05. Databases](05-databases.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
-- [Enterprise checks](../ENTERPRISE_CHECKS.md)
-- [Security review pack](../SECURITY_REVIEW.md)
+- [11. Monitoring, logging and troubleshooting](11-monitoring-logging-and-troubleshooting.md) (health checks, `ooa check`)
+- [Security architecture](../architecture/06-security-architecture.md) (controls and the security review brief)

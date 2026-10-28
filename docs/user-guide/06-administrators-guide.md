@@ -46,7 +46,7 @@ A checklist for a production Command Center:
    restarts by itself after a failure. Its log is `<data>\logs\service-<mode>.log`.
 2. **Move to SQL Server** (needed before a licence can be installed):
    `ooa db configure`, `ooa db set-password`, `ooa db set-password --setup`, `ooa db init`, and, to keep evaluation
-   data, `ooa db copy --from "<old data folder>"`. Details in [DATABASE.md](../DATABASE.md). Setup can do it in one go
+   data, `ooa db copy --from "<old data folder>"`. Details in [Databases](../infrastructure/05-databases.md). Setup can do it in one go
    with `-DbServer SQL01 -DbPasswordEnv OOA_APP_PW -DbSetupPasswordEnv OOA_SETUP_PW`.
 3. **Protect the vault key**: set `OOA_MASTER_KEY` (32 random bytes, Base64) outside the data folder, or point
    `OOA_MASTER_KEY_SOURCE` at Azure Key Vault (`azure-keyvault:https://NAME.vault.azure.net/secrets/SECRET`), AWS
@@ -73,8 +73,14 @@ Stop the Command Center, then from `bin`:
 | `ooa tls export-cert --out ooa.cer` | The certificate without its key, for runners and browsers to trust |
 | `ooa tls off` | Back to plain HTTP (the settings file is renamed, not deleted) |
 
+Every `ooa tls` command takes `--data DIR` when the data folder is not the default. The settings take effect at the
+next start.
+
 With HTTPS on, the port no longer answers plain HTTP, the session cookie is `Secure` and responses carry
-`Strict-Transport-Security`. A reverse proxy (IIS, nginx) in front also works; leave HTTPS off on the server then.
+`Strict-Transport-Security`. The runner and Studio built into `ooa server` keep working without trusting the
+certificate: they use a second, plain-HTTP listener that only this computer can reach (127.0.0.1). Runners on other
+machines must trust the certificate ([07 Runner guide](07-runner-guide.md#5-proxies-and-certificates)). A reverse proxy
+(IIS, nginx) in front also works; leave HTTPS off on the server then.
 
 ## 2. Users
 
@@ -481,5 +487,3 @@ available. Names, ids, data, code and server messages are not translated.
 - [05 Operator's guide](05-operators-guide.md)
 - [07 Runner guide](07-runner-guide.md)
 - [15 Publishing to the Command Center](15-publishing-to-command-center.md)
-- Reference: [CONTROL_ROOM_AND_AGENT.md](../CONTROL_ROOM_AND_AGENT.md), [LICENSING.md](../LICENSING.md),
-  [DATABASE.md](../DATABASE.md), [CLOUD_INSTALL.md](../CLOUD_INSTALL.md)

@@ -244,4 +244,4 @@ The optional **directory** service has its own small database with one table `di
 - [08-ai-architecture.md](08-ai-architecture.md)
 - [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md)
 - [10-extensibility-and-integration.md](10-extensibility-and-integration.md)
-- Operations guide for the database: [../DATABASE.md](../DATABASE.md)
+- Operations guide for the database: [../DATABASE.md](../infrastructure/05-databases.md)

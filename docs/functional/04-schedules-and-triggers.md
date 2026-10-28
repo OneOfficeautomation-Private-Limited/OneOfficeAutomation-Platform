@@ -107,7 +107,8 @@ A trigger (Operations > Triggers) starts the live production version of an agent
 | Settings | Per kind (sections 7-9). Secrets are always vault references, never values. |
 
 A trigger can be renamed, handed over, given a run-as user, paused, resumed and deleted. Resuming clears the last
-error and polls a Command Center trigger again soon.
+error and polls a Command Center trigger again soon. Over the API: `POST /api/triggers/{id}/pause` and `/resume`;
+`GET /api/triggers` lists triggers with their fire count, last fired time and last error.
 
 ## 6. Trigger kinds
 
@@ -231,4 +232,4 @@ agent used by one cannot be deleted.
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [01 Agents and automation items, section 9](01-agents-and-automation-items.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
-- [Command Center and runner, section 5](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, section 5](../user-guide/00-README.md)

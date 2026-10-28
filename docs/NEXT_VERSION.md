@@ -8,7 +8,7 @@ session: what the draft contains, what is still open, and how to run and test it
 ## What this version contains
 
 ONEOFFICEAUTOMATION is One Command Center, Agent Studio, and the One Runner. They are started together on this PC by
-`platform/scripts/start-ooa.bat`. The code layout is described in [ARCHITECTURE.md](ARCHITECTURE.md), and every
+`platform/scripts/start-ooa.bat`. The code layout is described in [ONEOFFICEAUTOMATION architecture collection](architecture/README.md), and every
 command is listed in [COMMAND_CATALOG.md](COMMAND_CATALOG.md).
 
 This version adds the results of a full comparison with Automation Anywhere (AA) Community Edition:
@@ -55,7 +55,7 @@ The details are in [research/use-case-gaps.md](research/use-case-gaps.md).
 
 ## Run and test
 
-- **Run:** see [RUN_LOCALLY.md](RUN_LOCALLY.md). Start with `platform\scripts\start-ooa.bat`, then go to
+- **Run:** see [Getting started](user-guide/01-getting-started.md). Start with `platform\scripts\start-ooa.bat`, then go to
   http://localhost:8720 (Command Center) and http://localhost:8720/studio/ (Agent Studio). A forgotten password is
   reset with `.\gradlew.bat :cli:run --args="reset-admin"` while the server is stopped.
 - **Build:** `cd platform` then `.\gradlew.bat :cli:installDist`.

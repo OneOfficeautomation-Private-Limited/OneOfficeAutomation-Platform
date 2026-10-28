@@ -192,4 +192,4 @@ Audited: `queue.save`, `queue.delete`, `queue.start`, `queue.stop`, `queue.add_i
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [09 AI features](09-ai-features.md) (document extraction and confidence)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
-- [Command Center and runner, section 6](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, section 6](../user-guide/00-README.md)

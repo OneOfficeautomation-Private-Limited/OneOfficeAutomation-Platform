@@ -59,7 +59,7 @@ parameterised SQL and records an audit entry.
 
 1. Opens the data folder and the vault (`Vault`: `OOA_MASTER_KEY`, `OOA_MASTER_KEY_SOURCE`, or `master.key`).
 2. Opens the database from `config/ooa-db.properties` (`DbConfig`), or the embedded H2 file `controlroom.mv.db`.
-3. Runs migrations up to `Db.LATEST` (23). On SQL Server or PostgreSQL the runtime account may not change tables, so a
+3. Runs migrations up to `Db.LATEST` (24). On SQL Server or PostgreSQL the runtime account may not change tables, so a
    newer schema stops start-up with `CR.DB_UPGRADE_NEEDED` until `ooa db migrate` runs with the setup account. A
    database newer than the program gives `CR.DB_NEWER`.
 4. Builds the toolkit registry (`FirstPartyPackages.registry()` plus trusted custom toolkits).

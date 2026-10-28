@@ -164,6 +164,9 @@ toolkits it uses.
 - With **Refuse check-ins that have errors**, a check-in with error findings is refused (`CR.POLICY_VIOLATION`, with the findings).
 - An agent's **Code analysis** shows its report and can analyse again; a report for every agent can be downloaded.
 - Changing the policy needs `settings.manage`; analysing needs `repo.view`.
+- API: `POST /api/repo/analyze` with `{path, version}` (or `{flow}` for an agent not checked in yet),
+  `GET /api/repo/analysis?path=&version=` (the stored report), `GET /api/repo/analysis/report` (every agent, CSV), and
+  `GET`/`PUT /api/repo/policy`.
 
 ## 12. Git sync
 
@@ -230,4 +233,4 @@ permission changes, file uploads and deletes.
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
 - [14 One Agent Studio](14-studio-features.md)
-- [Command Center and runner, sections 4 and 10i](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, sections 4 and 10i](../user-guide/00-README.md)

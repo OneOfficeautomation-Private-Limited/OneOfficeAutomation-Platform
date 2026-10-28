@@ -1,4 +1,4 @@
-# One SaaS region with PostgreSQL, for trying the multi-tenant service (docs/SAAS.md):
+# One SaaS region with PostgreSQL, for trying the multi-tenant service (docs/infrastructure/09-saas-and-multi-region-operations.md):
 #   docker compose -f docker/compose.saas.yaml up -d
 # Set these in a .env file beside this file (never commit it):
 #   OOA_DB_PASSWORD=...              the region's database account
@@ -7,7 +7,7 @@
 # Tenants are NAME.in.localtest.me:8720 (localtest.me and its sub-domains point to 127.0.0.1). Create one with:
 #   docker compose -f docker/compose.saas.yaml exec -e OOA_OP_TOKEN=<token> region /opt/ooa/bin/ooa region tenant create \
 #     --url http://127.0.0.1:8720 --token-env OOA_OP_TOKEN --slug acme --name "Acme Ltd"
-# For production put TLS in front (a wildcard certificate for *.DOMAIN) and follow docs/SAAS.md: egress rules, backups.
+# For production put TLS in front (a wildcard certificate for *.DOMAIN) and follow docs/infrastructure/09-saas-and-multi-region-operations.md: egress rules, backups.
 services:
   db:
     image: postgres:16

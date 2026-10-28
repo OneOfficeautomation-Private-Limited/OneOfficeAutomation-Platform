@@ -245,6 +245,34 @@ Other actions in **Capture / Desktop objects**: **Find desktop objects**, **Get 
 **Wait for desktop object**, **Get desktop table**, and for older programs **Find legacy (MSAA) objects** and
 **Legacy (MSAA) object action**. Java programs (Swing/AWT) have their own group, **Java applications**.
 
+**Older Windows programs (MSAA).** Some older programs (owner-drawn Win32, VB6, Delphi, and many ERP or terminal front
+ends) describe their controls better through MSAA than through UI Automation. Try these when Capture finds nothing
+useful:
+
+1. **Find legacy (MSAA) objects** lists the controls of a window: name, role, value, default action, state, position,
+   and a path such as `0.3.1`.
+2. **Legacy (MSAA) object action** finds a control by **Name** and **Role** (with **Index** when several match) or by
+   that **Path**, then does its **default action** (press, check, open as the program defines it), sets or reads its
+   value, selects it, or reads its properties.
+
+**Java programs (Swing and AWT).** The runner loads a small helper into the Java program (the Java Attach API) and
+reads the program's own accessibility information, as screen readers do. The Java Access Bridge need not be switched
+on.
+
+| Action | What it does |
+| --- | --- |
+| **Get Java applications** | Lists the Java programs with windows, and their window titles |
+| **Find Java objects** | Lists the controls of a window: name, role, text, state, actions, position and path |
+| **Java object action** | Presses a control, sets or reads its text, gives it the focus, or reads its properties |
+
+The program must run as the runner's Windows user, on Java 8 or later, and must not be started with
+`-XX:-EnableDynamicAgentLoading`; otherwise the step fails and says so. The helper answers only on 127.0.0.1, and only
+to requests carrying the token it gave this runner. Programs whose names look like developer tools (Gradle, Maven,
+IntelliJ and other IDEs) are skipped unless you name them in **Process**.
+
+SAP GUI is automated through SAP GUI Scripting with the SAP toolkit (`ooa.sap`) instead; see its
+[reference](../reference/toolkits/ooa-sap.md).
+
 ### 10.3 Windows, programs, mouse and keyboard
 
 | Group | Typical actions |

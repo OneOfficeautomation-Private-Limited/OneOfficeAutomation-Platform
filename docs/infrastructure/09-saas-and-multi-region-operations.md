@@ -64,7 +64,8 @@ Customers' runners stay in their own networks and connect out to their tenant ad
    ```
 2. **DNS and certificate**: wildcard `*.in.example.com` and `in.example.com` to the region's load balancer, with a
    wildcard certificate. TLS ends at the balancer or ingress, which sends `X-Forwarded-Proto: https`.
-3. **Master key**: `OOA_MASTER_KEY` or `OOA_MASTER_KEY_SOURCE` from a secret store. It encrypts every tenant's key:
+3. **Master key**: `OOA_MASTER_KEY` (32 random bytes in Base64, for example from `openssl rand -base64 32`) or
+   `OOA_MASTER_KEY_SOURCE` from a secret store. It encrypts every tenant's key:
    losing it loses every tenant's vault. Back it up separately.
 4. **Operator token**: `ooa region token` prints a new token `ooaop_...` (once) and its SHA-256. Keep the token in
    the secret store; only the SHA-256 goes into the settings.
@@ -137,7 +138,7 @@ ooa region tenant delete  acme --url https://in.example.com --token-env OOA_OPER
 
 | Command | Effect |
 | --- | --- |
-| `create` | Makes the schema, folder, key and first administrator; prints `https://acme.in.example.com/` and the administrator's one-time password (shown once). Send the address and password to the customer by separate channels. |
+| `create` | Makes the schema, folder, key and first administrator; prints `https://acme.in.example.com/` and the administrator's one-time password (shown once). Send the address and password to the customer by separate channels. The customer's administrator chooses a new password at the first sign-in and then sets up users, single sign-on and runners without the operator. |
 | `list` | Tenants with status and seats |
 | `seats` | New seat counts (`developer`, `citizen_developer`, `attended_runner`, `unattended_runner`); none given means no limit |
 | `suspend` | The tenant's people and runners are refused (its address answers 404 like an unknown one); schedules and triggers stop on every node within 30 seconds; data stays |
@@ -181,6 +182,15 @@ removes it from the catalogue; installed copies stay. Only agents are shared, ne
 A region reserves an address name in the directory before creating a tenant (refused if another region has it) and
 releases it on delete. The directory holds only name, region and date. Choose the region with the customer at
 creation: tenants do not move between regions.
+
+What the directory answers:
+
+| Address | Answer |
+| --- | --- |
+| `https://example.com/` | A page that asks for the company's address name and sends people on to their region |
+| `https://example.com/t/NAME` | A redirect to `https://NAME.REGION-DOMAIN/` |
+| `GET /api/directory/NAME` | `{slug, region, url}` for a known name |
+| `POST` / `DELETE /api/directory/NAME` | Used by the regions to reserve and release names, signed in with their own region token |
 
 ## 10. Egress rules
 
@@ -257,4 +267,4 @@ administrator frees one in Administration > Licenses or asks for more.
 - [06. High availability and scaling](06-high-availability-and-scaling.md)
 - [08. Security hardening](08-security-hardening.md)
 - [10. Upgrades, releases and patching](10-upgrades-releases-and-patching.md)
-- [The SaaS service](../SAAS.md)
+- [Functional 13. Licensing and editions](../functional/13-licensing-and-editions.md)

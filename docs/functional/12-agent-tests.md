@@ -131,4 +131,4 @@ Audited: set changes and deletes (`testset.delete`), `testset.run` (cases and ho
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [09 AI features](09-ai-features.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
-- [Command Center and runner, section 5a](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, section 5a](../user-guide/00-README.md)

@@ -305,7 +305,7 @@ ooa agent move --url https://new-address:8720 [--ca new.cer]
 ```
 
 Then restart the runner. Runners that reach the Command Center through a DNS name you repoint need nothing. See
-[CLOUD_INSTALL.md](../CLOUD_INSTALL.md).
+[Installation on Linux and in containers](../infrastructure/03-installation-linux-and-containers.md).
 
 ## 15. Removing a runner
 
@@ -321,4 +321,3 @@ then uninstall the product in Apps and Features. **Disable** instead keeps the r
 - [06 Administrator's guide](06-administrators-guide.md)
 - [08 Browser connector guide](08-browser-connector-guide.md)
 - [14 Business users](14-business-users.md)
-- Reference: [CONTROL_ROOM_AND_AGENT.md](../CONTROL_ROOM_AND_AGENT.md), [CLOUD_INSTALL.md](../CLOUD_INSTALL.md)

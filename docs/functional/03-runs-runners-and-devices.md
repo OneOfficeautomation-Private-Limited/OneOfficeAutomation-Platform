@@ -183,6 +183,10 @@ An API task (Build > API tasks, `apitasks.manage`) puts an agent behind its own 
 | Licence | The virtual runner needs an Unattended Runner seat while a licence is installed |
 | Node stops | A run cut off by a stopped node is failed once it is past the longest time a run may take |
 
+Serverless runs leave the desktop and the file system alone, but through REST, SOAP and the cloud apps they can still
+reach any address the Command Center itself can reach, from inside its network. Make serverless tasks only for agents
+whose addresses you trust.
+
 ## 10. Runners: registration and identity
 
 - **Register a runner** (Runners, `devices.manage`) makes a one-time key `ooareg_…`, valid 1 to 168 hours (24 by
@@ -290,4 +294,4 @@ uses it (`CR.IN_USE`, listing them). Removal takes it off pools and default runn
 - [05 Work queues](05-work-queues.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [Command Center and runner, sections 3 and 5](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, sections 3 and 5](../user-guide/00-README.md)

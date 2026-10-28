@@ -59,10 +59,10 @@ console where they are changed.
 
 ## Related documents
 
-- [Command Center and runner: setup and daily use](../CONTROL_ROOM_AND_AGENT.md)
-- [Architecture](../ARCHITECTURE.md)
+- [Command Center and runner: setup and daily use](../user-guide/00-README.md)
+- [Architecture](../architecture/README.md)
 - [Command catalogue](../COMMAND_CATALOG.md) and the generated toolkit reference in [../reference/toolkits/](../reference/toolkits/)
-- [Licensing](../LICENSING.md)
-- [SaaS service](../SAAS.md)
+- [Licensing](13-licensing-and-editions.md)
+- [SaaS service](../infrastructure/09-saas-and-multi-region-operations.md)
 - [Validation report](../VALIDATION_REPORT.md)
 - [Platform modules](../../platform/README.md)

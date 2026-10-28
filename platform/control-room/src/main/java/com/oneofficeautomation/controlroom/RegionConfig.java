@@ -40,7 +40,7 @@ public record RegionConfig(String region, String domain, String dbUrl, String db
         Properties p = new Properties();
         try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) { p.load(r); }
         catch (NoSuchFileException e) {
-            if (env.apply("OOA_REGION") == null) throw new OoaException("SAAS.CONFIG", "No region settings at " + file + " and no OOA_REGION", "Write it as docs/SAAS.md shows.");
+            if (env.apply("OOA_REGION") == null) throw new OoaException("SAAS.CONFIG", "No region settings at " + file + " and no OOA_REGION", "Write it as docs/infrastructure/09-saas-and-multi-region-operations.md shows.");
             String[][] names = { {"region", "OOA_REGION"}, {"domain", "OOA_DOMAIN"}, {"db.url", "OOA_DB_URL"}, {"db.user", "OOA_DB_USER"},
                 {"operator.token_sha256", "OOA_OPERATOR_TOKEN_SHA256"}, {"directory.url", "OOA_DIRECTORY_URL"}, {"serverless", "OOA_SERVERLESS"} };
             for (String[] n : names) if (env.apply(n[1]) != null) p.setProperty(n[0], env.apply(n[1]));

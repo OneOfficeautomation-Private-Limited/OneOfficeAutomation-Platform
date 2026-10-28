@@ -208,4 +208,4 @@ Audited: `workflow.start`, `workflow.completed`, `workflow.failed`, `workflow.ca
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md) (e-mail settings)
 - [14 One Agent Studio](14-studio-features.md)
-- [Command Center and runner, section 7](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, section 7](../user-guide/00-README.md)

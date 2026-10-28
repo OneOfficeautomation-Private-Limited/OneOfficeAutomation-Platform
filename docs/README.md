@@ -108,11 +108,14 @@ It is in five collections, each for a different reader. Start with the one that 
 The two generated pages are made from the product itself: `ooa manifest` with `research/tools/make-reference.py`, and
 `ooa ... --help` with `research/tools/make-cli-reference.py`. Run them again after a change to toolkits or commands.
 
-## Earlier single documents
+## Project records
 
-These came before the collections and stay for now; the collections above cover and extend them.
-[ARCHITECTURE.md](ARCHITECTURE.md), [CONTROL_ROOM_AND_AGENT.md](CONTROL_ROOM_AND_AGENT.md), [DATABASE.md](DATABASE.md),
-[CLOUD_INSTALL.md](CLOUD_INSTALL.md), [SAAS.md](SAAS.md), [LICENSING.md](LICENSING.md), [BROWSER_CONNECTOR.md](BROWSER_CONNECTOR.md),
-[RELEASING.md](RELEASING.md), [RUN_LOCALLY.md](RUN_LOCALLY.md), [SECURITY_REVIEW.md](SECURITY_REVIEW.md),
-[ENTERPRISE_CHECKS.md](ENTERPRISE_CHECKS.md), [VALIDATION_REPORT.md](VALIDATION_REPORT.md), [TRACEABILITY.md](TRACEABILITY.md).
-Where they disagree with the collections, the collections follow the code as of 2026-10-28.
+These are records of the project rather than product documentation, and stay as they are:
+[Validation report](VALIDATION_REPORT.md) (what was tested and how), [Traceability](TRACEABILITY.md) (requirements to
+code), [Real systems test plan](REAL_SYSTEMS_TEST_PLAN.md), [Next version](NEXT_VERSION.md) (planning notes),
+[Design system](DESIGN_SYSTEM.md) (the visual language of the console and Studio) and the
+[research](research/) folder (comparisons with the reference product, in our own words).
+
+The earlier single documents (ARCHITECTURE.md, CONTROL_ROOM_AND_AGENT.md, CLOUD_INSTALL.md, DATABASE.md, SAAS.md,
+LICENSING.md, BROWSER_CONNECTOR.md, ENTERPRISE_CHECKS.md, SECURITY_REVIEW.md, RUN_LOCALLY.md and RELEASING.md) were
+retired on 2026-10-28: their content is in the collections above, and each old file now points to its new place.

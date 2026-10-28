@@ -85,6 +85,13 @@ Each list has a CSV download; **Run history CSV** lists every run. An agent's **
 **variable profile**: for each output, how often it had a value, its most common values and, for numbers, the range
 and average.
 
+| API | Returns |
+| --- | --- |
+| `GET /api/analytics?days=&from=&to=&bot=&device=&user=&source=` | The Operations figures for the period and filters (`source` matches a prefix) |
+| `GET /api/analytics/agent?path=` | One agent's statistics |
+| `GET /api/analytics/variables?path=` | One agent's variable profile |
+| `GET /api/analytics/export?report=` | One list as CSV: `most_run`, `longest`, `most_failed`, `by_runner`, `by_day`, `by_source` or `run_history` |
+
 ## 6. Business figures (KPIs) and dashboards
 
 - In Studio, an output variable of type Number, String or Boolean can be ticked **Business figure (KPI)**. Each
@@ -100,6 +107,8 @@ and average.
 
 - A dashboard belongs to its maker until shared with `role:…`, `team:…`, `user:…` or `*` (everyone with `analytics.view`).
 - Only agents the viewer may see are counted. Days are counted in the viewer's time zone.
+- API: `/api/dashboards` (GET lists, POST makes, `PUT`/`DELETE /api/dashboards/{id}`), `GET /api/dashboards/{id}/data?tz=`
+  (the widgets' figures, with days in that time zone) and `GET /api/dashboards/kpis` (the KPIs that can be chosen).
 
 ## 7. One Audit Trail
 
@@ -115,6 +124,8 @@ and average.
 - **Forwarding**: with a syslog target, every record is also sent to a SIEM (RFC 5424 over UDP or TCP) from a bounded
   queue, so a slow collector never slows the Command Center; records that do not fit are counted as dropped. Settings
   has a test message.
+- API (`audit.view`): `GET /api/audit?q=&actor=&action=&object_type=&object_id=&result=&from=&to=&sort=&limit=&offset=`,
+  `GET /api/audit/export` with the same filters (CSV), and `GET /api/audit/verify`.
 
 ## 8. Retention
 
@@ -167,5 +178,5 @@ within about 30 seconds.
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [09 AI features](09-ai-features.md)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
-- [Command Center and runner, sections 10 to 10d](../CONTROL_ROOM_AND_AGENT.md)
-- [Database](../DATABASE.md)
+- [Command Center and runner, sections 10 to 10d](../user-guide/00-README.md)
+- [Database](../infrastructure/05-databases.md)

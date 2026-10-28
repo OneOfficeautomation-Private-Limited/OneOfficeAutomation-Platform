@@ -18,14 +18,15 @@ runner and looked at in **Agent Runs**.
 7. [The evaluation and your licence](#7-the-evaluation-and-your-licence)
 8. [If it goes wrong](#8-if-it-goes-wrong)
 9. [Where to go next](#9-where-to-go-next)
-10. [Related guides](#related-guides)
+10. [Appendix: run from a source checkout](#appendix-run-from-a-source-checkout)
+11. [Related guides](#related-guides)
 
 ## 1. Before you start
 
 You need:
 
 - A Windows 10 or 11 computer, or Windows Server, where you may install programs. Agents that drive the desktop
-  need a Windows runner; the Command Center itself also runs on Linux (see [CLOUD_INSTALL.md](../CLOUD_INSTALL.md)).
+  need a Windows runner; the Command Center itself also runs on Linux (see [Installation on Linux and in containers](../infrastructure/03-installation-linux-and-containers.md)).
 - One of the install packages from your ONEOFFICEAUTOMATION releases page:
 
   | Package | Contains | Choose it when |
@@ -67,7 +68,7 @@ Microsoft SQL Server (PostgreSQL also works); your administrator sets that up la
 ### On a developer computer (source checkout)
 
 Double-click `platform\scripts\start-ooa.bat`, or from PowerShell in the `platform` folder run
-`.\gradlew.bat :cli:run --args="server"`.
+`.\gradlew.bat :cli:run --args="server"`. See [Appendix: run from a source checkout](#appendix-run-from-a-source-checkout).
 
 ## 3. Start ONEOFFICEAUTOMATION
 
@@ -80,11 +81,45 @@ What happens:
 2. The runner for this computer registers itself, so you need no registration key on this computer.
 3. Your browser opens the Command Center sign-in page.
 
-Keep the console window open while you work: closing it (or pressing Ctrl+C in it) stops everything.
+After 30 to 60 seconds (longer the first time) the window shows:
+
+```
+ONEOFFICEAUTOMATION is running.
+  Open:             http://localhost:8720
+  Command Center:   http://localhost:8720/
+  Agent Studio:     http://localhost:8720/studio/   (this computer only)
+  One Runner:       this computer, connected
+  My Workspace:     C:\Users\<you>\OOA Workspace
+  Database:         ...
+```
+
+Studio answers only on this computer, even when the Command Center is opened to the network.
+
+Keep the console window open while you work: closing it, or pressing Ctrl+C in it, stops everything (answer **Y** if
+Windows asks "Terminate batch job"). To copy text from the window, select it with the mouse and right-click; Ctrl+C
+there stops the server.
+
+Options for `ooa server` (and `START-OOA.cmd`, which passes them on):
+
+| Option | Meaning |
+| --- | --- |
+| `--port 8730` | Use another port (8720 by default), for example when another copy is still running |
+| `--host 0.0.0.0` | Accept connections from other machines (turn on HTTPS first). The default, 127.0.0.1, is this computer only |
+| `--data D:\OOA\cc` | Keep the Command Center's data in another folder |
+| `--workspace D:\Agents` | Another folder for Studio's **My Workspace** |
+| `--agent-workspace DIR` | Another working folder for this computer's runner |
+| `--no-agent` | Do not start the runner for this computer |
+| `--no-browser` | Do not open the browser |
 
 Your data (the database, the vault key file, repository files, backups) is kept in the data folder, by default
 `C:\Users\<you>\OOA Command Center`. If an earlier version left a database in `C:\Users\<you>\OOA Control Room`,
 that folder is used instead, so an upgrade never starts empty. Back this folder up.
+
+| Folder | Contents |
+| --- | --- |
+| `C:\Users\<you>\OOA Command Center` | The Command Center's database, vault key file, repository files and backups (back this up) |
+| `C:\Users\<you>\OOA Workspace` | Your private Studio workspace (**My Workspace**) |
+| `C:\Users\<you>\OOA Agent Workspace` | This computer's runner: its working files, and one log file per run in `logs` |
 
 > **Tip.** `ooa server` listens on 127.0.0.1 only, so nobody else on the network can reach it. That is what you want
 > for a first try. To let other machines in, turn on HTTPS first and use `--host 0.0.0.0`
@@ -229,9 +264,11 @@ To license the product, an administrator moves the Command Center to SQL Server,
 
 | What you see | What to do |
 | --- | --- |
-| The browser does not open, or shows "cannot reach" | Check the console window is still open. Open `http://localhost:8720` by hand. If another program uses port 8720, start with `--port 8721`. |
+| The browser does not open, or shows "cannot reach" | Check the console window is still open and shows "ONEOFFICEAUTOMATION is running" (wait for it). Open `http://localhost:8720` by hand. |
+| The window closes at once, or says port 8720 is in use | Another copy is still running: close its window, or start with `--port 8730` and open `http://localhost:8730`. |
+| "Wrong user name or password" | Check for spaces when pasting the one-time password. |
 | You lost the one-time password, or forgot your password | Stop ONEOFFICEAUTOMATION (Ctrl+C in its window), run `bin\ooa.bat reset-admin` (or `reset-admin --user jane.doe`), start again and sign in with the new one-time password it prints. The reset is recorded in the audit trail. |
-| "Account locked" after wrong passwords | Five wrong passwords lock an account for 15 minutes. Wait, or ask an administrator to **Reset password**. |
+| "Account locked" after wrong passwords | Five wrong passwords lock an account for 15 minutes. Wait, ask an administrator to **Reset password**, or run `reset-admin` (above), which also unlocks the account. |
 | **Run** is missing on an agent | The agent has no live production version yet, or your role cannot start runs (`runs.start`). |
 | The run stays **queued** | The chosen runner is offline. Check **Manage > Runners**: a runner is online when it has checked in during the last minute. |
 | The check-in is refused with validation problems | Studio opens the problems list. Fix them, save and check in again. |
@@ -245,6 +282,52 @@ To license the product, an administrator moves the Command Center to SQL Server,
   to add runners on other machines.
 - Business users: [14 Business users](14-business-users.md).
 
+## Appendix: run from a source checkout
+
+For developers who work on ONEOFFICEAUTOMATION itself and run it from the Git repository instead of an install
+package.
+
+**You need:** a Java 21 JDK (for example Eclipse Adoptium) with `JAVA_HOME` set, the repository checked out (for
+example in `C:\OOA\oneofficeautomation`), and Edge or Chrome. Gradle downloads itself the first time.
+
+### Start, stop and reset
+
+1. Get the latest code if you like: `git pull` in the repository folder.
+2. Double-click `platform\scripts\start-ooa.bat`, or from PowerShell:
+
+   ```
+   cd C:\OOA\oneofficeautomation\platform
+   .\scripts\start-ooa.bat
+   ```
+
+   The script runs `gradlew :cli:run --args="server"` and passes options on, for example
+   `.\scripts\start-ooa.bat --port 8730`. The first start builds the product, so it takes longer.
+3. Wait for "ONEOFFICEAUTOMATION is running" and sign in as in sections 3 and 4.
+4. To stop, press Ctrl+C in the window (answer **Y** to "Terminate batch job") or close it.
+
+Any other command runs the same way: `ooa X` becomes `.\gradlew.bat :cli:run --args="X"` in the `platform` folder.
+For a forgotten password, stop the server and run `.\gradlew.bat :cli:run --args="reset-admin"` (or
+`--args="reset-admin --user jane.doe"`), then start again and sign in with the one-time password it prints.
+
+| Problem | What to do |
+| --- | --- |
+| "JAVA_HOME is not set" | Install a Java 21 JDK, set `JAVA_HOME`, and open a new PowerShell window |
+| The first start seems stuck | Gradle is downloading and building; wait for "ONEOFFICEAUTOMATION is running" |
+
+### Build the install packages
+
+From the `platform` folder:
+
+| Package | Command | Result |
+| --- | --- | --- |
+| The zip without installer | `.\gradlew.bat :cli:customerDistZip` | `cli\build\distributions\ooa-customer-<version>.zip` |
+| The setup package (with its own Java and `Install.cmd`) | `.\gradlew.bat :cli:setupDistZip` | `cli\build\distributions\ooa-setup-<version>.zip` |
+| The MSI | `powershell -ExecutionPolicy Bypass -File scripts\build-msi.ps1` | `cli\build\distributions\ooa-<version>.msi` |
+
+The MSI script builds the setup package's files first and needs the WiX Toolset 5, installed once with
+`dotnet tool install --global wix --version 5.0.2` (or give its path with `-Wix`). The packages' `README.txt` lists
+every install option. A package built this way installs as in section 2.
+
 ## Related guides
 
 - [00 Index of all guides](00-README.md)
@@ -252,4 +335,3 @@ To license the product, an administrator moves the Command Center to SQL Server,
 - [06 Administrator's guide](06-administrators-guide.md)
 - [07 Runner guide](07-runner-guide.md)
 - [02 Studio basics](02-studio-basics.md)
-- Reference: [RUN_LOCALLY.md](../RUN_LOCALLY.md), [CONTROL_ROOM_AND_AGENT.md](../CONTROL_ROOM_AND_AGENT.md)

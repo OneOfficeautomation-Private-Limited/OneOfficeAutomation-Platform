@@ -20,6 +20,7 @@ For Windows administrators and software-distribution teams (SCCM, Intune, Group 
 10. Uninstalling
 11. Logs and exit codes
 12. Known behaviours to plan for
+13. In a cloud (AWS, Azure, Google Cloud)
 
 ## 1. Packages
 
@@ -282,6 +283,56 @@ when the user answered no.
 - Installing again keeps an existing service and its settings; to change them, `ooa service uninstall` first.
 - The runner's own messages go to its console; a runner started by the sign-in task has none, so use the per-run
   logs and `ooa agent diagnose`.
+
+## 13. In a cloud (AWS, Azure, Google Cloud)
+
+A Command Center in your own cloud account is an on-premises install on rented machines: the same product, your
+network, your data. Use a Windows virtual machine (below) or the Linux package or container image
+([03](03-installation-linux-and-containers.md)). Runners for agents that use the screen stay on Windows machines,
+virtual or physical. To run the multi-tenant service for many customers, see
+[09](09-saas-and-multi-region-operations.md).
+
+### Cloud building blocks
+
+| Piece | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| Database | RDS for SQL Server (or PostgreSQL) | Azure SQL Database, SQL Managed Instance (or PostgreSQL Flexible Server) | Cloud SQL for SQL Server (or PostgreSQL) |
+| Vault key (`OOA_MASTER_KEY_SOURCE`) | `aws-secrets:REGION/SECRET-ID` (Secrets Manager) | `azure-keyvault:https://NAME.vault.azure.net/secrets/SECRET` (Key Vault) | `gcp-secret:projects/P/secrets/S/versions/latest` (Secret Manager) |
+| Data folder | EBS volume; EFS for repository files shared by several nodes | Managed disk; Azure Files for several nodes | Persistent disk; Filestore for several nodes |
+| HTTPS | Application Load Balancer with an ACM certificate, or `ooa tls` | Application Gateway, or `ooa tls` | HTTPS load balancer, or `ooa tls` |
+| Backups | Automated database backups, plus `ooa backup` into S3 (a mounted bucket or a copy job) | Database backups, plus `ooa backup` into Azure Files or Blob storage | Database backups, plus `ooa backup` into Cloud Storage |
+
+The key sources and how each signs in are in [08. Security hardening](08-security-hardening.md). Keep the vault key
+apart from the backups: a backup holds encrypted vault values, never the key.
+
+### A Windows virtual machine
+
+1. Create a Windows Server 2022 machine (4 vCPU and 16 GB to start, see
+   [01](01-system-requirements-and-sizing.md)) in a private subnet.
+2. Create the database (SQL Server 2019 or later, or PostgreSQL 14 or later) and the setup and runtime accounts
+   ([05](05-databases.md)). Allow the machine to reach the database port.
+3. Give the machine its vault key as a machine-wide variable, `OOA_MASTER_KEY` or `OOA_MASTER_KEY_SOURCE`
+   (`setx NAME "VALUE" /M`), taken from your secret store. Windows services see a new machine-wide variable only
+   after Windows restarts, so restart before installing.
+4. Copy the MSI (or the setup package) to the machine and install, as administrator:
+   ```
+   msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720 DATA_DIR="D:\OOA\cc" /l*v install.log
+   ```
+   Or use `Install.cmd -Silent -Role CommandCenter -AllUsers -Service -DataDir D:\OOA\cc -DbServer ...`, which also sets
+   up the database (section 4).
+5. With the MSI, set up the database: `ooa db configure`, `ooa db set-password`, `ooa db set-password --setup`,
+   `ooa db init`, each with `--data D:\OOA\cc` ([05](05-databases.md)), then restart the service.
+6. Put the load balancer in front (HTTPS on 443 to the machine's port 8720, sending `X-Forwarded-Proto: https`, with
+   its addresses in **Trusted proxies**), or run `ooa tls configure --pfx FILE --data D:\OOA\cc`
+   ([04](04-network-ports-proxies-and-certificates.md)).
+7. Run `bin\ooa.bat check --data D:\OOA\cc`: there must be no FAIL lines, and the vault key line must name your key
+   source, not a key file.
+8. Register runners from Runners > Register a runner. They connect outbound only, to the Command Center's HTTPS
+   address, so they can sit in another network (or on premises) as long as they reach that address. Tick
+   **Temporary runner** for pooled virtual desktops.
+
+For several nodes behind the load balancer on one database, see [06](06-high-availability-and-scaling.md). To move an
+existing on-premises Command Center into the cloud, see [07](07-backup-restore-and-disaster-recovery.md), section 7.
 
 ## Related documents
 

@@ -29,6 +29,7 @@ The other collections cover different ground:
 | 8 | [08-ai-architecture.md](08-ai-architecture.md) | Model connections, AI governance, AI agents, Prompt Skills, web agent, knowledge Q&A, MCP |
 | 9 | [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md) | Tenants, regions, routing, the operator API and the directory |
 | 10 | [10-extensibility-and-integration.md](10-extensibility-and-integration.md) | REST API, MCP, webhooks, custom toolkits, connectors, Git mirror, templates |
+| 11 | [11-developer-guide.md](11-developer-guide.md) | Building from source, tests and CI, adding toolkits and features, Studio internals, known limits |
 
 ## Reading order
 
@@ -41,6 +42,7 @@ The other collections cover different ground:
 5. **07 Toolkit architecture** and **10 Extensibility and integration** are for developers who add toolkits or
    integrate OOA with other systems.
 6. **08 AI architecture** and **09 Multi-tenant SaaS and regions** cover the AI features and the hosted service.
+7. **11 Developer guide** is for people who change the product itself.
 
 ## Names used in this collection
 
@@ -77,4 +79,4 @@ The user-facing names are agent, runner, vault folder and Command Center.
 - [08-ai-architecture.md](08-ai-architecture.md)
 - [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md)
 - [10-extensibility-and-integration.md](10-extensibility-and-integration.md)
-- Earlier single-file description: [../ARCHITECTURE.md](../ARCHITECTURE.md)
+- [11-developer-guide.md](11-developer-guide.md)

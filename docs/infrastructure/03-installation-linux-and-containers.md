@@ -239,4 +239,4 @@ Never let the Command Center scale to zero: schedules, triggers and queues run i
 - [05. Databases](05-databases.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
 - [09. SaaS and multi-region operations](09-saas-and-multi-region-operations.md)
-- [Installing in a cloud](../CLOUD_INSTALL.md)
+- [02. Installation on Windows (section 13: cloud building blocks)](02-installation-windows.md)

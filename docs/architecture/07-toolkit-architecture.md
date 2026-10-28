@@ -23,8 +23,9 @@ files. It is for toolkit developers (in-house and customers) and for Studio deve
 11. [Custom signed toolkits](#11-custom-signed-toolkits)
 12. [How Studio renders panels](#12-how-studio-renders-panels)
 13. [Custom connectors from API descriptions](#13-custom-connectors-from-api-descriptions)
-14. [Patterns for cloud toolkits](#14-patterns-for-cloud-toolkits)
-15. [Related documents](#related-documents)
+14. [Captured objects and window choice](#14-captured-objects-and-window-choice)
+15. [Patterns for cloud toolkits](#15-patterns-for-cloud-toolkits)
+16. [Related documents](#related-documents)
 
 ---
 
@@ -248,7 +249,124 @@ and operations with parameters and schemas. Local `$ref`s are resolved in place;
 marked `x-recursive`. `ConnectorStore` reads and writes these files for the toolkit (in the run's workspace) and for
 Studio (`/studio/api/connectors`). Credentials for connectors come from the vault, never from the file.
 
-## 14. Patterns for cloud toolkits
+## 14. Captured objects and window choice
+
+Web and desktop UI actions find an element by a **captured object** instead of one selector. The format is shared by
+web and desktop, so Studio has one editor for both (`captureEditor` in `studio.js`).
+
+### 14.1 Web objects (`WebObjects`, module `packages-browser`)
+
+```json
+{"technology": "web",
+ "page": {"url": "...", "url_match": "starts_with", "title": "...", "title_match": "..."},
+ "frames": ["iframe#main"],
+ "search_by": "properties",
+ "index": 0, "ignore_case": false, "self_heal": true,
+ "properties": [{"name": "id", "value": "save", "match": "equals", "use": true}],
+ "rect": {"left": 355, "top": 517, "width": 586, "height": 41},
+ "anchor": {"technology": "web", "properties": [...], "offset": {"dx": 0, "dy": 26}},
+ "screenshot": "base64 PNG"}
+```
+
+| Part | Meaning |
+| --- | --- |
+| `properties` | Only entries with `use: true` are tested. `match` is `equals`, `not_equals`, `contains`, `starts_with`, `ends_with`, `wildcard` or `regex` |
+| `search_by` | `properties` (default), `css` or `xpath`. A ticked `css` or XPath property with `equals` means "the element that selector finds" |
+| `frames` | The iframe path, outermost first |
+| `index` | Which match to use when several elements match |
+| `self_heal` | On by default; `false` turns the self-healing search off |
+| `anchor` | Optional. When the element is not found, or several match, the anchor is found by its own properties and the candidate nearest to anchor position plus `offset` is used. When the element's own properties no longer match, only elements with the same tag within 250 pixels of that spot count |
+| `rect`, `screenshot` | Position on the page and a picture, both from capture time |
+
+- **One property reader.** The page script `ooa-page.js` (`WebObjects.LIB_JS`) reads the properties. Capture, the
+  Recorder, the run-time search, `get_all_properties` and the browser extension all use it, so a property name means
+  the same thing everywhere.
+- **Property names:** the attributes (`tag`, `id`, `name`, `type`, `class`, `href`, `src`, `alt`, `title`, `role`,
+  `aria-label`, `placeholder`, `data-*` and any other attribute), `text` (inner text), `value`, `label`, `dom_xpath`
+  (short XPath), `xpath` (full XPath), `css`, `path` (child positions from the page root), `parent`, `tag_index`,
+  `source_index`, `left`, `top`, `width`, `height`, `visible`, `enabled`, `checked`, `selected`, `child_count`,
+  `in_frame`, `frame_url`, `inner_html` and `outer_html`.
+- **`element_action` options:** `wait_for_page_ms` waits for the page to load first (`BROWSER.PAGE_TIMEOUT` when it does
+  not); `if_not_found` is `error` (default) or `continue`, which skips the step and sets `found` to false;
+  `run_in_background` leaves the tab where it is and acts on the element directly, without bringing the window to the
+  front.
+- **Recorder** (`ooa.browser/record`): each recorded click, typing and selection gets the full captured object,
+  including its iframe path, and its window. `stepsFromEvents` turns the recording into steps.
+
+### 14.2 Desktop objects (`DesktopObject`, module `packages-windows`)
+
+```json
+{"technology": "desktop",
+ "window": {"title": "Untitled - Notepad", "title_match": "wildcard", "process": "notepad",
+            "path": "C:\\Windows\\notepad.exe", "resize": {"width": 1200, "height": 800}},
+ "properties": [{"name": "ControlType", "value": "Edit", "match": "equals", "use": true}],
+ "path": [{"ControlType": "Window", "Name": "..."}],
+ "index": 0,
+ "anchor": {"technology": "desktop", "properties": [...], "offset": {"dx": 0, "dy": 30}},
+ "screenshot": "base64 PNG"}
+```
+
+- **Matching** runs in Java and has no native code, so it is unit-tested. UI Automation is reached through the helper
+  `UiaBridge` (PowerShell with .NET `UIAutomationClient`). Text matches ignore case, except `regex`, which is used as
+  written and may match anywhere in the value. Wildcards (`*`, `?`) must match the whole value.
+- **Properties** recorded at capture: the UI Automation properties (Name, AutomationId, ClassName, ControlType,
+  FrameworkId, Value, HelpText and others, the patterns and states), plus `Text`, `Path` (child positions from the
+  window), `XPath` (`ControlType[n]` steps, the last with its AutomationId or Name), `Index`, `Parent`, and `Left`,
+  `Top`, `Width`, `Height` relative to the window.
+- **Quick search first.** The helper returns a short list of properties for every control while searching. Only when a
+  ticked rule needs another property (path, XPath, states, text) does it read the details (`DesktopObject.needsDetail`).
+- **Anchor:** the nearest control of the same type to anchor plus offset, measured on the screen rectangles.
+- **`window.resize`** sets the window's size before the search, so positions match the capture.
+- **`object_action`** has `if_not_found` as on the web, and `run_in_background`, which uses UI Automation patterns only:
+  no window activation, mouse or keys.
+- **Recording** (`ooa.desktop_ui/record`): the helper's `record` operation installs low-level mouse and keyboard hooks
+  and shows a **Stop recording** bar, on their own thread. It captures the control under each mouse press and the text
+  of a field when the person leaves it; password fields are never read. Progress lines arrive before the answer
+  (`UiaBridge.call(..., progress)`). `DesktopUiPackage.stepsFromEvents` turns the result into `object_action` steps.
+
+### 14.3 Window choice of web actions (`BrowserWindows`)
+
+Every web element action (`element_action`, `click`, `type_text`, `select_option`, `get_text`, `get_attribute`,
+`wait_for`, `extract_table`, `download`, `screenshot`) and the conditions `element_exists` and `element_visible` take an
+optional `window` input. Values may contain `$variables`; the Runner resolves them first.
+
+```json
+{"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard",
+ "url": "shop.test/invoices", "url_match": "contains", "browser": "edge", "variable": "browser"}
+```
+
+| `source` | What it finds |
+| --- | --- |
+| `browser` (default) | The first tab whose title and/or address matches, among every page of the run's browser sessions (the step's own session first, then the others), then tabs reached through the browser connector. If nothing matches, a browser listening on the default debugging port 9222 is attached once as session `attached_9222` and searched too. The tab becomes its session's current page |
+| `variable` | The browser session with that name. `attach` and `open_for_automation` return a ready window value |
+| `application` | A desktop window title. The browser's suffix (for example " - Microsoft Edge") is removed and the rest is matched against tabs as above. Any other desktop window cannot take web actions; the error points to the Desktop objects toolkit |
+
+- Match modes: `wildcard` (default for the title), `contains` (default for the address), `equals` or `regex`. Text
+  matches ignore case unless `case_sensitive` is set.
+- The action waits up to its `timeout_ms` for the window, then fails with `BROWSER.WINDOW_NOT_FOUND`, which lists up to
+  20 open tabs. Conditions return false instead.
+
+### 14.4 Browsers that stay open, and browsers already open
+
+Browsers are reached over the DevTools protocol (Playwright `connectOverCDP`):
+
+| Action | Behaviour |
+| --- | --- |
+| `ooa.browser/open` with `keep_open` (default true) | Starts Edge on debugging port 9222 or Chrome on 9223, with a profile under `.ooa/browser-profiles/<browser>-<port>` in the workspace. Ending the run only disconnects; **Close browser** closes the windows that session opened |
+| `ooa.browser/attach` | Connects to `http://127.0.0.1:9222` (or another endpoint) as a session. Closing that session only disconnects |
+| `ooa.browser/open_for_automation` | Starts Edge or Chrome with `--remote-debugging-port` and its own profile folder, or reuses the browser already listening on that port |
+| `ooa.browser/list_windows` | Lists reachable tabs (the run's sessions and `/json/list` of each endpoint) and, on Windows, desktop window titles (one `Get-Process` call, started with an argument list) |
+
+A browser started the usual way has no debugging port and cannot be reached this way; recent browsers also refuse a
+debugging port on the everyday profile. The browser connector (extension plus native host, see
+[06-security-architecture.md](06-security-architecture.md#9-studio-and-local-components)) covers the person's own tabs.
+
+Studio uses the same code at design time: `GET /studio/api/windows[?endpoints=...&desktop=false]` returns
+`{"windows": [{source, title, url, browser}]}` for the window editor; `POST /studio/api/capture` (with `endpoint`,
+`tab_title`, `tab_url` or `tab_id` to pick inside an open tab), `capture/test` and `capture-desktop` capture and test
+objects.
+
+## 15. Patterns for cloud toolkits
 
 - Use `HttpJson` (JDK `HttpClient`): base-URL input, Credential token input, JSON bodies, paging, typed errors with the
   service's own message, retryable 429/5xx, and secret masking in logs. `HttpOptions` adds proxy and TLS options.

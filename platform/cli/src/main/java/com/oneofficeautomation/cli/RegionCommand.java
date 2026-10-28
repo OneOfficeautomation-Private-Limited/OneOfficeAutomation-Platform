@@ -26,7 +26,7 @@ import java.util.*;
  *   ooa region tenant list|create|seats|suspend|resume|delete --url https://REGION-DOMAIN --token-env VAR ...
  *   ooa directory start [--data DIR] [--host H] [--port N]  the global directory (DIR/config/ooa-directory.properties)
  * </pre>
- * See docs/SAAS.md.
+ * See docs/infrastructure/09-saas-and-multi-region-operations.md.
  */
 final class RegionCommand {
     private RegionCommand() { }
@@ -164,7 +164,7 @@ final class RegionCommand {
         Path file = data.resolve("config").resolve("ooa-directory.properties");
         Properties p = new Properties();
         try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) { p.load(r); }
-        catch (NoSuchFileException e) { throw new OoaException("SAAS.CONFIG", "No directory settings at " + file, "Write it as docs/SAAS.md shows."); }
+        catch (NoSuchFileException e) { throw new OoaException("SAAS.CONFIG", "No directory settings at " + file, "Write it as docs/infrastructure/09-saas-and-multi-region-operations.md shows."); }
         List<RegionDirectory.Region> regions = new ArrayList<>();
         for (String k : new TreeSet<>(p.stringPropertyNames()))
             if (k.matches("region\\.[a-z0-9-]+\\.domain")) {

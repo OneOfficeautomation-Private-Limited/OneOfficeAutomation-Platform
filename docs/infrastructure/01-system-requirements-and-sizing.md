@@ -23,7 +23,7 @@ For infrastructure architects and server administrators planning an installation
 
 | Component | Supported | Tested in CI on every push |
 | --- | --- | --- |
-| Command Center (Windows) | 64-bit Windows Server 2022 (the version used by the cloud and security-test guides) or another 64-bit Windows that runs Java 21; Windows 10/11 for evaluation | `windows-latest`: full build and every test suite; MSI install with Command Center and runner services |
+| Command Center (Windows) | 64-bit Windows Server 2022 (the version used by the cloud install and security tests) or another 64-bit Windows that runs Java 21; Windows 10/11 for evaluation | `windows-latest`: full build and every test suite; MSI install with Command Center and runner services |
 | Command Center (Linux package) | Any 64-bit Linux with Java 21: Ubuntu 22.04 and later, RHEL 9 and later | `ubuntu-latest`: the customer package started without a container and checked with `/api/health/ready` |
 | Command Center (container) | Any OCI runtime: Docker, Amazon ECS/Fargate, Azure Container Apps/AKS, Google GKE/Cloud Run (always at least one instance) | `ubuntu-latest`: image alone, with PostgreSQL 16, backup and restore, a SaaS region with two tenants |
 | Runner for screen agents | 64-bit Windows 10/11 or Windows Server with a signed-in, unlocked desktop session | Windows build-and-test job |
@@ -92,7 +92,7 @@ Notes:
   thread, so a waiting runner costs very little memory.
 - Serverless API tasks run inside the Command Center: at most 4 at once per node, 5 minutes each. Plan CPU for them
   if you use them.
-- The cloud guide's starting point for a Windows virtual machine is 4 vCPU and 16 GB.
+- A cloud Windows virtual machine starts at 4 vCPU and 16 GB ([02](02-installation-windows.md), section 13).
 
 ## 6. Runner hardware
 
@@ -199,4 +199,4 @@ Leave memory for the operating system and, on runners, for the applications agen
 - [05. Databases](05-databases.md)
 - [06. High availability and scaling](06-high-availability-and-scaling.md)
 - [11. Monitoring, logging and troubleshooting](11-monitoring-logging-and-troubleshooting.md)
-- [Enterprise checks](../ENTERPRISE_CHECKS.md)
+- [Enterprise checks](08-security-hardening.md)

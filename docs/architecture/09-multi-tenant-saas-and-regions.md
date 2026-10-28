@@ -7,7 +7,7 @@ region and a tenant are, how a tenant's data is isolated (schema, folder and key
 by host name, the operator API and commands, the optional global directory that maps names to regions, multi-node
 regions, the restrictions that apply to tenants, licensing by seats, and the limits of this version. It is for the
 architects and operators of the service and for customers' security teams assessing it. Step-by-step operating
-instructions are in [../SAAS.md](../SAAS.md); on-premises installs are not affected by anything here.
+instructions are in [../SAAS.md](../infrastructure/09-saas-and-multi-region-operations.md); on-premises installs are not affected by anything here.
 
 ## Contents
 
@@ -215,4 +215,4 @@ the catalogue; installed copies stay.
 - [07-toolkit-architecture.md](07-toolkit-architecture.md)
 - [08-ai-architecture.md](08-ai-architecture.md)
 - [10-extensibility-and-integration.md](10-extensibility-and-integration.md)
-- Operator guide: [../SAAS.md](../SAAS.md)
+- Operator guide: [../SAAS.md](../infrastructure/09-saas-and-multi-region-operations.md)

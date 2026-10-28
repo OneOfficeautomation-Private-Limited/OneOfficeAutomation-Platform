@@ -149,7 +149,7 @@ The exit code is the number of FAILs.
 
 The browser connector (extension plus native messaging host) lets agents work in the user's own Edge, Chrome or
 Firefox. Set it up once per Windows user with `ooa browser-connector install`, load the extension, and check with
-`ooa browser-connector status`. Details: [Browser connector](../BROWSER_CONNECTOR.md).
+`ooa browser-connector status`. Details: [Browser connector](../user-guide/08-browser-connector-guide.md).
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
@@ -186,5 +186,5 @@ but agent outputs and inputs may hold business data.
 - [04. Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md)
 - [05. Databases](05-databases.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
-- [Browser connector](../BROWSER_CONNECTOR.md)
-- [Enterprise checks](../ENTERPRISE_CHECKS.md)
+- [Browser connector](../user-guide/08-browser-connector-guide.md)
+- [Enterprise checks](08-security-hardening.md)

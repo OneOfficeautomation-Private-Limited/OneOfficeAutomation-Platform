@@ -228,4 +228,4 @@ Signed toolkits written with the SDK can be added by people with `toolkits.manag
 - [14 One Agent Studio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
 - [Toolkit reference](../reference/toolkits/)
-- [Command Center and runner, sections 9a and 9b](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, sections 9a and 9b](../user-guide/00-README.md)

@@ -116,7 +116,12 @@ integrity.
    restored yet). The runner keeps its registration, schedules and seat.
 6. `ooa check`, sign in, confirm runners are online, run an agent, retire the old install.
 
-The licence moves with the data when the install id comes along, which it does with the same vault key.
+The licence moves with the data when the install id comes along, which it does with the same vault key: a licence
+issued for that install id keeps working. Ask the vendor for a new licence only when you set up a new install instead
+of restoring (a new install has a new install id).
+
+For a cloud target, build the new install as in [02](02-installation-windows.md), section 13 (Windows virtual
+machine) or [03](03-installation-linux-and-containers.md) (Linux package or container).
 
 ## 8. Disaster recovery site
 
@@ -198,4 +203,4 @@ These are planning figures for your own runbooks, not guarantees.
 - [06. High availability and scaling](06-high-availability-and-scaling.md)
 - [08. Security hardening](08-security-hardening.md)
 - [11. Monitoring, logging and troubleshooting](11-monitoring-logging-and-troubleshooting.md)
-- [Installing in a cloud](../CLOUD_INSTALL.md)
+- [02. Installation on Windows (section 13: in a cloud)](02-installation-windows.md)

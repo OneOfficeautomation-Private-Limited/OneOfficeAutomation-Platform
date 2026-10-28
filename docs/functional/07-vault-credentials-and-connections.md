@@ -187,4 +187,4 @@ credential detail and member changes, people's own values, `global.set`, `global
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [04 Schedules and triggers](04-schedules-and-triggers.md)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
-- [Command Center and runner, section 8](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, section 8](../user-guide/00-README.md)

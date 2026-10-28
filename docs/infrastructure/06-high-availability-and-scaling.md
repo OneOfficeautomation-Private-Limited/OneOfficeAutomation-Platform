@@ -161,4 +161,4 @@ longest time a run may take.
 - [04. Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md)
 - [05. Databases](05-databases.md)
 - [07. Backup, restore and disaster recovery](07-backup-restore-and-disaster-recovery.md)
-- [Command Center and runner setup](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner setup](../user-guide/00-README.md)

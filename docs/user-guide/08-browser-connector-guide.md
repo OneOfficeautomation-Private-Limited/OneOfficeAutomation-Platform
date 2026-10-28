@@ -138,7 +138,7 @@ See [10 Web and desktop automation](10-web-and-desktop-automation.md) for buildi
 | Area | Edge and Chrome | Firefox |
 | --- | --- | --- |
 | Open browser, choose window or tab | Yes | Yes |
-| Element actions: Click, Set text, Select item, Get text or attribute, Wait for element, Element exists or visible, Extract table, Download file (by clicking), Screenshot of page or element | Yes | Yes |
+| Element actions: Capture: element action, Click, Set text, Select item, Get text or attribute, Wait for element, Element exists or visible, Extract table, Download file (by clicking), Screenshot of page or element | Yes | Yes |
 | Page actions: Go to URL, Back, Forward, Refresh, Get URL and title, Get page source, Find broken links, Switch tab | Yes | Yes |
 | Run JavaScript | Yes. On a page whose content security policy forbids it, the step uses the browser's debugging interface and the browser briefly shows a "being debugged" bar | Yes, except on pages whose policy blocks scripts: the step stops with a clear message (run it in Edge or Chrome) |
 | Call JavaScript function | Needs the page to allow scripts | Needs the page to allow scripts |
@@ -146,6 +146,9 @@ See [10 Web and desktop automation](10-web-and-desktop-automation.md) for buildi
 | Upload file | Up to 50 MB in all; a file field gets the files as if chosen, any other element (a drop zone) gets them dropped | Same |
 | Drag to | Sends HTML drag events and pointer moves | Same |
 | Studio Capture and Record | Yes | Yes |
+
+The Firefox column was checked on Firefox 159: filling fields, uploading, clicking, reading, running JavaScript, page
+and element pictures, and a tab in the background.
 
 **Good to know:** events are created by the page script, so a page that accepts only real (trusted) input events may
 ignore them. For such a page use a Playwright browser, or desktop mouse and keyboard actions.
@@ -188,4 +191,3 @@ This removes the host files and registry keys. Remove the extension in each brow
 - [07 Runner guide](07-runner-guide.md)
 - [10 Web and desktop automation](10-web-and-desktop-automation.md)
 - [02 Studio basics](02-studio-basics.md)
-- Reference: [BROWSER_CONNECTOR.md](../BROWSER_CONNECTOR.md)

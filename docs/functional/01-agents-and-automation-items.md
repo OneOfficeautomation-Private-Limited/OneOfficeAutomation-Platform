@@ -248,4 +248,4 @@ At check-in, the repository's code analysis policy is applied as well ([document
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
 - [14 One Agent Studio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
-- [Architecture](../ARCHITECTURE.md)
+- [Architecture](../architecture/README.md)

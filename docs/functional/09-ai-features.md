@@ -160,6 +160,11 @@ The Knowledge Q&A toolkit (`ooa.knowledge`) answers questions from a company's o
 
 Keep the index as a repository file so runs that need it receive it; rebuild it when documents change.
 
+Embedding and answer calls go through One Model Connections, so their budgets, masking and the run's AI calls apply.
+Build the index with a saved connection for the embeddings: the index remembers its name, so Search and Ask reach the
+same embedding model by themselves. An index built with a model set up on the step needs its key given again on
+Search and Ask (**API key**, or an **Embedding connection**); without it they warn and search by words only.
+
 ## 12. Document intelligence and confidence
 
 Document intelligence items (Studio) define the fields to extract from documents with AI. Extract fields with a
@@ -201,4 +206,4 @@ only when the name is free; inserted steps get fresh ids and stay selected for r
 - [05 Work queues](05-work-queues.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
 - [12 Agent tests](12-agent-tests.md) (checks suited to AI answers)
-- [Command Center and runner, section 9](../CONTROL_ROOM_AND_AGENT.md)
+- [Command Center and runner, section 9](../user-guide/00-README.md)
