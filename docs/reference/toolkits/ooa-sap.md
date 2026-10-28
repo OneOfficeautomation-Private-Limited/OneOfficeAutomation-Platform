@@ -227,14 +227,15 @@ Press a toolbar or screen button by its id.
 
 `ooa.sap/right_click` (action)
 
-Open the context menu of an element, grid cell or tree node and optionally choose an entry.
+Open the context menu of an element, grid cell or tree node and optionally choose an entry by its function code or element id, its text, or its position.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | ID | `id` | Text | Yes |  | Main | Scripting id from the SAP script recorder, e.g. wnd[0]/usr/ctxtVBAK-AUART. |
-| Menu item | `menu_item` | Text | No |  | Main | Entry to choose: its function code for grids and trees, or its element id for screen elements. |
+| Menu by | `menu_by` | Text | No | `code` | Main | How menu_item names the entry: code (function code or element id), text (the entry's text) or position (0-based, counted from the top). One of: `code`, `text`, `position` |
+| Menu item | `menu_item` | Text | No |  | Main | Entry to choose, as menu_by says: a function code (grids and trees) or element id (screen elements); the entry's text as shown; or its 0-based position, with sub-menus as 2 > 1. |
 | Item | `item` | Text | No |  | More options | Grid row (0-based) or tree node key. |
 | Column | `column` | Text | No |  | More options | Grid column (technical name, title or 0-based position). |
 | Connection | `connection` | Number | No | `0` | More options | SAP connection number (0 = first open system). |

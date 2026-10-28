@@ -201,7 +201,7 @@ Change one value on a device with SNMP; the community (or v3 user) must have wri
 
 `ooa.network/snmp_walk` (action)
 
-Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests.
+Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests or, for v2c and v3, fewer GETBULK requests.
 
 **Settings**
 
@@ -216,6 +216,8 @@ Read every object under an OID, e.g. a whole interface table, with repeated GETN
 | Privacy protocol | `privacy_protocol` | Text | No | `aes128` | Main | SNMP v3 privacy (encryption): none, des or aes128. One of: `none`, `des`, `aes128`; Shown when: `{"version": ["v3"]}` |
 | Privacy password | `privacy_password` | Credential (vault) | No |  | Main | SNMP v3 privacy (encryption) password from the vault. Shown when: `{"version": ["v3"]}` |
 | Oid | `oid` | Text | Yes |  | Main | Root OID of the subtree to read. Example: `1.3.6.1.2.1.2.2` |
+| Walk type | `walk_type` | Text | No | `getnext` | More options | getnext asks for one object per request and works with every version; getbulk (v2c and v3 only) asks for up to max_repetitions objects per request, which is much faster on large tables. One of: `getnext`, `getbulk` |
+| Maximum repetitions | `max_repetitions` | Number | No | `10` | More options | With getbulk, how many objects to ask for in each request; lower it when the device answers tooBig or not at all. Range: 1 to 100; Shown when: `{"walk_type": ["getbulk"]}` |
 | Context name | `context_name` | Text | No |  | More options | SNMP v3 context, when the device uses them; usually empty. Shown when: `{"version": ["v3"]}` |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `3000` | More options | How long to wait for each answer, in milliseconds. Range: 1 to  |
 | Port | `port` | Number | No | `161` | More options | UDP port of the SNMP agent. Range: 1 to 65535 |

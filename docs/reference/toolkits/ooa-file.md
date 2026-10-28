@@ -393,7 +393,7 @@ Extract a .zip archive into a folder, also a password-protected one (AES or the 
 
 `ooa.file/zip` (action)
 
-Compress files or a folder into a .zip archive, optionally protected with a password (AES-256, opened by 7-Zip, WinZip and most tools).
+Compress files or a folder into a .zip archive, or add them to an existing one, optionally protected with a password (AES-256, opened by 7-Zip, WinZip and most tools).
 
 **Settings**
 
@@ -406,12 +406,15 @@ Compress files or a folder into a .zip archive, optionally protected with a pass
 | Delete originals | `delete_originals` | Yes/No | No | No | Main | Delete the files that were added once the archive is complete. |
 | Compression | `compression` | Text | No | `normal` | Main | normal: default size and speed; fast and fastest trade size for speed; store adds files uncompressed. One of: `normal`, `fast`, `fastest`, `store` |
 | Overwrite | `overwrite` | Yes/No | No | Yes | More options | Replace an existing archive; when false an existing archive stops the step. |
+| Add to existing | `add_to_existing` | Yes/No | No | No | More options | When the archive already exists, keep what is in it and add the files (overwrite is then ignored); a file whose name is already in it replaces that entry. Not with a password. |
+| Only newer | `only_newer` | Yes/No | No | No | More options | When adding to an existing archive, replace an entry only when the file is newer than it (by more than 2 seconds, the precision of zip dates); new names are always added. Shown when: `{"add_to_existing": ["true"]}` |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
 | `path` | File path | Created archive. |
+| `added` | Number | Number of files written into the archive (new or replaced). |
 
 *Time limit 60 s; needs: filesystem.*
 

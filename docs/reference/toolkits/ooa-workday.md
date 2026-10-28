@@ -78,6 +78,7 @@ Read the status and timing of an integration run.
 | Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
 | Tenant | `tenant` | Text | Yes |  | Main | Tenant name. |
 | Integration event (WID) | `event_id` | Text | Yes |  | Main | Integration event WID from Launch integration. |
+| Kind of ID | `id_type` | Text | No | `WID` | More options | Kind of id in event_id: WID (the 32-character Workday ID that Launch integration returns), or the name of another ID type your tenant accepts for integration event references, written exactly as Workday names it. Example: `WID` |
 | User | `user` | Text | No |  | More options; choice Sign in with = User name and password | Integration system user with tenant (basic sign-in). |
 | Password | `password` | Credential (vault) | No |  | More options; choice Sign in with = User name and password | Password from the vault (basic sign-in). |
 | Access token | `access_token` | Credential (vault) | No |  | More options; choice Sign in with = An access token | OAuth access token from the vault (instead of user and password). |

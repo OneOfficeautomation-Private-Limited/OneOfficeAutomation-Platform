@@ -65,6 +65,8 @@ Look for a small picture inside a larger image file, optionally in a region and 
 | Position | `position` | Text | No | `center` | Main | Point reported (and clicked): center of the match, or its top_left corner; offsets are added to it. One of: `center`, `top_left` |
 | Offset x | `offset_x` | Number | No | `0` | Main | Pixels added to the reported x, e.g. to reach a field to the right of a label picture. |
 | Offset y | `offset_y` | Number | No | `0` | Main | Pixels added to the reported y. |
+| Repeat times | `repeat_times` | Number | No | `1` | More options | How many times to look while the picture is not found; the image file is read again each time, e.g. while another program refreshes it. 1 looks once. Range: 1 to 1000 |
+| Repeat delay (milliseconds) | `repeat_delay_ms` | Number | No | `500` | More options | Pause between two looks, in milliseconds. Range: 0 to 60000; Shown when: `{"repeat_times": ["!", "1"]}` |
 
 **Results**
 

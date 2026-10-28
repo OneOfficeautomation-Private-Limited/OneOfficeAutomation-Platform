@@ -6,12 +6,12 @@ Toolkit `ooa.asana`, version 1.0.0. Manage Asana work: workspaces, projects, sec
 
 ## Contents
 
-- **Comments**: Add comment, Delete comment, List comments, Update comment
+- **Comments**: Add comment, Delete comment, Get comment, List comments, Update comment
 - **Tasks**: Add followers, Add task to project, Move task to section, Create task, Delete task, Duplicate task, Get task, List tasks, Remove followers, Search tasks, Update task
 - **Tags**: Add tag to task, Create tag, List tags, Remove tag from task
 - **Projects**: Create project, Create section, Delete project, Get project, List projects, List sections, Update project
 - **Subtasks**: Create subtask, List subtasks
-- **Teams**: Create team, Get team, Update team
+- **Teams**: Create team, Get team, List teams, List teams of user, Update team
 - **Attachments**: Delete attachment, Download attachment, List attachments, Upload attachment
 - **Users**: Get user, List users
 - **Workspaces**: List workspaces
@@ -22,7 +22,7 @@ Toolkit `ooa.asana`, version 1.0.0. Manage Asana work: workspaces, projects, sec
 
 `ooa.asana/add_comment` (action)
 
-Post a comment on a task.
+Post a comment on a task, as plain or rich text, optionally pinned to the top.
 
 **Settings**
 
@@ -31,6 +31,8 @@ Post a comment on a task.
 | Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
 | Task ID | `task_id` | Text | Yes |  | Main | Task id: the long number at the end of the task's link, e.g. 1208000000000001. |
 | Text | `text` | Text | Yes |  | Main | Comment text. Example: `Invoice approved by the finance agent.` |
+| Text format | `text_format` | Text | No | `plain` | More options | plain sends the text as it is; html sends Asana rich text, wrapped in <body>...</body>, e.g. <body>Paid <strong>today</strong></body>. One of: `plain`, `html` |
+| Pinned | `pinned` | Yes/No | No | No | More options | Pin the comment to the top of the task's activity. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 **Results**
@@ -56,6 +58,28 @@ Delete a comment (only the comment's author can).
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
+
+### Get comment
+
+`ooa.asana/get_comment` (action)
+
+Read one comment (or other task story) by its id.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Add comment or List comments. |
+| Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `comment` | Dictionary | gid, type, text, html_text, pinned, author, created_at, task, task_id. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
 
 ### List comments
 
@@ -84,7 +108,7 @@ Read the comments on a task, oldest first. System messages such as assignment ch
 
 `ooa.asana/update_comment` (action)
 
-Change the text of a comment (only the comment's author can).
+Change the text of a comment (only the comment's author can), or pin or unpin it.
 
 **Settings**
 
@@ -92,7 +116,9 @@ Change the text of a comment (only the comment's author can).
 | --- | --- | --- | --- | --- | --- | --- |
 | Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
 | Comment ID | `comment_id` | Text | Yes |  | Main | Comment id, from Add comment or List comments. |
-| Text | `text` | Text | Yes |  | Main | New comment text. |
+| Text | `text` | Text | No |  | Main | New comment text; leave empty to keep the text and only pin or unpin. |
+| Text format | `text_format` | Text | No | `plain` | More options | plain sends the text as it is; html sends Asana rich text, wrapped in <body>...</body>, e.g. <body>Paid <strong>today</strong></body>. One of: `plain`, `html` |
+| Pinned | `pinned` | Yes/No | No |  | More options | true pins the comment to the top of the task, false unpins it; empty leaves it as it is. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
 *Time limit 60 s; needs: network.*
@@ -326,7 +352,7 @@ Search a workspace for tasks by text, assignee, project or completion (needs a p
 
 `ooa.asana/update_task` (action)
 
-Change a task's name, notes, assignee, due date, completion or custom fields. Only the inputs you fill in are changed.
+Change a task's name, notes, assignee, due date, completion, custom fields or parent task. Only the inputs you fill in are changed.
 
 **Settings**
 
@@ -339,6 +365,7 @@ Change a task's name, notes, assignee, due date, completion or custom fields. On
 | Due on | `due_on` | Text | No |  | Main | New due date as YYYY-MM-DD. |
 | Notes | `notes` | Text | No |  | Main | New description (replaces the old one). |
 | Completed | `completed` | Yes/No | No |  | Main | true marks the task done, false reopens it. |
+| Parent task ID | `parent_task_id` | Text | No |  | More options | Move the task under this parent task, making it a subtask; none makes it a top-level task again. |
 | Custom fields | `custom_fields` | Dictionary | No |  | More options | Custom field id to new value. |
 | Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
 
@@ -684,6 +711,55 @@ Read a team's name, description, organization and link.
 | Name | Type | Description |
 | --- | --- | --- |
 | `team` | Dictionary | Keys: gid, name, description, organization, url. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### List teams
+
+`ooa.asana/list_teams` (action)
+
+List the teams of an organization workspace that the token's user can see.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| Workspace ID | `workspace_id` | Text | Yes |  | Main | Organization (workspace) id, from List workspaces. |
+| Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: gid, name, description, url. |
+| `count` | Number | Number of teams returned. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
+
+### List teams of user
+
+`ooa.asana/list_user_teams` (action)
+
+List the teams a person belongs to in an organization workspace.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Token | `token` | Credential (vault) | Yes |  | Main | Personal access token or OAuth token from the vault. |
+| User | `user` | Text | No | `me` | Main | User id, an email address, or me for the token's own user. |
+| Workspace ID | `workspace_id` | Text | Yes |  | Main | Organization (workspace) id, from List workspaces. |
+| Maximum results | `max_results` | Number | No | `500` | More options | Most items to return; pages are read until this many are found. Range: 1 to  |
+| Endpoint address | `base_url` | Text | No | `https://app.asana.com/api/1.0` | More options | API address. Keep the default unless your company routes Asana through a proxy. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `table` | Table | Columns: gid, name, description, url. |
+| `count` | Number | Number of teams returned. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 

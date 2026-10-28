@@ -131,6 +131,7 @@ Save the pictures embedded in a PDF (photos, logos, scanned pages), from every p
 | Target folder | `target_folder` | File path | Yes |  | Main | Folder for the images. |
 | File prefix | `file_prefix` | Text | No |  | Main | Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty. |
 | Color | `color` | Text | No | `color` | Main | color keeps the colours; gray saves greyscale copies. One of: `color`, `gray` |
+| Resolution (DPI) | `dpi` | Number | No | `0` | Main; tick Resize to a resolution | Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size. Range: 0 to 1200 |
 | Minimum size | `min_size` | Number | No | `1` | More options | Skip images narrower or lower than this many pixels (e.g. 32 to skip icons). |
 
 **Results**

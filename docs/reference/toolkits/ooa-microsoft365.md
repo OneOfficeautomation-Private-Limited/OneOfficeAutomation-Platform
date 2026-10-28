@@ -6,12 +6,12 @@ Toolkit `ooa.microsoft365`, version 1.0.0. Outlook mail, calendar, OneDrive and 
 
 ## Contents
 
-- **Calendar**: Add event attendees, Add event attachment, Cancel calendar event, Create calendar event, Delete calendar event, Find free meeting times, Get calendar events, Remove event attendees, Respond to meeting invitation, Update calendar event
+- **Calendar**: Add event attendees, Add event attachment, Cancel calendar event, Clear event details, Create calendar event, Delete calendar event, Find free meeting times, Get calendar events, Remove event attendees, Respond to meeting invitation, Update calendar event
 - **Files**: Check file permission (OneDrive/SharePoint), Copy file or folder (OneDrive/SharePoint), Create folder (OneDrive/SharePoint), Create sharing link (OneDrive/SharePoint), Delete file or folder (OneDrive/SharePoint), Download file (OneDrive/SharePoint), Export file to PDF (OneDrive/SharePoint), Find files (OneDrive/SharePoint), Get file information (OneDrive/SharePoint), List files (OneDrive/SharePoint), List file permissions (OneDrive/SharePoint), Move file or folder (OneDrive/SharePoint), Rename file or folder (OneDrive/SharePoint), Restore file version (OneDrive/SharePoint), Share file or folder (OneDrive/SharePoint), Upload file (OneDrive/SharePoint)
 - **Teams**: Create one-on-one chat (Teams), Get channel by name (Teams), Get channel details (Teams), Get team by name (Teams), Get team details (Teams), Get user (Microsoft 365), List channels (Teams), List teams (Teams), Send chat message (Teams), Post Teams message
 - **SharePoint**: Create SharePoint list item, Delete SharePoint list item, Get SharePoint list items, List SharePoint lists, Update SharePoint list item
 - **Mail**: Delete all emails (Outlook), Delete email (Outlook), Forward email (Outlook), Read email (Outlook), Find emails (Outlook), Check mail folder exists (Outlook), Change email status (Outlook), Move all emails (Outlook), Move email (Outlook), Reply all to email (Outlook), Reply to email (Outlook), Save attachments of all matching emails (Outlook), Save email as EML (Outlook), Save email attachments (Outlook), Send email (Outlook)
-- **Excel online**: Add table rows (Excel online), Add worksheet (Excel online), Autofit columns (Excel online), Autofit rows (Excel online), Clear range (Excel online), Copy Excel range (OneDrive/SharePoint), Copy worksheet (Excel online), Create table (Excel online), Create workbook (Excel online), Delete range (Excel online), Delete table (Excel online), Delete worksheet (Excel online), Find in sheet (Excel online), Find next empty cell (Excel online), Format range (Excel online), Get cell (Excel online), Read cell format (Excel online), Get range values (Excel online), Get table rows (Excel online), Get worksheets (Excel online), Hide worksheet (Excel online), Insert range (Excel online), List tables (Excel online), Read column (Excel online), Read formula (Excel online), Read Excel range (OneDrive/SharePoint), Read row (Excel online), Rename table (Excel online), Rename worksheet (Excel online), Set cell (Excel online), Set formula (Excel online), Set range values (Excel online), Show worksheet (Excel online), Get used range (Excel online), Write Data Table (Excel online), Write Excel range (OneDrive/SharePoint)
+- **Excel online**: Add table rows (Excel online), Add worksheet (Excel online), Autofit columns (Excel online), Autofit rows (Excel online), Clear range (Excel online), Get column name (Excel online), Copy Excel range (OneDrive/SharePoint), Copy worksheet (Excel online), Create table (Excel online), Create workbook (Excel online), Delete range (Excel online), Delete table (Excel online), Delete worksheet (Excel online), Find in sheet (Excel online), Find next empty cell (Excel online), Format range (Excel online), Get cell (Excel online), Read cell format (Excel online), Get range values (Excel online), Get table rows (Excel online), Get worksheets (Excel online), Hide worksheet (Excel online), Insert range (Excel online), List tables (Excel online), Read column (Excel online), Read formula (Excel online), Read Excel range (OneDrive/SharePoint), Read row (Excel online), Rename table (Excel online), Rename worksheet (Excel online), Set cell (Excel online), Set formula (Excel online), Set range values (Excel online), Show worksheet (Excel online), Get used range (Excel online), Write Data Table (Excel online), Write Excel range (OneDrive/SharePoint)
 
 ## Calendar
 
@@ -81,6 +81,35 @@ Cancel a meeting you organise and send attendees a cancellation note.
 | Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
 
 *Time limit 60 s; needs: network.*
+
+### Clear event details
+
+`ooa.microsoft365/clear_event_details` (action)
+
+Blank the ticked details of an event: title, location, description, reminder, repeat pattern or all-day setting.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Access token | `access_token` | Credential (vault) | Yes |  | Main | Microsoft Graph access token from the vault. |
+| Integration event (WID) | `event_id` | Text | Yes |  | Main | Event id from Get calendar events or Create calendar event. |
+| Clear subject | `clear_subject` | Yes/No | No | No | Main | Empty the title. |
+| Clear location | `clear_location` | Yes/No | No | No | Main | Empty the location. |
+| Clear body | `clear_body` | Yes/No | No | No | Main | Empty the description. |
+| Clear reminder | `clear_reminder` | Yes/No | No | No | Main | Turn the reminder off. |
+| Clear recurrence | `clear_recurrence` | Yes/No | No | No | Main | Stop the series repeating; for one occurrence the whole series is changed. |
+| Clear all day | `clear_all_day` | Yes/No | No | No | Main | Make an all-day event a timed one, keeping its dates. |
+| Mailbox | `mailbox` | Text | No | `me` | More options | Mailbox: me, or a user's email address (needs application permission). |
+| Endpoint address | `base_url` | Text | No | `https://graph.microsoft.com/v1.0` | More options | Graph endpoint; change only for national clouds or testing. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `web_link` | Text | Link to open the event in Outlook. |
+
+*Time limit 60 s; safe to repeat; needs: network.*
 
 ### Create calendar event
 
@@ -1550,6 +1579,28 @@ Clear the values, the formatting, or both from a range without shifting other ce
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
+### Get column name (Excel online)
+
+`ooa.microsoft365/excel_column_name` (action)
+
+Split a cell address such as AB7 into its column letters, column number and row number; nothing is read from the workbook.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cell | `cell` | Text | Yes |  | Main | Cell address; a sheet name before ! and $ signs are ignored. Example: `AB7` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `column_name` | Text | Column letters, e.g. AB. |
+| `column` | Number | Column number, starting at 1 for A. |
+| `row` | Number | Row number. |
+
+*Time limit 60 s; safe to repeat.*
+
 ### Copy Excel range (OneDrive/SharePoint)
 
 `ooa.microsoft365/excel_copy_range` (action)
@@ -1732,6 +1783,7 @@ Search the used cells of a sheet, or a range, for text and return the addresses 
 | Sheet | `sheet` | Text | Yes |  | Main | Worksheet name. |
 | Range | `range` | Text | No |  | Main; tick Search only a range | Range to search; the used cells when empty. Example: `A1:F200` |
 | Text | `text` | Text | Yes |  | Main | Text to look for in the displayed cell text. |
+| Search by | `search_by` | Text | No | `rows` | Main | Order of the results: rows goes across each row first, columns goes down each column first. One of: `rows`, `columns` |
 | Match case | `match_case` | Yes/No | No | No | Main | Upper and lower case must match. |
 | Whole cell | `whole_cell` | Yes/No | No | No | Main | The whole cell must equal the text. |
 | Drive | `drive` | Text | No | `me/drive` | More options | me/drive (your OneDrive), sites/{site-id}/drive (a SharePoint library) or drives/{drive-id}. |
@@ -1741,7 +1793,7 @@ Search the used cells of a sheet, or a range, for text and return the addresses 
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `cells` | List | Addresses of the matches, e.g. B7, in reading order. |
+| `cells` | List | Addresses of the matches, e.g. B7, in search order. |
 | `count` | Number | Number of matches. |
 
 *Time limit 60 s; safe to repeat; needs: network.*

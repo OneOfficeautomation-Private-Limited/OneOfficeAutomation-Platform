@@ -179,6 +179,8 @@ Insert a table built from a Data Table (header row first) at the end, after a ma
 | Table | `table` | Table | Yes |  | Main | Data to insert. |
 | Include header | `include_header` | Yes/No | No | Yes | Main | Put the column names in a bold first row. |
 | Style | `style` | Text | No |  | More options | Table style id defined in the document, e.g. TableGrid. Example: `TableGrid` |
+| Title | `title` | Text | No |  | More options; tick Give the table alternative text | Alternative-text title of the table, read by screen readers (Word: Table Properties > Alt Text > Title). |
+| Alt description | `alt_description` | Text | No |  | More options; tick Give the table alternative text | Alternative-text description of the table (Word: Table Properties > Alt Text > Description). |
 | Session | `session` | Text | No | `word` | More options | Session name. |
 
 *Time limit 60 s.*

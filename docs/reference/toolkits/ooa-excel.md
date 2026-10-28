@@ -283,6 +283,7 @@ Close the workbook session, saving the changes first when asked.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Save | `save` | Yes/No | No | No | Main | Save the changes to the opened file before closing. |
+| Fail if read only | `fail_if_read_only` | Yes/No | No | Yes | Main | When the workbook was opened read-only, stop with an error instead of saving; false closes it without saving and logs a warning. Shown when: `{"save": ["true"]}` |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
 
 *Time limit 60 s; needs: filesystem.*
@@ -500,13 +501,13 @@ Split a cell address such as B7 into its row and column numbers.
 
 `ooa.excel/delete_cells` (action)
 
-Delete the cells of a range and close the gap by moving the cells below up or the cells to the right left.
+Delete the cells of a range, or of the current selection, and close the gap by moving the cells below up or the cells to the right left.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| Range | `range` | Text | Yes |  | Main | Cell or range to delete. Example: `B2:C3` |
+| Range | `range` | Text | No |  | Main; choice Cells = A specific range | Cell or range to delete; when empty, the range chosen by select_range or the cell chosen by go_to_cell (the sheet's active cell). Example: `B2:C3` |
 | Shift | `shift` | Text | No | `up` | Main | up or left moves the remaining cells into the gap; entire_row or entire_column deletes the whole rows or columns the range touches. One of: `up`, `left`, `entire_row`, `entire_column` |
 | Sheet | `sheet` | Text | No |  | More options | Sheet name; active sheet when empty. |
 | Session | `session` | Text | No | `excel` | More options | Workbook session. |
@@ -517,13 +518,15 @@ Delete the cells of a range and close the gap by moving the cells below up or th
 
 `ooa.excel/filter` (action)
 
-Return the rows of a sheet whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.
+Return the rows of a sheet, a range or an Excel table whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Sheet | `sheet` | Text | No |  | Main | Sheet name; active sheet when empty. |
+| Range | `range` | Text | No |  | Main; choice Filter = A range | Filter only this range of the sheet; the whole used area when empty. A column letter or number still means the sheet column. Example: `B3:F40` |
+| Table | `table` | Text | No |  | Main; choice Filter = An Excel table | Excel table name, e.g. Table1: filter only the rows of that table (its header row gives the column names); sheet and range are then not used. |
 | First row is the header | `header` | Yes/No | No |  | Main | First row holds column names; the workbook's open setting (true by default) when empty. |
 | Column | `column` | Any | Yes |  | Main | Column to test: header name, letter or 1-based number. Example: `Status` |
 | Operator | `operator` | Text | No | `equals` | Main | How the cell is compared with the value; between keeps values from value to value_to, both included. One of: `equals`, `not_equals`, `contains`, `not_contains`, `starts_with`, `ends_with`, `gt`, `gte`, `lt`, `lte`, `between`, `empty`, `not_empty` |

@@ -14,7 +14,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Active Directory](ooa-active_directory.md) | `ooa.active_directory` | 38 | 0 | 0 | Create, change, move and delete users, groups, computers and organizational units, reset passwords and manage group membership in Active Directory or LDAP. |
 | [AI Agents](ooa-ai_agent.md) | `ooa.ai_agent` | 1 | 0 | 0 | Run an AI agent that works toward a goal using your agents as tools, with approvals and limits. |
 | [Application](ooa-application.md) | `ooa.application` | 4 | 1 | 0 | Open files, start, run and stop programs on the runner. |
-| [Asana](ooa-asana.md) | `ooa.asana` | 38 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
+| [Asana](ooa-asana.md) | `ooa.asana` | 41 | 0 | 0 | Manage Asana work: workspaces, projects, sections, tasks and subtasks, followers, comments, attachments, tags and users. |
 | [AWS EC2](ooa-aws_ec2.md) | `ooa.aws_ec2` | 13 | 0 | 0 | Start, stop, reboot, launch and end AWS EC2 virtual machines, read their state and tags, and switch detailed monitoring on or off. |
 | [Azure DevOps](ooa-azure_devops.md) | `ooa.azure_devops` | 44 | 1 | 0 | Work with Azure DevOps: work items and WIQL queries, comments and attachments, Git repositories and pull requests, pipelines, builds and sprints. Works with the cloud service and Azure DevOps Server. |
 | [Boolean](ooa-boolean.md) | `ooa.boolean` | 5 | 0 | 0 | Convert and invert true/false values. |
@@ -53,7 +53,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Knowledge Q&A](ooa-knowledge.md) | `ooa.knowledge` | 3 | 0 | 0 | Index your documents and answer questions from them, with the passages each answer comes from. |
 | [List](ooa-list.md) | `ooa.list` | 12 | 2 | 0 | Add, read, remove, sort and join list items. |
 | [Log to file](ooa-log.md) | `ooa.log` | 3 | 0 | 0 | Write timestamped lines to a log file or to the run log in Command Center; secrets are masked automatically. |
-| [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 92 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
+| [Microsoft 365](ooa-microsoft365.md) | `ooa.microsoft365` | 94 | 0 | 0 | Outlook mail, calendar, OneDrive and SharePoint files and Teams messages through Microsoft Graph. |
 | [Mouse, keyboard and screen](ooa-desktop.md) | `ooa.desktop` | 15 | 0 | 0 | Click, type, press keys, capture the screen, use the clipboard and show dialogs on the desktop. |
 | [Network](ooa-network.md) | `ooa.network` | 7 | 2 | 0 | Check whether hosts and ports are reachable, and read or change devices over SNMP v1, v2c and v3. |
 | [Number](ooa-number.md) | `ooa.number` | 6 | 0 | 0 | Round, format and generate numbers with exact decimal arithmetic. |
@@ -90,4 +90,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 79 toolkits, 1060 actions, 47 conditions and 12 loop types.
+In all: 79 toolkits, 1065 actions, 47 conditions and 12 loop types.

@@ -104,7 +104,7 @@ Create a symbolic link that points to a folder; on Windows this needs Developer 
 
 `ooa.folder/delete` (action)
 
-Delete a folder. Non-empty folders are deleted only when recursive is true.
+Delete a folder, optionally only when its total size or its last-change date meets limits. Non-empty folders are deleted only when recursive is true.
 
 **Settings**
 
@@ -112,6 +112,16 @@ Delete a folder. Non-empty folders are deleted only when recursive is true.
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Folder path. |
 | Recursive | `recursive` | Yes/No | No | No | Main | Also delete everything inside. |
+| Larger than (KB) | `larger_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes). Range: 0 to  |
+| Smaller than (KB) | `smaller_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds less than this many KB in all its files, at any depth. Range: 0 to  |
+| Modified after | `modified_after` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it. |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed before this date and time (local time). |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `deleted` | Yes/No | True when the folder was deleted; false when it did not exist or did not meet the limits. |
 
 *Time limit 60 s; needs: filesystem.*
 
@@ -153,7 +163,7 @@ Show a folder in the file manager (File Explorer on Windows).
 
 `ooa.folder/rename_folder` (action)
 
-Give a folder a new name in the same parent folder.
+Give a folder a new name in the same parent folder, optionally only when its total size or its last-change date meets limits.
 
 **Settings**
 
@@ -161,12 +171,17 @@ Give a folder a new name in the same parent folder.
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Folder to rename. |
 | New name | `new_name` | Text | Yes |  | Main | New name only, without any path. Example: `Archive 2026` |
+| Larger than (KB) | `larger_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes). Range: 0 to  |
+| Smaller than (KB) | `smaller_than_kb` | Number | No |  | Main; tick Only when the size fits | Only when the folder holds less than this many KB in all its files, at any depth. Range: 0 to  |
+| Modified after | `modified_after` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it. |
+| Modified before | `modified_before` | DateTime | No |  | Main; tick Only when the date fits | Only when the folder itself was last changed before this date and time (local time). |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `path` | File path | New full path of the folder. |
+| `path` | File path | New full path of the folder; the unchanged path when it did not meet the limits. |
+| `renamed` | Yes/No | True when the folder was renamed; false when it did not meet the limits. |
 
 *Time limit 60 s; needs: filesystem.*
 

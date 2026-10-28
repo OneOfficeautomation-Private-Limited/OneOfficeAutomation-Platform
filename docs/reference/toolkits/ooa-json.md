@@ -82,14 +82,14 @@ Return the list found at a path, ready to loop over.
 
 `ooa.json/get_nodes` (action)
 
-Read several paths at once into one dictionary, e.g. {"id": "order.id", "email": "customer.email"}.
+Read several paths at once into one dictionary, e.g. {"id": "order.id", "email": "customer.email"}, optionally converting each value to a type.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Value | `value` | Any | Yes |  | Main | Dictionary, List or JSON text. |
-| Paths | `paths` | Any | Yes |  | Main | Dictionary of result name to path, or a list of paths (each path is then its own name). |
+| Paths | `paths` | Any | Yes |  | Main | Dictionary of result name to path, or a list of paths (each path is then its own name). A path may instead be {"path": "order.total", "type": "Number"} to convert the value to String, Number, DateTime or Boolean. |
 
 **Results**
 

@@ -1243,7 +1243,7 @@ Read the value of one cell.
 
 `ooa.google/sheets_get_cell_color` (action)
 
-Read the fill and text colour of one cell as #RRGGBB.
+Read the fill and text colour of one cell as #RRGGBB or as the nearest basic colour name.
 
 **Settings**
 
@@ -1252,14 +1252,15 @@ Read the fill and text colour of one cell as #RRGGBB.
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
 | Cell | `cell` | Text | Yes |  | Main | One cell in A1 notation, optionally with the sheet name, e.g. Sheet1!B2. Example: `Sheet1!B2` |
+| Format | `format` | Text | No | `hex` | Main | hex gives #RRGGBB; name gives the nearest of black, white, grey, red, orange, yellow, green, cyan, blue, purple, magenta, pink or brown. One of: `hex`, `name` |
 | Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
 **Results**
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `background_color` | Text | Fill colour, #FFFFFF when none is set. |
-| `font_color` | Text | Text colour, #000000 when none is set. |
+| `background_color` | Text | Fill colour, #FFFFFF (white) when none is set. |
+| `font_color` | Text | Text colour, #000000 (black) when none is set. |
 
 *Time limit 60 s; safe to repeat; needs: network.*
 
@@ -1275,7 +1276,8 @@ Read a range as a list of rows and, optionally, as a data table with the first r
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
-| Range | `range` | Text | Yes |  | Main | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Example: `Sheet1!A1:D20` |
+| Range | `range` | Text | No |  | Main; choice Read = A range | A1 range, optionally with the sheet name, e.g. Sheet1!A1:C10; the first sheet when no sheet is named. Leave empty to read all cells of a sheet. Example: `Sheet1!A1:D20` |
+| Sheet | `sheet` | Text | No |  | Main; choice Read = All cells of a sheet | When no range is given: the sheet (tab) whose cells are all read; the first sheet when empty. |
 | First row is the header | `header` | Yes/No | No | Yes | Main | Table only: the first row holds column names. |
 | Formatted | `formatted` | Yes/No | No | No | Main | Return values as displayed instead of raw values. |
 | Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
@@ -1391,7 +1393,7 @@ List the sheets (tabs) of a spreadsheet with their size and visibility.
 
 `ooa.google/sheets_read` (action)
 
-Read a range such as Sheet1!A1:D100 into a table.
+Read a range such as Sheet1!A1:D100, or all cells of a sheet, into a table.
 
 **Settings**
 
@@ -1399,7 +1401,8 @@ Read a range such as Sheet1!A1:D100 into a table.
 | --- | --- | --- | --- | --- | --- | --- |
 | Access token | `access_token` | Credential (vault) | Yes |  | Main | Google OAuth access token from the vault. |
 | Spreadsheet ID | `spreadsheet_id` | Text | Yes |  | Main | The spreadsheet: its id, its full link (https://docs.google.com/spreadsheets/d/...), or its exact name in Drive (a name made only of letters, digits, - and _ is read as an id; use the link for such names). |
-| Range | `range` | Text | Yes |  | Main | A1 range. Example: `Sheet1!A1:D100` |
+| Range | `range` | Text | No |  | Main; choice Read = A range | A1 range; leave empty to read all cells of a sheet. Example: `Sheet1!A1:D100` |
+| Sheet | `sheet` | Text | No |  | Main; choice Read = All cells of a sheet | When no range is given: the sheet (tab) whose cells are all read; the first sheet when empty. |
 | First row is the header | `header` | Yes/No | No | Yes | Main | First row holds column names. |
 | Endpoint override | `endpoint_override` | Text | No |  | More options | Replaces https://*.googleapis.com for testing or a proxy; leave empty normally. |
 
