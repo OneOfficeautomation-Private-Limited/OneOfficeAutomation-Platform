@@ -1,0 +1,280 @@
+# 02. Installation on Windows
+
+## What this covers / audience
+
+How to install the Command Center and runners on Windows with the setup package (guided or silent) or the MSI, how
+the Windows services and the runner sign-in task work, the first sign-in, uninstalling, and the logs and exit codes.
+For Windows administrators and software-distribution teams (SCCM, Intune, Group Policy).
+
+## Contents
+
+1. Packages
+2. Before you start
+3. Setup package: guided install
+4. Setup package: silent install and all parameters
+5. MSI: all properties
+6. Windows services (`ooa service`)
+7. Runners started at sign-in (`ooa agent install-task`)
+8. First sign-in
+9. Updating in place
+10. Uninstalling
+11. Logs and exit codes
+12. Known behaviours to plan for
+
+## 1. Packages
+
+| File | Contains | Use |
+| --- | --- | --- |
+| `ooa-setup-<version>.zip` | The product, its own Java runtime, `Install.cmd`, `Install-OOA.ps1`, `Uninstall-OOA.ps1` | Guided or silent installs of Command Centers and runners, per user or for all users |
+| `ooa-<version>.msi` | The same product and Java, for all users, in `Program Files\ONEOFFICEAUTOMATION` | Software distribution; Command Center service, or a runner service |
+| `ooa-customer-<version>.zip` | The product without Java and without an installer | Unzip and double-click `START-OOA.cmd` (needs Java 21 installed) |
+
+Every package carries `sbom.cdx.json` (CycloneDX software bill of materials). Check a download first with
+`ooa release verify` (see [10. Upgrades](10-upgrades-releases-and-patching.md)).
+
+## 2. Before you start
+
+- Decide the role of the computer: **Command Center** (the server people sign in to; includes Agent Studio) or
+  **Runner** (runs agents for a Command Center elsewhere).
+- For a Command Center that will be licensed, prepare SQL Server (or PostgreSQL) and two accounts: see
+  [05. Databases](05-databases.md).
+- Set the vault key for production before the first start: `setx OOA_MASTER_KEY "<32 random bytes, Base64>" /M`, or
+  `OOA_MASTER_KEY_SOURCE` (see [08. Security hardening](08-security-hardening.md)). Without either, a key file
+  `master.key` is created in the data folder at the first start.
+- For a runner: create a registration key in the Command Center (Runners > Register a runner). It works once, for at
+  most 24 hours. Tick **Temporary runner** for pooled virtual desktops.
+- Administrator rights are needed for `-AllUsers`, `-Service` and the MSI.
+
+## 3. Setup package: guided install
+
+1. Unzip the whole package.
+2. Double-click `Install.cmd`.
+3. Answer the questions: Command Center (1) or Runner (2); the install folder; for a Command Center, the SQL Server
+   (empty for the built-in evaluation database) and the two passwords (typed hidden); for a runner, the Command
+   Center address and the registration key.
+4. The window stays open if something fails; read the message and `%TEMP%\ooa-install.log`.
+
+Default folders: `%LOCALAPPDATA%\Programs\ONEOFFICEAUTOMATION` for the current user, or
+`%ProgramFiles%\ONEOFFICEAUTOMATION` with `-AllUsers`.
+
+## 4. Setup package: silent install and all parameters
+
+`Install.cmd` passes every argument to `Install-OOA.ps1`. Examples:
+
+```
+Install.cmd -Silent -Role CommandCenter -AllUsers -Service -Port 8720 -DataDir D:\OOA\cc
+Install.cmd -Silent -Role CommandCenter -AllUsers -Service -DataDir D:\OOA\cc -DbServer SQL01 -DbPasswordEnv OOA_APP_PW -DbSetupPasswordEnv OOA_SETUP_PW
+Install.cmd -Silent -Role Runner -AllUsers -Url https://ooa.example.com:8720 -RegistrationKey ooareg_... -CaFile C:\certs\ooa.cer
+Install.cmd -Silent -Role Runner -AllUsers -Service -Url https://ooa.example.com:8720 -RegistrationKey ooareg_... -Proxy http://proxy.corp:8080
+```
+
+| Parameter | Role | Default | Meaning |
+| --- | --- | --- | --- |
+| `-Role CommandCenter\|Runner` | Both | Asked; `CommandCenter` when silent | What this computer is |
+| `-InstallDir DIR` | Both | Program Files (all users) or `%LOCALAPPDATA%\Programs` | Where the product goes |
+| `-AllUsers` | Both | Off | Install for everyone; needs administrator |
+| `-Silent` | Both | Off | Ask nothing; fail with an exit code when something is missing |
+| `-NoShortcuts` | Both | Off | No Start menu entries |
+| `-NoStart` | Both | Off | Do not start the service or runner after installing |
+| `-Service` | Command Center | Off | Run as the Windows service "OOA Command Center", starting with Windows |
+| `-Port N` | Command Center | 8720 | The port |
+| `-DataDir DIR` | Command Center | `%USERPROFILE%\OOA Command Center` of the installing account | The data folder. Always give it for a service. |
+| `-DbServer NAME` | Command Center | None (built-in evaluation database) | SQL Server host or `host\instance` |
+| `-DbName NAME` | Command Center | `ooa_command_center` | The database |
+| `-DbUser NAME` | Command Center | `ooa_app` | The runtime account (data rights only) |
+| `-DbSetupUser NAME` | Command Center | `ooa_setup` | The account that creates and upgrades the schema |
+| `-DbPasswordEnv VAR` | Command Center | Asked when not silent | Environment variable holding the runtime password |
+| `-DbSetupPasswordEnv VAR` | Command Center | Asked when not silent | Environment variable holding the setup password |
+| `-DbTrustCertificate` | Command Center | Off | Accept a test SQL Server's self-signed certificate |
+| `-SkipCheck` | Command Center | Off | Install even if `ooa check` finds a FAIL |
+| `-Url URL` | Runner | Required | Command Center address, `https://...` or `http://...` |
+| `-RegistrationKey KEY` | Runner | Required | One-time key `ooareg_...` |
+| `-RunnerName NAME` | Runner | Computer name | Name shown in the Command Center |
+| `-CaFile FILE` | Runner | None | Certificate to trust (for a self-signed Command Center certificate) |
+| `-Proxy system\|none\|URL` | Runner | `system` | How the runner reaches the Command Center |
+| `-Service` | Runner | Off | Runner as the Windows service "OOA Runner" (agents without a screen only). Without it the runner starts at the user's sign-in (scheduled task "OOA Runner"). |
+
+What the script does, in order, for a Command Center: checks the package is complete, checks administrator rights,
+copies files, creates the Apps and Features entry and Start menu shortcuts, runs `ooa check --port N`, with
+`-DbServer` runs `ooa db configure`, `db set-password`, `db set-password --setup` and `db init`, and with `-Service`
+runs `ooa service install --mode server --port N [--data DIR]`. For a runner: `ooa agent register` (the key is
+hidden in the log), then `ooa service install --mode agent` or `ooa agent install-task` and starts the task.
+
+Passwords travel only in environment variables, never on the command line or in the log.
+
+## 5. MSI: all properties
+
+```
+msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720 DATA_DIR="D:\OOA\cc" /l*v install.log
+msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... RUNNER_NAME=RPA-07 CA_FILE=C:\certs\ooa.cer PROXY=system
+```
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `ROLE` | Empty: files only | `CommandCenter` or `Runner`. Without it only the files are installed. |
+| `SERVICE` | Empty | `1` (or `yes`, `true`): install the Command Center as a service. A runner installed by the MSI is always a service. |
+| `PORT` | 8720 | Command Center port |
+| `DATA_DIR` | Empty | Command Center data folder. Give it: the MSI configures as the Local System account, whose profile is `C:\Windows\System32\config\systemprofile`. |
+| `URL` | - | Runner: the Command Center address |
+| `REGISTRATION_KEY` | - | Runner: the one-time key (a hidden property, kept out of the MSI log) |
+| `RUNNER_NAME` | Computer name | Runner name |
+| `CA_FILE` | - | Certificate to trust |
+| `PROXY` | `system` | `system`, `none` or `http://host:port` |
+
+Notes:
+
+- The MSI installs per machine into `Program Files\ONEOFFICEAUTOMATION`, with a Start menu shortcut to
+  `START-OOA.cmd`, and writes `HKLM\Software\ONEOFFICEAUTOMATION\InstallDir`.
+- It runs `Install-OOA.ps1 -ConfigureOnly` as a deferred custom action without impersonation (Local System). The
+  prerequisite check is not run by the MSI; run `bin\ooa.bat check` yourself.
+- The MSI has no database properties. After installing, run the `ooa db` commands (see
+  [05. Databases](05-databases.md)) and restart the service.
+- A runner installed by the MSI is a service and has no desktop. For desktop runners use `Install.cmd` as the user
+  who will be signed in.
+- Upgrades are major upgrades (same upgrade code); a newer installed version blocks a downgrade.
+- Repair and modify are switched off.
+
+## 6. Windows services (`ooa service`)
+
+Run from an administrator prompt in the installed `bin` folder.
+
+```
+ooa service install --mode control-room --data D:\OOA\cc --port 8720 --host 0.0.0.0
+ooa service install --mode agent --account CORP\svc-rpa --password-env SVC_PW
+ooa service status   [--name NAME]
+ooa service start|stop [--name NAME]
+ooa service uninstall [--name NAME]
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--mode server\|control-room\|agent` | `server` | `server`: Command Center with Studio (no built-in runner, browser not opened). `control-room`: Command Center only. `agent`: a runner. |
+| `--name NAME` | `OOA Command Center`, or `OOA Runner` for `agent` | Service name |
+| `--port N` | 8720 | Command Center port |
+| `--host HOST` | Not passed, so the server's default `127.0.0.1` | Address to listen on. Use `0.0.0.0` (with HTTPS) so other machines can connect. |
+| `--data DIR` | The installing account's `OOA Command Center` | Data folder, written out in full |
+| `--workspace DIR` | `OOA Workspace` / `OOA Agent Workspace` of the installing account | Studio or runner workspace |
+| `--agent-config FILE` | `%USERPROFILE%\.ooa-agent\agent.json` of the installing account | The runner registration (agent mode) |
+| `--account USER` | Local System | Account the service runs as; a gMSA (`DOMAIN\name$`) needs no password |
+| `--password-env VAR` | - | Environment variable with the account's password |
+| `--no-start` | Off | Install without starting |
+
+Service behaviour:
+
+- Start type automatic; on failure Windows restarts it after one minute, three times; the failure count resets
+  after a day.
+- The service runs `java.exe -Xmx1g ... service-run MODE ...` from the install's own Java.
+- Every path is written into the service command line, because the service account has a different profile.
+- Log: `DATA\logs\service-server.log` or `service-control-room.log`; for a runner, `<workspace>\logs\service-agent.log`.
+- A runner service runs in session 0: it has **no desktop**. Runs of agents that use the screen fail at once with
+  `RUN.NO_DESKTOP`.
+- `platform\scripts\test-windows-service.ps1` (source checkout, as administrator) installs a throw-away service
+  with a self-signed HTTPS certificate, checks it and removes it.
+
+Important: `Install.cmd -Service` and the MSI with `SERVICE=1` install the service without `--host`, so the
+Command Center listens on 127.0.0.1 only. To let other computers in, either put a reverse proxy on the same machine,
+or reinstall the service with a host:
+
+```
+ooa service uninstall
+ooa service install --mode server --host 0.0.0.0 --port 8720 --data D:\OOA\cc
+```
+
+Turn on HTTPS first (see [04](04-network-ports-proxies-and-certificates.md)); the server prints a warning when it
+listens beyond this computer without TLS.
+
+## 7. Runners started at sign-in (`ooa agent install-task`)
+
+Runners whose agents use the screen must run in the signed-in user's session:
+
+```
+ooa agent register --url https://ooa.example.com:8720 --key ooareg_... [--name NAME] [--ca ooa.cer] [--proxy ...]
+ooa agent install-task [--config FILE] [--workspace DIR]
+ooa agent uninstall-task
+```
+
+`install-task` registers the scheduled task **OOA Runner** for the current user: it starts at sign-in with
+`javaw.exe` (no console window), restarts every minute if it stops (up to 999 times), has no time limit, ignores a
+second copy, and runs on battery. It is started at once. After a self-update the runner starts this task again.
+
+Keep such machines signed in and unlocked (a dedicated account, screen saver lock off). Runners > Update runners >
+**After unattended runs** can lock the screen or sign out after each unattended run; note that a locked screen
+stops the next screen agent from starting there.
+
+## 8. First sign-in
+
+1. Open `http://localhost:8720` (or the HTTPS address).
+2. At the very first start the server prints a one-time password for the user `admin`: in the console window, or in
+   the service log `DATA\logs\service-server.log`.
+3. Sign in and choose a new password: at least 12 characters (setting `password_min_length`), letters and digits,
+   not the user name, no character four times in a row, not a common password.
+4. Install a licence (Administration > Licenses) after moving to SQL Server or PostgreSQL. Without one, a customer
+   install runs a 30-day evaluation.
+
+Forgotten administrator password: stop the server, then `ooa reset-admin [--user NAME] [--data DIR]`. It prints a
+one-time password, re-enables and unlocks the account, clears two-step sign-in and records the reset in the audit
+trail.
+
+## 9. Updating in place
+
+Running the setup package again over an installation updates it: running services "OOA Command Center" and "OOA
+Runner" are stopped, `lib` and `runtime` are replaced, the database is upgraded with `ooa db migrate` when a
+`config\ooa-db.properties` exists in the default data folder (otherwise at the next start), and the services are
+started again. The data folder is never touched. With the MSI, install the newer MSI; it is a major upgrade. Follow
+the upgrade order in [10. Upgrades](10-upgrades-releases-and-patching.md).
+
+## 10. Uninstalling
+
+| Method | Command |
+| --- | --- |
+| Apps and Features | ONEOFFICEAUTOMATION > Uninstall (runs `Uninstall-OOA.ps1`) |
+| Silent, setup package | `powershell -ExecutionPolicy Bypass -File "<install>\Uninstall-OOA.ps1" -Silent` |
+| MSI | `msiexec /x ooa-<version>.msi /qn` |
+
+Uninstall removes the services (`ooa service uninstall`), the sign-in task, ends Java processes running from the
+install folder, removes the Start menu entries, the Apps entry and the program folder. It keeps: the Command Center
+data folder, the runner registration (`%USERPROFILE%\.ooa-agent`), workspaces, and the vault key. Delete those by
+hand if the machine is retired, after taking a backup.
+
+## 11. Logs and exit codes
+
+| Log | Where |
+| --- | --- |
+| Setup and uninstall | `%TEMP%\ooa-install.log` (of the account that ran it; for the MSI, Local System's temp folder) |
+| MSI | The file given with `/l*v` |
+| Command Center service | `DATA\logs\service-<mode>.log` |
+| Runner service | `<runner workspace>\logs\service-agent.log` |
+| Each run on a runner | `<runner workspace>\logs\<run id>.log` |
+
+`Install.cmd` / `Install-OOA.ps1` exit codes:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Installed |
+| 1 | A parameter is missing or wrong (for example a runner without `-Url`/`-RegistrationKey`, or `-DbServer` without password variables when silent) |
+| 2 | The install failed (copying files, database set-up, registration, service) |
+| 3 | Administrator rights are needed (`-AllUsers` or `-Service`) |
+| 4 | The prerequisite check (`ooa check`) found a FAIL |
+
+The MSI returns the usual Windows Installer codes (0 success, 3010 restart needed, 1603 fatal error; the
+configuration custom action fails the install when the script returns non-zero). `Uninstall-OOA.ps1` returns 0, or 1
+when the user answered no.
+
+## 12. Known behaviours to plan for
+
+- The default data folder belongs to the account that runs the command. Pass `-DataDir`/`--data`/`DATA_DIR` on
+  servers so the service, the `ooa` commands and backups all use the same folder.
+- An MSI-installed Command Center without `DATA_DIR` keeps its data under the Local System profile.
+- Services installed by the installers listen on 127.0.0.1 (section 6).
+- The runner's own messages go to its console; a runner started by the sign-in task has none, so use the per-run
+  logs and `ooa agent diagnose`.
+
+## Related documents
+
+- [README](README.md)
+- [01. System requirements and sizing](01-system-requirements-and-sizing.md)
+- [04. Network, ports, proxies and certificates](04-network-ports-proxies-and-certificates.md)
+- [05. Databases](05-databases.md)
+- [10. Upgrades, releases and patching](10-upgrades-releases-and-patching.md)
+- [11. Monitoring, logging and troubleshooting](11-monitoring-logging-and-troubleshooting.md)
+- [Customer package README](../../platform/customer/README.txt)
