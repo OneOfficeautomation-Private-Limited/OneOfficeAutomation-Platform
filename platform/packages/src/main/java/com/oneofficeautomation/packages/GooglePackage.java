@@ -22,16 +22,27 @@ public final class GooglePackage {
         return override == null || override.isBlank() ? defaultUrl : defaultUrl.replaceFirst("^https://[^/]+", override.replaceAll("/+$", ""));
     }
 
-    @Action(id = "sheets_read", name = "Read sheet range", category = "Sheets", idempotent = true, capabilities = "network", description = "Read a range such as Sheet1!A1:D100 into a table.",
-            panel = "access_token, spreadsheet_id, range, header | endpoint_override")
+    /** The range to read: the given range, or all cells of the named sheet (the first sheet when none is named) when no range is given. */
+    private static String rangeOrSheet(ActionContext ctx, Object token, String id, String range, String sheet, String ep) {
+        if (!blank(range)) {
+            if (!blank(sheet)) throw bad("Give range or sheet, not both", "A range can name its sheet, e.g. Sheet1!A1:D100.");
+            return range;
+        }
+        return a1(sheetTitle(ctx, token, id, sheet, ep), "");
+    }
+
+    @Action(id = "sheets_read", name = "Read sheet range", category = "Sheets", idempotent = true, capabilities = "network", description = "Read a range such as Sheet1!A1:D100, or all cells of a sheet, into a table.",
+            panel = "access_token, spreadsheet_id, (Read: A range = range / All cells of a sheet = sheet), header | endpoint_override")
     @Output(name = "table", type = OoaType.TABLE, description = "Range content.")
     public Map<String, Object> sheetsRead(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "range", type = OoaType.STRING, example = "Sheet1!A1:D100", description = "A1 range.") String range,
+            @Input(name = "range", type = OoaType.STRING, required = false, example = "Sheet1!A1:D100", description = "A1 range; leave empty to read all cells of a sheet.") String range,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "First row holds column names.") boolean header,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "When no range is given: the sheet (tab) whose cells are all read; the first sheet when empty.") String sheet) {
         id = spreadsheetId(ctx, token, id, ep);
+        range = rangeOrSheet(ctx, token, id, range, sheet, ep);
         Map<String, Object> r = HttpJson.req(P, "GET", url("https://sheets.googleapis.com/v4/spreadsheets/" + HttpJson.enc(id) + "/values/" + HttpJson.enc(range)
                 + "?valueRenderOption=UNFORMATTED_VALUE", ep)).bearer(token).send(ctx).map();
         List<List<Object>> grid = new ArrayList<>();
@@ -43,6 +54,11 @@ public final class GooglePackage {
         List<Object> rows = new ArrayList<>();
         for (List<Object> g : grid) { while (g.size() < cols.size()) g.add(null); rows.add(g); }
         return Map.of("table", Values.table(cols, rows));
+    }
+
+    /** Earlier signature, kept for callers written before sheet. */
+    public Map<String, Object> sheetsRead(ActionContext ctx, Object token, String id, String range, boolean header, String ep) {
+        return sheetsRead(ctx, token, id, range, header, ep, null);
     }
 
     private static List<Object> grid(Map<String, Object> table, boolean header) {
@@ -642,17 +658,19 @@ public final class GooglePackage {
 
     @Action(id = "sheets_get_range", name = "Get range values", category = "Sheets", idempotent = true, capabilities = "network",
             description = "Read a range as a list of rows and, optionally, as a data table with the first row as column names.",
-            panel = "access_token, spreadsheet_id, range, header, formatted | endpoint_override")
+            panel = "access_token, spreadsheet_id, (Read: A range = range / All cells of a sheet = sheet), header, formatted | endpoint_override")
     @Output(name = "values", type = OoaType.LIST, description = "List of rows, each a list of cell values.")
     @Output(name = "table", type = OoaType.TABLE, description = "The same range as a data table.")
     public Map<String, Object> sheetsGetRange(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "range", type = OoaType.STRING, example = "Sheet1!A1:D20", description = D_RANGE) String range,
+            @Input(name = "range", type = OoaType.STRING, required = false, example = "Sheet1!A1:D20", description = D_RANGE + " Leave empty to read all cells of a sheet.") String range,
             @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Table only: the first row holds column names.") boolean header,
             @Input(name = "formatted", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Return values as displayed instead of raw values.") boolean formatted,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "When no range is given: the sheet (tab) whose cells are all read; the first sheet when empty.") String sheet) {
         id = spreadsheetId(ctx, token, id, ep);
+        range = rangeOrSheet(ctx, token, id, range, sheet, ep);
         Map<String, Object> r = getValues(ctx, token, id, range, formatted ? "FORMATTED_VALUE" : "UNFORMATTED_VALUE", null, ep);
         List<Object> values = new ArrayList<>();
         List<List<Object>> grid = new ArrayList<>();
@@ -664,6 +682,11 @@ public final class GooglePackage {
         List<Object> rows = new ArrayList<>();
         for (List<Object> g : grid) { while (g.size() < cols.size()) g.add(null); rows.add(g); }
         return Map.of("values", values, "table", Values.table(cols, rows));
+    }
+
+    /** Earlier signature, kept for callers written before sheet. */
+    public Map<String, Object> sheetsGetRange(ActionContext ctx, Object token, String id, String range, boolean header, boolean formatted, String ep) {
+        return sheetsGetRange(ctx, token, id, range, header, formatted, ep, null);
     }
 
     @Action(id = "sheets_clear_range", name = "Clear range", category = "Sheets", idempotent = true, capabilities = "network",
@@ -933,15 +956,56 @@ public final class GooglePackage {
     }
 
     @Action(id = "sheets_get_cell_color", name = "Get cell colour", category = "Sheets", idempotent = true, capabilities = "network",
-            description = "Read the fill and text colour of one cell as #RRGGBB.",
-            panel = "access_token, spreadsheet_id, cell | endpoint_override")
-    @Output(name = "background_color", type = OoaType.STRING, description = "Fill colour, #FFFFFF when none is set.")
-    @Output(name = "font_color", type = OoaType.STRING, description = "Text colour, #000000 when none is set.")
+            description = "Read the fill and text colour of one cell as #RRGGBB or as the nearest basic colour name.",
+            panel = "access_token, spreadsheet_id, cell, format | endpoint_override")
+    @Output(name = "background_color", type = OoaType.STRING, description = "Fill colour, #FFFFFF (white) when none is set.")
+    @Output(name = "font_color", type = OoaType.STRING, description = "Text colour, #000000 (black) when none is set.")
     public Map<String, Object> sheetsCellColor(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
             @Input(name = "cell", type = OoaType.STRING, example = "Sheet1!B2", description = D_CELL) String cell,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"hex\"", enumValues = {"hex", "name"},
+                    description = "hex gives #RRGGBB; name gives the nearest of black, white, grey, red, orange, yellow, green, cyan, blue, purple, magenta, pink or brown.") String format) {
+        Map<String, Object> out = sheetsCellColor(ctx, token, id, cell, ep);
+        if (!"name".equalsIgnoreCase(blank(format) ? "hex" : format.trim())) return out;
+        return Map.of("background_color", colorName((String) out.get("background_color")), "font_color", colorName((String) out.get("font_color")));
+    }
+
+    /** Basic colour names and their usual RGB values; colorName picks the closest one. */
+    private static final Map<String, int[]> BASIC_COLORS = new LinkedHashMap<>();
+    static {
+        BASIC_COLORS.put("black", new int[]{0, 0, 0});
+        BASIC_COLORS.put("white", new int[]{255, 255, 255});
+        BASIC_COLORS.put("grey", new int[]{128, 128, 128});
+        BASIC_COLORS.put("red", new int[]{255, 0, 0});
+        BASIC_COLORS.put("orange", new int[]{255, 165, 0});
+        BASIC_COLORS.put("yellow", new int[]{255, 255, 0});
+        BASIC_COLORS.put("green", new int[]{0, 128, 0});
+        BASIC_COLORS.put("cyan", new int[]{0, 255, 255});
+        BASIC_COLORS.put("blue", new int[]{0, 0, 255});
+        BASIC_COLORS.put("purple", new int[]{128, 0, 128});
+        BASIC_COLORS.put("magenta", new int[]{255, 0, 255});
+        BASIC_COLORS.put("pink", new int[]{255, 192, 203});
+        BASIC_COLORS.put("brown", new int[]{165, 42, 42});
+    }
+
+    /** Nearest basic colour name of #RRGGBB, by straight-line distance between the red, green and blue values. */
+    static String colorName(String hex) {
+        int v = Integer.parseInt(hex.substring(1), 16);
+        int r = v >> 16 & 255, g = v >> 8 & 255, b = v & 255;
+        String best = null;
+        long bestD = Long.MAX_VALUE;
+        for (Map.Entry<String, int[]> e : BASIC_COLORS.entrySet()) {
+            int[] c = e.getValue();
+            long d = (long) (r - c[0]) * (r - c[0]) + (long) (g - c[1]) * (g - c[1]) + (long) (b - c[2]) * (b - c[2]);
+            if (d < bestD) { bestD = d; best = e.getKey(); }
+        }
+        return best;
+    }
+
+    /** Earlier signature, kept for callers written before format: colours as #RRGGBB. */
+    public Map<String, Object> sheetsCellColor(ActionContext ctx, Object token, String id, String cell, String ep) {
         id = spreadsheetId(ctx, token, id, ep);
         String r = fullRange(ctx, token, id, cell, ep);
         Map<String, Object> resp = call(ctx, token, "GET", SHEETS + HttpJson.enc(id) + "?ranges=" + HttpJson.enc(r) + "&fields="
