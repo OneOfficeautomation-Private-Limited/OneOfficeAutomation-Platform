@@ -85,6 +85,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | Integration & system | GitHub / Azure DevOps / Asana / Zendesk | ooa.github, ooa.azure_devops, ooa.asana, ooa.zendesk | Built | REST toolkits; base URL input for GitHub Enterprise, Azure DevOps Server and Zendesk subdomains |
 | Integration & system | Okta / Box / DocuSign | ooa.okta, ooa.box, ooa.docusign | Built | Okta users, status and groups; Box files, folders, sharing; DocuSign envelopes, templates, embedded signing |
 | Integration & system | Snowflake / Databricks / Kafka | ooa.snowflake, ooa.databricks, ooa.kafka | Built | REST only, no drivers: Snowflake SQL API v2, Databricks SQL/Jobs/Clusters/Files, Kafka REST Proxy |
+| Integration & system | AWS EC2 | ooa.aws_ec2 | Built | Connect (region, access keys from the vault, session token), describe, status, start, stop, reboot, terminate, monitoring on/off, launch, tags, wait for state; signed with AWS Signature V4, no AWS SDK |
 | AI, workload & process | Document Automation / IQ Bot | - | Excluded for now (your request) |  |
 | AI, workload & process | Knowledge Q&A | ooa.knowledge | Built | Index text, Markdown, HTML, CSV, JSON, XML, .docx and PDF files into one index file (embeddings optional: OpenAI, Azure OpenAI, OpenAI-compatible such as Ollama, Vertex AI, Bedrock Titan/Cohere); search by words (BM25) and meaning; answers that cite their passages and say when the documents do not say |
 | AI, workload & process | Generative AI | ooa.genai | Built | OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock (Converse, SigV4), Google Vertex AI (Gemini; service-account key or token), Hugging Face, Amazon SageMaker endpoints (SigV4), self-hosted; prompts and chats with pictures; picture generation (OpenAI, Azure OpenAI, Vertex AI Imagen, Bedrock); detect language, key phrases, named entities; PII masking; governance log |
@@ -98,7 +99,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 
 ## Summary
 
-- **Built**: 82 AA packages
+- **Built**: 83 AA packages
 - **Excluded for now (your request)**: 1 AA packages
 - **Not needed**: 2 AA packages
 - **Partial**: 4 AA packages
@@ -133,7 +134,7 @@ The rest:
 | --- | --- | --- | --- |
 | PowerPoint | Open, edit and save slide decks | ooa.powerpoint | Built (catalogue row was missing) |
 | Interrupt handler | A block that watches for pop-ups and answers them | ooa.interrupts | Built (catalogue row was missing) |
-| AWS EC2 | Create, start, stop and end EC2 virtual machines (9 actions) | Nothing | **Build** (small): a cloud-machines toolkit over AWS's API with an access key from the vault |
+| AWS EC2 | Create, start, stop and end EC2 virtual machines (9 actions) | ooa.aws_ec2 (12 actions) | Built 2026-10-28 (row above) |
 | AWS Comprehend NLP, Microsoft LUIS NLP (Beta) | Sentiment, entities, language and intent from cloud language services | ooa.genai sentiment, entities, language and key phrases | Covered through an AI model; a direct AWS Comprehend action only if a customer asks |
 | ML - Microsoft Anomaly Detection | Finds unusual points in a series with an Azure service | Nothing | **Not needed now**: Azure retired the service; a REST call covers a replacement |
 | IBM Watson Authentication, Speech to Text (Beta) | Turns an audio file into text with IBM's service | Nothing | **Build later**: a speech-to-text action in ooa.genai (any provider) if customers ask |
