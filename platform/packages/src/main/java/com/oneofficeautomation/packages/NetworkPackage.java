@@ -72,7 +72,7 @@ public final class NetworkPackage {
     /** Minimal SNMP v2c message codec (BER) and UDP client: GET, GETNEXT, SET and SNMPv2-Trap. No external library. */
     static final class Snmp {
         private Snmp() {}
-        static final int GET = 0xA0, GETNEXT = 0xA1, RESPONSE = 0xA2, SET = 0xA3, TRAP = 0xA7;
+        static final int GET = 0xA0, GETNEXT = 0xA1, RESPONSE = 0xA2, SET = 0xA3, GETBULK = 0xA5, TRAP = 0xA7;
         static final int INTEGER = 0x02, OCTETS = 0x04, NULL = 0x05, OID = 0x06, SEQUENCE = 0x30,
                 IPADDR = 0x40, COUNTER32 = 0x41, GAUGE32 = 0x42, TIMETICKS = 0x43, OPAQUE = 0x44, COUNTER64 = 0x46,
                 NO_SUCH_OBJECT = 0x80, NO_SUCH_INSTANCE = 0x81, END_OF_MIB = 0x82;
@@ -294,10 +294,16 @@ public final class NetworkPackage {
         }
 
         static Message request(ActionContext ctx, String host, int port, String community, int pduType, List<VarBind> vars, int timeoutMs, int retries, int version) {
+            return request(ctx, host, port, community, pduType, vars, timeoutMs, retries, version, 0, 0);
+        }
+
+        /** For GETBULK, field1 and field2 are non-repeaters and max-repetitions (they take the place of error-status and error-index); otherwise 0. */
+        static Message request(ActionContext ctx, String host, int port, String community, int pduType, List<VarBind> vars, int timeoutMs, int retries, int version, int field1, int field2) {
+            if (pduType == GETBULK && version == VERSION_1) throw new ActionException("SNMP.BAD_OPTION", "GETBULK needs SNMP v2c or v3", "Use walk_type getnext with v1, or version v2c.");
             if (version == VERSION_1) for (VarBind vb : vars) if (vb.type() == COUNTER64)
                 throw new ActionException("SNMP.BAD_TYPE", "counter64 values need SNMP v2c", "Use version v2c.");
             int reqId = IDS.nextInt(Integer.MAX_VALUE);
-            byte[] out = encode(new Message(version, community, pduType, reqId, 0, 0, vars));
+            byte[] out = encode(new Message(version, community, pduType, reqId, field1, field2, vars));
             InetAddress addr;
             try { addr = InetAddress.getByName(host); }
             catch (UnknownHostException e) { throw new ActionException("SNMP.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
@@ -409,8 +415,21 @@ public final class NetworkPackage {
     }
 
     static Snmp.Message send(ActionContext ctx, String host, int port, Object community, int pduType, List<Snmp.VarBind> vars, int timeout, int retries, String version, SnmpV3.Security sec) {
-        if (sec != null) return SnmpV3.request(ctx, host, port, sec, pduType, vars, timeout, retries);
-        return Snmp.request(ctx, host, port, community(community), pduType, vars, timeout, retries, Snmp.version(version));
+        return send(ctx, host, port, community, pduType, vars, timeout, retries, version, sec, 0, 0);
+    }
+
+    /** As send, with the two PDU fields that GETBULK uses for non-repeaters and max-repetitions. */
+    static Snmp.Message send(ActionContext ctx, String host, int port, Object community, int pduType, List<Snmp.VarBind> vars, int timeout, int retries, String version, SnmpV3.Security sec,
+            int field1, int field2) {
+        if (sec != null) return SnmpV3.request(ctx, host, port, sec, pduType, vars, timeout, retries, field1, field2);
+        return Snmp.request(ctx, host, port, community(community), pduType, vars, timeout, retries, Snmp.version(version), field1, field2);
+    }
+
+    /** Numeric OID order (1.3.6.1.2 comes before 1.3.6.1.10). */
+    static int compareOids(String a, String b) {
+        long[] x = Snmp.parseOid(a), y = Snmp.parseOid(b);
+        for (int i = 0; i < Math.min(x.length, y.length); i++) if (x[i] != y[i]) return Long.compare(x[i], y[i]);
+        return Integer.compare(x.length, y.length);
     }
 
     public Map<String, Object> snmpGet(ActionContext ctx, String host, Object oids, Object community, int port, int timeout, int retries, String version) {
@@ -423,6 +442,12 @@ public final class NetworkPackage {
 
     public Map<String, Object> snmpWalk(ActionContext ctx, String host, String oid, Object community, int port, int maxRows, int timeout, int retries, String version) {
         return snmpWalk(ctx, host, oid, community, port, maxRows, timeout, retries, version, null, null, null, null, null, null);
+    }
+
+    /** SNMP walk with the signature before walk_type and max_repetitions were added: a GETNEXT walk. */
+    public Map<String, Object> snmpWalk(ActionContext ctx, String host, String oid, Object community, int port, int maxRows, int timeout, int retries, String version,
+            String v3User, String v3Auth, Object v3AuthPw, String v3Priv, Object v3PrivPw, String v3Context) {
+        return snmpWalk(ctx, host, oid, community, port, maxRows, timeout, retries, version, v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, "getnext", 10);
     }
 
     public Map<String, Object> snmpSet(ActionContext ctx, String host, String oid, Object value, String type, Object community, int port, int timeout, int retries, String version) {
@@ -487,8 +512,8 @@ public final class NetworkPackage {
     }
 
     @Action(id = "snmp_walk", name = "SNMP walk", category = "SNMP", idempotent = true, timeoutSeconds = 600, capabilities = "network",
-            description = "Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests.",
-            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid | context_name, timeout_ms, port, retries, max_rows")
+            description = "Read every object under an OID, e.g. a whole interface table, with repeated GETNEXT requests or, for v2c and v3, fewer GETBULK requests.",
+            panel = "host, version, community, security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, oid | walk_type, max_repetitions, context_name, timeout_ms, port, retries, max_rows")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: oid, type, value.")
     @Output(name = "row_count", type = OoaType.NUMBER, description = "Number of objects read.")
     public Map<String, Object> snmpWalk(ActionContext ctx,
@@ -505,26 +530,47 @@ public final class NetworkPackage {
             @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
             @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
             @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
-            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context) {
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the device uses them; usually empty.") String v3Context,
+            @Input(name = "walk_type", type = OoaType.STRING, required = false, defaultValue = "\"getnext\"", enumValues = {"getnext", "getbulk"},
+                    description = "getnext asks for one object per request and works with every version; getbulk (v2c and v3 only) asks for up to max_repetitions objects per request, which is much faster on large tables.") String walkType,
+            @Input(name = "max_repetitions", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 1, max = 100, visibleWhen = "walk_type=getbulk",
+                    description = "With getbulk, how many objects to ask for in each request; lower it when the device answers tooBig or not at all.") int maxRepetitions) {
         Snmp.parseOid(oid);
+        String wt = walkType == null || walkType.isBlank() ? "getnext" : walkType.strip().toLowerCase(Locale.ROOT);
+        if (!wt.equals("getnext") && !wt.equals("getbulk"))
+            throw new ActionException("SNMP.BAD_OPTION", "Unknown walk_type '" + walkType + "'", "Use getnext or getbulk.");
+        boolean bulk = wt.equals("getbulk");
+        if (bulk && Snmp.version(version) == Snmp.VERSION_1)
+            throw new ActionException("SNMP.BAD_OPTION", "GETBULK needs SNMP v2c or v3", "Use walk_type getnext with v1, or version v2c.");
+        if (bulk && (maxRepetitions < 1 || maxRepetitions > 100))
+            throw new ActionException("SNMP.BAD_OPTION", "max_repetitions must be between 1 and 100, not " + maxRepetitions, "Use e.g. 10.");
         String root = oid.strip().startsWith(".") ? oid.strip().substring(1) : oid.strip();
         int ver = Snmp.version(version);
         SnmpV3.Security sec = v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version);
         List<Object> rows = new ArrayList<>();
         String current = root;
-        while (rows.size() < Math.max(1, maxRows)) {
+        int limit = Math.max(1, maxRows);
+        walk:
+        while (rows.size() < limit) {
             ctx.checkCancelled();
             Snmp.Message m;
-            try { m = send(ctx, host, port, community, Snmp.GETNEXT, List.of(new Snmp.VarBind(current, Snmp.NULL, null)), timeout, retries, version, sec); }
+            List<Snmp.VarBind> ask = List.of(new Snmp.VarBind(current, Snmp.NULL, null));
+            try {
+                m = bulk ? send(ctx, host, port, community, Snmp.GETBULK, ask, timeout, retries, version, sec, 0, Math.min(maxRepetitions, limit - rows.size()))
+                         : send(ctx, host, port, community, Snmp.GETNEXT, ask, timeout, retries, version, sec);
+            }
             catch (ActionException e) {
                 if (ver == Snmp.VERSION_1 && "SNMP.ERROR".equals(e.code()) && e.getMessage().contains("noSuchName")) break;  // v1 ends a walk this way
                 throw e;
             }
             if (m.vars().isEmpty()) break;
-            Snmp.VarBind vb = m.vars().get(0);
-            if (vb.type() == Snmp.END_OF_MIB || !(vb.oid().equals(root) || vb.oid().startsWith(root + ".")) || vb.oid().equals(current)) break;
-            rows.add(new ArrayList<>(row(vb).values()));
-            current = vb.oid();
+            for (Snmp.VarBind vb : bulk ? m.vars() : m.vars().subList(0, 1)) {
+                // the end of the device's tree, leaving the subtree, or an agent that does not move forward ends the walk
+                if (vb.type() == Snmp.END_OF_MIB || !(vb.oid().equals(root) || vb.oid().startsWith(root + ".")) || compareOids(vb.oid(), current) <= 0) break walk;
+                rows.add(new ArrayList<>(row(vb).values()));
+                current = vb.oid();
+                if (rows.size() >= limit) break walk;
+            }
         }
         return Out.of("table", com.oneofficeautomation.runner.Values.table(List.of("oid", "type", "value"), rows), "row_count", BigDecimal.valueOf(rows.size()));
     }

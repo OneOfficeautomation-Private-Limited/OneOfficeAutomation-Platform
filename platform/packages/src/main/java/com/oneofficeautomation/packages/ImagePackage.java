@@ -205,7 +205,7 @@ public final class ImagePackage {
 
     @Action(id = "find_in_image", name = "Find image in image", category = "Image", idempotent = true,
             description = "Look for a small picture inside a larger image file, optionally in a region and for its n-th appearance; returns the point of the match.",
-            panel = "template, image, [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y")
+            panel = "template, image, [Search only an area: x, y, width, height], tolerance, occurrence, position, offset_x, offset_y | repeat_times, repeat_delay_ms")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when a match within the tolerance was found.")
     @Output(name = "x", type = OoaType.NUMBER, description = "Centre x of the match (or the chosen point).")
     @Output(name = "y", type = OoaType.NUMBER, description = "Centre y of the match (or the chosen point).")
@@ -224,10 +224,35 @@ public final class ImagePackage {
             @Input(name = "x", type = OoaType.NUMBER, required = false, description = D_RX) Integer rx,
             @Input(name = "y", type = OoaType.NUMBER, required = false, description = "Search region top.") Integer ry,
             @Input(name = "width", type = OoaType.NUMBER, required = false, description = "Search region width.") Integer rw,
-            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh) {
+            @Input(name = "height", type = OoaType.NUMBER, required = false, description = "Search region height.") Integer rh,
+            @Input(name = "repeat_times", type = OoaType.NUMBER, required = false, defaultValue = "1", min = 1, max = 1000,
+                    description = "How many times to look while the picture is not found; the image file is read again each time, e.g. while another program refreshes it. 1 looks once.") int repeatTimes,
+            @Input(name = "repeat_delay_ms", type = OoaType.NUMBER, required = false, defaultValue = "500", min = 0, max = 60000, visibleWhen = "repeat_times!=1",
+                    description = "Pause between two looks, in milliseconds.") int repeatDelayMs) {
+        if (repeatTimes < 1 || repeatTimes > 1000)
+            throw new ActionException("IMAGE.BAD_REPEAT", "repeat_times must be between 1 and 1000, not " + repeatTimes, "Use 1 to look once, or e.g. 10.");
+        if (repeatDelayMs < 0 || repeatDelayMs > 60000)
+            throw new ActionException("IMAGE.BAD_INTERVAL", "repeat_delay_ms must be between 0 and 60000, not " + repeatDelayMs, "Use e.g. 500.");
         BufferedImage t = load(ctx, template);
         Rectangle r = region(rx, ry, rw, rh);
-        return search(crop(load(ctx, image), r), r, t, tol, occurrence, position, offsetX, offsetY);
+        for (int attempt = 1; ; attempt++) {
+            BufferedImage img;
+            try { img = load(ctx, image); }
+            catch (ActionException e) { if (attempt >= repeatTimes) throw e; img = null; }  // a file being rewritten may be missing or half-written for a moment
+            if (img != null) {
+                Map<String, Object> res = search(crop(img, r), r, t, tol, occurrence, position, offsetX, offsetY);
+                if (Boolean.TRUE.equals(res.get("found")) || attempt >= repeatTimes) return res;
+            }
+            ctx.checkCancelled();
+            try { Thread.sleep(repeatDelayMs); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new OoaException("RUN.CANCELLED", "Interrupted"); }
+        }
+    }
+
+    /** Find image in image with the signature before repeat_times and repeat_delay_ms were added: one look. */
+    public Map<String, Object> findInImage(ActionContext ctx, String image, String template, double tol, int occurrence, String position, int offsetX, int offsetY,
+            Integer rx, Integer ry, Integer rw, Integer rh) {
+        return findInImage(ctx, image, template, tol, occurrence, position, offsetX, offsetY, rx, ry, rw, rh, 1, 500);
     }
 
     public Map<String, Object> findOnScreen(ActionContext ctx, String template, double tol) {

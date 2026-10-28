@@ -249,6 +249,11 @@ final class SnmpV3 {
     private static final String USM = "1.3.6.1.6.3.15.1.1.";
 
     static Snmp.Message request(ActionContext ctx, String host, int port, Security sec, int pduType, List<Snmp.VarBind> vars, int timeoutMs, int retries) {
+        return request(ctx, host, port, sec, pduType, vars, timeoutMs, retries, 0, 0);
+    }
+
+    /** For GETBULK, field1 and field2 are non-repeaters and max-repetitions; otherwise 0. */
+    static Snmp.Message request(ActionContext ctx, String host, int port, Security sec, int pduType, List<Snmp.VarBind> vars, int timeoutMs, int retries, int field1, int field2) {
         InetAddress addr;
         try { addr = InetAddress.getByName(host); }
         catch (UnknownHostException e) { throw new ActionException("SNMP.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
@@ -265,7 +270,7 @@ final class SnmpV3 {
                 RANDOM.nextBytes(salt);
                 if (sec.priv().equals("des")) ByteBuffer.wrap(salt).putInt(e.boots());
                 Engine en = e;
-                byte[] out = encode(new Msg(msgId, sec.flags() | FLAG_REPORTABLE, e.id(), e.boots(), e.now(), sec.user(), salt, sec.context(), pduType, reqId, 0, 0, vars),
+                byte[] out = encode(new Msg(msgId, sec.flags() | FLAG_REPORTABLE, e.id(), e.boots(), e.now(), sec.user(), salt, sec.context(), pduType, reqId, field1, field2, vars),
                     sec.auth(), authKey, sec.priv(), privKey);
                 Msg m = exchange(ctx, s, addr, port, out, msgId, timeoutMs, retries, sec, (id, u) -> new byte[][]{authKey, privKey});
                 if (m.pduType() == REPORT) {

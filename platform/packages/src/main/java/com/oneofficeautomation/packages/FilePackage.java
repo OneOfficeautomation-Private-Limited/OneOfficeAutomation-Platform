@@ -295,6 +295,11 @@ public final class FilePackage {
         return Out.of("values", values, "count", BigDecimal.valueOf(values.size()));
     }
 
+    /** Read variables with the signature before trim_side and lowercase_keys were added. */
+    public Map<String, Object> readVariables(ActionContext ctx, String path, String separator, String encoding, boolean trim) {
+        return readVariables(ctx, path, separator, encoding, trim, "both", false);
+    }
+
     @Action(id = "wait_for_file", name = "Wait for file", category = "Files", capabilities = "filesystem", timeoutSeconds = 3600,
             description = "Wait until a file appears and has stopped growing (for example a download or an export), then return its path.",
             panel = "path, timeout_seconds | stable_seconds, ignore_temporary, fail_on_timeout")
@@ -493,10 +498,31 @@ public final class FilePackage {
         return zip(ctx, source, target, pattern, compression, overwrite, deleteOriginals, null);
     }
 
+    /** Zip with the signature before add_to_existing and only_newer were added. */
+    public Map<String, Object> zip(ActionContext ctx, String source, String target, String pattern, String compression, boolean overwrite, boolean deleteOriginals, Object password) {
+        return zip(ctx, source, target, pattern, compression, overwrite, deleteOriginals, password, false, false);
+    }
+
+    /** Zip times are stored to 2 seconds (DOS) or 1 second (extended field), so a file counts as newer only beyond that. */
+    static boolean newerThanEntry(Path f, ZipEntry e) throws IOException {
+        java.nio.file.attribute.FileTime et = e.getLastModifiedTime();
+        long entryMs = et != null ? et.toMillis() : e.getTime();
+        return Files.getLastModifiedTime(f).toMillis() > entryMs + 2000;
+    }
+
+    private static void putFile(ZipOutputStream zos, String name, Path f) throws IOException {
+        ZipEntry ze = new ZipEntry(name);
+        ze.setLastModifiedTime(Files.getLastModifiedTime(f));  // keep the file's date, so only_newer can compare later
+        zos.putNextEntry(ze);
+        Files.copy(f, zos);
+        zos.closeEntry();
+    }
+
     @Action(id = "zip", name = "Zip", category = "Archives", capabilities = "filesystem",
-            description = "Compress files or a folder into a .zip archive, optionally protected with a password (AES-256, opened by 7-Zip, WinZip and most tools).",
-            panel = "source, pattern, target, [Protect with a password: password], delete_originals, compression | overwrite")
+            description = "Compress files or a folder into a .zip archive, or add them to an existing one, optionally protected with a password (AES-256, opened by 7-Zip, WinZip and most tools).",
+            panel = "source, pattern, target, [Protect with a password: password], delete_originals, compression | overwrite, add_to_existing, only_newer")
     @Output(name = "path", type = OoaType.FILE, description = "Created archive.")
+    @Output(name = "added", type = OoaType.NUMBER, description = "Number of files written into the archive (new or replaced).")
     public Map<String, Object> zip(ActionContext ctx,
             @Input(name = "source", type = OoaType.FILE, description = "File or folder to compress.") String source,
             @Input(name = "target", type = OoaType.FILE, description = "Archive path, e.g. out/report.zip.") String target,
@@ -506,12 +532,18 @@ public final class FilePackage {
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing archive; when false an existing archive stops the step.") boolean overwrite,
             @Input(name = "delete_originals", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Delete the files that were added once the archive is complete.") boolean deleteOriginals,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false,
-                    description = "Encrypt every file with this password (AES-256). Windows Explorer cannot open such archives; 7-Zip, WinZip and most tools can.") Object password) {
+                    description = "Encrypt every file with this password (AES-256). Windows Explorer cannot open such archives; 7-Zip, WinZip and most tools can.") Object password,
+            @Input(name = "add_to_existing", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "When the archive already exists, keep what is in it and add the files (overwrite is then ignored); a file whose name is already in it replaces that entry. Not with a password.") boolean addToExisting,
+            @Input(name = "only_newer", type = OoaType.BOOLEAN, required = false, defaultValue = "false", visibleWhen = "add_to_existing=true",
+                    description = "When adding to an existing archive, replace an entry only when the file is newer than it (by more than 2 seconds, the precision of zip dates); new names are always added.") boolean onlyNewer) {
         Path s = ctx.resolvePath(source), t = ctx.resolvePath(target);
         String pw = password instanceof SecureString ss ? ss.reveal() : password == null ? null : String.valueOf(password);
         if (pw != null && pw.isEmpty()) throw new ActionException("ZIP.BAD_PASSWORD", "The password is empty", "Pick a credential with a value, or leave the password out.");
+        if (onlyNewer && !addToExisting) throw new ActionException("ZIP.BAD_OPTION", "only_newer works only when adding to an existing archive", "Turn on add_to_existing, or turn off only_newer.");
+        if (addToExisting && pw != null) throw new ActionException("ZIP.BAD_OPTION", "Files cannot be added to an existing archive with a password", "Leave the password out, or write a new archive.");
         if (!Files.exists(s)) throw new ActionException("FILE.NOT_FOUND", "Not found: " + s, "Check the source path.");
-        if (!overwrite && Files.exists(t)) throw new ActionException("FILE.EXISTS", "Archive already exists: " + t, "Set overwrite to true or choose another name.");
+        if (!overwrite && !addToExisting && Files.exists(t)) throw new ActionException("FILE.EXISTS", "Archive already exists: " + t, "Set overwrite to true or choose another name.");
         int level = switch (compression == null || compression.isBlank() ? "normal" : compression) {
             case "fast" -> 3; case "fastest" -> 1; case "store" -> 0; case "normal" -> java.util.zip.Deflater.DEFAULT_COMPRESSION;
             default -> throw new ActionException("ZIP.BAD_COMPRESSION", "Unknown compression '" + compression + "'", "Use normal, fast, fastest or store.");
@@ -530,22 +562,45 @@ public final class FilePackage {
                 }
                 ZipCrypt.writeAes(t, items, level == java.util.zip.Deflater.DEFAULT_COMPRESSION ? 6 : level, pw);
                 if (deleteOriginals) for (Path f : added) Files.deleteIfExists(f);
-                return Map.of("path", t.toString());
+                return Map.of("path", t.toString(), "added", BigDecimal.valueOf(added.size()));
             }
-            try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(t)); Stream<Path> walk = Files.walk(s)) {
-                zos.setLevel(level);
-                Path base = Files.isDirectory(s) ? s : s.getParent();
-                for (Path f : (Iterable<Path>) walk.filter(Files::isRegularFile).filter(f -> m.matches(f.getFileName())).sorted()::iterator) {
-                    if (f.toAbsolutePath().normalize().equals(abs)) continue;  // never add the archive to itself
-                    zos.putNextEntry(new ZipEntry(base.relativize(f).toString().replace('\\', '/')));
-                    Files.copy(f, zos);
-                    zos.closeEntry();
-                    added.add(f);
+            Path base = Files.isDirectory(s) ? s : s.getParent();
+            Map<String, Path> wanted = new LinkedHashMap<>();
+            try (Stream<Path> walk = Files.walk(s)) {
+                for (Path f : (Iterable<Path>) walk.filter(Files::isRegularFile).filter(f -> m.matches(f.getFileName())).sorted()::iterator)
+                    if (!f.toAbsolutePath().normalize().equals(abs)) wanted.put(base.relativize(f).toString().replace('\\', '/'), f);  // never add the archive to itself
+            }
+            if (addToExisting && Files.isRegularFile(t)) {
+                if (ZipCrypt.anyEncrypted(t)) throw new ActionException("ZIP.BAD_OPTION", "The archive " + t + " is password-protected; files cannot be added to it", "Write a new archive instead.");
+                Path tmp = Files.createTempFile(abs.getParent(), abs.getFileName().toString(), ".tmp");
+                try {
+                    try (ZipFile old = new ZipFile(t.toFile()); ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(tmp))) {
+                        zos.setLevel(level);
+                        for (ZipEntry e : Collections.list(old.entries())) {
+                            Path f = wanted.remove(e.getName());
+                            if (f != null && (!onlyNewer || newerThanEntry(f, e))) { putFile(zos, e.getName(), f); added.add(f); continue; }
+                            ZipEntry keep = new ZipEntry(e.getName());  // entries kept as they are, in their order
+                            if (e.getLastModifiedTime() != null) keep.setLastModifiedTime(e.getLastModifiedTime()); else keep.setTime(e.getTime());
+                            if (e.getComment() != null) keep.setComment(e.getComment());
+                            zos.putNextEntry(keep);
+                            try (java.io.InputStream in = old.getInputStream(e)) { in.transferTo(zos); }
+                            zos.closeEntry();
+                        }
+                        for (var w : wanted.entrySet()) { putFile(zos, w.getKey(), w.getValue()); added.add(w.getValue()); }
+                    }
+                    Files.move(tmp, t, StandardCopyOption.REPLACE_EXISTING);
+                } finally { Files.deleteIfExists(tmp); }
+            } else {
+                try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(t))) {
+                    zos.setLevel(level);
+                    for (var w : wanted.entrySet()) { putFile(zos, w.getKey(), w.getValue()); added.add(w.getValue()); }
                 }
             }
             if (deleteOriginals) for (Path f : added) Files.deleteIfExists(f);
+        } catch (ZipException e) {
+            throw new ActionException("ZIP.CORRUPT", "Cannot read the existing archive " + t + ": " + e.getMessage(), "Check it is a valid .zip file, or turn off add_to_existing to replace it.");
         } catch (IOException e) { throw io("zip", s, e); }
-        return Map.of("path", t.toString());
+        return Map.of("path", t.toString(), "added", BigDecimal.valueOf(added.size()));
     }
 
     public Map<String, Object> unzip(ActionContext ctx, String archive, String folder, boolean overwrite) { return unzip(ctx, archive, folder, overwrite, null); }

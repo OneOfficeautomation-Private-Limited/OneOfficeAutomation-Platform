@@ -80,26 +80,71 @@ public final class JsonPackage {
     }
 
     @Action(id = "get_nodes", name = "Get several node values", category = "JSON", idempotent = true,
-            description = "Read several paths at once into one dictionary, e.g. {\"id\": \"order.id\", \"email\": \"customer.email\"}.",
+            description = "Read several paths at once into one dictionary, e.g. {\"id\": \"order.id\", \"email\": \"customer.email\"}, optionally converting each value to a type.",
             panel = "value, paths")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value; missing paths give empty values.")
     @Output(name = "missing", type = OoaType.LIST, description = "Names whose path does not exist.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> getNodes(ActionContext ctx,
             @Input(name = "value", description = "Dictionary, List or JSON text.") Object value,
-            @Input(name = "paths", description = "Dictionary of result name to path, or a list of paths (each path is then its own name).") Object paths) {
+            @Input(name = "paths", description = "Dictionary of result name to path, or a list of paths (each path is then its own name). "
+                    + "A path may instead be {\"path\": \"order.total\", \"type\": \"Number\"} to convert the value to String, Number, DateTime or Boolean.") Object paths) {
         Object doc = document(value);
-        Map<String, Object> wanted = new LinkedHashMap<>();
-        if (paths instanceof Map<?, ?> m) ((Map<String, Object>) m).forEach((k, v) -> wanted.put(k, com.oneofficeautomation.runner.Values.text(v)));
-        else if (paths instanceof List<?> l) for (Object p : l) wanted.put(com.oneofficeautomation.runner.Values.text(p), com.oneofficeautomation.runner.Values.text(p));
+        Map<String, String[]> wanted = new LinkedHashMap<>();  // name -> {path, type or null}
+        if (paths instanceof Map<?, ?> m) ((Map<String, Object>) m).forEach((k, v) -> wanted.put(k, entry(k, v)));
+        else if (paths instanceof List<?> l) for (Object p : l) {
+            String[] e = entry(null, p);
+            wanted.put(e[0], e);
+        }
         else throw new ActionException("JSON.BAD_PATH", "'paths' must be a Dictionary or a List", "Example: {\"id\": \"order.id\"}.");
         Map<String, Object> out = new LinkedHashMap<>();
         List<Object> missing = new ArrayList<>();
-        wanted.forEach((name, p) -> {
-            try { out.put(name, walk(doc, pathTokens((String) p), (String) p)); }
-            catch (ActionException e) { out.put(name, null); missing.add(name); }
+        wanted.forEach((name, e) -> {
+            Object v;
+            try { v = walk(doc, pathTokens(e[0]), e[0]); }
+            catch (ActionException x) { out.put(name, null); missing.add(name); return; }
+            out.put(name, e[1] == null ? v : convert(name, v, e[1]));
         });
         return Out.of("values", out, "missing", missing);
+    }
+
+    static final List<String> NODE_TYPES = List.of("String", "Number", "DateTime", "Boolean");
+
+    /** One entry of get_nodes paths: a plain path, or {"path": ..., "type": ...}; returns {path, type or null}. */
+    private static String[] entry(String name, Object v) {
+        if (v instanceof Map<?, ?> m) {
+            Object p = m.get("path"), t = m.get("type");
+            String label = name == null ? String.valueOf(p) : name;
+            if (p == null || com.oneofficeautomation.runner.Values.text(p).isBlank())
+                throw new ActionException("JSON.BAD_PATH", "Entry '" + label + "' has no path", "Write it as {\"path\": \"order.total\", \"type\": \"Number\"}.");
+            for (Object k : m.keySet()) if (!"path".equals(k) && !"type".equals(k))
+                throw new ActionException("JSON.BAD_PATH", "Entry '" + label + "' has an unknown key '" + k + "'", "Use only path and type.");
+            String type = t == null || com.oneofficeautomation.runner.Values.text(t).isBlank() ? null : com.oneofficeautomation.runner.Values.text(t).strip();
+            if (type != null) {
+                String match = NODE_TYPES.stream().filter(x -> x.equalsIgnoreCase(type)).findFirst().orElse(null);
+                if (match == null) throw new ActionException("JSON.BAD_TYPE", "Unknown type '" + type + "' for '" + label + "'", "Use String, Number, DateTime or Boolean.");
+                return new String[]{com.oneofficeautomation.runner.Values.text(p), match};
+            }
+            return new String[]{com.oneofficeautomation.runner.Values.text(p), null};
+        }
+        return new String[]{com.oneofficeautomation.runner.Values.text(v), null};
+    }
+
+    /** Converts a found value; an empty value stays empty, a value that does not fit the type fails the step. */
+    private static Object convert(String name, Object v, String type) {
+        if (v == null) return null;
+        if (!type.equals("String") && v instanceof String s && s.isBlank()) return null;
+        try {
+            Object c = com.oneofficeautomation.runner.Values.coerce(v, type, name);
+            if (type.equals("Boolean") && !(c instanceof Boolean)) throw new OoaException("VAR.TYPE_MISMATCH", "not a Boolean");
+            if (type.equals("String") && (v instanceof Map || v instanceof List)) return JsonLite.write(com.oneofficeautomation.runner.Values.toJsonable(v));
+            return c;
+        } catch (OoaException e) {
+            throw new ActionException("JSON.CONVERT_FAILED", "'" + name + "': cannot convert " + com.oneofficeautomation.runner.Values.safeRepr(v) + " to " + type,
+                    type.equals("Number") ? "Check the value is numeric, e.g. 1234.50, or leave the type out."
+                            : type.equals("DateTime") ? "Use ISO dates such as 2026-10-18 or 2026-10-18T14:30:00, or leave the type out."
+                            : type.equals("Boolean") ? "Use true/false, yes/no or 1/0, or leave the type out." : "Leave the type out.");
+        }
     }
 
     @Action(id = "read_file", name = "Read JSON file", category = "JSON", idempotent = true, capabilities = "filesystem", description = "Read and parse a JSON file.",

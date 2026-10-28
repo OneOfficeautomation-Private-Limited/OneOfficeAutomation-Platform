@@ -458,26 +458,65 @@ public final class SapPackage {
                 e.contextMenu
               End If
               Check "Context menu " & a(2)
-              If fc <> "" Then e.selectContextMenuItem fc: Check "Menu item " & fc
+              If fc <> "" Then
+                If a(3) = "text" Then
+                  e.selectContextMenuItemByText fc
+                ElseIf a(3) = "position" Then
+                  e.selectContextMenuItemByPosition fc
+                Else
+                  e.selectContextMenuItem fc
+                End If
+                Check "Menu item " & fc
+              End If
             Else
               e.SetFocus: e.showContextMenu: Check "Context menu " & a(2)
-              If fc <> "" Then sess.findById(fc).Select: Check "Menu item " & fc
+              If fc <> "" Then
+                If a(3) = "text" Or a(3) = "position" Then
+                  ' a screen element's context menu belongs to the user area of its window, e.g. wnd[0]/usr
+                  Dim u: Set u = sess.findById(Left(a(2), InStr(a(2), "/") - 1) & "/usr"): Check "User area of " & a(2)
+                  If a(3) = "text" Then u.selectContextMenuItemByText fc Else u.selectContextMenuItemByPosition fc
+                Else
+                  sess.findById(fc).Select
+                End If
+                Check "Menu item " & fc
+              End If
             End If
             WScript.StdOut.WriteLine "{}"
             """;
 
     @Action(id = "right_click", name = "Right-click (context menu)", category = "Fields", timeoutSeconds = 120, capabilities = "desktop",
-            description = "Open the context menu of an element, grid cell or tree node and optionally choose an entry.",
-            panel = "id, menu_item | item, column, connection, session")
+            description = "Open the context menu of an element, grid cell or tree node and optionally choose an entry by its function code or element id, its text, or its position.",
+            panel = "id, menu_by, menu_item | item, column, connection, session")
     public Map<String, Object> rightClick(ActionContext ctx,
             @Input(name = "id", type = OoaType.STRING, description = D_ID) String elementId,
             @Input(name = "item", type = OoaType.STRING, required = false, description = "Grid row (0-based) or tree node key.") String item,
             @Input(name = "column", type = OoaType.STRING, required = false, description = "Grid column (technical name, title or 0-based position).") String column,
-            @Input(name = "menu_item", type = OoaType.STRING, required = false, description = "Entry to choose: its function code for grids and trees, or its element id for screen elements.") String menuItem,
+            @Input(name = "menu_item", type = OoaType.STRING, required = false,
+                    description = "Entry to choose, as menu_by says: a function code (grids and trees) or element id (screen elements); the entry's text as shown; or its 0-based position, with sub-menus as 2 > 1.") String menuItem,
             @Input(name = "connection", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_CONN) int c,
-            @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s) {
-        run(ctx, TABLE_LIB + RIGHT_CLICK, args(c, s, id(elementId)), line(item) + line(column) + line(menuItem));
+            @Input(name = "session", type = OoaType.NUMBER, required = false, defaultValue = "0", description = D_SESS) int s,
+            @Input(name = "menu_by", type = OoaType.STRING, required = false, defaultValue = "\"code\"", enumValues = {"code", "text", "position"},
+                    description = "How menu_item names the entry: code (function code or element id), text (the entry's text) or position (0-based, counted from the top).") String menuBy) {
+        String by = menuBy == null || menuBy.isBlank() ? "code" : menuBy.strip().toLowerCase(Locale.ROOT);
+        String entry = rightClickEntry(by, menuItem);
+        run(ctx, TABLE_LIB + RIGHT_CLICK, args(c, s, id(elementId), by), line(item) + line(column) + line(entry));
         return Map.of();
+    }
+
+    /** Right-click with the signature before menu_by was added: the entry is a function code or element id. */
+    public Map<String, Object> rightClick(ActionContext ctx, String elementId, String item, String column, String menuItem, int c, int s) {
+        return rightClick(ctx, elementId, item, column, menuItem, c, s, "code");
+    }
+
+    /** Checks menu_by and returns the entry as SAP GUI scripting expects it; positions such as 2 > 1 become 2|1. */
+    static String rightClickEntry(String by, String menuItem) {
+        if (!by.equals("code") && !by.equals("text") && !by.equals("position"))
+            throw new ActionException("SAP.BAD_MENU", "Unknown menu_by '" + by + "'", "Use code, text or position.");
+        if (menuItem == null || menuItem.isBlank()) return "";
+        if (!by.equals("position")) return menuItem.strip();
+        if (!menuItem.matches("^\\s*\\d{1,3}(\\s*[>|/]\\s*\\d{1,3})*\\s*$"))
+            throw new ActionException("SAP.BAD_MENU", "With menu_by position, menu_item must be 0-based positions such as 3 or 2 > 1, not '" + menuItem + "'", "Count the entries from 0 at the top.");
+        return String.join("|", menuItem.strip().split("\\s*[>|/]\\s*"));
     }
 
     static final String CLICK_MENU = """

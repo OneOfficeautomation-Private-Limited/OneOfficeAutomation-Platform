@@ -20,17 +20,60 @@ public final class FolderPackage {
         return Map.of();
     }
 
+    private static final String D_LARGER = "Only when the folder holds more than this many KB in all its files, at any depth (1 KB = 1024 bytes).";
+    private static final String D_SMALLER = "Only when the folder holds less than this many KB in all its files, at any depth.";
+    private static final String D_AFTER = "Only when the folder itself was last changed after this date and time (local time); adding or removing an item directly inside changes it.";
+    private static final String D_BEFORE = "Only when the folder itself was last changed before this date and time (local time).";
+
+    /**
+     * The optional conditions of Delete folder and Rename folder. Every limit given must hold; size is the total of all
+     * files below the folder, date is the folder's own last-change time. A range that no folder can meet (larger than
+     * at least smaller than, or after not before before) is refused rather than silently doing nothing.
+     */
+    static void checkConditions(java.math.BigDecimal largerKb, java.math.BigDecimal smallerKb, java.time.LocalDateTime after, java.time.LocalDateTime before) {
+        if (largerKb != null && largerKb.signum() < 0 || smallerKb != null && smallerKb.signum() < 0)
+            throw new ActionException("FOLDER.BAD_OPTION", "Sizes cannot be negative", "Use 0 or more KB.");
+        if (largerKb != null && smallerKb != null && largerKb.compareTo(smallerKb) >= 0)
+            throw new ActionException("FOLDER.BAD_OPTION", "larger_than_kb " + largerKb.toPlainString() + " is not below smaller_than_kb " + smallerKb.toPlainString() + ", so no folder can match",
+                    "Give a size range whose lower limit is below its upper limit, or fill in only one of them.");
+        if (after != null && before != null && !after.isBefore(before))
+            throw new ActionException("FOLDER.BAD_OPTION", "modified_after " + after + " is not before modified_before " + before + ", so no folder can match",
+                    "Give a date range whose start is before its end, or fill in only one of them.");
+    }
+
+    /** True when the folder meets every condition given (none given: true). */
+    static boolean meetsConditions(Path dir, java.math.BigDecimal largerKb, java.math.BigDecimal smallerKb, java.time.LocalDateTime after, java.time.LocalDateTime before) throws IOException {
+        if ((after != null || before != null) && !FilePackage.modifiedBetween(dir, after, before)) return false;
+        if (largerKb == null && smallerKb == null) return true;
+        long bytes = 0;
+        try (Stream<Path> w = Files.walk(dir)) {
+            for (Path x : (Iterable<Path>) w::iterator) if (Files.isRegularFile(x)) bytes += Files.size(x);
+        }
+        java.math.BigDecimal kb = java.math.BigDecimal.valueOf(bytes).divide(java.math.BigDecimal.valueOf(1024));
+        return (largerKb == null || kb.compareTo(largerKb) > 0) && (smallerKb == null || kb.compareTo(smallerKb) < 0);
+    }
+
+    /** Delete folder with the signature before the size and date conditions were added. */
+    public Map<String, Object> delete(ActionContext ctx, String path, boolean recursive) { return delete(ctx, path, recursive, null, null, null, null); }
+
     @Action(id = "delete", name = "Delete folder", category = "Folders", capabilities = "filesystem",
-            description = "Delete a folder. Non-empty folders are deleted only when recursive is true.",
-            panel = "path, recursive")
+            description = "Delete a folder, optionally only when its total size or its last-change date meets limits. Non-empty folders are deleted only when recursive is true.",
+            panel = "path, recursive, [Only when the size fits: larger_than_kb, smaller_than_kb], [Only when the date fits: modified_after, modified_before]")
+    @Output(name = "deleted", type = OoaType.BOOLEAN, description = "True when the folder was deleted; false when it did not exist or did not meet the limits.")
     public Map<String, Object> delete(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Folder path.") String path,
-            @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete everything inside.") boolean recursive) {
+            @Input(name = "recursive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Also delete everything inside.") boolean recursive,
+            @Input(name = "larger_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = D_LARGER) java.math.BigDecimal largerKb,
+            @Input(name = "smaller_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = D_SMALLER) java.math.BigDecimal smallerKb,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = D_AFTER) java.time.LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = D_BEFORE) java.time.LocalDateTime before) {
+        checkConditions(largerKb, smallerKb, after, before);
         Path p = ctx.resolvePath(path).toAbsolutePath().normalize();
-        if (!Files.isDirectory(p)) return Map.of();
+        if (!Files.isDirectory(p)) return Map.of("deleted", false);
         if (p.getParent() == null || p.equals(ctx.workDir().toAbsolutePath().normalize()))
             throw new ActionException("FOLDER.PROTECTED", "Refusing to delete " + p, "Point to a specific sub-folder.");
         try {
+            if (!meetsConditions(p, largerKb, smallerKb, after, before)) return Map.of("deleted", false);
             if (!recursive) {
                 try (Stream<Path> s = Files.list(p)) {
                     if (s.findAny().isPresent()) throw new ActionException("FOLDER.NOT_EMPTY", "Folder is not empty: " + p, "Set recursive to true to delete its contents.");
@@ -40,7 +83,7 @@ public final class FolderPackage {
                 for (Path x : w.sorted(Comparator.reverseOrder()).toList()) Files.delete(x);
             }
         } catch (IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot delete " + p + ": " + e.getMessage(), null, true); }
-        return Map.of();
+        return Map.of("deleted", true);
     }
 
     @Action(id = "list_subfolders", name = "List subfolders", category = "Folders", idempotent = true, capabilities = "filesystem", description = "List the folders directly inside a folder.",
@@ -110,12 +153,18 @@ public final class FolderPackage {
     }
 
     @Action(id = "rename_folder", name = "Rename folder", category = "Folders", capabilities = "filesystem",
-            description = "Give a folder a new name in the same parent folder.",
-            panel = "path, new_name")
-    @Output(name = "path", type = OoaType.FILE, description = "New full path of the folder.")
+            description = "Give a folder a new name in the same parent folder, optionally only when its total size or its last-change date meets limits.",
+            panel = "path, new_name, [Only when the size fits: larger_than_kb, smaller_than_kb], [Only when the date fits: modified_after, modified_before]")
+    @Output(name = "path", type = OoaType.FILE, description = "New full path of the folder; the unchanged path when it did not meet the limits.")
+    @Output(name = "renamed", type = OoaType.BOOLEAN, description = "True when the folder was renamed; false when it did not meet the limits.")
     public Map<String, Object> renameFolder(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Folder to rename.") String path,
-            @Input(name = "new_name", type = OoaType.STRING, example = "Archive 2026", description = "New name only, without any path.") String newName) {
+            @Input(name = "new_name", type = OoaType.STRING, example = "Archive 2026", description = "New name only, without any path.") String newName,
+            @Input(name = "larger_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = D_LARGER) java.math.BigDecimal largerKb,
+            @Input(name = "smaller_than_kb", type = OoaType.NUMBER, required = false, min = 0, description = D_SMALLER) java.math.BigDecimal smallerKb,
+            @Input(name = "modified_after", type = OoaType.DATETIME, required = false, description = D_AFTER) java.time.LocalDateTime after,
+            @Input(name = "modified_before", type = OoaType.DATETIME, required = false, description = D_BEFORE) java.time.LocalDateTime before) {
+        checkConditions(largerKb, smallerKb, after, before);
         Path p = ctx.resolvePath(path).toAbsolutePath().normalize();
         if (!Files.isDirectory(p)) throw new ActionException("FOLDER.NOT_FOUND", "Folder not found: " + p, "Check the folder path.");
         if (newName == null || newName.isBlank() || newName.contains("/") || newName.contains("\\") || newName.equals(".") || newName.equals("..")
@@ -123,13 +172,18 @@ public final class FolderPackage {
             throw new ActionException("FOLDER.BAD_NAME", "Invalid folder name '" + newName + "'", "Give only the new name, without slashes or the characters < > : \" | ? *.");
         if (p.getParent() == null || p.equals(ctx.workDir().toAbsolutePath().normalize()))
             throw new ActionException("FOLDER.PROTECTED", "Refusing to rename " + p, "Point to a specific sub-folder.");
+        try { if (!meetsConditions(p, largerKb, smallerKb, after, before)) return Map.of("path", p.toString(), "renamed", false); }
+        catch (IOException e) { throw new ActionException("FOLDER.IO_ERROR", "Cannot read the size of " + p + ": " + e.getMessage(), "Close any program using the folder and try again.", true); }
         Path target = p.resolveSibling(newName.strip());
         if (Files.exists(target) && !target.getFileName().toString().equalsIgnoreCase(p.getFileName().toString()))
             throw new ActionException("FOLDER.EXISTS", "A file or folder named '" + newName + "' already exists in " + p.getParent(), "Choose another name.");
         try { Files.move(p, target); }
         catch (IOException e) { throw new ActionException("FOLDER.IO_ERROR", "Cannot rename " + p + ": " + e.getMessage(), "Close any program using the folder and try again.", true); }
-        return Map.of("path", target.toString());
+        return Map.of("path", target.toString(), "renamed", true);
     }
+
+    /** Rename folder with the signature before the size and date conditions were added. */
+    public Map<String, Object> renameFolder(ActionContext ctx, String path, String newName) { return renameFolder(ctx, path, newName, null, null, null, null); }
 
     @Action(id = "open_folder", name = "Open folder", category = "Folders", capabilities = {"desktop", "filesystem"},
             description = "Show a folder in the file manager (File Explorer on Windows).",

@@ -33,6 +33,7 @@ class SnmpV3Test {
         final byte[] authKey, privKey;
         final Map<String, String> objects = new TreeMap<>(Map.of("1.3.6.1.2.1.1.5.0", "router-1", "1.3.6.1.2.1.2.2.1.2.1", "eth0", "1.3.6.1.2.1.2.2.1.2.2", "eth1"));
         final Thread thread;
+        volatile int bulkRequests;
 
         Device(String user, String auth, String authPw, String priv, String privPw) throws Exception {
             this.user = user; this.auth = auth; this.priv = priv;
@@ -73,6 +74,16 @@ class SnmpV3Test {
                         else if (in.pduType() == Snmp.GETNEXT) {
                             String next = objects.keySet().stream().filter(k -> compare(k, vb.oid()) > 0).findFirst().orElse(null);
                             out.add(next == null ? new Snmp.VarBind(vb.oid(), Snmp.END_OF_MIB, null) : new Snmp.VarBind(next, Snmp.OCTETS, objects.get(next)));
+                        } else if (in.pduType() == Snmp.GETBULK) {
+                            bulkRequests++;
+                            String cur = vb.oid();
+                            for (int r = 0; r < Math.max(1, in.errorIndex()); r++) {  // max-repetitions travels in error-index
+                                String c0 = cur;
+                                String next = objects.keySet().stream().filter(k -> compare(k, c0) > 0).findFirst().orElse(null);
+                                if (next == null) { out.add(new Snmp.VarBind(cur, Snmp.END_OF_MIB, null)); break; }
+                                out.add(new Snmp.VarBind(next, Snmp.OCTETS, objects.get(next)));
+                                cur = next;
+                            }
                         } else out.add(objects.containsKey(vb.oid()) ? new Snmp.VarBind(vb.oid(), Snmp.OCTETS, objects.get(vb.oid())) : new Snmp.VarBind(vb.oid(), Snmp.NO_SUCH_OBJECT, null));
                     }
                     byte[] salt = new byte[8];
@@ -103,6 +114,9 @@ class SnmpV3Test {
                 assertEquals("router-1", got.get("1.3.6.1.2.1.1.5.0"), String.join("/", combo));
                 Map<String, Object> walk = n.snmpWalk(c, "127.0.0.1", "1.3.6.1.2.1.2.2", null, d.port(), 100, 2000, 0, "v3", "ops", combo[0], authPw, combo[1], privPw, null);
                 assertEquals(0, BigDecimal.valueOf(2).compareTo((BigDecimal) walk.get("row_count")), String.join("/", combo));
+                Map<String, Object> bulk = n.snmpWalk(c, "127.0.0.1", "1.3.6.1.2.1.2.2", null, d.port(), 100, 2000, 0, "v3", "ops", combo[0], authPw, combo[1], privPw, null, "getbulk", 5);
+                assertEquals(walk.get("table"), bulk.get("table"), "GETBULK over v3 gives the same rows: " + String.join("/", combo));
+                assertEquals(1, d.bulkRequests, "one bulk request covers the two rows and the end of the subtree");
                 n.snmpSet(c, "127.0.0.1", "1.3.6.1.2.1.1.6.0", "Room B", "string", null, d.port(), 2000, 0, "v3", "ops", combo[0], authPw, combo[1], privPw, null);
                 assertEquals("Room B", d.objects.get("1.3.6.1.2.1.1.6.0"));
             }
