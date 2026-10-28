@@ -15,7 +15,8 @@ import static com.oneofficeautomation.packages.PackagesTest.*;
 import static com.oneofficeautomation.packages.ToolkitTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** New options of the Azure DevOps toolkit: plan dates, test case fields, automated runs, skipped stages, pipeline YAML and test point testers. */
+/** New options of the Azure DevOps toolkit: plan dates, test case fields, automated runs, skipped stages, pipeline YAML, test point testers,
+ *  plan and point filters, suite queries and test case steps on Update work item. */
 class AzureDevOpsMoreOptionsTest {
     final AzureDevOpsPackage az = new AzureDevOpsPackage();
     final List<String> log = new ArrayList<>();
@@ -213,5 +214,73 @@ class AzureDevOpsMoreOptionsTest {
         assertEquals("https://vssps.dev.azure.com/contoso", AzureDevOpsPackage.identityBase("https://dev.azure.com/contoso/"));
         assertEquals("https://contoso.vssps.visualstudio.com", AzureDevOpsPackage.identityBase("https://contoso.visualstudio.com"));
         assertEquals("https://devops.contoso.local/tfs/DefaultCollection", AzureDevOpsPackage.identityBase("https://devops.contoso.local/tfs/DefaultCollection"));
+    }
+
+    @Test void testPlanOwnerFilterAndMaxResults() throws Exception {
+        try (Fake f = new Fake()) {
+            String org = f.url() + "/acme";
+            f.on("GET " + PRJ + "/_apis/testplan/plans", c -> ok("{\"value\":[{\"id\":31,\"name\":\"R3.2\"},{\"id\":32,\"name\":\"R3.3\"},{\"id\":33,\"name\":\"R3.4\"}]}"));
+            ActionContext ctx = ctx(tmp(), log);
+            Map<String, Object> r = az.listTestPlans(ctx, org, TOKEN, "Finance Portal", true, "ana@contoso.com", 2);
+            assertEquals(new BigDecimal(2), r.get("count"), "max_results caps the rows");
+            String query = q(f.last("GET", PRJ + "/_apis/testplan/plans"));
+            assertTrue(query.contains("filterActivePlans=true") && query.contains("owner=ana@contoso.com") && query.contains("$top=2"), query);
+
+            assertEquals(new BigDecimal(3), az.listTestPlans(ctx, org, TOKEN, "Finance Portal", false).get("count"));
+            assertFalse(q(f.last("GET", PRJ + "/_apis/testplan/plans")).contains("owner="), "no owner filter by default");
+        }
+    }
+
+    @Test void testPointsByTestCaseWithMaxResults() throws Exception {
+        try (Fake f = new Fake()) {
+            String org = f.url() + "/acme";
+            String path = PRJ + "/_apis/testplan/Plans/31/Suites/32/TestPoint";
+            f.on("GET " + path, c -> ok("{\"value\":[{\"id\":1,\"testCaseReference\":{\"id\":101}},{\"id\":2,\"testCaseReference\":{\"id\":101}}]}"));
+            ActionContext ctx = ctx(tmp(), log);
+            Map<String, Object> r = az.listTestPoints(ctx, org, TOKEN, "Finance Portal", 31, 32, 101, 1);
+            assertEquals(new BigDecimal(1), r.get("count"));
+            String query = q(f.last("GET", path));
+            assertTrue(query.contains("testCaseId=101") && query.contains("$top=1"), query);
+
+            assertEquals(new BigDecimal(2), az.listTestPoints(ctx, org, TOKEN, "Finance Portal", 31, 32).get("count"));
+            assertFalse(q(f.last("GET", path)).contains("testCaseId"), "all points by default");
+        }
+    }
+
+    @Test void updateQuerySuite() throws Exception {
+        try (Fake f = new Fake()) {
+            String org = f.url() + "/acme";
+            String path = PRJ + "/_apis/testplan/Plans/31/suites/40";
+            f.on("PATCH " + path, c -> ok("{\"id\":40}"));
+            ActionContext ctx = ctx(tmp(), log);
+            String wiql = "SELECT [System.Id] FROM WorkItems WHERE [System.Tags] CONTAINS 'smoke'";
+            az.updateTestSuite(ctx, org, TOKEN, "Finance Portal", 31, 40, null, null, wiql);
+            assertEquals(Map.of("queryString", wiql), json(f.last("PATCH", path)));
+            az.updateTestSuite(ctx, org, TOKEN, "Finance Portal", 31, 40, "Smoke", null);
+            assertEquals(Map.of("name", "Smoke"), json(f.last("PATCH", path)), "earlier signature unchanged");
+            int before = f.calls.size();
+            fails("AZURE_DEVOPS.NOTHING_TO_UPDATE", () -> az.updateTestSuite(ctx, org, TOKEN, "Finance Portal", 31, 40, null, null, " "));
+            assertEquals(before, f.calls.size());
+        }
+    }
+
+    @Test void updateWorkItemSteps() throws Exception {
+        try (Fake f = new Fake()) {
+            String org = f.url() + "/acme";
+            f.on("PATCH /acme/_apis/wit/workitems/4711", c -> ok("{\"id\":4711,\"rev\":5}"));
+            ActionContext ctx = ctx(tmp(), log);
+            List<Object> steps = List.of("Sign in", Map.of("action", "Open the invoice", "expected", "Total shows 120.50"));
+            Map<String, Object> r = az.updateWorkItem(ctx, org, TOKEN, 4711, null, null, null, null, null, null, null, steps);
+            assertEquals(new BigDecimal(5), r.get("rev"));
+            List<Map<String, Object>> ops = list(f.last("PATCH", "/acme/_apis/wit/workitems/4711"));
+            assertEquals(1, ops.size());
+            assertEquals("/fields/Microsoft.VSTS.TCM.Steps", ops.get(0).get("path"));
+            assertEquals(AzureDevOpsPackage.stepsXml(steps), ops.get(0).get("value"), "same steps XML as Create test case");
+            assertTrue(String.valueOf(ops.get(0).get("value")).contains("Total shows 120.50"));
+
+            az.updateWorkItem(ctx, org, TOKEN, 4711, "New title", null, null, null, null, null, null);
+            assertEquals(List.of("/fields/System.Title"), list(f.last("PATCH", "/acme/_apis/wit/workitems/4711")).stream().map(o -> o.get("path")).toList(), "earlier signature unchanged");
+            fails("AZURE_DEVOPS.NOTHING_TO_UPDATE", () -> az.updateWorkItem(ctx, org, TOKEN, 4711, null, null, null, null, null, null, null, List.of()));
+        }
     }
 }

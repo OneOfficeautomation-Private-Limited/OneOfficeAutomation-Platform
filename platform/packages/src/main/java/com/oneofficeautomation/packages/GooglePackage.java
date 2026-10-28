@@ -533,31 +533,56 @@ public final class GooglePackage {
     }
 
     @Action(id = "sheets_delete_sheet", name = "Delete sheet", category = "Sheets", capabilities = "network", description = "Delete a sheet (tab) and all its content.",
-            panel = "access_token, spreadsheet_id, sheet | endpoint_override")
+            panel = "access_token, spreadsheet_id, (Sheet by: Name = sheet / Position = position) | endpoint_override")
     public Map<String, Object> sheetsDelete(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "sheet", type = OoaType.STRING, description = "Name of the sheet to delete.") String name,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Name of the sheet to delete; or give position instead.") String name,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Tab position of the sheet to delete, starting at 1; used instead of sheet.") Integer position) {
         id = spreadsheetId(ctx, token, id, ep);
-        if (blank(name)) throw bad("Name the sheet to delete", null);
-        batch(ctx, token, id, ep, List.of(Map.of("deleteSheet", Map.of("sheetId", sheetId(sheet(ctx, token, id, name, ep))))));
+        batch(ctx, token, id, ep, List.of(Map.of("deleteSheet", Map.of("sheetId", sheetId(sheetByNameOrPosition(ctx, token, id, name, position, "delete", ep))))));
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before position. */
+    public Map<String, Object> sheetsDelete(ActionContext ctx, Object token, String id, String name, String ep) {
+        return sheetsDelete(ctx, token, id, name, ep, null);
+    }
+
     @Action(id = "sheets_rename_sheet", name = "Rename sheet", category = "Sheets", capabilities = "network", idempotent = true, description = "Give a sheet (tab) a new name.",
-            panel = "access_token, spreadsheet_id, sheet, new_name | endpoint_override")
+            panel = "access_token, spreadsheet_id, (Sheet by: Name = sheet / Position = position), new_name | endpoint_override")
     public Map<String, Object> sheetsRename(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "spreadsheet_id", type = OoaType.STRING, description = D_SID) String id,
-            @Input(name = "sheet", type = OoaType.STRING, description = "Current sheet name.") String name,
+            @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Current sheet name; or give position instead.") String name,
             @Input(name = "new_name", type = OoaType.STRING, description = "New sheet name.") String newName,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "position", type = OoaType.NUMBER, required = false, description = "Tab position of the sheet to rename, starting at 1; used instead of sheet.") Integer position) {
         id = spreadsheetId(ctx, token, id, ep);
-        if (blank(name)) throw bad("Name the sheet to rename", null);
-        int sid = sheetId(sheet(ctx, token, id, name, ep));
+        int sid = sheetId(sheetByNameOrPosition(ctx, token, id, name, position, "rename", ep));
         batch(ctx, token, id, ep, List.of(Map.of("updateSheetProperties", Map.of("properties", Map.of("sheetId", sid, "title", newName), "fields", "title"))));
         return Map.of();
+    }
+
+    /** Earlier signature, kept for callers written before position. */
+    public Map<String, Object> sheetsRename(ActionContext ctx, Object token, String id, String name, String newName, String ep) {
+        return sheetsRename(ctx, token, id, name, newName, ep, null);
+    }
+
+    /** The sheet named, or the one at a tab position starting at 1 (hidden sheets count); exactly one of the two must be given. */
+    private static Map<String, Object> sheetByNameOrPosition(ActionContext ctx, Object token, String id, String name, Integer position, String verb, String ep) {
+        if (position == null) {
+            if (blank(name)) throw bad("Name the sheet to " + verb + ", or give its position", null);
+            return sheet(ctx, token, id, name, ep);
+        }
+        if (!blank(name)) throw bad("Give the sheet name or its position, not both", null);
+        if (position < 1) throw bad("Sheet positions start at 1", null);
+        List<Map<String, Object>> all = new ArrayList<>(sheetList(ctx, token, id, ep));
+        all.sort(Comparator.comparingInt(m -> m.get("index") instanceof Number n ? n.intValue() : 0));
+        if (position > all.size()) throw new ActionException(P + ".NO_SHEET", "There is no sheet at position " + position + "; the spreadsheet has " + all.size(),
+                "Check the position or use List sheets.");
+        return all.get(position - 1);
     }
 
     private Map<String, Object> setHidden(ActionContext ctx, Object token, String id, String name, boolean hidden, String ep) {
@@ -1113,6 +1138,13 @@ public final class GooglePackage {
         return id;
     }
 
+    /** A folder id given directly, or looked up from a folder path ("/" is My Drive); null when neither is given. */
+    private static String folderId(ActionContext ctx, Object token, String id, String idName, String path, String pathName, String ep) {
+        if (blank(path)) return blank(id) ? null : id;
+        if (!blank(id)) throw bad("Give " + idName + " or " + pathName + ", not both", null);
+        return idByPath(ctx, token, path, true, ep);
+    }
+
     @Action(id = "drive_create_folder", name = "Create Drive folder", category = "Drive", capabilities = "network", description = "Create a folder in Drive.",
             panel = "access_token, parent_id, name | endpoint_override")
     @Output(name = "folder_id", type = OoaType.STRING, description = "Id of the new folder.")
@@ -1130,7 +1162,7 @@ public final class GooglePackage {
     }
 
     @Action(id = "drive_copy_file", name = "Copy Drive file", category = "Drive", capabilities = "network", description = "Make a copy of a Drive file, optionally renamed or in another folder.",
-            panel = "access_token, (Pick the file by: Id = file_id / Path = item_path), folder_id, [Give the copy a new name: name] | endpoint_override")
+            panel = "access_token, (Pick the file by: Id = file_id / Path = item_path), (Put the copy in: A folder id = folder_id / A folder path = destination_path), [Give the copy a new name: name] | endpoint_override")
     @Output(name = "file_id", type = OoaType.STRING, description = "Id of the copy.")
     public Map<String, Object> driveCopy(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
@@ -1139,7 +1171,10 @@ public final class GooglePackage {
             @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Folder for the copy; next to the original when empty.") String folder,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
             @Input(name = "item_path", type = OoaType.STRING, required = false, example = "Reports/2026/summary.pdf",
-                    description = "Path of the file under My Drive, used instead of file_id.") String path) {
+                    description = "Path of the file under My Drive, used instead of file_id.") String path,
+            @Input(name = "destination_path", type = OoaType.STRING, required = false, example = "Reports/2026",
+                    description = "Path of the folder for the copy under My Drive, used instead of folder_id.") String destPath) {
+        folder = folderId(ctx, token, folder, "folder_id", destPath, "destination_path", ep);
         id = itemId(ctx, token, id, path, ep);
         Map<String, Object> meta = new LinkedHashMap<>();
         if (!blank(name)) meta.put("name", name);
@@ -1150,18 +1185,26 @@ public final class GooglePackage {
 
     /** Earlier signature, kept for callers written before item_path. */
     public Map<String, Object> driveCopy(ActionContext ctx, Object token, String id, String name, String folder, String ep) {
-        return driveCopy(ctx, token, id, name, folder, ep, null);
+        return driveCopy(ctx, token, id, name, folder, ep, null, null);
+    }
+
+    /** Earlier signature, kept for callers written before destination_path. */
+    public Map<String, Object> driveCopy(ActionContext ctx, Object token, String id, String name, String folder, String ep, String path) {
+        return driveCopy(ctx, token, id, name, folder, ep, path, null);
     }
 
     @Action(id = "drive_move_item", name = "Move Drive item", category = "Drive", capabilities = "network", idempotent = true, description = "Move a file or folder into another folder.",
-            panel = "access_token, (Pick the item by: Id = item_id / Path = item_path), folder_id | endpoint_override")
+            panel = "access_token, (Pick the item by: Id = item_id / Path = item_path), (Move into: A folder id = folder_id / A folder path = destination_path) | endpoint_override")
     public Map<String, Object> driveMove(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "item_id", type = OoaType.STRING, required = false, description = "File or folder id; or give item_path instead.") String id,
-            @Input(name = "folder_id", type = OoaType.STRING, description = "Destination folder id.") String folder,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Destination folder id; or give destination_path instead.") String folder,
             @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
-            @Input(name = "item_path", type = OoaType.STRING, required = false, example = "Inbox/invoice.pdf", description = "Path of the file or folder under My Drive, used instead of item_id.") String path) {
-        if (blank(folder)) throw bad("Give the destination folder id", null);
+            @Input(name = "item_path", type = OoaType.STRING, required = false, example = "Inbox/invoice.pdf", description = "Path of the file or folder under My Drive, used instead of item_id.") String path,
+            @Input(name = "destination_path", type = OoaType.STRING, required = false, example = "Archive/2026",
+                    description = "Path of the destination folder under My Drive, used instead of folder_id.") String destPath) {
+        if (blank(folder) && blank(destPath)) throw bad("Give the destination folder id or destination_path", null);
+        folder = folderId(ctx, token, folder, "folder_id", destPath, "destination_path", ep);
         id = itemId(ctx, token, id, path, ep);
         List<Object> parents = list(call(ctx, token, "GET", DRIVE + "/" + HttpJson.enc(id) + "?fields=parents&supportsAllDrives=true", ep, null).get("parents"));
         List<String> remove = new ArrayList<>();
@@ -1176,7 +1219,12 @@ public final class GooglePackage {
 
     /** Earlier signature, kept for callers written before item_path. */
     public Map<String, Object> driveMove(ActionContext ctx, Object token, String id, String folder, String ep) {
-        return driveMove(ctx, token, id, folder, ep, null);
+        return driveMove(ctx, token, id, folder, ep, null, null);
+    }
+
+    /** Earlier signature, kept for callers written before destination_path. */
+    public Map<String, Object> driveMove(ActionContext ctx, Object token, String id, String folder, String ep, String path) {
+        return driveMove(ctx, token, id, folder, ep, path, null);
     }
 
     @Action(id = "drive_rename_item", name = "Rename Drive item", category = "Drive", capabilities = "network", idempotent = true, description = "Give a file or folder a new name.",
@@ -1366,21 +1414,37 @@ public final class GooglePackage {
 
     @Action(id = "drive_copy_folder", name = "Copy Drive folder", category = "Drive", timeoutSeconds = 1800, capabilities = "network",
             description = "Copy a folder with all its files and subfolders into another folder.",
-            panel = "access_token, folder_id, destination_id | name, endpoint_override")
+            panel = "access_token, (Pick the folder by: Id = folder_id / Path = folder_path), (Put the copy in: A folder id = destination_id / A folder path = destination_path) | name, endpoint_override")
     @Output(name = "folder_id", type = OoaType.STRING, description = "Id of the new folder.")
     @Output(name = "file_count", type = OoaType.NUMBER, description = "Number of files copied.")
     public Map<String, Object> driveCopyFolder(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
-            @Input(name = "folder_id", type = OoaType.STRING, description = "Folder to copy.") String id,
+            @Input(name = "folder_id", type = OoaType.STRING, required = false, description = "Folder to copy; or give folder_path instead.") String id,
             @Input(name = "destination_id", type = OoaType.STRING, required = false, description = "Folder that receives the copy; next to the original when empty.") String dest,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "Name of the copy; the original name when empty.") String name,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "folder_path", type = OoaType.STRING, required = false, example = "Reports/2026",
+                    description = "Path of the folder to copy under My Drive, used instead of folder_id.") String path,
+            @Input(name = "destination_path", type = OoaType.STRING, required = false, example = "Archive",
+                    description = "Path of the folder that receives the copy under My Drive, used instead of destination_id.") String destPath) {
+        if (!blank(path) && !blank(id)) throw bad("Give folder_id or folder_path, not both", null);
+        if (blank(path) && blank(id)) throw bad("Give the folder id or folder_path", "folder_path starts at My Drive, e.g. Reports/2026.");
+        if (!blank(path)) {
+            if (pathNames(path).isEmpty()) throw bad("The path '" + path + "' names no folder", "Example: Reports/2026");
+            id = idByPath(ctx, token, path, true, ep);
+        }
+        dest = folderId(ctx, token, dest, "destination_id", destPath, "destination_path", ep);
         Map<String, Object> src = call(ctx, token, "GET", DRIVE + "/" + HttpJson.enc(id) + "?fields=id,name,mimeType,parents&supportsAllDrives=true", ep, null);
         if (!FOLDER_MIME.equals(src.get("mimeType"))) throw bad("The item is not a folder", "Use Copy Drive file for files.");
         String parent = !blank(dest) ? dest : list(src.get("parents")).isEmpty() ? null : str(list(src.get("parents")).get(0));
         int[] files = {0};
         String copy = copyTree(ctx, token, id, blank(name) ? str(src.get("name")) : name, parent, files, ep);
         return Map.of("folder_id", copy, "file_count", num(files[0]));
+    }
+
+    /** Earlier signature, kept for callers written before folder_path and destination_path. */
+    public Map<String, Object> driveCopyFolder(ActionContext ctx, Object token, String id, String dest, String name, String ep) {
+        return driveCopyFolder(ctx, token, id, dest, name, ep, null, null);
     }
 
     private String copyTree(ActionContext ctx, Object token, String id, String name, String parent, int[] files, String ep) {
@@ -1475,19 +1539,33 @@ public final class GooglePackage {
 
     @Action(id = "drive_download_export", name = "Export Google file", category = "Drive", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Save a Google Doc, Sheet or Slides file in an office format such as PDF, XLSX or DOCX.",
-            panel = "access_token, file_id, local_path, format | endpoint_override")
+            panel = "access_token, file_id, local_path, format, overwrite | file_name, endpoint_override")
     @Output(name = "path", type = OoaType.FILE, description = "Saved local path.")
     public Map<String, Object> driveExport(ActionContext ctx,
             @Input(name = "access_token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "file_id", type = OoaType.STRING, description = "Id of the Google Doc, Sheet or Slides file.") String id,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"pdf\"", enumValues = {"pdf", "xlsx", "docx", "pptx", "csv", "txt", "html", "odt", "ods"}, description = "Output format.") String format,
-            @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it.") String local,
-            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep) {
-        String mime = exportMime(blank(format) ? "pdf" : format);
+            @Input(name = "local_path", type = OoaType.FILE, description = "Where to save it; the folder to save into when file_name is given.") String local,
+            @Input(name = "endpoint_override", type = OoaType.STRING, required = false, description = D_EP) String ep,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Replace an existing local file; when false a number such as (2) is added to the name.") boolean overwrite,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, example = "Q4 report",
+                    description = "Name for the saved file inside the local_path folder; the format's extension is added when the name has none.") String fileName) {
+        String fmt = blank(format) ? "pdf" : format.trim().toLowerCase(Locale.ROOT);
+        String mime = exportMime(fmt);
         byte[] data = fetchBytes(ctx, token, DRIVE + "/" + HttpJson.enc(id) + "/export?mimeType=" + HttpJson.enc(mime), ep);
         Path p = ctx.resolvePath(local);
+        if (!blank(fileName)) {
+            String n = HttpJson.safeName(fileName.trim());
+            p = p.resolve(n.matches(".*\\.[A-Za-z0-9]{1,5}") ? n : n + "." + fmt);
+        }
+        p = freeName(p, overwrite);
         writeFile(p, data);
         return Map.of("path", p.toString());
+    }
+
+    /** Earlier signature, kept for callers written before overwrite and file_name. */
+    public Map<String, Object> driveExport(ActionContext ctx, Object token, String id, String format, String local, String ep) {
+        return driveExport(ctx, token, id, format, local, ep, true, null);
     }
 
     // ------------------------------------------------------------------ Gmail helpers

@@ -62,4 +62,34 @@ class XmlMoreOptionsTest {
         assertEquals("XML.BAD_NAMESPACE", assertThrows(ActionException.class,
                 () -> xp.insertNode(ctx(), null, "/invoice", "x", null, null, null, "end", "insert", DOC, null, Map.of("xmlns", "urn:x"))).code());
     }
+
+    @Test void setValueSetsSeveralAttributesAtOnce() {
+        Map<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("status", "paid");
+        attrs.put("lines", 3);
+        String xml = (String) xp.setValue(ctx(), null, "/invoice", null, null, null, DOC, attrs).get("xml");
+        assertTrue(xml.contains("status=\"paid\""), xml);
+        assertTrue(xml.contains("lines=\"3\""), xml);
+        assertTrue(xml.contains("<id>7</id>"), "text left alone: " + xml);
+        // together with the single attribute
+        String both = (String) xp.setValue(ctx(), null, "/invoice/id", "8", null, "kind", DOC, Map.of("src", "erp")).get("xml");
+        assertTrue(both.contains("<id kind=\"8\" src=\"erp\">7</id>") || both.contains("<id src=\"erp\" kind=\"8\">7</id>"), both);
+        // with text
+        String text = (String) xp.setValue(ctx(), null, "/invoice/id", "9", null, null, DOC, Map.of("src", "erp")).get("xml");
+        assertTrue(text.contains("<id src=\"erp\">9</id>"), text);
+        // the old signature still sets the text
+        assertTrue(((String) xp.setValue(ctx(), null, "/invoice/id", "5", null, null, DOC).get("xml")).contains("<id>5</id>"));
+        assertEquals("XML.NO_VALUE", assertThrows(ActionException.class,
+                () -> xp.setValue(ctx(), null, "/invoice/id", null, null, null, DOC, null)).code());
+    }
+
+    @Test void saveFileCanRefuseToOverwrite() throws Exception {
+        Path f = tmp.resolve("out.xml");
+        xp.saveFile(ctx(), DOC, f.toString(), false, false);
+        assertEquals(DOC, Files.readString(f));
+        assertEquals("FILE.EXISTS", assertThrows(ActionException.class, () -> xp.saveFile(ctx(), "<a/>", f.toString(), false, false)).code());
+        assertEquals(DOC, Files.readString(f));
+        xp.saveFile(ctx(), "<a/>", f.toString(), false);
+        assertEquals("<a/>", Files.readString(f));
+    }
 }

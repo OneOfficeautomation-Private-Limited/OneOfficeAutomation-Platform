@@ -460,16 +460,17 @@ public final class AsanaPackage {
 
     @Action(id = "upload_attachment", name = "Upload attachment", category = "Attachments", timeoutSeconds = 600, capabilities = {"network", "filesystem"},
             description = "Attach a local file to a task.",
-            panel = "token, task_id, path | base_url")
+            panel = "token, task_id, path | file_name, base_url")
     @Output(name = "attachment_id", type = OoaType.STRING, description = "Id of the attachment.")
     @Output(name = "url", type = OoaType.STRING, description = "Address to view the attachment.")
     public Map<String, Object> upload(ActionContext ctx,
             @Input(name = "base_url", type = OoaType.STRING, required = false, defaultValue = DEF_BASE, pattern = "^https?://", description = D_BASE) String base,
             @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
             @Input(name = "task_id", type = OoaType.STRING, description = D_TASK) String task,
-            @Input(name = "path", type = OoaType.FILE, example = "out/INV-2041.pdf", description = "Local file to attach (Asana accepts up to 100 MB).") String path) {
+            @Input(name = "path", type = OoaType.FILE, example = "out/INV-2041.pdf", description = "Local file to attach (Asana accepts up to 100 MB).") String path,
+            @Input(name = "file_name", type = OoaType.STRING, required = false, description = "Name to give the attachment; the local file name when empty.") String fileName) {
         byte[] bytes = HttpJson.readFile(ctx, path);
-        String fname = HttpJson.safeName(Path.of(path).getFileName().toString()).replace("\"", "");
+        String fname = HttpJson.safeName(fileName == null || fileName.isBlank() ? Path.of(path).getFileName().toString() : fileName.strip()).replace("\"", "");
         Object[] mp = HttpJson.multipart("form-data", List.of(
                 new Object[]{"Content-Disposition: form-data; name=\"parent\"", gid("task", task).getBytes(StandardCharsets.UTF_8)},
                 new Object[]{"Content-Disposition: form-data; name=\"file\"; filename=\"" + fname + "\"\r\nContent-Type: application/octet-stream", bytes}));
@@ -477,6 +478,10 @@ public final class AsanaPackage {
                 .bytes((byte[]) mp[0], (String) mp[1]).timeout(600), ctx).map();
         Object d = r.get("data");
         return Out.of("attachment_id", HttpJson.path(d, "gid"), "url", HttpJson.path(d, "view_url") != null ? HttpJson.path(d, "view_url") : HttpJson.path(d, "permanent_url"));
+    }
+
+    public Map<String, Object> upload(ActionContext ctx, String base, Object token, String task, String path) {
+        return upload(ctx, base, token, task, path, null);
     }
 
     @Action(id = "update_comment", name = "Update comment", category = "Comments", capabilities = "network", description = "Change the text of a comment (only the comment's author can).",

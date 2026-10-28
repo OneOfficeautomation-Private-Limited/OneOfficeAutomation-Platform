@@ -29,6 +29,42 @@ public final class FilePackage {
         catch (IllegalArgumentException x) { throw new ActionException("FILE.BAD_ENCODING", "Unknown encoding '" + enc + "'", "Use utf-8, utf-16le, windows-1252 or ansi."); }
     }
 
+    static boolean auto(String enc) { return enc != null && enc.strip().equalsIgnoreCase("auto"); }
+
+    /** Text of a file; encoding "auto" reads a byte order mark (UTF-8, UTF-16LE/BE), else UTF-8 when valid, else windows-1252. */
+    static String readText(Path p, String enc) throws IOException {
+        if (!auto(enc)) return Files.readString(p, charset(enc));
+        return decodeAuto(Files.readAllBytes(p));
+    }
+
+    static String decodeAuto(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xff) == 0xEF && (b[1] & 0xff) == 0xBB && (b[2] & 0xff) == 0xBF)
+            return new String(b, 3, b.length - 3, java.nio.charset.StandardCharsets.UTF_8);
+        if (b.length >= 2 && (b[0] & 0xff) == 0xFF && (b[1] & 0xff) == 0xFE)
+            return new String(b, 2, b.length - 2, java.nio.charset.StandardCharsets.UTF_16LE);
+        if (b.length >= 2 && (b[0] & 0xff) == 0xFE && (b[1] & 0xff) == 0xFF)
+            return new String(b, 2, b.length - 2, java.nio.charset.StandardCharsets.UTF_16BE);
+        try {
+            return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(b)).toString();
+        } catch (java.nio.charset.CharacterCodingException e) {
+            return new String(b, Charset.forName("windows-1252"));
+        }
+    }
+
+    /** Trims spaces: none, leading, trailing or both. */
+    static String trim(String s, String side) {
+        String t = side == null || side.isBlank() ? "none" : side.strip().toLowerCase(Locale.ROOT);
+        return switch (t) {
+            case "none" -> s;
+            case "leading" -> s.stripLeading();
+            case "trailing" -> s.stripTrailing();
+            case "both" -> s.strip();
+            default -> throw new ActionException("FILE.BAD_OPTION", "Unknown trim '" + side + "'", "Use none, leading, trailing or both.");
+        };
+    }
+
     /** Size and age limits shared by List, Delete and Print files; null limits are ignored. */
     record Filter(Long minBytes, Long maxBytes, Integer modifiedWithinDays, Integer olderThanDays) {
         static final Filter NONE = new Filter(null, null, null, null);
@@ -58,14 +94,19 @@ public final class FilePackage {
     }
 
     @Action(id = "read_text", name = "Read text", category = "Files", idempotent = true, capabilities = "filesystem", description = "Read a text file.",
-            panel = "path, encoding")
+            panel = "path, encoding | trim")
     @Output(name = "text", type = OoaType.STRING, description = "File content.")
     public Map<String, Object> readText(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "File path.") String path,
-            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding.") String enc) {
+            @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", example = "auto",
+                    description = "Text encoding, e.g. utf-8, utf-16le, windows-1252; auto reads a byte order mark, else takes UTF-8 when it fits, else windows-1252.") String enc,
+            @Input(name = "trim", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "leading", "trailing", "both"},
+                    description = "Remove spaces and line breaks at the start, the end or both ends of the text.") String trim) {
         Path p = ctx.resolvePath(path);
         if (!Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path and permissions.");
-        try { return Map.of("text", Files.readString(p, charset(enc))); } catch (IOException e) { throw io("read", p, e); }
+        String text;
+        try { text = readText(p, enc); } catch (IOException e) { throw io("read", p, e); }
+        return Map.of("text", trim(text, trim));
     }
 
     @Action(id = "write_text", name = "Write text", category = "Files", capabilities = "filesystem", description = "Write text to a file, overwriting or appending.",
@@ -224,25 +265,32 @@ public final class FilePackage {
 
     @Action(id = "read_variables", name = "Read variables from file", category = "Files", idempotent = true, capabilities = "filesystem",
             description = "Read name=value lines (a settings or .properties-style file) into a Dictionary; blank lines and lines starting with # or ; are skipped.",
-            panel = "path, encoding, separator, trim")
+            panel = "path, encoding, separator, trim, trim_side, lowercase_keys")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value, in file order.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of values read.")
     public Map<String, Object> readVariables(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Text file with one name=value per line.") String path,
             @Input(name = "separator", type = OoaType.STRING, required = false, defaultValue = "\"=\"", description = "Text between the name and the value, e.g. = or : or a tab (\\t).") String separator,
             @Input(name = "encoding", type = OoaType.STRING, required = false, defaultValue = "\"utf-8\"", description = "Text encoding: utf-8, ansi, unicode ...") String encoding,
-            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces around names and values.") boolean trim) {
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces around names and values.") boolean trim,
+            @Input(name = "trim_side", type = OoaType.STRING, required = false, defaultValue = "\"both\"", enumValues = {"both", "leading", "trailing"}, visibleWhen = "trim=true",
+                    description = "Which spaces trim removes: on both sides, only before, or only after the name and the value.") String trimSide,
+            @Input(name = "lowercase_keys", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
+                    description = "Turn names into lower case, so Server and server are the same variable.") boolean lowercaseKeys) {
         Path p = existing(ctx, path);
         String sep = separator == null || separator.isEmpty() ? "=" : separator.replace("\\t", "\t");
+        String side = !trim ? "none" : trimSide == null || trimSide.isBlank() ? "both" : trimSide;
+        trim("", side);  // refuses an unknown trim_side before reading
         List<String> lines;
-        try { lines = Files.readAllLines(p, charset(encoding)); } catch (IOException e) { throw io("read", p, e); }
+        try { lines = auto(encoding) ? readText(p, encoding).lines().toList() : Files.readAllLines(p, charset(encoding)); } catch (IOException e) { throw io("read", p, e); }
         Map<String, Object> values = new LinkedHashMap<>();
         for (String line : lines) {
             String l = line.startsWith("﻿") ? line.substring(1) : line;
             if (l.isBlank() || l.stripLeading().startsWith("#") || l.stripLeading().startsWith(";")) continue;
             int i = l.indexOf(sep);
             String name = i < 0 ? l : l.substring(0, i), value = i < 0 ? "" : l.substring(i + sep.length());
-            values.put(trim ? name.strip() : name, trim ? value.strip() : value);
+            String key = trim(name, side);
+            values.put(lowercaseKeys ? key.toLowerCase(Locale.ROOT) : key, trim(value, side));
         }
         return Out.of("values", values, "count", BigDecimal.valueOf(values.size()));
     }

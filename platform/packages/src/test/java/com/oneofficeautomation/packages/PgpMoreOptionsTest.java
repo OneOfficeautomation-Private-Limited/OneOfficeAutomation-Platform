@@ -112,4 +112,46 @@ class PgpMoreOptionsTest {
             assertEquals("PGP.NO_RECIPIENT", code(() -> pgp.encrypt(c, "pay.csv", "x.pgp", null, false, "maker", null, true, "AES256", null, null)));
         } finally { killAgent(w.resolve("maker")); killAgent(w.resolve("check")); killAgent(w.resolve("empty")); }
     }
+
+    @Test void defaultTargetNames() {
+        assertEquals("out/report.csv.pgp", PgpPackage.encryptTarget("out/report.csv", null, false));
+        assertEquals("report.csv.asc", PgpPackage.encryptTarget("report.csv", "", true));
+        assertEquals("given.bin", PgpPackage.encryptTarget("report.csv", "given.bin", true));
+        assertEquals("out/report.csv", PgpPackage.decryptTarget("out/report.csv.pgp", null));
+        assertEquals("report.csv", PgpPackage.decryptTarget("report.csv.GPG", " "));
+        assertEquals("report.csv", PgpPackage.decryptTarget("report.csv.asc", null));
+        assertEquals("given.csv", PgpPackage.decryptTarget("report.bin", "given.csv"));
+        assertEquals("PGP.NO_TARGET", code(() -> PgpPackage.decryptTarget("report.bin", null)));
+        assertEquals("PGP.NO_TARGET", code(() -> PgpPackage.decryptTarget("folder/.pgp", null)));
+    }
+
+    @Test void createKeysCanRefuseToOverwriteBeforeGpgRuns() throws Exception {
+        Path w = PackagesTest.tmp();
+        ActionContext c = ctx(w);
+        Files.createDirectories(w.resolve("k"));
+        Files.writeString(w.resolve("k/public.asc"), "old");
+        assertEquals("FILE.EXISTS", code(() -> pgp.createKeys(c, "Agent", "a@b.test", null, null, "ed25519", "1d", "k/public.asc", null, "keys", false)));
+        assertEquals("old", Files.readString(w.resolve("k/public.asc")));
+    }
+
+    @Test void encryptAndDecryptWithoutTarget() throws Exception {
+        if (noGpg()) return;
+        Path w = PackagesTest.tmp();
+        ActionContext c = ctx(w);
+        SecureString pass = new SecureString("sym-pass-2", "test/pgp/pass");
+        Files.createDirectories(w.resolve("in"));
+        Files.writeString(w.resolve("in/pay.csv"), "Ann,5000\n");
+        try {
+            Map<String, Object> enc = pgp.encrypt(c, "in/pay.csv", null, null, false, "keys", null, true, null, null, pass);
+            assertEquals(w.resolve("in/pay.csv.pgp").toString(), enc.get("target"));
+            assertTrue(Files.exists(w.resolve("in/pay.csv.pgp")));
+            pgp.encrypt(c, "in/pay.csv", "", null, true, "keys", null, true, null, null, pass);
+            assertTrue(Files.readString(w.resolve("in/pay.csv.asc")).startsWith("-----BEGIN PGP MESSAGE-----"));
+            Files.delete(w.resolve("in/pay.csv"));
+            Map<String, Object> dec = pgp.decrypt(c, "in/pay.csv.pgp", null, pass, "keys", null, true);
+            assertEquals(w.resolve("in/pay.csv").toString(), dec.get("target"));
+            assertEquals("Ann,5000\n", Files.readString(w.resolve("in/pay.csv")));
+            assertEquals("FILE.EXISTS", code(() -> pgp.decrypt(c, "in/pay.csv.asc", null, pass, "keys", null, false)));
+        } finally { killAgent(w.resolve("keys")); }
+    }
 }

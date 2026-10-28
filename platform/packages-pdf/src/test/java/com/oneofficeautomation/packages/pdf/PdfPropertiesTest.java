@@ -167,4 +167,41 @@ class PdfPropertiesTest {
         assertEquals(1, n(pdf.fillForm(ctx, "form.pdf", Map.of("customer", "Acme"), "filled.pdf", false, USER).get("filled")));
         assertEquals("Acme", ((Map<String, Object>) pdf.readForm(ctx, "filled.pdf", null).get("fields")).get("customer"));
     }
+
+    @SuppressWarnings("unchecked")
+    @Test void readFormOnlyTheNamedFields() throws Exception {
+        try (PDDocument d = new PDDocument()) {
+            PDPage page = new PDPage();
+            d.addPage(page);
+            PDAcroForm form = new PDAcroForm(d);
+            d.getDocumentCatalog().setAcroForm(form);
+            PDResources res = new PDResources();
+            res.put(org.apache.pdfbox.cos.COSName.getPDFName("Helv"), new PDType1Font(Standard14Fonts.FontName.HELVETICA));
+            form.setDefaultResources(res);
+            form.setDefaultAppearance("/Helv 0 Tf 0 g");
+            int y = 700;
+            for (String name : List.of("customer", "invoice", "total")) {
+                PDTextField f = new PDTextField(form);
+                f.setPartialName(name);
+                PDAnnotationWidget w = f.getWidgets().get(0);
+                w.setRectangle(new org.apache.pdfbox.pdmodel.common.PDRectangle(50, y, 200, 20));
+                w.setPage(page);
+                page.getAnnotations().add(w);
+                form.getFields().add(f);
+                y -= 40;
+            }
+            d.save(dir.resolve("three.pdf").toFile());
+        }
+        pdf.fillForm(ctx, "three.pdf", Map.of("customer", "Acme", "invoice", "INV-7", "total", "12.50"), "three-filled.pdf", false);
+        Map<String, Object> all = (Map<String, Object>) pdf.readForm(ctx, "three-filled.pdf", null).get("fields");
+        assertEquals(List.of("customer", "invoice", "total"), new ArrayList<>(all.keySet()));
+        Map<String, Object> some = (Map<String, Object>) pdf.readForm(ctx, "three-filled.pdf", null, List.of("total", "customer")).get("fields");
+        assertEquals(List.of("total", "customer"), new ArrayList<>(some.keySet()));
+        assertEquals("12.50", some.get("total"));
+        assertEquals("Acme", some.get("customer"));
+        // an empty list reads every field
+        assertEquals(3, ((Map<String, Object>) pdf.readForm(ctx, "three-filled.pdf", null, List.of()).get("fields")).size());
+        assertEquals("PDF.NO_FIELD", code(() -> pdf.readForm(ctx, "three-filled.pdf", null, List.of("customer", "nope"))));
+        assertEquals("PDF.NO_FORM", code(() -> pdf.readForm(ctx, "four.pdf", null, List.of("customer"))));
+    }
 }

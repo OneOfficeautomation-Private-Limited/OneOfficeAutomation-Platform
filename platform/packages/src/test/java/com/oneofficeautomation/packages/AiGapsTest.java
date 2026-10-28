@@ -220,6 +220,31 @@ class AiGapsTest {
         }
     }
 
+    @Test void languageGivenToTextAnalysis() throws Exception {
+        try (Fake f = new Fake()) {
+            Path w = tmp();
+            f.on("POST /v1/chat/completions", c -> {
+                String t = c.text();
+                if (t.contains("Rate the sentiment")) return ok(CHAT_OK.formatted("{\\\"sentiment\\\": \\\"negative\\\", \\\"score\\\": -0.6}"));
+                if (t.contains("key phrases")) return ok(CHAT_OK.formatted("{\\\"phrases\\\": [\\\"Lieferung\\\"]}"));
+                return ok(CHAT_OK.formatted("{\\\"entities\\\": [{\\\"text\\\": \\\"Berlin\\\", \\\"type\\\": \\\"LOCATION\\\"}]}"));
+            });
+            GenAiPackage g = new GenAiPackage();
+            Map<String, Object> s = g.sentiment(ctx(w, new ArrayList<>()), "Die Lieferung war spaet.", "openai", null, "m", KEY, f.url() + "/v1", true, null, null, "de");
+            assertEquals("negative", s.get("sentiment"));
+            assertTrue(f.last("POST", "/v1/chat/completions").text().contains("The text is written in de."), "sentiment prompt names the language");
+            g.keyPhrases(ctx(w, new ArrayList<>()), "Die Lieferung war spaet.", 5, "openai", null, "m", KEY, f.url() + "/v1", true, null, null, " de ");
+            assertTrue(f.last("POST", "/v1/chat/completions").text().contains("The text is written in de."), "key phrases prompt names the language");
+            g.entities(ctx(w, new ArrayList<>()), "Ann in Berlin", null, "openai", null, "m", KEY, f.url() + "/v1", false, null, null, "en");
+            assertTrue(f.last("POST", "/v1/chat/completions").text().contains("The text is written in en."), "entities prompt names the language");
+
+            g.sentiment(ctx(w, new ArrayList<>()), "Gut.", "openai", null, "m", KEY, f.url() + "/v1", true, null, null, "");
+            assertFalse(f.last("POST", "/v1/chat/completions").text().contains("written in"), "no language: the model works it out, as before");
+            g.entities(ctx(w, new ArrayList<>()), "Ann in Berlin", null, "openai", null, "m", KEY, f.url() + "/v1", false, null, null);
+            assertFalse(f.last("POST", "/v1/chat/completions").text().contains("written in"), "earlier signature unchanged");
+        }
+    }
+
     @Test void connectionProbe() throws Exception {
         try (Fake f = new Fake()) {
             f.on("POST /v1/chat/completions", c -> c.auth() != null && c.auth().equals("Bearer good") ? ok(CHAT_OK.formatted("OK")) : new Object[]{401, "{\"error\":{\"message\":\"Invalid key good-not\"}}"});

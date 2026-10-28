@@ -6,6 +6,8 @@ import com.oneofficeautomation.sdk.ActionContext;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.*;
 
 import static com.oneofficeautomation.packages.ConnectorsTest.ok;
@@ -14,7 +16,7 @@ import static com.oneofficeautomation.packages.PackagesTest.*;
 import static com.oneofficeautomation.packages.ToolkitTestSupport.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** New options of the Asana toolkit: subtasks and completed tasks at creation, and listing a task's attachments. */
+/** New options of the Asana toolkit: subtasks and completed tasks at creation, listing a task's attachments, and a chosen name for uploads. */
 class AsanaMoreOptionsTest {
     final AsanaPackage as = new AsanaPackage();
     final List<String> log = new ArrayList<>();
@@ -78,6 +80,27 @@ class AsanaMoreOptionsTest {
             fails("ASANA.BAD_ID", () -> as.listAttachments(ctx, b, TOKEN, "not-a-task", 100));
             assertEquals(before, f.calls.size());
             noSecretInLog(log);
+        }
+    }
+
+    @Test void uploadAttachmentUnderAnotherName() throws Exception {
+        try (Fake f = new Fake()) {
+            String b = f.url() + "/api/1.0";
+            f.on("POST /api/1.0/attachments", c -> ok("{\"data\":{\"gid\":\"1600000000000001\",\"view_url\":\"v1\"}}"));
+            Path w = tmp();
+            Files.writeString(w.resolve("scan-0001.pdf"), "%PDF-1.4");
+            ActionContext ctx = ctx(w, log);
+
+            Map<String, Object> r = as.upload(ctx, b, TOKEN, TASK, "scan-0001.pdf", "INV-2041.pdf");
+            assertEquals("1600000000000001", r.get("attachment_id"));
+            String body = new String(f.last("POST", "/api/1.0/attachments").body(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("name=\"file\"; filename=\"INV-2041.pdf\""), body);
+            assertTrue(body.contains("%PDF-1.4"), body);
+
+            as.upload(ctx, b, TOKEN, TASK, "scan-0001.pdf", "");
+            assertTrue(new String(f.last("POST", "/api/1.0/attachments").body(), StandardCharsets.UTF_8).contains("filename=\"scan-0001.pdf\""), "empty name keeps the local file name");
+            as.upload(ctx, b, TOKEN, TASK, "scan-0001.pdf");
+            assertTrue(new String(f.last("POST", "/api/1.0/attachments").body(), StandardCharsets.UTF_8).contains("filename=\"scan-0001.pdf\""), "earlier signature unchanged");
         }
     }
 }

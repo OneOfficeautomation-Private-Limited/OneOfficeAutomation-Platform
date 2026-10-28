@@ -314,6 +314,11 @@ class SystemGapsTest {
         log.logToCommandCenter(c, "debug line", "DEBUG", null);
         assertEquals("debug", lines.get(lines.size() - 1)[0]);
         assertEquals("LOG.BAD_LEVEL", code(() -> log.logToCommandCenter(c, "x", "LOUD", null)));
+        log.logToCommandCenter(c, "Checked 4 invoices", "INFO", Map.of("ok", true), " invoice-check ");
+        assertEquals("info", lines.get(lines.size() - 1)[0]);
+        assertEquals("[invoice-check] Checked 4 invoices {\"ok\":true}", lines.get(lines.size() - 1)[1]);
+        log.logToCommandCenter(c, "no tag", "INFO", null, "  ");
+        assertEquals("no tag", lines.get(lines.size() - 1)[1]);
     }
 
     // ---------- PGP ----------

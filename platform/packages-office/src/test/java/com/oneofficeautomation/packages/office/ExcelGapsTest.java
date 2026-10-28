@@ -254,6 +254,25 @@ class ExcelGapsTest {
         assertEquals("EXCEL.NO_TABLE", assertThrows(ActionException.class, () -> xl.deleteTableColumn(ctx, "Nope", "x", "excel")).code());
     }
 
+    @Test void deleteTableColumnByPosition() throws Exception {
+        XSSFSheet sh = (XSSFSheet) data();
+        XSSFTable t = sh.createTable(new AreaReference("A1:C5", SpreadsheetVersion.EXCEL2007));
+        t.setName("Sales");
+        t.setDisplayName("Sales");
+        xl.deleteTableColumn(ctx, "Sales", null, "excel", 2);
+        assertEquals("Status", val("Data", "B1"), "the second column (Amount) is gone");
+        assertNull(val("Data", "C1"));
+        assertEquals("A1:B5", t.getArea().formatAsString().replace("$", ""));
+        List<String> names = new ArrayList<>();
+        for (XSSFTableColumn c : t.getColumns()) names.add(c.getName());
+        assertEquals(List.of("Name", "Status"), names);
+
+        xl.deleteTableColumn(ctx, "Sales", "Status", "excel", 1);
+        assertEquals("Name", val("Data", "A1"), "the header wins when both are given");
+        assertEquals("EXCEL.BAD_POSITION", assertThrows(ActionException.class, () -> xl.deleteTableColumn(ctx, "Sales", null, "excel", 3)).code());
+        assertEquals("EXCEL.BAD_COLUMN", assertThrows(ActionException.class, () -> xl.deleteTableColumn(ctx, "Sales", " ", "excel", null)).code());
+    }
+
     @Test void externalLinksListAndBreak() throws Exception {
         XSSFWorkbook x = (XSSFWorkbook) wb();
         try (XSSFWorkbook src = new XSSFWorkbook()) {

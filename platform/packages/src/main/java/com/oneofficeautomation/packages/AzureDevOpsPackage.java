@@ -181,9 +181,15 @@ public final class AzureDevOpsPackage {
         return Out.of("work_item", w, "state", w.get("state"));
     }
 
+    /** Earlier signature, kept for callers written before steps. */
+    public Map<String, Object> updateWorkItem(ActionContext ctx, String org, Object pat, int id, String title, String state, String assignedTo,
+            String description, String iteration, String tags, Map<String, Object> extra) {
+        return updateWorkItem(ctx, org, pat, id, title, state, assignedTo, description, iteration, tags, extra, null);
+    }
+
     @Action(id = "update_work_item", name = "Update work item", category = "Work items", capabilities = "network",
             description = "Change fields of a work item, such as its state or assignee. Only the inputs you fill in are changed.",
-            panel = "organization_url, personal_access_token, id, title, iteration_path, state | assigned_to, description, tags, fields")
+            panel = "organization_url, personal_access_token, id, title, iteration_path, state | assigned_to, description, tags, steps, fields")
     @Output(name = "rev", type = OoaType.NUMBER, description = "New revision number.")
     public Map<String, Object> updateWorkItem(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
@@ -195,7 +201,9 @@ public final class AzureDevOpsPackage {
             @Input(name = "description", type = OoaType.STRING, required = false, description = "New description.") String description,
             @Input(name = "iteration_path", type = OoaType.STRING, required = false, description = "New iteration (sprint) path.") String iteration,
             @Input(name = "tags", type = OoaType.STRING, required = false, description = "Replace tags; separate with semicolons.") String tags,
-            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "More fields by reference name, e.g. {\"Microsoft.VSTS.Scheduling.RemainingWork\": 2}.") Map<String, Object> extra) {
+            @Input(name = "fields", type = OoaType.DICTIONARY, required = false, description = "More fields by reference name, e.g. {\"Microsoft.VSTS.Scheduling.RemainingWork\": 2}.") Map<String, Object> extra,
+            @Input(name = "steps", type = OoaType.LIST, required = false,
+                    description = "Test cases only: replace the steps, in order: text, or {\"action\": ..., \"expected\": ...}.") List<Object> steps) {
         Map<String, Object> f = new LinkedHashMap<>();
         if (title != null) f.put("title", title);
         if (state != null) f.put("state", state);
@@ -204,6 +212,7 @@ public final class AzureDevOpsPackage {
         if (iteration != null) f.put("iteration_path", iteration);
         if (tags != null) f.put("tags", tags);
         if (extra != null) f.putAll(extra);
+        if (steps != null && !steps.isEmpty()) f.put("Microsoft.VSTS.TCM.Steps", stepsXml(steps));
         if (f.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "No changes were given", "Fill in at least one field to change.");
         String url = withVersion(org(org) + "/_apis/wit/workitems/" + id, V);
         Map<String, Object> r = send(req("PATCH", url, pat).json(fieldOps("add", f)).header("Content-Type", "application/json-patch+json"), ctx).map();
@@ -520,17 +529,27 @@ public final class AzureDevOpsPackage {
                 "root_suite_id", HttpJson.path(p, "rootSuite.id"), "owner", who(p.get("owner")), "start_date", p.get("startDate"), "end_date", p.get("endDate"));
     }
 
+    /** Earlier signature, kept for callers written before owner and max_results. */
+    public Map<String, Object> listTestPlans(ActionContext ctx, String org, Object pat, String project, boolean active) {
+        return listTestPlans(ctx, org, pat, project, active, null, 5000);
+    }
+
     @Action(id = "list_test_plans", name = "List test plans", category = "Test plans", idempotent = true, capabilities = "network", description = "List the test plans of a project.",
-            panel = "organization_url, personal_access_token, project, active_only")
+            panel = "organization_url, personal_access_token, project, active_only, owner | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, name, state, area_path, iteration, root_suite_id.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of plans.")
     public Map<String, Object> listTestPlans(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
-            @Input(name = "active_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out inactive plans.") boolean active) {
+            @Input(name = "active_only", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Leave out inactive plans.") boolean active,
+            @Input(name = "owner", type = OoaType.STRING, required = false, example = "ana@contoso.com", description = "Only plans owned by this person: identity id or name.") String owner,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "5000", min = 1, description = D_MAX) int max) {
+        List<String> q = new ArrayList<>();
+        if (active) q.add("filterActivePlans=true");
+        if (owner != null && !owner.isBlank()) q.add("owner=" + HttpJson.enc(owner.strip()));
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Map<String, Object> p : pages(ctx, proj(org, project) + "/_apis/testplan/plans" + (active ? "?filterActivePlans=true" : ""), pat, 5000)) rows.add(plan(p));
+        for (Map<String, Object> p : pages(ctx, proj(org, project) + "/_apis/testplan/plans" + (q.isEmpty() ? "" : "?" + String.join("&", q)), pat, Math.max(1, max))) rows.add(plan(p));
         return Out.of("table", HttpJson.table(rows, "id", "name", "state", "area_path", "iteration", "root_suite_id"), "count", BigDecimal.valueOf(rows.size()));
     }
 
@@ -664,8 +683,13 @@ public final class AzureDevOpsPackage {
         return Out.of("suite_id", call(ctx, "POST", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites", pat, b).get("id"));
     }
 
-    @Action(id = "update_test_suite", name = "Edit test suite", category = "Test plans", capabilities = "network", description = "Rename a suite or move it under another suite of the plan.",
-            panel = "organization_url, personal_access_token, project, plan_id, suite_id, parent_suite_id, name")
+    /** Earlier signature, kept for callers written before query. */
+    public Map<String, Object> updateTestSuite(ActionContext ctx, String org, Object pat, String project, int planId, int suiteId, String name, Integer parent) {
+        return updateTestSuite(ctx, org, pat, project, planId, suiteId, name, parent, null);
+    }
+
+    @Action(id = "update_test_suite", name = "Edit test suite", category = "Test plans", capabilities = "network", description = "Rename a suite, move it under another suite of the plan, or change a query-based suite's query.",
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id, parent_suite_id, name, query")
     public Map<String, Object> updateTestSuite(ActionContext ctx,
             @Input(name = "organization_url", type = OoaType.STRING, pattern = "^https?://", description = D_ORG) String org,
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
@@ -673,11 +697,13 @@ public final class AzureDevOpsPackage {
             @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
             @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
             @Input(name = "name", type = OoaType.STRING, required = false, description = "New name.") String name,
-            @Input(name = "parent_suite_id", type = OoaType.NUMBER, required = false, min = 1, description = "Move under this suite.") Integer parent) {
+            @Input(name = "parent_suite_id", type = OoaType.NUMBER, required = false, min = 1, description = "Move under this suite.") Integer parent,
+            @Input(name = "query", type = OoaType.STRING, required = false, description = "New WIQL query selecting the test cases (query-based suites only).") String query) {
         Map<String, Object> b = new LinkedHashMap<>();
         if (name != null && !name.isBlank()) b.put("name", name);
         if (parent != null) b.put("parentSuite", Map.of("id", parent));
-        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name or parent_suite_id.");
+        if (query != null && !query.isBlank()) b.put("queryString", query);
+        if (b.isEmpty()) throw new ActionException(P + ".NOTHING_TO_UPDATE", "Nothing to change", "Fill in name, parent_suite_id or query.");
         call(ctx, "PATCH", proj(org, project) + "/_apis/testplan/Plans/" + planId + "/suites/" + suiteId, pat, b);
         return Map.of();
     }
@@ -802,9 +828,14 @@ public final class AzureDevOpsPackage {
     private static String html(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"); }
     private static String xml(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
 
+    /** Earlier signature, kept for callers written before test_case_id and max_results. */
+    public Map<String, Object> listTestPoints(ActionContext ctx, String org, Object pat, String project, int planId, int suiteId) {
+        return listTestPoints(ctx, org, pat, project, planId, suiteId, null, 10000);
+    }
+
     @Action(id = "list_test_points", name = "List test points", category = "Test plans", idempotent = true, capabilities = "network",
             description = "List the test points of a suite (one per test case and configuration) with their latest outcome.",
-            panel = "organization_url, personal_access_token, project, plan_id, suite_id")
+            panel = "organization_url, personal_access_token, project, plan_id, suite_id, test_case_id | max_results")
     @Output(name = "table", type = OoaType.TABLE, description = "Columns: id, test_case_id, test_case, configuration, tester, outcome, state.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of points.")
     public Map<String, Object> listTestPoints(ActionContext ctx,
@@ -812,9 +843,12 @@ public final class AzureDevOpsPackage {
             @Input(name = "personal_access_token", type = OoaType.CREDENTIAL, description = D_PAT) Object pat,
             @Input(name = "project", type = OoaType.STRING, description = D_PROJECT) String project,
             @Input(name = "plan_id", type = OoaType.NUMBER, min = 1, description = D_PLAN) int planId,
-            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId) {
+            @Input(name = "suite_id", type = OoaType.NUMBER, min = 1, description = D_SUITE) int suiteId,
+            @Input(name = "test_case_id", type = OoaType.NUMBER, required = false, min = 1, description = "Only the points of this test case (work item id).") Integer testCase,
+            @Input(name = "max_results", type = OoaType.NUMBER, required = false, defaultValue = "10000", min = 1, description = D_MAX) int max) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Map<String, Object> p : pages(ctx, proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestPoint", pat, 10000))
+        String url = proj(org, project) + "/_apis/testplan/Plans/" + planId + "/Suites/" + suiteId + "/TestPoint" + (testCase == null ? "" : "?testCaseId=" + testCase);
+        for (Map<String, Object> p : pages(ctx, url, pat, Math.max(1, max)))
             rows.add(Out.of("id", p.get("id"), "test_case_id", HttpJson.path(p, "testCaseReference.id"), "test_case", HttpJson.path(p, "testCaseReference.name"),
                     "configuration", HttpJson.path(p, "configuration.name"), "tester", who(p.get("tester")),
                     "outcome", HttpJson.path(p, "results.outcome"), "state", HttpJson.path(p, "results.state")));

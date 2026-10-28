@@ -318,18 +318,36 @@ public final class PdfPackage {
         }
     }
 
-    @Action(id = "read_form", name = "Read form fields", category = "Forms", idempotent = true, capabilities = "filesystem", description = "Read the names and values of all form fields.",
-            panel = "path, [The form has a password: password]")
+    @Action(id = "read_form", name = "Read form fields", category = "Forms", idempotent = true, capabilities = "filesystem", description = "Read the names and values of all form fields, or only of the fields named.",
+            panel = "path, [The form has a password: password], [Read only some fields: field_names]")
     @Output(name = "fields", type = OoaType.DICTIONARY, description = "Field name to value.")
     public Map<String, Object> readForm(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "PDF form.") String path,
-            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password) {
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "field_names", type = OoaType.LIST, required = false, example = "[\"customer\", \"total\"]",
+                    description = "Read only these fields, in this order; every field when empty. A name the form does not have stops the step.") List<Object> fieldNames) {
+        List<String> wanted = new ArrayList<>();
+        if (fieldNames != null) for (Object o : fieldNames) if (o != null && !String.valueOf(o).isBlank()) wanted.add(String.valueOf(o).strip());
         try (PDDocument d = load(ctx, path, password)) {
             PDAcroForm form = d.getDocumentCatalog().getAcroForm();
             Map<String, Object> out = new LinkedHashMap<>();
-            if (form != null) for (PDField f : form.getFieldTree()) if (f.getFieldType() != null) out.put(f.getFullyQualifiedName(), f.getValueAsString());
+            if (wanted.isEmpty()) {
+                if (form != null) for (PDField f : form.getFieldTree()) if (f.getFieldType() != null) out.put(f.getFullyQualifiedName(), f.getValueAsString());
+                return Map.of("fields", out);
+            }
+            if (form == null) throw new ActionException("PDF.NO_FORM", "This PDF has no form fields");
+            List<String> missing = new ArrayList<>();
+            for (String name : wanted) {
+                PDField f = form.getField(name);
+                if (f == null) missing.add(name); else out.put(name, f.getValueAsString());
+            }
+            if (!missing.isEmpty()) throw new ActionException("PDF.NO_FIELD", "Fields not found: " + missing, "Use Read form fields without field names to see the exact names.");
             return Map.of("fields", out);
         } catch (IOException e) { throw new ActionException("PDF.INVALID", e.getMessage()); }
+    }
+
+    public Map<String, Object> readForm(ActionContext ctx, String path, Object password) {
+        return readForm(ctx, path, password, null);
     }
 
     public Map<String, Object> fillForm(ActionContext ctx, String path, Map<String, Object> values, String target, boolean flatten) {

@@ -1902,16 +1902,29 @@ public final class ExcelPackage {
         return Map.of();
     }
 
+    /** Earlier signature, kept for callers written before column_position. */
+    public Map<String, Object> deleteTableColumn(ActionContext ctx, String tableName, String columnName, String session) {
+        return deleteTableColumn(ctx, tableName, columnName, session, null);
+    }
+
     @Action(id = "delete_table_column", name = "Delete table column", category = "Tables", description = "Remove a column from an Excel table and move the table cells to its right back by one.",
-            panel = "table, column_name | session")
+            panel = "table, (Column: By header = column_name / By position = column_position) | session")
     public Map<String, Object> deleteTableColumn(ActionContext ctx,
             @Input(name = "table", type = OoaType.STRING, description = "Excel table name, e.g. Table1.") String tableName,
-            @Input(name = "column_name", type = OoaType.STRING, description = "Header of the column to remove.") String columnName,
-            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
+            @Input(name = "column_name", type = OoaType.STRING, required = false, description = "Header of the column to remove.") String columnName,
+            @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
+            @Input(name = "column_position", type = OoaType.NUMBER, required = false, min = 1, description = "Position of the column to remove: 1 is the table's first column.") Integer columnPosition) {
         XSSFWorkbook wb = xlsx(session(ctx, session), "Excel tables");
         XSSFTable t = table(wb, tableName);
-        int idx = t.findColumnIndex(columnName);
-        if (idx < 0) throw new ActionException("EXCEL.BAD_COLUMN", "Table '" + tableName + "' has no column '" + columnName + "'", "Check the header text.");
+        int idx;
+        if (columnName != null && !columnName.isBlank()) {
+            idx = t.findColumnIndex(columnName);
+            if (idx < 0) throw new ActionException("EXCEL.BAD_COLUMN", "Table '" + tableName + "' has no column '" + columnName + "'", "Check the header text.");
+        } else if (columnPosition != null) {
+            if (columnPosition < 1 || columnPosition > t.getColumnCount())
+                throw new ActionException("EXCEL.BAD_POSITION", "Table '" + tableName + "' has no column " + columnPosition, "Use a position between 1 and " + t.getColumnCount() + ".");
+            idx = columnPosition - 1;
+        } else throw new ActionException("EXCEL.BAD_COLUMN", "No column was given", "Fill in the column's header or its position.");
         if (t.getColumnCount() == 1) throw new ActionException("EXCEL.LAST_COLUMN", "A table must keep at least one column", "Delete the whole table range instead.");
         XSSFSheet sh = t.getXSSFSheet();
         CellReference a = t.getStartCellReference(), b = t.getEndCellReference();

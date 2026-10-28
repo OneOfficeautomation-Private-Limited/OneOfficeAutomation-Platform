@@ -144,17 +144,20 @@ public final class FuzzyPackage {
 
     @Action(id = "best_match", name = "Find closest match", category = "Fuzzy match", idempotent = true,
             description = "Compare a text with every entry of a list and return the closest entry when it scores at least the threshold.",
-            panel = "text, candidates, threshold | algorithm, case_sensitive")
+            panel = "(Text to look for: Typed text = text / Text in a file = text_file), candidates, threshold | algorithm, case_sensitive")
     @Output(name = "found", type = OoaType.BOOLEAN, description = "True when an entry reached the threshold.")
     @Output(name = "match", type = OoaType.STRING, description = "Closest entry, empty when none reached the threshold.")
     @Output(name = "score", type = OoaType.NUMBER, description = "Score of the closest entry (0 to 100), even when below the threshold.")
     @Output(name = "index", type = OoaType.NUMBER, description = "Zero-based position of the match in the list, -1 when none.")
     public Map<String, Object> bestMatch(ActionContext ctx,
-            @Input(name = "text", type = OoaType.STRING, description = "Text to look for.") String text,
+            @Input(name = "text", type = OoaType.STRING, required = false, description = "Text to look for (or use text_file).") String text,
             @Input(name = "candidates", type = OoaType.LIST, description = "Entries to compare with, e.g. a list of customer names.") List<Object> candidates,
             @Input(name = "threshold", type = OoaType.NUMBER, required = false, defaultValue = "80", min = 0, max = 100, description = "Lowest score (0 to 100) accepted as a match.") double threshold,
             @Input(name = "algorithm", type = OoaType.STRING, required = false, defaultValue = "\"levenshtein\"", enumValues = {"levenshtein", "jaro_winkler", "token_sort", "token_set"}, description = D_ALGO) String algorithm,
-            @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_CASE) boolean caseSensitive) {
+            @Input(name = "case_sensitive", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = D_CASE) boolean caseSensitive,
+            @Input(name = "text_file", type = OoaType.FILE, required = false,
+                    description = "Text file whose content to look for, instead of text; spaces and line breaks at both ends are removed.") String textFile) {
+        text = textOrFile(ctx, text, textFile);
         BigDecimal min = threshold(threshold);
         BigDecimal best = BigDecimal.ZERO;
         int bestIdx = -1;
@@ -168,6 +171,22 @@ public final class FuzzyPackage {
         if (bestIdx < 0) score("", "", algorithm, caseSensitive); // still reject an unknown algorithm on an empty list
         return Out.of("found", found, "match", found ? Values.text(list.get(bestIdx)) : "", "score", best,
                 "index", BigDecimal.valueOf(found ? bestIdx : -1));
+    }
+
+    public Map<String, Object> bestMatch(ActionContext ctx, String text, List<Object> candidates, double threshold, String algorithm, boolean caseSensitive) {
+        return bestMatch(ctx, text, candidates, threshold, algorithm, caseSensitive, null);
+    }
+
+    /** The text, or when it is empty the content of the text file. */
+    static String textOrFile(ActionContext ctx, String text, String textFile) {
+        if (textFile == null || textFile.isBlank() || (text != null && !text.isEmpty())) {
+            if (text == null) throw new ActionException("FUZZY.NO_TEXT", "Give the text to look for", "Fill in 'text' or 'text_file'.");
+            return text;
+        }
+        java.nio.file.Path p = ctx.resolvePath(textFile);
+        if (!java.nio.file.Files.isRegularFile(p)) throw new ActionException("FILE.NOT_FOUND", "File not found: " + p, "Check the path.");
+        try { return FilePackage.readText(p, "auto").strip(); }
+        catch (java.io.IOException e) { throw new ActionException("FILE.IO_ERROR", "Cannot read " + p + ": " + e.getMessage(), "Check the path and permissions.", true); }
     }
 
     @Action(id = "fuzzy_lookup", name = "Fuzzy join tables", category = "Fuzzy match", idempotent = true,

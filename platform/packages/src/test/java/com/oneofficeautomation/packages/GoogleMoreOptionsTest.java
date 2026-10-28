@@ -83,6 +83,74 @@ class GoogleMoreOptionsTest {
         }
     }
 
+    @Test void destinationFoldersGivenByPath() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /drive/v3/files", GoogleMoreOptionsTest::drive)
+             .on("POST /drive/v3/files/Q4/copy", c -> ok("{\"id\":\"Q4c\"}"))
+             .on("POST /drive/v3/files/X1/copy", c -> ok("{\"id\":\"X1c\"}"))
+             .on("GET /drive/v3/files/Q4", c -> ok("{\"parents\":[\"R1\"]}"))
+             .on("GET /drive/v3/files/Y26", c -> ok("{\"id\":\"Y26\",\"name\":\"2026\",\"mimeType\":\"application/vnd.google-apps.folder\",\"parents\":[\"R1\"]}"))
+             .on("PATCH /drive/v3/files/Q4", c -> ok("{\"id\":\"Q4\"}"))
+             .on("POST /drive/v3/files", c -> ok("{\"id\":\"NEWF\"}"));
+            Path w = tmp();
+            act(f, w, "drive_copy_file", Map.of("item_path", "Reports/q4.pdf", "destination_path", "Reports/2026"), "file_id");
+            assertEquals(Map.of("parents", List.of("Y26")), f.last("POST", "/drive/v3/files/Q4/copy").json());
+            act(f, w, "drive_copy_file", Map.of("file_id", "Q4", "destination_path", "/"), "file_id");
+            assertEquals(Map.of("parents", List.of("root")), f.last("POST", "/drive/v3/files/Q4/copy").json(), "/ is My Drive");
+
+            act(f, w, "drive_move_item", Map.of("item_path", "Reports/q4.pdf", "destination_path", "Reports/2026"));
+            String move = q(f.last("PATCH", "/drive/v3/files/Q4"));
+            assertTrue(move.contains("addParents=Y26") && move.contains("removeParents=R1"), move);
+
+            Map<String, Object> o = act(f, w, "drive_copy_folder", Map.of("folder_path", "Reports/2026", "destination_path", "Reports"), "folder_id", "file_count");
+            assertEquals("NEWF", o.get("folder_id"));
+            assertEquals(BigDecimal.ONE, o.get("file_count"));
+            assertEquals(Map.of("name", "2026", "mimeType", "application/vnd.google-apps.folder", "parents", List.of("R1")), f.last("POST", "/drive/v3/files").json());
+            assertEquals(List.of("NEWF"), f.last("POST", "/drive/v3/files/X1/copy").json().get("parents"));
+
+            int calls = f.calls.size();
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "drive_move_item", Map.of("item_id", "Q4", "folder_id", "D9", "destination_path", "Reports")).get("code"), "both destinations");
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "drive_move_item", Map.of("item_id", "Q4")).get("code"), "no destination");
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "drive_copy_folder", Map.of("destination_id", "D9")).get("code"), "no source folder");
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "drive_copy_folder", Map.of("folder_id", "Y26", "folder_path", "Reports/2026")).get("code"), "both sources");
+            assertEquals(calls, f.calls.size(), "rejected before any request");
+            assertEquals("GOOGLE.NOT_FOUND", err(f, "drive_copy_file", Map.of("file_id", "Q4", "destination_path", "Reports/2027")).get("code"));
+        }
+    }
+
+    @Test void exportOverwriteAndFileName() throws Exception {
+        try (Fake f = new Fake()) {
+            f.on("GET /drive/v3/files/DOC1/export", c -> new Object[]{200, "exported"});
+            Path w = tmp();
+            String p1 = (String) act(f, w, "drive_download_export", Map.of("file_id", "DOC1", "local_path", "out", "file_name", "Q4 report"), "path").get("path");
+            assertEquals(w.resolve("out/Q4 report.pdf"), Path.of(p1), "the format's extension is added");
+            assertEquals("exported", java.nio.file.Files.readString(Path.of(p1)));
+            String p2 = (String) act(f, w, "drive_download_export", Map.of("file_id", "DOC1", "local_path", "out", "file_name", "Q4 report.pdf", "overwrite", false), "path").get("path");
+            assertEquals(w.resolve("out/Q4 report (2).pdf"), Path.of(p2), "a number is added instead of replacing");
+            String p3 = (String) act(f, w, "drive_download_export", Map.of("file_id", "DOC1", "format", "docx", "local_path", "out", "file_name", "notes"), "path").get("path");
+            assertEquals(w.resolve("out/notes.docx"), Path.of(p3));
+            String p4 = (String) act(f, w, "drive_download_export", Map.of("file_id", "DOC1", "local_path", "out/Q4 report.pdf"), "path").get("path");
+            assertEquals(w.resolve("out/Q4 report.pdf"), Path.of(p4), "replaced by default, as before");
+        }
+    }
+
+    @Test void sheetPickedByPosition() throws Exception {
+        try (Fake f = GoogleGapsTest.sheetsFake()) {
+            Path w = tmp();
+            act(f, w, "sheets_delete_sheet", Map.of("spreadsheet_id", "S1", "position", 2));
+            assertEquals(77, GoogleGapsTest.n(GoogleGapsTest.m(GoogleGapsTest.req0(f.last("POST", "/v4/spreadsheets/S1:batchUpdate")).get("deleteSheet")).get("sheetId")), "position 2 is Old Tab");
+            act(f, w, "sheets_rename_sheet", Map.of("spreadsheet_id", "S1", "position", 1, "new_name", "Main"));
+            Map<String, Object> ren = GoogleGapsTest.m(GoogleGapsTest.req0(f.last("POST", "/v4/spreadsheets/S1:batchUpdate")).get("updateSheetProperties"));
+            assertEquals(0, GoogleGapsTest.n(GoogleGapsTest.m(ren.get("properties")).get("sheetId")));
+            assertEquals("Main", GoogleGapsTest.m(ren.get("properties")).get("title"));
+
+            assertEquals("GOOGLE.NO_SHEET", err(f, "sheets_delete_sheet", Map.of("spreadsheet_id", "S1", "position", 3)).get("code"));
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "sheets_delete_sheet", Map.of("spreadsheet_id", "S1", "position", 0)).get("code"));
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "sheets_rename_sheet", Map.of("spreadsheet_id", "S1", "sheet", "Data", "position", 1, "new_name", "x")).get("code"), "both name and position");
+            assertEquals("GOOGLE.BAD_INPUT", err(f, "sheets_delete_sheet", Map.of("spreadsheet_id", "S1")).get("code"), "neither name nor position");
+        }
+    }
+
     @Test void spreadsheetGivenByLinkOrName() throws Exception {
         try (Fake f = new Fake()) {
             f.on("GET /drive/v3/files", GoogleMoreOptionsTest::drive)

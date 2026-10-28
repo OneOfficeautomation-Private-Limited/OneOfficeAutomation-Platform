@@ -228,4 +228,119 @@ class Microsoft365MoreOptionsTest {
             assertEquals(calls, f.calls.size(), "refused before any request");
         }
     }
+
+    // ------------------------------------------------------------------- small options (2026-10-28)
+
+    @Test void exportPdfOverwriteOption() throws Exception {
+        try (Fake f = new Fake()) {
+            String b = f.base(), content = "/v1.0/me/drive/root:/Docs/a.docx:/content";
+            f.at("GET", content, c -> ok("%PDF-1.7"));
+            Path w = tmp();
+            Files.createDirectories(w.resolve("out"));
+            Files.writeString(w.resolve("out/a.pdf"), "old");
+            ActionContext ctx = ctx(w);
+
+            Map<String, Object> kept = pkg.exportPdf(ctx, tok, "Docs/a.docx", "out/a.pdf", DR, b, false);
+            assertEquals(w.resolve("out/a (2).pdf").toAbsolutePath().normalize(), Path.of((String) kept.get("path")).toAbsolutePath().normalize());
+            assertEquals("old", Files.readString(w.resolve("out/a.pdf")), "existing PDF left alone");
+            assertEquals("%PDF-1.7", Files.readString(w.resolve("out/a (2).pdf")));
+            assertEquals("format=pdf", f.last("GET", content).q());
+
+            pkg.exportPdf(ctx, tok, "Docs/a.docx", "out/a.pdf", DR, b);
+            assertEquals("%PDF-1.7", Files.readString(w.resolve("out/a.pdf")), "old signature replaces the file as before");
+        }
+    }
+
+    @Test void renameItemIfExists() throws Exception {
+        try (Fake f = new Fake()) {
+            String b = f.base(), it = "/v1.0/me/drive/items/I9";
+            f.at("PATCH", it, c -> ok("{\"id\":\"I9\",\"webUrl\":\"https://od/I9\"}"));
+            ActionContext ctx = ctx(tmp());
+
+            pkg.renameItem(ctx, tok, "id:I9", "c.docx", DR, b, "replace");
+            assertEquals("@microsoft.graph.conflictBehavior=replace", f.last("PATCH", it).q());
+            assertEquals(Map.of("name", "c.docx"), f.last("PATCH", it).json());
+            pkg.renameItem(ctx, tok, "id:I9", "c.docx", DR, b, "Rename");
+            assertEquals("@microsoft.graph.conflictBehavior=rename", f.last("PATCH", it).q());
+            pkg.renameItem(ctx, tok, "id:I9", "c.docx", DR, b, "fail");
+            assertEquals("", f.last("PATCH", it).q(), "fail is Graph's default, so nothing is added");
+            pkg.renameItem(ctx, tok, "id:I9", "c.docx", DR, b);
+            assertEquals("", f.last("PATCH", it).q());
+
+            int calls = f.calls.size();
+            assertEquals("M365.BAD_OPTION", code(() -> pkg.renameItem(ctx, tok, "id:I9", "c.docx", DR, b, "skip")));
+            assertEquals(calls, f.calls.size());
+        }
+    }
+
+    @Test void findMeetingTimesOutsideWorkingHours() throws Exception {
+        try (Fake f = new Fake()) {
+            String b = f.base(), u = "/v1.0/me/findMeetingTimes";
+            f.at("POST", u, c -> ok("{\"emptySuggestionsReason\":\"\",\"meetingTimeSuggestions\":[]}"));
+            ActionContext ctx = ctx(tmp());
+            LocalDateTime s = LocalDateTime.parse("2026-11-02T06:00"), e = LocalDateTime.parse("2026-11-02T22:00");
+
+            pkg.findMeetingTimes(ctx, tok, "a@x.com", s, e, 30, "UTC", 5, "me", b, true);
+            assertEquals("unrestricted", m(f.last("POST", u).json().get("timeConstraint")).get("activityDomain"));
+            pkg.findMeetingTimes(ctx, tok, "a@x.com", s, e, 30, "UTC", 5, "me", b, false);
+            assertEquals("work", m(f.last("POST", u).json().get("timeConstraint")).get("activityDomain"));
+            pkg.findMeetingTimes(ctx, tok, "a@x.com", s, e, 30, "UTC", 5, "me", b);
+            assertEquals("work", m(f.last("POST", u).json().get("timeConstraint")).get("activityDomain"), "old signature stays in working hours");
+        }
+    }
+
+    @Test void channelByNameWithTeamName() throws Exception {
+        try (Fake f = new Fake()) {
+            String b = f.base();
+            f.at("GET", "/v1.0/me/joinedTeams", c -> ok("{\"value\":[{\"id\":\"T1\",\"displayName\":\"Finance\"},{\"id\":\"T2\",\"displayName\":\"Ops\"}]}"))
+             .at("GET", "/v1.0/teams/T2/channels", c -> ok("{\"value\":[{\"id\":\"C5\",\"displayName\":\"General\"},{\"id\":\"C6\",\"displayName\":\"Shifts\"}]}"));
+            ActionContext ctx = ctx(tmp());
+
+            assertEquals("C6", pkg.channelByName(ctx, tok, null, "shifts", b, " OPS ").get("channel_id"));
+            assertNotNull(f.last("GET", "/v1.0/me/joinedTeams"));
+            assertNotNull(f.last("GET", "/v1.0/teams/T2/channels"));
+            int joined = f.all("GET", ".*/me/joinedTeams").size();
+            assertEquals("C5", pkg.channelByName(ctx, tok, "T2", "General", b).get("channel_id"));
+            assertEquals(joined, f.all("GET", ".*/me/joinedTeams").size(), "team_id does not look the team up");
+
+            int calls = f.calls.size();
+            assertEquals("M365.BAD_INPUT", code(() -> pkg.channelByName(ctx, tok, "T2", "General", b, "Ops")));
+            assertEquals("M365.BAD_INPUT", code(() -> pkg.channelByName(ctx, tok, " ", "General", b, null)));
+            assertEquals(calls, f.calls.size(), "refused before any request");
+            assertEquals("M365.NOT_FOUND", code(() -> pkg.channelByName(ctx, tok, null, "General", b, "HR")));
+        }
+    }
+
+    @Test void excelDeleteAndRenameWorksheetByPosition() throws Exception {
+        try (Fake f = new Fake()) {
+            String b = f.base();
+            // listed out of order; tab order is Summary (0), Data (1), Old (2)
+            f.at("GET", WB + "/worksheets", c -> ok("{\"value\":[{\"id\":\"s2\",\"name\":\"Data\",\"position\":1},{\"id\":\"s3\",\"name\":\"Old\",\"position\":2},{\"id\":\"s1\",\"name\":\"Summary\",\"position\":0}]}"))
+             .at("DELETE", WB + "/worksheets('Old')", c -> none())
+             .at("DELETE", WB + "/worksheets('Summary')", c -> none())
+             .at("PATCH", SH, c -> ok("{}"));
+            ActionContext ctx = ctx(tmp());
+
+            pkg.excelDeleteSheet(ctx, tok, BOOK, null, DR, b, 3);
+            assertNotNull(f.last("DELETE", WB + "/worksheets('Old')"));
+            pkg.excelDeleteSheet(ctx, tok, BOOK, "", DR, b, 1);
+            assertNotNull(f.last("DELETE", WB + "/worksheets('Summary')"));
+            pkg.excelRenameSheet(ctx, tok, BOOK, null, "Data 2026", DR, b, 2);
+            assertEquals(Map.of("name", "Data 2026"), f.last("PATCH", SH).json());
+
+            int lists = f.all("GET", ".*/worksheets").size();
+            pkg.excelRenameSheet(ctx, tok, BOOK, "Data", "Data 2027", DR, b, null);
+            assertEquals(Map.of("name", "Data 2027"), f.last("PATCH", SH).json());
+            assertEquals(lists, f.all("GET", ".*/worksheets").size(), "by name does not list the sheets");
+
+            int calls = f.calls.size();
+            assertEquals("M365.BAD_INPUT", code(() -> pkg.excelDeleteSheet(ctx, tok, BOOK, "Data", DR, b, 2)));
+            assertEquals("M365.BAD_INPUT", code(() -> pkg.excelRenameSheet(ctx, tok, BOOK, null, "x", DR, b, null)));
+            assertEquals(calls, f.calls.size(), "refused before any request");
+            int deletes = f.all("DELETE", ".*").size();
+            assertEquals("M365.NOT_FOUND", code(() -> pkg.excelDeleteSheet(ctx, tok, BOOK, null, DR, b, 4)));
+            assertEquals("M365.NOT_FOUND", code(() -> pkg.excelRenameSheet(ctx, tok, BOOK, null, "x", DR, b, 0)));
+            assertEquals(deletes, f.all("DELETE", ".*").size(), "nothing deleted for a position that does not exist");
+        }
+    }
 }
