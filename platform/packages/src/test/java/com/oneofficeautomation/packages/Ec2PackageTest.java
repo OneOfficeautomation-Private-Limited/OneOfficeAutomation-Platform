@@ -69,7 +69,7 @@ class Ec2PackageTest {
             assertTrue(check.auth().contains("x-amz-security-token"), "the session token is signed");
             assertEquals("FQoGZXIvYXdzE", check.header("x-amz-security-token"));
 
-            Map<String, Object> r = pkg.describeInstances(ctx, "ec2", null, Map.of("instance-state-name", List.of("running", "stopped"), "tag:Team", "Finance"), 1000);
+            Map<String, Object> r = pkg.describeInstances(ctx, "ec2", null, new LinkedHashMap<>(Map.of("instance-state-name", List.of("running", "stopped"))) {{ put("tag:Team", "Finance"); }}, 1000);
             assertEquals(List.of(A, B), r.get("instance_ids"));
             assertEquals(new java.math.BigDecimal("2"), r.get("count"));
             Map<String, String> p1 = form(f.calls.get(1)), p2 = form(f.calls.get(2));

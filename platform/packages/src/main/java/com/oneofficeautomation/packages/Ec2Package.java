@@ -2,13 +2,9 @@ package com.oneofficeautomation.packages;
 
 import com.oneofficeautomation.runner.Values;
 import com.oneofficeautomation.sdk.*;
-import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
-import javax.xml.XMLConstants;
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
@@ -393,17 +389,11 @@ public final class Ec2Package {
         return new ActionException(P + ours, "EC2 " + (code == null ? "HTTP " + status : code) + ": " + msg, fix, retry, details);
     }
 
+    /** The answer's root element, parsed by the hardened parser (no DTDs); null when the answer is not XML. */
     static Element parse(byte[] xml) {
         if (xml == null || xml.length == 0) return null;
-        try {
-            DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
-            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            f.setExpandEntityReferences(false);
-            f.setNamespaceAware(false);
-            Document d = f.newDocumentBuilder().parse(new ByteArrayInputStream(xml));
-            return d.getDocumentElement();
-        } catch (Exception e) { return null; }
+        try { return XmlSupport.parse(new String(xml, StandardCharsets.UTF_8), false).getDocumentElement(); }
+        catch (ActionException e) { return null; }
     }
 
     static Element child(Element e, String name) {
