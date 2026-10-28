@@ -385,7 +385,8 @@ public final class Ooa {
             try { val = json.parse(raw); } catch (RuntimeException e) { val = raw; }
             inputs.put(kv.substring(0, eq), val);
         }
-        Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false))
+        // Credential inputs ({"$credential": "folder/credential/attribute"}) are read from OOA_SECRET_... variables, as in Agent Studio.
+        Runner runner = Runner.builder(FirstPartyPackages.registry()).sink(new EventSink.ConsoleSink(false)).service("vault", new EnvVault())
                 .schemaValidator(schemaValidator()).workDir(Path.of(".")).build();
         RunResult r = runner.run(flow, inputs);
         System.out.println(json.write(r.toMap(), true));

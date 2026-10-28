@@ -167,7 +167,7 @@ class TerminalVtTest {
         assertEquals("TERMINAL.NO_SIGN_IN", assertThrows(ActionException.class, () -> connect(t, ctx, null, null)).code());
         assertEquals("TERMINAL.NO_USER", assertThrows(ActionException.class, () -> t.connect(ctx, "127.0.0.1", sshd.getPort(), false, null, "terminal", "vt-ssh", 10,
                 null, null, true, null, null, PW, null, null, null, "vt100", 24, 80)).code());
-        assertEquals("TERMINAL.UNSUPPORTED_TYPE", assertThrows(ActionException.class, () -> t.connect(ctx, "127.0.0.1", 23, false, null, "terminal", "tn5250", 10,
+        assertEquals("TERMINAL.UNSUPPORTED_TYPE", assertThrows(ActionException.class, () -> t.connect(ctx, "127.0.0.1", 23, false, null, "terminal", "vt-telnet", 10,
                 null, null, true, null)).code());
     }
 

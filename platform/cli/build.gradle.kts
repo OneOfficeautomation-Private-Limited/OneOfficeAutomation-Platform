@@ -156,8 +156,9 @@ val nativeExecutable by tasks.registering(Exec::class) {
         // an argument file: the class path is longer than a Windows command line may be
         val argFile = temporaryDir.resolve("native-image.args")
         val q = { v: String -> "\"" + v.replace("\\", "\\\\") + "\"" }
+        // all charsets: the 5250 and 3270 terminals read EBCDIC code pages (IBM037 and the like)
         argFile.writeText(listOf("-cp", classpath.asPath, "-o", out.get().file("ooa").asFile.path, "--no-fallback",
-            "-march=compatibility", "com.oneofficeautomation.cli.OoaNative").joinToString("\n") { q(it) })
+            "-march=compatibility", "-H:+AddAllCharsets", "com.oneofficeautomation.cli.OoaNative").joinToString("\n") { q(it) })
         executable = tool.path
         args("@" + argFile.path)
     }

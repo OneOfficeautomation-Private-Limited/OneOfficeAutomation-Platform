@@ -77,6 +77,19 @@ class OoaCliTest {
         assertTrue(out[0].contains("complete -F") && out[0].contains("set-password"), "a bash completion script");
     }
 
+    /** ooa run reads Credential inputs from OOA_SECRET_... variables (none is set here), as Agent Studio does. */
+    @Test void runReadsCredentialsFromTheEnvironment() throws Exception {
+        java.nio.file.Path flow = java.nio.file.Files.createTempFile("ooa-cred", ".flow.json");
+        java.nio.file.Files.writeString(flow, """
+                {"kind": "TaskBot", "id": "cred_check", "name": "Credential check",
+                 "variables": [{"name": "password", "type": "Credential", "direction": "input", "required": true}],
+                 "steps": [{"id": "s1", "action": "core/comment", "args": {"text": "nothing"}}]}
+                """);
+        String[] out = new String[1];
+        assertEquals(2, capture(() -> cli.execute("run", flow.toString(), "-i", "password={\"$credential\": \"ooa-cli-test/none/password\"}"), out));
+        assertTrue(out[0].contains("VAULT.NOT_FOUND") && out[0].contains("OOA_SECRET_OOA_CLI_TEST_NONE_PASSWORD"), out[0]);
+    }
+
     /** Colours in the help, when the test runs where picocli thinks there is a terminal. */
     static final String ANSI = "\u001B\\[[0-9;]*m";
 

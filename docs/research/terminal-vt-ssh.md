@@ -36,26 +36,33 @@ shell draws a sign-in prompt, a small form and a command line. It covers passwor
 password, reading text, filling fields by label (including the arrow-key move), typing, Ctrl keys, and the screen
 interpreter and field reading on their own.
 
-## 5250: not built, recommendation
+## 5250: built (2026-10-29)
 
-No 5250 engine can be added without a heavy or awkward dependency:
+We wrote our own TN5250 client (`Tn5250Session` in the packages module, no new dependency), after weighing the
+options: tn5250j is GPL-2.0 and tied to its Swing window; xtn5250 (Apache-2.0) is only on JitPack and would have
+to be vendored. Ours answers the same commands as the 3270 and VT engines, so every terminal action works on it.
 
-- **tn5250j** (the usual Java 5250 emulator, on Maven Central as `com.github.vebqa:tn5250j`) is GPL-2.0 and built
-  around its Swing emulator window. Linking it would put the product under GPL terms.
-- **xtn5250** (Apache-2.0, the engine BlazeMeter's JMeter terminal plugin uses headless) is published only on
-  JitPack, not Maven Central, and is a Swing-era code base we would have to vendor and maintain.
-- The x3270 family that drives our 3270 support has no 5250 member; the C `tn5250` project is Linux-only.
-
-Recommendation: if 5250 hosts (IBM i / AS400) are needed, either (a) vendor xtn5250's protocol classes (Apache-2.0)
-into a new `packages-terminal5250` module behind the same `Session` commands VT uses, or (b) write our own TN5250E
-client (telnet negotiation, EBCDIC, the 5250 data stream's write-to-display and format table orders). (a) is the
-smaller job; both need a real IBM i (or the free PUB400 public system) to test against. Decide based on demand.
+- **Connection:** `terminal_type` `tn5250`, port 23 (or 992 with `tls`). Telnet negotiation for the terminal type
+  (model `3179-2` for 24x80, `3477-FC` for 27x132; the 3278/3279 model names map onto these), binary, end of
+  record, and the device name (the `lu_name` field) sent as DEVNAME.
+- **Screens:** clear, write to display, the format table (input fields with their bypass, monocase, numeric and
+  hidden settings), repeat to address, erase to address, the error line, save and restore screen, roll, read
+  screen, and the query the host sends after sign-on. Text arrives in an EBCDIC code page (`code_page`, default
+  037).
+- **Keys:** Enter, F1-F24, Roll Up and Roll Down (PageDown and PageUp), Clear, Help, Print, Attn, SysReq, and the
+  local editing keys (Tab, BackTab, Home, arrows, Field Exit, Erase EOF, Insert, Delete, Dup, Reset). An F key the
+  host has masked is sent without the field data, as the host asks. PA keys, which 5250 has not, give `TERMINAL.KEY_NOT_ON_5250`.
+- **Fields:** the host's input fields plus the screen text around them, so `set_field` by label works ("User",
+  "Password"); hidden fields stay hidden in `get_screen`.
+- **Tested** with an in-process fake host (negotiation, sign-on screen, menu, error line, masked keys, roll, save
+  and restore) and against the free public IBM i system PUB400 (pub400.com), on port 23 and on 992 with TLS:
+  the sign-on screen, its fields, typing the user name and hidden password, and the host's error reply.
+  A successful sign-on and sign-off on PUB400 is still to be run, once a working PUB400 account exists.
 
 ## What Automation Anywhere's terminal emulator offers that is still missing
 
 Compared with the AA terminal emulator as surveyed in the command comparison:
 
-- **5250 hosts** (see above).
 - **VT over plain Telnet** (no SSH). Small follow-up: the same `VtSshSession` command layer on a telnet stream.
 - **A visible emulator window**, which also lets the bot builder pick fields from the live screen; our engines run
   without a window (show_terminal / hide_terminal only log a note).

@@ -1,6 +1,6 @@
-# Terminal emulator (TN3270, VT over SSH)
+# Terminal emulator (TN3270, TN5250, VT over SSH)
 
-Toolkit `ooa.terminal`, version 1.1.0. Connect to IBM mainframe 3270 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text.
+Toolkit `ooa.terminal`, version 1.2.0. Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text.
 
 [All toolkits](README.md)
 
@@ -30,23 +30,23 @@ Erase all input fields locally, or send the Clear key to the host.
 
 `ooa.terminal/connect` (action)
 
-Connect to a TN3270 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen.
+Connect to a TN3270 or TN5250 host, or sign in to a VT100/ANSI host over SSH, and wait for the first screen.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Host | `host` | Text | Yes |  | Main | Host name or address. |
-| Port | `port` | Number | No |  | Main | Port; 23 for 3270 (992 is common with TLS) and 22 for SSH when empty. Range: 1 to 65535 |
-| Terminal type | `terminal_type` | Text | No | `tn3270e` | Main | tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, or vt-ssh for a VT100/ANSI host reached over SSH. One of: `tn3270e`, `tn3270`, `vt-ssh` |
+| Port | `port` | Number | No |  | Main | Port; 23 for 3270 and 5250 (992 is common with TLS) and 22 for SSH when empty. Range: 1 to 65535 |
+| Terminal type | `terminal_type` | Text | No | `tn3270e` | Main | tn3270e (extended 3270, the usual mainframe choice), plain tn3270 for hosts that refuse the extensions, tn5250 for IBM i (AS/400) hosts, or vt-ssh for a VT100/ANSI host reached over SSH. One of: `tn3270e`, `tn3270`, `tn5250`, `vt-ssh` |
 | Encrypted connection (TLS) | `tls` | Yes/No | No | No | Main | Use a TLS-encrypted connection. Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
-| Model | `model` | Text | No | `3279-2` | Main | Screen model (2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome). One of: `3279-2`, `3279-3`, `3279-4`, `3279-5`, `3278-2`, `3278-3`, `3278-4`, `3278-5`; Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
-| Code page | `code_page` | Text | No |  | Main | Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default when empty. Example: `cp037`; Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
+| Model | `model` | Text | No | `3279-2` | Main | Screen model. 3270: 2 = 24x80, 3 = 32x80, 4 = 43x80, 5 = 27x132; 3278 is monochrome. 5250: 3179-2 = 24x80, 3477-FC = 27x132 (a 3270 model 5 also means 27x132). One of: `3279-2`, `3279-3`, `3279-4`, `3279-5`, `3278-2`, `3278-3`, `3278-4`, `3278-5`, `3179-2`, `3477-FC`; Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
+| Code page | `code_page` | Text | No |  | Main | Host code page, e.g. cp037 (US), cp273 (German), cp500; the engine default (5250: cp037) when empty. Example: `cp037`; Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
 | User | `user` | Text | No |  | Main | SSH user name. Shown when: `{"terminal_type": ["vt-ssh"]}` |
 | Password | `password` | Credential (vault) | No |  | Main | SSH password from the vault; leave empty when signing in with a key file. Shown when: `{"terminal_type": ["vt-ssh"]}` |
 | Key file | `key_file` | File path | No |  | Main; tick Sign in with a key file | Private key file for SSH sign-in (instead of, or as well as, a password). Shown when: `{"terminal_type": ["vt-ssh"]}` |
 | Key passphrase | `key_passphrase` | Credential (vault) | No |  | Main; tick Sign in with a key file | Passphrase of the key file, when it has one. Shown when: `{"terminal_type": ["vt-ssh"]}` |
-| Lu name | `lu_name` | Text | No |  | Main; tick Ask for a specific device name | Logical unit (device) name to request from the host; any free one when empty. Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
+| Lu name | `lu_name` | Text | No |  | Main; tick Ask for a specific device name | Device name to request from the host (3270 logical unit, or 5250 display device); any free one when empty. Shown when: `{"terminal_type": ["!", "vt-ssh"]}` |
 | Wait for text | `wait_for_text` | Text | No |  | Main; tick Wait for text on the first screen | Text the first screen must show (e.g. a logon prompt) before the agent continues; no check when empty. Example: `USERID` |
 | Session | `session` | Text | No | `terminal` | Main | Session name. |
 | Connect timeout (seconds) | `connect_timeout_seconds` | Number | No | `30` | More options | Seconds to wait for the connection and the first screen. |
@@ -166,7 +166,7 @@ Press Enter, Tab, Clear, a PF or PA key, and wait for the host to answer.
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Session | `session` | Text | No | `terminal` | Main | Session name. |
-| Key | `key` | Text | Yes |  | Main | Enter, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Newline, Up, Down, Left, Right, BackSpace, Delete, Insert, FieldEnd, Dup, FieldMark, Attn, SysReq, PF1 to PF24 or PA1 to PA3. VT (SSH) hosts also take Escape, End, PageUp, PageDown and Ctrl+letter, e.g. Ctrl+C. Example: `Enter` |
+| Key | `key` | Text | Yes |  | Main | Enter, Tab, BackTab, Clear, Reset, EraseEOF, EraseInput, Home, Newline, Up, Down, Left, Right, BackSpace, Delete, Insert, FieldEnd, Dup, FieldMark, Attn, SysReq, PF1 to PF24 or PA1 to PA3. 5250 (IBM i) hosts also take FieldExit, Help, Print, PageUp and PageDown (Roll Down and Roll Up), but not PA keys or FieldMark. VT (SSH) hosts also take Escape, End, PageUp, PageDown and Ctrl+letter, e.g. Ctrl+C. Example: `Enter` |
 | Delay after (milliseconds) | `delay_after_ms` | Number | No | `0` | Main | Extra pause after the key, in milliseconds. |
 | Wait for text | `wait_for_text` | Text | No |  | Main; tick Wait for text afterwards | Text that must appear on the screen after the key (waits up to timeout_seconds); no check when empty. |
 | Wait for host | `wait_for_host` | Yes/No | No | Yes | More options | After keys that go to the host (Enter, PF, PA, Clear...), wait until it unlocks the keyboard. |

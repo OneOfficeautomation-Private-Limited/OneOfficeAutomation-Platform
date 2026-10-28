@@ -78,7 +78,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
 | [String](ooa-string.md) | `ooa.string` | 13 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
 | [System](ooa-system.md) | `ooa.system` | 8 | 0 | 0 | Read environment variables and runner information; lock, sign out, restart or shut down the runner. |
-| [Terminal emulator (TN3270, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 18 | 0 | 0 | Connect to IBM mainframe 3270 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. |
+| [Terminal emulator (TN3270, TN5250, VT over SSH)](ooa-terminal.md) | `ooa.terminal` | 18 | 0 | 0 | Connect to IBM mainframe 3270 screens, IBM i (AS/400) 5250 screens or VT100/ANSI hosts over SSH, type into fields, press Enter and function keys, and read screen text. |
 | [Trigger Loop](ooa-triggerloop.md) | `ooa.triggerloop` | 0 | 1 | 3 | Wait for events (new files, timer ticks, process starts) and run the loop's nested steps once per event. |
 | [Web goal agent](ooa-web_agent.md) | `ooa.web_agent` | 3 | 0 | 0 | Reach a goal on a web page described in plain words: an AI model reads the page and clicks, types and selects until done. |
 | [Window](ooa-window.md) | `ooa.window` | 13 | 2 | 0 | Find, activate, move, resize, minimise, maximise, close and capture application windows on Windows. |

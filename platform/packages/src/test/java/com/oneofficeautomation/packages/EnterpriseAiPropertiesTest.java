@@ -107,7 +107,7 @@ class EnterpriseAiPropertiesTest {
             assertEquals(List.of("Connect(mvs.example.com:23)", "Wait(30,3270Mode)"), e.commands);
             assertEquals(List.of("-model", "3279-2"), started.get(1).subList(1, 3), "no code page option when empty");
 
-            fails("TERMINAL.UNSUPPORTED_TYPE", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "tn5250", 30, null, null, true, null));
+            fails("TERMINAL.UNSUPPORTED_TYPE", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "vt-telnet", 30, null, null, true, null));
             fails("TERMINAL.BAD_LU", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "tn3270e", 30, "LU;rm", null, true, null));
             fails("TERMINAL.BAD_CODE_PAGE", () -> t.connect(ctx, "h", 23, false, "3279-2", "x", "tn3270e", 30, null, "cp 037", true, null));
             fails("TERMINAL.BAD_PORT", () -> t.connect(ctx, "h", 0, false, "3279-2", "x", "tn3270e", 30, null, null, true, null));
