@@ -67,7 +67,7 @@ steps keep no current cell, DTDs are refused for safety), the row stays listed a
 | ooa.microsoft365 | `get_channel_by_name` | Team by name: only team_id; must chain get_team_by_name first (teams_message has team_name, this command does not). |
 | ooa.microsoft365 | `remove_attendees` | No Clear event details command (ticks to blank subject, location, body, reminder, recurrence, all day); update_event leaves empty fields unchanged. |
 | ooa.microsoft365 | `rename_item` | Overwrite (replace an item of the same name) not offered. |
-| ooa.network | `snmp_send_trap` | No version choice (v1/v2c/v3), no trap type (v1 generic/specific) and no timeout; only host, community, trap_oid, variables, port. |
+| ooa.network | `snmp_send_trap` | No version choice (v1/v2c/v3), no trap type (v1 generic/specific) and no timeout; only host, community, trap_oid, variables, port. **Closed 2026-10-29:** version v1/v2c/v3, v1 generic and specific type, v3 signed and encrypted from an engine ID. A trap gets no answer, so there is nothing to time out. |
 | ooa.network | `snmp_walk` | No walk-type choice (e.g. plain walk vs bulk walk); version and v3 fields do exist. |
 | ooa.ocr | `read_image` | No PDF source (with password and page numbers); only image files. Workaround is pdf to_images first. **Closed 2026-10-29:** `ooa.pdf/read_text_ocr` reads scanned PDFs (password, pages, markers). |
 | ooa.ocr | `read_url` | No PDF URL source (with password and pages); only image URLs. |
@@ -78,7 +78,7 @@ steps keep no current cell, DTDs are refused for safety), the row stays listed a
 | ooa.pgp | `encrypt` | public_key_file, cipher, compression and armor are there, but no add-extension tick; target must always be given. |
 | ooa.powerpoint | `create_presentation` | No separate edit (modify) password; only the open password. **Closed 2026-10-29:** `edit_password` (password to modify). |
 | ooa.sap | `right_click` | menu_item is only a function code or element id; no choice to pick the entry by its text or by position. |
-| ooa.snowflake | `execute_statement` | No structured export (destination file, format, header, compression) in any Snowflake action. |
+| ooa.snowflake | `execute_statement` | No structured export (destination file, format, header, compression) in any Snowflake action. **Closed 2026-10-29:** `export_results` streams every partition to CSV, TSV or JSON lines, with header and gzip. |
 | ooa.word | `add_table` | Position choice now exists (end / after text / after bookmark), but there is no table title (alternative-text title) input. |
 | ooa.word | `create_document` | Open password exists (password), but there is no edit (modify / write-protection) password. **Closed 2026-10-29:** `edit_password` restricts editing. |
 | ooa.workday | `get_integration_event` | No ID type input (event_id must be a WID). |

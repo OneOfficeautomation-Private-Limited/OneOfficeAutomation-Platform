@@ -148,27 +148,45 @@ public final class SnowflakePackage {
         return r;
     }
 
-    /** Reads the first result partition (already in hand) and then the remaining partitions, up to max rows. */
-    private static Map<String, Object> table(ActionContext ctx, String account, Object token, String tokenType, Result first, int max) {
+    /** The result's column names. */
+    private static List<String> columns(Result first) {
+        Map<?, ?> meta = first.body().get("resultSetMetaData") instanceof Map<?, ?> m ? m : Map.of();
+        List<String> cols = new ArrayList<>();
+        if (meta.get("rowType") instanceof List<?> l) for (Object o : l) cols.add(String.valueOf(((Map<?, ?>) o).get("name")));
+        return cols;
+    }
+
+    /**
+     * Hands each row to {@code sink}, from the first result partition (already in hand) and then the remaining
+     * partitions, up to max rows; returns the number of partitions.
+     */
+    private static int eachRow(ActionContext ctx, String account, Object token, String tokenType, Result first, long max, java.util.function.Consumer<List<Object>> sink) {
         Map<?, ?> meta = first.body().get("resultSetMetaData") instanceof Map<?, ?> m ? m : Map.of();
         List<?> rowType = meta.get("rowType") instanceof List<?> l ? l : List.of();
-        List<String> cols = new ArrayList<>();
-        for (Object o : rowType) cols.add(String.valueOf(((Map<?, ?>) o).get("name")));
         int partitions = meta.get("partitionInfo") instanceof List<?> pl ? Math.max(1, pl.size()) : 1;
-        List<Object> rows = new ArrayList<>();
+        long n = 0;
         Map<String, Object> page = first.body();
-        for (int p = 0; p < partitions && rows.size() < max; p++) {
+        for (int p = 0; p < partitions && n < max; p++) {
             if (p > 0) page = poll(ctx, account, token, tokenType, first.handle(), String.valueOf(p)).body();
+            ctx.checkCancelled();
             for (Object o : (List<?>) page.getOrDefault("data", List.of())) {
                 List<?> raw = (List<?>) o;
                 List<Object> row = new ArrayList<>();
-                for (int c = 0; c < cols.size(); c++) row.add(cell(c < raw.size() ? raw.get(c) : null, (Map<?, ?>) rowType.get(c)));
-                rows.add(row);
-                if (rows.size() >= max) break;
+                for (int c = 0; c < rowType.size(); c++) row.add(cell(c < raw.size() ? raw.get(c) : null, (Map<?, ?>) rowType.get(c)));
+                sink.accept(row);
+                if (++n >= max) break;
             }
         }
+        return partitions;
+    }
+
+    /** Reads the first result partition (already in hand) and then the remaining partitions, up to max rows. */
+    private static Map<String, Object> table(ActionContext ctx, String account, Object token, String tokenType, Result first, int max) {
+        Map<?, ?> meta = first.body().get("resultSetMetaData") instanceof Map<?, ?> m ? m : Map.of();
+        List<Object> rows = new ArrayList<>();
+        int partitions = eachRow(ctx, account, token, tokenType, first, max, rows::add);
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("table", Values.table(cols, rows));
+        out.put("table", Values.table(columns(first), rows));
         out.put("partitions", BigDecimal.valueOf(partitions));
         out.put("total_rows", meta.get("numRows") instanceof BigDecimal n ? n : BigDecimal.valueOf(rows.size()));
         return out;
@@ -275,6 +293,80 @@ public final class SnowflakePackage {
         Map<String, Object> t = table(ctx, account, token, tokenType, r, max);
         @SuppressWarnings("unchecked") Map<String, Object> tbl = (Map<String, Object>) t.get("table");
         return Out.of("table", tbl, "row_count", BigDecimal.valueOf(DataTablePackage.rows(tbl).size()), "total_rows", t.get("total_rows"));
+    }
+
+    @Action(id = "export_results", name = "Export results to file", category = "SQL", timeoutSeconds = 3600, capabilities = "network,filesystem",
+            description = "Run one SQL statement and write all of its rows to a file (CSV, tab-separated or JSON lines), optionally gzip-compressed, without holding them in memory.",
+            panel = "account_url, token, sql, [Fill in ? placeholders: bindings], file, format, header, compression | overwrite, warehouse, database, schema, role, wait_seconds, token_type")
+    @Output(name = "file", type = OoaType.FILE, description = "The file written.")
+    @Output(name = "row_count", type = OoaType.NUMBER, description = "Rows written (not counting the header).")
+    @Output(name = "statement_handle", type = OoaType.STRING, description = "Id of the statement.")
+    public Map<String, Object> exportResults(ActionContext ctx,
+            @Input(name = "account_url", type = OoaType.STRING, pattern = "^https?://", description = D_URL) String account,
+            @Input(name = "sql", type = OoaType.STRING, example = "SELECT * FROM ORDERS WHERE ORDER_DATE >= ?", description = "SQL to run. Put ? where each binding value goes.") String sql,
+            @Input(name = "file", type = OoaType.FILE, example = "exports/orders.csv", description = "File to write; add .gz yourself when compressing.") String file,
+            @Input(name = "bindings", type = OoaType.LIST, required = false, description = "Values for the ? placeholders, in order, e.g. [\"2026-10-01\"].") List<Object> binds,
+            @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"csv\"", enumValues = {"csv", "tsv", "json_lines"},
+                    description = "csv (comma-separated, quoted where needed), tsv (tab-separated) or json_lines (one JSON object per row).") String format,
+            @Input(name = "header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "format=csv,tsv", description = "Write the column names as the first line.") boolean header,
+            @Input(name = "compression", type = OoaType.STRING, required = false, defaultValue = "\"none\"", enumValues = {"none", "gzip"}, description = "none, or gzip to compress the file.") String compression,
+            @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists.") boolean overwrite,
+            @Input(name = "warehouse", type = OoaType.STRING, required = false, description = D_WH) String warehouse,
+            @Input(name = "database", type = OoaType.STRING, required = false, description = "Database to use for names that are not fully written out.") String database,
+            @Input(name = "schema", type = OoaType.STRING, required = false, description = "Schema to use for names that are not fully written out.") String schema,
+            @Input(name = "role", type = OoaType.STRING, required = false, description = D_ROLE) String role,
+            @Input(name = "wait_seconds", type = OoaType.NUMBER, required = false, defaultValue = "3000", description = "How long to wait for the statement to finish.") int wait,
+            @Input(name = "token", type = OoaType.CREDENTIAL, description = D_TOKEN) Object token,
+            @Input(name = "token_type", type = OoaType.STRING, required = false, defaultValue = "\"OAUTH\"", enumValues = {"OAUTH", "KEYPAIR_JWT", "PROGRAMMATIC_ACCESS_TOKEN"}, description = D_TOKEN_TYPE) String tokenType) {
+        String fmt = format == null || format.isBlank() ? "csv" : format.strip().toLowerCase(Locale.ROOT);
+        if (!List.of("csv", "tsv", "json_lines").contains(fmt)) throw new ActionException(P + ".BAD_FORMAT", "Unknown format '" + format + "'", "Use csv, tsv or json_lines.");
+        boolean gzip = "gzip".equalsIgnoreCase(compression == null ? "" : compression.strip());
+        java.nio.file.Path out = ctx.resolvePath(file);
+        if (java.nio.file.Files.exists(out) && !overwrite) throw new ActionException(P + ".FILE_EXISTS", "A file already exists at " + out, "Set overwrite to true, or choose another file.");
+        Result r = waitFor(ctx, account, token, tokenType, submit(ctx, account, token, tokenType, sql, binds, warehouse, database, schema, role, Math.max(wait, 0) + 3600), wait);
+        if (r.running()) throw new ActionException(P + ".STILL_RUNNING", "The statement did not finish within " + wait + " seconds", "Raise wait_seconds, or use Get statement status with the handle " + r.handle() + ".", true);
+        List<String> cols = columns(r);
+        long[] count = {0};
+        java.nio.file.Path part = out.resolveSibling(out.getFileName() + ".part");
+        try {
+            if (out.getParent() != null) java.nio.file.Files.createDirectories(out.getParent());
+            java.io.OutputStream raw = java.nio.file.Files.newOutputStream(part);
+            try (java.io.Writer w = new java.io.BufferedWriter(new java.io.OutputStreamWriter(gzip ? new java.util.zip.GZIPOutputStream(raw) : raw, java.nio.charset.StandardCharsets.UTF_8))) {
+                if (header && !fmt.equals("json_lines")) line(w, fmt, new ArrayList<>(cols));
+                eachRow(ctx, account, token, tokenType, r, Long.MAX_VALUE, row -> {
+                    try {
+                        if (fmt.equals("json_lines")) {
+                            Map<String, Object> o = new LinkedHashMap<>();
+                            for (int c = 0; c < cols.size(); c++) o.put(cols.get(c), row.get(c));
+                            w.write(JsonLite.write(o));
+                            w.write("\n");
+                        } else line(w, fmt, row);
+                        count[0]++;
+                    } catch (java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
+                });
+            }
+            java.nio.file.Files.move(part, out, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.io.IOException | java.io.UncheckedIOException e) {
+            try { java.nio.file.Files.deleteIfExists(part); } catch (java.io.IOException ignored) { }
+            throw new ActionException(P + ".WRITE_FAILED", "Cannot write " + out + ": " + e.getMessage(), "Check the folder exists and can be written.");
+        } catch (RuntimeException e) {
+            try { java.nio.file.Files.deleteIfExists(part); } catch (java.io.IOException ignored) { }
+            throw e;
+        }
+        return Out.of("file", out.toString(), "row_count", BigDecimal.valueOf(count[0]), "statement_handle", r.handle());
+    }
+
+    /** One CSV or TSV line: CSV quotes a value with a comma, quote or line break; TSV turns tabs and line breaks into spaces. */
+    static void line(java.io.Writer w, String fmt, List<Object> values) throws java.io.IOException {
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) w.write(fmt.equals("tsv") ? '\t' : ',');
+            Object v = values.get(i);
+            String t = v == null ? "" : v instanceof BigDecimal d ? d.toPlainString() : Values.text(v);
+            if (fmt.equals("tsv")) w.write(t.replaceAll("[\t\r\n]", " "));
+            else if (t.contains(",") || t.contains("\"") || t.contains("\n") || t.contains("\r")) w.write("\"" + t.replace("\"", "\"\"") + "\"");
+            else w.write(t);
+        }
+        w.write(fmt.equals("csv") ? "\r\n" : "\n");
     }
 
     // ----- catalog -----

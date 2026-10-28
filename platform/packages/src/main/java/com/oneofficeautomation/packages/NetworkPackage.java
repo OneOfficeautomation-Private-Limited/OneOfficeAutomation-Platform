@@ -333,15 +333,44 @@ public final class NetworkPackage {
                     "Check the host, the port (usually 161) and the community; devices silently ignore a wrong community.", true);
         }
 
-        static void sendTrap(String host, int port, String community, long uptimeTicks, String trapOid, List<VarBind> extra) {
+        static final int TRAP_V1 = 0xA4;
+        static final List<String> GENERIC_TRAPS = List.of("cold_start", "warm_start", "link_down", "link_up", "authentication_failure", "egp_neighbor_loss", "enterprise_specific");
+
+        /** The two variables every v2c and v3 notification starts with: the sender's uptime and the notification's OID. */
+        static List<VarBind> notification(long uptimeTicks, String trapOid, List<VarBind> extra) {
             List<VarBind> vars = new ArrayList<>();
             vars.add(new VarBind(SYS_UPTIME, TIMETICKS, BigDecimal.valueOf(uptimeTicks)));
             vars.add(new VarBind(TRAP_OID, OID, trapOid));
             vars.addAll(extra);
-            byte[] out = encode(new Message(VERSION_2C, community, TRAP, IDS.nextInt(Integer.MAX_VALUE), 0, 0, vars));
+            return vars;
+        }
+
+        static void sendTrap(String host, int port, String community, long uptimeTicks, String trapOid, List<VarBind> extra) {
+            send(host, port, encode(new Message(VERSION_2C, community, TRAP, IDS.nextInt(Integer.MAX_VALUE), 0, 0, notification(uptimeTicks, trapOid, extra))));
+        }
+
+        /** An SNMP v1 trap (RFC 1157): enterprise OID, the sender's address, generic and specific type, uptime, variables. */
+        static byte[] encodeTrapV1(String community, String enterprise, byte[] agentAddr, int generic, int specific, long uptimeTicks, List<VarBind> extra) {
+            java.io.ByteArrayOutputStream vbs = new java.io.ByteArrayOutputStream();
+            for (VarBind vb : extra) vbs.writeBytes(tlv(SEQUENCE, oid(vb.oid()), value(vb.type(), vb.value())));
+            byte[] pdu = tlv(TRAP_V1, oid(enterprise), tlv(IPADDR, agentAddr), integer(generic), integer(specific),
+                tlv(TIMETICKS, BigInteger.valueOf(uptimeTicks).toByteArray()), tlv(SEQUENCE, vbs.toByteArray()));
+            return tlv(SEQUENCE, integer(VERSION_1), tlv(OCTETS, community.getBytes(StandardCharsets.UTF_8)), pdu);
+        }
+
+        static void send(String host, int port, byte[] out) {
             try (DatagramSocket s = new DatagramSocket()) { s.send(new DatagramPacket(out, out.length, InetAddress.getByName(host), port)); }
             catch (UnknownHostException e) { throw new ActionException("SNMP.UNKNOWN_HOST", "Unknown host '" + host + "'", "Check the host name and DNS."); }
             catch (IOException e) { throw new ActionException("SNMP.UNREACHABLE", "Cannot send the trap to " + host + ":" + port + ": " + e.getMessage(), "Check the network and firewall.", true); }
+        }
+
+        /** This computer's IPv4 address for a v1 trap's agent-addr; 0.0.0.0 when it has none. */
+        static byte[] localAddress(String host) {
+            try (DatagramSocket s = new DatagramSocket()) {
+                s.connect(InetAddress.getByName(host), 9);   // no packet is sent: it only picks the outgoing interface
+                if (s.getLocalAddress() instanceof Inet4Address a && !a.isAnyLocalAddress()) return a.getAddress();
+            } catch (IOException ignored) { }
+            return new byte[4];
         }
     }
 
@@ -531,15 +560,35 @@ public final class NetworkPackage {
         return out;
     }
 
+    public Map<String, Object> snmpSendTrap(ActionContext ctx, String host, String trapOid, Map<String, Object> variables, Object community, int port) {
+        return snmpSendTrap(ctx, host, trapOid, variables, community, port, "v2c", "enterprise_specific", 0, null, null, null, null, null, null, null);
+    }
+
     @Action(id = "snmp_send_trap", name = "SNMP send trap", category = "SNMP", timeoutSeconds = 60, capabilities = "network",
-            description = "Send an SNMP v2c notification (trap) to a monitoring system.",
-            panel = "host, community, trap_oid, variables | port")
+            description = "Send an SNMP notification (trap) to a monitoring system: v1 (enterprise, generic and specific type), v2c, or v3 signed and encrypted from this runner's engine ID.",
+            panel = "host, version, community, trap_oid, variables, [v1 trap type: generic_trap, specific_trap], "
+                    + "[SNMP v3: security_user, auth_protocol, auth_password, privacy_protocol, privacy_password, context_name, engine_id] | port")
+    @Output(name = "engine_id", type = OoaType.STRING, description = "For v3, the engine ID (hex) the trap was sent from, for setting up the user on the receiver; empty for v1 and v2c.")
     public Map<String, Object> snmpSendTrap(ActionContext ctx,
             @Input(name = "host", type = OoaType.STRING, description = "Monitoring system host name or IP address.") String host,
-            @Input(name = "trap_oid", type = OoaType.STRING, example = "1.3.6.1.4.1.99999.0.1", description = "OID that identifies the kind of notification.") String trapOid,
+            @Input(name = "trap_oid", type = OoaType.STRING, example = "1.3.6.1.4.1.99999.0.1", description = "OID that identifies the kind of notification; for v1 the enterprise OID.") String trapOid,
             @Input(name = "variables", type = OoaType.DICTIONARY, required = false, description = "Extra values to include: OID to value (numbers are sent as integers, everything else as text).") Map<String, Object> variables,
             @Input(name = "community", required = false, defaultValue = "\"public\"", description = D_COMMUNITY) Object community,
-            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "162", min = 1, max = 65535, description = "UDP port of the trap receiver.") int port) {
+            @Input(name = "port", type = OoaType.NUMBER, required = false, defaultValue = "162", min = 1, max = 65535, description = "UDP port of the trap receiver.") int port,
+            @Input(name = "version", type = OoaType.STRING, required = false, defaultValue = "\"v2c\"", enumValues = {"v1", "v2c", "v3"}, description = "SNMP version the receiver expects.") String version,
+            @Input(name = "generic_trap", type = OoaType.STRING, required = false, defaultValue = "\"enterprise_specific\"", visibleWhen = "version=v1",
+                    enumValues = {"cold_start", "warm_start", "link_down", "link_up", "authentication_failure", "egp_neighbor_loss", "enterprise_specific"},
+                    description = "SNMP v1 generic trap type; enterprise_specific for your own notifications.") String generic,
+            @Input(name = "specific_trap", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, visibleWhen = "version=v1",
+                    description = "SNMP v1 specific trap number, used with enterprise_specific.") int specific,
+            @Input(name = "security_user", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = D_V3_USER) String v3User,
+            @Input(name = "auth_protocol", type = OoaType.STRING, required = false, defaultValue = "\"sha\"", enumValues = {"none", "md5", "sha", "sha256", "sha512"}, visibleWhen = "version=v3", description = D_V3_AUTH) String v3Auth,
+            @Input(name = "auth_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 sign-in password from the vault.") Object v3AuthPw,
+            @Input(name = "privacy_protocol", type = OoaType.STRING, required = false, defaultValue = "\"aes128\"", enumValues = {"none", "des", "aes128"}, visibleWhen = "version=v3", description = D_V3_PRIV) String v3Priv,
+            @Input(name = "privacy_password", type = OoaType.CREDENTIAL, required = false, visibleWhen = "version=v3", description = "SNMP v3 privacy (encryption) password from the vault.") Object v3PrivPw,
+            @Input(name = "context_name", type = OoaType.STRING, required = false, visibleWhen = "version=v3", description = "SNMP v3 context, when the receiver uses them; usually empty.") String v3Context,
+            @Input(name = "engine_id", type = OoaType.STRING, required = false, visibleWhen = "version=v3", example = "800000000403414243",
+                    description = "SNMP v3 engine ID (hex) to send from; this computer's own (made from its name) when empty. The receiver lists it with the user.") String engineId) {
         Snmp.parseOid(trapOid);
         List<Snmp.VarBind> extra = new ArrayList<>();
         if (variables != null) for (var e : variables.entrySet()) {
@@ -549,8 +598,21 @@ public final class NetworkPackage {
             extra.add(whole ? new Snmp.VarBind(e.getKey(), Snmp.INTEGER, v) : new Snmp.VarBind(e.getKey(), Snmp.OCTETS, v instanceof SecureString ? SecureString.MASK : com.oneofficeautomation.runner.Values.text(v)));
         }
         long uptime = java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime() / 10;  // hundredths of a second
-        Snmp.sendTrap(host, port, community(community), uptime & 0xFFFFFFFFL, trapOid.strip().startsWith(".") ? trapOid.strip().substring(1) : trapOid.strip(), extra);
-        return Map.of();
+        String oid = trapOid.strip().startsWith(".") ? trapOid.strip().substring(1) : trapOid.strip();
+        switch (Snmp.version(version)) {
+            case Snmp.VERSION_1 -> {
+                int g = Snmp.GENERIC_TRAPS.indexOf(generic == null || generic.isBlank() ? "enterprise_specific" : generic.strip().toLowerCase(Locale.ROOT));
+                if (g < 0) throw new ActionException("SNMP.BAD_TRAP_TYPE", "Unknown generic trap type '" + generic + "'", "Use one of " + Snmp.GENERIC_TRAPS + ".");
+                Snmp.send(host, port, Snmp.encodeTrapV1(community(community), oid, Snmp.localAddress(host), g, g == 6 ? specific : 0, uptime & 0xFFFFFFFFL, extra));
+            }
+            case SnmpV3.VERSION_3 -> {
+                byte[] id = engineId == null || engineId.isBlank() ? SnmpV3.localEngineId() : SnmpV3.engineId(engineId);
+                SnmpV3.trap(host, port, v3(v3User, v3Auth, v3AuthPw, v3Priv, v3PrivPw, v3Context, version), id, Snmp.notification(uptime & 0xFFFFFFFFL, oid, extra));
+                return Map.of("engine_id", HexFormat.of().formatHex(id));
+            }
+            default -> Snmp.sendTrap(host, port, community(community), uptime & 0xFFFFFFFFL, oid, extra);
+        }
+        return Map.of("engine_id", "");
     }
 
 }

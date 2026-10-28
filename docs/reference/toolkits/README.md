@@ -74,7 +74,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [ServiceNow](ooa-servicenow.md) | `ooa.servicenow` | 13 | 0 | 0 | Query, create and update ServiceNow records (incidents, requests, any table), add comments and attachments. |
 | [Shared values](ooa-global_values.md) | `ooa.global_values` | 2 | 1 | 0 | Read shared values that many agents use, such as folders, thresholds or URLs. |
 | [Slack](ooa-slack.md) | `ooa.slack` | 10 | 0 | 0 | Post messages to Slack channels and users. |
-| [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 10 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
+| [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 11 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |
 | [String](ooa-string.md) | `ooa.string` | 13 | 2 | 0 | Text manipulation: extract, replace, split, change case. |
 | [System](ooa-system.md) | `ooa.system` | 8 | 0 | 0 | Read environment variables and runner information; lock, sign out, restart or shut down the runner. |
@@ -90,4 +90,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 79 toolkits, 1058 actions, 47 conditions and 12 loop types.
+In all: 79 toolkits, 1059 actions, 47 conditions and 12 loop types.

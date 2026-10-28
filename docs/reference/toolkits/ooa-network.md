@@ -133,17 +133,33 @@ Read the object that follows an OID in the device's tree (SNMP GETNEXT).
 
 `ooa.network/snmp_send_trap` (action)
 
-Send an SNMP v2c notification (trap) to a monitoring system.
+Send an SNMP notification (trap) to a monitoring system: v1 (enterprise, generic and specific type), v2c, or v3 signed and encrypted from this runner's engine ID.
 
 **Settings**
 
 | Field | Name | Type | Required | Default | Where | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | Host | `host` | Text | Yes |  | Main | Monitoring system host name or IP address. |
+| Version | `version` | Text | No | `v2c` | Main | SNMP version the receiver expects. One of: `v1`, `v2c`, `v3` |
 | Community | `community` | Any | No | `public` | Main | SNMP v1 or v2c community (text or a Credential); public when empty. |
-| Trap oid | `trap_oid` | Text | Yes |  | Main | OID that identifies the kind of notification. Example: `1.3.6.1.4.1.99999.0.1` |
+| Trap oid | `trap_oid` | Text | Yes |  | Main | OID that identifies the kind of notification; for v1 the enterprise OID. Example: `1.3.6.1.4.1.99999.0.1` |
 | Variables | `variables` | Dictionary | No |  | Main | Extra values to include: OID to value (numbers are sent as integers, everything else as text). |
+| Generic trap | `generic_trap` | Text | No | `enterprise_specific` | Main; tick v1 trap type | SNMP v1 generic trap type; enterprise_specific for your own notifications. One of: `cold_start`, `warm_start`, `link_down`, `link_up`, `authentication_failure`, `egp_neighbor_loss`, `enterprise_specific`; Shown when: `{"version": ["v1"]}` |
+| Specific trap | `specific_trap` | Number | No | `0` | Main; tick v1 trap type | SNMP v1 specific trap number, used with enterprise_specific. Range: 0 to ; Shown when: `{"version": ["v1"]}` |
+| Security user | `security_user` | Text | No |  | Main; tick SNMP v3 | SNMP v3 security user name (v3 uses it instead of a community). Shown when: `{"version": ["v3"]}` |
+| Sign-in protocol | `auth_protocol` | Text | No | `sha` | Main; tick SNMP v3 | SNMP v3 sign-in protocol: none, md5, sha (SHA-1), sha256 or sha512. One of: `none`, `md5`, `sha`, `sha256`, `sha512`; Shown when: `{"version": ["v3"]}` |
+| Sign-in password | `auth_password` | Credential (vault) | No |  | Main; tick SNMP v3 | SNMP v3 sign-in password from the vault. Shown when: `{"version": ["v3"]}` |
+| Privacy protocol | `privacy_protocol` | Text | No | `aes128` | Main; tick SNMP v3 | SNMP v3 privacy (encryption): none, des or aes128. One of: `none`, `des`, `aes128`; Shown when: `{"version": ["v3"]}` |
+| Privacy password | `privacy_password` | Credential (vault) | No |  | Main; tick SNMP v3 | SNMP v3 privacy (encryption) password from the vault. Shown when: `{"version": ["v3"]}` |
+| Context name | `context_name` | Text | No |  | Main; tick SNMP v3 | SNMP v3 context, when the receiver uses them; usually empty. Shown when: `{"version": ["v3"]}` |
+| Engine ID | `engine_id` | Text | No |  | Main; tick SNMP v3 | SNMP v3 engine ID (hex) to send from; this computer's own (made from its name) when empty. The receiver lists it with the user. Example: `800000000403414243`; Shown when: `{"version": ["v3"]}` |
 | Port | `port` | Number | No | `162` | More options | UDP port of the trap receiver. Range: 1 to 65535 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `engine_id` | Text | For v3, the engine ID (hex) the trap was sent from, for setting up the user on the receiver; empty for v1 and v2c. |
 
 *Time limit 60 s; needs: network.*
 

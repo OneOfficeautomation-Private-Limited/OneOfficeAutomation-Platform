@@ -6,7 +6,7 @@ Toolkit `ooa.snowflake`, version 1.0.0. Run SQL in Snowflake, read results into 
 
 ## Contents
 
-- **SQL**: Cancel statement, Run SQL statement, Get statement results, Get statement status
+- **SQL**: Cancel statement, Run SQL statement, Export results to file, Get statement results, Get statement status
 - **Loading**: Insert rows from data table
 - **Catalog**: List columns, List databases, List schemas, List tables, List warehouses
 
@@ -62,6 +62,42 @@ Run one SQL statement and return its rows as a data table. Use ? in the SQL for 
 | `status` | Text | succeeded, or running when it did not finish within the wait time. |
 
 *Time limit 3600 s; needs: network.*
+
+### Export results to file
+
+`ooa.snowflake/export_results` (action)
+
+Run one SQL statement and write all of its rows to a file (CSV, tab-separated or JSON lines), optionally gzip-compressed, without holding them in memory.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Account address (URL) | `account_url` | Text | Yes |  | Main | Your Snowflake account address, e.g. https://myorg-myaccount.snowflakecomputing.com. |
+| Token | `token` | Credential (vault) | Yes |  | Main | Access token from the vault: an OAuth token, a key-pair JWT or a programmatic access token. |
+| SQL statement | `sql` | Text | Yes |  | Main | SQL to run. Put ? where each binding value goes. Example: `SELECT * FROM ORDERS WHERE ORDER_DATE >= ?` |
+| Bindings | `bindings` | List | No |  | Main; tick Fill in ? placeholders | Values for the ? placeholders, in order, e.g. ["2026-10-01"]. |
+| File | `file` | File path | Yes |  | Main | File to write; add .gz yourself when compressing. Example: `exports/orders.csv` |
+| Format | `format` | Text | No | `csv` | Main | csv (comma-separated, quoted where needed), tsv (tab-separated) or json_lines (one JSON object per row). One of: `csv`, `tsv`, `json_lines` |
+| First row is the header | `header` | Yes/No | No | Yes | Main | Write the column names as the first line. Shown when: `{"format": ["csv,tsv"]}` |
+| Compression | `compression` | Text | No | `none` | Main | none, or gzip to compress the file. One of: `none`, `gzip` |
+| Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file that already exists. |
+| Warehouse | `warehouse` | Text | No |  | More options | Warehouse that runs the query. Leave empty for the user's default warehouse. |
+| Database | `database` | Text | No |  | More options | Database to use for names that are not fully written out. |
+| Schema | `schema` | Text | No |  | More options | Schema to use for names that are not fully written out. |
+| Role | `role` | Text | No |  | More options | Role to run as. Leave empty for the user's default role. |
+| Wait (seconds) | `wait_seconds` | Number | No | `3000` | More options | How long to wait for the statement to finish. |
+| Token type | `token_type` | Text | No | `OAUTH` | More options | Kind of token in the vault: OAUTH, KEYPAIR_JWT or PROGRAMMATIC_ACCESS_TOKEN. One of: `OAUTH`, `KEYPAIR_JWT`, `PROGRAMMATIC_ACCESS_TOKEN` |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `file` | File path | The file written. |
+| `row_count` | Number | Rows written (not counting the header). |
+| `statement_handle` | Text | Id of the statement. |
+
+*Time limit 3600 s; needs: network,filesystem.*
 
 ### Get statement results
 
