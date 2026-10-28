@@ -58,7 +58,7 @@ The bundled Java is not replaced by a runner self-update; update it by installin
 | Command Center console | Current Chrome, Edge or Firefox |
 | Agent Studio | Chrome or Edge on the Studio computer |
 | Agents that start their own browser | Playwright-driven Chromium-family browser started by the runner |
-| Browser connector (agents in the user's own browser) | Edge and Chrome (Manifest V3 extension), Firefox 128 or later |
+| Browser connector (agents in the user's own browser) | Edge and Chrome (Manifest V3 extension), Firefox 140 or later |
 
 ## 4. Databases
 

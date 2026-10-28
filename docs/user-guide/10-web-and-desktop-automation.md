@@ -51,7 +51,7 @@ have open, signed in as you.
    `ooa browser-connector install`.
 2. Edge or Chrome: open `edge://extensions` or `chrome://extensions`, turn on **Developer mode**, choose
    **Load unpacked** and pick the `browser-extension` folder of the installation.
-3. Firefox (128 or later): open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, pick
+3. Firefox (140 or later): open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, pick
    `manifest.json` in the `browser-extension-firefox` folder, then in `about:addons` > OOA Connector > **Permissions**
    allow access to all websites. A temporary add-on is gone after Firefox restarts.
 4. The extension's toolbar icon should say **Connected**. `ooa browser-connector status` lists connected browsers.

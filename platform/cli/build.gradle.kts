@@ -163,6 +163,16 @@ val nativeExecutable by tasks.registering(Exec::class) {
     }
 }
 
+// The Firefox add-on as one file for Mozilla to sign (gradlew :cli:firefoxAddon): build/distributions/ooa-connector-firefox-VERSION.xpi,
+// with manifest.json at its root. A signed copy installs for good; the unsigned one only as a temporary add-on.
+val firefoxAddon by tasks.registering(Zip::class) {
+    archiveFileName.set(provider { "ooa-connector-firefox-" + groovy.json.JsonSlurper().parse(rootProject.file("browser-extension/manifest.firefox.json")).let { (it as Map<*, *>)["version"] } + ".xpi" })
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    from(rootProject.file("browser-extension")) { exclude("manifest.json", "manifest.firefox.json") }
+    from(rootProject.file("browser-extension/manifest.firefox.json")) { rename { "manifest.json" } }
+    from(rootProject.file("packages-browser/src/main/resources/com/oneofficeautomation/packages/browser/ooa-page.js"))
+}
+
 // The browser connector extension ships in the install (browser-extension\), with the shared page script.
 distributions {
     main {

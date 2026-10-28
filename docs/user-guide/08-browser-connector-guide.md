@@ -4,7 +4,7 @@
 the Edge, Chrome or Firefox windows people already have open.
 
 **You need:** ONEOFFICEAUTOMATION installed on the computer (the connector uses its `bin\ooa.bat` and its
-`browser-extension` folders), Edge or Chrome 116 or later, or Firefox 128 or later, and a normal Windows user account.
+`browser-extension` folders), Edge or Chrome 116 or later, or Firefox 140 or later, and a normal Windows user account.
 No administrator rights are needed: the connector is installed per Windows user.
 
 ## Contents
