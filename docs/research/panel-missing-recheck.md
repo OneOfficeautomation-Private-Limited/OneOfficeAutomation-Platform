@@ -18,7 +18,7 @@ steps keep no current cell, DTDs are refused for safety), the row stays listed a
 
 | Toolkit | Command | What is missing |
 | --- | --- | --- |
-| core | `set` | No credential picker for Value; the Studio editor offers only text/value or calculation. |
+| core | `set` | No credential picker for Value; the Studio editor offers only text/value or calculation. **Closed 2026-10-29:** Set into a Credential variable offers only a Credential-variable picker. |
 | ooa.asana | `add_comment` | No comment-format choice (plain vs rich/HTML text) and no pin option; only text. |
 | ooa.asana | `list_comments` | No get-comment command (only update_comment and delete_comment take a comment id). |
 | ooa.asana | `list_users` | No list-teams-for-user command (only get_team and get_user). |
@@ -69,18 +69,18 @@ steps keep no current cell, DTDs are refused for safety), the row stays listed a
 | ooa.microsoft365 | `rename_item` | Overwrite (replace an item of the same name) not offered. |
 | ooa.network | `snmp_send_trap` | No version choice (v1/v2c/v3), no trap type (v1 generic/specific) and no timeout; only host, community, trap_oid, variables, port. |
 | ooa.network | `snmp_walk` | No walk-type choice (e.g. plain walk vs bulk walk); version and v3 fields do exist. |
-| ooa.ocr | `read_image` | No PDF source (with password and page numbers); only image files. Workaround is pdf to_images first. |
+| ooa.ocr | `read_image` | No PDF source (with password and page numbers); only image files. Workaround is pdf to_images first. **Closed 2026-10-29:** `ooa.pdf/read_text_ocr` reads scanned PDFs (password, pages, markers). |
 | ooa.ocr | `read_url` | No PDF URL source (with password and pages); only image URLs. |
 | ooa.pdf | `extract_images` | No resolution input (dpi exists only on to_images); pages, format, color, prefix, password exist. |
 | ooa.pdf | `read_form` | No choice of which fields to read; it always returns all fields. |
 | ooa.pgp | `create_keys` | No overwrite input for existing key files. |
 | ooa.pgp | `decrypt` | private_key_file is there, but no remove-extension tick; target must always be given. |
 | ooa.pgp | `encrypt` | public_key_file, cipher, compression and armor are there, but no add-extension tick; target must always be given. |
-| ooa.powerpoint | `create_presentation` | No separate edit (modify) password; only the open password. |
+| ooa.powerpoint | `create_presentation` | No separate edit (modify) password; only the open password. **Closed 2026-10-29:** `edit_password` (password to modify). |
 | ooa.sap | `right_click` | menu_item is only a function code or element id; no choice to pick the entry by its text or by position. |
 | ooa.snowflake | `execute_statement` | No structured export (destination file, format, header, compression) in any Snowflake action. |
 | ooa.word | `add_table` | Position choice now exists (end / after text / after bookmark), but there is no table title (alternative-text title) input. |
-| ooa.word | `create_document` | Open password exists (password), but there is no edit (modify / write-protection) password. |
+| ooa.word | `create_document` | Open password exists (password), but there is no edit (modify / write-protection) password. **Closed 2026-10-29:** `edit_password` restricts editing. |
 | ooa.workday | `get_integration_event` | No ID type input (event_id must be a WID). |
 | ooa.workday | `launch_integration` | No integration direction and no input file for inbound integrations; id_type is there. |
 | ooa.xml | `save_file` | No Overwrite option. |

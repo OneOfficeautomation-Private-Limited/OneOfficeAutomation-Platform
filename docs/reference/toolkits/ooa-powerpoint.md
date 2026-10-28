@@ -126,6 +126,7 @@ Create a new .pptx file on disk, empty or as a copy of a template presentation, 
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Path of the new presentation. |
 | Password | `password` | Credential (vault) | No |  | Main; tick Require a password to open the file | Encrypt the new file with this password; later saves keep it. |
+| Edit password | `edit_password` | Credential (vault) | No |  | Main; tick Require a password to edit the file | Password to modify: PowerPoint asks for it, or offers to open the file read-only. |
 | Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file that already exists at the path. |
 | Template | `template` | File path | No |  | More options | Existing .pptx whose slide masters, layouts and slides the new file starts from; empty when empty. |
 | Session | `session` | Text | No | `powerpoint` | More options | Session name used by later steps. |

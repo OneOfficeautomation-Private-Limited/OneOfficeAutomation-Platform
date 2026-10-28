@@ -2104,7 +2104,7 @@ function inputControl(step, name, prop, required) {
   if (step.action === "core/set" && name === "value") {
     const vdef = state.flow.variables.find((x) => x.name === String(args.variable || "").replace(/^\$/, ""));
     return h("div", { class: "field", "data-field": name }, h("label", {}, "Value", required ? h("span", { class: "req", text: " *" }) : null,
-      infoTip(prop.description)), assignValueEditor(current, set, vdef ? vdef.type : "Any"));
+      infoTip(prop.description)), vdef && vdef.type === "Credential" ? textSourceEditor(current, set, true) : assignValueEditor(current, set, vdef ? vdef.type : "Any"));
   }
   const rowsField = rowsEditor(step, name, prop, required, current, set);
   if (rowsField) return rowsField;
@@ -5526,15 +5526,18 @@ function elementActionSelect(step, prop) {
   return h("div", { class: "field-row" }, sel, ct ? h("span", { class: "chip ct-chip", title: "Control type of the captured element", text: ct }) : null);
 }
 
-/** The value of Set text: Credential (a Credential variable), Variable, Text (with $name and ${name} in it) or Calculation. */
-function textSourceEditor(value, set) {
+/**
+ * The value of Set text: Credential (a Credential variable), Variable, Text (with $name and ${name} in it) or Calculation.
+ * With onlyCredential (Set into a Credential variable) only the credential picker is offered: no plain text or calculation.
+ */
+function textSourceEditor(value, set, onlyCredential) {
   const isVar = typeof value === "string" && /^\$[A-Za-z_][A-Za-z0-9_]*$/.test(value.trim());
   const vname = isVar ? value.trim().slice(1) : "";
   const vdef = vname ? state.flow.variables.find((v) => v.name === vname) : null;
-  let mode = isVar ? (vdef && vdef.type === "Credential" ? "credential" : "variable") : isCalcVal(value) ? "calc" : "plain";
+  let mode = onlyCredential ? "credential" : isVar ? (vdef && vdef.type === "Credential" ? "credential" : "variable") : isCalcVal(value) ? "calc" : "plain";
   const box = h("div", { class: "text-source" });
   const render = () => {
-    const seg = h("div", { class: "seg", role: "radiogroup", "aria-label": "Text comes from" },
+    const seg = onlyCredential ? null : h("div", { class: "seg", role: "radiogroup", "aria-label": "Text comes from" },
       [["credential", "Credential"], ["variable", "Variable"], ["plain", "Text"], ["calc", "Calculation"]].map(([k, t]) => h("button", { type: "button", role: "radio", "aria-checked": String(mode === k),
         onclick: () => { mode = k; render(); } }, t)));
     let body;
@@ -5560,9 +5563,10 @@ function textSourceEditor(value, set) {
         } }, "+ New");
       body = h("div", { class: "field-row" }, sel, add);
     }
-    const help = mode === "plain" ? "Typed as written; $row.Name or ${amount} put a variable's value in the text (numbers too). Use a credential for passwords."
+    const help = onlyCredential ? "A credential comes from another Credential variable, whose value is mapped to the vault when the agent runs; it is never typed into the agent."
+      : mode === "plain" ? "Typed as written; $row.Name or ${amount} put a variable's value in the text (numbers too). Use a credential for passwords."
       : mode === "calc" ? "Worked out when the step runs, then typed: functions such as upper(), round($x, 2), or $a + $b." : null;
-    box.replaceChildren(seg, body, help ? h("div", { class: "help", text: help }) : null);
+    box.replaceChildren(...[seg, body, help ? h("div", { class: "help", text: help }) : null].filter(Boolean));
   };
   render();
   return box;

@@ -504,6 +504,37 @@ public final class PdfPackage {
         return Map.of("files", out);
     }
 
+    @Action(id = "read_text_ocr", name = "Read text with OCR", category = "Document", idempotent = true, timeoutSeconds = 1800, capabilities = "filesystem",
+            description = "Read the text of a scanned PDF (pages that are pictures, with no text layer) with Tesseract OCR, from every page or chosen pages, optionally keeping only the text between two markers.",
+            panel = "path, [The file has a password: password], [Only some pages: pages], language | [Keep only part of the text: after_text, before_text], trim, dpi, page_mode")
+    @Output(name = "text", type = OoaType.STRING, description = "Recognised text of the pages, in page order.")
+    @Output(name = "pages", type = OoaType.LIST, description = "Recognised text of each page read, in page order.")
+    public Map<String, Object> readTextOcr(ActionContext ctx,
+            @Input(name = "path", type = OoaType.FILE, description = "PDF file.") String path,
+            @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Password for protected PDFs.") Object password,
+            @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Pages to read, e.g. 1,3,5-7; every page when empty.") String pages,
+            @Input(name = "language", type = OoaType.STRING, required = false, defaultValue = "\"eng\"", description = "Tesseract language(s), e.g. eng, deu or eng+fra.") String lang,
+            @Input(name = "page_mode", type = OoaType.NUMBER, required = false, defaultValue = "3", min = 0, max = 13, description = "Page layout mode: 3 automatic, 6 single block, 7 single line, 11 sparse text.") int psm,
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "300", min = 72, max = 600, description = "Resolution the pages are rendered at for OCR; 300 suits most scans.") int dpi,
+            @Input(name = "after_text", type = OoaType.STRING, required = false, description = "Keep only the text after the first occurrence of this marker, e.g. Invoice number:.") String after,
+            @Input(name = "before_text", type = OoaType.STRING, required = false, description = "Keep only the text before this marker (searched after the after_text marker).") String before,
+            @Input(name = "trim", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Remove spaces and line breaks at the start and end of the result.") boolean trim) {
+        List<Object> each = new ArrayList<>();
+        StringBuilder all = new StringBuilder();
+        try (PDDocument d = load(ctx, path, password)) {
+            PDFRenderer r = new PDFRenderer(d);
+            for (int pg : pages(pages, d.getNumberOfPages())) {
+                ctx.checkCancelled();
+                String t = com.oneofficeautomation.packages.OcrPackage.readText(ctx, r.renderImageWithDPI(pg - 1, Math.max(72, Math.min(600, dpi)), org.apache.pdfbox.rendering.ImageType.GRAY), lang, psm, null, null, false);
+                each.add(t);
+                if (all.length() > 0) all.append('\n');
+                all.append(t);
+            }
+        } catch (IOException e) { throw new ActionException("PDF.RENDER_FAILED", e.getMessage()); }
+        // the markers may sit on different pages, so they apply to the whole text
+        return Map.of("text", com.oneofficeautomation.packages.OcrPackage.filterText(all.toString(), after, before, trim), "pages", each);
+    }
+
     public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password) {
         return extractImages(ctx, path, folder, minSize, password, null, "png", null, "color");
     }

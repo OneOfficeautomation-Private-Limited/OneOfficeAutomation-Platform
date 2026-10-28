@@ -542,15 +542,21 @@ public final class WordPackage {
 
     public Map<String, Object> createDocument(ActionContext ctx, String path, boolean overwrite, String session) { return createDocument(ctx, path, overwrite, session, null, null); }
 
+    public Map<String, Object> createDocument(ActionContext ctx, String path, boolean overwrite, String session, Object password, String template) {
+        return createDocument(ctx, path, overwrite, session, password, template, null);
+    }
+
     @Action(id = "create_document", name = "Create document", category = "Document", capabilities = "filesystem",
             description = "Create a new .docx file on disk, empty or as a copy of a template document, optionally password-protected, and open it as a named session.",
-            panel = "path, [Require a password to open the file: password] | overwrite, template, session")
+            panel = "path, [Require a password to open the file: password], [Require a password to edit the file: edit_password] | overwrite, template, session")
     public Map<String, Object> createDocument(ActionContext ctx,
             @Input(name = "path", type = OoaType.FILE, description = "Path of the new document.") String path,
             @Input(name = "overwrite", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Replace a file that already exists at the path.") boolean overwrite,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "password", type = OoaType.CREDENTIAL, required = false, description = "Encrypt the new file with this password; later saves keep it.") Object password,
-            @Input(name = "template", type = OoaType.FILE, required = false, description = "Existing .docx whose content and styles the new document starts from; empty document when empty.") String template) {
+            @Input(name = "template", type = OoaType.FILE, required = false, description = "Existing .docx whose content and styles the new document starts from; empty document when empty.") String template,
+            @Input(name = "edit_password", type = OoaType.CREDENTIAL, required = false,
+                    description = "Restrict editing with this password: Word opens the document read-only until the password is given (Review > Restrict Editing > Stop Protection).") Object editPassword) {
         Path p = ctx.resolvePath(path);
         if (Files.exists(p) && !overwrite) throw new ActionException("WORD.EXISTS", "A file already exists at " + p, "Set overwrite to true or use open to edit it.");
         XWPFDocument doc;
@@ -563,6 +569,8 @@ public final class WordPackage {
             doc = new XWPFDocument();
             doc.createParagraph();
         }
+        String edit = OfficeCrypto.secret(editPassword);
+        if (edit != null) doc.enforceReadonlyProtection(edit, org.apache.poi.poifs.crypt.HashAlgorithm.sha512);
         DocSession d = new DocSession(p, doc);
         d.password = OfficeCrypto.secret(password);
         Object old = ctx.sessions().put(session, d);

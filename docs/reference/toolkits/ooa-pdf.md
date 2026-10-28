@@ -8,7 +8,7 @@ Toolkit `ooa.pdf`, version 1.0.0. Extract text, merge, split, read and fill form
 
 - **Security**: Decrypt PDF, Encrypt PDF
 - **Text**: Extract text from area, Extract text
-- **Document**: Extract images, Get document properties, Merge PDFs, Get page count, Split PDF, Convert to images
+- **Document**: Extract images, Get document properties, Merge PDFs, Get page count, Read text with OCR, Split PDF, Convert to images
 - **Forms**: Fill form fields, Read form fields
 
 ## Security
@@ -212,6 +212,35 @@ Return the number of pages.
 | `count` | Number | Number of pages. |
 
 *Time limit 60 s; safe to repeat; needs: filesystem.*
+
+### Read text with OCR
+
+`ooa.pdf/read_text_ocr` (action)
+
+Read the text of a scanned PDF (pages that are pictures, with no text layer) with Tesseract OCR, from every page or chosen pages, optionally keeping only the text between two markers.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Path | `path` | File path | Yes |  | Main | PDF file. |
+| Password | `password` | Credential (vault) | No |  | Main; tick The file has a password | Password for protected PDFs. |
+| Pages | `pages` | Text | No |  | Main; tick Only some pages | Pages to read, e.g. 1,3,5-7; every page when empty. Example: `1,3,5-7` |
+| Language | `language` | Text | No | `eng` | Main | Tesseract language(s), e.g. eng, deu or eng+fra. |
+| After text | `after_text` | Text | No |  | More options; tick Keep only part of the text | Keep only the text after the first occurrence of this marker, e.g. Invoice number:. |
+| Before text | `before_text` | Text | No |  | More options; tick Keep only part of the text | Keep only the text before this marker (searched after the after_text marker). |
+| Trim | `trim` | Yes/No | No | Yes | More options | Remove spaces and line breaks at the start and end of the result. |
+| Resolution (DPI) | `dpi` | Number | No | `300` | More options | Resolution the pages are rendered at for OCR; 300 suits most scans. Range: 72 to 600 |
+| Page mode | `page_mode` | Number | No | `3` | More options | Page layout mode: 3 automatic, 6 single block, 7 single line, 11 sparse text. Range: 0 to 13 |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `text` | Text | Recognised text of the pages, in page order. |
+| `pages` | List | Recognised text of each page read, in page order. |
+
+*Time limit 1800 s; safe to repeat; needs: filesystem.*
 
 ### Split PDF
 

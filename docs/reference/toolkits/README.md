@@ -60,7 +60,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [OCR](ooa-ocr.md) | `ooa.ocr` | 5 | 1 | 0 | Read text from images, image URLs or the screen, and find or click text on the screen (Tesseract). |
 | [Okta](ooa-okta.md) | `ooa.okta` | 14 | 0 | 0 | Create and manage Okta users, change their status, reset passwords and manage group membership. |
 | [Outlook (desktop, needs Outlook)](ooa-outlook_desktop.md) | `ooa.outlook_desktop` | 10 | 0 | 0 | Find, read, send, reply to, forward, move and file emails with the Outlook installed on the runner, using its mail profile. |
-| [PDF](ooa-pdf.md) | `ooa.pdf` | 12 | 0 | 0 | Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images. |
+| [PDF](ooa-pdf.md) | `ooa.pdf` | 13 | 0 | 0 | Extract text, merge, split, read and fill forms, encrypt, decrypt and convert PDF pages to images. |
 | [PGP](ooa-pgp.md) | `ooa.pgp` | 6 | 0 | 0 | Import keys, encrypt, decrypt, sign and verify files with OpenPGP (GnuPG). |
 | [Play sound](ooa-sound.md) | `ooa.sound` | 2 | 0 | 0 | Beep or play a WAV file, e.g. to alert an attended user. |
 | [PowerPoint](ooa-powerpoint.md) | `ooa.powerpoint` | 17 | 0 | 0 | Open or create .pptx presentations, add, copy and delete slides, edit text, pictures and tables, and save. |
@@ -90,4 +90,4 @@ values and `$variable` references; Credential fields take a credential from the 
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 79 toolkits, 1057 actions, 47 conditions and 12 loop types.
+In all: 79 toolkits, 1058 actions, 47 conditions and 12 loop types.

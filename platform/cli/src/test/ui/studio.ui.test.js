@@ -699,6 +699,19 @@ function restoreWorkspace() {
     check("a new credential variable is made and used", await until(() => /^\$password/.test(String(w.eval("state.flow.steps[state.flow.steps.length - 1].args.value")))
       && w.eval("state.flow.variables.some((v) => v.type === 'Credential' && v.direction === 'input')")));
     w.eval("state.flow.variables = state.flow.variables.filter((v) => !(v.type === 'Credential' && /^password/.test(v.name) && v.description && v.description.startsWith('From the vault'))); state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
+    // Set into a Credential variable: only another Credential variable can be chosen (no typed text or calculation)
+    w.eval(`state.flow.variables.push({ name: "api_secret", type: "Credential", direction: "input" }, { name: "copy_secret", type: "Credential" });
+      state.flow.steps.push({ id: "setcred_ui", action: "core/set", args: { variable: "copy_secret" } });
+      state.selected = ["steps", state.flow.steps.length - 1]; renderProps();`);
+    await until(() => d.querySelector('#props .field[data-field="value"] select[aria-label="Credential variable"]'));
+    const credSel = d.querySelector('#props .field[data-field="value"] select[aria-label="Credential variable"]');
+    check("Set into a Credential variable offers only Credential variables",
+      !!credSel && !d.querySelector('#props .field[data-field="value"] .seg') && !d.querySelector('#props .field[data-field="value"] textarea')
+      && [...credSel.options].map((o) => o.value).filter(Boolean).every((n) => w.eval(`state.flow.variables.find((v) => v.name === "${n}").type`) === "Credential")
+      && !d.querySelector('#props .field[data-field="value"]').textContent.includes("null"));
+    credSel.value = "api_secret"; credSel.dispatchEvent(new w.Event("change"));
+    check("choosing one sets the value to that variable", await until(() => w.eval("state.flow.steps[state.flow.steps.length - 1].args.value") === "$api_secret"));
+    w.eval("state.flow.variables = state.flow.variables.filter((v) => v.name !== 'api_secret' && v.name !== 'copy_secret'); state.flow.steps.pop(); state.selected = null; renderProps(); state.dirty = false");
     // Desktop objects: actions for the control type, fields per action, window presets
     w.eval(`state.flow.steps.push({ id: "do_ui", action: "ooa.desktop_ui/object_action", args: { action: "click", object: { technology: "desktop", index: 0,
       window: { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad" }, properties: [{ name: "ControlType", value: "CheckBox", match: "equals", use: true }] } } });

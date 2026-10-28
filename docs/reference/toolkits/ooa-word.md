@@ -241,6 +241,7 @@ Create a new .docx file on disk, empty or as a copy of a template document, opti
 | --- | --- | --- | --- | --- | --- | --- |
 | Path | `path` | File path | Yes |  | Main | Path of the new document. |
 | Password | `password` | Credential (vault) | No |  | Main; tick Require a password to open the file | Encrypt the new file with this password; later saves keep it. |
+| Edit password | `edit_password` | Credential (vault) | No |  | Main; tick Require a password to edit the file | Restrict editing with this password: Word opens the document read-only until the password is given (Review > Restrict Editing > Stop Protection). |
 | Overwrite | `overwrite` | Yes/No | No | No | More options | Replace a file that already exists at the path. |
 | Template | `template` | File path | No |  | More options | Existing .docx whose content and styles the new document starts from; empty document when empty. |
 | Session | `session` | Text | No | `word` | More options | Session name. |
