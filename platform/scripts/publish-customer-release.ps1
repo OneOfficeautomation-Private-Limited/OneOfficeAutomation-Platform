@@ -1,4 +1,4 @@
-# Publishes a customer release of ONEOFFICEAUTOMATION to the public repository VirupakshaPrabhu/OOA_Customer_Build.
+# Publishes a customer release of ONEOFFICEAUTOMATION to the public repository OneOfficeautomation-Private-Limited/OOA_Customer_Build.
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 [-Notes "What changed"] [-Draft] [-Preview]
 #   powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -PageOnly
 # After a release, and alone with -PageOnly, it refreshes the public releases page (Q10): docs\index.html,
@@ -16,7 +16,7 @@ param(
     [switch]$Draft,
     [switch]$Preview,
     [switch]$PageOnly,
-    [string]$Repository = "VirupakshaPrabhu/OOA_Customer_Build",
+    [string]$Repository = "OneOfficeautomation-Private-Limited/OOA_Customer_Build",
     [string]$SigningKey = (Join-Path $env:USERPROFILE "OOA License Keys\private.key")
 )
 $ErrorActionPreference = "Stop"
