@@ -707,9 +707,10 @@ class EnterpriseAiPropertiesTest {
 
             g.prompt(ctx, "Hi", null, "anthropic", null, "claude-test", KEY, f.url(), 0, 50, false, null, null, 0.8, 40, List.of("STOP"), null, null, null, 1, "text", null, 0);
             Map<String, Object> ab = json(f.last("POST", "/v1/messages"));
-            assertEquals(new BigDecimal(40), ab.get("top_k"));
             assertEquals(List.of("STOP"), ab.get("stop_sequences"));
-            assertEquals(new BigDecimal("0.8"), ab.get("top_p"));
+            // current Claude models refuse sampling settings (HTTP 400), so none are sent to Anthropic
+            assertFalse(ab.containsKey("top_k") || ab.containsKey("top_p") || ab.containsKey("temperature"), "no sampling settings for Claude: " + ab);
+            assertTrue(LlmClient.claudeModel("us.anthropic.claude-haiku-5-5") && LlmClient.claudeModel("claude-opus-5-5") && !LlmClient.claudeModel("amazon.nova-pro-v1:0"));
 
             fails("AI.BAD_OPTION", () -> g.prompt(ctx, "x", null, "openai", null, "m", KEY, f.url() + "/v1", 0, 50, false, null, null, 1.5, null, null, null, null, null, 1, "text", null, 0));
             fails("AI.BAD_OPTION", () -> g.prompt(ctx, "x", null, "openai", null, "m", KEY, f.url() + "/v1", 0, 50, false, null, null, null, null, List.of("a", "b", "c", "d", "e"), null, null, null, 1, "text", null, 0));
