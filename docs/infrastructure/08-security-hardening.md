@@ -69,17 +69,23 @@ values, external-vault sign-in secrets, the audit chain key, two-step secrets an
 database and TLS passwords in the configuration files (keeping `.before-rotate` copies), replaces `master.key` and
 keeps the old one as `master.key.old-<time>`. It is audited as `vault.rotate`.
 
-When the key comes from `OOA_MASTER_KEY` or a key store, the console refuses to rotate: replacing the key in the
-store without re-encrypting would make every stored value unreadable. Procedure in that case (all nodes stopped
-except one, during a maintenance window):
+When the key comes from `OOA_MASTER_KEY` or a key store, the console refuses to rotate (`CR.VAULT_KEY`): replacing
+the key in the store without re-encrypting would make every stored value unreadable. Use `ooa vault rekey` instead,
+during a maintenance window:
 
 1. Take a backup (`ooa backup now`) and keep the current key.
-2. On one node, write the current key into `DATA\master.key`, remove `OOA_MASTER_KEY`/`OOA_MASTER_KEY_SOURCE` from
-   its environment and start it.
-3. Use **Rotate key** in the console.
-4. Stop the node, copy the new `master.key` contents into your key store or variable, delete `master.key`, restore
-   the environment setting on every node, start the nodes.
-5. Archive the old key with the backups made before the rotation.
+2. Stop the Command Center on every node.
+3. Put a new key (32 random bytes, Base64) in an environment variable, for example `OOA_NEW_KEY`, in the same prompt
+   that still has the current key (`OOA_MASTER_KEY` or `OOA_MASTER_KEY_SOURCE`).
+4. Run `ooa vault rekey --new-key-env OOA_NEW_KEY [--data DIR]`. It re-encrypts every stored value with the new key,
+   prints the new key's fingerprint (never the key) and is audited as `vault.rekey`. It refuses while the Command
+   Center has the database open.
+5. Replace the old key where it is kept (the variable or the key store) with the new one, on every node, and start
+   the nodes. Until then the Command Center cannot read its secrets.
+6. Archive the old key with the backups made before the rotation.
+
+With a key file, `ooa vault rekey` also works: it writes the new key into `master.key` and keeps the old one as
+`master.key.old-<time>`.
 
 ## 4. TLS
 
@@ -146,8 +152,9 @@ Single sign-on users follow the identity provider's MFA policy; enforce it there
 
 | Control | Setting |
 | --- | --- |
-| Restrict who may call the API | `ip_allow_list`: up to 200 addresses or CIDR ranges. This computer and health checks are always allowed; saving a list that excludes your own address is refused. Behind a remote load balancer the list sees the balancer's address. |
-| Listen address | `--host 127.0.0.1` (default) behind a local reverse proxy, or `0.0.0.0` with HTTPS |
+| Restrict who may call the API | `ip_allow_list`: up to 200 addresses or CIDR ranges. This computer and health checks are always allowed; saving a list that excludes your own address is refused. Behind a remote load balancer, list it in `trusted_proxies` so the list sees each client's address (otherwise it sees the balancer's). |
+| Trusted proxies | `trusted_proxies`: addresses or CIDR ranges of your load balancers and reverse proxies. Only requests from these (or from this computer) may name the client with `X-Forwarded-For`; the last address that is not a trusted proxy counts for the allow list, rate limits and audit trail. Do not list networks where clients sit. |
+| Listen address | `127.0.0.1` behind a local reverse proxy (the default of `ooa server` and `ooa service install`; for the installers pass `-ListenAddress 127.0.0.1` / `LISTEN_ADDRESS=127.0.0.1`), or `0.0.0.0` with HTTPS (the installers' default for a service) |
 | Outgoing traffic | `outbound_proxy` plus egress firewall rules; serverless tasks can reach any address the server can, so make them only for trusted agents |
 | Runner networks | No inbound ports; outbound to the Command Center only |
 | SaaS | NetGuard refuses private, loopback, link-local, CGNAT and unique-local targets for tenants; add network egress rules too ([09](09-saas-and-multi-region-operations.md)) |
@@ -197,7 +204,7 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
   loading. Trust only publishers whose code you would install yourself.
 - `block_executable_uploads` = 1 refuses `.exe`, `.dll`, `.msi`, `.bat`, `.cmd`, `.com`, `.scr`, `.ps1`, `.vbs` and
   `.jar` uploads.
-- `max_upload_mb` (1 to 1024, default 5) limits request size.
+- `max_upload_mb` (1 to 1024, default 25) limits request size.
 - Vault attributes: keep **Masked** on; use **Password fields only** for passwords.
 
 ## 13. Recommended settings checklist
@@ -208,7 +215,7 @@ Retention runs hourly on the leader. Queued and running runs are never removed.
 - [ ] Service runs as a dedicated account or gMSA; data folder ACLs limited.
 - [ ] Single sign-on configured; `mfa_required` at least 1; `sso_default_role` empty or minimal.
 - [ ] `password_min_length` 14+, `password_history` 12, `inactive_user_days` 90, `max_sessions_per_user` 3.
-- [ ] `ip_allow_list` set, or equivalent filtering at the load balancer.
+- [ ] `ip_allow_list` set, or equivalent filtering at the load balancer; `trusted_proxies` lists the balancers.
 - [ ] `syslog_target` set to the SIEM; `audit-checkpoints.log` shipped to write-once storage.
 - [ ] `audit_retention_days` set per policy (90 or more), archives retained.
 - [ ] `backup_hours` set, `backup_folder` on separate storage; restore tested.

@@ -80,6 +80,10 @@ class StudioControlRoomTest {
             assertEquals(Boolean.FALSE, in2.get("production"));
             Map<String, Object> listed = (Map<String, Object>) ((List<Object>) call(sb, "GET", "/api/cr/repo", null, null).get("bots")).get(0);
             assertEquals(1, ((Number) listed.get("production_version")).intValue(), "checked in without 'live': version 1 stays the live one");
+            // a new agent's first version becomes live even without the tick, or nothing could run it
+            Files.writeString(wsA.resolve("My Bots/Fresh.flow.json"), bot.replace("invoice_bot", "fresh_bot").replace("Invoice bot", "Fresh"));
+            Map<String, Object> first = call(sa, "POST", "/api/cr/checkin", Map.of("local", "My Bots/Fresh.flow.json", "comment", "new", "production", false), null);
+            assertEquals(Boolean.TRUE, first.get("production"), String.valueOf(first));
 
             assertEquals(200, call(sa, "POST", "/api/cr/checkout", Map.of("path", "My Bots/Invoice bot.flow.json"), null).get("_status"), "check-in released Bob's lock");
             assertTrue(Files.readString(wsA.resolve("Control Room/My Bots/Invoice bot.flow.json")).contains("v2 by bob"), "Alice gets Bob's latest version");

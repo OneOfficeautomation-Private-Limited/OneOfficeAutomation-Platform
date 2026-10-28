@@ -62,9 +62,8 @@ shows them again.
 - Local runs read saved connections from `connections.json` in your workspace.
 - Runs from One Command Center use its **Connections** page (Manage > Connections).
 
-> **Note:** In this version of Studio, the **Connection** list may show no saved connections, and **Manage
-> connections…** may open the **One Model Connections** dialog instead of the saved-connections dialog. If that
-> happens, fill in the address and sign-in on the step itself.
+**Manage connections…** opens the list of the workspace's saved connections, where you can add, change and delete
+them; the **Connection** list on a step shows the same connections.
 
 **One Model Connections** (for AI) are a different thing: see [AI in agents](13-ai-in-agents.md).
 

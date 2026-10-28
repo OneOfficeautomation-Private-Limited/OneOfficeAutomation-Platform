@@ -121,6 +121,14 @@ final class ControlRoomLink {
 
     Map<String, Object> repo(String q) { return call("GET", "repo?q=" + enc(q == null ? "" : q), null, true); }
 
+    /** Whether the agent at this repository path has a live (production) version already. */
+    boolean hasLiveVersion(String repoPath) {
+        if (!(repo(repoPath).get("bots") instanceof List<?> bots)) return false;
+        for (Object o : bots)
+            if (o instanceof Map<?, ?> b && repoPath.equals(b.get("path")) && b.get("production_version") instanceof Number n && n.intValue() > 0) return true;
+        return false;
+    }
+
     Map<String, Object> versions(String path) { return call("GET", "repo/versions?path=" + enc(path), null, true); }
 
     // ---------- check-out mapping ----------
@@ -165,6 +173,8 @@ final class ControlRoomLink {
         Map<String, Object> m = mapping();
         String repoPath = repoPathOverride != null && !repoPathOverride.isBlank() ? repoPathOverride
                 : m.containsKey(local) ? String.valueOf(m.get(local)) : local.startsWith(FOLDER + "/") ? local.substring(FOLDER.length() + 1) : local;
+        // an agent with no live version yet gets its first one live, or nothing could run it
+        if (!production && !hasLiveVersion(repoPath)) production = true;
         Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", production), true);
         m.put(local, repoPath);
         saveMapping(m);

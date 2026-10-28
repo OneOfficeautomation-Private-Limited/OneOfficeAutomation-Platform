@@ -180,11 +180,13 @@ You will build an agent that takes a name and writes a greeting to the run log, 
    then **I have signed in**. (Against another Command Center, fill in **Address**, **User name**, **Password** and, if
    asked, **Two-step code**, then press **Connect**.)
 2. With `Hello` open, press **Agent check-in** in the Explorer toolbar.
-3. Type a comment such as `First version` and confirm. Studio reports "Checked in ... as version 1".
+3. In the **Agent check-in** dialog, type a comment such as `First version`, tick **Make this the live version**, and
+   press **Check in**. Studio reports "Checked in ... as version 1; it is now the live version".
 
-A check-in from Studio makes the new version the **live production version** straight away, unless your
-administrator has turned on **Approval before production**; then the version waits for a second person to approve it
-(**Build > Agent repository > Production approvals**).
+Without the tick, a check-in stores a new version only and the live version stays as it was; a new agent then has no
+live version and cannot run from the Command Center yet. With the tick, the new version becomes the **live production
+version** straight away, unless your administrator has turned on **Approval before production**; then the version
+waits for a second person to approve it (**Build > Agent repository > Production approvals**).
 
 ### 6.3 Run it from the Command Center
 

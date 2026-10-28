@@ -69,6 +69,8 @@ async function api(method, path, body) {
 }
 
 const can = (p) => S.user && (S.user.permissions || []).includes(p);
+/** A page's permission: one of several (a|b); team_lead is anyone who leads a team. */
+const canAny = (spec) => String(spec).split("|").some((p) => p === "team_lead" ? !!(S.user && S.user.leads_team) : can(p));
 const fmt = (t) => t ? String(t).replace("T", " ").replace(/\.\d+Z$|Z$/, "") : "";
 const local = (t) => { if (!t) return ""; const d = new Date(t); return isNaN(d) ? fmt(t) : d.toLocaleString(); };
 const botName = (p) => String(p || "").replace(/\.(flow|process|form)\.json$/, "");
@@ -194,11 +196,11 @@ const PAGES = [
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
   ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
-  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
+  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
   ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
-  ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage", "key", "#b45309"]];
+  ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
 /**
  * The menu: Home, then short sections: Build, Manage, Operations, Administration, AI (shown in capitals). The section of the current page is open, and the one opened last; the others show only their name.
@@ -225,7 +227,7 @@ function navButton(id) {
     return a;
   }
   const page = PAGES.find((x) => x[0] === id);
-  if (!page || (page[2] && !can(page[2]))) return null;
+  if (!page || (page[2] && !canAny(page[2]))) return null;
   const [, label, , icon] = page;
   return h("button", { type: "button", class: S.page === id ? "active" : "", "aria-current": S.page === id ? "page" : null, "aria-label": label, title: label, onclick: () => go(id) },
     ic(icon, "#fff"), h("span", { class: "nav-label", text: label }));
@@ -291,7 +293,7 @@ function showLicenseBanner(b) {
   if (!b || (b.level !== "critical" && dismissed === b.text)) { bar.hidden = true; return; }
   bar.classList.toggle("critical", b.level === "critical");
   bar.replaceChildren(ic("key", b.level === "critical" ? "#dc2626" : "#d97706", "sm"), h("span", { class: "ann-text", text: b.text }),
-    can("users.manage") ? h("button", { type: "button", class: "link", onclick: () => go("licenses") }, "Licenses") : null,
+    canAny("users.manage|settings.manage") ? h("button", { type: "button", class: "link", onclick: () => go("licenses") }, "Licenses") : null,
     b.level === "critical" ? null : h("button", { type: "button", class: "icon-close", "aria-label": "Dismiss", onclick: () => { bar.hidden = true; try { sessionStorage.setItem("ooa.cc.licenseBanner", b.text); } catch (_) { /* storage unavailable */ } } }, "\u2715"));
   bar.hidden = false;
 }
@@ -942,6 +944,7 @@ const VIEWS = {
       const mfaReq = h("select", {}, h("option", { value: "0", text: "Optional (each person decides)" }), h("option", { value: "1", text: "Required for administrators" }),
         h("option", { value: "2", text: "Required for everyone with a password" })); mfaReq.value = String(st.mfa_required || 0);
       const allowList = h("textarea", { rows: 2, value: st.ip_allow_list || "", placeholder: "10.0.0.0/8, 203.0.113.7" });
+      const trustedProxies = h("textarea", { rows: 2, value: st.trusted_proxies || "", placeholder: "10.0.5.10, 10.0.6.0/24" });
       const syslogTarget = txt("syslog_target", "siem.example.com:514");
       const syslogProto = h("select", {}, h("option", { value: "udp", text: "UDP" }), h("option", { value: "tcp", text: "TCP" })); syslogProto.value = st.syslog_protocol || "udp";
       const offNow = String(st.switched_off_roles || "").split(",").filter(Boolean);
@@ -1000,6 +1003,7 @@ const VIEWS = {
           h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
           h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays)),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
+        h("label", {}, "Trusted proxies: load balancers whose X-Forwarded-For names the client (addresses or ranges)", trustedProxies),
         h("p", { class: "muted", text: "Switch off built-in roles you do not use: they then give no permissions and cannot be given to anyone. People who still have one keep only their other roles." }),
         h("div", { class: "grid2" }, roleOff.map(([, box, l]) => h("label", { class: "check" }, box, "Switch off " + l))),
         h("h3", {}, ic("globe", "#475569", "sm"), "Outgoing connections"),
@@ -1062,7 +1066,7 @@ const VIEWS = {
               ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
-              ip_allow_list: allowList.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
+              ip_allow_list: allowList.value.trim(), trusted_proxies: trustedProxies.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),
               switched_off_roles: roleOff.filter(([, b]) => b.checked).map(([r]) => r).join(","), outbound_proxy: proxy.value.trim(), outbound_proxy_bypass: proxyBypass.value.trim() });
             toast("Settings saved"); showAnnouncement(ann.value.trim());
           } catch (e) { toast(e.message, true); } } }, "Save settings"))));

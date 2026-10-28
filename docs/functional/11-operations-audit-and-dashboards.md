@@ -31,7 +31,7 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 | Build | Agent repository (`repo.view`), Templates (`repo.view`), One Agent Studio (new tab), One Workflow (`runs.view`), API tasks (`apitasks.manage`), Agent tests (`repo.view`) |
 | Manage | Runners (`devices.view`), One Agent Vault (members), Shared values (`globals.view`), Connections (`globals.view`), Toolkits (`toolkits.manage`) |
 | Operations | Agent Runs (`runs.view`), Task inbox (everyone), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Operations (`analytics.view`), Dashboards (`analytics.view`) |
-| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`), Licenses (`users.manage`), One Audit Trail (`audit.view`), Settings (`settings.manage`) |
+| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), One Audit Trail (`audit.view`), Settings (`settings.manage`) |
 | AI | Prompt Skills (`skills.view`), One Model Connections (`connections.manage`), AI governance (`audit.view`) |
 
 The section of the current page is open; the menu can be narrowed to icons. Pages redraw themselves within about a

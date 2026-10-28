@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION functional specification
 
-**Product:** ONEOFFICEAUTOMATION (OOA) 0.1.1, One Command Center, One Agent Studio, One Runner
+**Product:** ONEOFFICEAUTOMATION (OOA) 0.2.0, One Command Center, One Agent Studio, One Runner
 **Collection:** Functional (what each feature does, its rules, states, limits, permissions and options)
 
 ## What this covers

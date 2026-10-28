@@ -179,13 +179,18 @@ With `pools.manage`, **New runner pool** asks for a name, description and the ru
    the days, Monday to Friday ticked by default).
 6. **Time zone** (your browser's, by default) and **Skip the dates of a holiday calendar**.
 7. **Inputs (JSON, optional)**, for example `{"region": "EU"}`.
-8. Press **Create**. A toast shows the next run time.
+8. **Times missed while the Command Center was down**: **Run once for them** (default) or **Skip them** (a time more
+   than 15 minutes in the past is not run).
+9. **When the previous run is still going**: **Start another run** (default) or **Skip this time**.
+10. Press **Create**. A toast shows the next run time.
 
 ### The list
 
 Columns: **Schedule**, **Agent**, a tick box, **Runner** (a runner, "Pool: ..." or "default runner of ..."),
 **When**, **Owner** (and "runs as ..."), **Next run**, **Last run**, **Enabled**. Row buttons: **Run now** (queue a
-run at once), **Edit** (name, holiday calendar, owner, run-as user), **Disable**/**Enable**, **Delete**.
+run at once), **Edit** (name, holiday calendar, owner, run-as user, missed times, previous run still going),
+**Disable**/**Enable**, **Delete**. **When** also says "skips missed times" or "skips while the previous run is going"
+when those options are set.
 
 Several at once: tick schedules, then **Enable selected**, **Disable selected** or **Change owner**.
 
@@ -272,7 +277,7 @@ each item; a `priority` column puts it first. Dates in Excel come as yyyy-mm-dd.
 required fields, right types, no unknown fields.
 
 > **Tip.** Large Excel files travel inside a JSON request, which is limited by **Settings > Largest upload (MB)**
-> (5 MB by default). Ask an administrator to raise it, or split the file.
+> (25 MB by default). Ask an administrator to raise it, or split the file.
 
 ### Work the queue
 
@@ -284,6 +289,9 @@ required fields, right types, no unknown fields.
   service level"), a status filter, a search box and the items with **Reference**, **Status**, **Attempts**,
   **Priority**, **Added** and **Result or error** (a link to the run).
 - Tick items and use **Retry selected**, **Defer selected** or **Delete selected** (items being worked on are kept).
+  **Defer selected** asks "until when?" (`YYYY-MM-DD HH:MM`, your time): after that time processing picks the items up
+  again by itself. Left empty, they wait until someone presses **Retry**. The status shows "until <time>" or
+  "until Retry".
 - **Open** an item to change its data, reference or priority (the form follows the model); **View** while it is in
   progress.
 - **Validate** appears on items **To validate**: the agent was unsure of some fields (marked red with their

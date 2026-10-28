@@ -3,10 +3,12 @@ package com.oneofficeautomation.agent;
 import com.oneofficeautomation.sdk.OoaException;
 
 import javax.net.ssl.*;
+import java.io.IOException;
 import java.net.*;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyStore;
 import java.security.cert.*;
 import java.util.*;
@@ -18,7 +20,8 @@ import java.util.*;
  * through WinHTTP), {@code none}, or {@code http://host:port}. A Command Center on this computer is never reached
  * through a proxy.</li>
  * <li>{@code proxy_user} and {@code proxy_password}: for a proxy that asks for a user name and password (Basic). The
- * password is stored encrypted with Windows DPAPI for this computer ({@code dpapi:}), or read from an environment
+ * password is stored encrypted with Windows DPAPI for this computer ({@code dpapi:}); on Linux and macOS in its own
+ * file next to the config that only the runner's account may read ({@code file:PATH}); or read from an environment
  * variable ({@code env:NAME}).</li>
  * <li>Certificates: the JDK's authorities, on Windows also the Windows certificate store (so a company CA rolled out by
  * Group Policy is trusted), plus {@code ca}, a certificate file given with {@code --ca}.</li>
@@ -72,9 +75,13 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
         }
     }
 
-    /** The proxy password: decrypted (dpapi:) or from an environment variable (env:). */
+    /** The proxy password: decrypted (dpapi:), from its own file (file:) or from an environment variable (env:). */
     static char[] password(String stored) {
         if (stored == null) return new char[0];
+        if (stored.startsWith("file:")) {
+            try { return Files.readString(Path.of(stored.substring(5)), StandardCharsets.UTF_8).strip().toCharArray(); }
+            catch (IOException e) { throw new OoaException("AGENT.PROXY_PASSWORD", "The proxy password file cannot be read: " + e.getMessage(), "Set it again: ooa agent network --proxy-user USER --proxy-password-env VAR"); }
+        }
         if (stored.startsWith("env:")) { String v = System.getenv(stored.substring(4)); if (v == null) throw new OoaException("AGENT.PROXY_PASSWORD", "The environment variable " + stored.substring(4) + " is not set"); return v.toCharArray(); }
         if (stored.startsWith("dpapi:")) {
             try { return new String(com.sun.jna.platform.win32.Crypt32Util.cryptUnprotectData(Base64.getDecoder().decode(stored.substring(6))), StandardCharsets.UTF_8).toCharArray(); }
@@ -83,9 +90,24 @@ record Network(Path ca, String proxy, String proxyUser, String proxyPassword) {
         throw new OoaException("AGENT.PROXY_PASSWORD", "The proxy password is stored in an unknown form");
     }
 
-    /** Encrypts a proxy password for this computer (Windows DPAPI, machine scope: a runner service and its installer both read it). */
-    static String protect(String plain) {
-        if (!WINDOWS) throw new OoaException("AGENT.PROXY_PASSWORD", "Stored proxy passwords need Windows", "Use --proxy-password-env with the variable set for the runner instead.");
+    /**
+     * Keeps a proxy password for this computer: on Windows encrypted with DPAPI (machine scope: a runner service and its
+     * installer both read it); elsewhere in the file proxy-password next to the runner's config (dir), readable by its
+     * owner only.
+     */
+    static String protect(String plain, Path dir) {
+        if (!WINDOWS) {
+            Path f = dir.resolve("proxy-password");
+            try {
+                Files.createDirectories(dir);
+                Files.deleteIfExists(f);
+                Files.createFile(f, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+                Files.writeString(f, plain, StandardCharsets.UTF_8);
+            } catch (UnsupportedOperationException e) {
+                throw new OoaException("AGENT.PROXY_PASSWORD", "This file system cannot keep a file private", "Use an environment variable for the runner instead (proxy_password env:NAME in the config).");
+            } catch (IOException e) { throw new OoaException("AGENT.PROXY_PASSWORD", "Cannot write " + f + ": " + e.getMessage()); }
+            return "file:" + f.toAbsolutePath();
+        }
         final int CRYPTPROTECT_LOCAL_MACHINE = 0x4, CRYPTPROTECT_UI_FORBIDDEN = 0x1;
         byte[] enc = com.sun.jna.platform.win32.Crypt32Util.cryptProtectData(plain.getBytes(StandardCharsets.UTF_8), null, CRYPTPROTECT_LOCAL_MACHINE | CRYPTPROTECT_UI_FORBIDDEN, "ONEOFFICEAUTOMATION proxy", null);
         return "dpapi:" + Base64.getEncoder().encodeToString(enc);

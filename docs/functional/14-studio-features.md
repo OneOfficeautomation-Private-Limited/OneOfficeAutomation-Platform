@@ -236,11 +236,14 @@ listed. They work only while Studio runs ([document 04](04-schedules-and-trigger
 - The section lists the repository (searchable) with each agent's state; **Check out** copies the latest version into the
   workspace and opens it ("Checked out vN into My Workspace"); **Versions** lists versions with author, time, comment
   and which is live; **Undo check-out** (for the person who has it) releases the lock and keeps the private copy.
-- **Agent check-in** saves the open agent, asks "What changed in this version?", and sends it as a new version **as the
-  live production version** (or, with approval before production, as a request: "sent for approval before it goes
-  live"). The Command Center validates it first; problems open the Problems tab. Check-in needs `repo.checkin`, edit
-  and manage access on the folder, and a Developer or Citizen Developer seat.
-- Workflows and forms are published with **Publish to Command Center** in their editors.
+- **Agent check-in** saves the open agent and opens a dialog with **What changed** (shown in the version history) and
+  the tick **Make this the live version**, off by default. Off: a new version only; the live version is unchanged.
+  On: the new version becomes the live production version (or, with approval before production, a request: "sent for
+  approval before it goes live"). An agent with no live version yet gets its first one live even with the tick off. The Command Center validates it first; problems open the Problems tab. Check-in
+  needs `repo.checkin`, edit access on the folder (manage access too when the tick is on), and a Developer or Citizen
+  Developer seat. A new agent checked in with the tick off has no live version until one is set.
+- Workflows and forms are published with **Publish to Command Center** in their editors. Publishing always makes the
+  new version live (or asks for approval).
 
 ## 20. Other item editors
 

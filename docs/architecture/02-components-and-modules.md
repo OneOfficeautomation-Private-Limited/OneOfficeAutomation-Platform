@@ -29,7 +29,7 @@ oneofficeautomation/
 ├─ platform/                    the Java product (all modules)
 │  ├─ settings.gradle.kts       fixed modules + optional modules from gradle.properties
 │  ├─ gradle.properties         ooa.optionalModules=...
-│  ├─ build.gradle.kts          shared settings for every module: Java 21, JUnit 5, version 0.1.1
+│  ├─ build.gradle.kts          shared settings for every module: Java 21, JUnit 5, version 0.2.0
 │  ├─ gradle/libs.versions.toml version catalog (Jackson, networknt, JUnit)
 │  ├─ sdk/ runner/ packages/ packages-*/ adapters-jackson/
 │  ├─ control-room/ agent/ cli/ vendor-tools/
@@ -52,7 +52,7 @@ oneofficeautomation/
 - `settings.gradle.kts` always includes `sdk`, `runner`, `packages`, `adapters-jackson`, `control-room`, `agent`, `cli`
   and `vendor-tools`. It then includes every module named in the `ooa.optionalModules` property.
 - `build.gradle.kts` applies `java-library` to every subproject, sets `group = com.oneofficeautomation` and
-  `version = 0.1.1`, uses a Java 21 toolchain with `--release 21`, UTF-8 sources and JUnit 5.10.3.
+  `version = 0.2.0`, uses a Java 21 toolchain with `--release 21`, UTF-8 sources and JUnit 5.10.3.
 - Tests tagged `load` run only through `gradlew :cli:loadTest`.
 - Tests can run against SQL Server or PostgreSQL instead of H2 with `-Pooa.test.db=...`, `-Pooa.test.db.user` and
   `-Pooa.test.db.password`; each test data folder then gets its own `ooa_t_*` database.
@@ -62,7 +62,7 @@ oneofficeautomation/
 
 | Module | Main contents | Third-party libraries |
 | --- | --- | --- |
-| `sdk` | The contract for toolkits. Annotations `@OoaPackage`, `@Action`, `@Input`, `@Output` (repeatable via `Outputs`), `@Condition`, `@LoopIterator`; `ActionContext` (what an action sees); `OoaType` (13 data types); `SecureString`; `OoaException` and `ActionException`; `ActionSpec` and `PackageIntrospector` (manifest from annotations, panel layout parsing); `PackageRegistry` (installed toolkits, versions, publisher trust); `PackageSigning` (Ed25519); `ToolkitJar` (signed custom toolkit jars); `FieldLabels` (plain-English labels from field names); `ChildAgents`; `JsonLite` (JSON parse/write/canonical form); `SchemaTypes` | none |
+| `sdk` | The contract for toolkits. Annotations `@OoaPackage`, `@Action`, `@Input`, `@Output` (repeatable via `Outputs`), `@Condition`, `@LoopIterator`; `ActionContext` (what an action sees); `OoaType` (13 data types); `SecureString`; `OoaException` and `ActionException`; `ActionSpec` and `PackageIntrospector` (manifest from annotations, panel layout parsing); `PackageRegistry` (installed toolkits, versions, publisher trust); `PackageSigning` (Ed25519); `ToolkitJar` (signed custom toolkit jars); `FieldLabels` (plain-English labels from field names); `ChildAgents`; `JsonLite` (JSON parse/write/canonical form); `SchemaTypes`; `BuildInfo` (the product version, generated at build time from the root `build.gradle.kts`) | none |
 | `runner` | `Runner` (the engine), `CorePackage` (the `core/*` actions), `expr/Expressions` and `expr/Functions` (sandboxed expression language), `FlowValidator`, `Conditions`, `ErrorCodes`, `Steps`, `Values`, `RunEvent`, `RunResult`, `JavaArgs`; interfaces `CredentialVault`, `AutomationRepository`, `BotInvoker`, `EventSink`, `FlowSchemaValidator`, `JsonCodec` | none |
 | `packages` | The built-in toolkits (see section 6) and shared helpers: `HttpJson` and `HttpOptions` (HTTP for cloud toolkits), `LlmClient`, `ModelConnections`, `ModelProbe`, `AiBridge` (model access for other modules), `AwsSigV4`, `EnterpriseAuth`, `ConnectorImporter`/`ConnectorStore` (custom connectors), `XmlSupport` (hardened XML), `JsonSchemaLite`, `ProcessRunner`, `DesktopSupport`, `UiGuard`, `FormWindow`, `Wsdl`, `ZipCrypt`, `SnmpV3`, `VtScreen`/`VtSshSession`, `FirstPartyPackages` (the registry list) | JSch 0.2.20 (VT terminal over SSH) |
 | `packages-office` | Excel, Word and PowerPoint without Microsoft Office; `OfficeCrypto`, `Msip` (sensitivity labels), `DocumentText` | Apache POI 5.3.0 (ooxml, scratchpad) |

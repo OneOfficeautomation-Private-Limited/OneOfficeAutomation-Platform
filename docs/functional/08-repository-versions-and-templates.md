@@ -65,7 +65,7 @@ How they apply:
 | --- | --- |
 | Check-out | Locks a public item for the person and copies its latest version into their workspace. Refused while someone else has it (`CR.LOCKED`, naming who and since when). Others see "Checked out by NAME". Needs folder access edit. |
 | Check-in | Validates the item ([document 01](01-agents-and-automation-items.md), section 11; workflows and forms by their own rules) and applies the code analysis policy. Problems block it (`CR.INVALID_BOT`, with the list). An existing item must be checked out by the same person (`CR.NOT_CHECKED_OUT`). Stores a new version with a comment and releases the lock. Needs a Developer or Citizen Developer seat while a licence is in force. |
-| Check-in as production | Also makes the new version live (needs folder access manage), or asks for approval when approval before production is on. **Agent check-in from Studio always checks in this way.** |
+| Check-in as production | Also makes the new version live (needs folder access manage), or asks for approval when approval before production is on. Studio's **Agent check-in** does this only when **Make this the live version** is ticked (off by default); **Publish to Command Center** for workflows and forms always does. |
 | Undo check-out | Releases the lock without a new version; by the person who has it, or someone with `repo.production` |
 | Publish to Command Center (workflows, forms) | Checks the item in as the live production version |
 | First check-in | Creates the item at version 1 |
@@ -119,7 +119,7 @@ When **Approval before production** is on (Administration > Settings > Security,
 
 | Action | Rule |
 | --- | --- |
-| Delete | Removes the item from the list and stops it running; versions are kept. Refused while someone else has it checked out, or while a schedule, trigger or work queue uses it (`CR.IN_USE`, listing them). The answer names agents that call it. |
+| Delete | Removes the item from the list and stops it running; versions are kept. Refused while someone else has it checked out, or while a schedule, trigger, work queue or API task uses it (`CR.IN_USE`, listing them, for example "API task NAME"). The answer names agents that call it. |
 | Deleted agents / Recover | Lists deleted items and brings one back with its versions (needs `repo.delete`) |
 | Move | Moves one item to another folder with its versions, labels, analysis reports, the schedules, triggers, queues and API tasks that run it, its run history and workflow runs. Refused while someone else has it checked out, when an item exists at the target, or while a workflow names it by path. Needs edit access on both folders. |
 | Copy | Makes a new item from the latest version: version 1, not live, agent id = old id + `_copy` (numbered if taken), name "Copy of …". The kind of file is kept. Schedules and history are not copied. |

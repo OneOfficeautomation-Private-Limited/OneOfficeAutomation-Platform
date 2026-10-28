@@ -169,7 +169,7 @@ flowchart TB
 | Item | Default | Changed with |
 | --- | --- | --- |
 | Command Center port | 8720 | `--port` |
-| Bind address | 127.0.0.1 for `control-room` unless `--host 0.0.0.0` | `--host` |
+| Bind address | 127.0.0.1 for `control-room` unless `--host 0.0.0.0`; `0.0.0.0` for a service made by the setup package or the MSI | `--host`; `-ListenAddress` / `LISTEN_ADDRESS` in the installers |
 | Studio when started alone | 127.0.0.1:8710 | `ooa studio --port` |
 | Studio inside `ooa server` | `http://localhost:8720/studio/` (loopback callers only) | – |
 | Internal plain-HTTP listener when HTTPS is on | 127.0.0.1, random port, for the machine's own runner and Studio | – |

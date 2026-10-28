@@ -199,8 +199,9 @@ in (`SSO.NO_ACCOUNT`). A provider refusal shows as `SSO.DENIED`.
 | Setting | Effect |
 | --- | --- |
 | IP allow-list (`ip_allow_list`) | Single addresses or CIDR ranges allowed to use the API; this computer is always allowed, and a list that would lock out the person saving it is refused |
+| Trusted proxies (`trusted_proxies`) | Addresses or CIDR ranges of load balancers and reverse proxies. When a request comes from this computer or a trusted proxy, the client address is the last `X-Forwarded-For` address that is not a trusted proxy; the allow list, the rate limits and the audit trail use it. Other clients cannot choose their address. A reverse proxy on the same computer does not let remote clients skip the allow list. |
 | Block executable uploads (`block_executable_uploads`) | Refuses executable and script files as repository files |
-| Maximum upload (`max_upload_mb`, 1-1024, default 5) | The largest request body |
+| Maximum upload (`max_upload_mb`, 1-1024, default 25) | The largest request body |
 | Announcement | A banner shown to everyone |
 | Approval before production (`production_approval`) | [document 08](08-repository-versions-and-templates.md) |
 | Outgoing proxy (`outbound_proxy`, `outbound_proxy_bypass`) | The Command Center's own outgoing connections go through `http://host:port`, except listed hosts and this computer |
@@ -213,8 +214,10 @@ re-enables and unlocks the account, clears two-step sign-in, ends its sessions a
 
 ## 14. Permissions and audit
 
-Users, roles and default runners need `users.manage`; teams `teams.manage` (or being a lead); security settings
-`settings.manage`. Audited: sign-ins and failures (`auth.login`, `auth.sso`, `auth.token`), password changes, two-step
+Users, roles and default runners need `users.manage`; teams `teams.manage` (or being a lead: the **Teams** page shows
+for people who lead a team, where they change their own team's members; `GET /api/auth/me` returns `leads_team`);
+security settings `settings.manage`. The **Licenses** page shows for `users.manage` or `settings.manage`; installing a
+licence needs `settings.manage`, giving out seats `users.manage`. Audited: sign-ins and failures (`auth.login`, `auth.sso`, `auth.token`), password changes, two-step
 changes, user and role changes, team changes, API key creation and revocation, and resets.
 
 ## Related documents

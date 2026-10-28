@@ -4310,7 +4310,7 @@ async function crCheckin() {
     try {
       const r = await api("POST", "cr/checkin", { local: state.file, comment: comment.value, production: live.checked });
       toast("Checked in " + r.path + " as version " + r.version + (r.production_request ? "; sent for approval before it goes live"
-        : live.checked ? "; it is now the live version" : "; the live version is unchanged"));
+        : r.production ? "; it is now the live version" : "; the live version is unchanged"));
       crLoadRepo();
     } catch (e) {
       toast(e.message, true);
@@ -4320,7 +4320,7 @@ async function crCheckin() {
   openDialog("Agent check-in", [
     field("What changed (shown in the version history)", comment),
     h("label", { class: "check" }, live, " Make this the live version (runs, schedules and triggers use it from now on)"),
-    h("p", { class: "help", text: "Leave it off to save a new version only; the live version can be changed later in Command Center. With approval before production switched on, ticking it sends a request instead." })],
+    h("p", { class: "help", text: "Leave it off to save a new version only; the live version can be changed later in Command Center. An agent's first version always becomes live. With approval before production switched on, ticking it sends a request instead." })],
     [h("button", { type: "button", class: "primary", id: "btn-checkin-send", onclick: send }, "Check in")]);
 }
 

@@ -28,7 +28,7 @@ import java.util.*;
  * </ul>
  * The secret holds the key as Base64 (32 random bytes), as OOA_MASTER_KEY would. The key only ever lives in memory.
  */
-final class KeySources {
+public final class KeySources {
     private KeySources() { }
 
     /** Addresses of the metadata and cloud services; tests point them at a local server. */
@@ -47,7 +47,7 @@ final class KeySources {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     /** A short description of the source, without secrets, for logs and Settings. */
-    static String describe(String source) {
+    public static String describe(String source) {
         String s = source.trim();
         if (s.equals("prompt")) return "typed in at start (manual unlock)";
         int c = s.indexOf(':');

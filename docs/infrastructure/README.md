@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION infrastructure guide
 
-Product version 0.1.1. This collection describes how to plan, install, connect, protect and run the servers and
+Product version 0.2.0. This collection describes how to plan, install, connect, protect and run the servers and
 runners of ONEOFFICEAUTOMATION (OOA).
 
 ## What this covers / audience

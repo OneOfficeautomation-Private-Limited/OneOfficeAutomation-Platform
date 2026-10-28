@@ -138,7 +138,8 @@ expired (naming the end of the grace period). The evaluation gets the same remin
 | --- | --- |
 | See the state and banner | Everyone signed in (terms and seats for administrators) |
 | Install a licence | `settings.manage` |
-| Assign and take back seats, see holders | `users.manage` |
+| See the Licenses page and the seat holders | `users.manage` or `settings.manage` |
+| Assign and take back seats | `users.manage` |
 | Usage report and CSV | `users.manage` or `settings.manage` |
 
 API: `GET /api/license`, `POST /api/license` `{content}`, `GET`/`PUT /api/license/assignments`,

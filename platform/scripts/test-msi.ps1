@@ -2,7 +2,7 @@
 #   1. msiexec /qn ROLE=CommandCenter SERVICE=1: the Command Center runs as a Windows service and answers
 #   2. msiexec /fa ROLE=Runner URL=.. REGISTRATION_KEY=..: a runner service registers and comes online
 #   3. msiexec /x /qn: both services, the files and the Start menu entry are gone; the data folder stays
-#   powershell -ExecutionPolicy Bypass -File scripts\test-msi.ps1 -Msi cli\build\distributions\ooa-0.1.1.msi
+#   powershell -ExecutionPolicy Bypass -File scripts\test-msi.ps1 -Msi cli\build\distributions\ooa-0.2.0.msi
 # Exit code: the number of failed checks. Logs go to -Logs (default %TEMP%\ooa-msi-test).
 param([Parameter(Mandatory = $true)] [string]$Msi, [string]$Logs = (Join-Path $env:TEMP "ooa-msi-test"), [int]$Port = 8720)
 $ErrorActionPreference = "Continue"

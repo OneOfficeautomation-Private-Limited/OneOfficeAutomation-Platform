@@ -217,7 +217,9 @@ Besides the Command Center's triggers ([document 04](04-schedules-and-triggers.m
 - **Agent check-in** stores a new numbered version (1, 2, 3 …) in the repository with a comment, author, time and
   SHA-256 checksum. Versions are never changed or removed by later check-ins.
 - One version can be the **live production version**. Runs, schedules, triggers, work queues, API tasks and workflows
-  always use it; an item without one cannot be run (`CR.NO_PRODUCTION`).
+  always use it; an item without one cannot be run (`CR.NO_PRODUCTION`). A check-in sets it only when asked to
+  (Studio: the tick **Make this the live version**; an agent's first Studio check-in always does, and publishing a
+  workflow or form always does).
 - A version whose stored content no longer matches its checksum is never sent to a runner or editor (`CR.AGENT_TAMPERED`).
 - Labels, approval, check-out and lifecycle are in [document 08](08-repository-versions-and-templates.md).
 

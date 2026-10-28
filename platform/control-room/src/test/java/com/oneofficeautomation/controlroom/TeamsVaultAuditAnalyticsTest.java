@@ -78,6 +78,8 @@ class TeamsVaultAuditAnalyticsTest {
         assertEquals("CR.FORBIDDEN", code(() -> cr.setCredential(jane, "fin", "erp", "user", "x", null)));
         cr.setCredential(carl, "fin", "erp", "url", "https://erp.test", null);
         assertEquals("participant", cr.lockers(jane).stream().filter(l -> l.get("name").equals("fin")).findFirst().orElseThrow().get("my_role"));
+        assertEquals(Boolean.TRUE, cr.me(jane).get("leads_team"), "jane leads finance: the console shows her the Teams page");
+        assertEquals(Boolean.FALSE, cr.me(bob).get("leads_team"));
         // user-provided attribute: each person's own value; a run reads its user's value
         cr.vaultAdmin.saveCredential(bob, "fin", "erp", Map.of("user_attributes", List.of("password"), "description", "ERP sign-in"), null);
         assertEquals("CR.BAD_INPUT", code(() -> cr.setCredential(bob, "fin", "erp", "password", "shared", null)));

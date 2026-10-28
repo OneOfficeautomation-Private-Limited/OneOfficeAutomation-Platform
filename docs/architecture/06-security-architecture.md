@@ -155,8 +155,9 @@ master key (32 bytes, AES-256)
   supports it). Production installs should use the environment variable or a key source.
 - **Rotation** (`VaultAdmin`): every stored value is decrypted with the current key and encrypted with a new one in one
   transaction; the new key is written as `master.key.next` first, then replaces the old one, which is kept as
-  `master.key.old-<time>`. Encrypted values in configuration files are re-encrypted too. Not possible with
-  `OOA_MASTER_KEY` (the operator changes the variable).
+  `master.key.old-<time>`. Encrypted values in configuration files are re-encrypted too. Not possible from the
+  console with `OOA_MASTER_KEY` or a key store; there `ooa vault rekey --new-key-env VAR` (Command Center stopped)
+  re-encrypts everything with the new key, and the operator then replaces the key in the variable or store.
 - The key fingerprint (first 12 hex digits of its SHA-256) identifies a key without showing it; backup restore checks
   it.
 
@@ -222,7 +223,7 @@ finishes, licence events, production approvals and settings changes.
 | Content-Security-Policy | `default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'` |
 | Other headers | `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` |
 | CSRF | Cookie requests that change anything need `X-OOA-Request: 1`; the cookie is `SameSite=Strict` |
-| IP allow list | `ip_allow_list` (CIDR); loopback and health checks always allowed |
+| IP allow list | `ip_allow_list` (CIDR); this computer and health checks always allowed. Checked against the client address: behind a load balancer or reverse proxy listed in `trusted_proxies`, the last `X-Forwarded-For` address that is not a trusted proxy |
 | Upload limits | `max_upload_mb`; `block_executable_uploads` refuses executable files (`CR.FILE_TYPE_BLOCKED`) |
 | Database TLS | `tls=required` with an optional CA file in `ooa-db.properties` |
 
@@ -241,8 +242,9 @@ finishes, licence events, production approvals and settings changes.
 - **Temporary runners** that stay offline longer than `temporary_runner_hours` (default 8) are removed.
 - **Version rule**: a runner newer than its Command Center gets no work.
 - **Certificates**: runners verify the Command Center's certificate using the JDK store, the Windows certificate store
-  and an optional CA file (`--ca`); proxy passwords are kept with Windows DPAPI or read from an environment variable
-  (`Network`).
+  and an optional CA file (`--ca`); proxy passwords are kept with Windows DPAPI (`dpapi:`), on Linux and macOS in a
+  file `proxy-password` next to the runner's config readable by its owner only (`file:PATH`), or read from an
+  environment variable (`env:NAME`) (`Network`).
 - **Updates**: program files are checked by SHA-256 over the TLS connection before they replace the runner's own
   (`Updater`). They are not separately signed (a known gap).
 - **Unattended screens**: dialogs and forms never wait for a person on an unattended run; screen agents do not start on

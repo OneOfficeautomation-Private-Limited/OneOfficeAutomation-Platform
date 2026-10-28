@@ -79,7 +79,8 @@ ooa check [--data DIR] [--port N]
 
 Read-only. Tests operating system, 64-bit, Java, memory, processors, data folder, free disk, port, database
 connection, schema and encryption, whether the vault key opens stored credentials, whether repository files are
-present, the HTTPS certificate, and the vault key source. One line each, PASS / WARN / FAIL with what to do; the last
+present, the HTTPS certificate, and the vault key source (PASS from `OOA_MASTER_KEY` or from a key store named by
+`OOA_MASTER_KEY_SOURCE`; WARN only for a key file). One line each, PASS / WARN / FAIL with what to do; the last
 line says `Ready.` or `N problem(s) to fix first.`; the exit code is the number of FAILs. Details in
 [01](01-system-requirements-and-sizing.md).
 
@@ -114,7 +115,7 @@ The exit code is the number of FAILs.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| Other computers cannot open the Command Center, but `http://localhost:8720` works on the server | The server listens on 127.0.0.1 (the default for `ooa server`, `ooa control-room` and services made by the installers) | Turn on HTTPS, then reinstall the service with `--host 0.0.0.0`, or put a reverse proxy on the server ([02](02-installation-windows.md)) |
+| Other computers cannot open the Command Center, but `http://localhost:8720` works on the server | The server listens on 127.0.0.1 (the default for `ooa server`, `ooa control-room`, `ooa service install` without `--host`, and installs made with `-ListenAddress 127.0.0.1` / `LISTEN_ADDRESS=127.0.0.1`), or a firewall blocks the port | Turn on HTTPS, then `ooa service uninstall` and install the service again with `--host 0.0.0.0`, or put a reverse proxy on the server; open the port in the firewall ([02](02-installation-windows.md)) |
 | `CR.PORT_IN_USE` at start | Another Command Center or program on the port | Stop it, or `--port 8721`; `ooa check` shows who answers |
 | Runner shows **offline** | No heartbeat for 60 seconds: runner stopped, signed out, network, proxy, certificate, deleted registration | Run `ooa agent diagnose`; check the "OOA Runner" task or service is running; for screen runners make sure the user is signed in |
 | Runner offline after the Command Center moved | Old address in `agent.json` | `ooa agent move --url https://new-address [--ca FILE]`, restart the runner |
@@ -128,7 +129,7 @@ The exit code is the number of FAILs.
 | Certificate error on runners (`PKIX path building failed`, `FAIL Certificate`) | Self-signed or private CA not trusted; name mismatch | `ooa tls export-cert --out ooa.cer` and `ooa agent network --ca ooa.cer`; register with a name that is in the certificate |
 | Browsers warn about the certificate | Self-signed test certificate | Use a company certificate for production |
 | Proxy error, `407` or "no answer" behind a proxy | Proxy needs sign-in, or the service account has different Windows proxy settings | `ooa agent network --proxy http://proxy:port --proxy-user USER --proxy-password-env VAR`; NTLM-only proxies: allow the Command Center's address without sign-in |
-| `AGENT.PROXY_PASSWORD` | The DPAPI-encrypted password cannot be read on this computer (copied config) or the variable is not set | Set it again with `ooa agent network --proxy-user ... --proxy-password-env VAR` |
+| `AGENT.PROXY_PASSWORD` | On Windows, the DPAPI-encrypted password cannot be read on this computer (copied config); on Linux and macOS, the `proxy-password` file cannot be read (missing, or another account); or the variable is not set | Set it again with `ooa agent network --proxy-user ... --proxy-password-env VAR`, as the runner's account |
 | `AGENT.BAD_PROXY` | Proxy not `system`, `none` or `http://host:port` | Correct the value |
 | Command Center cannot reach SSO, Git or AI providers | Outbound proxy needed | Set `outbound_proxy` and `outbound_proxy_bypass` |
 | `CR.DB_UPGRADE_NEEDED` at start | New release, data-only account | Stop, `ooa db migrate`, start |
@@ -138,7 +139,7 @@ The exit code is the number of FAILs.
 | `CR.VAULT_KEY` at start | Key store unreachable, wrong format (not 32 bytes Base64), `prompt` without a console | Fix identity/network to the key store; `openssl rand -base64 32`; do not use `prompt` for services |
 | `LICENSE.DB_REQUIRED` | Licence installed on the embedded database | Move to SQL Server or PostgreSQL first ([05](05-databases.md)) |
 | `CR.RATE_LIMITED` (429) | More than 60 sign-ins/token calls a minute from one address, or 1,200 webhook/API task/MCP calls | Spread calls; behind a remote balancer all clients share its address |
-| `CR.IP_BLOCKED` (403) | Address not on `ip_allow_list` | Add it; from the server itself (loopback) you can always fix the list |
+| `CR.IP_BLOCKED` (403) | Address not on `ip_allow_list`; or, behind a load balancer not listed in `trusted_proxies`, the balancer's address is checked instead of the client's | Add the address, or list the balancer under Trusted proxies; from the server itself (directly, not through a proxy) you can always fix the list |
 | Forgotten administrator password or lost authenticator | - | Stop the server, `ooa reset-admin [--user NAME] --data DIR` |
 | Backup fails (`CR.BACKUP`) | Folder missing or no write access | Check `backup_folder` and the service account's rights |
 | Restore refused: another vault key | Backup made with a different key | Put that key in place (`master.key` or `OOA_MASTER_KEY`) and retry |

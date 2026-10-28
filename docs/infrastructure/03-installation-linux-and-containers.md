@@ -92,7 +92,7 @@ From the `platform` folder of a source checkout, on a build machine with Docker:
 
 ```
 gradlew :cli:installCustomerDist
-docker build -f docker/Dockerfile -t ooa-command-center:0.1.1 .
+docker build -f docker/Dockerfile -t ooa-command-center:0.2.0 .
 ```
 
 The image:
@@ -113,10 +113,10 @@ Push it to your registry (Amazon ECR, Azure Container Registry, Google Artifact 
 ## 5. Running the image: environment variables
 
 ```
-docker run -d -p 8720:8720 -v ooa-data:/data -e OOA_MASTER_KEY=... ooa-command-center:0.1.1
+docker run -d -p 8720:8720 -v ooa-data:/data -e OOA_MASTER_KEY=... ooa-command-center:0.2.0
 docker run -d -p 8720:8720 -v ooa-data:/data -e OOA_MASTER_KEY=... \
   -e OOA_DB_URL="jdbc:sqlserver://sql01:1433;databaseName=ooa_command_center;encrypt=true" \
-  -e OOA_DB_USER=ooa_app -e OOA_DB_PASSWORD=... ooa-command-center:0.1.1
+  -e OOA_DB_USER=ooa_app -e OOA_DB_PASSWORD=... ooa-command-center:0.2.0
 ```
 
 | Variable | Default | Meaning |
@@ -137,7 +137,9 @@ tables (or run `ooa db migrate` with a setup account before rolling out a new im
 [09](09-saas-and-multi-region-operations.md).
 
 TLS: put it on the load balancer or ingress (port 8720 behind it). The proxy must send `X-Forwarded-Proto: https`
-so the session cookie is marked `Secure` and HSTS is sent; set `public_url` to the HTTPS address.
+so the session cookie is marked `Secure` and HSTS is sent; set `public_url` to the HTTPS address. List the ingress or
+balancer addresses in **Settings > Security > Trusted proxies** (`trusted_proxies`) so the allow list, rate limits and
+audit trail see each client's address from `X-Forwarded-For`.
 
 ## 6. Volumes and the data folder
 
@@ -167,8 +169,8 @@ With arguments the entry point runs that `ooa` command instead of the server. Fo
 ```
 docker exec <container> /opt/ooa/docker-entrypoint.sh backup now
 docker run --rm -v ooa-data:/data -v /backups:/backups -e OOA_MASTER_KEY=... -e OOA_DB_URL=... \
-  -e OOA_DB_USER=... -e OOA_DB_PASSWORD=... ooa-command-center:0.1.1 backup restore /backups/FILE
-docker run --rm ooa-command-center:0.1.1 region token
+  -e OOA_DB_USER=... -e OOA_DB_PASSWORD=... ooa-command-center:0.2.0 backup restore /backups/FILE
+docker run --rm ooa-command-center:0.2.0 region token
 ```
 
 Stop the Command Center container before a restore.
@@ -222,8 +224,11 @@ Never let the Command Center scale to zero: schedules, triggers and queues run i
 
 - `ooa service` and `ooa agent install-task` are Windows only; use systemd on Linux.
 - Windows sign-in to SQL Server (`--windows-auth`) is Windows only.
-- Runner proxy passwords are stored with Windows DPAPI, so `--proxy-password-env` is refused on Linux. There, put
-  `"proxy_password": "env:NAME"` (with `proxy_user`) in the runner's `agent.json` and set `NAME` for the runner.
+- Runner proxy passwords: `ooa agent network --proxy-user USER --proxy-password-env VAR` works on Linux and macOS.
+  The password is stored in the file `proxy-password` next to the runner's `agent.json`, readable by its owner only
+  (mode 600); the config then says `"proxy_password": "file:PATH"`. Run the command as the runner's account. On a
+  file system that cannot keep the file private, put `"proxy_password": "env:NAME"` (with `proxy_user`) in
+  `agent.json` instead and set `NAME` for the runner.
 - Runner self-update is Windows only; update Linux runners by replacing the package.
 
 ## Related documents

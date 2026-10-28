@@ -58,7 +58,7 @@ The manifest is signed with the vendor's Ed25519 key; the matching public key is
 With any installed release:
 
 ```
-ooa release verify ooa-0.1.1.manifest.json [--dir C:\downloads]
+ooa release verify ooa-0.2.0.manifest.json [--dir C:\downloads]
 ```
 
 | Output line | Meaning |

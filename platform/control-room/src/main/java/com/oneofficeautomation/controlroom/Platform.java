@@ -32,7 +32,7 @@ public final class Platform {
         DEFAULTS.put("announcement", "");
         DEFAULTS.put("inactive_user_days", 0);
         DEFAULTS.put("session_hours", 8);
-        DEFAULTS.put("max_upload_mb", 5);
+        DEFAULTS.put("max_upload_mb", 25);   // Excel work items and licence files travel inside JSON, as Base64
         DEFAULTS.put("queue_poll_seconds", 15);
         DEFAULTS.put("default_minutes_saved", 0);
         DEFAULTS.put("public_url", "");
@@ -49,6 +49,8 @@ public final class Platform {
         DEFAULTS.put("syslog_target", "");
         DEFAULTS.put("syslog_protocol", "udp");
         DEFAULTS.put("ip_allow_list", "");
+        // load balancers and reverse proxies whose X-Forwarded-For header names the client (addresses or CIDR ranges)
+        DEFAULTS.put("trusted_proxies", "");
         DEFAULTS.put("max_sessions_per_user", 5);
         DEFAULTS.put("password_min_length", 12);
         DEFAULTS.put("block_executable_uploads", 0);
@@ -226,6 +228,7 @@ public final class Platform {
                 if (k.equals("mail_from") && !s.isEmpty()) Mailer.address(s);
                 if (k.equals("license_mail_to") && !s.isEmpty()) for (String a : s.split("[,;\\s]+")) if (!a.isEmpty()) Mailer.address(a);
                 if (k.equals("syslog_protocol") && !s.equals("udp") && !s.equals("tcp")) throw new OoaException("CR.BAD_INPUT", "The syslog protocol is udp or tcp");
+                if (k.equals("trusted_proxies")) IpAllowList.parse(s);
                 if (k.equals("ip_allow_list")) {
                     IpAllowList l = IpAllowList.parse(s);
                     // never lock out the person saving the list (this computer is always allowed)

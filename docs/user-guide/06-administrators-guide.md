@@ -36,7 +36,11 @@ A checklist for a production Command Center:
 
 1. **Install it on a server** with the setup package as a service:
    `Install.cmd -Silent -Role CommandCenter -AllUsers -Service -Port 8720`, or the MSI
-   `msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720`. Or, from an installed `bin` folder,
+   `msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720`. Both make a service that listens on every
+   network card, so runners on other machines reach it (`-ListenAddress 127.0.0.1` / `LISTEN_ADDRESS=127.0.0.1` keeps
+   it on this computer only); the MSI keeps the data in `%ProgramData%\OneOfficeAutomation\Command Center` unless you
+   give `DATA_DIR`. Installing again keeps an existing service and its settings; to change them, run
+   `ooa service uninstall` and install again. Or, from an installed `bin` folder,
    `ooa service install --mode control-room --data D:\OOA\cr --port 8720` (`--mode server` adds Studio; a service has no
    desktop, so no built-in runner). Manage it with `ooa service start|stop|status|uninstall` or in Windows Services; it
    restarts by itself after a failure. Its log is `<data>\logs\service-<mode>.log`.
@@ -49,7 +53,8 @@ A checklist for a production Command Center:
    Secrets Manager (`aws-secrets:REGION/SECRET-ID`), Google Secret Manager
    (`gcp-secret:projects/P/secrets/S/versions/latest`) or `prompt` (an operator types it at start). Without it, a
    `master.key` file is made next to the database.
-4. **Turn on HTTPS** (below), then let other machines in with `--host 0.0.0.0`.
+4. **Turn on HTTPS** (below) before other machines connect. A service made by the installers already listens on
+   every network card; one made with `ooa service install` needs `--host 0.0.0.0`.
 5. Run `bin\ooa.bat check`. Fix every **FAIL**.
 6. Set the **Public address of the Command Center** in Settings (needed for single sign-on redirects).
 7. Set up backups, e-mail, password rules and two-step sign-in in **Settings** (section 12).
@@ -128,7 +133,7 @@ still have one keep only their other roles. Administrator cannot be switched off
 
 ## 4. Teams
 
-**Administration > Teams** (needs `teams.manage`): named groups of people, each a member or a lead.
+**Administration > Teams** (needs `teams.manage`, or leading a team): named groups of people, each a member or a lead.
 
 1. Press **New team**, give a **Name** (used in rules as `team:name`) and **Description**, then **Save**.
 2. In **Members of ...**, pick people (or type a user name), press **+ Add**, choose **Member** or **Lead (changes the
@@ -136,8 +141,8 @@ still have one keep only their other roles. Administrator cannot be switched off
 
 Name the team as `team:finance` in folder permissions, vault folders (managers, participants, consumers) and work
 queue members: everyone added to the team gets all of it. A team that a rule still names is not deleted. Team leads
-may change their own team's members (the API allows it), but the **Teams** page is only in the menu for people with
-`teams.manage`.
+may change their own team's members: the **Teams** page is in the menu for people with `teams.manage` and for anyone
+who leads a team, and a lead sees the teams they are in.
 
 ## 5. Sign-in and security
 
@@ -154,6 +159,7 @@ All in **Administration > Settings** unless stated; press **Save settings** at t
 | **Sign-in session length (hours)** | 8 by default, up to 720 |
 | **Disable users inactive for (days)** | 0 = never |
 | **IP allow list** | Addresses or CIDR ranges (`10.0.0.0/8, 203.0.113.7`). Empty lets every address in; this computer is always allowed |
+| **Trusted proxies** | The addresses or CIDR ranges of your load balancers and reverse proxies (`10.0.5.10, 10.0.6.0/24`). Requests through them are counted under the client's own address (from `X-Forwarded-For`) for the allow list, the sign-in limits and the audit trail. Leave empty when nothing sits in front of the Command Center |
 
 Single sign-on users are not affected by password rules.
 
@@ -247,7 +253,9 @@ and press **Save**.
 **Vault key** (needs `lockers.manage`) shows where the master key comes from, its fingerprint and how many values it
 protects. **Rotate key** makes a new key and encrypts every stored value again in one transaction (shared values,
 people's own values and external-vault secrets); the old key file stays as `master.key.old-...`. With
-`OOA_MASTER_KEY`, rotate where that variable is managed. Keep the key apart from backups: a backup never holds it.
+`OOA_MASTER_KEY` or a key store, stop the Command Center and run `ooa vault rekey --new-key-env VAR` (the new key in
+the variable `VAR`), then replace the old key where it is kept and start again. Keep the key apart from backups: a
+backup never holds it.
 
 ### External vaults
 
@@ -326,6 +334,8 @@ These are in **Build > Agent repository**; builders use it daily (see
   approval is off.
 - **Export / promote** and **Import** (need `lifecycle.export` and `lifecycle.import`) move agents between Command
   Centers as checked bundles.
+- **Delete** on an agent is refused while a schedule, trigger, work queue or API task uses it; the message names
+  them (for example "API task Invoice lookup"). Change or delete those first.
 - **Deleted agents** brings deleted agents back (**Recover**).
 - **Code analysis** sets the rules every check-in is checked against, each on or off and **Error** or **Warning**, and
   **Refuse check-ins that have errors**. **Report for all agents (CSV)** downloads the findings.
@@ -347,7 +357,7 @@ file**.
 
 | Group | What you set |
 | --- | --- |
-| General | Announcement; inactive-user days; **Sign-in session length**; **Largest upload (MB)** (5 by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval (seconds)**; **Minutes saved per successful run** (the default for Home's "hours saved"); **Public address of the Command Center** |
+| General | Announcement; inactive-user days; **Sign-in session length**; **Largest upload (MB)** (25 by default; limits files sent inside requests, such as Excel work items or licences); **Work queue check interval (seconds)**; **Minutes saved per successful run** (the default for Home's "hours saved"); **Public address of the Command Center** |
 | Single sign-on | OpenID Connect and SAML 2.0 (section 5) |
 | Git sync | Section 10 |
 | AI assistants (Model Context Protocol) | **Agents offered as tools** (paths, or `*`), **Runner or runner pool id**, **Wait for a result (seconds)**, **Token audience** and **Scope** for OAuth sign-in. Assistants connect to `/api/mcp` with a user's API key |
@@ -367,7 +377,8 @@ Backups from the command line: `ooa backup now`, `ooa backup list`, and with the
 
 ## Licences and seats
 
-**Administration > Licenses** (view needs `users.manage`; installing needs `settings.manage`).
+**Administration > Licenses** (shown with `users.manage` or `settings.manage`; installing a licence needs
+`settings.manage`, ticking seats needs `users.manage`).
 
 ### Install a licence
 

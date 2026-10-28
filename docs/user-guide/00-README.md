@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION user guides
 
-**Product version:** 0.1.1
+**Product version:** 0.2.0
 **Audience:** everyone who uses ONEOFFICEAUTOMATION (OOA): people who build agents, people who use them in their daily
 work, operators, administrators and the owners of the computers that run agents.
 
@@ -27,8 +27,9 @@ ONEOFFICEAUTOMATION has three parts:
 | **One Command Center** | The web console and server. It keeps the shared agent repository, runs agents on runners, holds schedules, triggers, work queues, the vault, users, licences and the audit trail. | Operators, administrators, business users, builders |
 | **One Runner** | The program on each computer that runs agents. It registers with the Command Center, takes work and reports back every step. | Runner owners (and, indirectly, everyone) |
 
-A typical life of an agent: a builder creates it in Studio, tests it, and presses **Agent check-in**. The agent is now
-in the Command Center's **Agent repository**, with a version number. An operator runs it on a runner, schedules it,
+A typical life of an agent: a builder creates it in Studio, tests it, and presses **Agent check-in**, ticking **Make
+this the live version** when it is ready for production. The agent is now in the Command Center's **Agent
+repository**, with a version number. An operator runs it on a runner, schedules it,
 or connects it to a trigger or a work queue. Every run is visible in **Agent Runs**, and every action anyone takes is
 recorded in the **One Audit Trail**.
 

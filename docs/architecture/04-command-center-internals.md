@@ -78,10 +78,15 @@ long-poll requests cost almost nothing.
 `ControlRoomServer.handle` sends `/api/*` to `api(...)` and everything else to the static console files. Inside
 `api(...)` the checks run in this order:
 
-1. **IP allow list** (setting `ip_allow_list`, CIDR list): non-loopback callers outside it get 403 `CR.IP_BLOCKED`.
-   Health routes are always allowed.
-2. **Rate limits** per address for routes that need no session (`RateLimiter.group`): 429 `CR.RATE_LIMITED` with
-   `Retry-After`. A loopback caller is identified by `X-Forwarded-For` when a proxy sets it.
+0. **Client address** (`clientIp`): the TCP peer address, or, when the connection comes from this computer or from a
+   trusted proxy (setting `trusted_proxies`, addresses or CIDR ranges of load balancers and reverse proxies), the last
+   `X-Forwarded-For` address that is not itself a trusted proxy. A client that is not behind a trusted proxy cannot
+   choose its address with the header. The allow list, the rate limits and the audit trail all use this address.
+1. **IP allow list** (setting `ip_allow_list`, CIDR list): callers whose client address is not this computer and is
+   outside the list get 403 `CR.IP_BLOCKED`. Health routes are always allowed. A reverse proxy on the same computer
+   does not make remote clients skip the list: their forwarded address counts.
+2. **Rate limits** per client address for routes that need no session (`RateLimiter.group`): 429 `CR.RATE_LIMITED`
+   with `Retry-After`. A client on this computer without a proxy is not limited.
 3. **Public routes**: sign-in (`auth/login`, `auth/mfa`, `auth/token`), SSO (`auth/sso/*`, `auth/saml/*`), API task
    calls (`apitasks/{id}/run`, `apitasks/{id}/runs/{run}`), webhooks (`hooks/{id}`), health (`health`,
    `health/ready`).
@@ -93,7 +98,7 @@ long-poll requests cost almost nothing.
    sign-in is held back until they do.
 6. The route is chosen by its first path segment (`switch (seg[0])`).
 
-Request bodies are limited by the setting `max_upload_mb` (default 5 MB; `CR.TOO_LARGE`). Errors are answered as
+Request bodies are limited by the setting `max_upload_mb` (default 25 MB; `CR.TOO_LARGE`). Errors are answered as
 `{"error": {code, message, suggestedFix, retryable}}` with a status chosen from the code: 401 for sign-in problems,
 403 for permission, CSRF, licence and IP problems, 404 for missing objects, 409 for conflicts and locks, 422 for
 code-policy violations, 429 for lock-out and rate limits, 400 otherwise, and 500 `CR.INTERNAL` for unexpected
@@ -163,7 +168,9 @@ trigger, a work queue (`queue:<id>`), a workflow (`workflow:<id>`), an API task,
 Claiming (`claimNext`) is atomic: the runner's oldest highest-priority `queued` run is switched to `running` with
 `UPDATE ... WHERE status = 'queued'`, so two requests never get the same run. Before handing it out the Command Center:
 
-- refuses work to a runner newer than itself (`ControlRoom.VERSION`; runners may be older, never newer);
+- refuses work to a runner newer than itself (`ControlRoom.VERSION`; runners may be older, never newer). Both
+  `ControlRoom.VERSION` and `Agent.VERSION` come from the build: `sdk` generates `BuildInfo` from the `version` in the
+  root `build.gradle.kts`, so every part reports the same release;
 - re-checks the licence (it may have expired since queueing);
 - collects child agents (production versions, transitively), shared values (with the run-as user's own values where
   allowed), the run-as user's role, model connections the role may use, saved connections, repository files listed in
@@ -349,11 +356,11 @@ not updated this way, and a build from source never offers updates.
 ## 15. Settings
 
 Settings live in the `settings` table with defaults in `Platform.DEFAULTS`; a new setting needs only a default there
-to appear in the API. The current defaults include: `session_hours` 8, `max_upload_mb` 5, `queue_poll_seconds` 15,
+to appear in the API. The current defaults include: `session_hours` 8, `max_upload_mb` 25, `queue_poll_seconds` 15,
 `max_sessions_per_user` 5, `password_min_length` 12, `password_history` 0, `password_max_days` 0, `mfa_required` 0,
 `production_approval` 0, `runner_auto_update` 0, `runner_secret_days` 30, `temporary_runner_hours` 8,
 `mcp_timeout_seconds` 120, `backup_hours` 0, `backup_keep_days` 7, `syslog_protocol` udp, `mail_smtp_port` 587,
-`mail_smtp_security` starttls, `git_branch` main, and empty values for `public_url`, `ip_allow_list`, the SSO and SAML
+`mail_smtp_security` starttls, `git_branch` main, and empty values for `public_url`, `ip_allow_list`, `trusted_proxies`, the SSO and SAML
 settings, `mcp_agents`, `mcp_runner`, `mcp_oauth_audience`, `mcp_oauth_scope`, `git_remote_url`, `git_token_ref`,
 `template_catalog_url`, `outbound_proxy`, `outbound_proxy_bypass`, `switched_off_roles` and others. Retention settings
 default to 0 (keep for ever).

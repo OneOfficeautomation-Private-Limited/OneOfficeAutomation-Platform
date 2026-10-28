@@ -69,14 +69,20 @@ Once connected, the section shows the address, **Search the agent repository**, 
 
 1. Open the agent in Studio.
 2. Click **Agent check-in** in the Explorer toolbar. Unsaved changes are saved first.
-3. Type a short comment in "What changed in this version? (shown in the version history)" and press OK.
+3. The **Agent check-in** dialog opens. Type a short comment in **What changed (shown in the version history)**.
+4. Decide on **Make this the live version (runs, schedules and triggers use it from now on)**. It is off by default.
+5. Press **Check in**.
 
-**What you see:** the toast "Checked in <path> as version n". The agent appears in the repository list with its version
-(`v3`).
+| Tick | What happens | Toast |
+| --- | --- | --- |
+| Off (default) | A new version only. The live version stays as it was. Make it live later in One Command Center (section 7). | "Checked in <path> as version n; the live version is unchanged" |
+| On | The new version becomes the **live production version** at once. Schedules, triggers and workflows use it from their next run. Needs manage access on the folder. | "…; it is now the live version" |
+| On, with approval before production | A **production request** instead (see section 8) | "…; sent for approval before it goes live" |
 
-> **Important:** Studio's **Agent check-in** asks for the new version to be the **live production version**. Without
-> approval rules it goes live straight away, and schedules, triggers and workflows use it from their next run. When your
-> company requires approval, the toast adds "sent for approval before it goes live" (see section 8).
+The agent appears in the repository list with its version (`v3`).
+
+> **Note:** An agent's first check-in always becomes its live version, tick or not, so that it can run. The tick
+> matters from the second version on.
 
 The repository path is the agent's path in your workspace. An agent you checked out goes back to the path it came from.
 
@@ -118,7 +124,8 @@ Typical cycle:
 ## 7. Versions and the live production version
 
 Every check-in is a new version. Only one version is **live in production** at a time, and runs, schedules, triggers,
-work queues and workflows always use it.
+work queues and workflows always use it. A check-in changes the live version only when you tick **Make this the live
+version** (agents) or publish a workflow or form.
 
 In One Command Center (**Agent repository**, an agent > **Versions**):
 
@@ -134,7 +141,8 @@ Going back to an older version is therefore one click: set it as production agai
 
 When an administrator switches on approval before production (Administration > Settings > Security):
 
-1. Your check-in (or **Ask to make live**) creates a **production request** instead of changing the live version. The
+1. Your check-in with **Make this the live version** ticked (or **Ask to make live**, or **Publish to Command
+   Center**) creates a **production request** instead of changing the live version. The
    toast says "…; sent for approval before it goes live" (or "Sent for approval: vn").
 2. A second person with the approval right opens **Production approvals** in the Agent repository and clicks **Approve**
    (the version becomes live: "vn is live") or **Reject**, with an optional note.
@@ -203,7 +211,8 @@ itself (see [Studio basics](02-studio-basics.md)).
 | `CR.DUPLICATE_ID` | Another agent in the repository already has this agent id. Change **Agent id** in Agent settings. |
 | `CR.FORBIDDEN` | Your role or the folder permissions do not allow it. Ask an administrator. |
 | A runner fails with a missing child agent or file | Check in the child agents; upload the files to the repository and list them in the agent's required files. |
-| Runs still use the old version | The new version is waiting for approval, or another version was set as production. Look at **Versions**. |
+| Runs still use the old version | You checked in without **Make this the live version**, the new version is waiting for approval, or another version was set as production. Look at **Versions** and use **Set as production**. |
+| `CR.NO_PRODUCTION` ("has no live production version") | The agent has no live version (for example a request for production is still waiting for approval). Use **Set as production** in **Versions**, or approve the request. |
 
 ## Related guides
 

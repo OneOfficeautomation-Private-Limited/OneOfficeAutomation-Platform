@@ -5,7 +5,7 @@
 This collection explains how ONEOFFICEAUTOMATION (OOA) is built: its parts, how they talk to each other, where data
 lives, how it is secured, and how it can be extended. It is written for architects, senior developers, security
 reviewers and operators of large installations who need to understand the product below the user interface. It
-describes product version 0.1.1 (Gradle `version` in `platform/build.gradle.kts`) on the `phase-2` branch. The code
+describes product version 0.2.0 (Gradle `version` in `platform/build.gradle.kts`) on the `phase-2` branch. The code
 in `platform/` is the source of truth; where this collection and the code disagree, the code wins.
 
 The other collections cover different ground:

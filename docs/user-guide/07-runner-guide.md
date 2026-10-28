@@ -141,8 +141,9 @@ ooa agent network --proxy http://proxy.corp:8080 --proxy-user svc-rpa --proxy-pa
 ooa agent network            (no option: show the current proxy and trusted certificate)
 ```
 
-The proxy password is read from the environment variable and stored encrypted with Windows DPAPI. Proxies that only
-accept Windows (NTLM) sign-in are not supported. Restart the runner after a change.
+The proxy password is read from the environment variable. On Windows it is stored encrypted with DPAPI; on Linux and
+macOS it is stored in the file `proxy-password` next to the runner's settings, readable only by the account that owns
+it. Proxies that only accept Windows (NTLM) sign-in are not supported. Restart the runner after a change.
 
 **Certificates.** A Command Center certificate from a company authority that Windows and Java already trust needs
 nothing. For a self-signed certificate, get `ooa.cer` from the administrator (`ooa tls export-cert --out ooa.cer`) and

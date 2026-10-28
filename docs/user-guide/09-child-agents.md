@@ -147,7 +147,8 @@ calls) and **Used by** (the agents that call it). Click a row to open it.
 
 - When a parent runs in One Command Center, it calls the child **by its agent id**, in the version you chose
   (`production` by default).
-- So **check in every child agent** as well as the parent. The **Dependencies** tab of the parent lists them and reminds
+- So **check in every child agent** as well as the parent, and make sure each has a live version (tick **Make this
+  the live version** at check-in, or set it in the repository). The **Dependencies** tab of the parent lists them and reminds
   you: "Agent check-in child agents too before running this agent from Command Center."
 - If you duplicate an agent in the Explorer, the copy gets a new agent id so it does not replace the original as a
   child.

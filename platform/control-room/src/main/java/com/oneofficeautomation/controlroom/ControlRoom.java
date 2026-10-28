@@ -460,6 +460,8 @@ public final class ControlRoom {
         Map<String, Object> m = new LinkedHashMap<>(publicUser(u));
         m.put("permissions", permissionsOf(u));
         m.put("roles", rolesOf(u.username(), u.role()));
+        // team leads change their own team's members; the console shows them the Teams page for it
+        m.put("leads_team", count("SELECT COUNT(*) AS n FROM team_members WHERE username = ? AND team_role = 'lead'", u.username()) > 0);
         if (mfa.setupNeeded(u)) m.put("mfa_setup_required", true);
         Object note = platform.setting("announcement");
         if (note instanceof String n && !n.isBlank()) m.put("announcement", n);
@@ -1419,7 +1421,7 @@ public final class ControlRoom {
     /** Atomically assigns the oldest queued run of this device and returns its job (bot bundle, inputs, global values). */
     @SuppressWarnings("unchecked")
     /** The release of this Command Center; runners may be this release or older, never newer (they may use what it does not know). */
-    public static final String VERSION = "0.2.0";
+    public static final String VERSION = com.oneofficeautomation.sdk.BuildInfo.VERSION;
 
     /** Compares dotted versions numerically (0.10.0 is newer than 0.9.2); missing parts count as 0. */
     static int compareVersions(String a, String b) {

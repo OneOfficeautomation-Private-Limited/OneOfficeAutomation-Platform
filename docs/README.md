@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION documentation
 
-Documentation for ONEOFFICEAUTOMATION (OOA) 0.1.1: One Command Center, One Agent Studio, One Runner and the toolkits.
+Documentation for ONEOFFICEAUTOMATION (OOA) 0.2.0: One Command Center, One Agent Studio, One Runner and the toolkits.
 It is in five collections, each for a different reader. Start with the one that matches what you need to do.
 
 | Collection | For | What it answers |

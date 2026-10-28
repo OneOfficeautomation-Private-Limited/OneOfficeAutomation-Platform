@@ -3,8 +3,8 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\build-msi.ps1 [-Wix PATH\wix.exe]
 # The MSI installs for all users into Program Files\ONEOFFICEAUTOMATION, with a Start menu entry, and sets the
 # computer up from its properties (Install-OOA.ps1 -ConfigureOnly), for example:
-#   msiexec /i ooa-0.1.1.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720 [LISTEN_ADDRESS=0.0.0.0] [DATA_DIR=..]
-#   msiexec /i ooa-0.1.1.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... [RUNNER_NAME=..] [CA_FILE=..] [PROXY=..]
+#   msiexec /i ooa-0.2.0.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720 [LISTEN_ADDRESS=0.0.0.0] [DATA_DIR=..]
+#   msiexec /i ooa-0.2.0.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... [RUNNER_NAME=..] [CA_FILE=..] [PROXY=..]
 # Without ROLE it only installs the files. Uninstalling removes the services first; data folders are kept.
 param(
     [string]$Wix = "wix",

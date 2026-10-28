@@ -24,13 +24,34 @@ older docs. Items marked (checked) were confirmed in the code while reviewing.
 | P13 | Console | Licenses page shows for `users.manage`, but installing a licence needs `settings.manage`; Teams page shows only for `teams.manage`, so team leads cannot reach their team. | Align page visibility with the API. |
 | P14 | Requests | "Largest upload (MB)" defaults to 5 MB for every JSON request, so larger Excel work-item and licence uploads fail with CR.TOO_LARGE. | Raise for those routes. |
 
+### Status: P1 to P14 fixed (2026-10-28)
+
+All fourteen issues above are fixed in the code, and the collections describe the fixed product.
+
+| # | How it was fixed |
+| --- | --- |
+| P1 | The setup package (`-ListenAddress`) and the MSI (`LISTEN_ADDRESS`) install the Command Center service on `0.0.0.0` by default, so runners on other machines reach it; the installer logs a reminder to set up HTTPS (`ooa tls`). `127.0.0.1` keeps it on this computer only. |
+| P2 | Model connections moved to their own Studio route (`api/model-connections`); **Manage connections…** and a step's **Connection** list show the saved connector connections (`connections.json`). |
+| P3 | Studio's **Agent check-in** opens a dialog with **What changed** and the tick **Make this the live version** (off by default). Off: a new version only; on: live, or a production request when approval is on. Publishing workflows and forms still makes them live. |
+| P4 | Without `DATA_DIR` the MSI puts the data in `%ProgramData%\OneOfficeAutomation\Command Center`. Running the setup or the MSI again keeps an existing service ("OOA Command Center" / "OOA Runner") with its settings; to change them, `ooa service uninstall` and install again. |
+| P5 | `ooa vault rekey --new-key-env VAR` (Command Center stopped) re-encrypts every stored value for keys in `OOA_MASTER_KEY` or a key store. |
+| P6 | Deferred work items with a time are picked up again by processing once that time has passed. |
+| P7 | Schedule options `missed_runs` (`once`/`skip`) and `overlap` (`allow`/`skip`), shown as "Times missed while the Command Center was down" and "When the previous run is still going". |
+| P8 | Deleting an agent also checks API tasks (`CR.IN_USE` "API task NAME"). |
+| P9 | The version is 0.2.0 everywhere: `ControlRoom.VERSION` and `Agent.VERSION` come from `sdk` `BuildInfo`, generated from the root `build.gradle.kts`. |
+| P10 | New setting **Trusted proxies** (`trusted_proxies`). From this computer or a trusted proxy, the client address is the last `X-Forwarded-For` address that is not a trusted proxy; the allow list, rate limits and audit trail use it. Other clients cannot choose their address, and a local reverse proxy no longer lets remote clients skip the allow list. |
+| P11 | `ooa check` reports the vault key as PASS from `OOA_MASTER_KEY` or from `OOA_MASTER_KEY_SOURCE` (naming the key store); WARN only for a key file. |
+| P12 | On Linux and macOS the runner keeps its proxy password in a file `proxy-password` next to its config, readable by its owner only (`file:PATH`); `--proxy-password-env` works there. Windows still uses DPAPI. |
+| P13 | Licenses shows for `users.manage` or `settings.manage` (installing still needs `settings.manage`); Teams shows for `teams.manage` or for anyone who leads a team (`auth/me` returns `leads_team`). |
+| P14 | "Largest upload (MB)" (`max_upload_mb`) defaults to 25. |
+
 ## Smaller product points
 
 - Studio: the Run window has no Step out (the dock has it); Record and Capture "Open a new page" always use Edge; the
   Window editor's browser filter has no Firefox; Delete moves to `.trash` with no restore in Studio; Versions shows in a
   plain alert box; checked-out copies go to a folder named `Control Room`.
-- Studio groups: `ooa.aws_ec2` and `ooa.web_agent` were not in a group (fixed with this change); `ooa.forms` still falls
-  under More toolkits.
+- Studio groups: `ooa.aws_ec2` and `ooa.web_agent` were not in a group. **Fixed:** AWS EC2 is under "APIs and
+  databases" and Web goal agent under "AI". `ooa.forms` still falls under More toolkits.
 - Word toolkit: Save as offers docx and txt only (no PDF).
 - Help texts: `agent register --key` says "Devices > Registration keys" (now Runners > Register a runner);
   `browser-connector install/status` say "Edge and Chrome" (Firefox too); `db configure --windows-auth` says `db_owner`

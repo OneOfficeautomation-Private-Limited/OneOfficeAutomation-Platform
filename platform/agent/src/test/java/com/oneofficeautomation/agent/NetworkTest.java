@@ -55,12 +55,18 @@ class NetworkTest {
     String ccUrl() { return "http://cc.test:" + cc.getAddress().getPort(); }
     String proxyUrl() { return "http://127.0.0.1:" + proxy.getAddress().getPort(); }
 
-    @Test void throughAProxyThatAsksForASignIn() {
-        Assumptions.assumeTrue(Network.WINDOWS, "stored proxy passwords use Windows DPAPI");
+    @Test void throughAProxyThatAsksForASignIn() throws Exception {
         OoaException e = assertThrows(OoaException.class, () -> new AgentClient(ccUrl(), null, null, new Network(null, proxyUrl(), null, null)).post("register", Map.of()));
         assertTrue(e.getMessage().contains("407") || e.code().contains("407"), e.code() + " " + e.getMessage());
-        Network net = new Network(null, proxyUrl(), "proxyuser", Network.protect("Pr0xy-pass"));
-        assertTrue(net.proxyPassword().startsWith("dpapi:") && !net.proxyPassword().contains("Pr0xy-pass"), "the password is stored encrypted");
+        Path dir = Files.createTempDirectory("ooa-proxy");
+        Network net = new Network(null, proxyUrl(), "proxyuser", Network.protect("Pr0xy-pass", dir));
+        assertFalse(net.proxyPassword().contains("Pr0xy-pass"), "the config never holds the password itself");
+        if (Network.WINDOWS) assertTrue(net.proxyPassword().startsWith("dpapi:"), "Windows: encrypted with DPAPI");
+        else {
+            // Linux and macOS: in its own file that only the runner's account may read
+            assertEquals("file:" + dir.resolve("proxy-password").toAbsolutePath(), net.proxyPassword());
+            assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(dir.resolve("proxy-password"))));
+        }
         Map<String, Object> r = new AgentClient(ccUrl(), null, null, net).post("register", Map.of("key", "k"));
         assertEquals("dev_1", r.get("device_id"));
         assertTrue(seen.stream().anyMatch(s -> s.startsWith("http://cc.test:") && s.contains("/api/agent/register")), seen.toString());

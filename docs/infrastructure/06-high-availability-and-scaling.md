@@ -70,7 +70,8 @@ heartbeat and which one leads. Nodes not seen for a day are removed from the lis
 2. Copy `DATA\config\ooa-db.properties` (and `ooa-tls.properties` plus the `.pfx` if TLS ends on the nodes) from the
    first node.
 3. Give it the same vault key (environment variable or key source).
-4. Install the service with `--host 0.0.0.0` (see [02](02-installation-windows.md)).
+4. Install the service listening on every network card: the installers do this by default (`-ListenAddress` /
+   `LISTEN_ADDRESS`), `ooa service install` needs `--host 0.0.0.0` (see [02](02-installation-windows.md)).
 5. Run `ooa check --data DIR`: database, vault key, repository files must PASS.
 6. Start it and add it to the load balancer once `/api/health/ready` answers 200.
 
@@ -96,6 +97,7 @@ Set Administration > Settings > Several nodes > Shared folder (`repo_files_folde
 | Request size | At least `max_upload_mb` x 4/3 + 1 MB |
 | WebSockets | Not used |
 | Address | One DNS name (for example `ooa.company.com`) used by people and runners, so nodes can change behind it |
+| Client addresses | The balancer sends `X-Forwarded-For`; list its addresses in **Settings > Security > Trusted proxies** (`trusted_proxies`) so the allow list, rate limits and audit trail see each client's address, not the balancer's |
 
 See [04](04-network-ports-proxies-and-certificates.md) for client address handling behind a balancer.
 

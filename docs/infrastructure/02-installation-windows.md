@@ -63,6 +63,7 @@ Default folders: `%LOCALAPPDATA%\Programs\ONEOFFICEAUTOMATION` for the current u
 
 ```
 Install.cmd -Silent -Role CommandCenter -AllUsers -Service -Port 8720 -DataDir D:\OOA\cc
+Install.cmd -Silent -Role CommandCenter -AllUsers -Service -ListenAddress 127.0.0.1 -DataDir D:\OOA\cc
 Install.cmd -Silent -Role CommandCenter -AllUsers -Service -DataDir D:\OOA\cc -DbServer SQL01 -DbPasswordEnv OOA_APP_PW -DbSetupPasswordEnv OOA_SETUP_PW
 Install.cmd -Silent -Role Runner -AllUsers -Url https://ooa.example.com:8720 -RegistrationKey ooareg_... -CaFile C:\certs\ooa.cer
 Install.cmd -Silent -Role Runner -AllUsers -Service -Url https://ooa.example.com:8720 -RegistrationKey ooareg_... -Proxy http://proxy.corp:8080
@@ -78,7 +79,8 @@ Install.cmd -Silent -Role Runner -AllUsers -Service -Url https://ooa.example.com
 | `-NoStart` | Both | Off | Do not start the service or runner after installing |
 | `-Service` | Command Center | Off | Run as the Windows service "OOA Command Center", starting with Windows |
 | `-Port N` | Command Center | 8720 | The port |
-| `-DataDir DIR` | Command Center | `%USERPROFILE%\OOA Command Center` of the installing account | The data folder. Always give it for a service. |
+| `-ListenAddress ADDR` | Command Center | `0.0.0.0` (every network card) | The address the service listens on. The default lets runners on other machines reach it; set up HTTPS (`ooa tls`) before they do. `127.0.0.1` keeps it on this computer only. |
+| `-DataDir DIR` | Command Center | `%USERPROFILE%\OOA Command Center` of the installing account (the MSI: `%ProgramData%\OneOfficeAutomation\Command Center`) | The data folder. Always give it for a service. |
 | `-DbServer NAME` | Command Center | None (built-in evaluation database) | SQL Server host or `host\instance` |
 | `-DbName NAME` | Command Center | `ooa_command_center` | The database |
 | `-DbUser NAME` | Command Center | `ooa_app` | The runtime account (data rights only) |
@@ -97,8 +99,13 @@ Install.cmd -Silent -Role Runner -AllUsers -Service -Url https://ooa.example.com
 What the script does, in order, for a Command Center: checks the package is complete, checks administrator rights,
 copies files, creates the Apps and Features entry and Start menu shortcuts, runs `ooa check --port N`, with
 `-DbServer` runs `ooa db configure`, `db set-password`, `db set-password --setup` and `db init`, and with `-Service`
-runs `ooa service install --mode server --port N [--data DIR]`. For a runner: `ooa agent register` (the key is
-hidden in the log), then `ooa service install --mode agent` or `ooa agent install-task` and starts the task.
+runs `ooa service install --mode server --port N --host ADDR [--data DIR]`. When the service listens beyond this
+computer, the log reminds you to set up HTTPS (`ooa tls`). For a runner: `ooa agent register` (the key is hidden in
+the log), then `ooa service install --mode agent` or `ooa agent install-task` and starts the task.
+
+When the service "OOA Command Center" (or, for a runner, "OOA Runner") exists already, for example on an update or
+when the MSI runs again with `ROLE`, the script keeps it with its settings and logs that it did. To change a
+service's settings (port, listen address, data folder), run `ooa service uninstall`, then install it again.
 
 Passwords travel only in environment variables, never on the command line or in the log.
 
@@ -106,6 +113,7 @@ Passwords travel only in environment variables, never on the command line or in 
 
 ```
 msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 PORT=8720 DATA_DIR="D:\OOA\cc" /l*v install.log
+msiexec /i ooa-<version>.msi /qn ROLE=CommandCenter SERVICE=1 LISTEN_ADDRESS=127.0.0.1 /l*v install.log
 msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 REGISTRATION_KEY=ooareg_... RUNNER_NAME=RPA-07 CA_FILE=C:\certs\ooa.cer PROXY=system
 ```
 
@@ -114,7 +122,8 @@ msiexec /i ooa-<version>.msi /qn ROLE=Runner URL=https://ooa.example.com:8720 RE
 | `ROLE` | Empty: files only | `CommandCenter` or `Runner`. Without it only the files are installed. |
 | `SERVICE` | Empty | `1` (or `yes`, `true`): install the Command Center as a service. A runner installed by the MSI is always a service. |
 | `PORT` | 8720 | Command Center port |
-| `DATA_DIR` | Empty | Command Center data folder. Give it: the MSI configures as the Local System account, whose profile is `C:\Windows\System32\config\systemprofile`. |
+| `LISTEN_ADDRESS` | `0.0.0.0` (every network card) | The address the Command Center service listens on. `127.0.0.1` keeps it on this computer only. Set up HTTPS before runners on other machines use it. |
+| `DATA_DIR` | `%ProgramData%\OneOfficeAutomation\Command Center` | Command Center data folder. The MSI configures as the Local System account, so without `DATA_DIR` the data goes to ProgramData, not to that account's profile. |
 | `URL` | - | Runner: the Command Center address |
 | `REGISTRATION_KEY` | - | Runner: the one-time key (a hidden property, kept out of the MSI log) |
 | `RUNNER_NAME` | Computer name | Runner name |
@@ -132,6 +141,7 @@ Notes:
 - A runner installed by the MSI is a service and has no desktop. For desktop runners use `Install.cmd` as the user
   who will be signed in.
 - Upgrades are major upgrades (same upgrade code); a newer installed version blocks a downgrade.
+- Running the MSI again with `ROLE` and `SERVICE=1` keeps an existing service and its settings instead of failing.
 - Repair and modify are switched off.
 
 ## 6. Windows services (`ooa service`)
@@ -151,7 +161,7 @@ ooa service uninstall [--name NAME]
 | `--mode server\|control-room\|agent` | `server` | `server`: Command Center with Studio (no built-in runner, browser not opened). `control-room`: Command Center only. `agent`: a runner. |
 | `--name NAME` | `OOA Command Center`, or `OOA Runner` for `agent` | Service name |
 | `--port N` | 8720 | Command Center port |
-| `--host HOST` | Not passed, so the server's default `127.0.0.1` | Address to listen on. Use `0.0.0.0` (with HTTPS) so other machines can connect. |
+| `--host HOST` | Not passed, so the server's default `127.0.0.1` (the installers pass `0.0.0.0`, see section 4) | Address to listen on. Use `0.0.0.0` (with HTTPS) so other machines can connect. |
 | `--data DIR` | The installing account's `OOA Command Center` | Data folder, written out in full |
 | `--workspace DIR` | `OOA Workspace` / `OOA Agent Workspace` of the installing account | Studio or runner workspace |
 | `--agent-config FILE` | `%USERPROFILE%\.ooa-agent\agent.json` of the installing account | The runner registration (agent mode) |
@@ -171,17 +181,18 @@ Service behaviour:
 - `platform\scripts\test-windows-service.ps1` (source checkout, as administrator) installs a throw-away service
   with a self-signed HTTPS certificate, checks it and removes it.
 
-Important: `Install.cmd -Service` and the MSI with `SERVICE=1` install the service without `--host`, so the
-Command Center listens on 127.0.0.1 only. To let other computers in, either put a reverse proxy on the same machine,
-or reinstall the service with a host:
+`Install.cmd -Service` and the MSI with `SERVICE=1` install the Command Center service listening on every network
+card (`0.0.0.0`), so runners on other machines can reach it. Pass `-ListenAddress 127.0.0.1` (MSI:
+`LISTEN_ADDRESS=127.0.0.1`) to keep it on this computer only, for example behind a reverse proxy on the same machine.
+To change the address of a service that exists already, remove it and install it again:
 
 ```
 ooa service uninstall
-ooa service install --mode server --host 0.0.0.0 --port 8720 --data D:\OOA\cc
+ooa service install --mode server --host 127.0.0.1 --port 8720 --data D:\OOA\cc
 ```
 
-Turn on HTTPS first (see [04](04-network-ports-proxies-and-certificates.md)); the server prints a warning when it
-listens beyond this computer without TLS.
+Turn on HTTPS before other machines connect (see [04](04-network-ports-proxies-and-certificates.md)); the installer
+logs a reminder, and the server prints a warning when it listens beyond this computer without TLS.
 
 ## 7. Runners started at sign-in (`ooa agent install-task`)
 
@@ -264,8 +275,11 @@ when the user answered no.
 
 - The default data folder belongs to the account that runs the command. Pass `-DataDir`/`--data`/`DATA_DIR` on
   servers so the service, the `ooa` commands and backups all use the same folder.
-- An MSI-installed Command Center without `DATA_DIR` keeps its data under the Local System profile.
-- Services installed by the installers listen on 127.0.0.1 (section 6).
+- An MSI-installed Command Center without `DATA_DIR` keeps its data in
+  `%ProgramData%\OneOfficeAutomation\Command Center`. Pass the same folder with `--data` to the `ooa` commands.
+- Services installed by the installers listen on every network card (`0.0.0.0`) unless you give
+  `-ListenAddress`/`LISTEN_ADDRESS` (section 6). Turn on HTTPS before runners on other machines connect.
+- Installing again keeps an existing service and its settings; to change them, `ooa service uninstall` first.
 - The runner's own messages go to its console; a runner started by the sign-in task has none, so use the per-run
   logs and `ooa agent diagnose`.
 

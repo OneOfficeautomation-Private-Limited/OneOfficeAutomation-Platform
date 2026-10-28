@@ -129,7 +129,7 @@ first (skip with `-SkipCheck`). Each line is PASS, WARN or FAIL; the exit code i
 | Vault key and database | The key opens the stored credentials | - | It does not (wrong key) |
 | Repository files | Every file the database lists is present | - | Files missing |
 | HTTPS certificate | Valid 30 days or more | Off, or under 30 days left | Expired or unreadable |
-| Vault key | From `OOA_MASTER_KEY` | Key file in the data folder | - |
+| Vault key | From `OOA_MASTER_KEY`, or from `OOA_MASTER_KEY_SOURCE` (the line names the key store, for example Azure Key Vault) | Key file in the data folder | - |
 
 ## 8. Measured load figures
 

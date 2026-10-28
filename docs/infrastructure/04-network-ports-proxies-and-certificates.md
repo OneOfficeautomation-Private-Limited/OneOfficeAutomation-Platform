@@ -74,7 +74,7 @@ ooa agent network                      (shows the current settings)
 | `--proxy system` (default) | The Windows proxy settings of the account the runner runs as, including automatic configuration scripts (PAC) and WPAD discovery through WinHTTP |
 | `--proxy none` | Connect directly |
 | `--proxy http://host:port` | A fixed proxy (an `https://` proxy address is accepted too) |
-| `--proxy-user NAME` with `--proxy-password-env VAR` | Basic sign-in at the proxy. The password is read from the variable and stored encrypted with Windows DPAPI (machine scope, so a runner service and the installer can both read it). Basic sign-in for HTTPS tunnelling is enabled by the runner. |
+| `--proxy-user NAME` with `--proxy-password-env VAR` | Basic sign-in at the proxy. The password is read from the variable. On Windows it is stored encrypted with DPAPI (machine scope, so a runner service and the installer can both read it); on Linux and macOS in the file `proxy-password` next to the runner's config, readable by its owner only (`file:PATH` in the config). Basic sign-in for HTTPS tunnelling is enabled by the runner. |
 | `--ca FILE` | A certificate to trust (section 8) |
 
 Notes:
@@ -177,10 +177,13 @@ name against the URL, so register with an address that is in the certificate.
 - Idle timeout at least 30 seconds (long polls hold for 25 seconds; the console's change feed also waits up to 25).
 - Request size: allow at least the `max_upload_mb` setting plus a third (files travel as Base64 in JSON).
 - Health probes: `/api/health` for liveness, `/api/health/ready` for readiness.
-- Client addresses: the IP allow list and audit records use the TCP peer address. Behind a remote load balancer
-  they see the balancer's address. Rate limits use the first `X-Forwarded-For` address only when the proxy runs on
-  the same computer (loopback); otherwise they count per balancer address. Allow-list the balancer and filter clients
-  at the balancer, or run the reverse proxy on the node itself.
+- Client addresses: list the load balancers and reverse proxies in **Settings > Security > Trusted proxies**
+  (`trusted_proxies`, addresses or CIDR ranges). When a request comes from this computer or from a trusted proxy, the
+  client address is the last `X-Forwarded-For` address that is not a trusted proxy; the IP allow list, the rate
+  limits and the audit trail use it. Otherwise the TCP peer address is used, and a client cannot choose its address
+  with the header. Without the setting, a remote balancer's own address is what the allow list and the rate limits
+  see. A reverse proxy on the same computer needs no entry, and remote clients behind it are still checked against
+  the allow list.
 
 ## 10. Firewall rules
 
