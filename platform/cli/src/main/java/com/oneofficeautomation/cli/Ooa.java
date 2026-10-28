@@ -294,6 +294,15 @@ public final class Ooa {
         Path config = Path.of(o.getOrDefault("config", com.oneofficeautomation.agent.Agent.defaultConfig().toString()));
         switch (verb) {
             case "register" -> {
+                if (o.containsKey("keep-existing")) {
+                    Map<String, Object> kept = com.oneofficeautomation.agent.Agent.existingRegistration(o.get("url"), config);
+                    if (kept != null) {
+                        System.out.println("Already registered as runner '" + kept.get("name") + "' (" + kept.get("device_id") + "); the registration is kept.");
+                        return 0;
+                    }
+                }
+                if (o.get("key") == null || o.get("key").isBlank())
+                    throw new OoaException("CLI.BAD_INPUT", "A registration key is needed: this computer has no registration the Command Center accepts", "Create one in Command Center > Runners > Register a runner, and pass it with --key.");
                 Map<String, Object> r = com.oneofficeautomation.agent.Agent.register(o.get("url"), o.get("key"), o.get("name"), config, o.containsKey("ca") ? Path.of(o.get("ca")) : null,
                     o.get("proxy"), o.get("proxy-user"), proxyPassword(o));
                 System.out.println("Registered runner '" + r.get("name") + "' (" + r.get("device_id") + "). Credentials saved to " + r.get("config"));

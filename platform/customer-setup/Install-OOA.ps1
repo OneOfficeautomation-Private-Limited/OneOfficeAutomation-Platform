@@ -21,7 +21,8 @@ as a runner. Run it through Install.cmd. Without -Silent it asks for anything no
   -SkipCheck                   install even when the prerequisite check (ooa check) finds a problem
   Runner:
   -Url URL                     the Command Center address, for example https://ooa.example.com:8720
-  -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner
+  -RegistrationKey KEY         a one-time key from Command Center > Runners > Register a runner (not needed
+                               when setup runs again on a registered runner: it keeps its registration)
   -RunnerName NAME             the runner's name in Command Center (default: the computer name)
   -CaFile FILE                 the Command Center certificate to trust (for a self-signed one)
   -Proxy system|none|URL       how the runner reaches the Command Center (default system: the Windows proxy)
@@ -99,8 +100,9 @@ if ($ConfigureOnly) {
 } else { $InstallDir = Ask "Install folder" $InstallDir }
 if ($Role -eq "Runner") {
     $Url = Ask "Command Center address (for example https://ooa.example.com:8720)" $Url
-    $RegistrationKey = Ask "Registration key (Command Center > Runners > Register a runner)" $RegistrationKey
-    if (-not $Url -or -not $RegistrationKey) { Fail 1 "A runner needs -Url and -RegistrationKey." }
+    # setup run again on a registered runner (an update or repair) keeps its registration: no key is needed then
+    $RegistrationKey = Ask "Registration key (Command Center > Runners > Register a runner; empty keeps this computer's registration)" $RegistrationKey
+    if (-not $Url) { Fail 1 "A runner needs -Url (and -RegistrationKey the first time)." }
     if ($Url -notmatch '^https?://') { Fail 1 "-Url starts with https:// or http://" }
     if ($CaFile -and -not (Test-Path $CaFile)) { Fail 1 "No such certificate file: $CaFile" }
 }
@@ -209,11 +211,12 @@ if ($Role -eq "CommandCenter") {
     }
     Log "Command Center installed. $(if ($Service) { "It runs as the Windows service 'OOA Command Center' on port $Port." } else { "Start it from the Start menu (ONEOFFICEAUTOMATION) or with START-OOA.cmd." })"
 } else {
-    $a = @("agent", "register", "--url", $Url, "--key", $RegistrationKey)
+    $a = @("agent", "register", "--url", $Url, "--keep-existing")
+    if ($RegistrationKey) { $a += @("--key", $RegistrationKey) }
     if ($RunnerName) { $a += @("--name", $RunnerName) }
     if ($CaFile) { $a += @("--ca", (Resolve-Path $CaFile).Path) }
     if ($Proxy) { $a += @("--proxy", $Proxy) }
-    if ((Ooa $a) -ne 0) { Fail 2 "The runner could not register with $Url (see $log). Check the address and that the key is unused and not expired." }
+    if ((Ooa $a) -ne 0) { Fail 2 "The runner could not register with $Url (see $log). Check the address, and give a registration key that is unused and not expired." }
     if ($Service) {
         if (Get-Service -Name "OOA Runner" -ErrorAction SilentlyContinue) {
             Log "The service 'OOA Runner' exists already; it keeps its settings."

@@ -44,6 +44,9 @@ Every package carries `sbom.cdx.json` (CycloneDX software bill of materials). Ch
   `master.key` is created in the data folder at the first start.
 - For a runner: create a registration key in the Command Center (Runners > Register a runner). It works once, for at
   most 24 hours. Tick **Temporary runner** for pooled virtual desktops.
+  Running setup again on a registered runner (an update or a repair) keeps its registration, so no new key is
+  needed then; leave the key empty. A new key is needed only when the Command Center no longer accepts the runner
+  (deleted or disabled) or it should join another Command Center.
 - Administrator rights are needed for `-AllUsers`, `-Service` and the MSI.
 
 ## 3. Setup package: guided install

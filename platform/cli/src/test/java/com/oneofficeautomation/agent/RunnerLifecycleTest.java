@@ -111,6 +111,26 @@ class RunnerLifecycleTest {
         } finally { old.stop(); moved.stop(); stranger.stop(); otherDb.close(); }
     }
 
+    @Test
+    void setupRunAgainKeepsAWorkingRegistration() throws Exception {
+        ControlRoomServer server = new ControlRoomServer(cr, "127.0.0.1", 0);
+        server.start();
+        try {
+            String url = "http://127.0.0.1:" + server.port();
+            Path conf = root.resolve("agent-keep").resolve("agent.json");
+            assertNull(Agent.existingRegistration(url, conf), "no registration yet");
+            String id = (String) Agent.register(url, (String) cr.createRegistrationKey(admin, 1, false, null).get("key"), "R-keep", conf).get("device_id");
+
+            Map<String, Object> kept = Agent.existingRegistration(url + "/", conf);
+            assertEquals(id, kept.get("device_id"));
+            assertEquals("R-keep", kept.get("name"));
+            assertNull(Agent.existingRegistration("http://127.0.0.1:1", conf), "another Command Center: register anew");
+
+            cr.setDeviceEnabled(admin, id, false, null);
+            assertNull(Agent.existingRegistration(url, conf), "a disabled runner is not kept");
+        } finally { server.stop(); }
+    }
+
     /** assertThrows for the product's error codes. */
     static final class OoaExceptionCheck {
         interface Call { void run() throws Exception; }

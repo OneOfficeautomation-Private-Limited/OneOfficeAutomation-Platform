@@ -82,6 +82,23 @@ public final class Agent {
         return Map.of("device_id", r.get("device_id"), "name", r.get("name"), "config", configFile.toString());
     }
 
+    /**
+     * The registration in {@code configFile} when it is for the Command Center at {@code url} and that Command Center
+     * still accepts it, else null: setup run again (an update or repair) keeps the runner instead of registering anew.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> existingRegistration(String url, Path configFile) {
+        try {
+            if (!Files.exists(configFile)) return null;
+            Map<String, Object> cfg = (Map<String, Object>) JsonLite.parse(Files.readString(configFile));
+            if (!url.replaceAll("/+$", "").equalsIgnoreCase(String.valueOf(cfg.get("url")))) return null;
+            new AgentClient(url, (String) cfg.get("device_id"), (String) cfg.get("secret"), Network.from(cfg)).post("heartbeat", Map.of("agent_version", VERSION, "diagnose", true));
+            return Map.of("device_id", cfg.get("device_id"), "name", String.valueOf(cfg.get("name")), "config", configFile.toString());
+        } catch (Exception e) {
+            return null;    // unreadable, deleted or disabled on the Command Center, or not reachable: register again
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public Agent(Path configFile, Path workspace) throws IOException {
         this.configFile = configFile;

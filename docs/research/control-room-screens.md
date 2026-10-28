@@ -16,7 +16,7 @@ and documentation. Written in our own words.
 | AI > Document Automation | Learning instances for document extraction | Nothing | **Excluded for now** (your decision on document automation) |
 | Operations > Activity | Two tabs: In progress (progress, current action, device, run-as user) and Historical (last 90 days by default; status, type, run time, start and end, device, run-as user, priority); export to CSV, column chooser, refresh | Agent Runs, with the same split into running and finished runs (live progress and current step; history filtered by status and dates; CSV export, column chooser) | Covered |
 | Operations > Bot Insights | Separate analytics product (opens on its own) | Operations and Dashboards | Covered in our own pages |
-| Manage > Devices | Runner table: status, platform, default users, nickname, single or multi-user, persistent or temporary, log level, install type, agent version, pool, which device is "my default" and "my local" device; Run button | Runners (status, screen locked or not, type, lifespan, default users, log level, agent version and updates, after-run action, last seen) and Pools | Covered, including each user's default runner (set per user). **Missing**: a nickname per runner |
+| Manage > Devices | Runner table: status, platform, default users, nickname, single or multi-user, persistent or temporary, log level, install type, agent version, pool, which device is "my default" and "my local" device; Run button | Runners (status, screen locked or not, type, lifespan, default users, log level, agent version and updates, after-run action, last seen) and Pools | Covered, including each user's default runner (set per user). AA's nickname is our runner name: it starts as the computer name, **Rename** changes it, and the table and run pickers show it above the host name |
 | Manage > Global values | Name, type, whether each user may set their own value | Shared values (with per-user values) and Connections | Covered |
 | Manage > Credentials | Three tabs: Credentials, Lockers, Credential requests (values users must fill in) | One Agent Vault (credentials, lockers with owners, managers, participants and consumers; Credential requests dialog; external vault links) | Covered |
 | Manage > Packages | 178 packages with versions, default version, recommended agent and Control Room versions, action and trigger counts, on or off; a detail page per package with its actions and a version picker | Toolkits (actions and conditions, agents that use each, versions per agent, switch on or off, your own toolkits, trusted publishers) | Covered. Ours lists which agents use a toolkit, which AA's list does not |
@@ -24,6 +24,6 @@ and documentation. Written in our own words.
 
 ## Follow-ups
 
-1. **Runner nickname** (small): an optional display name for a runner, shown in the Runners table and the run pickers.
+1. **Runner nickname**: closed 2026-10-29. The runner name already is one (defaults to the computer name, renamed in the runner's panel, shown with the host name in the Runners table and run pickers).
 2. Nothing else from these screens is missing. The enterprise-only screens (schedules, queues, workload, roles, audit,
    settings) are compared in `aa-platform-gap-list.md`.

@@ -296,8 +296,8 @@ Write the public releases page from a repository's GitHub releases.
                             com).
   -h, --help              Show this help.
       --out=DIR           Where to write index.html and releases.json.
-      --repo=OWNER/NAME   The release repository, such as
-                            OneOfficeautomation-Private-Limited/OOA_Customer_Build.
+      --repo=OWNER/NAME   The release repository on GitHub (OWNER/NAME; ours is
+                            the organisation's OOA_Customer_Build).
       --token-env=VAR     The environment variable with a GitHub token (for a
                             private repository).
 ```
@@ -405,8 +405,8 @@ Commands:
 ### ooa agent register
 
 ```text
-Usage: ooa agent register [-h] [--ca=FILE] [--config=FILE] --key=KEY
-                          [--name=NAME] [--proxy=PROXY]
+Usage: ooa agent register [-h] [--keep-existing] [--ca=FILE] [--config=FILE]
+                          [--key=KEY] [--name=NAME] [--proxy=PROXY]
                           [--proxy-password-env=VAR] [--proxy-user=NAME]
                           --url=URL
 Register this computer as a runner with a Command Center.
@@ -415,7 +415,12 @@ Register this computer as a runner with a Command Center.
       --config=FILE       Where the registration is saved (default: ~/.
                             ooa-agent/agent.json).
   -h, --help              Show this help.
-      --key=KEY           A registration key (Devices > Registration keys).
+      --keep-existing     Keep this computer's registration with the same
+                            Command Center when it still works (setup run
+                            again).
+      --key=KEY           A registration key (Runners > Register a runner); not
+                            needed with --keep-existing when the registration
+                            is kept.
       --name=NAME         The runner's name (default: this computer's name).
       --proxy=PROXY       system (default), none, or http://host:port.
       --proxy-password-env=VAR

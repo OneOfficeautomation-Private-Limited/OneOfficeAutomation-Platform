@@ -32,8 +32,9 @@ final class FullCommands {
         c.group("agent", "Register and run a runner (Bot Agent) on this computer.");
         network(c.command("agent register", "Register this computer as a runner with a Command Center.", a -> Ooa.agent("register", a.o()))
             .required("--url", "URL", "The Command Center, such as https://commandcenter:8720.")
-            .required("--key", "KEY", "A registration key (Devices > Registration keys).")
+            .opt("--key", "KEY", "A registration key (Runners > Register a runner); not needed with --keep-existing when the registration is kept.")
             .opt("--name", "NAME", "The runner's name (default: this computer's name).")
+            .flag("--keep-existing", "Keep this computer's registration with the same Command Center when it still works (setup run again).")
             .opt("--config", "FILE", "Where the registration is saved (default: ~/.ooa-agent/agent.json)."));
         c.command("agent start", "Run the registered runner until stopped.", a -> Ooa.agent("start", a.o())).opt("--config", "FILE", "The registration.")
             .opt("--workspace", "DIR", "The runner's workspace (default: ~/OOA Agent Workspace).");
@@ -88,7 +89,7 @@ final class FullCommands {
         }
 
         c.command("release page", "Write the public releases page from a repository's GitHub releases.", a -> ReleasePage.run(a.o()))
-            .required("--repo", "OWNER/NAME", "The release repository, such as OneOfficeautomation-Private-Limited/OOA_Customer_Build.")
+            .required("--repo", "OWNER/NAME", "The release repository on GitHub (OWNER/NAME; ours is the organisation's OOA_Customer_Build).")
             .required("--out", "DIR", "Where to write index.html and releases.json.")
             .opt("--token-env", "VAR", "The environment variable with a GitHub token (for a private repository).")
             .opt("--api", "URL", "The GitHub API address (default https://api.github.com).");
