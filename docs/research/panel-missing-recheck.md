@@ -30,7 +30,7 @@ steps keep no current cell, DTDs are refused for safety), the row stays listed a
 | ooa.azure_devops | `list_test_points` | No test case id filter and no max results. |
 | ooa.azure_devops | `update_test_suite` | No query input to change a query-based suite's query (create_test_suite has one, update does not). |
 | ooa.azure_devops | `update_work_item` | No steps input (only via the generic fields dictionary). |
-| ooa.browser | `extract_table` | No custom-column extraction (list of column name + XPath); only the whole detected table via object/selector. Lazy load with retries/delay and timeout exist. |
+| ooa.browser | `extract_table` | No custom-column extraction (list of column name + XPath); only the whole detected table via object/selector. Lazy load with retries/delay and timeout exist. **Closed 2026-10-29:** `columns` (name to XPath in each row, attributes too) and `row_xpath`, also for grids that are not tables. |
 | ooa.databricks | `fetch_results` | No wait/timeout input (wait_seconds exists only on execute_sql). |
 | ooa.desktop | `prompt_file` | No message text input (only title). |
 | ooa.desktop | `prompt_folder` | No message text input (only title). |
@@ -82,7 +82,7 @@ steps keep no current cell, DTDs are refused for safety), the row stays listed a
 | ooa.word | `add_table` | Position choice now exists (end / after text / after bookmark), but there is no table title (alternative-text title) input. |
 | ooa.word | `create_document` | Open password exists (password), but there is no edit (modify / write-protection) password. **Closed 2026-10-29:** `edit_password` restricts editing. |
 | ooa.workday | `get_integration_event` | No ID type input (event_id must be a WID). |
-| ooa.workday | `launch_integration` | No integration direction and no input file for inbound integrations; id_type is there. |
+| ooa.workday | `launch_integration` | No integration direction and no input file for inbound integrations; id_type is there. **Closed 2026-10-29:** `launch_eib` (Launch EIB with file) sends the file as Attachment_Data of the EIB's data source field; checked against the Launch_EIB v42.0 reference, not yet against a tenant. |
 | ooa.xml | `save_file` | No Overwrite option. |
 | ooa.xml | `set_value` | Only one attribute per step (attribute); no dictionary to update several attributes at once. |
 | ooa.xml | `validate` | No DTD validation type; only well-formed or XSD (DTDs are refused by design). |

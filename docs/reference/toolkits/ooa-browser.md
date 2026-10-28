@@ -677,7 +677,7 @@ Read repeated items (product cards, search results, list entries) into a table: 
 
 `ooa.browser/extract_table` (action)
 
-Read an HTML table into a Data Table (first row as column names).
+Read an HTML table into a Data Table (first row as column names), or chosen columns of any repeated rows (a grid or list) by XPath.
 
 **Settings**
 
@@ -686,6 +686,8 @@ Read an HTML table into a Data Table (first row as column names).
 | Window | `window` | Dictionary | No |  | Main | Which window to act in. Leave empty to use the session's current tab. {"source": "browser", "title": "Invoice * - Shop", "title_match": "wildcard", "url": "...", "url_match": "contains", "browser": "edge"} switches to the first open tab whose title and/or address matches (also in attached browsers, and in one listening on port 9222); {"source": "variable", "variable": "session name"} uses that browser session; {"source": "application", "title": "..."} names a desktop window, which works only when it is a window of an attached browser. Matches: wildcard (default for the title), contains (default for the address), equals or regex; text matches ignore case. Values may use variables. |
 | Captured object | `object` | Dictionary | No |  | Main | The captured object from Capture or Pick in Agent Studio: the element's properties to match (each with use and a match rule: equals, not_equals, contains, starts_with, ends_with, wildcard or regex), search_by (properties, css or xpath), index and iframes. Used instead of the selector when given. |
 | Selector | `selector` | Text | No | `table` | Main | Selector of the table element, used when no captured object is given. |
+| Columns | `columns` | Dictionary | No |  | Main; tick Choose the columns | Columns to read instead of the whole table: column name to an XPath inside each row (its text, or an attribute such as .//a/@href). Example: `{"Name": "td[1]", "Link": ".//a/@href"}` |
+| Row XPath | `row_xpath` | Text | No | `.//tr[td]` | Main; tick Choose the columns | With columns: XPath of the rows inside the table or container; table rows with cells when empty. |
 | Lazy load | `lazy_load` | Yes/No | No | No | Main | The page adds rows as you scroll: scroll to the end and read again until no more rows appear. |
 | Session | `session` | Text | No | `browser` | More options | Session name. |
 | Wait up to (milliseconds) | `timeout_ms` | Number | No | `30000` | More options | How long to wait for the element, in milliseconds. Range: 0 to  |

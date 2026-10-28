@@ -8,7 +8,7 @@ Toolkit `ooa.workday`, version 1.0.0. Search and read Workday workers and call W
 
 - **Authentication**: Authenticate
 - **REST**: Call REST endpoint (GET)
-- **Integrations**: Get integration event, Launch integration
+- **Integrations**: Get integration event, Launch EIB with file, Launch integration
 - **Reports**: Get report (RaaS)
 - **Workers**: Search workers
 
@@ -94,6 +94,36 @@ Read the status and timing of an integration run.
 | `done` | Yes/No | True once the run has finished, whether it succeeded or not. |
 
 *Time limit 120 s; safe to repeat; needs: network.*
+
+### Launch EIB with file
+
+`ooa.workday/launch_eib` (action)
+
+Start an inbound EIB with a file to load (a spreadsheet or XML attached at launch) through the Integrations web service's Launch_EIB, and return the event id to track it.
+
+**Settings**
+
+| Field | Name | Type | Required | Default | Where | Description |
+| --- | --- | --- | --- | --- | --- | --- |
+| Host | `host` | Text | Yes |  | Main | Workday REST host, e.g. https://wd2-impl-services1.workday.com. |
+| Tenant | `tenant` | Text | Yes |  | Main | Tenant name. |
+| Kind of ID | `id_type` | Text | No | `integration_system_id` | Main | Whether integration_system_id holds the Integration System ID or the EIB's Workday ID (WID). One of: `integration_system_id`, `wid` |
+| Integration system ID | `integration_system_id` | Text | Yes |  | Main | Integration System ID of the EIB to start. Example: `INT_Worker_Load` |
+| File | `file` | File path | Yes |  | Main | File to load: the EIB's spreadsheet template filled in, or XML. |
+| File field | `file_field` | Text | Yes |  | Main | Name of the EIB data source field that takes the file at launch, as the EIB's Launch / Schedule page shows it. Example: `Attachment` |
+| User | `user` | Text | No |  | More options; choice Sign in with = User name and password | Integration system user with tenant, e.g. isu_int@acme (basic sign-in). |
+| Password | `password` | Credential (vault) | No |  | More options; choice Sign in with = User name and password | Password from the vault (basic sign-in). |
+| Access token | `access_token` | Credential (vault) | No |  | More options; choice Sign in with = An access token | OAuth access token from the vault (instead of user and password). |
+| Content type | `content_type` | Text | No |  | More options | MIME type of the file; worked out from the file name (.xlsx, .xls, .xml, .csv, .txt) when empty. |
+| Version | `version` | Text | No | `v42.0` | More options | Web service version. |
+
+**Results**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `event_id` | Text | Integration event WID; pass it to Get integration event. |
+
+*Time limit 600 s; needs: network,filesystem.*
 
 ### Launch integration
 

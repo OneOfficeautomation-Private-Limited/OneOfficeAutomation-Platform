@@ -580,8 +580,9 @@ public final class BrowserPackage {
         try { return countNow(ctx, session, object, sel) > 0; } catch (PlaywrightException e) { throw pw(e, "Checking " + what(object, sel)); }
     }
 
-    @Action(id = "extract_table", name = "Extract table", category = "Data", timeoutSeconds = 600, capabilities = "browser", description = "Read an HTML table into a Data Table (first row as column names).",
-            panel = "window, object, selector, lazy_load | session, timeout_ms, retries, retry_wait_ms")
+    @Action(id = "extract_table", name = "Extract table", category = "Data", timeoutSeconds = 600, capabilities = "browser",
+            description = "Read an HTML table into a Data Table (first row as column names), or chosen columns of any repeated rows (a grid or list) by XPath.",
+            panel = "window, object, selector, [Choose the columns: columns, row_xpath], lazy_load | session, timeout_ms, retries, retry_wait_ms")
     @Output(name = "table", type = OoaType.TABLE, description = "Table content.")
     public Map<String, Object> extractTable(ActionContext ctx,
             @Input(name = "object", type = OoaType.DICTIONARY, required = false, description = D_OBJ) Object object,
@@ -594,9 +595,15 @@ public final class BrowserPackage {
             @Input(name = "retries", type = OoaType.NUMBER, required = false, defaultValue = "10", min = 1, max = 500,
                     description = "With lazy_load: the most times to scroll and read again.") double retries,
             @Input(name = "retry_wait_ms", type = OoaType.NUMBER, required = false, defaultValue = "1000", min = 0, max = 60000,
-                    description = "With lazy_load: how long to wait after each scroll for new rows, in milliseconds.") double retryWaitMs) {
+                    description = "With lazy_load: how long to wait after each scroll for new rows, in milliseconds.") double retryWaitMs,
+            @Input(name = "columns", type = OoaType.DICTIONARY, required = false, example = "{\"Name\": \"td[1]\", \"Link\": \".//a/@href\"}",
+                    description = "Columns to read instead of the whole table: column name to an XPath inside each row (its text, or an attribute such as .//a/@href).") Map<String, Object> columns,
+            @Input(name = "row_xpath", type = OoaType.STRING, required = false, defaultValue = "\".//tr[td]\"",
+                    description = "With columns: XPath of the rows inside the table or container; table rows with cells when empty.") String rowXpath) {
         checkLazyLoad(lazyLoad, retries, retryWaitMs);
+        Map<String, Object> spec = columns == null || columns.isEmpty() ? null : columnSpec(columns, rowXpath);
         session = BrowserWindows.use(ctx, session, window, timeout);
+        if (spec != null) return customColumns(ctx, session, object, sel, timeout, spec, lazyLoad, retries, retryWaitMs);
         if (tab(ctx, session) != null) {
             ExtensionBridge.TabSession t = tab(ctx, session);
             Map<String, Object> tb = tabTable(ctx, t, object, sel, timeout);
@@ -644,6 +651,79 @@ public final class BrowserPackage {
     /** Extract table without the lazy-loading options (the signature before they were added). */
     public Map<String, Object> extractTable(ActionContext ctx, Object object, String sel, double timeout, String session, Object window) {
         return extractTable(ctx, object, sel, timeout, session, window, false, 10, 1000);
+    }
+
+    /** Extract table without custom columns (the signature before they were added). */
+    public Map<String, Object> extractTable(ActionContext ctx, Object object, String sel, double timeout, String session, Object window, boolean lazyLoad, double retries, double retryWaitMs) {
+        return extractTable(ctx, object, sel, timeout, session, window, lazyLoad, retries, retryWaitMs, null, null);
+    }
+
+    /** Reads the rows under the container {@code t} and, in each, the text or attribute each column's XPath finds. */
+    static final String COLUMNS_JS = "const it = document.evaluate(spec.rows, t, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null); const out = [];"
+            + " for (let i = 0; i < it.snapshotLength; i++) { const r = it.snapshotItem(i);"
+            + " out.push(spec.cols.map(x => document.evaluate(x, r, null, XPathResult.STRING_TYPE, null).stringValue.replace(/\\s+/g, ' ').trim())); }"
+            + " return out;";
+
+    /** The column names and XPaths, checked before the browser is touched. */
+    static Map<String, Object> columnSpec(Map<String, Object> columns, String rowXpath) {
+        List<Object> names = new ArrayList<>(), paths = new ArrayList<>();
+        for (var e : columns.entrySet()) {
+            String x = e.getValue() == null ? "" : Values.text(e.getValue()).strip();
+            if (e.getKey() == null || e.getKey().isBlank() || x.isEmpty())
+                throw new ActionException("BROWSER.BAD_INPUT", "Each column needs a name and an XPath", "For example {\"Name\": \"td[1]\", \"Link\": \".//a/@href\"}.");
+            names.add(e.getKey());
+            paths.add(x);
+        }
+        String rows = rowXpath == null || rowXpath.isBlank() ? ".//tr[td]" : rowXpath.strip();
+        return Map.of("names", names, "cols", paths, "rows", rows);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> customColumns(ActionContext ctx, String session, Object object, String sel, double timeout, Map<String, Object> spec,
+                                              boolean lazyLoad, double retries, double retryWaitMs) {
+        Map<String, Object> arg = Map.of("rows", spec.get("rows"), "cols", spec.get("cols"));
+        java.util.function.Supplier<Object> read;
+        Runnable scroll;
+        if (tab(ctx, session) != null) {
+            ExtensionBridge.TabSession t = tab(ctx, session);
+            if (object != null) throw new ActionException("BROWSER.BAD_INPUT", "Custom columns through the browser connector need a selector, not a captured object",
+                    "Give the table or container's selector.");
+            String code = "const t = document.querySelector(" + JsonLite.write(sel == null || sel.isBlank() ? "table" : sel) + "); if (!t) return null; const spec = " + JsonLite.write(arg) + "; " + COLUMNS_JS;
+            read = () -> onTab(t, "run_js", Map.of("code", code), timeout);
+            scroll = () -> onTab(t, "run_js", Map.of("code", SCROLL_TO_END_JS.replace("$T", "null")), 30000);
+        } else {
+            Locator l;
+            try {
+                l = object != null ? target(ctx, session, object, null, null, timeout) : s(ctx, session).page.locator(sel == null || sel.isBlank() ? "table" : sel).first();
+                l.waitFor(new Locator.WaitForOptions().setTimeout(timeout));
+            } catch (PlaywrightException e) { throw pw(e, "Reading table " + what(object, sel)); }
+            read = () -> l.evaluate("(t, spec) => { " + COLUMNS_JS + " }", arg);
+            scroll = () -> l.evaluate("t => { " + SCROLL_TO_END_JS.replace("$T", "t") + " }");
+        }
+        try {
+            Object raw = read.get();
+            if (raw == null) throw new ActionException("BROWSER.NOT_FOUND", "No element matches " + what(object, sel), "Check the selector.");
+            if (lazyLoad) {
+                int before = ((List<?>) raw).size();
+                for (int i = 0; i < (int) retries; i++) {
+                    scroll.run();
+                    sleep(ctx, retryWaitMs);
+                    raw = read.get();
+                    int now = raw instanceof List<?> l2 ? l2.size() : 0;
+                    if (now <= before) break;
+                    before = now;
+                }
+            }
+            List<Object> rows = new ArrayList<>();
+            if (raw instanceof List<?> rs) for (Object r : rs) rows.add(new ArrayList<>((List<?>) r));
+            List<String> cols = new ArrayList<>();
+            for (Object n : (List<?>) spec.get("names")) cols.add(String.valueOf(n));
+            return Map.of("table", Values.table(cols, rows));
+        } catch (PlaywrightException e) {
+            String m = String.valueOf(e.getMessage());
+            if (m.contains("XPath") || m.contains("evaluate")) throw new ActionException("BROWSER.BAD_XPATH", "An XPath of the columns or rows is not valid: " + m.lines().findFirst().orElse(m), "Check row_xpath and each column's XPath.");
+            throw pw(e, "Reading table " + what(object, sel));
+        }
     }
 
     /** The lazy-loading options are checked before the browser is touched. */

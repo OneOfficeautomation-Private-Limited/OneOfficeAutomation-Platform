@@ -86,8 +86,8 @@ values and `$variable` references; Credential fields take a credential from the 
 | [Windows services](ooa-services.md) | `ooa.services` | 6 | 1 | 0 | Get the status of, start, stop and restart Windows services. |
 | [Word (no Office needed)](ooa-word.md) | `ooa.word` | 15 | 0 | 0 | Open or create .docx documents, read text and tables, replace text, add paragraphs and tables, save. |
 | [Work queues](ooa-workload.md) | `ooa.workload` | 10 | 1 | 1 | Add work items to a queue, take the next item, and mark items completed, failed or deferred with retries. |
-| [Workday](ooa-workday.md) | `ooa.workday` | 6 | 0 | 0 | Search and read Workday workers and call Workday REST endpoints or RaaS reports. |
+| [Workday](ooa-workday.md) | `ooa.workday` | 7 | 0 | 0 | Search and read Workday workers and call Workday REST endpoints or RaaS reports. |
 | [XML](ooa-xml.md) | `ooa.xml` | 9 | 0 | 1 | Query and change XML with XPath, convert to dictionaries and validate against XSD. |
 | [Zendesk](ooa-zendesk.md) | `ooa.zendesk` | 23 | 0 | 0 | Handle Zendesk Support tickets, comments, users, organizations, groups, attachments and views. |
 
-In all: 79 toolkits, 1059 actions, 47 conditions and 12 loop types.
+In all: 79 toolkits, 1060 actions, 47 conditions and 12 loop types.
