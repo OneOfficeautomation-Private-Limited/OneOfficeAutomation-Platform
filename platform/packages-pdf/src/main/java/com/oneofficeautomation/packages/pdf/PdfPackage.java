@@ -539,9 +539,14 @@ public final class PdfPackage {
         return extractImages(ctx, path, folder, minSize, password, null, "png", null, "color");
     }
 
+    public Map<String, Object> extractImages(ActionContext ctx, String path, String folder, int minSize, Object password,
+                                             String pages, String format, String prefix, String colour) {
+        return extractImages(ctx, path, folder, minSize, password, pages, format, prefix, colour, 0);
+    }
+
     @Action(id = "extract_images", name = "Extract images", category = "Document", timeoutSeconds = 600, capabilities = "filesystem",
             description = "Save the pictures embedded in a PDF (photos, logos, scanned pages), from every page or chosen pages, as image files in a folder.",
-            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color | min_size")
+            panel = "path, [The file has a password: password], [Only some pages: pages], format, target_folder, file_prefix, color, [Resize to a resolution: dpi] | min_size")
     @Output(name = "files", type = OoaType.LIST, description = "Created image files.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of images saved.")
     public Map<String, Object> extractImages(ActionContext ctx,
@@ -552,7 +557,9 @@ public final class PdfPackage {
             @Input(name = "pages", type = OoaType.STRING, required = false, example = "1,3,5-7", description = "Only pages listed here, e.g. 1,3,5-7; every page when empty.") String pages,
             @Input(name = "format", type = OoaType.STRING, required = false, defaultValue = "\"png\"", enumValues = {"png", "jpg", "bmp", "gif", "tiff"}, description = "Image file format.") String format,
             @Input(name = "file_prefix", type = OoaType.STRING, required = false, description = "Start of each image's file name, followed by _page1_img1 and so on; the PDF's name when empty.") String prefix,
-            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour) {
+            @Input(name = "color", type = OoaType.STRING, required = false, defaultValue = "\"color\"", enumValues = {"color", "gray"}, description = "color keeps the colours; gray saves greyscale copies.") String colour,
+            @Input(name = "dpi", type = OoaType.NUMBER, required = false, defaultValue = "0", min = 0, max = 1200,
+                    description = "Resize each image to this many dots per inch at the size it is shown on the page (e.g. a picture shown 2 inches wide becomes 300 pixels wide at 150 dpi); 0 keeps the pixels stored in the PDF. An image the page does not draw keeps its stored size.") int dpi) {
         List<Object> out = new ArrayList<>();
         String fmt = imageFormat(format);
         boolean gray = colour != null && (colour.equalsIgnoreCase("gray") || colour.equalsIgnoreCase("grey"));
@@ -565,9 +572,12 @@ public final class PdfPackage {
                 PDPage p = d.getPage(pageNo - 1);
                 ctx.checkCancelled();
                 int[] n = {0};
+                Map<org.apache.pdfbox.cos.COSBase, double[]> placed = dpi > 0 ? placedSizes(p) : Map.of();
                 collectImages(p.getResources(), seen, 0, img -> {
                     java.awt.image.BufferedImage bi = img.getImage();
                     if (bi == null || bi.getWidth() < minSize || bi.getHeight() < minSize) return;
+                    double[] size = placed.get(img.getCOSObject());
+                    if (size != null) bi = resize(bi, (int) Math.max(1, Math.round(size[0] / 72 * dpi)), (int) Math.max(1, Math.round(size[1] / 72 * dpi)));
                     if (gray) {
                         java.awt.image.BufferedImage g = new java.awt.image.BufferedImage(bi.getWidth(), bi.getHeight(), java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
                         var gr = g.createGraphics(); gr.drawImage(bi, 0, 0, null); gr.dispose();
@@ -584,6 +594,43 @@ public final class PdfPackage {
     }
 
     interface ImageSink { void accept(org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject img) throws IOException; }
+
+    /** Width and height in points at which each image XObject is first drawn on the page (content stream and form XObjects). */
+    static Map<org.apache.pdfbox.cos.COSBase, double[]> placedSizes(PDPage page) throws IOException {
+        Map<org.apache.pdfbox.cos.COSBase, double[]> sizes = new IdentityHashMap<>();
+        new org.apache.pdfbox.contentstream.PDFGraphicsStreamEngine(page) {
+            @Override public void drawImage(org.apache.pdfbox.pdmodel.graphics.image.PDImage image) {
+                if (!(image instanceof org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject x)) return;
+                org.apache.pdfbox.util.Matrix m = getGraphicsState().getCurrentTransformationMatrix();
+                sizes.putIfAbsent(x.getCOSObject(), new double[]{Math.abs(m.getScalingFactorX()), Math.abs(m.getScalingFactorY())});
+            }
+            @Override public void appendRectangle(java.awt.geom.Point2D p0, java.awt.geom.Point2D p1, java.awt.geom.Point2D p2, java.awt.geom.Point2D p3) { }
+            @Override public void clip(int windingRule) { }
+            @Override public void moveTo(float x, float y) { }
+            @Override public void lineTo(float x, float y) { }
+            @Override public void curveTo(float x1, float y1, float x2, float y2, float x3, float y3) { }
+            @Override public java.awt.geom.Point2D getCurrentPoint() { return new java.awt.geom.Point2D.Float(); }
+            @Override public void closePath() { }
+            @Override public void endPath() { }
+            @Override public void strokePath() { }
+            @Override public void fillPath(int windingRule) { }
+            @Override public void fillAndStrokePath(int windingRule) { }
+            @Override public void shadingFill(org.apache.pdfbox.cos.COSName shadingName) { }
+            void run() throws IOException { processPage(getPage()); }
+        }.run();
+        return sizes;
+    }
+
+    private static java.awt.image.BufferedImage resize(java.awt.image.BufferedImage bi, int w, int h) {
+        if (w == bi.getWidth() && h == bi.getHeight()) return bi;
+        int type = bi.getColorModel().hasAlpha() ? java.awt.image.BufferedImage.TYPE_INT_ARGB : java.awt.image.BufferedImage.TYPE_INT_RGB;
+        java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(w, h, type);
+        var g = out.createGraphics();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.drawImage(bi, 0, 0, w, h, null);
+        g.dispose();
+        return out;
+    }
 
     /** Visits image XObjects in a page's resources, including those nested in form XObjects; each image is visited once per document. */
     private static void collectImages(org.apache.pdfbox.pdmodel.PDResources res, Set<org.apache.pdfbox.cos.COSBase> seen, int depth, ImageSink sink) throws IOException {

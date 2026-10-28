@@ -577,16 +577,23 @@ public final class ExcelPackage {
 
     public Map<String, Object> close(ActionContext ctx, String session) { return close(ctx, session, false); }
 
+    public Map<String, Object> close(ActionContext ctx, String session, boolean save) { return close(ctx, session, save, true); }
+
     @Action(id = "close", name = "Close", category = "Workbook", capabilities = "filesystem", description = "Close the workbook session, saving the changes first when asked.",
-            panel = "save | session")
+            panel = "save, fail_if_read_only | session")
     public Map<String, Object> close(ActionContext ctx,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
-            @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save) {
+            @Input(name = "save", type = OoaType.BOOLEAN, required = false, defaultValue = "false", description = "Save the changes to the opened file before closing.") boolean save,
+            @Input(name = "fail_if_read_only", type = OoaType.BOOLEAN, required = false, defaultValue = "true", visibleWhen = "save=true",
+                    description = "When the workbook was opened read-only, stop with an error instead of saving; false closes it without saving and logs a warning.") boolean failIfReadOnly) {
         session = ctx.sessionNameOrOnly(session, "excel", WorkbookSession.class);
         if (save && ctx.sessions().get(session) instanceof WorkbookSession w) {
-            refuseReadOnly(w, w.path);
-            writeFile(w, w.path, w.password);
-            uploadBack(ctx, w, w.path);
+            if (w.readOnly && !failIfReadOnly) ctx.warn("The workbook was opened read-only, so it was closed without saving: " + w.path.getFileName());
+            else {
+                refuseReadOnly(w, w.path);
+                writeFile(w, w.path, w.password);
+                uploadBack(ctx, w, w.path);
+            }
         }
         Object s = ctx.sessions().remove(session);
         if (s instanceof WorkbookSession w) try { w.close(); } catch (IOException ignored) { }
@@ -997,17 +1004,18 @@ public final class ExcelPackage {
     }
 
     @Action(id = "delete_cells", name = "Delete cells", category = "Cells",
-            description = "Delete the cells of a range and close the gap by moving the cells below up or the cells to the right left.",
-            panel = "range, shift | sheet, session")
+            description = "Delete the cells of a range, or of the current selection, and close the gap by moving the cells below up or the cells to the right left.",
+            panel = "(Cells: The selection or active cell = / A specific range = range), shift | sheet, session")
     public Map<String, Object> deleteCells(ActionContext ctx,
-            @Input(name = "range", type = OoaType.STRING, pattern = RANGE, example = "B2:C3", description = "Cell or range to delete.") String range,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = RANGE, example = "B2:C3",
+                    description = "Cell or range to delete; when empty, the range chosen by select_range or the cell chosen by go_to_cell (the sheet's active cell).") String range,
             @Input(name = "shift", type = OoaType.STRING, required = false, defaultValue = "\"up\"", enumValues = {"up", "left", "entire_row", "entire_column"},
                     description = "up or left moves the remaining cells into the gap; entire_row or entire_column deletes the whole rows or columns the range touches.") String shift,
             @Input(name = "sheet", type = OoaType.STRING, required = false, description = "Sheet name; active sheet when empty.") String sheet,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session) {
         WorkbookSession s = session(ctx, session);
         Sheet sh = sheet(s, sheet);
-        AreaReference a = area(s, range);
+        AreaReference a = area(s, range == null || range.isBlank() ? selectionOf(s, sh) : range);
         int r0 = a.getFirstCell().getRow(), r1 = a.getLastCell().getRow(), c0 = a.getFirstCell().getCol(), c1 = a.getLastCell().getCol();
         if ("entire_row".equalsIgnoreCase(shift)) removeRows(sh, r0, r1 - r0 + 1);
         else if ("entire_column".equalsIgnoreCase(shift)) {
@@ -1035,6 +1043,16 @@ public final class ExcelPackage {
             }
         } else throw new ActionException("EXCEL.BAD_SHIFT", "Shift must be up or left, not '" + shift + "'", "Use up or left.");
         return Map.of();
+    }
+
+    /** The session's selection when it was made on this sheet (its top-left is the sheet's active cell), else the sheet's active cell. */
+    private static String selectionOf(WorkbookSession s, Sheet sh) {
+        CellAddress a = sh.getActiveCell();
+        if (s.selection != null && a != null && s.wb.getSheetIndex(sh) == s.wb.getActiveSheetIndex()
+                && a.formatAsString().equalsIgnoreCase(s.selection.split(":")[0])) return s.selection;
+        if (a == null) throw new ActionException("EXCEL.NO_SELECTION", "No range given and the sheet has no active cell",
+                "Set the range, or run select_range or go_to_cell first.");
+        return a.formatAsString();
     }
 
     @Action(id = "hide_rows", name = "Hide rows", category = "Rows and columns", description = "Hide one or more rows.",
@@ -1766,9 +1784,14 @@ public final class ExcelPackage {
         return filter(ctx, column, operator, value, matchCase, (Boolean) header, sheet, session, null, false);
     }
 
+    public Map<String, Object> filter(ActionContext ctx, Object column, String operator, Object value, boolean matchCase, Boolean header,
+                                      String sheet, String session, Object valueTo, boolean hideRows) {
+        return filter(ctx, column, operator, value, matchCase, header, sheet, session, valueTo, hideRows, null, null);
+    }
+
     @Action(id = "filter", name = "Filter", category = "Cells",
-            description = "Return the rows of a sheet whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.",
-            panel = "sheet, header, column, operator, value, value_to, match_case | hide_rows, session")
+            description = "Return the rows of a sheet, a range or an Excel table whose value in one column matches a condition, as a Data Table; optionally also hide the other rows on the sheet.",
+            panel = "sheet, (Filter: The used area = / A range = range / An Excel table = table), header, column, operator, value, value_to, match_case | hide_rows, session")
     @Output(name = "table", type = OoaType.TABLE, description = "Matching rows with the sheet's column names.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of matching rows.")
     @SuppressWarnings("unchecked")
@@ -1784,18 +1807,35 @@ public final class ExcelPackage {
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"excel\"", description = "Workbook session.") String session,
             @Input(name = "value_to", required = false, visibleWhen = "operator=between", description = "Upper bound for the between operator.") Object valueTo,
             @Input(name = "hide_rows", type = OoaType.BOOLEAN, required = false, defaultValue = "false",
-                    description = "Also hide the sheet rows that do not match (and show the ones that do), like an AutoFilter; save to keep it.") boolean hideRows) {
+                    description = "Also hide the sheet rows that do not match (and show the ones that do), like an AutoFilter; save to keep it.") boolean hideRows,
+            @Input(name = "table", type = OoaType.STRING, required = false,
+                    description = "Excel table name, e.g. Table1: filter only the rows of that table (its header row gives the column names); sheet and range are then not used.") String tableName,
+            @Input(name = "range", type = OoaType.STRING, required = false, pattern = "^[A-Za-z]{1,3}[1-9][0-9]*:[A-Za-z]{1,3}[1-9][0-9]*$", example = "B3:F40",
+                    description = "Filter only this range of the sheet; the whole used area when empty. A column letter or number still means the sheet column.") String range) {
         WorkbookSession s = session(ctx, session);
         boolean hdr = header == null ? s.header : header;
-        Map<String, Object> all = getAllCells(ctx, sheet, hdr, session);
+        int c0 = 0, r0 = -1, r1 = -1;   // area filtered: sheet columns from c0, rows r0..r1 (-1: the used area)
+        Map<String, Object> all;
+        if (tableName != null && !tableName.isBlank()) {
+            XSSFTable xt = table(xlsx(s, "Excel tables"), tableName);
+            CellReference a = xt.getStartCellReference(), b = xt.getEndCellReference();
+            sheet = xt.getSheetName();
+            hdr = xt.getHeaderRowCount() > 0;
+            range = addr(a.getRow(), a.getCol()) + ":" + addr(b.getRow(), b.getCol());
+        }
+        if (range != null && !range.isBlank()) {
+            AreaReference a = area(s, range);
+            c0 = a.getFirstCell().getCol(); r0 = a.getFirstCell().getRow(); r1 = a.getLastCell().getRow();
+            all = getRange(ctx, addr(r0, c0) + ":" + addr(r1, a.getLastCell().getCol()), hdr, sheet, session, "value");
+        } else all = getAllCells(ctx, sheet, hdr, session);
         Map<String, Object> t = (Map<String, Object>) all.get("table");
         List<?> cols = (List<?>) t.get("columns");
         String name = Values.text(column).trim();
         int idx = -1;
         for (int i = 0; i < cols.size(); i++) if (Values.text(cols.get(i)).equalsIgnoreCase(name)) { idx = i; break; }
         if (idx < 0) {
-            idx = columnIndex(column);  // tables built from the sheet start at column A
-            if (idx >= cols.size()) throw new ActionException("EXCEL.BAD_COLUMN", "Column '" + name + "' not found", "Columns: " + cols + ".");
+            idx = columnIndex(column) - c0;  // the table starts at sheet column c0 (A for a whole sheet)
+            if (idx < 0 || idx >= cols.size()) throw new ActionException("EXCEL.BAD_COLUMN", "Column '" + name + "' not found", "Columns: " + cols + ".");
         }
         String op = operator == null ? "equals" : operator.toLowerCase(Locale.ROOT);
         if (op.equals("between") && (value == null || valueTo == null))
@@ -1808,11 +1848,11 @@ public final class ExcelPackage {
         if (hideRows) {
             Sheet sh = sheet(s, sheet);
             FormulaEvaluator ev = evaluator(s);
-            int first = sh.getFirstRowNum() + (hdr ? 1 : 0);
-            for (int r = first; r >= 0 && r <= sh.getLastRowNum(); r++) {
+            int first = (r0 < 0 ? sh.getFirstRowNum() : r0) + (hdr ? 1 : 0), last = r1 < 0 ? sh.getLastRowNum() : r1;
+            for (int r = first; r >= 0 && r <= last; r++) {
                 Row row = sh.getRow(r);
                 if (row == null || blankRow(row)) continue;
-                row.setZeroHeight(!filterMatch(read(row.getCell(idx), ev), op, value, valueTo, matchCase));
+                row.setZeroHeight(!filterMatch(read(row.getCell(c0 + idx), ev), op, value, valueTo, matchCase));
             }
         }
         return out("table", Values.table(cols.stream().map(Values::text).toList(), hits), "count", n(hits.size()));

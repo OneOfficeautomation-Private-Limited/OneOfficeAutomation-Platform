@@ -354,16 +354,24 @@ public final class WordPackage {
 
     public Map<String, Object> addTable(ActionContext ctx, Map<String, Object> table, String session) { return addTable(ctx, table, session, true, null, null, null); }
 
+    public Map<String, Object> addTable(ActionContext ctx, Map<String, Object> table, String session, boolean includeHeader, String afterText, String bookmark, String style) {
+        return addTable(ctx, table, session, includeHeader, afterText, bookmark, style, null, null);
+    }
+
     @Action(id = "add_table", name = "Insert table", category = "Tables",
             description = "Insert a table built from a Data Table (header row first) at the end, after a marker text or at a bookmark, optionally with a table style.",
-            panel = "(Insert: At the end = / After a text = after_text / After a bookmark = bookmark), table, include_header | style, session")
+            panel = "(Insert: At the end = / After a text = after_text / After a bookmark = bookmark), table, include_header | style, [Give the table alternative text: title, alt_description], session")
     public Map<String, Object> addTable(ActionContext ctx,
             @Input(name = "table", type = OoaType.TABLE, description = "Data to insert.") Map<String, Object> table,
             @Input(name = "session", type = OoaType.STRING, required = false, defaultValue = "\"word\"", description = "Session name.") String session,
             @Input(name = "include_header", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Put the column names in a bold first row.") boolean includeHeader,
             @Input(name = "after_text", type = OoaType.STRING, required = false, description = "Insert after the paragraph containing this text; at the end when empty.") String afterText,
             @Input(name = "bookmark", type = OoaType.STRING, required = false, description = "Insert after the paragraph holding this bookmark; used when after_text is empty.") String bookmark,
-            @Input(name = "style", type = OoaType.STRING, required = false, example = "TableGrid", description = "Table style id defined in the document, e.g. TableGrid.") String style) {
+            @Input(name = "style", type = OoaType.STRING, required = false, example = "TableGrid", description = "Table style id defined in the document, e.g. TableGrid.") String style,
+            @Input(name = "title", type = OoaType.STRING, required = false,
+                    description = "Alternative-text title of the table, read by screen readers (Word: Table Properties > Alt Text > Title).") String title,
+            @Input(name = "alt_description", type = OoaType.STRING, required = false,
+                    description = "Alternative-text description of the table (Word: Table Properties > Alt Text > Description).") String altDescription) {
         List<?> cols = (List<?>) table.get("columns");
         List<?> rows = (List<?>) table.get("rows");
         if (cols.isEmpty()) throw new ActionException("WORD.EMPTY_TABLE", "The table has no columns");
@@ -384,6 +392,10 @@ public final class WordPackage {
             for (int r = 0; r < nRows; r++) { XWPFTableRow tr = r == 0 ? t.getRow(0) : t.createRow(); while (tr.getTableCells().size() < cols.size()) tr.addNewTableCell(); }
         }
         if (style != null && !style.isBlank()) t.setStyleID(style);
+        var tblPr = t.getCTTbl().getTblPr() != null ? t.getCTTbl().getTblPr() : t.getCTTbl().addNewTblPr();
+        if (title != null && !title.isBlank()) (tblPr.isSetTblCaption() ? tblPr.getTblCaption() : tblPr.addNewTblCaption()).setVal(title);
+        if (altDescription != null && !altDescription.isBlank())
+            (tblPr.isSetTblDescription() ? tblPr.getTblDescription() : tblPr.addNewTblDescription()).setVal(altDescription);
         int r0 = 0;
         if (includeHeader) {
             for (int c = 0; c < cols.size(); c++) {
