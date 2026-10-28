@@ -4302,16 +4302,26 @@ async function crCheckin() {
   if (!state.flow || !state.file) { toast("Open the agent you want to check in.", true); return; }
   if (!state.cr || !state.cr.connected) { toast("Connect to Command Center first (bottom of the Explorer).", true); return; }
   if (state.dirty) await save();
-  const comment = prompt("What changed in this version? (shown in the version history)", "");
-  if (comment === null) return;
-  try {
-    const r = await api("POST", "cr/checkin", { local: state.file, comment });
-    toast("Checked in " + r.path + " as version " + r.version + (r.production_request ? "; sent for approval before it goes live" : ""));
-    crLoadRepo();
-  } catch (e) {
-    toast(e.message, true);
-    if (e.problems || (e.message || "").includes("validation problem")) { switchConsole("problems"); validate(false); }
-  }
+  // the comment, and whether this version becomes the one that runs in production (off: a new version only)
+  const comment = h("input", { type: "text", id: "checkin-comment", placeholder: "What changed in this version?", "aria-label": "What changed in this version" });
+  const live = h("input", { type: "checkbox", id: "checkin-live" });
+  const send = async () => {
+    closeDialog();
+    try {
+      const r = await api("POST", "cr/checkin", { local: state.file, comment: comment.value, production: live.checked });
+      toast("Checked in " + r.path + " as version " + r.version + (r.production_request ? "; sent for approval before it goes live"
+        : live.checked ? "; it is now the live version" : "; the live version is unchanged"));
+      crLoadRepo();
+    } catch (e) {
+      toast(e.message, true);
+      if (e.problems || (e.message || "").includes("validation problem")) { switchConsole("problems"); validate(false); }
+    }
+  };
+  openDialog("Agent check-in", [
+    field("What changed (shown in the version history)", comment),
+    h("label", { class: "check" }, live, " Make this the live version (runs, schedules and triggers use it from now on)"),
+    h("p", { class: "help", text: "Leave it off to save a new version only; the live version can be changed later in Command Center. With approval before production switched on, ticking it sends a request instead." })],
+    [h("button", { type: "button", class: "primary", id: "btn-checkin-send", onclick: send }, "Check in")]);
 }
 
 async function crVersions(b) {
@@ -5152,7 +5162,7 @@ function explainAgent(flow) {
 async function openAssistant(tab) {
   if (!state.flow) { toast("Open an agent first.", true); return; }
   let conns = { connections: [] };
-  try { conns = await api("GET", "connections"); } catch (_) { /* none yet */ }
+  try { conns = await api("GET", "model-connections"); } catch (_) { /* none yet */ }
   const mode = { tab: tab || "build" };
   const body = h("div", { class: "assistant" });
   const prompt = h("textarea", { rows: 4, placeholder: "Describe what the agent should do, e.g.: Read invoices.csv, and for every row with amount above 1000 send an email to approvals@company.com with the invoice number." });
@@ -5182,7 +5192,7 @@ async function openAssistant(tab) {
     }
     body.replaceChildren(tabs, field("What should the agent do?", prompt),
       (conns.connections || []).length ? field("One Model Connection", connSel)
-        : h("div", { class: "note" }, "The assistant needs a language model. ", h("a", { class: "link", text: "Set up a One Model Connection", onclick: () => { closeDialog(); openConnections(); } }), " first."),
+        : h("div", { class: "note" }, "The assistant needs a language model. ", h("a", { class: "link", text: "Set up a One Model Connection", onclick: () => { closeDialog(); openModelConnections(); } }), " first."),
       h("div", { class: "row-actions" }, h("button", { type: "button", class: "primary", disabled: !(conns.connections || []).length, onclick: async (e) => {
         if (!prompt.value.trim()) { toast("Describe what the agent should do.", true); return; }
         e.target.disabled = true;
@@ -5204,9 +5214,9 @@ async function openAssistant(tab) {
 }
 
 // ---------- One Model Connections ----------
-async function openConnections() {
+async function openModelConnections() {
   let data;
-  try { data = await api("GET", "connections"); } catch (e) { toast(e.message, true); return; }
+  try { data = await api("GET", "model-connections"); } catch (e) { toast(e.message, true); return; }
   const rows = (data.connections || []).map((c) => Object.assign({}, c));
   let def = data.default || "";
   const box = h("div", { class: "conn-list" });
@@ -5234,7 +5244,7 @@ async function openConnections() {
   render();
   openDialog("One Model Connections", [h("p", { class: "help", text: "Named model settings for this workspace (model-connections.json). Keys are never stored here: point to an environment variable or a One Agent Vault credential. In an action, set connection to the name; leave it empty to use the action's own settings." }), box],
     [h("button", { type: "button", class: "primary", onclick: async () => {
-      try { await api("PUT", "connections", { default: def, connections: rows }); closeDialog(); toast("Saved model connections"); }
+      try { await api("PUT", "model-connections", { default: def, connections: rows }); closeDialog(); toast("Saved model connections"); }
       catch (e) { toast(e.message, true); } } }, "Save")], { wide: true });
 }
 
@@ -5941,7 +5951,7 @@ function wire() {
   $("btn-debug").addEventListener("click", debugBot);
   $("btn-assistant").addEventListener("click", () => openAssistant());
   $("btn-quick-add").addEventListener("click", openQuickAdd);
-  $("btn-connections").addEventListener("click", () => { $("view-pop").hidden = true; openConnections(); });
+  $("btn-connections").addEventListener("click", () => { $("view-pop").hidden = true; openModelConnections(); });
   $("btn-connectors").addEventListener("click", () => { $("view-pop").hidden = true; openConnectors(); });
   for (const b of document.querySelectorAll("[data-canvas-mode]")) b.addEventListener("click", () => setPref("canvasMode", b.dataset.canvasMode));
   $("btn-record").addEventListener("click", recordSteps);

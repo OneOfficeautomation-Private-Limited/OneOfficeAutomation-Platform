@@ -70,15 +70,24 @@ class DebuggerTest {
         int port = StudioControlRoomTest.freePort();
         new StudioServer(ws, port, Path.of("/nonexistent")).start();
         String base = "http://127.0.0.1:" + port;
-        Map<String, Object> bad = call(base, "PUT", "/api/connections", Map.of("connections", List.of(Map.of("name", "gpt", "provider", "openai", "model", "x", "api_key", "sk-123"))));
+        Map<String, Object> bad = call(base, "PUT", "/api/model-connections", Map.of("connections", List.of(Map.of("name", "gpt", "provider", "openai", "model", "x", "api_key", "sk-123"))));
         assertEquals("AI.KEY_IN_FILE", ((Map<String, Object>) bad.get("error")).get("code"), "plain keys are refused");
         assertFalse(Files.exists(ws.resolve("model-connections.json")));
-        Map<String, Object> ok = call(base, "PUT", "/api/connections", Map.of("default", "local", "connections", List.of(
+        Map<String, Object> ok = call(base, "PUT", "/api/model-connections", Map.of("default", "local", "connections", List.of(
                 Map.of("name", "gpt", "provider", "openai", "model", "gpt-4o-mini", "api_key_env", "OOA_TEST_NO_SUCH_KEY"),
                 Map.of("name", "local", "provider", "openai_compatible", "model", "llama", "base_url", "http://127.0.0.1:1/v1"))));
         assertEquals("local", ok.get("default"));
-        assertEquals(2, ((List<Object>) call(base, "GET", "/api/connections", null).get("connections")).size());
-        assertEquals("AI.BAD_PROVIDER", ((Map<String, Object>) call(base, "PUT", "/api/connections", Map.of("connections", List.of(Map.of("name", "z", "provider", "nope")))).get("error")).get("code"));
+        assertEquals(2, ((List<Object>) call(base, "GET", "/api/model-connections", null).get("connections")).size());
+        assertEquals("AI.BAD_PROVIDER", ((Map<String, Object>) call(base, "PUT", "/api/model-connections", Map.of("connections", List.of(Map.of("name", "z", "provider", "nope")))).get("error")).get("code"));
+        // saved connector connections are their own list (connections.json), not the model connections
+        assertEquals(List.of(), call(base, "GET", "/api/connections", null).get("connections"));
+        assertEquals(Boolean.TRUE, call(base, "PUT", "/api/connections/ServiceNow%20prod", Map.of("package", "ooa.servicenow",
+                "values", Map.of("instance_url", "https://acme.service-now.com"), "credentials", Map.of("password", "itsm/servicenow/password"))).get("ok"));
+        List<Map<String, Object>> saved = (List<Map<String, Object>>) call(base, "GET", "/api/connections", null).get("connections");
+        assertEquals(1, saved.size());
+        assertEquals("ServiceNow prod", saved.get(0).get("name"));
+        assertEquals("ooa.servicenow", saved.get(0).get("package"));
+        assertEquals(2, ((List<Object>) call(base, "GET", "/api/model-connections", null).get("connections")).size(), "model connections unchanged");
         // An action using a connection whose key variable is missing explains what to do.
         Map<String, Object> flow = (Map<String, Object>) JsonLite.parse("{\"kind\":\"TaskBot\",\"id\":\"ai\",\"name\":\"AI\",\"variables\":[{\"name\":\"t\",\"type\":\"String\",\"direction\":\"output\"}],"
                 + "\"steps\":[{\"id\":\"p\",\"action\":\"ooa.genai/prompt\",\"args\":{\"prompt\":\"hi\",\"connection\":\"gpt\"},\"out\":{\"text\":\"t\"}}]}");

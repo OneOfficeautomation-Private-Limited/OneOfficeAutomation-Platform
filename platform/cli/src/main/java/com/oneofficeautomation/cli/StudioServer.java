@@ -239,10 +239,11 @@ public final class StudioServer {
                 String text = b instanceof Map<?, ?> m && m.get("text") instanceof String t ? t : null;
                 sendJson(ex, 200, Map.of("saved", ws.writeItem(rel, text, json::parse)));
             } else send(ex, 405, "text/plain", "Method not allowed");
-        } else if (route.equals("connections") && method.equals("GET")) {
+        } else if (route.equals("model-connections") && method.equals("GET")) {
+            // One Model Connections (model-connections.json); "connections" are the saved connector connections below
             Path f = ws.root.resolve("model-connections.json");
             sendJson(ex, 200, Files.isRegularFile(f) ? json.parse(Files.readString(f)) : Map.of("default", "", "connections", List.of()));
-        } else if (route.equals("connections") && method.equals("PUT")) {
+        } else if (route.equals("model-connections") && method.equals("PUT")) {
             sendJson(ex, 200, saveConnections(body(ex)));
         } else if (route.equals("connectors") || route.startsWith("connectors/")) {
             connectors(ex, method, route.substring("connectors".length()));
@@ -279,7 +280,7 @@ public final class StudioServer {
             else if (method.equals("GET") && r.equals("repo")) { Map<String, Object> out = new LinkedHashMap<>(cr.repo(q.get("q"))); out.put("mapping", cr.mapping()); sendJson(ex, 200, out); }
             else if (method.equals("GET") && r.equals("versions")) sendJson(ex, 200, cr.versions(q.get("path")));
             else if (method.equals("POST") && r.equals("checkout")) sendJson(ex, 200, cr.checkout((String) ((Map<String, Object>) body(ex)).get("path"), json));
-            else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), json)); }
+            else if (method.equals("POST") && r.equals("checkin")) { Map<String, Object> b = (Map<String, Object>) body(ex); sendJson(ex, 200, cr.checkin((String) b.get("local"), (String) b.get("path"), (String) b.get("comment"), !Boolean.FALSE.equals(b.get("production")), json)); }
             else if (method.equals("POST") && r.equals("undo-checkout")) { cr.undoCheckout((String) ((Map<String, Object>) body(ex)).get("path")); sendJson(ex, 200, Map.of("ok", true)); }
             else send(ex, 404, "text/plain", "Unknown API route");
         } else if (method.equals("POST") && route.equals("runs")) {

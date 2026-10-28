@@ -74,9 +74,12 @@ class StudioControlRoomTest {
 
             Path bobCopy = wsB.resolve("Control Room/My Bots/Invoice bot.flow.json");
             Files.writeString(bobCopy, Files.readString(bobCopy).replace("\"v1\"", "\"v2 by bob\""));
-            Map<String, Object> in2 = call(sb, "POST", "/api/cr/checkin", Map.of("local", "Control Room/My Bots/Invoice bot.flow.json", "comment", "bob's change"), null);
+            Map<String, Object> in2 = call(sb, "POST", "/api/cr/checkin", Map.of("local", "Control Room/My Bots/Invoice bot.flow.json", "comment", "bob's change", "production", false), null);
             assertEquals(2, ((Number) in2.get("version")).intValue(), "the private copy goes back to the same repository path");
             assertEquals("My Bots/Invoice bot.flow.json", in2.get("path"));
+            assertEquals(Boolean.FALSE, in2.get("production"));
+            Map<String, Object> listed = (Map<String, Object>) ((List<Object>) call(sb, "GET", "/api/cr/repo", null, null).get("bots")).get(0);
+            assertEquals(1, ((Number) listed.get("production_version")).intValue(), "checked in without 'live': version 1 stays the live one");
 
             assertEquals(200, call(sa, "POST", "/api/cr/checkout", Map.of("path", "My Bots/Invoice bot.flow.json"), null).get("_status"), "check-in released Bob's lock");
             assertTrue(Files.readString(wsA.resolve("Control Room/My Bots/Invoice bot.flow.json")).contains("v2 by bob"), "Alice gets Bob's latest version");

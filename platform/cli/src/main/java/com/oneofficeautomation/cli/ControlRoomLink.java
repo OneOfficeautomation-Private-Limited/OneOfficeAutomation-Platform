@@ -153,16 +153,22 @@ final class ControlRoomLink {
 
     @SuppressWarnings("unchecked")
     Map<String, Object> checkin(String local, String repoPathOverride, String comment, JsonCodec json) throws IOException {
+        return checkin(local, repoPathOverride, comment, true, json);
+    }
+
+    /** Checks the agent in as a new version; with production it also becomes the live version (or a request for it, when approval is on). */
+    @SuppressWarnings("unchecked")
+    Map<String, Object> checkin(String local, String repoPathOverride, String comment, boolean production, JsonCodec json) throws IOException {
         Path p = ws.resolve(local);
         if (!Files.isRegularFile(p)) throw new OoaException("STUDIO.NOT_FOUND", "Agent not found: " + local);
         Map<String, Object> flow = (Map<String, Object>) json.parse(Files.readString(p));
         Map<String, Object> m = mapping();
         String repoPath = repoPathOverride != null && !repoPathOverride.isBlank() ? repoPathOverride
                 : m.containsKey(local) ? String.valueOf(m.get(local)) : local.startsWith(FOLDER + "/") ? local.substring(FOLDER.length() + 1) : local;
-        Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", true), true);
+        Map<String, Object> r = call("POST", "repo/checkin", Map.of("path", repoPath, "flow", flow, "comment", comment == null ? "" : comment, "production", production), true);
         m.put(local, repoPath);
         saveMapping(m);
-        Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local));
+        Map<String, Object> out = new java.util.LinkedHashMap<>(Map.of("path", repoPath, "version", r.get("version"), "local", local, "production", production));
         if (r.get("production_request") != null) out.put("production_request", r.get("production_request"));   // approval before production is on
         return out;
     }
