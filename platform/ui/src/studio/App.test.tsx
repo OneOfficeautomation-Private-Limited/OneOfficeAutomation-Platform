@@ -27,7 +27,11 @@ function fakeServer() {
       { id: "excel_rows", name: "Loop through Excel rows", description: "Open a workbook and handle each row.", variables: [{ name: "workbook", type: "File", direction: "input" }],
         steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }] },
       { id: "needs_sap", name: "SAP order", description: "Needs a toolkit that is not installed.", variables: [], steps: [{ id: "s1", action: "ooa.sap/connect" }] }] }),
-    "PUT bot": (b) => { created.push({ saved: b }); return { saved: "x" }; },
+    "PUT bot": (b) => {
+      created.push({ saved: b });
+      const close = (b.steps ?? []).find((x: any) => x.action === "ooa.excel/close");
+      return { saved: "x", problems: close ? [{ stepId: close.id, path: "args/session", message: "Close needs the workbook session", suggestedFix: "Use excel" }] : [] };
+    },
     "POST files/bot": (b) => { created.push(b); return { path: b.parent + "/" + b.name + ".flow.json" }; },
     "POST files/folder": (b) => { created.push(b); return { path: b.parent + "/" + b.name }; },
   };
@@ -94,7 +98,7 @@ describe("new Studio", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
 
     const steps = await screen.findByRole("region", { name: "Agent steps" });
-    expect(within(steps).getAllByRole("button").map((b) => b.querySelector(".st-step-n")?.textContent + " " + b.querySelector("strong")?.textContent))
+    expect(within(steps).getAllByRole("button").filter((b) => b.classList.contains("st-step")).map((b) => b.querySelector(".st-step-n")?.textContent + " " + b.querySelector("strong")?.textContent))
       .toEqual(["1 Open workbook", "2 Loop", "3 Write to log"]);
     expect((screen.getByLabelText("path") as HTMLInputElement).value).toBe("$workbook");
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
@@ -199,5 +203,65 @@ describe("new Studio", () => {
     expect(saved.name).toBe("Invoice intake");   // the new agent keeps its own id and name
     expect(saved.description).toBe("Open a workbook and handle each row.");
     expect(saved.steps).toEqual([{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }]);
+  });
+
+  it("edits an agent: add from Actions, undo and redo, delete, change a setting, save with problems, ask before closing unsaved", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
+    const steps = await screen.findByRole("region", { name: "Agent steps" });
+    const names = () => within(steps).getAllByRole("button", { pressed: undefined }).filter((b) => b.classList.contains("st-step"))
+      .map((b) => b.querySelector("strong")!.textContent);
+    expect(names()).toEqual(["Open workbook", "Loop", "Write to log"]);
+
+    // add: after the selected step (the first one is selected when an agent opens)
+    fireEvent.click(screen.getByRole("button", { name: /^Excel/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Close workbook" }));
+    expect(names()).toEqual(["Open workbook", "Close workbook", "Loop", "Write to log"]);
+    expect(screen.getByText("Unsaved")).toBeTruthy();
+    fireEvent.click(within(steps).getByRole("button", { name: "Undo" }));
+    expect(names()).toEqual(["Open workbook", "Loop", "Write to log"]);
+    fireEvent.click(within(steps).getByRole("button", { name: "Redo" }));
+    expect(names()).toEqual(["Open workbook", "Close workbook", "Loop", "Write to log"]);
+
+    // change a setting of the selected step (Close workbook): it commits when the field loses focus
+    fireEvent.click(within(steps).getAllByRole("button").find((b) => b.textContent?.includes("Open workbook"))!);
+    const path = screen.getByLabelText("path") as HTMLInputElement;
+    fireEvent.change(path, { target: { value: "C:/data/in.xlsx" } });
+    fireEvent.blur(path);
+
+    // save: the server's check finds a problem on the new step, shown on the step and in Problems
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
+    expect(saved.steps.map((x: any) => x.action)).toEqual(["ooa.excel/open", "ooa.excel/close", "core/loop"]);
+    expect(saved.steps[0].args.path).toBe("C:/data/in.xlsx");
+    const problems = screen.getByRole("region", { name: "Problems" });
+    expect(within(problems).getByText(/Line 2: Close needs the workbook session/)).toBeTruthy();
+    expect(screen.queryByText("Unsaved")).toBeNull();
+
+    // delete with the Delete key, then closing asks because of unsaved changes
+    fireEvent.click(within(steps).getAllByRole("button").find((b) => b.textContent?.includes("Close workbook"))!);
+    fireEvent.keyDown(steps, { key: "Delete" });
+    expect(names()).toEqual(["Open workbook", "Loop", "Write to log"]);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    const ask = await screen.findByRole("dialog", { name: "Save changes to Invoice intake?" });
+    fireEvent.click(within(ask).getByRole("button", { name: "Don't save" }));
+    expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
+  });
+
+  it("adds a variable and refuses a bad name", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Variables" }));
+    const form = (await screen.findByRole("button", { name: "Add variable" })).closest("form")!;
+    fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "2nd" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Add variable" }));
+    expect(within(form).getByRole("alert").textContent).toMatch(/starts with a letter/);
+    fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "$total" } });
+    fireEvent.change(within(form).getByLabelText("Type"), { target: { value: "Number" } });
+    fireEvent.click(within(form).getByRole("button", { name: "Add variable" }));
+    expect(screen.getByText("$total")).toBeTruthy();
   });
 });

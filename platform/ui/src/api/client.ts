@@ -14,18 +14,31 @@ export type WorkspaceNode = {
   kind?: "TaskBot" | "ApiTask"; modified?: string; children?: WorkspaceNode[];
 };
 
-export type ActionManifest = { id: string; name: string; category?: string; description?: string };
+/** One input or output of an action, as the toolkit catalogue describes it (JSON Schema plus OOA's own keys). */
+export type FieldSpec = {
+  type?: string; description?: string; default?: unknown; enum?: unknown[]; examples?: unknown[];
+  "x-ooa-type"?: string; "x-ooa-label"?: string;
+};
+export type ActionManifest = {
+  id: string; name: string; category?: string; description?: string;
+  inputs?: { properties?: Record<string, FieldSpec>; required?: string[] };
+  outputs?: { properties?: Record<string, FieldSpec> };
+  "x-ooa-panel"?: { main?: string[]; more?: string[] };
+};
 export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[] };
 
 export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "both"; default?: unknown; description?: string };
 export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
-  children?: FlowStep[]; elseIf?: { children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { children?: FlowStep[] }[]; finally?: FlowStep[];
+  children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
 };
 export type Flow = { kind: string; id: string; name: string; description?: string; variables?: FlowVariable[]; steps: FlowStep[] };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
+
+/** Something the check on save found: the step, the field, what is wrong and how to fix it. */
+export type Problem = { stepId?: string; path?: string; message: string; suggestedFix?: string };
 
 export type StudioInfo = { product: string; edition: string; workspace: string; controlRoom: string | null };
 
@@ -56,7 +69,8 @@ export class StudioApi {
   async tree() { return (await this.call<{ tree: WorkspaceNode }>("GET", "tree")).tree; }
   async packages() { return (await this.call<{ packages: PackageManifest[] }>("GET", "packages")).packages; }
   async bot(path: string) { return (await this.call<{ flow: Flow }>("GET", "bot?path=" + encodeURIComponent(path))).flow; }
-  async saveBot(path: string, flow: Flow) { return this.call<{ saved: string }>("PUT", "bot?path=" + encodeURIComponent(path), flow); }
+  /** Saves an agent; the server checks it and returns what it found (an empty list when nothing is wrong). */
+  async saveBot(path: string, flow: Flow) { return this.call<{ saved: string; problems: Problem[] }>("PUT", "bot?path=" + encodeURIComponent(path), flow); }
   async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
   async createFolder(parent: string, name: string) { return (await this.call<{ path: string }>("POST", "files/folder", { parent, name })).path; }
 

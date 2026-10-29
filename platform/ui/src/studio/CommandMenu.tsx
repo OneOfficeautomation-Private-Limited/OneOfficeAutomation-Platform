@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Icon, IconTile, usePersistent, type IconName } from "../components";
 
 /**
@@ -21,8 +22,15 @@ const SECTIONS: { label: string; color: string; icon: IconName; items: Entry[] }
     { label: "Model connections", page: "connections" }, { label: "Prompt Skills", page: "skills" }, { label: "AI governance", page: "governance" }] },
 ];
 
-export function CommandMenu({ view, onView, controlRoom }: { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null }) {
-  const [mini, setMini] = usePersistent("menu.mini", false);
+export function CommandMenu({ view, onView, controlRoom, editing = false }:
+  { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null; editing?: boolean }) {
+  // while an agent is open the menu folds to icons, as AA's editor hides the Control Room menu, so the steps keep their
+  // room; it can still be opened, and the person's own choice for the other pages is left as it was
+  const [chosenMini, setChosenMini] = usePersistent("menu.mini", false);
+  const [openWhileEditing, setOpenWhileEditing] = useState(false);
+  useEffect(() => { if (!editing) setOpenWhileEditing(false); }, [editing]);
+  const mini = editing ? !openWhileEditing : chosenMini;
+  const setMini = (m: boolean) => { if (editing) setOpenWhileEditing(!m); else setChosenMini(m); };
   const [closed, setClosed] = usePersistent<string[]>("menu.closed", []);
   const pageLink = (page: string) => controlRoom ? controlRoom + "?page=" + page : undefined;
   const toggleSection = (label: string) => setClosed(closed.includes(label) ? closed.filter((x) => x !== label) : [...closed, label]);

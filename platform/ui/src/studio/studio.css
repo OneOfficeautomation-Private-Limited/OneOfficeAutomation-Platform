@@ -88,9 +88,9 @@
 .st-group-actions { list-style: none; margin: 0; padding: 0; }
 .st-group-actions li { padding: 5px 10px 5px 50px; }
 
+.st-agent-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .st-agent { flex: 1; display: flex; min-height: 0; }
 .st-steps { flex: 1; min-width: 0; overflow: auto; padding: 0 0 16px; }
-.st-readonly { margin: 10px 12px; padding: 8px 12px; border-radius: var(--ui-radius); background: var(--ui-selected); color: var(--ui-text); }
 .st-steps-meta { padding: 0 14px 6px; color: var(--ui-text-2); }
 .st-marker { margin: 4px 0 6px 46px; display: inline-block; padding: 2px 9px; border-radius: 4px; color: #ffffff; font-weight: 700; font-size: 11px; }
 .st-start { background: var(--ui-success); }
@@ -120,3 +120,45 @@
 .st-dir { margin-left: auto; color: var(--ui-text-2); font-size: 12px; }
 .st-muted { color: var(--ui-text-2); }
 .st-pad { padding: 12px; margin: 0; }
+
+/* Editing (P2) */
+.st-edit-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 40px; padding: 0 8px;
+  margin-bottom: 8px; background: #ffffff; border-bottom: 1px solid var(--ui-divider); }
+.st-edit-bar .st-steps-meta { margin-left: auto; padding: 0 6px; }
+.st-bar-gap { width: 1px; height: 20px; margin: 0 6px; background: var(--ui-border); }
+.st-panel-hint { margin: 0; padding: 6px 10px; color: var(--ui-text-2); font-size: 12px; border-bottom: 1px solid var(--ui-divider); }
+.st-action { width: 100%; border: 0; background: transparent; padding: 5px 10px 5px 50px; text-align: left; cursor: pointer; color: var(--ui-text); }
+.st-action:hover, .st-action:focus-visible { background: var(--ui-selected); }
+.st-group-actions li { padding: 0; }
+.st-check { margin-left: auto; padding: 1px 7px; border-radius: 4px; background: var(--ui-debug); color: var(--ui-on-debug); font-size: 11px; font-weight: 700; flex: none; }
+.st-empty-steps { margin: 8px 46px; color: var(--ui-text-2); }
+.st-unsaved { margin-left: 8px; padding: 1px 7px; border-radius: 4px; background: var(--ui-debug); color: var(--ui-on-debug); font-size: 11px; font-weight: 700; }
+.st-dot { color: var(--ui-accent-text); }
+.st-notice { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: #e6f4ea; color: #14532d; font-weight: 600; }
+.st-notice span { flex: 1; }
+.st-problems { border-top: 1px solid var(--ui-border); max-height: 30%; overflow: auto; flex: none; }
+.st-problems-head { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-bottom: 1px solid var(--ui-divider); }
+.st-problems-head .st-check { margin-left: 0; }
+.st-problem-list { list-style: none; margin: 0; padding: 0; }
+.st-problem-list li { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--ui-divider); }
+.st-problem-list li .st-check { margin-left: 0; }
+.st-problem-list li span:nth-child(2) { flex: 1; }
+.st-more { padding: 0 12px 8px; border-bottom: 1px solid var(--ui-divider); }
+.st-more summary { cursor: pointer; padding: 8px 0; font-weight: 600; color: var(--ui-accent-text); }
+.st-more .st-prop-fields { padding: 4px 0 0; border: 0; }
+.st-var-form { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; }
+.st-var-form .ui-btn { align-self: flex-start; }
+.st-vars li .ui-btn { margin-left: 4px; }
+
+/* narrower screens: slimmer side panels, so the steps keep their room */
+@media (max-width: 1280px) {
+  .st-actions { width: 230px; }
+  .st-right { width: 290px; }
+}
+@media (max-width: 1000px) {
+  .st-actions { width: 200px; }
+  .st-agent { flex-direction: column; }
+  .st-agent > .st-right { width: auto; max-height: 45%; border-left: 0; border-top: 1px solid var(--ui-border); }
+  .st-agent > .ui-panel-strip-right { width: auto; flex-direction: row; padding: 4px 8px; border-left: 0; border-top: 1px solid var(--ui-border); }
+  .st-agent > .ui-panel-strip-right .ui-panel-strip-title { writing-mode: horizontal-tb; }
+}
