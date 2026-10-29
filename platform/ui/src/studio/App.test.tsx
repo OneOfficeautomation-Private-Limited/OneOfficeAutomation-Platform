@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StudioApi } from "../api/client";
 import { App } from "./App";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); localStorage.clear(); });
 
 /** A fake Studio server: a workspace with Finance/Invoices, one agent, the Excel toolkit; records what is created. */
 function fakeServer() {
@@ -113,5 +113,40 @@ describe("new Studio", () => {
       expect(seen.filter((u) => u.endsWith("/info")).length).toBe(1);
       expect(seen.filter((u) => u.endsWith("/packages")).length).toBe(1);
     } finally { globalThis.fetch = real; }
+  });
+
+  it("folds the menu to icons and back, opens and closes sections, and remembers it", async () => {
+    const { api } = fakeServer();
+    const { unmount } = render(<App api={api} />);
+    const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    fireEvent.click(within(menu).getByRole("button", { name: "MONITOR" }));
+    expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
+    fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
+    expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
+    expect(within(menu).getByRole("button", { name: "BUILD" })).toBeTruthy();
+
+    unmount();
+    render(<App api={api} />);
+    const again = await screen.findByRole("navigation", { name: "Command Center" });
+    expect(within(again).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(within(again).getByRole("button", { name: "MONITOR" }));   // an icon opens the menu at its section
+    expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
+  });
+
+  it("hides and shows the folders, actions and details panels", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Hide folders" }));
+    expect(screen.queryByRole("tree", { name: "Folders" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show folders" }));
+    expect(screen.getByRole("tree", { name: "Folders" })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "intake" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hide actions" }));
+    expect(screen.queryByLabelText("Search actions")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+    expect(screen.queryByRole("tab", { name: "Variables" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByRole("tab", { name: "Variables" })).toBeTruthy();
   });
 });

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { NewItemKind, WorkspaceNode } from "../api/client";
-import { Button, IconTile, Menu, Tree, type TreeNode } from "../components";
+import { Button, IconTile, Menu, SidePanel, Tree, usePersistent, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, typeLabel, type ItemType } from "./itemTypes";
@@ -31,6 +31,7 @@ export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFo
   const [folder, setFolder] = useState("");
   const [expanded, setExpanded] = useState(() => new Set([""]));
   const [creating, setCreating] = useState<ItemType | null>(null);
+  const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
   const [title, keep] = VIEW_TITLE[view];
   const nodes = useMemo(() => [folderTree(tree)], [tree]);
   // with a search, every matching item in the workspace; otherwise what is in the chosen folder
@@ -54,11 +55,11 @@ export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFo
         </div>
       </header>
       <div className="st-page-body">
-        <div className="st-folders">
-          <Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
+        <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders">
+          <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
             renderIcon={(_, sel) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>} />
-        </div>
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>} /></div>
+        </SidePanel>
         <div className="st-items">
           <table className="st-table">
             <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Changed</th></tr></thead>

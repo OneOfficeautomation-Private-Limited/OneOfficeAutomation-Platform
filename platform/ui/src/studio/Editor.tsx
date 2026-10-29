@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Flow, PackageManifest } from "../api/client";
-import { Field, IconTile, TabPanel, Tabs, TextInput } from "../components";
+import { Field, IconTile, SidePanel, TabPanel, Tabs, TextInput, usePersistent } from "../components";
 import { conditionText, describeAction, plainValue, stepRows, summarize, toolkitMark } from "./toolkits";
 
 /** The action library on the left: toolkits with their mark and count, searchable, one open at a time. */
@@ -8,13 +8,13 @@ export function ActionsPanel({ packages }: { packages: PackageManifest[] }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
+  const [hidden, setHidden] = usePersistent("panel.actions.hidden", false);
   const total = packages.reduce((n, p) => n + p.actions.length, 0);
   const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
-    <aside className="st-actions" aria-label="Actions">
-      <div className="st-panel-head"><strong>Actions</strong><span>{total.toLocaleString()}</span></div>
-      <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder="Search actions" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+    <SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions">
+      <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
       <ul className="st-groups">
         {list.map(({ p, actions }) => {
           const isOpen = open === p.id || (!!q && list.length <= 3);
@@ -29,7 +29,7 @@ export function ActionsPanel({ packages }: { packages: PackageManifest[] }) {
           );
         })}
       </ul>
-    </aside>
+    </SidePanel>
   );
 }
 
@@ -44,6 +44,7 @@ export function AgentView({ flow, packages, classicHref }: { flow: Flow; package
     return first?.kind === "step" ? first.step.id : null;
   });
   const [rightTab, setRightTab] = useState("properties");
+  const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
   const sel = rows.find((r) => r.kind === "step" && r.step.id === selected);
   const selStep = sel?.kind === "step" ? sel : null;
   const selInfo = selStep ? describeAction(selStep.step.action, packages) : null;
@@ -78,7 +79,8 @@ export function AgentView({ flow, packages, classicHref }: { flow: Flow; package
         <div className="st-marker st-end">END</div>
       </section>
 
-      <aside className="st-right" aria-label="Properties, variables and triggers">
+      <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden}
+        onToggle={() => setRightHidden(!rightHidden)} className="st-right">
         <Tabs label="Right panel" value={rightTab} onChange={setRightTab}
           tabs={[{ value: "properties", label: "Properties" }, { value: "variables", label: "Variables" }, { value: "triggers", label: "Triggers" }]}>
           <TabPanel value="properties">
@@ -115,7 +117,7 @@ export function AgentView({ flow, packages, classicHref }: { flow: Flow; package
             <p className="st-pad">Triggers start this agent automatically (new email, a file arriving, a schedule). They are set in Classic Studio until P3.</p>
           </TabPanel>
         </Tabs>
-      </aside>
+      </SidePanel>
     </div>
   );
 }

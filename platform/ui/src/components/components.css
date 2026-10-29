@@ -72,3 +72,15 @@
 .ui-tree-item.is-selected { background: var(--ui-accent); color: #ffffff; font-weight: 700; }
 .ui-tree-caret { width: 14px; display: inline-flex; justify-content: center; }
 .ui-tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Side panels that fold away (SidePanel) */
+.ui-panel-bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--ui-border); flex: none; }
+.ui-panel-bar strong { flex: 1; }
+.ui-panel-toggle { width: 28px; height: 28px; border-radius: var(--ui-radius); border: 1px solid var(--ui-accent); background: #ffffff;
+  color: var(--ui-accent-text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
+.ui-panel-toggle:hover { background: var(--ui-selected); }
+.ui-panel-strip { width: 40px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 6px; background: #ffffff; }
+.ui-panel-strip-left { border-right: 1px solid var(--ui-border); }
+.ui-panel-strip-right { border-left: 1px solid var(--ui-border); }
+.ui-panel-strip-title { writing-mode: vertical-rl; font-weight: 700; color: var(--ui-text); letter-spacing: .02em; }
+.ui-panel-strip-left .ui-panel-strip-title { transform: rotate(180deg); }
