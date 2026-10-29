@@ -110,3 +110,4 @@
 .ui-info { flex: none; width: 16px; height: 16px; padding: 0; border: 1px solid var(--ui-accent-text); border-radius: 50%; background: #ffffff;
   color: var(--ui-accent-text); font: italic 700 10px/1 Georgia, serif; cursor: pointer; }
 .ui-info:hover, .ui-info[aria-expanded="true"] { background: var(--ui-selected); }
+.ui-tree-item.is-drop { outline: 2px dashed var(--ui-accent); outline-offset: -2px; background: var(--ui-selected); }

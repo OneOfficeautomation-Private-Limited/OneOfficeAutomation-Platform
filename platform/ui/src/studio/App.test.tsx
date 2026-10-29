@@ -65,6 +65,14 @@ function fakeServer() {
     "POST files/folder": (b) => { created.push(b); return { path: b.parent + "/" + b.name }; },
     "POST files/item": (b) => { created.push(b); return { path: "Finance/Invoices/Invoice check.form.json" }; },
     "POST files/delete": (b) => { created.push({ deleted: b.path }); return { path: ".trash/x" }; },
+    "POST files/rename": (b) => { created.push({ renamed: b.path, name: b.name }); return { path: b.path.replace(/[^/]+$/, b.name + (b.path.endsWith(".flow.json") ? ".flow.json" : "")) }; },
+    "POST files/move": (b) => {
+      if (b.to === b.path || b.to.startsWith(b.path + "/")) throw Object.assign(new Error("into"), { api: { code: "WORKSPACE.INTO_ITSELF", message: "A folder cannot be moved into itself" } });
+      created.push({ moved: b.path, to: b.to }); return { path: (b.to ? b.to + "/" : "") + b.path.split("/").pop() };
+    },
+    "POST files/copy": (b) => { created.push({ copied: b.path, to: b.to }); return { path: (b.to ? b.to + "/" : "") + b.path.split("/").pop() }; },
+    "POST files/duplicate": (b) => { created.push({ duplicated: b.path }); return { path: b.path.replace(/(\.[a-z]+(\.json)?)$/, " - Copy$1") }; },
+    "GET search": () => ({ results: [{ path: "Finance/Invoices/Invoice intake.flow.json", matches: ["description", "uses ooa.excel/open"] }] }),
   };
   // a run: the first poll is running (or stopped at a breakpoint when debugging), the next ones finished
   let polls = 0, debugging = false, triggers: any[] = [];
@@ -119,7 +127,9 @@ function fakeServer() {
     }
     const handler = routes[`${init.method} ${route}`];
     if (!handler) return new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "No route " + route } }), { status: 404 });
-    return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 });
+    if (init.method === "PUT" && route === "bot") created.push({ putPath: decodeURIComponent(url.replace(/^.*[?&]path=/, "")) });
+    try { return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 }); }
+    catch (e: any) { if (e?.api) return new Response(JSON.stringify({ error: e.api }), { status: 400 }); throw e; }
   }) as unknown as typeof fetch;
   return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections };
 }
@@ -667,27 +677,103 @@ describe("new Studio", () => {
     expect(await screen.findByRole("region", { name: "Form fields" })).toBeTruthy();
   });
 
+  const openMenu = async (name: string) => { fireEvent.keyDown(await screen.findByRole("button", { name }), { key: "Enter" }); return screen.findByRole("menu"); };
+  const goToFolder = async (...names: string[]) => {
+    const tree = await screen.findByRole("tree", { name: "Folders" });
+    for (const n of names) { fireEvent.click(await within(tree).findByText(n)); fireEvent.keyDown(within(tree).getByText(n), { key: "ArrowRight" }); }
+    return tree;
+  };
+  const row = (name: string) => screen.getAllByRole("row").find((r) => r.querySelector("td")?.textContent?.startsWith(name))!;
+
   it("deletes an item and a folder to the trash after asking", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "clean" } });
-    fireEvent.click(await screen.findByRole("button", { name: "Delete clean.py" }));
+    fireEvent.click(within(await openMenu("Actions for clean.py")).getByRole("menuitem", { name: "Delete" }));
     const ask = await screen.findByRole("dialog", { name: "Delete clean.py?" });
     expect(ask.textContent).toMatch(/workspace's .trash folder/);
     fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
     expect(created.some((c: any) => c.deleted)).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "Delete clean.py" }));
+    fireEvent.contextMenu(row("clean.py"));
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Delete" }));
     await act(async () => { fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Move to trash" })); });
     expect(created).toContainEqual({ deleted: "Finance/Invoices/clean.py" });
     expect(screen.getByText("Moved clean.py to the workspace trash.")).toBeTruthy();
 
-    // a folder: the trash button next to Folders, for the chosen folder
+    // a folder: from the folder menu (⋮ next to Folders, or a right-click on the folder)
     fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "" } });
     fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));
-    fireEvent.click(screen.getByRole("button", { name: "Delete folder Finance" }));
+    fireEvent.click(within(await openMenu("Folder actions for Finance")).getByRole("menuitem", { name: "Delete" }));
     const ask2 = await screen.findByRole("dialog", { name: "Delete folder Finance?" });
     await act(async () => { fireEvent.click(within(ask2).getByRole("button", { name: "Move to trash" })); });
     expect(created).toContainEqual({ deleted: "Finance" });
+  });
+
+  it("renames an open agent from its menu, keeping its type, and the open tab follows it", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    await goToFolder("Finance", "Invoices");
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));   // opens it in a tab
+    await screen.findByRole("region", { name: "Agent steps" });
+    fireEvent.click(screen.getByRole("button", { name: "Expand menu" }));   // the menu folds while an agent is open
+    fireEvent.click(screen.getByRole("button", { name: "Automation" }));
+    await goToFolder("Finance", "Invoices");
+    fireEvent.contextMenu(await waitFor(() => row("Invoice intake")));
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Rename/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Rename Invoice intake" });
+    expect(within(dialog).getByText(/It stays an agent/)).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText("New name"), { target: { value: "Intake 2026" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Rename" })); });
+    expect(created).toContainEqual({ renamed: "Finance/Invoices/Invoice intake.flow.json", name: "Intake 2026" });
+    expect(screen.getByText("Renamed to Intake 2026.flow.json.")).toBeTruthy();
+    // the open tab now saves to the new file
+    fireEvent.click(screen.getByRole("tab", { name: /Invoice intake/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }));
+    await waitFor(() => expect(created.some((c: any) => c.putPath === "Finance/Invoices/Intake 2026.flow.json")).toBe(true));
+  });
+
+  it("selects several items, copies and pastes them into another folder, and duplicates one", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    await goToFolder("Finance", "Invoices");
+    fireEvent.click((await waitFor(() => row("Invoice check"))).querySelectorAll("td")[1]);
+    fireEvent.click(row("Approve").querySelectorAll("td")[1], { ctrlKey: true });
+    const bar = screen.getByRole("toolbar", { name: "Selected items" });
+    expect(within(bar).getByText("2 selected")).toBeTruthy();
+    fireEvent.click(within(bar).getByRole("button", { name: "Copy" }));
+    fireEvent.click(within(screen.getByRole("tree", { name: "Folders" })).getByText("Finance"));
+    await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Paste 2 items" })); });
+    expect(created).toContainEqual({ copied: "Finance/Invoices/Invoice check.form.json", to: "Finance" });
+    expect(created).toContainEqual({ copied: "Finance/Invoices/Approve.process.json", to: "Finance" });
+    expect(screen.getByText("Pasted 2 items into Finance.")).toBeTruthy();
+    // Shift+click selects a range; Duplicate makes a copy next to each
+    await goToFolder("Invoices");
+    fireEvent.click((await waitFor(() => row("Invoice intake"))).querySelectorAll("td")[1]);
+    fireEvent.click(row("Approve").querySelectorAll("td")[1], { shiftKey: true });
+    expect(within(bar).getByText("3 selected")).toBeTruthy();
+    fireEvent.click(row("Invoice intake").querySelectorAll("td")[1]);
+    await act(async () => { fireEvent.click(within(bar).getByRole("button", { name: "Duplicate" })); });
+    expect(created).toContainEqual({ duplicated: "Finance/Invoices/Invoice intake.flow.json" });
+  });
+
+  it("moves an item by dragging it onto a folder, and refuses a folder into its own sub-folder", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const tree = await goToFolder("Finance", "Invoices");
+    await act(async () => { drag(await waitFor(() => row("clean.py")), within(tree).getByText("Finance")); });
+    expect(created).toContainEqual({ moved: "Finance/Invoices/clean.py", to: "Finance" });
+    await act(async () => { drag(within(tree).getByText("Finance"), within(tree).getByText("Invoices")); });
+    expect(await screen.findByText(/A folder cannot be moved into itself/)).toBeTruthy();
+    expect(created.some((c: any) => c.moved === "Finance")).toBe(false);
+  });
+
+  it("finds agents by their description and the actions they use, and shows the folders again when the search is cleared", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "payment" } });
+    expect(await screen.findByText("description, uses open")).toBeTruthy();
+    expect(row("Invoice intake").textContent).toContain("Finance/Invoices");
+    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "" } });
+    expect(await waitFor(() => row("Finance"))).toBeTruthy();   // the workspace's folders again
   });
 
   it("creates an AI agent and edits it in the AI agent editor: tools, approval, role, then tries it", async () => {

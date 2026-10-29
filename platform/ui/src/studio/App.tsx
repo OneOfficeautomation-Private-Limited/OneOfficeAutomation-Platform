@@ -50,7 +50,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [closing, setClosing] = useState<string | null>(null);   // a tab with unsaved changes being closed
   const [search, setSearch] = useState("");
   const [asking, setAsking] = useState<{ path: string; debug: boolean } | null>(null);   // the run dialog, for an agent with inputs
-  const [deleting, setDeleting] = useState<WorkspaceNode | null>(null);   // an item or folder waiting for "Move to trash"
+  const [deleting, setDeleting] = useState<WorkspaceNode[] | null>(null);   // items or folders waiting for "Move to trash"
   const [agents, setAgents] = useState<AgentSummary[]>([]);   // for AI agents' tools
   const [connections, setConnections] = useState<ModelConnections | null>(null);
   const [wizard, setWizard] = useState(false);
@@ -72,6 +72,16 @@ export function App({ api: given }: { api?: StudioApi }) {
   const current = tabs.find((t) => t.path === active) ?? null;
   const agent = current?.kind === "agent" ? current : null;
   const item = current?.kind === "item" ? current : null;
+  // a file or folder was renamed or moved: open tabs in it follow (an item's tab takes the new name)
+  const moved = (from: string, to: string) => {
+    const map = (p: string) => p === from ? to : p.startsWith(from + "/") ? to + p.slice(from.length) : p;
+    setTabs((all) => all.map((t) => {
+      const path = map(t.path);
+      if (path === t.path) return t;
+      return t.kind === "item" ? { ...t, path, name: displayName({ name: path.split("/").pop()!, path, type: t.itemType }) } : { ...t, path };
+    }));
+    setActive((a) => a === null ? a : map(a));
+  };
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
   const patch = (path: string, change: (t: AgentTab) => AgentTab) => setTabs((all) => all.map((t) => t.path === path && t.kind === "agent" ? change(t) : t));
@@ -302,7 +312,8 @@ export function App({ api: given }: { api?: StudioApi }) {
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree
-              ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting} />
+              ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
+                  api={api} onMoved={moved} onChanged={reloadTree} onNotice={setNotice} onError={fail} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
       </div>
@@ -320,23 +331,25 @@ export function App({ api: given }: { api?: StudioApi }) {
         onSaved={(c) => setConnections(c)} />}
 
       {deleting && (() => {
-        const inside = (t: OpenTab) => t.path === deleting.path || t.path.startsWith(deleting.path + "/");
+        const inside = (t: OpenTab) => deleting.some((d) => t.path === d.path || t.path.startsWith(d.path + "/"));
         const unsaved = tabs.filter((t) => inside(t) && isDirty(t));
-        const what = deleting.type === "folder" ? "the folder " + deleting.name + " and everything in it" : displayName(deleting);
+        const one = deleting.length === 1 ? deleting[0] : null;
+        const what = !one ? deleting.length + " items" : one.type === "folder" ? "the folder " + one.name + " and everything in it" : displayName(one);
         const remove = async () => {
           try {
-            await api.remove(deleting.path);
+            for (const d of deleting) await api.remove(d.path);
             setTabs((all) => all.filter((t) => !inside(t)));
             if (active && tabs.some((t) => t.path === active && inside(t))) setActive(null);
             setNotice("Moved " + what + " to the workspace trash.");
-            await reloadTree();
           } catch (e) { fail(e); }
+          await reloadTree();
           setDeleting(null);
         };
         return (
-          <Dialog open onClose={() => setDeleting(null)} title={"Delete " + (deleting.type === "folder" ? "folder " + deleting.name : displayName(deleting)) + "?"} width={500}
+          <Dialog open onClose={() => setDeleting(null)} title={"Delete " + (!one ? deleting.length + " items" : one.type === "folder" ? "folder " + one.name : displayName(one)) + "?"} width={500}
             footer={<><Button kind="secondary" onClick={() => setDeleting(null)}>Cancel</Button><Button kind="danger" icon="trash" onClick={remove}>Move to trash</Button></>}>
             <p>This moves {what} to the workspace's .trash folder. To get it back, move it out of .trash in File Explorer.</p>
+            {!one && <ul className="st-delete-list">{deleting.map((d) => <li key={d.path}>{d.type === "folder" ? d.name + " (folder, with everything in it)" : displayName(d)}</li>)}</ul>}
             {unsaved.length > 0 && <p className="st-error">{unsaved.map((t) => t.name).join(", ")} {unsaved.length > 1 ? "have" : "has"} unsaved changes, which will be lost.</p>}
           </Dialog>
         );

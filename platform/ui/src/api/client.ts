@@ -141,6 +141,15 @@ export class StudioApi {
   async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
   /** Moves an item or folder to the workspace's .trash folder (it can be moved back); returns where it went. */
   async remove(path: string) { return (await this.call<{ path: string }>("POST", "files/delete", { path })).path; }
+  /** Renames a file or folder; an item keeps its type (Invoice stays Invoice.form.json). Gives the new path. */
+  async rename(path: string, name: string) { return (await this.call<{ path: string }>("POST", "files/rename", { path, name })).path; }
+  /** Moves a file or folder into a folder (never into itself). Gives the new path. */
+  async move(path: string, to: string) { return (await this.call<{ path: string }>("POST", "files/move", { path, to })).path; }
+  /** Copies a file or folder into a folder; a taken name becomes "name - Copy". Gives the copy's path. */
+  async copy(path: string, to: string) { return (await this.call<{ path: string }>("POST", "files/copy", { path, to })).path; }
+  async duplicate(path: string) { return (await this.call<{ path: string }>("POST", "files/duplicate", { path })).path; }
+  /** Agents whose name, description, id, actions or variables match, with what matched. */
+  async search(q: string) { return (await this.call<{ results: { path: string; matches: string[] }[] }>("GET", "search?q=" + encodeURIComponent(q))).results; }
   async createFolder(parent: string, name: string) { return (await this.call<{ path: string }>("POST", "files/folder", { parent, name })).path; }
 
   /** Creates an item in a folder and returns its path. */
