@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEve
 import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
+import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
 import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, TabPanel, Tabs, TextInput, usePersistent, type MenuItem } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
 import {
@@ -92,13 +93,14 @@ export type StepsClipboard = Clip & { system: boolean };
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
 export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
-  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError }:
+  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError, onOpenChild, onOpenPath, onNewConnection, dirty }:
   { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
-    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void }) {
+    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void;
+    onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void; dirty: boolean }) {
   const folded = useMemo(() => foldedSet(flow), [flow]);
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
@@ -175,7 +177,10 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const longNames = longRecordedVariables(flow).length;
   const [noRename, setNoRename] = useState(false);
   const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); },
-    notice: onNotice, fail: onError, where };
+    notice: onNotice, fail: onError, where, openChild: onOpenChild };
+  const [view, setView] = usePersistent<"list" | "flow">("agent.view", "list");
+  const [assistant, setAssistant] = useState<"build" | "explain" | null>(null);
+  const agentName = (id: unknown) => { const a = agents.find((x) => x.id === id); return a ? a.name || a.id : String(id ?? ""); };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
   const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
@@ -315,6 +320,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       { key: "note", label: step.note ? "Edit note" : "Add note", separatorBefore: true, onSelect: act.note },
       { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: "F9", onSelect: () => chosen.forEach(onToggleBreakpoint) },
     );
+    if (step.action === "core/run_bot" && step.args?.automation && chosen.length === 1)
+      items.push({ key: "child", label: "Open the agent it runs", description: agentName(step.args.automation), separatorBefore: true, onSelect: () => onOpenChild(step.id) });
     // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
     if (!running && chosen.length === 1) items.push(
       { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
@@ -352,6 +359,10 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               ...(folded.size ? [{ key: "unfold", label: "Unfold all", onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
             ]} trigger={<Button kind="plain" icon="chevronDown">More</Button>} />
             <span className="st-bar-gap" />
+            <div className="st-seg st-view-seg" role="radiogroup" aria-label="Show the steps as">
+              {([["list", "List"], ["flow", "Flow"]] as const).map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={view === k} className="st-seg-btn" onClick={() => setView(k)}>{t}</button>)}
+            </div>
+            <Button kind="plain" icon="spark" onClick={() => setAssistant("build")} title="Build steps from a description, or explain this agent">Assistant</Button>
             <Button kind="plain" className="st-record-btn" onClick={record} disabled={!!recording} title="Record actions in a web browser or a Windows application">
               <span className="st-rec-dot" aria-hidden="true" />{recording ? "Recording…" : "Record"}</Button>
             <Menu label="Capture" align="start" items={[
@@ -365,6 +376,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
             <Button kind="primary" onClick={() => { onEdit(shortenRecordedNames(flow)); onNotice("Renamed the recorded variables to short numbered names. Undo with Ctrl+Z."); }}>Rename</Button>
             <Button kind="plain" onClick={() => setNoRename(true)}>Not now</Button>
           </div>}
+          {view === "flow" ? <FlowDiagram flow={flow} packages={packages} selected={selected} running={at}
+            onSelect={(id) => { selectOne(id); setRightTab("properties"); }} onInsert={onInsert}
+            onMove={(moving, targetId, where) => onEdit(moveManyTo(flow, moving, targetId, where), moving)} /> :
           <ol className="st-step-list" ref={list}>
             <li>
               <button type="button" data-key={START} className={`st-marker-row${selected.includes(START) ? " is-selected" : ""}${drop?.key === START ? " drop-inside" : ""}`}
@@ -404,7 +418,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                     <span className="st-guides" style={{ width: r.depth * 22 }} />
                     <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
                     <strong>{info.name}</strong>
-                    <span className="st-step-sum">{summarize(r.step, packages)}</span>
+                    <span className="st-step-sum">{r.step.action === "core/run_bot" && r.step.args?.automation && !r.step.note
+                      ? "runs " + agentName(r.step.args.automation) : summarize(r.step, packages)}</span>
                     {r.folded && <span className="st-pill">{r.hidden} {r.hidden === 1 ? "step" : "steps"} folded</span>}
                     {r.step.disabled && <span className="st-badge">OFF</span>}
                     {problemSteps.has(r.step.id) && <span className="st-check">CHECK</span>}
@@ -426,13 +441,13 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 <span className="st-marker st-end">END</span>
               </div>
             </li>
-          </ol>
+          </ol>}
         </section>
 
         <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden}
           onToggle={() => setRightHidden(!rightHidden)} className="st-right">
           <Tabs label="Right panel" value={rightTab} onChange={setRightTab}
-            tabs={[{ value: "properties", label: "Properties" }, { value: "variables", label: "Variables" }, { value: "triggers", label: "Triggers" }]}>
+            tabs={[{ value: "properties", label: "Properties" }, { value: "variables", label: "Variables" }, { value: "triggers", label: "Triggers" }, { value: "deps", label: "Dependencies" }]}>
             <TabPanel value="properties">
               {selStep && selInfo ? <>
                 <div className="st-prop-head"><IconTile name={selInfo.mark.icon} color={selInfo.mark.color} size={28} />
@@ -451,6 +466,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
             <TabPanel value="variables"><VariablesPanel flow={flow} builtins={builtins} last={last} onEdit={onEdit} onRefresh={loadBuiltins} /></TabPanel>
             <TabPanel value="triggers">
               <TriggersPanel api={api} path={path} />
+            </TabPanel>
+            <TabPanel value="deps">
+              {rightTab === "deps" && <DependenciesPanel api={api} path={path} dirty={dirty} onOpen={onOpenPath} onStep={(id) => { selectOne(id); setRightTab("properties"); }} />}
             </TabPanel>
           </Tabs>
         </SidePanel>
@@ -480,6 +498,14 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           <TabPanel value="values"><DebugValues run={run} /></TabPanel>
         </Tabs>
       </section>
+      {assistant && <AssistantDialog api={api} flow={flow} packages={packages} initial={assistant} onClose={() => setAssistant(null)}
+        onNewConnection={() => { setAssistant(null); onNewConnection(); }}
+        onInsert={(proposal) => {
+          const have = new Set((flow.variables ?? []).map((v) => v.name));
+          const p = pasteSteps(flow, { steps: proposal.steps ?? [], variables: (proposal.variables ?? []).filter((v) => v?.name && !have.has(v.name)) }, spotFor(flow, selected, false));
+          onEdit(p.flow, p.ids); setAssistant(null);
+          onNotice("Inserted " + p.ids.length + " step" + (p.ids.length === 1 ? "" : "s") + ". Review them before running.");
+        }} />}
       {whereAsk && <WhereDialog mode={whereAsk.mode} tabs={whereAsk.tabs} url={whereAsk.url}
         onChoose={(c) => { whereAsk.resolve(c); setWhereAsk(null); }} onClose={() => { whereAsk.resolve(null); setWhereAsk(null); }} />}
       {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}

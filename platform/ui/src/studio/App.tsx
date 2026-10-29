@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
+  ApiFailure, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
@@ -8,12 +8,13 @@ import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } f
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
-import { addStep, insertAt, newStep, parseLoose, type Part, type Place } from "./flowEdit";
+import { addStep, insertAt, locate, newStep, parseLoose, type Part, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
 import { ConnectionWizard } from "./ConnectionWizard";
-import { allInstalled } from "./toolkits";
+import { allInstalled, stepRows } from "./toolkits";
+import { oneStep, runOnce } from "./runOnce";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
@@ -22,7 +23,10 @@ import { allInstalled } from "./toolkits";
 type AgentTab = {
   kind: "agent"; path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean;
   run: LiveRun | null; breakpoints: string[];
+  /** Opened from a Run agent step: the way back, parent by parent (breadcrumb). */
+  trail?: Trail[];
 };
+type Trail = { path: string; name: string; stepId: string; line: number };
 /** One open form, workflow, document type, Prompt Skill or script: its text, the saved text, and undo and redo history. */
 type ItemTab = { kind: "item"; path: string; name: string; itemType: WorkspaceNode["type"]; text: string; saved: string; past: string[]; future: string[] };
 type OpenTab = AgentTab | ItemTab;
@@ -31,6 +35,9 @@ const MAX_UNDO = 100;
 const EDITABLE: WorkspaceNode["type"][] = ["form", "process", "document", "skill", "script"];
 const isDirty = (t: OpenTab) => t.kind === "agent" ? JSON.stringify(t.flow) !== t.saved : t.text !== t.saved;
 const SCRIPT_LANGUAGE: Record<string, string> = { py: "Python script", ps1: "PowerShell script", vbs: "VBScript", js: "JavaScript" };
+/** The Scripts toolkit action that runs each kind of script file. */
+const SCRIPT_ACTION: Record<string, { action: string; name: string }> = { py: { action: "ooa.script/run_python", name: "Run Python" },
+  ps1: { action: "ooa.script/run_powershell", name: "Run PowerShell" }, vbs: { action: "ooa.script/run_vbscript", name: "Run VBScript" }, js: { action: "ooa.script/run_javascript", name: "Run JavaScript" } };
 
 /** The new Studio (docs/architecture/12-ui-redesign.md): Command Center menu, Automation page, agents in tabs. */
 export function App({ api: given }: { api?: StudioApi }) {
@@ -163,7 +170,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [anyDirty]);
 
-  const open = async (n: WorkspaceNode) => {
+  const open = async (n: WorkspaceNode, then?: { trail?: Trail[]; select?: string }) => {
     if (n.type !== "bot" && !EDITABLE.includes(n.type)) return;
     if (!tabs.some((t) => t.path === n.path)) {
       if (tabs.length >= MAX_TABS) { setError(`Up to ${MAX_TABS} items can be open. Close one first.`); return; }
@@ -178,7 +185,70 @@ export function App({ api: given }: { api?: StudioApi }) {
         }
       } catch (e) { fail(e); return; }
     }
+    if (then) setTabs((all) => all.map((t) => t.path !== n.path || t.kind !== "agent" ? t
+      : { ...t, ...(then.trail ? { trail: then.trail } : {}), ...(then.select ? { selected: [then.select] } : {}) }));
     setActive(n.path);
+  };
+  /** Opens a workspace file by its path (from Dependencies and the like). */
+  const openPath = (path: string) => {
+    const find = (n: WorkspaceNode | null): WorkspaceNode | null => !n ? null : n.path === path ? n : (n.children ?? []).reduce<WorkspaceNode | null>((f, c) => f ?? find(c), null);
+    const n = find(tree);
+    if (n) open(n); else setError(path + " is not in the workspace.");
+  };
+  /** Run agent step: opens the agent it runs, remembering the way back to this step. */
+  const openChild = (stepId: string) => {
+    if (!agent) return;
+    const step = locate(agent.flow.steps, stepId)?.step;
+    const id = String(step?.args?.automation ?? "");
+    const child = agents.find((a) => a.id === id);
+    if (!child) { setError(id ? "Agent " + id + " is not in this workspace." : "Choose the agent to run first."); return; }
+    const line = stepRows(agent.flow.steps).find((r) => r.kind === "step" && r.step.id === stepId);
+    const here: Trail = { path: agent.path, name: agent.flow.name || agent.name, stepId, line: line?.kind === "step" ? line.n : 0 };
+    open({ name: child.path.split("/").pop()!, path: child.path, type: "bot" }, { trail: [...(agent.trail ?? []), here] });
+  };
+  /** Breadcrumb: back to a parent agent, at its Run agent step. */
+  const backTo = (i: number) => {
+    const trail = agent?.trail ?? [];
+    const t = trail[i];
+    if (t) open({ name: t.path.split("/").pop()!, path: t.path, type: "bot" }, { trail: trail.slice(0, i), select: t.stepId });
+  };
+  /** An agent that runs this one: opens it at its Run agent step for this agent. */
+  const openCaller = async (path: string) => {
+    const childId = agent?.flow.id;
+    const flow = tabsRef.current.find((t) => t.path === path && t.kind === "agent")?.kind === "agent" ? (tabsRef.current.find((t) => t.path === path) as AgentTab).flow : await api.bot(path).catch(() => null);
+    const walk = (list: FlowStep[]): FlowStep | undefined => { for (const s of list) { if (s.action === "core/run_bot" && s.args?.automation === childId) return s;
+      const inner = walk([...(s.children ?? []), ...(s.else ?? []), ...(s.finally ?? []), ...(s.elseIf ?? []).flatMap((b) => b.children ?? []), ...(s.catch ?? []).flatMap((c) => c.children ?? [])]); if (inner) return inner; } return undefined; };
+    const step = flow ? walk(flow.steps) : undefined;
+    open({ name: path.split("/").pop()!, path, type: "bot" }, step ? { select: step.id } : undefined);
+  };
+  /** A document type's extraction agent: read the document (PDF text when it can), then extract its fields with AI. */
+  const makeExtraction = async (tab: ItemTab) => {
+    let d: Record<string, unknown>;
+    try { d = JSON.parse(tab.text); } catch { setError("Repair the document type first: it is not valid JSON."); return; }
+    const fields = (Array.isArray(d.fields) ? d.fields : []) as { name: string; description?: string; type?: string; required?: boolean }[];
+    if (!fields.length) { setError("Add at least one field first."); return; }
+    if (isDirty(tab) && !(await save(tab.path))) return;
+    const want: Record<string, string> = {};
+    for (const f of fields) want[f.name] = (f.description || f.name) + (f.type && f.type !== "String" ? " (" + f.type + ")" : "") + (f.required ? "" : " (may be missing)");
+    const accept = (Array.isArray(d.accept) ? d.accept : ["pdf", "txt"]) as string[];
+    const usePdf = accept.includes("pdf") && packages.some((p) => p.id === "ooa.pdf" && p.actions.some((a) => a.id === "extract_text"));
+    const read: FlowStep = { id: "s3", action: "ooa.file/read_text", args: { path: "$document" }, out: { text: "text" } };
+    const extract: FlowStep = { id: "s4", action: "ooa.genai/extract", args: { text: "$text", fields: want, model: String(d.model || "gpt-4o-mini"), api_key: "$api_key" }, out: { fields: "fields" } };
+    if (d.provider && d.provider !== "openai") extract.args!.provider = d.provider;
+    const steps: FlowStep[] = usePdf ? [{ id: "s1", action: "core/if", args: { condition: { op: "endsWith", left: "$document", right: ".pdf" } },
+      children: [{ id: "s2", action: "ooa.pdf/extract_text", args: { path: "$document" }, out: { text: "text" } }], else: [read] }, extract] : [read, extract];
+    try {
+      const parent = tab.path.includes("/") ? tab.path.slice(0, tab.path.lastIndexOf("/")) : "";
+      const path = await api.create("TaskBot", parent, (String(d.name || "") || "Document") + " extraction");
+      const made = await api.bot(path);
+      await api.saveBot(path, { ...made, description: "Extracts " + Object.keys(want).join(", ") + " from a document with AI. Made from " + tab.path + ".",
+        variables: [{ name: "document", type: "File", direction: "input", required: true, description: "The document to read (" + accept.join(", ") + ")." },
+          { name: "api_key", type: "Credential", direction: "input", description: "API key for the AI service (a vault reference)." },
+          { name: "text", type: "String" }, { name: "fields", type: "Dictionary", direction: "output", description: "The extracted fields." }], steps });
+      await reloadTree();
+      await open({ name: path.split("/").pop()!, path, type: "bot" });
+      setNotice("Made " + path + ".");
+    } catch (e) { fail(e); }
   };
   const forceClose = (path: string) => {
     const rest = tabs.filter((t) => t.path !== path);
@@ -261,8 +331,16 @@ export function App({ api: given }: { api?: StudioApi }) {
       <header className="st-top">
         <div className="st-brand"><span className="st-logo" />One Agent Studio</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
-          {current ? current.path.split("/").slice(0, -1).map((p, i) => <span key={i}>{p}<span aria-hidden="true"> › </span></span>) : null}
+          {current?.kind === "agent" && current.trail?.length
+            ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}
+                onClick={() => backTo(i)}>{t.name} › line {t.line}</button><span aria-hidden="true"> / </span></span>)
+            : current ? current.path.split("/").slice(0, -1).map((p, i) => <span key={i}>{p}<span aria-hidden="true"> › </span></span>) : null}
           <span className="st-crumb-current">{current ? current.name : "Automation"}</span>
+          {current?.kind === "agent" && (() => {
+            const callers = agents.filter((a) => a.path !== current.path && current.flow.id && (a.runs ?? []).includes(current.flow.id));
+            return callers.length ? <span className="st-crumb-callers" title="Agents in this workspace with a Run agent step for this agent"> · Run by {callers.map((a, i) =>
+              <span key={a.path}>{i ? ", " : ""}<button type="button" className="st-crumb-link" onClick={() => openCaller(a.path)}>{a.name || a.id}</button></span>)}</span> : null;
+          })()}
           {current && dirty && <span className="st-unsaved">Unsaved</span>}
           <span className="st-preview-tag">New Studio preview</span>
         </nav>
@@ -316,9 +394,12 @@ export function App({ api: given }: { api?: StudioApi }) {
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
                 canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo}
-                clipboard={clipboard} onClipboard={setClipboard} onRunFrom={runFrom} onNotice={setNotice} onError={fail} /></>
+                clipboard={clipboard} onClipboard={setClipboard} onRunFrom={runFrom} onNotice={setNotice} onError={fail}
+                onOpenChild={openChild} onOpenPath={openPath} onNewConnection={() => setWizard(true)} dirty={isDirty(agent)} /></>
             : item
-            ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
+            ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo}
+                api={api} packages={packages} onSave={() => save(item.path)} onExtraction={() => makeExtraction(item)}
+                onCopyStep={(step, label) => { setClipboard({ steps: [{ id: "s1", ...step }], variables: [], system: false }); setNotice("Copied a “" + label + "” step. Open an agent and paste it (Ctrl+V or Paste)."); }} />
             : tree
               ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting}
                   api={api} onMoved={moved} onChanged={reloadTree} onNotice={setNotice} onError={fail} />
@@ -426,22 +507,49 @@ function RunDialog({ name, debug, inputs, onRun, onClose }:
  * A form, workflow, document type, Prompt Skill or script in its editor. JSON items are edited as data and written
  * back with two-space indents (as the server writes them); a file that is not valid JSON opens as text to repair.
  */
-function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo }:
-  { tab: ItemTab; tree: WorkspaceNode | null; onChange: (text: string) => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void }) {
+function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo, api, packages, onSave, onExtraction, onCopyStep }:
+  { tab: ItemTab; tree: WorkspaceNode | null; onChange: (text: string) => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
+    api: StudioApi; packages: PackageManifest[]; onSave: () => Promise<boolean>; onExtraction: () => void; onCopyStep: (step: Omit<FlowStep, "id">, label: string) => void }) {
+  const [scriptRun, setScriptRun] = useState<{ busy: boolean; status?: string; output?: string; error?: string; exit?: unknown } | null>(null);
   let data: Record<string, unknown> | null = null;
   if (tab.itemType !== "script") { try { data = JSON.parse(tab.text); } catch { data = null; } }
   const set = (d: Record<string, unknown>) => onChange(JSON.stringify(d, null, 2));
   const ext = tab.path.split(".").pop()?.toLowerCase() ?? "";
+  const cmd = tab.itemType === "script" ? SCRIPT_ACTION[ext] : undefined;
+  const runnable = !!cmd && packages.some((p) => p.id === cmd.action.split("/")[0] && p.actions.some((a) => a.id === cmd.action.split("/")[1]));
+  /** Runs the saved script once, as an agent's script step would, and shows what it printed. */
+  const runScript = async () => {
+    if (!cmd) return;
+    if (tab.text !== tab.saved && !(await onSave())) return;
+    setScriptRun({ busy: true });
+    try {
+      const r = await runOnce(api, oneStep(cmd.action, { file: tab.path, fail_on_error: false }, { output: "output", error_output: "error_output", exit_code: "exit_code" }), {}, 120000);
+      setScriptRun({ busy: false, status: r.status, output: String(r.outputs?.output ?? ""), error: r.error?.message ?? String(r.outputs?.error_output ?? ""), exit: r.outputs?.exit_code });
+    } catch (e) { setScriptRun({ busy: false, status: "failed", error: e instanceof ApiFailure ? e.error.message : String(e) }); }
+  };
   return (
     <div className="st-item-wrap">
       <div role="toolbar" aria-label="Edit" className="st-edit-bar st-item-bar">
         <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
         <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
+        {cmd && <>
+          <span className="st-bar-gap" />
+          {runnable && <Button kind="run" icon="play" onClick={runScript} disabled={scriptRun?.busy}>{scriptRun?.busy ? "Running…" : "Run script"}</Button>}
+          <Button kind="plain" onClick={() => onCopyStep({ action: cmd.action, args: { file: tab.path } }, cmd.name)}>Copy as an agent step</Button>
+        </>}
+        {tab.itemType === "document" && <><span className="st-bar-gap" /><Button kind="secondary" onClick={onExtraction}
+          title="An agent that reads a document and extracts these fields with AI">Create extraction agent</Button></>}
         <span className="st-steps-meta">{{ form: "Form", process: "Workflow", document: "Document type", skill: "Prompt Skill", script: SCRIPT_LANGUAGE[ext] ?? "Script" }[tab.itemType as string] ?? "File"}</span>
       </div>
       {tab.itemType === "script" || !data
         ? <>{!data && tab.itemType !== "script" && <p className="st-alert" role="alert">This file is not valid JSON, so it opens as text. Repair it and save.</p>}
-            <TextEditor text={tab.text} onChange={onChange} language={tab.itemType === "script" ? SCRIPT_LANGUAGE[ext] ?? "Script" : "Text"} /></>
+            <TextEditor text={tab.text} onChange={onChange} language={tab.itemType === "script" ? SCRIPT_LANGUAGE[ext] ?? "Script" : "Text"} />
+            {scriptRun && !scriptRun.busy && <section className="st-card st-script-out" aria-label="Script output">
+              <h2>Output <span className={"st-run-state is-" + (scriptRun.status === "success" ? "success" : "failed")}>{scriptRun.status === "success" ? "Done" : scriptRun.status}</span>
+                {scriptRun.exit !== undefined && <span className="st-muted"> exit code {String(scriptRun.exit)}</span>}</h2>
+              <pre>{scriptRun.output || "(nothing printed)"}</pre>
+              {scriptRun.error && <pre className="st-error">{scriptRun.error}</pre>}
+            </section>}</>
         : tab.itemType === "form" ? <FormEditor data={data} onChange={set} />
         : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} />
         : tab.itemType === "document" ? <DocumentEditor data={data} onChange={set} />

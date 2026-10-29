@@ -180,6 +180,7 @@ export function RunAgentFields({ step }: { step: FlowStep }) {
         options={[{ value: "", label: others.length ? "Choose an agent…" : "No other agents in this workspace" },
           ...others.map((a) => ({ value: a.id, label: (a.name || a.id) + " — " + a.path })),
           ...(id && !child ? [{ value: id, label: id + " (not in this workspace)" }] : [])]} />
+      {child && vars.openChild && <button type="button" className="st-link" onClick={() => vars.openChild!(step.id)}>Open this agent</button>}
       {!child ? <p className="ui-field-hint">{id ? "This agent is not in the workspace, so its inputs are not known." : "Choose the agent first."}</p> : <>
         <h4 className="st-sub">Input values</h4>
         {(child.variables ?? []).filter(isInput).map((v) => {

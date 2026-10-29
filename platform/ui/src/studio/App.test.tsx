@@ -17,7 +17,8 @@ function fakeServer() {
           { name: "Invoice check.form.json", path: "Finance/Invoices/Invoice check.form.json", type: "form", modified: "2026-10-28T09:12:00Z" },
           { name: "Approve.process.json", path: "Finance/Invoices/Approve.process.json", type: "process", modified: "2026-10-28T09:12:00Z" },
           { name: "clean.py", path: "Finance/Invoices/clean.py", type: "script", modified: "2026-10-28T09:12:00Z" },
-          { name: "Broken.doc.json", path: "Finance/Invoices/Broken.doc.json", type: "document", modified: "2026-10-28T09:12:00Z" }] }] }],
+          { name: "Broken.doc.json", path: "Finance/Invoices/Broken.doc.json", type: "document", modified: "2026-10-28T09:12:00Z" },
+          { name: "Invoices.doc.json", path: "Finance/Invoices/Invoices.doc.json", type: "document", modified: "2026-10-28T09:12:00Z" }] }] }],
   };
   const flow = { kind: "TaskBot", id: "invoice_intake", name: "Invoice intake",
     variables: [{ name: "workbook", type: "File", direction: "input" }],
@@ -36,6 +37,7 @@ function fakeServer() {
           timeout_ms: { type: "number", "x-ooa-type": "Number", default: 30000 }, wait_for_page_ms: { type: "number", "x-ooa-type": "Number", default: 0 },
           if_not_found: { type: "string", enum: ["error", "continue"], default: "error" } } },
           "x-ooa-panel": { main: ["window", "object", "action", "value"], more: ["typing", "click_method", "timeout_ms", "wait_for_page_ms", "if_not_found"] } }] },
+      { id: "ooa.script", name: "Scripts", version: "1.0.0", actions: [{ id: "run_python", name: "Run Python", inputs: { properties: { file: {}, fail_on_error: {} } } }] },
       { id: "ooa.desktop_ui", name: "Desktop objects", version: "1.0.0", actions: [{ id: "object_action", name: "Desktop object action", inputs: { properties: {
         object: { type: "object", "x-ooa-type": "Dictionary" }, action: { type: "string", enum: ["click", "set_text", "check", "uncheck", "toggle"], default: "click" },
         text: { "x-ooa-type": "Any" }, click_type: { type: "string", enum: ["left", "right"], default: "left" } } } }] },
@@ -45,6 +47,7 @@ function fakeServer() {
       { id: "core", name: "Core", version: "1.0.0", actions: [
         { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
         { id: "try", name: "Try", inputs: { properties: {} } },
+        { id: "comment", name: "Comment", inputs: { properties: { text: {} } } },
         { id: "set", name: "Assign", inputs: { properties: { variable: {}, value: {} } } },
         { id: "run_bot", name: "Run agent", inputs: { properties: { automation: {}, inputs: {}, output_map: {} } } },
         { id: "loop", name: "Loop", inputs: { properties: { iterator: { "x-ooa-type": "String" }, condition: { "x-ooa-visible-when": { iterator: ["while"] } },
@@ -85,6 +88,8 @@ function fakeServer() {
     "Finance/Invoices/Approve.process.json": { type: "process", text: JSON.stringify({ id: "approve", name: "Approve", stages: [] }, null, 2) },
     "Finance/Invoices/clean.py": { type: "script", text: "print('hello')\n" },
     "Finance/Invoices/Broken.doc.json": { type: "document", text: "{ not json" },
+    "Finance/Invoices/Invoices.doc.json": { type: "document", text: JSON.stringify({ name: "Invoices", provider: "openai", model: "gpt-4o-mini", accept: ["pdf", "txt"],
+      fields: [{ name: "number", description: "Invoice number", type: "String", required: true }, { name: "total", description: "Total amount", type: "Number" }] }) },
   };
   const savedItems: Record<string, string> = {};
   routes["GET item"] = () => { throw new Error("use itemFor"); };
@@ -96,6 +101,8 @@ function fakeServer() {
     if (polls < 2) return { run_id: "x", state: "running", elapsed_ms: 5, events: [
       { seq: 1, type: "run.started", data: { totalSteps: 3 } }, { seq: 2, type: "step.started", stepId: "open" }] };
     const action = runs[runs.length - 1]?.flow?.steps?.[0]?.action;
+    if (action === "ooa.script/run_python") return { run_id: "x", state: "success", elapsed_ms: 20, events: [],
+      result: { status: "success", outputs: { output: "received 3 rows\n", exit_code: 0, error_output: "" } } };
     if (action === "ooa.ai_agent/run" || action === "ooa.genai/prompt") return { run_id: "x", state: "success", elapsed_ms: 20, events: [],
       result: { status: "success", outputs: action === "ooa.genai/prompt" ? { answer: "OK" }
         : { answer: "Queued for payment.", status: "completed", trace: [{ tool: "lookup_order", status: "ok" }] } } };
@@ -111,7 +118,7 @@ function fakeServer() {
   let connections: any = { default: "", connections: [] };
   routes["GET agents"] = () => ({ agents: [
     { path: "Finance/Invoices/Invoice intake.flow.json", id: "invoice_intake", name: "Invoice intake", variables: [] },
-    { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", variables: [
+    { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", runs: ["invoice_intake"], variables: [
       { name: "order_id", type: "Number", direction: "input", required: true, description: "The order to look up." },
       { name: "status", type: "String", direction: "output" }] }] });
   routes["POST capture"] = (b) => { created.push({ capture: b }); return { selector: "#save", element: { tag: "button", text: "Save" }, object: { technology: "web", search_by: "properties", index: 0,
@@ -124,6 +131,10 @@ function fakeServer() {
     { id: "r1", action: "ooa.browser/type_text", args: { window: { source: "browser", title: "Web form", title_match: "equals", link: "https://x.test/form", browser: "edge" }, text: "tomsmith",
       object: { properties: [{ name: "label", value: "Username" }] } } }] }; };
   routes["GET record/progress"] = () => ({ recording: true, count: 1 });
+  routes["GET deps"] = () => ({ bots: [{ path: "Finance/lookup.flow.json", step: "s3" }], scripts: [], skills: [], files: [{ name: "data/rates.csv", missing: true }],
+    usedBy: [{ path: "Finance/lookup.flow.json" }] });
+  routes["POST assistant/build"] = (b) => { created.push({ assistant: b.prompt, connection: b.connection });
+    return { notes: "Logs a greeting.", steps: [{ id: "x1", action: "core/log", args: { message: "Hello $who" } }], variables: [{ name: "who", type: "String" }] }; };
   routes["GET windows"] = () => ({ windows: [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }] });
   routes["GET connections"] = () => ({ connections: [{ name: "snow-prod", package: "ooa.servicenow" }, { name: "sf", package: "ooa.salesforce" }] });
   routes["GET builtins"] = () => ({ sys: { today: "2026-10-30" }, global: { company: "One Office" } });
@@ -1151,5 +1162,101 @@ describe("new Studio", () => {
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { window: "$Window_1", text: "$Text_1" } });
     expect(saved.variables).toContainEqual(expect.objectContaining({ name: "Text_1", default: "tomsmith", direction: "input" }));
+  });
+
+  it("opens the agent a Run agent step runs, with a breadcrumb back to the step, and says which agents run an agent", async () => {
+    const { api } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    expect(await screen.findByText(/Run by/)).toBeTruthy();   // Look up order has a Run agent step for this agent
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Core/, "Run agent");
+    fireEvent.change(await screen.findByLabelText("Agent to run *"), { target: { value: "lookup_order" } });
+    expect(stepButton(steps, "Run agent").textContent).toContain("runs Look up order");
+    fireEvent.contextMenu(stepButton(steps, "Run agent"));
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Open the agent it runs/ }));
+    const crumb = await screen.findByRole("button", { name: "Invoice intake › line 2" });
+    expect(screen.getAllByRole("tab", { name: /Invoice intake/ }).length).toBe(2);   // the child opened in its own tab (this fake server gives every agent the same steps)
+    fireEvent.click(crumb);
+    await waitFor(() => expect(screen.getByRole("tab", { name: /Invoice intake/, selected: true })).toBeTruthy());
+    await waitFor(() => expect(stepButton(screen.getByRole("region", { name: "Agent steps" }), "Run agent").getAttribute("aria-pressed")).toBe("true"));
+  });
+
+  it("lists what the agent needs and who uses it, in Dependencies", async () => {
+    render(<App api={fakeServer().api} />);
+    await openIntake();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Dependencies" }));
+    for (const g of ["Child agents and agent tools", "Scripts", "Prompt Skills", "Files", "Used by"]) expect(await screen.findByRole("region", { name: g })).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Files" })).getByText("Not in the workspace")).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Child agents and agent tools" })).getByRole("button", { name: "step s3" })).toBeTruthy();
+  });
+
+  it("draws the agent as a diagram, where a click selects the step", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(within(steps).getByRole("radio", { name: "Flow" }));
+    const diagram = await screen.findByLabelText("Agent as a diagram");
+    expect(within(diagram).getByText("Start")).toBeTruthy();
+    expect(diagram.querySelectorAll(".st-fnode")).toHaveLength(3);
+    fireEvent.click(diagram.querySelector('[data-step-id="log"]')!);
+    expect(await screen.findByText("Line 3 · Flow")).toBeTruthy();
+    fireEvent.click(within(steps).getByRole("radio", { name: "List" }));
+  });
+
+  it("explains the agent in plain words, and builds steps from a description once a model connection exists", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(within(steps).getByRole("button", { name: "Assistant" }));
+    let dialog = await screen.findByRole("dialog", { name: "Agent assistant" });
+    expect(await within(dialog).findByRole("button", { name: "Set up a One Model Connection" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Explain this agent" }));
+    const text = within(dialog).getByText(/Steps:/).textContent!;
+    expect(text).toContain("It needs: $workbook (File).");
+    expect(text).toContain("1. Open workbook with path $workbook");
+    expect(text).toContain("2. Repeat for each item of");
+    expect(text).toContain("  - Write to log with message row");
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Close" }).pop()!);
+    // with a connection: Generate, then Insert
+    await act(async () => { await api.saveModelConnections({ default: "gpt", connections: [{ name: "gpt", provider: "openai", model: "gpt-4o-mini", api_key_env: "OPENAI_API_KEY" }] }); });
+    fireEvent.click(within(steps).getByRole("button", { name: "Assistant" }));
+    dialog = await screen.findByRole("dialog", { name: "Agent assistant" });
+    fireEvent.change(await within(dialog).findByLabelText("What should the agent do?"), { target: { value: "Greet someone" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Generate steps" })); });
+    expect(created).toContainEqual({ assistant: "Greet someone", connection: "gpt" });
+    expect(within(dialog).getByText("Logs a greeting.")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Insert into the agent" }));
+    expect(stepNames(steps)).toContain("Write to log");
+    expect(await screen.findByText(/Inserted 1 step/)).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.variables).toContainEqual({ name: "who", type: "String" });
+  });
+
+  it("runs a script on its own and shows what it printed, and copies it as an agent step", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "clean" } });
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });   // the search has finished
+    fireEvent.click(await screen.findByRole("button", { name: "clean.py" }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });   // the script opens
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: "Run script" }, { timeout: 3000 })); });
+    const out = await screen.findByRole("region", { name: "Script output" });
+    await waitFor(() => expect(out.textContent).toContain("received 3 rows"));
+    fireEvent.click(screen.getByRole("button", { name: "Copy as an agent step" }));
+    expect(screen.getByText(/Copied a “Run Python” step/)).toBeTruthy();
+  });
+
+  it("makes an extraction agent from a document type", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "Invoices.doc" } });
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });   // the search has finished
+    fireEvent.click(await screen.findByRole("button", { name: "Invoices" }));
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });   // the document type opens
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: "Create extraction agent" }, { timeout: 3000 })); });
+    expect(created).toContainEqual({ parent: "Finance/Invoices", name: "Invoices extraction", kind: "TaskBot" });
+    const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
+    expect(saved.steps.map((x: any) => x.action)).toEqual(["ooa.file/read_text", "ooa.genai/extract"]);   // no PDF toolkit here: text only
+    expect(saved.steps[1].args.fields).toEqual({ number: "Invoice number", total: "Total amount (Number) (may be missing)" });
+    expect(saved.variables.map((v: any) => v.name)).toEqual(["document", "api_key", "text", "fields"]);
   });
 });

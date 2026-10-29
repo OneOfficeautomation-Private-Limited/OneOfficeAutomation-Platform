@@ -75,7 +75,13 @@ export type Trigger = {
 };
 
 /** An agent of the workspace, by the id other agents and AI agents call it with. */
-export type AgentSummary = { path: string; id: string; name: string; variables: FlowVariable[] };
+/** An agent of the workspace, with its variables and the agent ids its Run agent steps run. */
+export type AgentSummary = { path: string; id: string; name: string; variables: FlowVariable[]; runs?: string[] };
+/** What an agent needs and who uses it: one entry per item, with the step that uses it. */
+export type Dependency = { path?: string; name?: string; step?: string; missing?: boolean };
+export type Dependencies = { bots: Dependency[]; scripts: Dependency[]; skills: Dependency[]; files: Dependency[]; usedBy: Dependency[] };
+/** Steps the assistant proposes from a description, with notes and the problems the check found. */
+export type Proposal = { steps?: FlowStep[]; variables?: FlowVariable[]; notes?: string; problems?: Problem[] };
 /**
  * A model connection: a provider, model and address kept in one place, used by name. The key is never in the file:
  * an environment variable name, or a vault reference {"$credential": "folder/credential/attribute"}.
@@ -156,6 +162,8 @@ export class StudioApi {
   }
   recordProgress() { return this.call<{ recording: boolean; count: number }>("GET", "record/progress"); }
   recordCancel() { return this.call<{ ok: boolean }>("POST", "record/cancel", {}); }
+  deps(path: string) { return this.call<Dependencies>("GET", "deps?path=" + encodeURIComponent(path)); }
+  assistantBuild(prompt: string, connection: string, flow: Flow) { return this.call<Proposal>("POST", "assistant/build", { prompt, connection, flow }); }
   async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
   modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }
   saveModelConnections(c: ModelConnections) { return this.call<ModelConnections>("PUT", "model-connections", c); }
