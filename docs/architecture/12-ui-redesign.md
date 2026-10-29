@@ -1,6 +1,6 @@
 # 12. UI redesign: TypeScript and React, Studio first
 
-Status: **design, for review** (2026-10-29). Pending items V1 (screens in TypeScript with React, Studio first), V2
+Status: **screens approved** (2026-10-29); building (P0) starts once the three decisions in section 7 are made. Pending items V1 (screens in TypeScript with React, Studio first), V2
 (Studio from the Command Center later) and V6 (easy UI, gap list in `docs/research/easy-ui-study.md`).
 
 ## 1. Goal
@@ -51,44 +51,61 @@ Flow, TypeScript, Vite, Vitest. CI runs `npm audit` and fails on high findings.
 Command Center uses the same screens, with the Runner as the local helper for recording and test runs. Designing this
 seam now means the cloud designer needs no second rebuild.
 
-## 4. New Studio layout
+## 4. New Studio layout (approved 2026-10-29)
 
 ```
-+--------------------------------------------------------------------------------+
-| Top bar: logo · breadcrumb · search everything (Ctrl+K) · Save · Run · Debug · ⋮ |
-+---+----------------------+-----------------------------------+------------------+
-| R | Side panel           | Editor tabs: Invoice bot × | Approvals ×           |
-| a | (Explorer, Actions,  |                                   | Properties of the |
-| i | Variables, Triggers, |   canvas / form / workflow /      | selected step or  |
-| l | Assistant)           |   AI agent editor                 | item              |
-|   |                      |                                   |                  |
-|   |                      +-----------------------------------+                  |
-|   |                      | Bottom panel: Run output · Problems · Debug values   |
-+---+----------------------+-----------------------------------+------------------+
++----------------------------------------------------------------------------------------------+
+| Top bar (dark): logo · breadcrumb · search (white field, Ctrl+K) · Save · Run · Debug · Close |
++--------------+-------------+-------------------------------------+---------------------------+
+| Command      | Actions     | Editor tabs: Invoice intake × | ... | Properties | Variables |  |
+| Center menu  | library     | Toolbar: Undo Redo Cut Copy Paste   | Triggers (tabs)           |
+| Home         | (search,    |-------------------------------------|                           |
+| BUILD        | toolkits    | Steps: numbered rows, coloured      | Labels beside fields,     |
+| MONITOR      | with        | toolkit icons, guide lines for      | sections Input, Output,   |
+| AI           | coloured    | blocks                              | If unsure                 |
+| ADMINISTRATION icons)      |-------------------------------------|                           |
+|              |             | Problems · Run output · Debug values|                           |
++--------------+-------------+-------------------------------------+---------------------------+
 ```
 
-- **Editor tabs**: several items open at once (today only one).
-- **Search everything** (Ctrl+K): items, actions, variables and commands in one box.
-- **New item dialog** instead of browser prompts: item types as cards with a one-line description (Agent, AI agent,
-  Workflow, Form, Document type, Prompt Skill, API agent, Python or PowerShell script) and templates.
-- **Problems panel**: validation results always visible, click to jump to the step.
-- **Plain words everywhere**: no codes on screen; codes only in tooltips for experts.
+The design canvas https://claude.ai/artifact/HafD989gNmovYiwHkHmZrB has four clickable screens, approved on
+2026-10-29: the workbench, Automation with Create, the AI agent editor and the model connection wizard.
 
-Clickable mockups of four screens (the workbench, New item, the AI agent editor and the model connection wizard) are
-on the design canvas https://claude.ai/artifact/HafD989gNmovYiwHkHmZrB, in OOA's own tokens. The design check
-showed that white text on the teal and cyan accents is under 4.5:1; the mockups use darker shades
-(`#0f766e`, `#0e7490`). The new components use those shades wherever white text sits on teal or cyan; the
-lighter ones stay for icons, where 3:1 is enough.
+**Layout, as in AA's Control Room and bot editor**
+- The left menu is the Command Center's own: Home, then four sections, BUILD (Automation, Templates, Workflows,
+  Forms), MONITOR (Activity, Runners, Schedules and triggers, Work queues, Task inbox), AI (Model connections, Prompt
+  Skills, AI governance) and ADMINISTRATION (Users and roles, Vault, Audit, Licenses, Settings). Headings are bold
+  white capitals with a coloured icon and a divider; items are indented under a guide line; the current one is solid
+  blue. The menu can be collapsed.
+- Actions on the left; Properties, Variables and Triggers as tabs on the right.
+- Editor tabs: several items open at once (today only one).
+- **Creating an item follows AA's order**: pick the folder in Automation, press Create, choose the type (Agent, AI
+  agent, Workflow, Form, Document type, Prompt Skill, API agent, Script), then a short dialog with name, description,
+  the folder already filled in, and Start from (blank or a template). Close with X, Esc or Cancel.
+- Model connections: a wizard of four steps (Service, Model and region, Sign-in, Test and share) using dropdowns,
+  with Save as draft.
+- Plain words everywhere; codes only in tooltips.
+
+**Look (dense and professional)**
+- White panels and a dark frame (top bar and menu). Grey only for borders, never behind text.
+- Text #17202b, secondary #353e4c, nothing lighter than #4b5565 on white.
+- Rows 32 to 36 px; tabs, fields and buttons share one height (30 to 32 px), one 6 px radius and one field border
+  (#7d8797, 3.6:1).
+- Buttons are never grey: Save solid blue, Run solid green, Debug solid amber, Close solid white on the dark bar;
+  secondary buttons white with a blue border and blue text; toolbar buttons plain dark text.
+- Every colour pair is checked by calculation: text at least 4.5:1, borders and icons at least 3:1. White text on
+  teal or cyan uses the darker shades `#0f766e` and `#0e7490`.
 
 New and changed screens from the V6 gap list that live in Studio:
 
 | Gap | In Studio |
 | --- | --- |
 | V6.6 AI agent editor | New item type. Prompt first, expanded into role, goal and plan; tabs Model, Inputs and outputs, Tools, Limits, Test; templates |
-| V6.5 Model connections | Provider cards, model list, separate key fields, Test, disable |
+| V6.5 Model connections | Wizard with dropdowns: service, region, model, separate vault keys, test on the server, default use, on or off |
 | V6.7 Filters and saved views | Explorer, action library and run history |
 | V6.11 Wizards with drafts | New agent from template, new connection, new trigger |
-| V6.2 Work for people | Forms and workflows grouped under one "Work for people" section of the New dialog and Explorer filter |
+| V6.1 Menu | Command Center menu in four sections: BUILD, MONITOR, AI, ADMINISTRATION |
+| V6.2 Work for people | Forms and workflows under BUILD; the Task inbox under MONITOR |
 
 ## 5. Moving over without a big bang
 

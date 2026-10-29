@@ -30,7 +30,7 @@ The other collections cover different ground:
 | 9 | [09-multi-tenant-saas-and-regions.md](09-multi-tenant-saas-and-regions.md) | Tenants, regions, routing, the operator API and the directory |
 | 10 | [10-extensibility-and-integration.md](10-extensibility-and-integration.md) | REST API, MCP, webhooks, custom toolkits, connectors, Git mirror, templates |
 | 11 | [11-developer-guide.md](11-developer-guide.md) | Building from source, tests and CI, adding toolkits and features, Studio internals, known limits |
-| 12 | [12-ui-redesign.md](12-ui-redesign.md) | Design for review: Studio and Command Center screens in TypeScript and React |
+| 12 | [12-ui-redesign.md](12-ui-redesign.md) | Design (approved): Studio and Command Center screens in TypeScript and React |
 
 ## Reading order
 
