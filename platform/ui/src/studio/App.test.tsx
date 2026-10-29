@@ -23,6 +23,11 @@ function fakeServer() {
     "GET tree": () => ({ workspace: "C:/ws", tree }),
     "GET packages": () => ({ packages: [{ id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" }] }] }),
     "GET bot": () => ({ path: "x", flow }),
+    "GET blueprints": () => ({ blueprints: [
+      { id: "excel_rows", name: "Loop through Excel rows", description: "Open a workbook and handle each row.", variables: [{ name: "workbook", type: "File", direction: "input" }],
+        steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }] },
+      { id: "needs_sap", name: "SAP order", description: "Needs a toolkit that is not installed.", variables: [], steps: [{ id: "s1", action: "ooa.sap/connect" }] }] }),
+    "PUT bot": (b) => { created.push({ saved: b }); return { saved: "x" }; },
     "POST files/bot": (b) => { created.push(b); return { path: b.parent + "/" + b.name + ".flow.json" }; },
     "POST files/folder": (b) => { created.push(b); return { path: b.parent + "/" + b.name }; },
   };
@@ -162,5 +167,25 @@ describe("new Studio", () => {
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Germany" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create folder" })); });
     expect(created).toEqual([{ parent: "Finance", name: "Germany" }]);
+  });
+
+  it("starts a new agent from a blueprint chosen in Create, offering only blueprints whose toolkits are installed", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const create = await screen.findByRole("button", { name: "Create ▾" });
+    await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Agent, Steps in apps/ }));
+    const dialog = await screen.findByRole("dialog", { name: "New agent" });
+    const start = within(dialog).getByLabelText("Start from") as HTMLSelectElement;
+    expect([...start.options].map((o) => o.text)).toEqual(["Blank agent", "Loop through Excel rows"]);
+    fireEvent.change(start, { target: { value: "excel_rows" } });
+    expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("Loop through Excel rows");
+    expect(within(dialog).getByText("Open a workbook and handle each row.")).toBeTruthy();
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
+
+    const saved = (created.find((c: any) => c.saved) as any).saved;
+    expect(saved.name).toBe("Invoice intake");   // the new agent keeps its own id and name
+    expect(saved.description).toBe("Open a workbook and handle each row.");
+    expect(saved.steps).toEqual([{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }]);
   });
 });

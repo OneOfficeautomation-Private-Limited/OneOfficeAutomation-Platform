@@ -85,7 +85,9 @@ The design canvas https://claude.ai/artifact/HafD989gNmovYiwHkHmZrB has four cli
 - Editor tabs: several items open at once (today only one).
 - **Creating an item follows AA's order**: pick the folder in Automation, press Create, choose the type (Agent, AI
   agent, Workflow, Form, Document type, Prompt Skill, API agent, Script), then a short dialog with name, description,
-  the folder already filled in, and Start from (blank or a template). Close with X, Esc or Cancel.
+  the folder already filled in, and Start from (blank or a template). Close with X, Esc or Cancel. Templates live only
+  here (decided 2026-10-29), not in the menu: the agent blueprints are one shared list, `studio/blueprints.json`,
+  served at `api/blueprints` to both Studios, and only those whose toolkits are installed are offered.
 - Model connections: a wizard of four steps (Service, Model and region, Sign-in, Test and share) using dropdowns,
   with Save as draft.
 - Plain words everywhere; codes only in tooltips.

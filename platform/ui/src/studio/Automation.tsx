@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { NewItemKind, WorkspaceNode } from "../api/client";
+import type { Blueprint, NewItemKind, WorkspaceNode } from "../api/client";
 import { Button, Icon, IconTile, Menu, SidePanel, Tree, usePersistent, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
@@ -23,8 +23,9 @@ function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
  * The Automation page, in AA's order: pick a folder, press Create, choose the type, then name it. The table lists
  * what is in the folder; opening an agent opens it in a tab.
  */
-export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFolder }:
-  { view: StudioView; tree: WorkspaceNode; search?: string; onOpen: (n: WorkspaceNode) => void; onCreated: (kind: NewItemKind, parent: string, name: string) => Promise<void>;
+export function Automation({ view, tree, search = "", blueprints = [], onOpen, onCreated, onNewFolder }:
+  { view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; onOpen: (n: WorkspaceNode) => void;
+    onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void }) {
   const [folder, setFolder] = useState("");
   const [expanded, setExpanded] = useState(() => new Set([""]));
@@ -79,8 +80,8 @@ export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFo
           </table>
         </div>
       </div>
-      <CreateDialog type={creating} folderPath={folder} onClose={() => setCreating(null)} onChangeFolder={() => setCreating(null)}
-        onCreate={async (kind, name) => { await onCreated(kind, folder, name); setCreating(null); }} />
+      <CreateDialog type={creating} folderPath={folder} blueprints={blueprints} onClose={() => setCreating(null)} onChangeFolder={() => setCreating(null)}
+        onCreate={async (kind, name, from) => { await onCreated(kind, folder, name, from); setCreating(null); }} />
     </section>
   );
 }

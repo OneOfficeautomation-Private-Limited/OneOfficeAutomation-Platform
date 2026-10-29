@@ -76,6 +76,14 @@ class UnifiedServerTest {
             assertTrue(call(base, "GET", "/", null, null, null).body().contains("One Command Center"));
             assertEquals(404, call(base, "GET", "/studio-other", null, null, null).status());
 
+            // ---- blueprints (Create > Start from), one shared list for both Studios ----
+            List<Object> blueprints = (List<Object>) call(base, "GET", "/studio/api/blueprints", null, null, null).json().get("blueprints");
+            assertTrue(blueprints.size() >= 7, String.valueOf(blueprints.size()));
+            for (Object b : blueprints) {
+                Map<String, Object> bp = (Map<String, Object>) b;
+                assertTrue(bp.get("id") instanceof String && bp.get("name") instanceof String && bp.get("steps") instanceof List<?>, String.valueOf(bp.get("id")));
+            }
+
             // ---- the new Studio preview (platform/ui) at /studio/next/, its own files only ----
             assertEquals("/studio/next/", call(base, "GET", "/studio/next", null, null, null).headers().firstValue("Location").orElse(""));
             Res next = call(base, "GET", "/studio/next/", null, null, null);

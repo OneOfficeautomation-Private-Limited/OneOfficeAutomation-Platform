@@ -55,6 +55,21 @@ export function describeAction(action: string, packages: PackageManifest[]): { n
   return { name: a?.name ?? (actionId ?? action).replace(/_/g, " "), toolkit: pkg?.name ?? toolkitId, mark: toolkitMark(toolkitId) };
 }
 
+/** Every action a list of steps uses, blocks included. */
+export function actionsUsed(steps: FlowStep[] | undefined, out = new Set<string>()): Set<string> {
+  for (const s of steps ?? []) {
+    out.add(s.action);
+    actionsUsed(s.children, out); actionsUsed(s.else, out); actionsUsed(s.finally, out);
+    for (const b of [...(s.elseIf ?? []), ...(s.catch ?? [])]) actionsUsed(b.children, out);
+  }
+  return out;
+}
+
+/** True when every action the steps use is installed (a blueprint whose toolkit is missing is not offered). */
+export function allInstalled(steps: FlowStep[], packages: PackageManifest[]): boolean {
+  return [...actionsUsed(steps)].every((a) => { const [p, id] = a.split("/"); return packages.some((x) => x.id === p && x.actions.some((y) => y.id === id)); });
+}
+
 /** One line of the steps view: a step, or the heading of a block's second part (Else, Catch, Finally). */
 export type StepRow = { kind: "step"; n: number; depth: number; step: FlowStep } | { kind: "section"; depth: number; label: string };
 

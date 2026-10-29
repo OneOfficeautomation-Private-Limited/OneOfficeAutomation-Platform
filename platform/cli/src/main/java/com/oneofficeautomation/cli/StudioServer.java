@@ -189,6 +189,11 @@ public final class StudioServer {
             info.put("workspace", workspace.toString());
             info.put("controlRoom", sameServerControlRoom == null ? null : "/");
             sendJson(ex, 200, info);
+        } else if (method.equals("GET") && route.equals("blueprints")) {
+            // agents to start from (Create > Start from), shared by both Studios
+            try (InputStream in = StudioServer.class.getResourceAsStream("/studio/blueprints.json")) {
+                sendJson(ex, 200, Map.of("blueprints", in == null ? List.of() : json.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8))));
+            }
         } else if (method.equals("GET") && route.equals("packages")) {
             sendJson(ex, 200, Map.of("packages", registry.allManifests()));
         } else if (method.equals("GET") && route.equals("tree")) {

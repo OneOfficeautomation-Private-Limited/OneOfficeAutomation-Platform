@@ -24,6 +24,9 @@ export type FlowStep = {
 };
 export type Flow = { kind: string; id: string; name: string; description?: string; variables?: FlowVariable[]; steps: FlowStep[] };
 
+/** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
+export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
+
 export type StudioInfo = { product: string; edition: string; workspace: string; controlRoom: string | null };
 
 /** The kinds of item that "Create" makes, as the Studio API names them. */
@@ -53,6 +56,8 @@ export class StudioApi {
   async tree() { return (await this.call<{ tree: WorkspaceNode }>("GET", "tree")).tree; }
   async packages() { return (await this.call<{ packages: PackageManifest[] }>("GET", "packages")).packages; }
   async bot(path: string) { return (await this.call<{ flow: Flow }>("GET", "bot?path=" + encodeURIComponent(path))).flow; }
+  async saveBot(path: string, flow: Flow) { return this.call<{ saved: string }>("PUT", "bot?path=" + encodeURIComponent(path), flow); }
+  async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
   async createFolder(parent: string, name: string) { return (await this.call<{ path: string }>("POST", "files/folder", { parent, name })).path; }
 
   /** Creates an item in a folder and returns its path. */

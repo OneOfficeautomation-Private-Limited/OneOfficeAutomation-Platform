@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiFailure, StudioApi, type Flow, type NewItemKind, type PackageManifest, type StudioInfo, type WorkspaceNode } from "../api/client";
+import { ApiFailure, StudioApi, type Blueprint, type Flow, type NewItemKind, type PackageManifest, type StudioInfo, type WorkspaceNode } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView } from "./Editor";
+import { allInstalled } from "./toolkits";
 
 type OpenTab = { path: string; name: string; flow: Flow };
 const MAX_TABS = 10;
@@ -15,6 +16,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [info, setInfo] = useState<StudioInfo | null>(null);
   const [tree, setTree] = useState<WorkspaceNode | null>(null);
   const [packages, setPackages] = useState<PackageManifest[]>([]);
+  const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [view, setView] = useState<StudioView>("automation");
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [active, setActive] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   useEffect(() => {
     api.info().then(setInfo).catch(fail);
     api.packages().then(setPackages).catch(fail);
+    api.blueprints().then((b) => setBlueprints(b ?? [])).catch(() => setBlueprints([]));   // without them Create offers a blank agent only
     reloadTree();
   }, [api, reloadTree]);
 
@@ -43,8 +46,13 @@ export function App({ api: given }: { api?: StudioApi }) {
     setTabs(rest);
     if (active === path) setActive(rest.length ? rest[rest.length - 1].path : null);
   };
-  const created = async (kind: NewItemKind, parent: string, name: string) => {
+  const created = async (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => {
     const path = await api.create(kind, parent, name);
+    if (from) {
+      // the new agent keeps its own id and name; the blueprint gives its description, variables and steps
+      const flow = await api.bot(path);
+      await api.saveBot(path, { ...flow, description: from.description, variables: structuredClone(from.variables), steps: structuredClone(from.steps) });
+    }
     await reloadTree();
     if (kind === "TaskBot" || kind === "ApiTask") await open({ name, path, type: "bot" });
   };
@@ -94,7 +102,7 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current
             ? <AgentView key={current.path} flow={current.flow} packages={packages} classicHref={classicHref} />
             : tree
-              ? <Automation view={view} tree={tree} search={search} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} />
+              ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
       </div>

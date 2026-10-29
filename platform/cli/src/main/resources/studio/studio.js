@@ -305,6 +305,7 @@ async function init() {
     const pk = await api("GET", "packages");
     state.packages = pk.packages;
     state.packages.forEach((p) => { p.color = styleFor(p.id + "/x").color; for (const a of p.actions) state.specs.set(p.id + "/" + a.id, { pkg: p, action: a }); });
+    try { TEMPLATES = (await api("GET", "blueprints")).blueprints; } catch (_) { TEMPLATES = []; }
     renderLibrary();
     await loadTree();
     showEditor(false);
@@ -4865,52 +4866,8 @@ function skillDesigner(it) {
 }
 
 // ---- templates ----
-const TEMPLATES = [
-  { id: "csv_rows", name: "Loop through a CSV file", icon: "table", color: "#2563eb", description: "Read a CSV file into a table and handle each row.",
-    variables: [{ name: "csv_file", type: "File", direction: "input", required: true, description: "The CSV file to read." }, { name: "rows", type: "Table" },
-      { name: "row", type: "Record" }, { name: "row_count", type: "Number", direction: "output", description: "How many rows were read." }],
-    steps: [{ id: "s1", action: "ooa.csv/read", args: { path: "$csv_file" }, out: { table: "rows", row_count: "row_count" } },
-      { id: "s2", action: "core/log", args: { message: "Read ${row_count} rows" } },
-      { id: "s3", action: "core/loop", args: { iterator: "table_rows", over: "$rows", as: "row" }, children: [
-        { id: "s4", action: "core/comment", args: { text: "Handle one row here; read a column with $row.column_name" } },
-        { id: "s5", action: "core/log", args: { message: "Row: ${row}" } }] }] },
-  { id: "excel_rows", name: "Loop through Excel rows", icon: "sheet", color: "#16a34a", description: "Open a workbook, read the first sheet as a table and handle each row.",
-    variables: [{ name: "workbook", type: "File", direction: "input", required: true, description: "The Excel workbook." }, { name: "rows", type: "Table" },
-      { name: "row", type: "Record" }, { name: "row_count", type: "Number", direction: "output" }],
-    steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } },
-      { id: "s2", action: "ooa.excel/get_all_cells", args: { header: true }, out: { table: "rows", row_count: "row_count" } },
-      { id: "s3", action: "core/loop", args: { iterator: "table_rows", over: "$rows", as: "row" }, children: [
-        { id: "s4", action: "core/comment", args: { text: "Handle one row here; read a column with $row.column_name" } }] },
-      { id: "s5", action: "ooa.excel/close", args: {} }] },
-  { id: "folder_files", name: "Process every file in a folder", icon: "folder", color: "#059669", description: "List the files in a folder and handle them one by one.",
-    variables: [{ name: "folder", type: "File", direction: "input", required: true, description: "The folder to process." }, { name: "pattern", type: "String", direction: "input", default: "*.*", description: "Which files, e.g. *.pdf" },
-      { name: "files", type: "List" }, { name: "file", type: "String" }],
-    steps: [{ id: "s1", action: "ooa.file/list", args: { folder: "$folder", pattern: "$pattern" }, out: { files: "files" } },
-      { id: "s2", action: "core/loop", args: { iterator: "list", over: "$files", as: "file" }, children: [
-        { id: "s3", action: "core/log", args: { message: "Processing ${file}" } },
-        { id: "s4", action: "core/comment", args: { text: "Handle $file here" } }] }] },
-  { id: "rest_api", name: "Call a REST API safely", icon: "api", color: "#4f46e5", description: "Call a web API with error handling and return its answer.",
-    variables: [{ name: "url", type: "String", direction: "input", required: true, default: "https://api.example.com/items", description: "The address to call." },
-      { name: "status", type: "Number", direction: "output" }, { name: "body", type: "Any", direction: "output" }, { name: "error", type: "Dictionary" }],
-    steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "ooa.rest/request", args: { url: "$url", method: "GET" }, out: { status: "status", json: "body" } }],
-      catch: [{ codes: [], as: "error", children: [{ id: "s3", action: "core/log", args: { message: "The request failed: ${error.message}", level: "error" } },
-        { id: "s4", action: "core/throw", args: { code: "BUSINESS.API_FAILED", message: "Could not call ${url}", suggested_fix: "Check the address and that the service is up." } }] }] }] },
-  { id: "ai_summary", name: "Summarise a document with AI", icon: "spark", color: "#db2777", description: "Read a text file and summarise it with a language model.",
-    variables: [{ name: "text_file", type: "File", direction: "input", required: true, description: "The text file to summarise." },
-      { name: "api_key", type: "Credential", direction: "input", description: "API key for the AI provider." }, { name: "text", type: "String" },
-      { name: "summary", type: "String", direction: "output", description: "The summary." }],
-    steps: [{ id: "s1", action: "ooa.file/read_text", args: { path: "$text_file" }, out: { text: "text" } },
-      { id: "s2", action: "ooa.genai/summarize", args: { text: "$text", sentences: 3, model: "gpt-4o-mini", api_key: "$api_key" }, out: { summary: "summary" } }] },
-  { id: "web_text", name: "Read text from a web page", icon: "globe", color: "#ea580c", description: "Open a page in a browser, read the main heading and close it.",
-    variables: [{ name: "url", type: "String", direction: "input", default: "https://example.com", description: "The page to open." }, { name: "heading", type: "String", direction: "output" }],
-    steps: [{ id: "s1", action: "ooa.browser/open", args: { url: "$url" } }, { id: "s2", action: "ooa.browser/get_text", args: { selector: "h1" }, out: { text: "heading" } },
-      { id: "s3", action: "ooa.browser/close", args: {} }] },
-  { id: "error_handling", name: "Agent with error handling", icon: "shield", color: "#dc2626", description: "A Try / Catch / Finally skeleton that logs failures.",
-    variables: [{ name: "error", type: "Dictionary" }],
-    steps: [{ id: "s1", action: "core/try", children: [{ id: "s2", action: "core/comment", args: { text: "Put the main steps of the agent here." } }],
-      catch: [{ codes: [], as: "error", children: [{ id: "s3", action: "core/log", args: { message: "Failed: ${error.code} ${error.message}", level: "error" } }] }],
-      finally: [{ id: "s4", action: "core/log", args: { message: "Finished" } }] }] },
-];
+// Blueprints (agents to start from) live in blueprints.json, shared with the new Studio; init() loads them (GET blueprints).
+let TEMPLATES = [];
 function availableTemplates() { return TEMPLATES.filter((t) => allSteps(t.steps).every((st) => state.specs.has(st.action))); }
 function openTemplates() {
   openDialog("Create an agent from a blueprint", h("div", { class: "tpl-grid" }, availableTemplates().map((t) => h("button", { type: "button", class: "tpl", onclick: () => { closeDialog(); createFromTemplate(t); } },
