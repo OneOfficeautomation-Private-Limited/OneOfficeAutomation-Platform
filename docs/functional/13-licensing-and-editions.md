@@ -2,7 +2,7 @@
 
 ## What this covers
 
-How ONEOFFICEAUTOMATION is licensed and what the licence controls: the two builds, the 30-day evaluation, signed
+How ONEOFFICEAUTOMATION is licensed and what the licence controls: the two builds, the 60-day evaluation, signed
 licence files and their contents, the licence states and their effects, seat types and what each allows, how runs and
 check-ins are checked against seats, seat assignment and usage reports, reminder e-mails, and subscription seats in the
 SaaS service. Section 11 is the vendor's own procedure for issuing licences and looking after the signing key.
@@ -25,7 +25,7 @@ SaaS service. Section 11 is the vendor's own procedure for issuing licences and 
 
 | Build | Without a licence | With a licence |
 | --- | --- | --- |
-| Customer build (what customers install) | A 30-day evaluation | The licence's seats apply |
+| Customer build (what customers install) | A 60-day evaluation | The licence's seats apply |
 | Vendor build (with the licence tools) | Unlicensed: nothing is limited | The licence's seats apply |
 
 The customer build can read and check licence files (`ooa license show`) but never make them: the module with the
@@ -33,13 +33,13 @@ licence tools (`vendor-tools`) is left out of every customer package. The produc
 marker that only that module carries, so the difference cannot be switched on by a setting.
 
 The **edition** is a name carried by the licence (default "Enterprise"). Administration > Settings > This Command
-Center shows "EDITION (licensed to CUSTOMER)", "Evaluation (30 days, until DATE)" or "Unlicensed".
+Center shows "EDITION (licensed to CUSTOMER)", "Evaluation (60 days, until DATE)" or "Unlicensed".
 
 ## 2. The evaluation
 
 | Rule | Detail |
 | --- | --- |
-| Length | 30 days from the first start of the Command Center |
+| Length | 60 days from the first start of the Command Center |
 | Seats | 2 Developer, 0 Citizen Developer, 2 Attended Runner, 2 Unattended Runner |
 | Assignment | Free seats are given automatically the first time someone checks in or a runner takes work |
 | Banner | Administrators see a countdown, red in the last 7 days |
@@ -107,8 +107,8 @@ folder, which keeps its data. Restart and install the licence. The full steps ar
 | State | When | Effect |
 | --- | --- | --- |
 | `unlicensed` | Vendor build, no licence | Nothing is limited |
-| `evaluation` | Customer build, no licence, first 30 days | Evaluation seats; countdown banner |
-| `evaluation_ended` | After the 30 days | As expired |
+| `evaluation` | Customer build, no licence, first 60 days | Evaluation seats; countdown banner |
+| `evaluation_ended` | After the 60 days | As expired |
 | `database_required` | A licence on the built-in database (customer build) | As expired, with the database steps in the banner |
 | `active` | More than 30 days left | Seats apply |
 | `expiring` | 30 days or fewer left | Seats apply; a banner for administrators that can be put away, red and permanent in the last 7 days |

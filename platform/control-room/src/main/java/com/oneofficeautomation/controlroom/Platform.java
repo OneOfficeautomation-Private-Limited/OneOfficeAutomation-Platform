@@ -1154,7 +1154,7 @@ public final class Platform {
         String state = String.valueOf(lic.get("state"));
         boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);
         m.put("edition", licensed ? lic.getOrDefault("edition", "Enterprise") + " (licensed to " + lic.getOrDefault("customer", "?") + ")"
-            : state.startsWith("evaluation") ? "Evaluation (30 days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
+            : state.startsWith("evaluation") ? "Evaluation (" + Licensing.EVALUATION_DAYS + " days, until " + lic.get("evaluation_ends") + ")" : "Unlicensed (no license installed)");
         m.put("limits", licensed || state.startsWith("evaluation") ? "seats per license type; see Administration > Licenses" : "none until a license is installed");
         m.put("license", lic);
         m.put("users", cr.count("SELECT COUNT(*) AS n FROM users WHERE enabled = TRUE"));

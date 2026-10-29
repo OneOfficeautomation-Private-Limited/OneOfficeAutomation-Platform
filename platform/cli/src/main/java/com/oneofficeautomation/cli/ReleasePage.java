@@ -136,7 +136,7 @@ final class ReleasePage {
             <h1>ONEOFFICEAUTOMATION releases</h1>
             """);
         s.append("<p class=\"muted\">Every release, newest first. Download <b>ooa-setup-VERSION.zip</b> (Java included), unzip it and run "
-            + "<code>Install.cmd</code>. Install your license file in Administration &gt; Licenses; without one, a new install runs a 30-day evaluation.</p>\n");
+            + "<code>Install.cmd</code>. Install your license file in Administration &gt; Licenses; without one, a new install runs a 60-day evaluation.</p>\n");
         s.append("<p class=\"muted\">Check a download before installing: with an earlier install, run <code>ooa release verify ooa-VERSION.manifest.json</code> "
             + "in the folder with the downloads (it checks the vendor's signature, then each file). Otherwise compare the SHA-256 below with "
             + "<code>certutil -hashfile FILE SHA256</code>. The checksums here come from each release's signed manifest.</p>\n");

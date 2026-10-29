@@ -224,7 +224,7 @@ stops the next screen agent from starting there.
 3. Sign in and choose a new password: at least 12 characters (setting `password_min_length`), letters and digits,
    not the user name, no character four times in a row, not a common password.
 4. Install a licence (Administration > Licenses) after moving to SQL Server or PostgreSQL. Without one, a customer
-   install runs a 30-day evaluation.
+   install runs a 60-day evaluation.
 
 Forgotten administrator password: stop the server, then `ooa reset-admin [--user NAME] [--data DIR]`. It prints a
 one-time password, re-enables and unlocks the account, clears two-step sign-in and records the reset in the audit

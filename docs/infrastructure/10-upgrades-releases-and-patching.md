@@ -40,7 +40,7 @@ Releases are on the public releases page `https://oneofficeautomation-private-li
 release newest first (previews marked) with each file's download link, size and SHA-256, and `releases.json` for
 scripts. Checksums appear only for releases whose signed manifest checks out; drafts are not listed, and only
 `https` links are made. Licence files are never published; each customer receives its own `.lic` file directly from
-the vendor, and a new install without one runs the 30-day evaluation.
+the vendor, and a new install without one runs the 60-day evaluation.
 
 The files themselves are GitHub releases of the public repository `OneOfficeautomation-Private-Limited/OOA_Customer_Build`, tagged
 `v<version>` (a sandbox preview: `v<version>-preview`, marked as a pre-release). That repository also holds the

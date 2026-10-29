@@ -418,7 +418,7 @@ take back. **Export CSV** downloads the list.
 
 | State on the page | Effect |
 | --- | --- |
-| Evaluation | 30 days, 2 developers, 2 attended, 2 unattended runners, given out automatically |
+| Evaluation | 60 days, 2 developers, 2 attended, 2 unattended runners, given out automatically |
 | Active | Seats apply |
 | Expiring soon | 30 days or fewer left: a banner for administrators, red and permanent in the last 7 days |
 | Expired: grace period | Everything keeps working for the grace days |

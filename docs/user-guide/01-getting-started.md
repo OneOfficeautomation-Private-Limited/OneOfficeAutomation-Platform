@@ -251,9 +251,9 @@ You have now been through the whole cycle: build, check in, run, monitor.
 
 ## 7. The evaluation and your licence
 
-Without a licence file, a customer install runs as a **30-day evaluation** from its first start, for 2 developers, 2
+Without a licence file, a customer install runs as a **60-day evaluation** from its first start, for 2 developers, 2
 attended runners and 2 unattended runners. Seats are given out automatically the first time someone checks in or a
-runner takes work. Administrators see a banner with the days left (red in the last 7 days). After 30 days runs stop
+runner takes work. Administrators see a banner with the days left (red in the last 7 days). After 60 days runs stop
 and only administrators can sign in, to install a licence.
 
 To license the product, an administrator moves the Command Center to SQL Server, sends the **install id** from

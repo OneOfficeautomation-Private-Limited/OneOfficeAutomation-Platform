@@ -11,7 +11,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** A customer install without a license: the 30-day evaluation with its automatic seats, its end, and a license replacing it. */
+/** A customer install without a license: the 60-day evaluation with its automatic seats, its end, and a license replacing it. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class EvaluationTest {
@@ -51,10 +51,10 @@ class EvaluationTest {
     @AfterAll void stop() { cr.triggerPollers.stop(); db.close(); }
 
     @Test @Order(1)
-    void aFreshCustomerInstallIsAThirtyDayEvaluation() {
+    void aFreshCustomerInstallIsASixtyDayEvaluation() {
         assertEquals("evaluation", cr.licensing.state());
         Map<String, Object> st = cr.licensing.status(admin);
-        assertEquals(30L, st.get("days_left"));
+        assertEquals(60L, st.get("days_left"));
         assertEquals("warning", ((Map<?, ?>) st.get("banner")).get("level"));
         assertEquals(2, ((Map<?, ?>) ((Map<?, ?>) st.get("seats")).get("developer")).get("total"));
         assertFalse(cr.platform.settings().containsKey("evaluation_started"), "the evaluation start is not a visible setting");
@@ -78,10 +78,10 @@ class EvaluationTest {
     }
 
     @Test @Order(3)
-    void theEvaluationEndsAfterThirtyDays() {
-        today(LocalDate.of(2026, 11, 25));
+    void theEvaluationEndsAfterSixtyDays() {
+        today(LocalDate.of(2026, 12, 25));
         assertEquals("critical", ((Map<?, ?>) cr.licensing.status(admin).get("banner")).get("level"), "the last week is critical");
-        today(LocalDate.of(2026, 12, 1));
+        today(LocalDate.of(2026, 12, 31));
         assertEquals("evaluation_ended", cr.licensing.state());
         assertEquals("CR.LICENSE_EXPIRED", code(() -> cr.licensing.checkSignIn(b)));
         cr.licensing.checkSignIn(admin);

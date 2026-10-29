@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 
 /**
  * The installed license and what it allows. Without a license file the vendor build (license tools present) is
- * unlicensed and unlimited, and a customer install runs a 30-day evaluation (2 developers, 2 attended and 2 unattended
+ * unlicensed and unlimited, and a customer install runs a 60-day evaluation (2 developers, 2 attended and 2 unattended
  * runners, given out automatically on first use), then stops like an expired license. States: unlicensed, evaluation,
  * evaluation_ended, active, expiring (30 days
  * or fewer left: a banner for administrators, critical in the last 7), grace (expired, still working for the grace
@@ -41,7 +41,7 @@ public final class Licensing {
         + "--user ooa_app --setup-user ooa_setup; bin\\ooa.bat db set-password; bin\\ooa.bat db set-password --setup; bin\\ooa.bat db init; "
         + "bin\\ooa.bat db copy --from \"%USERPROFILE%\\OOA Command Center\" (keeps the evaluation's data). Start it again and install the license. See INSTALL.md, section 5.";
 
-    static final int EVALUATION_DAYS = 30;
+    static final int EVALUATION_DAYS = 60;
     static final Map<String, Integer> EVALUATION_SEATS = Map.of("developer", 2, "citizen_developer", 0, "attended_runner", 2, "unattended_runner", 2);
 
     /** The vendor build carries META-INF/ooa-vendor (the vendor-tools module); the customer distribution does not. */
@@ -188,7 +188,7 @@ public final class Licensing {
             m.put("evaluation_ends", end.toString());
             String text = st.equals("evaluation")
                 ? "Evaluation: " + left + (left == 1 ? " day" : " days") + " left (until " + end + "). Install a license in Administration > Licenses to keep using ONEOFFICEAUTOMATION."
-                : "The 30-day evaluation has ended. Runs are stopped and only administrators can sign in. Install a license in Administration > Licenses.";
+                : "The " + EVALUATION_DAYS + "-day evaluation has ended. Runs are stopped and only administrators can sign in. Install a license in Administration > Licenses.";
             if (isAdmin(cr, by) || st.equals("evaluation_ended")) m.put("banner", Map.of("level", st.equals("evaluation") && left > 7 ? "warning" : "critical", "text", text));
         }
         if (isAdmin(cr, by) || cr.can(by, "users.manage")) {

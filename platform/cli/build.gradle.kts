@@ -188,7 +188,7 @@ distributions {
         }
     }
     // What customers install (gradlew :cli:customerDistZip): the same product without the vendor's license tools, so a
-    // new install runs the 30-day evaluation and can only check license files, never make them.
+    // new install runs the 60-day evaluation and can only check license files, never make them.
     create("customer") {
         distributionBaseName.set("ooa-customer")
         contents {
