@@ -18,7 +18,7 @@ export function Field({ label, hint, layout = "above", children }:
   );
 }
 
-export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement> & { mono?: boolean }) {
+export function TextInput(props: React.ComponentProps<"input"> & { mono?: boolean }) {
   const { mono, className, ...rest } = props;
   return <input className={`ui-input${mono ? " ui-mono" : ""}${className ? " " + className : ""}`} {...rest} />;
 }

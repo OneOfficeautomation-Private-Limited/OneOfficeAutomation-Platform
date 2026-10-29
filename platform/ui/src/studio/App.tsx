@@ -195,7 +195,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   };
 
   // ---- running and debugging the open agent, on this computer ----
-  const inputsOf = (f: Flow) => (f.variables ?? []).filter((v) => v.direction === "input" || v.direction === "both");
+  const inputsOf = (f: Flow) => (f.variables ?? []).filter((v) => v.direction === "input" || v.direction === "in_out");
   const startRun = (debug: boolean) => {
     if (!agent) return;
     if (inputsOf(agent.flow).length) setAsking({ path: agent.path, debug }); else go(agent.path, {}, debug);

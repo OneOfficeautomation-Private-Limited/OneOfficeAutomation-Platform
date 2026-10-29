@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import type { DebugCommand, Flow, FlowStep, FlowVariable, PackageManifest, Problem, StudioApi } from "../api/client";
-import { Button, Field, Icon, IconTile, Menu, Select, SidePanel, TabPanel, Tabs, TextInput, usePersistent, type MenuItem } from "../components";
+import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, PackageManifest, Problem, StudioApi } from "../api/client";
+import { Button, Field, Icon, IconTile, Menu, SidePanel, TabPanel, Tabs, TextInput, usePersistent, type MenuItem } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
 import {
   addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
-  pasteSteps, putVariable, readClip, removeBranch, removeSteps, removeVariable, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded,
-  setNote, setOut, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
+  pasteSteps, readClip, removeBranch, removeSteps, sectionKey, setArg, setCatchCodes, setElseIfCondition, setFolded,
+  setNote, spotFor, START, toggleDisabledMany, topSteps, type Clip, type Part, type Place,
 } from "./flowEdit";
 import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
 import { TriggersPanel } from "./TriggersPanel";
+import { lastValues } from "./variables";
+import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx } from "./VariablesPanel";
 import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
@@ -60,8 +62,6 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
   );
 }
 
-const TYPES = ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"];
-const DIRECTIONS = [{ value: "", label: "Inside this agent" }, { value: "input", label: "Input" }, { value: "output", label: "Output" }, { value: "both", label: "Input and output" }];
 
 /** Where a drop over a step lands: its top quarter before it, its bottom quarter after it, the middle inside a block. */
 function placeFor(e: DragEvent, step: FlowStep): Place {
@@ -99,6 +99,13 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const pasted = useRef(false);
+  const [builtins, setBuiltins] = useState<Builtins>({ sys: {}, global: {} });
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [newVar, setNewVar] = useState<NewVariable | null>(null);
+  const loadBuiltins = () => { api.builtins().then(setBuiltins, () => {}); };
+  useEffect(() => { loadBuiltins(); api.agents().then(setAgents, () => {}); }, [api]);
+  const last = useMemo(() => lastValues(run?.events), [run?.events]);
+  const vars: VarsCtx = { flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); } };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
   const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
@@ -149,6 +156,10 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       if (!clip?.steps.length) return;
       const p = pasteSteps(flow, clip, spotFor(flow, selected, false));
       onEdit(p.flow, p.ids);
+    },
+    share: () => { const clip = copySteps(flow, chosen); if (clip) api.putSharedClipboard(clip.steps, clip.variables).catch(() => {}); },
+    fromShared: async () => {
+      try { const c = await api.sharedClipboard(); act.paste({ steps: c.steps ?? [], variables: c.variables ?? [] }); } catch { /* nothing shared */ }
     },
     fold: (ids: string[], fold: boolean) => { if (ids.length) onEdit(setFolded(flow, ids, fold)); },
     note: () => {
@@ -223,7 +234,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     ];
     if (clipboard) items.push({ key: "paste", label: "Paste after", description: clipboard.steps.length + (clipboard.steps.length === 1 ? " step" : " steps") + " copied", shortcut: "Ctrl+V", onSelect: () => act.paste() });
     items.push(
-      { key: "duplicate", label: "Duplicate", shortcut: "Ctrl+D", onSelect: act.duplicate },
+      { key: "share", label: "Copy to shared clipboard", description: "Paste in any agent, in any Studio window", separatorBefore: true, onSelect: act.share },
+      { key: "from-shared", label: "Paste from shared clipboard", onSelect: act.fromShared },
+      { key: "duplicate", label: "Duplicate", shortcut: "Ctrl+D", separatorBefore: true, onSelect: act.duplicate },
       { key: "disable", label: allOff ? "Switch on" : "Switch off", shortcut: "Ctrl+/", onSelect: act.disable },
       { key: "delete", label: "Delete", shortcut: "Del", onSelect: act.remove },
       { key: "up", label: "Move up", shortcut: "Alt+↑", separatorBefore: true, onSelect: act.up },
@@ -236,6 +249,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   };
 
   return (
+    <VarsContext.Provider value={vars}>
     <div className="st-agent-wrap">
       <div className="st-agent">
         <section className="st-steps" aria-label="Agent steps" onKeyDown={onKeys} onPaste={onPaste}>
@@ -336,7 +350,6 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                   <div><strong>{selInfo.name}</strong><div>Line {selStep.n} · {selInfo.toolkit}</div></div></div>
                 <StepForm step={selStep.step} packages={packages}
                   onArg={(name, v) => onEdit(setArg(flow, selStep.step.id, name, v))}
-                  onOut={(o, v) => onEdit(setOut(flow, selStep.step.id, o, v))}
                   onNote={(n) => onEdit(setNote(flow, selStep.step.id, n))} />
                 <BlockParts step={selStep.step} onAdd={(kind) => { const b = addBranch(flow, selStep.step.id, kind); if (b.part) onEdit(b.flow, [sectionKey(selStep.step.id, b.part)]); }} />
               </> : selSection && sectionRow?.kind === "section" ? (
@@ -346,7 +359,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
                 ? <p className="st-pad">{chosen.length} steps selected. Cut, Copy, Delete, Move, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
                 : <p className="st-muted st-pad">Select a step to change its settings.</p>}
             </TabPanel>
-            <TabPanel value="variables"><Variables flow={flow} onEdit={onEdit} /></TabPanel>
+            <TabPanel value="variables"><VariablesPanel flow={flow} builtins={builtins} last={last} onEdit={onEdit} onRefresh={loadBuiltins} /></TabPanel>
             <TabPanel value="triggers">
               <TriggersPanel api={api} path={path} />
             </TabPanel>
@@ -378,7 +391,10 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           <TabPanel value="values"><DebugValues run={run} /></TabPanel>
         </Tabs>
       </section>
+      {newVar && <VariableDialog flow={flow} preset={newVar} onClose={() => setNewVar(null)}
+        onSave={(next, name) => { setNewVar(null); onEdit(newVar.then ? newVar.then(name, next) : next); }} />}
     </div>
+    </VarsContext.Provider>
   );
 }
 
@@ -420,41 +436,6 @@ function PartProperties({ flow, label, id, part, onEdit }: { flow: Flow; label: 
       {part !== "children" && removed !== flow && <div className="st-pad">
         <Button kind="secondary" icon="trash" onClick={() => onEdit(removed, [id])}>Remove this part{inside ? ` and its ${inside} step${inside > 1 ? "s" : ""}` : ""}</Button>
       </div>}
-    </div>
-  );
-}
-
-function Variables({ flow, onEdit }: { flow: Flow; onEdit: (next: Flow) => void }) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState("String");
-  const [direction, setDirection] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const add = () => {
-    try {
-      const v: FlowVariable = { name: name.trim().replace(/^\$/, ""), type };
-      if (direction) v.direction = direction as FlowVariable["direction"];
-      onEdit(putVariable(flow, v));
-      setName(""); setError(null);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-  };
-  return (
-    <div>
-      <ul className="st-vars">
-        {(flow.variables ?? []).map((v) => (
-          <li key={v.name}><span className="st-var">${v.name}</span><span className="st-type">{v.type}</span>
-            <span className="st-dir">{DIRECTIONS.find((d) => d.value === (v.direction ?? ""))?.label}</span>
-            <Button kind="plain" aria-label={"Delete $" + v.name} onClick={() => onEdit(removeVariable(flow, v.name))}>Delete</Button></li>
-        ))}
-        {!flow.variables?.length && <li className="st-muted">No variables yet.</li>}
-      </ul>
-      <form className="st-var-form" onSubmit={(e) => { e.preventDefault(); add(); }}>
-        <h3 className="st-prop-section">New variable</h3>
-        <Field label="Name" layout="beside">{(id) => <TextInput id={id} mono value={name} placeholder="$total" onChange={(e) => setName(e.target.value)} />}</Field>
-        <Field label="Type" layout="beside">{(id) => <Select id={id} value={type} onChange={(e) => setType(e.target.value)} options={TYPES.map((t) => ({ value: t, label: t }))} />}</Field>
-        <Field label="Used as" layout="beside">{(id) => <Select id={id} value={direction} onChange={(e) => setDirection(e.target.value)} options={DIRECTIONS} />}</Field>
-        {error && <p role="alert" className="st-error">{error}</p>}
-        <Button kind="secondary" type="submit">Add variable</Button>
-      </form>
     </div>
   );
 }

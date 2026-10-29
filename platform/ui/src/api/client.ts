@@ -29,7 +29,11 @@ export type ActionManifest = {
 };
 export type PackageManifest = { id: string; name: string; version: string; description?: string; actions: ActionManifest[]; conditions?: ActionManifest[] };
 
-export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "both"; default?: unknown; description?: string };
+/** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */
+export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "in_out" | "local"; default?: unknown; description?: string;
+  required?: boolean; enum?: unknown[]; kpi?: boolean };
+/** Values every agent can read: $sys.* from the platform, $global.* shared by all agents. */
+export type Builtins = { sys: Record<string, unknown>; global: Record<string, unknown> };
 export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
@@ -118,6 +122,10 @@ export class StudioApi {
   item(path: string) { return this.call<{ path: string; type: WorkspaceNode["type"]; text: string }>("GET", "item?path=" + encodeURIComponent(path)); }
   saveItem(path: string, text: string) { return this.call<{ saved: string }>("PUT", "item?path=" + encodeURIComponent(path), { text }); }
 
+  async builtins() { const b = await this.call<Partial<Builtins>>("GET", "builtins"); return { sys: b.sys ?? {}, global: b.global ?? {} }; }
+  /** The workspace's shared clipboard: steps copied here can be pasted in any agent, in any Studio window. */
+  sharedClipboard() { return this.call<{ steps: FlowStep[]; variables?: FlowVariable[] }>("GET", "clipboard"); }
+  async putSharedClipboard(steps: FlowStep[], variables: FlowVariable[]) { await this.call("PUT", "clipboard", { steps, variables }); }
   async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
   modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }
   saveModelConnections(c: ModelConnections) { return this.call<ModelConnections>("PUT", "model-connections", c); }

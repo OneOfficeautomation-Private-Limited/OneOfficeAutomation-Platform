@@ -26,10 +26,14 @@ function fakeServer() {
     "GET info": () => ({ product: "Studio", edition: "preview", workspace: "C:/ws", controlRoom: "/" }),
     "GET tree": () => ({ workspace: "C:/ws", tree }),
     "GET packages": () => ({ packages: [
-      { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" }] },
+      { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" },
+        { id: "count_rows", name: "Count rows", outputs: { properties: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } } }] },
+      { id: "ooa.browser", name: "Browser", version: "1.0.0", actions: [{ id: "type_text", name: "Type text", inputs: { properties: { text: {} } } }] },
       { id: "core", name: "Core", version: "1.0.0", actions: [
         { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
         { id: "try", name: "Try", inputs: { properties: {} } },
+        { id: "set", name: "Assign", inputs: { properties: { variable: {}, value: {} } } },
+        { id: "run_bot", name: "Run agent", inputs: { properties: { automation: {}, inputs: {}, output_map: {} } } },
         { id: "loop", name: "Loop", inputs: { properties: { iterator: { enum: ["list", "while"] }, condition: { "x-ooa-visible-when": { iterator: ["while"] } } } } },
         { id: "log", name: "Write to log", inputs: { properties: { message: {} } } }] }] }),
     "GET bot": () => ({ path: "x", flow: lastSaved ?? flow }),
@@ -81,7 +85,10 @@ function fakeServer() {
   let connections: any = { default: "", connections: [] };
   routes["GET agents"] = () => ({ agents: [
     { path: "Finance/Invoices/Invoice intake.flow.json", id: "invoice_intake", name: "Invoice intake", variables: [] },
-    { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", variables: [] }] });
+    { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", variables: [
+      { name: "order_id", type: "Number", direction: "input", required: true, description: "The order to look up." },
+      { name: "status", type: "String", direction: "output" }] }] });
+  routes["GET builtins"] = () => ({ sys: { today: "2026-10-30" }, global: { company: "One Office" } });
   routes["GET model-connections"] = () => connections;
   routes["PUT model-connections"] = (b) => { connections = b; return b; };
   routes["PUT triggers"] = (b) => { triggers = b.map((t: any) => ({ enabled: true, ...t })); return { triggers }; };
@@ -306,19 +313,130 @@ describe("new Studio", () => {
     expect(await screen.findByRole("heading", { name: "Automation" })).toBeTruthy();
   });
 
-  it("adds a variable and refuses a bad name", async () => {
-    render(<App api={fakeServer().api} />);
-    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
-    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
-    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Variables" }));
-    const form = (await screen.findByRole("button", { name: "Add variable" })).closest("form")!;
-    fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "2nd" } });
-    fireEvent.click(within(form).getByRole("button", { name: "Add variable" }));
-    expect(within(form).getByRole("alert").textContent).toMatch(/starts with a letter/);
-    fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "$total" } });
-    fireEvent.change(within(form).getByLabelText("Type"), { target: { value: "Number" } });
-    fireEvent.click(within(form).getByRole("button", { name: "Add variable" }));
-    expect(screen.getByText("$total")).toBeTruthy();
+  /** Saves and returns the agent as the server received it. */
+  const saveAndGet = async (created: unknown[]) => {
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(created.some((c: any) => c.saved)).toBe(true));
+    return (created.filter((c: any) => c.saved).pop() as any).saved;
+  };
+  const openVariables = async () => { fireEvent.mouseDown(await screen.findByRole("tab", { name: "Variables" })); return screen.findByRole("region", { name: "Inputs" }); };
+  const addFromLibrary = (toolkit: RegExp, action: string) => {
+    fireEvent.click(screen.getByRole("button", { name: toolkit }));
+    fireEvent.click(screen.getByRole("button", { name: action }));
+  };
+
+  it("makes a variable in the editor: a bad name is refused, a List gets its items, two ticks make an input and output", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    await openIntake();
+    await openVariables();
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    let dialog = await screen.findByRole("dialog", { name: "New variable" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "2nd" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    expect(within(dialog).getByRole("alert").textContent).toMatch(/starts with a letter/);
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "$codes" } });
+    fireEvent.change(within(dialog).getByLabelText("Type"), { target: { value: "List" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Item" }));
+    fireEvent.change(within(dialog).getByLabelText("Item 1"), { target: { value: "A1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Item" }));
+    fireEvent.change(within(dialog).getByLabelText("Item 2"), { target: { value: "42" } });
+    fireEvent.click(within(dialog).getByLabelText(/Use as input/));
+    fireEvent.click(within(dialog).getByLabelText(/Use as output/));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    const group = await screen.findByRole("region", { name: "Inputs and outputs" });
+    expect(within(group).getByText("$codes")).toBeTruthy();
+    expect(within(group).getByText(/= A1, 42/)).toBeTruthy();
+    // the System and Shared values from the platform are listed too
+    expect(screen.getByText("$sys.today")).toBeTruthy();
+    expect(screen.getByText("$global.company")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.variables.find((v: any) => v.name === "codes")).toEqual({ name: "codes", type: "List", direction: "in_out", default: ["A1", 42] });
+    // a variable in use asks before it is deleted; renaming it changes every use
+    fireEvent.click(screen.getByRole("button", { name: /^\$workbook/ }));
+    dialog = await screen.findByRole("dialog", { name: "Variable $workbook" });
+    expect(within(dialog).getByText(/updates its 1 use/)).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "book" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    const renamed = await saveAndGet(created);
+    expect(renamed.steps[0].args.path).toBe("$book");
+  });
+
+  it("puts a variable into a field with {x}, offering the field's type first, and makes a new one from there", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Write to log"));
+    fireEvent.click(await screen.findByRole("button", { name: "Insert a variable" }));
+    const picker = screen.getByRole("dialog", { name: "Insert a variable" });
+    expect(within(picker).getByText("$workbook")).toBeTruthy();
+    expect(within(picker).getByText("$sys.today")).toBeTruthy();
+    fireEvent.click(within(picker).getByText("$workbook"));
+    let saved = await saveAndGet(created);
+    expect(saved.steps[1].children[0].args.message).toMatch(/\$workbook/);
+    // + New variable from the picker makes it and puts it in the field, as one change
+    fireEvent.click(screen.getByRole("button", { name: "Insert a variable" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Insert a variable" })).getByRole("button", { name: /New variable/ }));
+    const dialog = await screen.findByRole("dialog", { name: "New variable" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "note" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    saved = await saveAndGet(created);
+    expect(saved.variables.map((v: any) => v.name)).toContain("note");
+    expect(saved.steps[1].children[0].args.message).toMatch(/\$note/);
+  });
+
+  it("keeps a Number result only in Number variables, or in a new one named after the result", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Excel/, "Count rows");
+    const keep = await screen.findByLabelText("Keep Row count in");
+    expect([...keep.querySelectorAll("option")].map((o) => o.textContent)).toEqual(["(do not keep)", "+ New Number variable"]);   // $workbook is a File
+    fireEvent.change(keep, { target: { value: "\u0000new" } });
+    const dialog = await screen.findByRole("dialog", { name: "New variable" });
+    expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("count");
+    expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Number");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.excel/count_rows", out: { count: "count" } });
+    expect(saved.variables).toContainEqual({ name: "count", type: "Number" });
+  });
+
+  it("types text from a Credential variable, a variable, plain text or a calculation", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Browser/, "Type text");
+    const from = await screen.findByRole("radiogroup", { name: "Text comes from" });
+    expect(within(from).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Credential", "Variable", "Text", "Calculation"]);
+    expect(within(from).getByRole("radio", { name: "Text" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(from).getByRole("radio", { name: "Credential" }));
+    expect([...screen.getByLabelText("Credential variable").querySelectorAll("option")].map((o) => o.textContent)).toEqual(["Choose a credential variable…"]);
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    const dialog = await screen.findByRole("dialog", { name: "New variable" });
+    expect((within(dialog).getByLabelText("Type") as HTMLSelectElement).value).toBe("Credential");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create variable" }));
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { text: "$password" } });
+    expect(saved.variables).toContainEqual({ name: "password", type: "Credential", direction: "input", description: "From the vault: map it to a credential when running." });
+  });
+
+  it("runs another agent: lists its inputs, keeps numbers as numbers, and saves an output in a new variable", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Core/, "Run agent");
+    fireEvent.change(await screen.findByLabelText("Agent to run *"), { target: { value: "lookup_order" } });
+    const input = await screen.findByLabelText("Input order_id");
+    fireEvent.change(input, { target: { value: "1001" } });
+    fireEvent.blur(input);
+    fireEvent.change(screen.getByLabelText("Variable for status"), { target: { value: "\u0000new" } });
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "New variable" })).getByRole("button", { name: "Create variable" }));
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "core/run_bot", args: { automation: "lookup_order", inputs: { order_id: 1001 }, output_map: { status: "status" } } });
   });
 
   const openIntake = async () => {
