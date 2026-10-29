@@ -29,6 +29,7 @@ function fakeServer() {
       { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" }] },
       { id: "core", name: "Core", version: "1.0.0", actions: [
         { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
+        { id: "try", name: "Try", inputs: { properties: {} } },
         { id: "loop", name: "Loop", inputs: { properties: { iterator: { enum: ["list", "while"] }, condition: { "x-ooa-visible-when": { iterator: ["while"] } } } } },
         { id: "log", name: "Write to log", inputs: { properties: { message: {} } } }] }] }),
     "GET bot": () => ({ path: "x", flow: lastSaved ?? flow }),
@@ -351,10 +352,10 @@ describe("new Studio", () => {
     const steps = await openIntake();
     fireEvent.click(stepButton(steps, "Open workbook"));
     fireEvent.click(stepButton(steps, "Write to log"), { shiftKey: true });
-    expect(within(steps).getByText(/^3 of 3 steps/)).toBeTruthy();
+    expect(within(steps).getByText(/^3 selected of 3 steps/)).toBeTruthy();
     expect(screen.getByText(/3 steps selected/)).toBeTruthy();
     fireEvent.click(stepButton(steps, "Loop"), { ctrlKey: true });   // Ctrl+click takes one out again
-    expect(within(steps).getByText(/^2 of 3 steps/)).toBeTruthy();
+    expect(within(steps).getByText(/^2 selected of 3 steps/)).toBeTruthy();
     fireEvent.click(within(steps).getByRole("button", { name: "Switch off" }));
     expect(within(steps).getAllByText("OFF")).toHaveLength(2);
     fireEvent.click(within(steps).getByRole("button", { name: "Delete" }));
@@ -432,7 +433,7 @@ describe("new Studio", () => {
     render(<App api={api} />);
     const steps = await openIntake();
     fireEvent.click(stepButton(steps, "Loop"));
-    fireEvent.click(within(steps).getByRole("button", { name: "Breakpoint" }));
+    fireEvent.keyDown(stepButton(steps, "Loop"), { key: "F9" });
     expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Debug" }));
     const dialog = await screen.findByRole("dialog", { name: "Debug Invoice intake" });
@@ -615,5 +616,107 @@ describe("new Studio", () => {
       { name: "company-claude", provider: "anthropic", model: "claude-sonnet-4-5", api_key: { $credential: "ai/anthropic/api_key" } }] });
     await act(async () => { fireEvent.click(within(w).getByRole("button", { name: "Test it" })); await new Promise((r) => setTimeout(r, 500)); });
     expect(await within(w).findByText("Connected. The model answered: OK", {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  const key = (el: HTMLElement, k: string, extra: object = {}) => fireEvent.keyDown(el, { key: k, ...extra });
+  const noClip = { clipboardData: { getData: () => "" } };
+
+  it("copies, cuts and pastes steps from the keyboard and the step menu, and takes steps copied in Classic with their variables", async () => {
+    const written: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t: string) => { written.push(t); } } });
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    key(stepButton(steps, "Open workbook"), "c", { ctrlKey: true });
+    fireEvent.click(stepButton(steps, "Write to log"));
+    fireEvent.paste(stepButton(steps, "Write to log"), noClip);   // Ctrl+V arrives as a paste event: after the log, in the loop
+    expect(stepNames(steps)).toEqual(["Open workbook", "Loop", "Write to log", "Open workbook"]);
+    expect(within(steps).getByText("4 steps")).toBeTruthy();
+    // the right-click menu acts on the step clicked
+    fireEvent.contextMenu(stepButton(steps, "Loop"));
+    const menu = await screen.findByRole("menu");
+    const names = within(menu).getAllByRole("menuitem").map((i) => i.getAttribute("aria-label"));
+    expect(names).toEqual(expect.arrayContaining(["Cut", "Copy", "Paste after, 1 step copied", "Duplicate", "Switch off", "Delete", "Add note", "Fold"]));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Cut" }));   // the loop goes with both steps in it
+    expect(stepNames(steps)).toEqual(["Open workbook"]);
+    // the loop (with its step) is now on the clipboard; paste it at the start
+    fireEvent.click(within(steps).getByRole("button", { name: "START" }));
+    expect(screen.getByText(/actions you click in the library go first/)).toBeTruthy();
+    fireEvent.paste(within(steps).getByRole("button", { name: "START" }), noClip);
+    expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Open workbook"]);
+    // steps copied in Classic Studio come through the computer's clipboard, with the variables they use
+    await act(async () => {});   // the computer's clipboard took the copy, in Classic's shape
+    expect(JSON.parse(written[written.length - 1]).ooaSteps.steps[0].action).toBe("core/loop");
+    const classic = JSON.stringify({ ooaSteps: { steps: [{ id: "s9", action: "core/log", args: { message: "${total}" } }], variables: [{ name: "total", type: "Number" }] } });
+    fireEvent.click(stepButton(steps, "Loop"));   // a block: pasted steps go after it, not into it
+    fireEvent.paste(stepButton(steps, "Loop"), { clipboardData: { getData: () => classic } });
+    expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Write to log", "Open workbook"]);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Variables" }));
+    expect(await screen.findByText("$total")).toBeTruthy();
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("extends the selection with Shift and the arrow keys, switches it off together, and clears it with Esc", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    key(stepButton(steps, "Open workbook"), "ArrowDown", { shiftKey: true });
+    key(stepButton(steps, "Open workbook"), "ArrowDown", { shiftKey: true });
+    expect(within(steps).getByText(/^3 selected of 3 steps/)).toBeTruthy();
+    key(stepButton(steps, "Open workbook"), "ArrowUp", { shiftKey: true });   // gives one back
+    expect(within(steps).getByText(/^2 selected of 3 steps/)).toBeTruthy();
+    key(stepButton(steps, "Open workbook"), "/", { ctrlKey: true });
+    expect(within(steps).getAllByText("OFF")).toHaveLength(2);
+    key(stepButton(steps, "Open workbook"), "Escape");
+    expect(within(steps).getByText(/^3 steps/)).toBeTruthy();
+  });
+
+  it("adds Catch and Finally parts, puts clicked actions in the selected part, and folds blocks", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(within(steps).getByRole("button", { name: "START" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Core/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Try" }));
+    expect(stepNames(steps)[0]).toBe("Try");   // Start selected: the action went first
+    expect(within(steps).getByRole("button", { name: "Catch (any error)" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Finally" }));   // in the Try's Parts
+    expect(within(steps).getByRole("button", { name: "Finally (always)", pressed: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Write to log" }));   // goes into Finally
+    fireEvent.click(within(steps).getByRole("button", { name: "Catch (any error)" }));
+    fireEvent.change(screen.getByLabelText("Errors it catches"), { target: { value: "FILE.NOT_FOUND, BUSINESS.ERROR" } });
+    fireEvent.blur(screen.getByLabelText("Errors it catches"));
+    expect(within(steps).getByRole("button", { name: "Catch FILE.NOT_FOUND, BUSINESS.ERROR" })).toBeTruthy();
+    // fold the Try: its line shows how many steps it hides
+    fireEvent.click(within(steps).getByRole("button", { name: "Fold line 1" }));
+    expect(within(steps).getByText("1 step folded")).toBeTruthy();
+    expect(within(steps).queryByRole("button", { name: "Finally (always)" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(created.some((c: any) => c.saved?.ui?.collapsed?.length === 1)).toBe(true));
+    const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
+    expect(saved.steps[0]).toMatchObject({ action: "core/try", catch: [{ codes: ["FILE.NOT_FOUND", "BUSINESS.ERROR"], children: [] }], finally: [{ action: "core/log" }] });
+    fireEvent.keyDown(within(steps).getByRole("button", { name: "More" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Unfold all" }));
+    expect(within(steps).getByRole("button", { name: "Finally (always)" })).toBeTruthy();
+  });
+
+  it("adds the best matching action when Enter is pressed in the action search", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    const search = screen.getByLabelText("Search actions");
+    fireEvent.change(search, { target: { value: "close" } });
+    key(search, "Enter");
+    expect(stepNames(steps)).toEqual(["Open workbook", "Close workbook", "Loop", "Write to log"]);
+  });
+
+  it("pastes with Ctrl+V when the browser sends no paste event (Chrome on a step)", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    key(stepButton(steps, "Open workbook"), "c", { ctrlKey: true });
+    key(stepButton(steps, "Open workbook"), "v", { ctrlKey: true });
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    expect(stepNames(steps)).toEqual(["Open workbook", "Open workbook", "Loop", "Write to log"]);
   });
 });

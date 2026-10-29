@@ -126,9 +126,34 @@ one at `/studio/` behind a "Try the new Studio" switch, the old one as "Classic"
 | P3 | Action library, variables, triggers, run, debug, bottom panel. **Done 2026-10-29**: Run (asking for the agent's inputs), live run output and outputs, Debug with breakpoints (F9), Continue, Step over, into and out, values at the stopped step, the running step highlighted; schedule, folder and webhook triggers per agent; Problems, Run output and Debug values in the bottom panel | L |
 | P4 | Other editors: form, workflow, document type, Prompt Skill, script. **Done 2026-10-29**: forms (13 field kinds, ids, options, limits), workflows (agent tasks, human tasks, approvals, decisions, notifications), document types (provider, model, accepted files, fields to extract), Prompt Skills and scripts, each with undo, save and the unsaved check; new items open in their editor; a JSON file that does not parse opens as text to repair. Still in Classic: Create extraction agent from a document type, and running a script on its own | L |
 | P5 | AI agent editor (new, V6.6) and model connections (V6.5). **Done 2026-10-29**: Create → AI agent makes an agent with one AI step and opens it in its own editor: a plain brief that can write the role, instructions and plan through the default connection; tabs for instructions, tools (other agents, with approval before sensitive ones), model, outputs and limits; a Try it panel with the answer, status and each step it took; Show as steps for the ordinary view. New connection is a four-step wizard (service, model and address, sign-in from the vault or an environment variable, never the key itself; save, then a one-prompt test) | M |
-| P6 | All 278 checks pass on the new Studio; make it the default; remove Classic one release later | S |
+| P6 | Parity with Classic (section 5.1, groups E1 to E8); make it the default; remove Classic one release later | L |
 
 Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6.7 to V6.10).
+
+### 5.1 Parity with Classic (P6)
+
+The 277 Classic checks (`cli/src/test/ui/studio.ui.test.js`) drive Classic's own page by its element ids, so they cannot
+run on the new Studio as they are. Parity means: each behaviour they check works in the new Studio and has its own
+test there. Checks 1 to 277 fall into these groups (counts are approximate; the server-side ones, such as paths
+outside the workspace and webhook secrets, keep passing whatever the screen):
+
+| Group | Classic checks | New Studio |
+| --- | --- | --- |
+| Workspace, Create, open, save, close with the unsaved check, delete to the trash | 3-13, 23, 28-32, 98-105, 109, 229-232 | Have |
+| Drag and drop, blocks, condition builder, multi-select, undo, Delete, Duplicate, move | 14-22, 63-65, 67-71, 77-82, 192-195, 198-208 | Have |
+| Run, live step, stop, pause, Debug with breakpoints, triggers | 50, 54-62, 84-90, 122, 129-130, 233-237 | Have (the Run window is the bottom panel) |
+| **E1 Step editing**: copy, cut, paste (also into another agent, with its variables), Ctrl+/, Esc, Shift+Up/Down, the step menu (⋮ and right-click, keyboard), Add note, fold blocks, line numbers through blocks, fixed Start and End rows, Else if, + Catch, + Finally, quick add with Enter | 33-38, 66, 72-76, 81, 123-124, 153, 159-166, 181, 196-197, 200-201, 209-218, 259-266 | **Done 2026-10-30**: Cut, Copy and Paste (toolbar, keys, menu; the clipboard shape Classic uses, so steps move between the two Studios with their variables), the step menu on ⋮, right-click or the menu key, Shift+arrows, Esc, Ctrl+/, moving a whole selection, Start and block parts that can be selected and dropped on, + Else if, + Else, + Catch (with its error codes), + Finally, folding kept in the agent's ui section, Enter in the action search adds the best match. The flow diagram view is in E7 |
+| **E2 Variables**: the {x} picker, rename everywhere, typed defaults, input and output, system and global variables, credential variables, only matching types offered, last values after a run | 42, 51, 83, 116-121, 154-158, 173-176, 267 | Partly (add and delete only) |
+| **E3 Settings by kind**: Loop kinds, business-day options, click and typing options, time-out box, outcome variable, window presets, connector connection | 167-172, 177-180, 223-224, 252-258, 270 | Partly (catalogue fields, More options) |
+| **E4 Explorer**: rename, move by drag, copy, paste, duplicate, the item menu, search by description and by the actions used | 24-27, 91-93, 238-247 | Gap |
+| **E5 Run options**: Run from here, Run this step only, with default values | 219-222 | Gap |
+| **E6 Web and desktop objects**: Capture, the recorder, the captured object and window editors, anchors, selectors, numbered window and value variables, run in background | 53, 96, 131-152, 182-183, 225-228, 268-269 | Gap (the largest) |
+| **E7 Agents together**: open the agent a Run agent step runs and come back, "Run by", Dependencies, templates, the flow diagram, the assistant, document type to extraction agent, run a script | 106-108, 110-115, 125-128, 271-274 | Partly (templates, AI agent) |
+| **E8 Control Room**: sign in and check in from the Studio | 275-277 | Gap |
+| **Classic-only options**: theme switch, compact density, dock right, floating or minimised, drag handles to resize panels, the logo | 1-2, 39-49, 94-95, 248-251 | Gap, kept (decided 2026-10-30): drag to resize panels, the run panel docked right, floating or minimised, a dark theme and compact density |
+| Library groups by technology | 97, 184-191 | Have (toolkit families) |
+
+The new Studio becomes the default when E1 to E8 and the kept Classic options are done. Order: E1 first.
 
 ## 6. Quality bar (checked at every step)
 

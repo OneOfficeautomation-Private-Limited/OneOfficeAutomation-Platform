@@ -12,7 +12,7 @@ describe("steps view", () => {
       { id: "i", action: "core/if", children: [{ id: "e", action: "core/log" }], else: [{ id: "f", action: "core/log" }] },
     ]);
     expect(rows.map((r) => r.kind === "step" ? `${r.n}:${r.step.id}@${r.depth}` : `[${r.label}]@${r.depth}`)).toEqual([
-      "1:a@0", "2:t@0", "3:b@1", "[Catch (on error)]@1", "4:c@1", "[Finally (always)]@1", "5:d@1", "6:i@0", "7:e@1", "[Else]@1", "8:f@1",
+      "1:a@0", "2:t@0", "3:b@1", "[Catch (any error)]@1", "4:c@1", "[Finally (always)]@1", "5:d@1", "6:i@0", "7:e@1", "[Else]@1", "8:f@1",
     ]);
   });
 

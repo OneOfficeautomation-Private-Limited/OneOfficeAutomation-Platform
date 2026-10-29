@@ -7,8 +7,8 @@ import { Automation } from "./Automation";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
 import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
-import { ActionsPanel, AgentView } from "./Editor";
-import { addStep, insertAt, newStep, parseLoose, type Place } from "./flowEdit";
+import { ActionsPanel, AgentView, type StepsClipboard } from "./Editor";
+import { addStep, insertAt, newStep, parseLoose, type Part, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
 import { aiAgentTemplate, isAiAgent } from "./aiAgent";
 import { AiAgentEditor } from "./AiAgentEditor";
@@ -39,6 +39,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [info, setInfo] = useState<StudioInfo | null>(null);
   const [tree, setTree] = useState<WorkspaceNode | null>(null);
   const [packages, setPackages] = useState<PackageManifest[]>([]);
+  const [clipboard, setClipboard] = useState<StepsClipboard | null>(null);   // copied steps, for every open agent
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [view, setView] = useState<StudioView>("automation");
   const [tabs, setTabs] = useState<OpenTab[]>([]);
@@ -97,13 +98,13 @@ export function App({ api: given }: { api?: StudioApi }) {
   const add = (action: string) => {
     if (!agent) return;
     const step = newStep(action, agent.flow, packages);
-    edit(addStep(agent.flow, agent.selected[agent.selected.length - 1] ?? null, step), [step.id]);
+    edit(addStep(agent.flow, agent.selected, step), [step.id]);
   };
   // an action dragged from the library onto a place in the steps
-  const insert = (action: string, targetId: string | null, where: Place) => {
+  const insert = (action: string, targetId: string | null, where: Place, part?: Part) => {
     if (!agent) return;
     const step = newStep(action, agent.flow, packages);
-    edit(insertAt(agent.flow, step, targetId, where), [step.id]);
+    edit(insertAt(agent.flow, step, targetId, where, part), [step.id]);
   };
   const save = async (path: string) => {
     // a field still being typed in (Ctrl+S without leaving it) commits first, then the latest flow is saved
@@ -296,7 +297,8 @@ export function App({ api: given }: { api?: StudioApi }) {
                 onSelect={(ids) => patch(agent.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
-                canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo} /></>
+                canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo}
+                clipboard={clipboard} onClipboard={setClipboard} /></>
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree

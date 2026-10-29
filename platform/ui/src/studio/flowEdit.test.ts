@@ -3,7 +3,9 @@ import type { Flow, PackageManifest } from "../api/client";
 import {
   addStep, duplicateStep, fieldOrder, locate, moveStep, newStep, nextId, parseLoose, putVariable, removeStep, removeVariable,
   setArg, setOut, toggleDisabled, insertAt, moveTo, removeSteps, toggleDisabledMany, duplicateSteps,
+  addBranch, copySteps, moveManyTo, moveSelection, pasteSteps, readClip, removeBranch, sectionKey, setFolded, spotFor, START, topSteps,
 } from "./flowEdit";
+import { stepRows } from "./toolkits";
 
 const packages: PackageManifest[] = [
   { id: "core", name: "Core", version: "1", actions: [
@@ -110,5 +112,60 @@ describe("editing an agent", () => {
     const d = duplicateSteps(f, ["s1", "s4"]);
     expect(d.flow.steps.map((s) => s.id)).toEqual(["s1", "s5", "s2", "s4", "s6"]);
     expect(d.ids).toEqual(["s5", "s6"]);
+  });
+});
+
+describe("E1 step editing", () => {
+  it("copies steps with the variables they use and pastes them with new ids", () => {
+    const f = { ...flow(), variables: [{ name: "wb", type: "File" }, { name: "other", type: "String" }] };
+    const clip = copySteps(f, ["s3", "s2", "s1"])!;   // s3 is inside s2: it goes with it
+    expect(clip.steps.map((s) => s.id)).toEqual(["s1", "s2"]);
+    expect(clip.variables.map((v) => v.name)).toEqual(["wb"]);
+    const p = pasteSteps(flow(), clip, spotFor(flow(), ["s4"], false));
+    expect(p.flow.steps.map((s) => s.id)).toEqual(["s1", "s2", "s4", "s5", "s6"]);
+    expect(p.flow.steps[4].children![0].id).toBe("s7");
+    expect(p.flow.variables).toEqual([{ name: "wb", type: "File" }]);
+    expect(readClip(JSON.stringify({ ooaSteps: clip }))).toEqual(clip);
+    expect(readClip("plain text")).toBeNull();
+  });
+
+  it("finds where new steps go: Start, a block part, after a block or inside it", () => {
+    const f = flow();
+    expect(spotFor(f, [START])).toEqual({ id: null, where: "before" });
+    expect(spotFor(f, [sectionKey("s2", "children")])).toEqual({ id: "s2", where: "inside", part: "children" });
+    expect(spotFor(f, ["s2"])).toEqual({ id: "s2", where: "inside", part: "children" });
+    expect(spotFor(f, ["s2"], false)).toEqual({ id: "s2", where: "after" });
+    expect(spotFor(f, [])).toEqual({ id: null, where: "after" });
+    expect(addStep(f, [START], { id: "s9", action: "core/log" }).steps[0].id).toBe("s9");
+  });
+
+  it("moves a selection together, up and down and by drag", () => {
+    const f = flow();
+    expect(moveSelection(f, ["s2", "s4"], -1).steps.map((s) => s.id)).toEqual(["s2", "s4", "s1"]);
+    expect(moveSelection(f, ["s1", "s2"], -1)).toBe(f);   // already at the top
+    expect(moveManyTo(f, ["s4", "s1"], "s2", "inside").steps[0].children!.map((s) => s.id)).toEqual(["s3", "s1", "s4"]);
+    expect(moveManyTo(f, ["s2"], "s3", "after")).toBe(f);   // not into itself
+    expect(topSteps(f, ["s3", "s2"]).map((s) => s.id)).toEqual(["s2"]);
+  });
+
+  it("adds and removes block parts; a Try keeps a Catch or a Finally", () => {
+    const f: Flow = { kind: "TaskBot", id: "a", name: "A", steps: [{ id: "t", action: "core/try", children: [], catch: [{ codes: [], children: [] }] }] };
+    const fin = addBranch(f, "t", "finally");
+    expect(fin.part).toBe("finally");
+    const noCatch = removeBranch(fin.flow, "t", "catch:0");
+    expect(noCatch.steps[0].catch).toBeUndefined();
+    expect(removeBranch(noCatch, "t", "finally")).toBe(noCatch);   // the last part stays
+    const iff: Flow = { kind: "TaskBot", id: "a", name: "A", steps: [{ id: "i", action: "core/if", children: [], else: [] }] };
+    const ei = addBranch(iff, "i", "elseIf");
+    expect(ei.part).toBe("elseIf:0");
+    expect(stepRows(ei.flow.steps).flatMap((r) => r.kind === "section" ? [r.label] : [])).toEqual(["Else if (no condition)", "Else"]);
+  });
+
+  it("keeps folded blocks in the ui section and still counts their lines", () => {
+    const f = setFolded(flow(), ["s2"], true);
+    expect(f.ui).toEqual({ collapsed: ["s2"] });
+    const rows = stepRows(f.steps, new Set(["s2"]));
+    expect(rows.map((r) => r.kind === "step" ? r.n + (r.folded ? "+" + r.hidden : "") : "-")).toEqual(["1", "2+1", "4"]);
+    expect(setFolded(f, ["s2"], false).ui).toBeUndefined();
   });
 });

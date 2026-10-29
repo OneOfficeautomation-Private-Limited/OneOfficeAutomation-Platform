@@ -81,7 +81,7 @@ function InputField({ name, spec, required, value, onCommit }: { name: string; s
 }
 
 /** A text field that reports its value when it loses focus or on Enter, not on every key. Callers key it on the value, so undo shows. */
-function CommitInput({ id, initial, placeholder, mono, onCommit }: { id: string; initial: string; placeholder?: string; mono?: boolean; onCommit: (text: string) => void }) {
+export function CommitInput({ id, initial, placeholder, mono, onCommit }: { id: string; initial: string; placeholder?: string; mono?: boolean; onCommit: (text: string) => void }) {
   const commit = (el: HTMLInputElement) => { if (el.value !== initial) onCommit(el.value); };
   return <TextInput id={id} defaultValue={initial} placeholder={placeholder} mono={mono}
     onBlur={(e) => commit(e.currentTarget)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(e.currentTarget); } }} />;

@@ -56,6 +56,8 @@
 .ui-menu-item[data-highlighted] { background: var(--ui-selected); }
 .ui-menu-item[data-disabled] { cursor: not-allowed; opacity: .6; }
 .ui-menu-text { display: flex; flex-direction: column; }
+.ui-menu-sep { height: 1px; margin: 4px 2px; background: var(--ui-divider); }
+.ui-menu-key { margin-left: auto; padding-left: 16px; font: 12px var(--ui-mono, monospace); color: var(--ui-text-2); }
 .ui-menu-text span { color: var(--ui-text-2); font-size: 12px; }
 
 /* Dialog */

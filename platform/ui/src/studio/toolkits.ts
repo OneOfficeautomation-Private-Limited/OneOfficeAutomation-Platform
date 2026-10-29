@@ -1,5 +1,6 @@
 import type { IconName } from "../components";
 import type { FlowStep, PackageManifest } from "../api/client";
+import { innerLists, type Part } from "./flowEdit";
 
 /** Colour and icon of a toolkit, so steps and the action library share one mark per toolkit (approved look). */
 export type Mark = { color: string; icon: IconName };
@@ -71,21 +72,31 @@ export function allInstalled(steps: FlowStep[], packages: PackageManifest[]): bo
   return [...actionsUsed(steps)].every((a) => { const [p, id] = a.split("/"); return packages.some((x) => x.id === p && x.actions.some((y) => y.id === id)); });
 }
 
-/** One line of the steps view: a step, or the heading of a block's second part (Else, Catch, Finally). */
-export type StepRow = { kind: "step"; n: number; depth: number; step: FlowStep } | { kind: "section"; depth: number; label: string };
+/**
+ * One line of the steps view: a step (a folded block says how many steps it hides), or the heading of a block's
+ * other part (Else if, Else, Catch, Finally), which can be selected and dropped on.
+ */
+export type StepRow = { kind: "step"; n: number; depth: number; step: FlowStep; folded: boolean; hidden: number }
+  | { kind: "section"; depth: number; label: string; stepId: string; part: Part };
 
-/** Flattens the steps for the numbered view, in the order they run, with block parts as headings. */
-export function stepRows(steps: FlowStep[]): StepRow[] {
+const countSteps = (s: FlowStep): number => innerLists(s).reduce((n, l) => n + l.reduce((m, x) => m + 1 + countSteps(x), 0), 0);
+
+/** Flattens the steps for the numbered view, in the order they run. Line numbers count the steps of folded blocks too. */
+export function stepRows(steps: FlowStep[], folded: Set<string> = new Set()): StepRow[] {
   const rows: StepRow[] = [];
   let n = 0;
   const walk = (list: FlowStep[] | undefined, depth: number) => {
     for (const s of list ?? []) {
-      rows.push({ kind: "step", n: ++n, depth, step: s });
+      const fold = folded.has(s.id) && innerLists(s).length > 0;
+      const hidden = fold ? countSteps(s) : 0;
+      rows.push({ kind: "step", n: ++n, depth, step: s, folded: fold, hidden });
+      if (fold) { n += hidden; continue; }
       walk(s.children, depth + 1);
-      (s.elseIf ?? []).forEach((b, k) => { rows.push({ kind: "section", depth: depth + 1, label: "Else if #" + (k + 1) }); walk(b.children, depth + 1); });
-      if (s.else?.length) { rows.push({ kind: "section", depth: depth + 1, label: "Else" }); walk(s.else, depth + 1); }
-      (s.catch ?? []).forEach((c) => { rows.push({ kind: "section", depth: depth + 1, label: "Catch (on error)" }); walk(c.children, depth + 1); });
-      if (s.finally?.length) { rows.push({ kind: "section", depth: depth + 1, label: "Finally (always)" }); walk(s.finally, depth + 1); }
+      const sec = (label: string, part: Part, inner: FlowStep[] | undefined) => { rows.push({ kind: "section", depth: depth + 1, label, stepId: s.id, part }); walk(inner, depth + 1); };
+      (s.elseIf ?? []).forEach((b, k) => sec("Else if " + conditionText(b.condition), `elseIf:${k}`, b.children));
+      if (s.else) sec("Else", "else", s.else);
+      (s.catch ?? []).forEach((c, k) => sec(c.codes?.length ? "Catch " + c.codes.join(", ") : "Catch (any error)", `catch:${k}`, c.children));
+      if (s.finally) sec("Finally (always)", "finally", s.finally);
     }
   };
   walk(steps, 0);
