@@ -319,3 +319,13 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
 .st-row-tight { display: flex; gap: 6px; align-items: center; }
 .st-run-agent { display: flex; flex-direction: column; gap: 6px; }
 .st-sub { margin: 8px 0 2px; font-size: 12px; text-transform: uppercase; color: var(--ui-text-2); }
+
+/* E3 settings by kind: the time-out box, the window editor, links in hints */
+.st-timeout { margin: 8px 12px; border: 1px solid var(--ui-divider); border-radius: 8px; }
+.st-timeout-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--ui-divider); background: #f6f8fb; border-radius: 8px 8px 0 0; }
+.st-win { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.st-win-now { margin: 0; color: var(--ui-text-2); font-size: 12.5px; }
+.st-win-now strong { color: var(--ui-text); font-weight: 600; }
+.st-win-link { margin: 0; font-size: 12px; color: var(--ui-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-win-case { padding-left: 116px; }
+.st-link { padding: 0; border: 0; background: none; color: var(--ui-accent-text); font: inherit; text-decoration: underline; cursor: pointer; }

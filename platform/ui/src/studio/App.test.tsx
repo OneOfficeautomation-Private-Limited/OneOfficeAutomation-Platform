@@ -28,13 +28,28 @@ function fakeServer() {
     "GET packages": () => ({ packages: [
       { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" },
         { id: "count_rows", name: "Count rows", outputs: { properties: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } } }] },
-      { id: "ooa.browser", name: "Browser", version: "1.0.0", actions: [{ id: "type_text", name: "Type text", inputs: { properties: { text: {} } } }] },
+      { id: "ooa.browser", name: "Browser", version: "1.0.0", actions: [{ id: "type_text", name: "Type text", inputs: { properties: { text: {} } } },
+        { id: "element_action", name: "Element action", inputs: { properties: {
+          window: { type: "object", "x-ooa-type": "Dictionary" }, object: { type: "object", "x-ooa-type": "Dictionary" },
+          action: { type: "string", enum: ["click", "set_text", "get_selected_index", "select_by_text"] }, value: { "x-ooa-type": "Any" },
+          click_method: { type: "string", enum: ["mouse", "javascript"], default: "mouse" }, typing: { type: "string", enum: ["fill", "keystrokes"], default: "fill" },
+          timeout_ms: { type: "number", "x-ooa-type": "Number", default: 30000 }, wait_for_page_ms: { type: "number", "x-ooa-type": "Number", default: 0 },
+          if_not_found: { type: "string", enum: ["error", "continue"], default: "error" } } },
+          "x-ooa-panel": { main: ["window", "object", "action", "value"], more: ["typing", "click_method", "timeout_ms", "wait_for_page_ms", "if_not_found"] } }] },
+      { id: "ooa.servicenow", name: "ServiceNow", version: "1.0.0", actions: ["create_record", "get_record", "update_record"].map((id) => ({ id, name: id.replace("_", " "),
+        inputs: { properties: { instance: { "x-ooa-type": "String" }, user: { "x-ooa-type": "String" }, password: { "x-ooa-type": "Credential" },
+          ...(id === "create_record" ? { table: { "x-ooa-type": "String" } } : {}) } } })) },
       { id: "core", name: "Core", version: "1.0.0", actions: [
         { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
         { id: "try", name: "Try", inputs: { properties: {} } },
         { id: "set", name: "Assign", inputs: { properties: { variable: {}, value: {} } } },
         { id: "run_bot", name: "Run agent", inputs: { properties: { automation: {}, inputs: {}, output_map: {} } } },
-        { id: "loop", name: "Loop", inputs: { properties: { iterator: { enum: ["list", "while"] }, condition: { "x-ooa-visible-when": { iterator: ["while"] } } } } },
+        { id: "loop", name: "Loop", inputs: { properties: { iterator: { "x-ooa-type": "String" }, condition: { "x-ooa-visible-when": { iterator: ["while"] } },
+          over: { "x-ooa-visible-when": { iterator: ["list", "table_rows", "dictionary", "dictionary_keys", "dictionary_values"] } },
+          count: { type: "number", "x-ooa-type": "Number", minimum: 0, "x-ooa-visible-when": { iterator: ["times"] } },
+          start: { type: "number", "x-ooa-type": "Number", default: 0, "x-ooa-visible-when": { iterator: ["times"] } },
+          from_index: { type: "number", "x-ooa-type": "Number", minimum: 0, "x-ooa-visible-when": { iterator: ["!", "times", "while"] } },
+          as: { "x-ooa-type": "String" }, max_iterations: { type: "number", "x-ooa-type": "Number", default: 100000 } } } },
         { id: "log", name: "Write to log", inputs: { properties: { message: {} } } }] }] }),
     "GET bot": () => ({ path: "x", flow: lastSaved ?? flow }),
     "GET blueprints": () => ({ blueprints: [
@@ -88,6 +103,8 @@ function fakeServer() {
     { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", variables: [
       { name: "order_id", type: "Number", direction: "input", required: true, description: "The order to look up." },
       { name: "status", type: "String", direction: "output" }] }] });
+  routes["GET windows"] = () => ({ windows: [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }] });
+  routes["GET connections"] = () => ({ connections: [{ name: "snow-prod", package: "ooa.servicenow" }, { name: "sf", package: "ooa.salesforce" }] });
   routes["GET builtins"] = () => ({ sys: { today: "2026-10-30" }, global: { company: "One Office" } });
   routes["GET model-connections"] = () => connections;
   routes["PUT model-connections"] = (b) => { connections = b; return b; };
@@ -836,5 +853,96 @@ describe("new Studio", () => {
     key(stepButton(steps, "Open workbook"), "v", { ctrlKey: true });
     await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
     expect(stepNames(steps)).toEqual(["Open workbook", "Open workbook", "Loop", "Write to log"]);
+  });
+
+  it("sets a Loop by its kind: N times shows the count with its limit behind an ⓘ, For each what it goes through", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Loop"));
+    const kind = await screen.findByRole("radiogroup", { name: "Kind of loop" });
+    expect(within(kind).getAllByRole("radio").map((r) => r.textContent)).toEqual(["N times", "For each", "While"]);
+    expect(within(kind).getByRole("radio", { name: "For each" }).getAttribute("aria-checked")).toBe("true");
+    expect([...screen.getByLabelText("Loop type").querySelectorAll("option")].map((o) => o.getAttribute("value")))
+      .toEqual(["table_rows", "list", "dictionary", "dictionary_keys", "dictionary_values"]);
+    expect(screen.getByLabelText("Start at position")).toBeTruthy();   // shown unless N times or While
+    fireEvent.click(within(kind).getByRole("radio", { name: "N times" }));
+    expect(await screen.findByLabelText("Number of times *")).toBeTruthy();
+    expect(screen.queryByLabelText("Start at position")).toBeNull();
+    expect(screen.queryByLabelText("Loop type")).toBeNull();
+    const about = screen.getByRole("button", { name: "About Number of times" });
+    fireEvent.click(about);
+    expect(screen.getByRole("note").textContent).toMatch(/Smallest value: 0/);
+    const count = screen.getByLabelText("Number of times *");
+    fireEvent.change(count, { target: { value: "$rows - 1" } });   // not a number: kept as a calculation
+    fireEvent.blur(count);
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1].args).toMatchObject({ iterator: "times", count: { expr: "$rows - 1" } });
+  });
+
+  it("shows an element action's own fields, its time-out box, and keeps a result in a new variable", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Browser/, "Element action");
+    const action = await screen.findByLabelText("Action to take on the element");
+    // a click: its click options, no value field
+    expect(screen.queryByText("Text to enter")).toBeNull();
+    fireEvent.click(screen.getByText(/^More options/));
+    expect(screen.getByLabelText("click method")).toBeTruthy();
+    // the time-out has its own box: Basic shows the wait, Advanced adds the page wait and what happens when time runs out
+    const box = screen.getByRole("region", { name: "System time-out" });
+    expect(within(box).getByLabelText("Wait for the element (milliseconds)")).toBeTruthy();
+    expect(within(box).queryByLabelText("When the wait runs out")).toBeNull();
+    fireEvent.click(within(box).getByRole("radio", { name: "Advanced" }));
+    expect(within(box).getByLabelText("When the wait runs out")).toBeTruthy();
+    expect(within(box).getByLabelText("Wait for the page first (milliseconds)")).toBeTruthy();
+    // an action that returns something keeps its result in a new variable at once
+    fireEvent.change(action, { target: { value: "get_selected_index" } });
+    expect((await screen.findByLabelText("Keep Result in") as HTMLSelectElement).value).toBe("selected_index");
+    // Set text: the text to enter (from a credential, a variable, text or a calculation) and the typing options
+    fireEvent.change(screen.getByLabelText("Action to take on the element"), { target: { value: "set_text" } });
+    expect(await screen.findByText("Text to enter")).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: "Text comes from" })).toBeTruthy();
+    expect(screen.getByLabelText("typing")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/element_action", args: { action: "set_text" }, out: { result: "selected_index" } });
+    expect(saved.variables).toContainEqual({ name: "selected_index", type: "Number" });
+  });
+
+  it("picks the window of a web action from the open windows, with a case-sensitive title", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Browser/, "Element action");
+    expect(await screen.findByText(/the browser's current tab/)).toBeTruthy();
+    const pick = await screen.findByLabelText("Open window");
+    await waitFor(() => expect(pick.querySelectorAll("option").length).toBeGreaterThan(1));
+    fireEvent.change(pick, { target: { value: "0" } });
+    fireEvent.click(await screen.findByLabelText("Case sensitive"));
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1].args.window).toEqual({ source: "browser", title: "Orders - Acme", title_match: "equals", case_sensitive: true,
+      link: "https://acme.example/orders", browser: "edge" });
+  });
+
+  it("lets a connector step use a saved connection instead of its address and sign-in", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^ServiceNow/, "create record");
+    const conn = await screen.findByLabelText("Saved connection");
+    await waitFor(() => expect([...conn.querySelectorAll("option")].map((o) => o.textContent)).toContain("snow-prod"));
+    expect([...conn.querySelectorAll("option")].map((o) => o.textContent)).not.toContain("sf");   // another toolkit's
+    expect(screen.getByLabelText("instance")).toBeTruthy();
+    fireEvent.change(conn, { target: { value: "snow-prod" } });
+    await waitFor(() => expect(screen.queryByLabelText("instance")).toBeNull());
+    expect(screen.getByLabelText("table")).toBeTruthy();   // not supplied by the connection
+    fireEvent.click(screen.getByRole("button", { name: "Set one of them on this step instead" }));
+    expect(screen.getByLabelText("instance")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.servicenow/create_record", connection: "snow-prod" });
   });
 });

@@ -24,9 +24,9 @@
 
 /* Fields */
 .ui-field { display: flex; flex-direction: column; gap: 5px; }
-.ui-field > label { font-weight: 600; }
+.ui-field > label, .ui-field-label > label { font-weight: 600; }
 .ui-field-beside { display: grid; grid-template-columns: 108px minmax(0, 1fr); align-items: center; gap: 8px; }
-.ui-field-beside > label { font-weight: 400; }
+.ui-field-beside > label, .ui-field-beside .ui-field-label > label { font-weight: 400; }
 .ui-field-control { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ui-field-hint { color: var(--ui-text-2); font-size: 12px; }
 .ui-input { height: var(--ui-h); width: 100%; min-width: 0; padding: 0 10px; border: 1px solid var(--ui-field); border-radius: var(--ui-radius);
@@ -104,3 +104,9 @@
 .ui-search-select-list li.is-active { background: var(--ui-selected); }
 .ui-search-select-list li.is-chosen strong { color: var(--ui-accent-text); }
 .ui-search-select-list li.ui-search-select-none { cursor: default; color: var(--ui-text-2); }
+
+/* help behind an ⓘ: one click shows it under the field (a tooltip on hover too) */
+.ui-field-label { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.ui-info { flex: none; width: 16px; height: 16px; padding: 0; border: 1px solid var(--ui-accent-text); border-radius: 50%; background: #ffffff;
+  color: var(--ui-accent-text); font: italic 700 10px/1 Georgia, serif; cursor: pointer; }
+.ui-info:hover, .ui-info[aria-expanded="true"] { background: var(--ui-selected); }

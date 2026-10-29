@@ -16,7 +16,7 @@ export type WorkspaceNode = {
 
 /** One input or output of an action, as the toolkit catalogue describes it (JSON Schema plus OOA's own keys). */
 export type FieldSpec = {
-  type?: string; description?: string; default?: unknown; enum?: unknown[]; examples?: unknown[];
+  type?: string; description?: string; default?: unknown; enum?: unknown[]; examples?: unknown[]; minimum?: number; maximum?: number;
   "x-ooa-type"?: string; "x-ooa-label"?: string;
   /** Shown only when another input has one of these values, e.g. { iterator: ["while"] }. */
   "x-ooa-visible-when"?: Record<string, unknown[]>;
@@ -32,10 +32,14 @@ export type PackageManifest = { id: string; name: string; version: string; descr
 /** A variable: in_out is both an input and an output; local (or none) is a working value inside the agent. */
 export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "in_out" | "local"; default?: unknown; description?: string;
   required?: boolean; enum?: unknown[]; kpi?: boolean };
+export type SavedConnection = { name: string; package: string; description?: string };
+export type OpenWindow = { title?: string; url?: string; browser?: string; source?: "browser" | "application"; process?: string };
 /** Values every agent can read: $sys.* from the platform, $global.* shared by all agents. */
 export type Builtins = { sys: Record<string, unknown>; global: Record<string, unknown> };
 export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
+  /** A saved connection that supplies the connector's address and sign-in. */
+  connection?: string;
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
 };
 /** How the agent is shown, kept apart from what it does: folded blocks (as Classic Studio keeps them). */
@@ -126,6 +130,10 @@ export class StudioApi {
   /** The workspace's shared clipboard: steps copied here can be pasted in any agent, in any Studio window. */
   sharedClipboard() { return this.call<{ steps: FlowStep[]; variables?: FlowVariable[] }>("GET", "clipboard"); }
   async putSharedClipboard(steps: FlowStep[], variables: FlowVariable[]) { await this.call("PUT", "clipboard", { steps, variables }); }
+  /** Saved connections of the workspace (the address and vault references a connector uses). */
+  async connections() { return (await this.call<{ connections?: SavedConnection[] }>("GET", "connections")).connections ?? []; }
+  /** Windows open on this computer now, for the window editor. */
+  async windows() { return (await this.call<{ windows?: OpenWindow[] }>("GET", "windows")).windows ?? []; }
   async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
   modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }
   saveModelConnections(c: ModelConnections) { return this.call<ModelConnections>("PUT", "model-connections", c); }

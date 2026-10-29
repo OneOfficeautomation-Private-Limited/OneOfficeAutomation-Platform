@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import type { AgentSummary, Builtins, Flow, FlowVariable } from "../api/client";
+import type { AgentSummary, Builtins, Flow, FlowVariable, StudioApi } from "../api/client";
 import { Button, Dialog, Field, Select, TextArea, TextInput } from "../components";
 import { parseLoose, showValue } from "./flowEdit";
 import { plainValue } from "./toolkits";
@@ -18,7 +18,7 @@ export type NewVariable = { type?: string; name?: string; direction?: Direction;
  * The open agent's variables for every field below it: the {x} picker, the output and credential choosers, and
  * "+ New variable" (which opens the variable editor and hands the new name back).
  */
-export type VarsCtx = { flow: Flow; builtins: Builtins; agents: AgentSummary[]; edit: (next: Flow) => void; newVariable: (preset: NewVariable) => void };
+export type VarsCtx = { api: StudioApi; flow: Flow; builtins: Builtins; agents: AgentSummary[]; edit: (next: Flow) => void; newVariable: (preset: NewVariable) => void };
 export const VarsContext = createContext<VarsCtx | null>(null);
 export const useVars = () => useContext(VarsContext);
 

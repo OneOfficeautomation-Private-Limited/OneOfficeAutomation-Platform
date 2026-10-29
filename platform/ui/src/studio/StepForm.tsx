@@ -1,8 +1,15 @@
+import { useState } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
 import { Field, Select } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
 import { fieldOrder, findAction, parseLoose, setArg, showValue } from "./flowEdit";
+import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
+import {
+  connectionInputs, EACH_KINDS, elementFields, helpText, isElementAction, LOOP_LABELS, loopIsMore, loopMode, outcomeOf, shownWhen, TIMEOUT_FIELDS,
+  TIMEOUT_LABELS, valueLabel, type LoopMode,
+} from "./stepKinds";
 import { AssignValue, CommitInput, OutputChooser, RunAgentFields, TextSource } from "./ValueSources";
+import { useVars } from "./VariablesPanel";
 
 export { CommitInput };
 
@@ -11,46 +18,92 @@ const typedText = (step: FlowStep, name: string) => (step.action === "ooa.browse
   || (step.action === "ooa.browser/element_action" && name === "value" && /^(set_text|append_text)$/.test(String(step.args?.action ?? "")))
   || (step.action === "ooa.desktop_ui/object_action" && name === "text");
 
+// the Basic / Advanced choice of the time-out box is kept while Studio is open, as in Classic
+let timeoutAdvanced = false;
+
 /**
- * The selected step's settings, with labels beside the fields (as in AA): the main inputs, then More options, then
- * where each output is saved, then a comment. A field commits when it loses focus or on Enter, so typing a word is
- * one undo step, not one per letter. Empty means "not set": the toolkit's default applies.
+ * The selected step's settings, with labels beside the fields (as in AA) and help behind an ⓘ: the fields that apply
+ * to what the step does (its action, its kind of loop, a saved connection), then More options, the time-out box,
+ * where each result is kept, then a comment. A field commits when it loses focus or on Enter, so typing a word is one
+ * undo step, not one per letter. Empty means "not set": the toolkit's default applies.
  */
 export function StepForm({ step, packages, onArg, onNote }:
-  { step: FlowStep; packages: PackageManifest[]; onArg: (name: string, value: unknown) => void;
-    onNote: (note: string) => void }) {
+  { step: FlowStep; packages: PackageManifest[]; onArg: (name: string, value: unknown) => void; onNote: (note: string) => void }) {
+  const vars = useVars();
   const spec = findAction(step.action, packages);
+  const pkg = packages.find((p) => p.id === step.action.split("/")[0]);
   const props = spec?.inputs?.properties ?? {};
   const required = spec?.inputs?.required ?? [];
-  // an input that applies only in some cases (Loop's condition only for "while") is shown only then
-  const applies = (name: string) => Object.entries(props[name]?.["x-ooa-visible-when"] ?? {})
-    .every(([other, values]) => values.some((v) => String(v) === String(step.args?.[other] ?? props[other]?.default ?? "")));
+  const [showConn, setShowConn] = useState(false);
+  const [advanced, setAdvanced] = useState(timeoutAdvanced);
+  const conn = connectionInputs(pkg);
+  const connNames = Object.keys(props).filter((n) => conn.has(n));
+  const only = elementFields(step);
+  const isLoop = step.action === "core/loop";
+  const mode: LoopMode = isLoop ? loopMode(step) : "each";
+  // an input that applies only in some cases (Loop's count only for "N times") is shown only then; an element action
+  // shows the inputs of its chosen action; a saved connection hides the inputs it supplies
+  const applies = (name: string) => shownWhen(props[name]?.["x-ooa-visible-when"], (o) => step.args?.[o] ?? props[o]?.default)
+    && (!only || only.has(name)) && !(step.connection && conn.has(name) && !showConn)
+    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index")));
   const order = fieldOrder(spec);
-  const main = order.main.filter(applies), more = order.more.filter(applies);
-  const outputs = Object.entries(spec?.outputs?.properties ?? {});
-  const labelOf = (name: string) => props[name]?.["x-ooa-label"] ?? name.replace(/_/g, " ");
+  const timeouts = TIMEOUT_FIELDS.filter((n) => n in props && applies(n));
+  const boxed = timeouts.length >= 2 ? new Set(timeouts) : new Set<string>();
+  let main = order.main.filter((n) => applies(n) && !boxed.has(n)), more = order.more.filter((n) => applies(n) && !boxed.has(n));
+  if (isLoop) { const all = [...main, ...more]; main = all.filter((n) => !loopIsMore(n)); more = all.filter(loopIsMore); }
+  const outputs: [string, FieldSpec][] = Object.entries(spec?.outputs?.properties ?? {});
+  const outcome = isElementAction(step.action) ? outcomeOf(String(step.args?.action ?? "click")) : null;
+  if (outcome && !outputs.some(([n]) => n === "result")) outputs.push(["result", { "x-ooa-type": outcome.type, "x-ooa-label": "Result" }]);
+
+  const each = EACH_KINDS.find((k) => k.value === step.args?.iterator);
+  const labelOf = (name: string) => valueLabel(step) && name === "value" ? valueLabel(step)!
+    : isLoop && name === "over" && each ? each.over : isLoop && name === "as" ? (mode === "times" ? "Counter (optional)" : each?.as ?? LOOP_LABELS.as)
+    : isLoop && LOOP_LABELS[name] ? LOOP_LABELS[name] : boxed.has(name) ? TIMEOUT_LABELS[name] : props[name]?.["x-ooa-label"] ?? name.replace(/_/g, " ");
+  const req = (name: string) => required.includes(name) || (isLoop && ((mode === "times" && name === "count") || (mode === "each" && name === "over") || (mode === "while" && name === "condition")));
   const field = (name: string) => {
-    if (step.action.startsWith("core/") && name === "condition") return <Field key={step.id + ":condition"} label="Condition" hint={props[name]?.description}>{() =>
+    if (step.action.startsWith("core/") && name === "condition") return <Field key={step.id + ":condition"} label={isLoop ? "Repeat while" : "Condition"} info={props[name]?.description}>{() =>
       <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>;
-    if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (required.includes(name) ? " *" : "")} hint={props[name]?.description}>{() =>
+    if (step.action === "core/set" && name === "value") return <Field key={step.id + ":value"} label={"Value" + (req(name) ? " *" : "")} info={props[name]?.description}>{() =>
       <AssignValue step={step} />}</Field>;
     if (step.action === "core/run_bot" && name === "automation") return <RunAgentFields key={step.id + ":agent"} step={step} />;
     if (step.action === "core/run_bot" && (name === "inputs" || name === "output_map")) return null;   // with the agent to run
-    if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (required.includes(name) ? " *" : "")}
-      hint="A credential from the vault for passwords (never shown or logged), a variable, plain text or a calculation.">{() => <TextSource step={step} name={name} />}</Field>;
-    return <InputField key={step.id + ":" + name} name={name} spec={props[name] ?? {}} required={required.includes(name)}
-      value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseLoose(t))} />;
+    if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"
+      label="Action" info="The actions that suit the captured control come first; the rest are under Other actions.">{(id) =>
+      <ElementActionSelect id={id} step={step} all={(props.action?.enum ?? []).map(String)} />}</Field>;
+    if (name === "window" && step.action.startsWith("ooa.browser/") && props.window?.["x-ooa-type"] === "Dictionary") return <Field key={step.id + ":window"}
+      label="Window" info="The browser tab or application window the action works in.">{() => <WindowEditor step={step} />}</Field>;
+    if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")}
+      info="A credential from the vault for passwords (never shown or logged), a variable, plain text or a calculation.">{() => <TextSource step={step} name={name} />}</Field>;
+    return <InputField key={step.id + ":" + name} name={name} label={labelOf(name)} spec={props[name] ?? {}} required={req(name)}
+      value={step.args?.[name]} onCommit={(v) => onArg(name, v)} apply={(t, f) => setArg(f, step.id, name, parseValue(t, props[name]))} />;
   };
   // inputs the agent sets that the catalogue does not list (an older toolkit, a hand-edited file) stay editable
   const extra = Object.keys(step.args ?? {}).filter((n) => !(n in props));
+  const setMode = (m: LoopMode) => {
+    if (!vars || m === mode) return;
+    let f: Flow = vars.flow;
+    for (const k of ["over", "count", "condition", "iterator_args", "from_index", "to_index", "reverse", "check_at_end", "start"]) f = setArg(f, step.id, k, undefined);
+    vars.edit(setArg(f, step.id, "iterator", m === "each" ? "table_rows" : m));
+  };
 
   return (
     <div className="st-step-form">
       <h3 className="st-prop-section">Settings</h3>
       <div className="st-prop-fields">
+        {connNames.length > 0 && pkg && <ConnectionField step={step} pkgName={pkg.name} pkgId={pkg.id} names={connNames} showing={showConn} onShow={setShowConn} />}
+        {isLoop && <>
+          <Field label="Kind of loop" layout="beside">{() => <div className="st-seg" role="radiogroup" aria-label="Kind of loop">
+            {([["times", "N times"], ["each", "For each"], ["while", "While"]] as const).map(([m, t]) =>
+              <button key={m} type="button" role="radio" aria-checked={mode === m} className="st-seg-btn" onClick={() => setMode(m)}>{t}</button>)}
+          </div>}</Field>
+          {mode === "each" && <Field label="Go through" layout="beside">{(id) =>
+            <Select id={id} aria-label="Loop type" value={String(step.args?.iterator ?? "list")} onChange={(e) => onArg("iterator", e.target.value)}
+              options={[...EACH_KINDS.map((k) => ({ value: k.value, label: k.label })),
+                ...(each || !step.args?.iterator ? [] : [{ value: String(step.args.iterator), label: String(step.args.iterator) + " (a toolkit's iterator)" }])]} />}</Field>}
+        </>}
         {main.map(field)}
         {extra.map(field)}
-        {!main.length && !extra.length && <p className="st-muted">This step has no main settings.</p>}
+        {!main.length && !extra.length && !isLoop && <p className="st-muted">This step has no main settings.</p>}
       </div>
       {more.length > 0 && (
         <details className="st-more">
@@ -58,11 +111,21 @@ export function StepForm({ step, packages, onArg, onNote }:
           <div className="st-prop-fields">{more.map(field)}</div>
         </details>
       )}
+      {boxed.size > 0 && (
+        <section className="st-timeout" aria-label="System time-out">
+          <div className="st-timeout-head"><strong>System time-out</strong>
+            <div className="st-seg" role="radiogroup" aria-label="Time-out options">
+              {(["Basic", "Advanced"] as const).map((t) => <button key={t} type="button" role="radio" aria-checked={(t === "Advanced") === advanced} className="st-seg-btn"
+                onClick={() => { timeoutAdvanced = t === "Advanced"; setAdvanced(timeoutAdvanced); }}>{t}</button>)}
+            </div></div>
+          <div className="st-prop-fields">{timeouts.filter((n) => advanced || n === "timeout_ms" || n === "timeout_seconds").map(field)}</div>
+        </section>
+      )}
       {outputs.length > 0 && <>
         <h3 className="st-prop-section">Save results in</h3>
         <div className="st-prop-fields">
           {outputs.map(([name, o]) => (
-            <Field key={step.id + ":out:" + name} label={o["x-ooa-label"] ?? name.replace(/_/g, " ")} layout="beside" hint={o.description}>{() =>
+            <Field key={step.id + ":out:" + name} label={o["x-ooa-label"] ?? name.replace(/_/g, " ")} layout="beside" info={o.description}>{() =>
               <OutputChooser step={step} output={name} type={o["x-ooa-type"]} label={"Keep " + (o["x-ooa-label"] ?? name.replace(/_/g, " ")) + " in"} />}</Field>
           ))}
         </div>
@@ -76,13 +139,21 @@ export function StepForm({ step, packages, onArg, onNote }:
   );
 }
 
-function InputField({ name, spec, required, value, onCommit, apply }:
-  { name: string; spec: FieldSpec; required: boolean; value: unknown; onCommit: (v: unknown) => void; apply: (text: string, flow: Flow) => Flow }) {
-  const label = spec["x-ooa-label"] ?? name.replace(/_/g, " ");
-  const hint = [required ? "Required." : "", spec.description ?? ""].filter(Boolean).join(" ");
+const isNumber = (spec?: FieldSpec) => spec?.["x-ooa-type"] === "Number" || spec?.type === "number";
+/** A Number field as typed: a number, a variable, or anything else as a calculation ({expr}), so "$n - 1" needs no JSON. */
+function parseValue(text: string, spec?: FieldSpec): unknown {
+  const v = parseLoose(text);
+  if (!isNumber(spec) || typeof v !== "string" || /^\$[A-Za-z_][\w.]*$/.test(v.trim())) return v;
+  return { expr: v.trim().replace(/^=\s*/, "") };
+}
+const showNumber = (v: unknown) => v && typeof v === "object" && typeof (v as { expr?: unknown }).expr === "string" ? (v as { expr: string }).expr : showValue(v);
+
+function InputField({ name, label, spec, required, value, onCommit, apply }:
+  { name: string; label: string; spec: FieldSpec; required: boolean; value: unknown; onCommit: (v: unknown) => void; apply: (text: string, flow: Flow) => Flow }) {
   const fallback = spec.default !== undefined ? "Default: " + showValue(spec.default) : required ? "" : "Not set";
+  const info = helpText(spec, required) || undefined;
   return (
-    <Field label={label + (required ? " *" : "")} layout="beside" hint={hint}>{(id) => {
+    <Field label={label + (required ? " *" : "")} layout="beside" info={info}>{(id) => {
       if (spec.enum?.length) {
         return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : e.target.value)}
           options={[{ value: "", label: fallback || "Choose…" }, ...spec.enum.map((v) => ({ value: String(v), label: String(v).replace(/_/g, " ") }))]} />;
@@ -91,8 +162,9 @@ function InputField({ name, spec, required, value, onCommit, apply }:
         return <Select id={id} value={value === undefined ? "" : String(value)} onChange={(e) => onCommit(e.target.value === "" ? undefined : e.target.value === "true")}
           options={[{ value: "", label: fallback || "Choose…" }, { value: "true", label: "Yes" }, { value: "false", label: "No" }]} />;
       }
-      return <CommitInput key={showValue(value)} id={id} initial={showValue(value)} placeholder={fallback} mono={typeof value === "string" && value.startsWith("$")}
-        onCommit={(t) => onCommit(parseLoose(t))} want={spec["x-ooa-type"] ?? "Any"} apply={apply} nameHint={name} />;
+      const text = isNumber(spec) ? showNumber(value) : showValue(value);
+      return <CommitInput key={text} id={id} initial={text} placeholder={fallback} mono={typeof value === "string" && value.startsWith("$")}
+        onCommit={(t) => onCommit(parseValue(t, spec))} want={spec["x-ooa-type"] ?? "Any"} apply={apply} nameHint={name} />;
     }}</Field>
   );
 }

@@ -105,7 +105,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const loadBuiltins = () => { api.builtins().then(setBuiltins, () => {}); };
   useEffect(() => { loadBuiltins(); api.agents().then(setAgents, () => {}); }, [api]);
   const last = useMemo(() => lastValues(run?.events), [run?.events]);
-  const vars: VarsCtx = { flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); } };
+  const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); } };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
   const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
