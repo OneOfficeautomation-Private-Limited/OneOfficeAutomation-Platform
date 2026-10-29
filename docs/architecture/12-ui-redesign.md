@@ -1,6 +1,6 @@
 # 12. UI redesign: TypeScript and React, Studio first
 
-Status: **screens approved** (2026-10-29); building (P0) starts once the three decisions in section 7 are made. Pending items V1 (screens in TypeScript with React, Studio first), V2
+Status: **approved** (2026-10-29): screens and build decisions (section 7). Building has started with P0. Pending items V1 (screens in TypeScript with React, Studio first), V2
 (Studio from the Command Center later) and V6 (easy UI, gap list in `docs/research/easy-ui-study.md`).
 
 ## 1. Goal
@@ -24,15 +24,19 @@ any screen twice.
 ## 3. Architecture
 
 ```
-platform/ui/                     one npm workspace, built by Gradle
-  package.json, package-lock.json  versions pinned; "npm ci" only
-  packages/
-    components/   @ooa/components: buttons, inputs, tables, dialogs, drawers, menus, tabs, toasts, empty states,
-                  wizards, filter bar; built on accessible headless parts, styled with ooa-tokens.css
-    api/          @ooa/api: typed client for the Studio and Command Center APIs; one base URL (local or cloud)
+platform/ui/                one npm project, built by Gradle (:cli:uiBuild)
+  package.json, package-lock.json, .npmrc   exact versions; "npm ci"; no install scripts
+  src/
+    theme.css     the approved look as CSS variables (colours, sizes, radius)
+    components/   buttons, fields, tabs, menus, dialogs, tree, icons; Radix for behaviour, our CSS for the look
+    api/          typed client for the Studio API; one base URL (local now, Command Center later)
     studio/       the Studio application
     console/      the Command Center application (after Studio)
+  built into cli/build/generated/ui/studio-next, served by Studio at /next/ (classic Studio stays at /)
 ```
+
+One project instead of several packages keeps the build simple; the folders keep the same boundaries, and can
+become packages later if another product needs the components.
 
 | Choice | Decision | Why |
 | --- | --- | --- |
@@ -42,12 +46,12 @@ platform/ui/                     one npm workspace, built by Gradle
 | Flow and workflow canvas | Our own list canvas for agents (as today); React Flow (MIT) for workflows and AI agents' tool maps | Agents read top to bottom like today; workflows are graphs |
 | Build | Vite | Fast; outputs plain hashed files that pass the security policy |
 | Tests | Vitest for components; Playwright for whole screens (already used) | Keeps the 278 Studio checks as the parity bar |
-| Gradle | A `uiBuild` task runs `npm ci` and `npm run build`, copies `dist/` into the resources | One build command for everything, in CI and locally |
+| Gradle | `:cli:uiInstall` runs `npm ci`; `:cli:uiBuild` runs the checks and `vite build` into the CLI's resources | One build command for everything, in CI and locally |
 
 **Dependencies stay few**, each pinned with its licence checked (all MIT): React, React DOM, Radix primitives, React
 Flow, TypeScript, Vite, Vitest. CI runs `npm audit` and fails on high findings.
 
-**One client, two places (V2).** `@ooa/api` takes a base URL. Locally it is `StudioServer`; later, Studio served by the
+**One client, two places (V2).** The API client (`src/api`) takes a base URL. Locally it is `StudioServer`; later, Studio served by the
 Command Center uses the same screens, with the Runner as the local helper for recording and test runs. Designing this
 seam now means the cloud designer needs no second rebuild.
 
@@ -114,7 +118,7 @@ one at `/studio/` behind a "Try the new Studio" switch, the old one as "Classic"
 
 | Step | What | Size |
 | --- | --- | --- |
-| P0 | Workspace, build in Gradle and CI, `@ooa/components` first set, typed API client, test harness | M |
+| P0 | Workspace, build in Gradle and CI, first components, typed API client, test harness. **Done 2026-10-29**, with a read-only start on P1: the menu, Automation with Create, agents in tabs | M |
 | P1 | Shell: top bar, rail, side panel, tabs, search everything, New dialog; Explorer | M |
 | P2 | Agent canvas and Properties panel (the largest part: drag and drop, blocks, selection, undo) | L |
 | P3 | Action library, variables, triggers, run, debug, bottom panel | L |
@@ -126,23 +130,32 @@ Then the Command Center, on the same components (V6.1 menu, V6.2, V6.3, V6.4, V6
 
 ## 6. Quality bar (checked at every step)
 
-- **Architecture**: no screen calls the server except through `@ooa/api`; no business rules in the screens; no new
+- **Architecture**: no screen calls the server except through the API client (`src/api`); no business rules in the screens; no new
   server services.
 - **UI**: each screen reviewed against the V6 study before it is built (a mockup), and in the browser after.
-- **Performance budgets**, measured in CI with Playwright:
-  - Studio opens in under 1.5 s on a local install.
-  - First download under 400 KB compressed, with the editors loaded only when opened.
-  - An agent of 1,000 steps scrolls smoothly; only the visible steps are drawn.
+- **Ease of use before speed** (decided 2026-10-29). Performance may be close to AA's: AA's Control Room loads a
+  script of about 8 MB. Every screen is still measured in CI, and anything slower than these is reported, not
+  blocked:
+  - Studio opens in under 3 s on a local install.
+  - Editors and large libraries (diagrams, code editor) load only when opened.
+  - An agent of 1,000 steps scrolls without stalls.
 - **Accessibility**: WCAG 2.2 AA. Every action works from the keyboard, the existing focus ring is used, and
   automated axe checks run in CI.
 - **Security**: the security policy is unchanged; no secrets in browser storage; vault values are never sent to the
   screens (as today).
 - **Translations**: no text outside the catalogue; the catalogue check covers the new screens.
 
-## 7. Decisions needed
+## 7. Decisions (made 2026-10-29)
 
-1. **npm packages.** The build downloads the packages listed in section 3 into `platform/ui/node_modules` (not
-   system-wide), on developer machines and in CI. Is that acceptable?
-2. **Radix primitives** with our own styling (recommended), or Microsoft's Fluent UI, which looks like Windows
-   but is larger and harder to make look like OOA?
-3. **Editor tabs**, so several items can be open at once: yes (recommended) or keep one item at a time?
+AA's Control Room, checked from its public sign-in page, is built the same way: React, built with Vite from npm
+packages, with its own component library.
+
+1. **npm packages**: yes, in `platform/ui` only, on developer machines and in CI. Versions are exact and locked
+   (`package-lock.json`, `npm ci`), install scripts are off (`.npmrc`), and CI runs `npm audit` and a licence check
+   (MIT, BSD, Apache, ISC). Customers get only the built files. Build tools may also be MPL-2.0 (lightningcss,
+   Vite's CSS minifier), whose code does not ship. npm 11.5 cannot resolve Vitest 5's optional peers, so npm installs
+   no peers by itself (`legacy-peer-deps`); every package is listed, and `tools/check-peers.mjs` checks the peers.
+   The packages that ship are in the SBOM (`sbom.cdx.json`) with their npm address and SHA-512.
+2. **Radix primitives** with our own look: the behaviour of menus, dialogs and tabs (keyboard, focus, screen
+   readers) comes from Radix; every pixel of the look is ours.
+3. **Editor tabs**: yes. Each tab tracks its own unsaved changes; closing an unsaved tab asks first; at most 10 open.

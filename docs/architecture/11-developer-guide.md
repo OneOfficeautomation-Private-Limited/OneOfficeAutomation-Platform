@@ -35,6 +35,7 @@ All commands run from `platform/` in PowerShell (`gradlew` on Linux and macOS).
 | Customer zip, setup package, MSI, native executable, SBOM | See [02-components-and-modules.md](02-components-and-modules.md#8-builds-and-distributions) |
 | Leave out an optional toolkit module | Remove it from `ooa.optionalModules` in `gradle.properties` |
 | A forgotten administrator password (server stopped) | `ooa reset-admin [--user NAME] [--data DIR]`; it is audited |
+| The new Studio preview (platform/ui) | Built by every Gradle build (`:cli:uiBuild`, needs Node.js 22); served at `/studio/next/`. See 7.3 |
 
 `ooa server` stores its data in `%USERPROFILE%\OOA Command Center` and Studio files in `%USERPROFILE%\OOA Workspace`
 unless `--data` and `--workspace` say otherwise. The vault key comes from `OOA_MASTER_KEY`, `OOA_MASTER_KEY_SOURCE`
@@ -171,6 +172,23 @@ Workspace and nothing hidden is reachable.
 | `windowEditor()` | Edits a step's `window` input; still works when `GET windows` is not available |
 | `captureEditor()` | Edits a captured object (see [07-toolkit-architecture.md](07-toolkit-architecture.md#14-captured-objects-and-window-choice)) |
 | `StudioDebugger` (Java) | Pauses the runner thread before a step and resumes it on the UI's commands |
+
+### 7.3 The new Studio (`platform/ui`)
+
+The redesign ([12-ui-redesign.md](12-ui-redesign.md)) is built in TypeScript and React next to the classic Studio and
+served at `/next/` (`/studio/next/` under `ooa server`) until it replaces it.
+
+| Task | Command (in `platform/ui`) |
+| --- | --- |
+| Install the locked packages | `npm ci` (Gradle's `:cli:uiInstall` does this) |
+| Type-check, test, check licences and peers, build | `npm run check` (Gradle's `:cli:uiBuild`) |
+| Tests only, or one file | `npm test`, `npx vitest run src/studio/App.test.tsx` |
+| Security audit (needs the internet; CI runs it) | `npm run audit` |
+
+Rules: packages are added with exact versions at least two weeks old, and only with a permissive licence if they
+ship (`tools/check-licenses.mjs`). Screens call the server only through `src/api/client.ts`. Components live in
+`src/components` (Radix for behaviour, our CSS for the look), colours and sizes in `src/theme.css`. The built files go
+to `cli/build/generated/ui/studio-next` and into the jar; the npm packages that ship are listed in the SBOM.
 
 ## 8. Rules for every change
 

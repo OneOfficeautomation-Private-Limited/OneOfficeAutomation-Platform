@@ -76,6 +76,25 @@ class UnifiedServerTest {
             assertTrue(call(base, "GET", "/", null, null, null).body().contains("One Command Center"));
             assertEquals(404, call(base, "GET", "/studio-other", null, null, null).status());
 
+            // ---- the new Studio preview (platform/ui) at /studio/next/, its own files only ----
+            assertEquals("/studio/next/", call(base, "GET", "/studio/next", null, null, null).headers().firstValue("Location").orElse(""));
+            Res next = call(base, "GET", "/studio/next/", null, null, null);
+            assertEquals(200, next.status());
+            java.util.regex.Matcher script = java.util.regex.Pattern.compile("src=\"\\./(assets/[^\"]+\\.js)\"").matcher(next.body());
+            assertTrue(script.find(), "the page loads its script by a relative path, so it works under /studio/next/");
+            Res js = call(base, "GET", "/studio/next/" + script.group(1), null, null, null);
+            assertEquals(200, js.status());
+            assertTrue(js.headers().firstValue("Content-Type").orElse("").startsWith("text/javascript"));
+            assertTrue(js.headers().firstValue("Content-Security-Policy").orElse("").contains("script-src 'self'"), "the same security policy as the classic Studio");
+            // each page gets a fresh style nonce, in its policy and in the page; no other inline style is allowed
+            java.util.regex.Matcher nonce = java.util.regex.Pattern.compile("style-src 'self' 'nonce-([A-Za-z0-9+/=]{24})'").matcher(next.headers().firstValue("Content-Security-Policy").orElse(""));
+            assertTrue(nonce.find(), next.headers().toString());
+            assertTrue(next.body().contains("content=\"" + nonce.group(1) + "\""), "the page carries the same nonce");
+            assertFalse(next.body().contains("__CSP_NONCE__"));
+            assertNotEquals(nonce.group(1), call(base, "GET", "/studio/next/", null, null, null).headers().firstValue("Content-Security-Policy").orElse("").replaceAll(".*'nonce-([^']+)'.*", "$1"), "a new nonce per page");
+            for (String bad : List.of("/studio/next/assets/../../studio.js", "/studio/next/..%2fstudio.js", "/studio/next/assets/x.exe", "/studio/next/secret.txt"))
+                assertEquals(404, call(base, "GET", bad, null, null, null).status(), bad);
+
             // ---- Studio reuses the browser's Control Room sign-in ----
             String token = (String) call(base, "POST", "/api/auth/login", Map.of("username", "admin", "password", pw), null, null).json().get("token");
             Map<String, Object> pending = call(base, "GET", "/studio/api/cr/status", null, null, token).json();

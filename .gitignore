@@ -1,6 +1,7 @@
 # Build output and local tooling (never part of the source)
 .gradle/
 **/build/
+**/node_modules/
 out/
 *.class
 .idea/

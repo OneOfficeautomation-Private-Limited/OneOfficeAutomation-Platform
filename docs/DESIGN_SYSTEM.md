@@ -3,6 +3,10 @@
 One visual language for **One Command Center** (the console) and **One Agent Studio**. It is plain CSS: no framework,
 no build step, no external fonts or CDNs (the console's content-security policy is `default-src 'self'`).
 
+The new Studio (`platform/ui`, [architecture/12-ui-redesign.md](architecture/12-ui-redesign.md)) uses the denser,
+higher-contrast look approved on 2026-10-29: its colours and sizes are in `platform/ui/src/theme.css`, its components in
+`platform/ui/src/components`. The Command Center moves to it after Studio.
+
 ## Files
 
 | File | What it holds | Served at |

@@ -135,6 +135,8 @@ public final class StudioServer {
     }
 
     private void asset(HttpExchange ex, String path) throws IOException {
+        if (path.equals("/next")) { ex.getResponseHeaders().set("Location", base + "/next/"); send(ex, 302, "text/plain", "Moved"); return; }
+        if (path.startsWith("/next/")) { nextAsset(ex, path.substring(6)); return; }
         String name = switch (path) {
             case "/", "/index.html" -> "index.html";
             case "/studio.css", "/studio.js", "/logo-mark.png", "/logo-full.png", "/ooa-tokens.css", "/ooa-components.css", "/ooa-i18n.js" -> path.substring(1);
@@ -148,6 +150,32 @@ public final class StudioServer {
             if (in == null) { send(ex, 404, "text/plain", "Missing asset " + name); return; }
             String type = name.endsWith(".css") ? "text/css; charset=utf-8" : name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".json") ? "application/json; charset=utf-8"
                     : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
+            sendBytes(ex, 200, type, in.readAllBytes());
+        }
+    }
+
+    /** Files of the new Studio preview (platform/ui, built by :cli:uiBuild into /studio-next/), served at /next/. */
+    private static final java.util.regex.Pattern NEXT_FILE = java.util.regex.Pattern.compile("^(index\\.html|assets/[A-Za-z0-9._-]+\\.(js|css|svg|woff2|png))$");
+    private static final java.security.SecureRandom NONCES = new java.security.SecureRandom();
+
+    private void nextAsset(HttpExchange ex, String file) throws IOException {
+        String name = file.isEmpty() ? "index.html" : file;
+        if (!NEXT_FILE.matcher(name).matches()) { send(ex, 404, "text/plain", "Not found"); return; }
+        try (InputStream in = StudioServer.class.getResourceAsStream("/studio-next/" + name)) {
+            if (in == null) { send(ex, 404, "text/plain", name.equals("index.html") ? "The new Studio preview is not in this build (gradlew :cli:uiBuild)" : "Not found"); return; }
+            if (name.equals("index.html")) {
+                // a fresh nonce per page: the one style element the dialogs add (to stop the page scrolling behind them)
+                // carries it, so the policy still refuses every other inline style
+                byte[] r = new byte[16];
+                NONCES.nextBytes(r);
+                String nonce = Base64.getEncoder().encodeToString(r);
+                byte[] page = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                sendBytes(ex, 200, "text/html; charset=utf-8", page,
+                        "default-src 'self'; img-src 'self'; style-src 'self' 'nonce-" + nonce + "'; script-src 'self'; frame-ancestors 'none'");
+                return;
+            }
+            String type = name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".css") ? "text/css; charset=utf-8"
+                    : name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".woff2") ? "font/woff2" : name.endsWith(".png") ? "image/png" : "text/html; charset=utf-8";
             sendBytes(ex, 200, type, in.readAllBytes());
         }
     }
@@ -999,9 +1027,13 @@ public final class StudioServer {
     }
 
     private static void sendBytes(HttpExchange ex, int code, String type, byte[] b) throws IOException {
+        sendBytes(ex, code, type, b, "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+    }
+
+    private static void sendBytes(HttpExchange ex, int code, String type, byte[] b, String policy) throws IOException {
         ex.getResponseHeaders().set("Content-Type", type);
         ex.getResponseHeaders().set("X-Content-Type-Options", "nosniff");
-        ex.getResponseHeaders().set("Content-Security-Policy", "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+        ex.getResponseHeaders().set("Content-Security-Policy", policy);
         ex.getResponseHeaders().set("Cache-Control", "no-store");
         writeBody(ex, code, b);
     }

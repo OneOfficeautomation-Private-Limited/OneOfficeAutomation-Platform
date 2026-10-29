@@ -8,6 +8,8 @@ for (const m of ["append", "replaceChildren"]) {
 }
 
 const S = { user: null, page: "home", timer: null, drawerTimer: null, devices: [], bots: [], users: [], names: {} };
+// A link such as /?page=queues (from the new Studio menu) opens that page after sign-in.
+const LINKED_PAGE = new URLSearchParams(location.search).get("page");
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -187,6 +189,7 @@ function showApp() {
   api("GET", "catalog").then((r) => { S.names = r.actions || {}; }).catch(() => {});
   api("GET", "auth/me").then((u) => { showAnnouncement(u.announcement); showLicenseBanner(u.license_banner); }).catch(() => {});
   document.body.classList.toggle("nav-mini", stored(NAV_MINI_KEY) === "1");
+  if (LINKED_PAGE && Object.hasOwn(VIEWS, LINKED_PAGE) && S.page === "home") S.page = LINKED_PAGE;
   renderNav(); go(S.page);
 }
 

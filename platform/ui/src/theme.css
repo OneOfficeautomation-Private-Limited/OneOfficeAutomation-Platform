@@ -1,0 +1,50 @@
+/*
+ * The approved look (docs/architecture/12-ui-redesign.md, section 4): white panels, a dark frame, grey only for
+ * borders, one control height and radius, no grey buttons. Every text colour here is at least 4.5:1 on its
+ * background and every border at least 3:1 (checked by calculation).
+ */
+:root {
+  --ui-font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --ui-mono: "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace;
+  --ui-size: 13px;
+
+  --ui-text: #17202b;          /* 16:1 on white */
+  --ui-text-2: #353e4c;        /* 10.8:1 */
+  --ui-text-3: #4b5565;        /* 7.5:1, the lightest text allowed */
+  --ui-bg: #ffffff;
+  --ui-row-hover: #f1f4f8;
+  --ui-selected: #e8f0fe;
+  --ui-divider: #e3e7ed;
+  --ui-border: #c9d0da;        /* panel and table outlines */
+  --ui-field: #7d8797;         /* field and control borders, 3.6:1 */
+
+  --ui-accent: #2f6fde;        /* white text on it: 4.7:1 */
+  --ui-accent-text: #1f56b8;   /* 6.8:1 on white */
+  --ui-run: #1d7a46;           /* white text on it: 5.4:1 */
+  --ui-debug: #f5b33d;         /* dark text on it: 9.8:1 */
+  --ui-on-debug: #1f1400;
+  --ui-warning-text: #7a4a00;
+  --ui-success: #1d6b38;
+  --ui-variable: #5b21b6;
+
+  --ui-frame: #0f141d;         /* top bar */
+  --ui-frame-2: #161c27;       /* menu */
+  --ui-frame-line: #2f3a4d;
+  --ui-frame-guide: #3a4558;
+  --ui-frame-text: #ffffff;
+  --ui-frame-text-2: #c7cedb;  /* 10.8:1 on the menu */
+
+  --ui-h: 32px;                /* tabs, fields, buttons */
+  --ui-row: 34px;
+  --ui-radius: 6px;
+  --ui-focus: 0 0 0 2px #ffffff, 0 0 0 4px var(--ui-accent);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: var(--ui-font); font-size: var(--ui-size); color: var(--ui-text); background: var(--ui-bg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--ui-accent-text); }
+:focus-visible { outline: none; box-shadow: var(--ui-focus); }
+::placeholder { color: var(--ui-text-3); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
