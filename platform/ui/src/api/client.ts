@@ -18,6 +18,8 @@ export type WorkspaceNode = {
 export type FieldSpec = {
   type?: string; description?: string; default?: unknown; enum?: unknown[]; examples?: unknown[];
   "x-ooa-type"?: string; "x-ooa-label"?: string;
+  /** Shown only when another input has one of these values, e.g. { iterator: ["while"] }. */
+  "x-ooa-visible-when"?: Record<string, unknown[]>;
 };
 export type ActionManifest = {
   id: string; name: string; category?: string; description?: string;

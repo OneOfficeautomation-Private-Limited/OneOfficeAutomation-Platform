@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Flow, PackageManifest } from "../api/client";
 import {
   addStep, duplicateStep, fieldOrder, locate, moveStep, newStep, nextId, parseLoose, putVariable, removeStep, removeVariable,
-  setArg, setOut, toggleDisabled,
+  setArg, setOut, toggleDisabled, insertAt, moveTo, removeSteps, toggleDisabledMany, duplicateSteps,
 } from "./flowEdit";
 
 const packages: PackageManifest[] = [
@@ -84,5 +84,31 @@ describe("editing an agent", () => {
     expect(parseLoose("$total")).toBe("$total");
     expect(parseLoose("12 apples")).toBe("12 apples");
     expect(fieldOrder(packages[1].actions[0])).toEqual({ main: ["path", "password"], more: ["session"] });
+  });
+
+  it("moves by drag and drop: before, after, inside a block; never into itself", () => {
+    const f = flow();
+    expect(moveTo(f, "s4", "s1", "before").steps.map((s) => s.id)).toEqual(["s4", "s1", "s2"]);
+    expect(moveTo(f, "s1", "s3", "after").steps[0].children!.map((s) => s.id)).toEqual(["s3", "s1"]);
+    expect(moveTo(f, "s4", "s2", "inside").steps[1].children!.map((s) => s.id)).toEqual(["s3", "s4"]);
+    expect(moveTo(f, "s3", "s4", "after").steps.map((s) => s.id)).toEqual(["s1", "s2", "s4", "s3"]);   // out of the loop
+    expect(moveTo(f, "s2", "s3", "after")).toBe(f);   // a loop cannot go inside itself
+    expect(moveTo(f, "s1", "s4", "inside")).toBe(f);  // a log is not a block
+    expect(insertAt(f, { id: "s9", action: "core/log" }, "s2", "inside").steps[1].children!.map((s) => s.id)).toEqual(["s3", "s9"]);
+    expect(insertAt(f, { id: "s9", action: "core/log" }, null, "after").steps.map((s) => s.id)).toEqual(["s1", "s2", "s4", "s9"]);
+  });
+
+  it("deletes, switches off and duplicates several steps at once", () => {
+    const f = flow();
+    expect(removeSteps(f, ["s1", "s3"]).steps.map((s) => s.id)).toEqual(["s2", "s4"]);
+    expect(removeSteps(f, ["s2", "s3"]).steps.map((s) => s.id)).toEqual(["s1", "s4"]);   // s3 went with its loop
+    const off = toggleDisabledMany(f, ["s1", "s4"]);
+    expect([off.steps[0].disabled, off.steps[2].disabled]).toEqual([true, true]);
+    expect(toggleDisabledMany(off, ["s1", "s4"]).steps[0].disabled).toBeUndefined();
+    const mixed = toggleDisabledMany(toggleDisabled(f, "s1"), ["s1", "s4"]);   // not all off: all go off
+    expect([mixed.steps[0].disabled, mixed.steps[2].disabled]).toEqual([true, true]);
+    const d = duplicateSteps(f, ["s1", "s4"]);
+    expect(d.flow.steps.map((s) => s.id)).toEqual(["s1", "s5", "s2", "s4", "s6"]);
+    expect(d.ids).toEqual(["s5", "s6"]);
   });
 });

@@ -21,7 +21,12 @@ function fakeServer() {
   const routes: Record<string, (body: any) => unknown> = {
     "GET info": () => ({ product: "Studio", edition: "preview", workspace: "C:/ws", controlRoom: "/" }),
     "GET tree": () => ({ workspace: "C:/ws", tree }),
-    "GET packages": () => ({ packages: [{ id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" }] }] }),
+    "GET packages": () => ({ packages: [
+      { id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }, { id: "close", name: "Close workbook" }] },
+      { id: "core", name: "Core", version: "1.0.0", actions: [
+        { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
+        { id: "loop", name: "Loop", inputs: { properties: { iterator: { enum: ["list", "while"] }, condition: { "x-ooa-visible-when": { iterator: ["while"] } } } } },
+        { id: "log", name: "Write to log", inputs: { properties: { message: {} } } }] }] }),
     "GET bot": () => ({ path: "x", flow }),
     "GET blueprints": () => ({ blueprints: [
       { id: "excel_rows", name: "Loop through Excel rows", description: "Open a workbook and handle each row.", variables: [{ name: "workbook", type: "File", direction: "input" }],
@@ -263,5 +268,96 @@ describe("new Studio", () => {
     fireEvent.change(within(form).getByLabelText("Type"), { target: { value: "Number" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add variable" }));
     expect(screen.getByText("$total")).toBeTruthy();
+  });
+
+  const openIntake = async () => {
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
+    return screen.findByRole("region", { name: "Agent steps" });
+  };
+  const stepButton = (steps: HTMLElement, name: string) => within(steps).getAllByRole("button").find((b) => b.classList.contains("st-step") && b.textContent?.includes(name))!;
+  const stepNames = (steps: HTMLElement) => within(steps).getAllByRole("button").filter((b) => b.classList.contains("st-step")).map((b) => b.querySelector("strong")!.textContent);
+  /** A drag between elements, with the data the drag carries. */
+  const drag = (from: HTMLElement, to: HTMLElement) => {
+    const store: Record<string, string> = {};
+    const dataTransfer = { setData: (k: string, v: string) => { store[k] = v; }, getData: (k: string) => store[k] ?? "", effectAllowed: "" };
+    fireEvent.dragStart(from, { dataTransfer });
+    fireEvent.dragOver(to, { dataTransfer });
+    fireEvent.drop(to, { dataTransfer });
+  };
+
+  it("drags a step to a new place and an action from the library into a loop", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    drag(stepButton(steps, "Open workbook"), stepButton(steps, "Write to log"));   // after it (the drop lands in its lower part)
+    expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook"]);
+    fireEvent.click(screen.getByRole("button", { name: /^Excel/ }));
+    drag(screen.getByRole("button", { name: "Close workbook" }), within(steps).getByText("END"));
+    expect(stepNames(steps)).toEqual(["Loop", "Write to log", "Open workbook", "Close workbook"]);
+  });
+
+  it("selects several steps with Ctrl and Shift, then switches them off and deletes them together", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    fireEvent.click(stepButton(steps, "Write to log"), { shiftKey: true });
+    expect(within(steps).getByText(/^3 of 3 steps/)).toBeTruthy();
+    expect(screen.getByText(/3 steps selected/)).toBeTruthy();
+    fireEvent.click(stepButton(steps, "Loop"), { ctrlKey: true });   // Ctrl+click takes one out again
+    expect(within(steps).getByText(/^2 of 3 steps/)).toBeTruthy();
+    fireEvent.click(within(steps).getByRole("button", { name: "Switch off" }));
+    expect(within(steps).getAllByText("OFF")).toHaveLength(2);
+    fireEvent.click(within(steps).getByRole("button", { name: "Delete" }));
+    expect(stepNames(steps)).toEqual(["Loop"]);
+  });
+
+  it("builds an If condition from checks in plain words, and hides inputs that do not apply", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    // the loop's condition applies only to "while" loops, so it is hidden for this list loop
+    fireEvent.click(stepButton(steps, "Loop"));
+    expect(screen.queryByRole("group", { name: "Check 1" })).toBeNull();
+
+    fireEvent.click(stepButton(steps, "Write to log"));
+    fireEvent.click(screen.getByRole("button", { name: /^Core/ }));
+    fireEvent.click(screen.getByRole("button", { name: "If" }));
+    const check1 = await screen.findByRole("group", { name: "Check 1" });
+    fireEvent.change(within(check1).getByLabelText("Value"), { target: { value: "$total" } });
+    fireEvent.blur(within(check1).getByLabelText("Value"));
+    fireEvent.change(within(check1).getByLabelText("Comparison"), { target: { value: "gt" } });
+    fireEvent.change(within(screen.getByRole("group", { name: "Check 1" })).getByLabelText("Compared with"), { target: { value: "1000" } });
+    fireEvent.blur(within(screen.getByRole("group", { name: "Check 1" })).getByLabelText("Compared with"));
+    expect(screen.getByText("Reads: $total is greater than 1000")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a check" }));
+    const check2 = screen.getByRole("group", { name: "Check 2" });
+    fireEvent.change(within(check2).getByLabelText("Value"), { target: { value: "$vendor" } });
+    fireEvent.change(within(check2).getByLabelText("Comparison"), { target: { value: "empty" } });
+    expect(within(screen.getByRole("group", { name: "Check 2" })).queryByLabelText("Compared with")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Match"), { target: { value: "any" } });
+    expect(screen.getByText("Reads: $total is greater than 1000 or $vendor is empty")).toBeTruthy();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
+    const all = (list: any[]): any[] => list.flatMap((x) => [x, ...all(x.children ?? [])]);
+    const iff = all(saved.steps).find((x: any) => x.action === "core/if");
+    expect(saved.steps[1].children.map((x: any) => x.action)).toEqual(["core/log", "core/if"]);   // inside the loop, after the log
+    expect(iff.args.condition).toEqual({ any: [{ op: "gt", left: "$total", right: 1000 }, { op: "empty", left: "$vendor" }] });
+    expect(iff.children).toEqual([]);
+    expect(iff.else).toEqual([]);
+  });;
+
+  it("saves what is typed in a field even when Ctrl+S is pressed without leaving it", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    const path = screen.getByLabelText("path") as HTMLInputElement;
+    act(() => path.focus());
+    fireEvent.change(path, { target: { value: "D:/typed.xlsx" } });
+    await act(async () => { fireEvent.keyDown(path, { key: "s", ctrlKey: true }); await new Promise((r) => setTimeout(r, 20)); });
+    const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
+    expect(saved.steps[0].args.path).toBe("D:/typed.xlsx");
   });
 });

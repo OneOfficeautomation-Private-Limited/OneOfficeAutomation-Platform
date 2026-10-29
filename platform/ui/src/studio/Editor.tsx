@@ -1,13 +1,19 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
-import type { Flow, FlowVariable, PackageManifest, Problem } from "../api/client";
+import { useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import type { Flow, FlowStep, FlowVariable, PackageManifest, Problem } from "../api/client";
 import { Button, Field, IconTile, Select, SidePanel, TabPanel, Tabs, TextInput, usePersistent } from "../components";
-import { duplicateStep, moveStep, putVariable, removeStep, removeVariable, setArg, setNote, setOut, toggleDisabled } from "./flowEdit";
+import {
+  duplicateSteps, isBlock, moveStep, moveTo, putVariable, removeSteps, removeVariable, setArg, setNote, setOut, toggleDisabledMany, type Place,
+} from "./flowEdit";
 import { StepForm } from "./StepForm";
 import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
 
+/** Drag data: a step being moved, or an action from the library being added. */
+const STEP_DRAG = "application/x-ooa-step";
+const ACTION_DRAG = "application/x-ooa-action";
+
 /**
  * The action library on the left: toolkits with their mark and count, searchable, one open at a time. Clicking an
- * action adds it to the open agent, after the selected step (or inside it, when the selected step is a block).
+ * action adds it after the selected step (or inside it, when it is a block); dragging puts it where it is dropped.
  */
 export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[]; onAdd: (action: string) => void }) {
   const [query, setQuery] = useState("");
@@ -20,7 +26,7 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
   return (
     <SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions">
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-      <p className="st-panel-hint">Click an action to add it after the selected step.</p>
+      <p className="st-panel-hint">Click an action to add it after the selected step, or drag it to where it goes.</p>
       <ul className="st-groups">
         {list.map(({ p, actions }) => {
           const isOpen = open === p.id || (!!q && list.length <= 3);
@@ -31,7 +37,9 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
                 <IconTile name={m.icon} color={m.color} size={22} /><span className="st-group-name">{p.name}</span><span className="st-count">{actions.length}</span>
               </button>
               {isOpen && <ul className="st-group-actions">{actions.map((a) => (
-                <li key={a.id}><button type="button" className="st-action" title={a.description} onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}</button></li>
+                <li key={a.id}><button type="button" className="st-action" title={a.description} draggable
+                  onDragStart={(e) => { e.dataTransfer.setData(ACTION_DRAG, p.id + "/" + a.id); e.dataTransfer.effectAllowed = "copy"; }}
+                  onClick={() => onAdd(p.id + "/" + a.id)}>{a.name}</button></li>
               ))}</ul>}
             </li>
           );
@@ -44,46 +52,78 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
 const TYPES = ["String", "Number", "Boolean", "DateTime", "List", "Dictionary", "Table", "Record", "File", "Window", "UIElement", "Credential", "Any"];
 const DIRECTIONS = [{ value: "", label: "Inside this agent" }, { value: "input", label: "Input" }, { value: "output", label: "Output" }, { value: "both", label: "Input and output" }];
 
+/** Where a drop over a step lands: its top quarter before it, its bottom quarter after it, the middle inside a block. */
+function placeFor(e: DragEvent, step: FlowStep): Place {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const y = r.height ? (e.clientY - r.top) / r.height : 1;
+  if (isBlock(step.action)) return y < 0.25 ? "before" : y > 0.75 ? "after" : "inside";
+  return y < 0.5 ? "before" : "after";
+}
+
 /**
  * One open agent, editable: numbered steps with the toolkit mark and guide lines for blocks, a toolbar and keyboard
- * shortcuts for the selected step, its settings, the agent's variables, and the problems the last save found.
+ * shortcuts for the selected steps, drag and drop, the settings of the selected step, the agent's variables, and the
+ * problems the last save found. Ctrl+click adds a step to the selection, Shift+click a range.
  */
-export function AgentView({ flow, packages, selected, onSelect, onEdit, problems, checked, canUndo, canRedo, onUndo, onRedo }:
-  { flow: Flow; packages: PackageManifest[]; selected: string | null; onSelect: (id: string | null) => void;
-    onEdit: (next: Flow, select?: string | null) => void; problems: Problem[]; checked: boolean;
-    canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void }) {
+export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo }:
+  { flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
+    onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place) => void;
+    problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void }) {
   const rows = useMemo(() => stepRows(flow.steps), [flow]);
   const [rightTab, setRightTab] = useState("properties");
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
-  const sel = rows.find((r) => r.kind === "step" && r.step.id === selected);
-  const selStep = sel?.kind === "step" ? sel : null;
-  const selInfo = selStep ? describeAction(selStep.step.action, packages) : null;
+  const [drop, setDrop] = useState<{ id: string | null; where: Place } | null>(null);
   const ids = rows.flatMap((r) => r.kind === "step" ? [r.step.id] : []);
+  const chosen = ids.filter((id) => selected.includes(id));   // in the agent's order
+  const one = chosen.length === 1 ? rows.find((r) => r.kind === "step" && r.step.id === chosen[0]) : undefined;
+  const selStep = one?.kind === "step" ? one : null;
+  const selInfo = selStep ? describeAction(selStep.step.action, packages) : null;
   const problemSteps = new Set(problems.map((p) => p.stepId).filter(Boolean));
+  const allOff = chosen.length > 0 && chosen.every((id) => rows.some((r) => r.kind === "step" && r.step.id === id && r.step.disabled));
 
   const act = {
     remove: () => {
-      if (!selected) return;
-      // select the next step (or the one before) so Delete can be pressed again
-      const i = ids.indexOf(selected);
-      onEdit(removeStep(flow, selected), ids[i + 1] ?? ids[i - 1] ?? null);
+      if (!chosen.length) return;
+      // then select the step after the last removed one (or before the first), so Delete can be pressed again
+      const after = ids.slice(ids.indexOf(chosen[chosen.length - 1]) + 1).find((id) => !chosen.includes(id));
+      const before = ids.slice(0, ids.indexOf(chosen[0])).reverse()[0];
+      const next = removeSteps(flow, chosen);
+      const survivor = [after, before].find((id) => id && rows.some((r) => r.kind === "step" && r.step.id === id));
+      onEdit(next, survivor ? [survivor] : []);
     },
-    up: () => { if (selected) onEdit(moveStep(flow, selected, -1)); },
-    down: () => { if (selected) onEdit(moveStep(flow, selected, 1)); },
-    duplicate: () => { if (selected) { const d = duplicateStep(flow, selected); onEdit(d.flow, d.id); } },
-    disable: () => { if (selected) onEdit(toggleDisabled(flow, selected)); },
+    up: () => { if (chosen.length === 1) onEdit(moveStep(flow, chosen[0], -1)); },
+    down: () => { if (chosen.length === 1) onEdit(moveStep(flow, chosen[0], 1)); },
+    duplicate: () => { if (chosen.length) { const d = duplicateSteps(flow, chosen); onEdit(d.flow, d.ids); } },
+    disable: () => { if (chosen.length) onEdit(toggleDisabledMany(flow, chosen)); },
+  };
+  const click = (e: MouseEvent, id: string) => {
+    if (e.ctrlKey || e.metaKey) onSelect(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+    else if (e.shiftKey && selected.length) {
+      const a = ids.indexOf(selected[selected.length - 1]), b = ids.indexOf(id);
+      onSelect(ids.slice(Math.min(a, b), Math.max(a, b) + 1));
+    } else onSelect([id]);
   };
   const onKeys = (e: KeyboardEvent) => {
     if ((e.target as HTMLElement).closest("input, textarea, select")) return;
-    const i = selected ? ids.indexOf(selected) : -1;
+    const i = chosen.length ? ids.indexOf(chosen[chosen.length - 1]) : -1;
     if (e.key === "Delete") act.remove();
     else if (e.altKey && e.key === "ArrowUp") act.up();
     else if (e.altKey && e.key === "ArrowDown") act.down();
-    else if (e.key === "ArrowDown" && i + 1 < ids.length) onSelect(ids[i + 1]);
-    else if (e.key === "ArrowUp" && i > 0) onSelect(ids[i - 1]);
+    else if (e.key === "ArrowDown" && i + 1 < ids.length) onSelect([ids[i + 1]]);
+    else if (e.key === "ArrowUp" && i > 0) onSelect([ids[i - 1]]);
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") act.duplicate();
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") onSelect(ids);
     else return;
     e.preventDefault();
+  };
+  const dropOn = (e: DragEvent, targetId: string | null, where: Place) => {
+    e.preventDefault();
+    setDrop(null);
+    const action = e.dataTransfer.getData(ACTION_DRAG);
+    const step = e.dataTransfer.getData(STEP_DRAG);
+    if (action) onInsert(action, targetId, where);
+    else if (step && targetId) onEdit(moveTo(flow, step, targetId, where), [step]);
+    else if (step && !targetId && flow.steps.length) onEdit(moveTo(flow, step, flow.steps[flow.steps.length - 1].id, "after"), [step]);
   };
 
   return (
@@ -94,23 +134,27 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, problems
             <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
             <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
             <span className="st-bar-gap" />
-            <Button kind="plain" onClick={act.remove} disabled={!selected} title="Delete">Delete</Button>
-            <Button kind="plain" onClick={act.up} disabled={!selected} title="Alt+Up">Move up</Button>
-            <Button kind="plain" onClick={act.down} disabled={!selected} title="Alt+Down">Move down</Button>
-            <Button kind="plain" onClick={act.duplicate} disabled={!selected} title="Ctrl+D">Duplicate</Button>
-            <Button kind="plain" onClick={act.disable} disabled={!selected}>{selStep?.step.disabled ? "Switch on" : "Switch off"}</Button>
-            <span className="st-steps-meta">{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
+            <Button kind="plain" onClick={act.remove} disabled={!chosen.length} title="Delete">Delete</Button>
+            <Button kind="plain" onClick={act.up} disabled={chosen.length !== 1} title="Alt+Up">Move up</Button>
+            <Button kind="plain" onClick={act.down} disabled={chosen.length !== 1} title="Alt+Down">Move down</Button>
+            <Button kind="plain" onClick={act.duplicate} disabled={!chosen.length} title="Ctrl+D">Duplicate</Button>
+            <Button kind="plain" onClick={act.disable} disabled={!chosen.length}>{allOff ? "Switch on" : "Switch off"}</Button>
+            <span className="st-steps-meta">{chosen.length > 1 ? `${chosen.length} of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
           </div>
           <div className="st-marker st-start">START</div>
           <ol className="st-step-list">
             {rows.map((r, i) => {
               if (r.kind === "section") return <li key={"s" + i} className="st-section" style={{ paddingLeft: 46 + r.depth * 22 }}>{r.label}</li>;
               const info = describeAction(r.step.action, packages);
-              const isSel = r.step.id === selected;
+              const isSel = selected.includes(r.step.id);
+              const hint = drop?.id === r.step.id ? " drop-" + drop.where : "";
               return (
                 <li key={r.step.id}>
-                  <button type="button" className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}`} aria-pressed={isSel}
-                    onClick={() => onSelect(r.step.id)}>
+                  <button type="button" className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
+                    draggable onDragStart={(e) => { e.dataTransfer.setData(STEP_DRAG, r.step.id); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragOver={(e) => { e.preventDefault(); const where = placeFor(e, r.step); if (drop?.id !== r.step.id || drop.where !== where) setDrop({ id: r.step.id, where }); }}
+                    onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
+                    onClick={(e) => click(e, r.step.id)}>
                     <span className="st-step-n">{r.n}</span>
                     <span className="st-guides" style={{ width: r.depth * 22 }} />
                     <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
@@ -123,8 +167,10 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, problems
               );
             })}
           </ol>
-          {!ids.length && <p className="st-empty-steps">No steps yet. Pick an action in the Actions panel on the left to add the first one.</p>}
-          <div className="st-marker st-end">END</div>
+          {!ids.length && <p className="st-empty-steps">No steps yet. Pick an action in the Actions panel on the left, or drag one here.</p>}
+          <div className={`st-marker st-end${drop?.id === null ? " drop-end" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDrop({ id: null, where: "after" }); }} onDragLeave={() => setDrop(null)}
+            onDrop={(e) => dropOn(e, null, "after")}>END</div>
         </section>
 
         <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden}
@@ -139,7 +185,9 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, problems
                   onArg={(name, v) => onEdit(setArg(flow, selStep.step.id, name, v))}
                   onOut={(o, v) => onEdit(setOut(flow, selStep.step.id, o, v))}
                   onNote={(n) => onEdit(setNote(flow, selStep.step.id, n))} />
-              </> : <p className="st-muted st-pad">Select a step to change its settings.</p>}
+              </> : chosen.length > 1
+                ? <p className="st-pad">{chosen.length} steps selected. Delete, Duplicate and Switch off act on all of them; select one step to change its settings.</p>
+                : <p className="st-muted st-pad">Select a step to change its settings.</p>}
             </TabPanel>
             <TabPanel value="variables"><Variables flow={flow} onEdit={onEdit} /></TabPanel>
             <TabPanel value="triggers">
@@ -159,7 +207,7 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, problems
                 <li key={i}>
                   <span className="st-check">CHECK</span>
                   <span>{row?.kind === "step" ? `Line ${row.n}: ` : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
-                  {row?.kind === "step" && <Button kind="plain" onClick={() => { onSelect(p.stepId!); setRightTab("properties"); }}>Go to line {row.n}</Button>}
+                  {row?.kind === "step" && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Go to line {row.n}</Button>}
                 </li>
               );
             })}</ul>}

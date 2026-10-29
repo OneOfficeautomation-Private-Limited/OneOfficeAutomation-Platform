@@ -162,3 +162,17 @@
   .st-agent > .ui-panel-strip-right { width: auto; flex-direction: row; padding: 4px 8px; border-left: 0; border-top: 1px solid var(--ui-border); }
   .st-agent > .ui-panel-strip-right .ui-panel-strip-title { writing-mode: horizontal-tb; }
 }
+
+/* Drag and drop: where a dragged step or action will land */
+.st-step.drop-before { box-shadow: inset 0 3px 0 var(--ui-accent); }
+.st-step.drop-after { box-shadow: inset 0 -3px 0 var(--ui-accent); }
+.st-step.drop-inside { background: var(--ui-selected); outline: 2px dashed var(--ui-accent); outline-offset: -2px; }
+.st-marker.drop-end { outline: 2px dashed var(--ui-accent); outline-offset: 2px; }
+.st-step[draggable="true"], .st-action[draggable="true"] { cursor: grab; }
+
+/* Condition builder */
+.st-cond { display: flex; flex-direction: column; gap: 8px; }
+.st-cond-row { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); }
+.st-cond-row .ui-btn { align-self: flex-start; }
+.st-cond-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-cond-sentence { margin: 0; padding: 6px 8px; border-radius: var(--ui-radius); background: var(--ui-selected); color: var(--ui-text); }

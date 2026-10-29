@@ -6,14 +6,14 @@ import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView } from "./Editor";
-import { addStep, newStep } from "./flowEdit";
+import { addStep, insertAt, newStep, type Place } from "./flowEdit";
 import { allInstalled } from "./toolkits";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
  * history, the selected step, and what the last save's check found.
  */
-type OpenTab = { path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string | null; problems: Problem[]; checked: boolean };
+type OpenTab = { path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean };
 const MAX_TABS = 10;
 const MAX_UNDO = 100;
 const isDirty = (t: OpenTab) => JSON.stringify(t.flow) !== t.saved;
@@ -45,13 +45,15 @@ export function App({ api: given }: { api?: StudioApi }) {
   }, [api, reloadTree]);
 
   const current = tabs.find((t) => t.path === active) ?? null;
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
   const patch = (path: string, change: (t: OpenTab) => OpenTab) => setTabs((all) => all.map((t) => t.path === path ? change(t) : t));
 
   // ---- editing: every change keeps the previous flow for Undo ----
-  const edit = (next: Flow, select?: string | null) => {
-    if (!current) return;
+  const edit = (next: Flow, select?: string[]) => {
+    if (!current || next === current.flow) return;   // nothing changed (a drop on itself, a move past the end)
     patch(current.path, (t) => ({ ...t, flow: next, past: [...t.past, t.flow].slice(-MAX_UNDO), future: [],
-      selected: select === undefined ? t.selected : select }));
+      selected: select ?? t.selected }));
   };
   const undo = () => current && current.past.length &&
     patch(current.path, (t) => ({ ...t, flow: t.past[t.past.length - 1], past: t.past.slice(0, -1), future: [t.flow, ...t.future] }));
@@ -60,10 +62,19 @@ export function App({ api: given }: { api?: StudioApi }) {
   const add = (action: string) => {
     if (!current) return;
     const step = newStep(action, current.flow, packages);
-    edit(addStep(current.flow, current.selected, step), step.id);
+    edit(addStep(current.flow, current.selected[current.selected.length - 1] ?? null, step), [step.id]);
+  };
+  // an action dragged from the library onto a place in the steps
+  const insert = (action: string, targetId: string | null, where: Place) => {
+    if (!current) return;
+    const step = newStep(action, current.flow, packages);
+    edit(insertAt(current.flow, step, targetId, where), [step.id]);
   };
   const save = async (path: string) => {
-    const tab = tabs.find((t) => t.path === path);
+    // a field still being typed in (Ctrl+S without leaving it) commits first, then the latest flow is saved
+    const focused = document.activeElement as HTMLElement | null;
+    if (focused?.closest?.("input, textarea, select")) { focused.blur(); await new Promise((r) => setTimeout(r, 0)); }
+    const tab = tabsRef.current.find((t) => t.path === path);
     if (!tab) return false;
     try {
       const r = await api.saveBot(path, tab.flow);
@@ -105,7 +116,7 @@ export function App({ api: given }: { api?: StudioApi }) {
       try {
         const flow = await api.bot(n.path);
         setTabs((t) => [...t, { path: n.path, name: flow.name || n.name, flow, saved: JSON.stringify(flow), past: [], future: [],
-          selected: flow.steps[0]?.id ?? null, problems: [], checked: false }]);
+          selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false }]);
       } catch (e) { fail(e); return; }
     }
     setActive(n.path);
@@ -177,7 +188,7 @@ export function App({ api: given }: { api?: StudioApi }) {
           )}
           {current
             ? <AgentView key={current.path} flow={current.flow} packages={packages} selected={current.selected}
-                onSelect={(id) => patch(current.path, (t) => ({ ...t, selected: id }))} onEdit={edit}
+                onSelect={(ids) => patch(current.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
                 problems={current.problems} checked={current.checked}
                 canUndo={current.past.length > 0} canRedo={current.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree

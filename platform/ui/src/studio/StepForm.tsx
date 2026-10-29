@@ -1,5 +1,6 @@
 import type { FieldSpec, FlowStep, PackageManifest } from "../api/client";
 import { Field, Select, TextInput } from "../components";
+import { ConditionEditor } from "./ConditionEditor";
 import { fieldOrder, findAction, parseLoose, showValue } from "./flowEdit";
 
 /**
@@ -13,12 +14,17 @@ export function StepForm({ step, packages, onArg, onOut, onNote }:
   const spec = findAction(step.action, packages);
   const props = spec?.inputs?.properties ?? {};
   const required = spec?.inputs?.required ?? [];
-  const { main, more } = fieldOrder(spec);
+  // an input that applies only in some cases (Loop's condition only for "while") is shown only then
+  const applies = (name: string) => Object.entries(props[name]?.["x-ooa-visible-when"] ?? {})
+    .every(([other, values]) => values.some((v) => String(v) === String(step.args?.[other] ?? props[other]?.default ?? "")));
+  const order = fieldOrder(spec);
+  const main = order.main.filter(applies), more = order.more.filter(applies);
   const outputs = Object.entries(spec?.outputs?.properties ?? {});
-  const field = (name: string) => (
-    <InputField key={step.id + ":" + name} name={name} spec={props[name] ?? {}} required={required.includes(name)}
-      value={step.args?.[name]} onCommit={(v) => onArg(name, v)} />
-  );
+  const field = (name: string) => step.action.startsWith("core/") && name === "condition"
+    ? <Field key={step.id + ":condition"} label="Condition" hint={props[name]?.description}>{() =>
+        <ConditionEditor key={step.id} value={step.args?.condition} onCommit={(v) => onArg(name, v)} />}</Field>
+    : <InputField key={step.id + ":" + name} name={name} spec={props[name] ?? {}} required={required.includes(name)}
+        value={step.args?.[name]} onCommit={(v) => onArg(name, v)} />;
   // inputs the agent sets that the catalogue does not list (an older toolkit, a hand-edited file) stay editable
   const extra = Object.keys(step.args ?? {}).filter((n) => !(n in props));
 

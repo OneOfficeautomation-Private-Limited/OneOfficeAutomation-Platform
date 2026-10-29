@@ -80,6 +80,68 @@ export function addStep(flow: Flow, selectedId: string | null, step: FlowStep): 
   return f;
 }
 
+/** True when a step is the one with this id or holds it somewhere inside. */
+export function holds(step: FlowStep, id: string): boolean {
+  return step.id === id || innerLists(step).some((list) => list.some((s) => holds(s, id)));
+}
+
+export type Place = "before" | "after" | "inside";
+
+/** Puts a step at a place: before or after a target step, or at the end of a target block's steps. */
+function put(f: Flow, step: FlowStep, targetId: string | null, where: Place): boolean {
+  if (!targetId) { f.steps.push(step); return true; }
+  const at = locate(f.steps, targetId);
+  if (!at) return false;
+  if (where === "inside") {
+    if (!isBlock(at.step.action)) return false;
+    (at.step.children ??= []).push(step);
+  } else at.list.splice(at.index + (where === "after" ? 1 : 0), 0, step);
+  return true;
+}
+
+/** Inserts a new step (one dragged from the library) at a place; no target means the end of the agent. */
+export function insertAt(flow: Flow, step: FlowStep, targetId: string | null, where: Place): Flow {
+  const f = copy(flow);
+  return put(f, step, targetId, where) ? f : flow;
+}
+
+/**
+ * Moves a step (with what is inside it) to a place, by drag and drop. A step cannot go inside itself or next to a
+ * step inside itself; then, or when nothing would change, the flow comes back unchanged.
+ */
+export function moveTo(flow: Flow, id: string, targetId: string, where: Place): Flow {
+  const moving = locate(flow.steps, id)?.step;
+  if (!moving || holds(moving, targetId)) return flow;
+  const f = copy(flow);
+  const from = locate(f.steps, id)!;
+  from.list.splice(from.index, 1);
+  return put(f, from.step, targetId, where) ? f : flow;
+}
+
+/** Removes several steps; a step inside another removed step goes with it. */
+export function removeSteps(flow: Flow, ids: string[]): Flow {
+  let f = flow;
+  for (const id of ids) f = removeStep(f, id);
+  return f;
+}
+
+/** Switches several steps off, or on again when every one of them is off already. */
+export function toggleDisabledMany(flow: Flow, ids: string[]): Flow {
+  const f = copy(flow);
+  const steps = ids.map((id) => locate(f.steps, id)?.step).filter((s): s is FlowStep => !!s);
+  const allOff = steps.every((s) => s.disabled);
+  for (const s of steps) { if (allOff) delete s.disabled; else s.disabled = true; }
+  return f;
+}
+
+/** Copies of several steps, each right after its original; returns the copies' ids. */
+export function duplicateSteps(flow: Flow, ids: string[]): { flow: Flow; ids: string[] } {
+  let f = flow;
+  const out: string[] = [];
+  for (const id of ids) { const d = duplicateStep(f, id); f = d.flow; if (d.id) out.push(d.id); }
+  return { flow: f, ids: out };
+}
+
 export function removeStep(flow: Flow, id: string): Flow {
   const f = copy(flow);
   const at = locate(f.steps, id);

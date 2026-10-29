@@ -93,7 +93,7 @@ export function stepRows(steps: FlowStep[]): StepRow[] {
 }
 
 // Comparisons in words, as Classic Studio writes them (studio.js OPS), so both Studios describe a step the same way.
-const OPS: Record<string, string> = {
+export const OPS: Record<string, string> = {
   eq: "equals", ne: "does not equal", gt: "is greater than", ge: "is greater than or equal to", lt: "is less than", le: "is less than or equal to",
   contains: "contains", notContains: "does not contain", startsWith: "starts with", notStartsWith: "does not start with", endsWith: "ends with",
   notEndsWith: "does not end with", matches: "matches pattern", notMatches: "does not match pattern", empty: "is empty", notEmpty: "is not empty",
