@@ -149,4 +149,17 @@ describe("new Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show details" }));
     expect(screen.getByRole("tab", { name: "Variables" })).toBeTruthy();
   });
+
+  it("makes a folder from the + next to Folders, inside the chosen folder", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const tree = await screen.findByRole("tree", { name: "Folders" });
+    fireEvent.click(await within(tree).findByText("Finance"));
+    fireEvent.click(screen.getByRole("button", { name: "New folder in Finance" }));
+    const dialog = await screen.findByRole("dialog", { name: "New folder" });
+    expect(document.activeElement).toBe(within(dialog).getByLabelText("Name"));
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Germany" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create folder" })); });
+    expect(created).toEqual([{ parent: "Finance", name: "Germany" }]);
+  });
 });

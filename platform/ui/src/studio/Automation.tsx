@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { NewItemKind, WorkspaceNode } from "../api/client";
-import { Button, IconTile, Menu, SidePanel, Tree, usePersistent, type TreeNode } from "../components";
+import { Button, Icon, IconTile, Menu, SidePanel, Tree, usePersistent, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, typeLabel, type ItemType } from "./itemTypes";
@@ -33,6 +33,7 @@ export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFo
   const [creating, setCreating] = useState<ItemType | null>(null);
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
   const [title, keep] = VIEW_TITLE[view];
+  const folderName = find(tree, folder)?.name ?? "Workspace";
   const nodes = useMemo(() => [folderTree(tree)], [tree]);
   // with a search, every matching item in the workspace; otherwise what is in the chosen folder
   const q = search.trim().toLowerCase();
@@ -48,14 +49,16 @@ export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFo
         </div>
         <div className="st-page-actions">
           <Button kind="secondary" icon="plus" onClick={() => onNewFolder(folder)}>New folder</Button>
-          <Menu label="Create" title={"Create in " + (find(tree, folder)?.name ?? "Workspace")}
+          <Menu label="Create" title={"Create in " + folderName}
             trigger={<Button kind="primary">Create ▾</Button>}
             items={ITEM_TYPES.map((t) => ({ key: t.kind, label: t.name, description: t.description, icon: <IconTile name={t.icon} color={t.color} size={28} />,
               onSelect: () => setCreating(t) }))} />
         </div>
       </header>
       <div className="st-page-body">
-        <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders">
+        <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"
+          actions={<button type="button" className="ui-panel-toggle" aria-label={"New folder in " + folderName} title={"New folder in " + folderName}
+            onClick={() => onNewFolder(folder)}><Icon name="plus" size={14} stroke={2.6} /></button>}>
           <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
             renderIcon={(_, sel) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>} /></div>
