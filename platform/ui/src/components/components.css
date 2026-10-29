@@ -14,6 +14,8 @@
 .ui-btn-light:hover:not(:disabled) { background: #e8f0fe; }
 .ui-btn-secondary { background: #ffffff; color: var(--ui-accent-text); border-color: var(--ui-accent); }
 .ui-btn-secondary:hover:not(:disabled) { background: var(--ui-selected); }
+.ui-btn-danger { background: #b91c1c; color: #ffffff; }
+.ui-btn-danger:hover:not(:disabled) { background: #991b1b; }
 .ui-btn-plain { background: transparent; color: var(--ui-text); font-weight: 600; padding: 0 10px; }
 .ui-btn-plain:hover:not(:disabled) { background: var(--ui-row-hover); }
 .ui-icon-btn { width: 34px; height: 34px; border-radius: var(--ui-radius); border: 1px solid var(--ui-accent); background: #ffffff;

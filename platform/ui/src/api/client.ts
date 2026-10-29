@@ -107,6 +107,8 @@ export class StudioApi {
   saveItem(path: string, text: string) { return this.call<{ saved: string }>("PUT", "item?path=" + encodeURIComponent(path), { text }); }
 
   async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
+  /** Moves an item or folder to the workspace's .trash folder (it can be moved back); returns where it went. */
+  async remove(path: string) { return (await this.call<{ path: string }>("POST", "files/delete", { path })).path; }
   async createFolder(parent: string, name: string) { return (await this.call<{ path: string }>("POST", "files/folder", { parent, name })).path; }
 
   /** Creates an item in a folder and returns its path. */

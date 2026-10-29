@@ -46,6 +46,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [closing, setClosing] = useState<string | null>(null);   // a tab with unsaved changes being closed
   const [search, setSearch] = useState("");
   const [asking, setAsking] = useState<{ path: string; debug: boolean } | null>(null);   // the run dialog, for an agent with inputs
+  const [deleting, setDeleting] = useState<WorkspaceNode | null>(null);   // an item or folder waiting for "Move to trash"
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => api.tree().then(setTree).catch(fail), [api]);
@@ -281,7 +282,7 @@ export function App({ api: given }: { api?: StudioApi }) {
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree
-              ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} />
+              ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} onDelete={setDeleting} />
               : <p className="st-pad">Loading the workspace…</p>}
         </main>
       </div>
@@ -293,6 +294,29 @@ export function App({ api: given }: { api?: StudioApi }) {
         const tab = tabs.find((t) => t.path === asking.path);
         return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
           onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug); }} /> : null;
+      })()}
+
+      {deleting && (() => {
+        const inside = (t: OpenTab) => t.path === deleting.path || t.path.startsWith(deleting.path + "/");
+        const unsaved = tabs.filter((t) => inside(t) && isDirty(t));
+        const what = deleting.type === "folder" ? "the folder " + deleting.name + " and everything in it" : displayName(deleting);
+        const remove = async () => {
+          try {
+            await api.remove(deleting.path);
+            setTabs((all) => all.filter((t) => !inside(t)));
+            if (active && tabs.some((t) => t.path === active && inside(t))) setActive(null);
+            setNotice("Moved " + what + " to the workspace trash.");
+            await reloadTree();
+          } catch (e) { fail(e); }
+          setDeleting(null);
+        };
+        return (
+          <Dialog open onClose={() => setDeleting(null)} title={"Delete " + (deleting.type === "folder" ? "folder " + deleting.name : displayName(deleting)) + "?"} width={500}
+            footer={<><Button kind="secondary" onClick={() => setDeleting(null)}>Cancel</Button><Button kind="danger" icon="trash" onClick={remove}>Move to trash</Button></>}>
+            <p>This moves {what} to the workspace's .trash folder. To get it back, move it out of .trash in File Explorer.</p>
+            {unsaved.length > 0 && <p className="st-error">{unsaved.map((t) => t.name).join(", ")} {unsaved.length > 1 ? "have" : "has"} unsaved changes, which will be lost.</p>}
+          </Dialog>
+        );
       })()}
 
       {closingTab && (

@@ -3,9 +3,10 @@ import { Icon, type IconName } from "./Icon";
 
 /**
  * Buttons are never grey (approved look): save and primary are solid blue, run solid green, debug solid amber,
- * light is white (for the dark top bar), secondary is white with a blue outline, plain is text only (toolbars).
+ * light is white (for the dark top bar), secondary is white with a blue outline, plain is text only (toolbars),
+ * danger is solid red (only to confirm a delete).
  */
-export type ButtonKind = "primary" | "run" | "debug" | "light" | "secondary" | "plain";
+export type ButtonKind = "primary" | "run" | "debug" | "light" | "secondary" | "plain" | "danger";
 
 export function Button({ kind = "secondary", icon, children, className, ...rest }:
   { kind?: ButtonKind; icon?: IconName; children?: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {

@@ -228,3 +228,6 @@
 .st-code { flex: 1; }
 .st-code-area { flex: 1; min-height: 360px; line-height: 1.5; white-space: pre; tab-size: 4; }
 .st-item-wrap .st-alert { margin: 8px 16px 0; }
+
+/* delete in the items table */
+.st-row-actions { width: 1%; white-space: nowrap; text-align: right; }

@@ -43,6 +43,7 @@ function fakeServer() {
     "POST files/bot": (b) => { created.push(b); return { path: b.parent + "/" + b.name + ".flow.json" }; },
     "POST files/folder": (b) => { created.push(b); return { path: b.parent + "/" + b.name }; },
     "POST files/item": (b) => { created.push(b); return { path: "Finance/Invoices/Invoice check.form.json" }; },
+    "POST files/delete": (b) => { created.push({ deleted: b.path }); return { path: ".trash/x" }; },
   };
   // a run: the first poll is running (or stopped at a breakpoint when debugging), the next ones finished
   let polls = 0, debugging = false, triggers: any[] = [];
@@ -517,5 +518,28 @@ describe("new Studio", () => {
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice check" } });
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
     expect(await screen.findByRole("region", { name: "Form fields" })).toBeTruthy();
+  });
+
+  it("deletes an item and a folder to the trash after asking", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "clean" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Delete clean.py" }));
+    const ask = await screen.findByRole("dialog", { name: "Delete clean.py?" });
+    expect(ask.textContent).toMatch(/workspace's .trash folder/);
+    fireEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(created.some((c: any) => c.deleted)).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Delete clean.py" }));
+    await act(async () => { fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Move to trash" })); });
+    expect(created).toContainEqual({ deleted: "Finance/Invoices/clean.py" });
+    expect(screen.getByText("Moved clean.py to the workspace trash.")).toBeTruthy();
+
+    // a folder: the trash button next to Folders, for the chosen folder
+    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "" } });
+    fireEvent.click(await within(await screen.findByRole("tree", { name: "Folders" })).findByText("Finance"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete folder Finance" }));
+    const ask2 = await screen.findByRole("dialog", { name: "Delete folder Finance?" });
+    await act(async () => { fireEvent.click(within(ask2).getByRole("button", { name: "Move to trash" })); });
+    expect(created).toContainEqual({ deleted: "Finance" });
   });
 });

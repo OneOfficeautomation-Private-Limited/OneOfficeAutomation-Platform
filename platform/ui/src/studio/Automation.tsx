@@ -26,8 +26,8 @@ function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
  * The Automation page, in AA's order: pick a folder, press Create, choose the type, then name it. The table lists
  * what is in the folder; opening an agent opens it in a tab.
  */
-export function Automation({ view, tree, search = "", blueprints = [], onOpen, onCreated, onNewFolder }:
-  { view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; onOpen: (n: WorkspaceNode) => void;
+export function Automation({ view, tree, search = "", blueprints = [], onOpen, onCreated, onNewFolder, onDelete }:
+  { view: StudioView; tree: WorkspaceNode; search?: string; blueprints?: Blueprint[]; onOpen: (n: WorkspaceNode) => void; onDelete: (n: WorkspaceNode) => void;
     onCreated: (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => Promise<void>;
     onNewFolder: (parent: string) => void }) {
   const [folder, setFolder] = useState("");
@@ -59,15 +59,19 @@ export function Automation({ view, tree, search = "", blueprints = [], onOpen, o
       </header>
       <div className="st-page-body">
         <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"
-          actions={<button type="button" className="ui-panel-toggle" aria-label={"New folder in " + folderName} title={"New folder in " + folderName}
-            onClick={() => onNewFolder(folder)}><Icon name="plus" size={14} stroke={2.6} /></button>}>
+          actions={<>
+            <button type="button" className="ui-panel-toggle" aria-label={"New folder in " + folderName} title={"New folder in " + folderName}
+              onClick={() => onNewFolder(folder)}><Icon name="plus" size={14} stroke={2.6} /></button>
+            {folder && <button type="button" className="ui-panel-toggle" aria-label={"Delete folder " + folderName} title={"Delete folder " + folderName}
+              onClick={() => { const n = find(tree, folder); if (n) onDelete(n); }}><Icon name="trash" size={14} stroke={2.2} /></button>}
+          </>}>
           <div className="st-folders-tree"><Tree label="Folders" nodes={nodes} selected={folder} expanded={expanded} onSelect={setFolder} onToggle={toggle}
             renderIcon={(_, sel) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>} /></div>
         </SidePanel>
         <div className="st-items">
           <table className="st-table">
-            <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Changed</th></tr></thead>
+            <thead><tr><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Changed</th><th scope="col"><span className="st-sr">Actions</span></th></tr></thead>
             <tbody>
               {items.map((n) => (
                 <tr key={n.path} onDoubleClick={() => onOpen(n)}>
@@ -76,9 +80,10 @@ export function Automation({ view, tree, search = "", blueprints = [], onOpen, o
                     : <span>{displayName(n)}</span>}</td>
                   <td>{typeLabel(n)}</td>
                   <td>{n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
+                  <td className="st-row-actions"><Button kind="plain" icon="trash" aria-label={"Delete " + displayName(n)} title={"Delete " + displayName(n)} onClick={() => onDelete(n)}>Delete</Button></td>
                 </tr>
               ))}
-              {!items.length && <tr><td colSpan={3} className="st-empty">Nothing here yet. Press Create to make the first one in this folder.</td></tr>}
+              {!items.length && <tr><td colSpan={4} className="st-empty">Nothing here yet. Press Create to make the first one in this folder.</td></tr>}
             </tbody>
           </table>
         </div>
