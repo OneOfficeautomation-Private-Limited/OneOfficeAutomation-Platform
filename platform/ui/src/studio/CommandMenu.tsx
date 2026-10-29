@@ -1,7 +1,7 @@
 import { Icon, IconTile, usePersistent, type IconName } from "../components";
 
 /**
- * The Command Center menu (approved look): Home, then four sections. Studio's own pages are views; the rest are links.
+ * The Command Center menu (approved look): Home, then four sections: BUILD, MANAGE, ADMINISTRATION, AI. Studio's own pages are views; the rest are links.
  * The whole menu folds to a column of icons, and each section opens and closes on its heading; both are remembered.
  */
 export type StudioView = "automation" | "workflows" | "forms";
@@ -10,14 +10,14 @@ type Entry = { label: string; view?: StudioView; page?: string };
 const SECTIONS: { label: string; color: string; icon: IconName; items: Entry[] }[] = [
   { label: "BUILD", color: "#2f6fde", icon: "folder", items: [
     { label: "Automation", view: "automation" }, { label: "Workflows", view: "workflows" }, { label: "Forms", view: "forms" }, { label: "Templates", page: "templates" }] },
-  { label: "MONITOR", color: "#0f766e", icon: "pulse", items: [
+  { label: "MANAGE", color: "#0f766e", icon: "pulse", items: [
     { label: "Activity", page: "activity" }, { label: "Runners", page: "devices" }, { label: "Schedules and triggers", page: "schedules" },
     { label: "Work queues", page: "queues" }, { label: "Task inbox", page: "inbox" }] },
-  { label: "AI", color: "#7c3aed", icon: "spark", items: [
-    { label: "Model connections", page: "connections" }, { label: "Prompt Skills", page: "skills" }, { label: "AI governance", page: "governance" }] },
   { label: "ADMINISTRATION", color: "#475569", icon: "gear", items: [
     { label: "Users and roles", page: "users" }, { label: "Vault", page: "credentials" }, { label: "Audit", page: "audit" },
     { label: "Licenses", page: "licenses" }, { label: "Settings", page: "settings" }] },
+  { label: "AI", color: "#7c3aed", icon: "spark", items: [
+    { label: "Model connections", page: "connections" }, { label: "Prompt Skills", page: "skills" }, { label: "AI governance", page: "governance" }] },
 ];
 
 export function CommandMenu({ view, onView, controlRoom }: { view: StudioView | null; onView: (v: StudioView) => void; controlRoom: string | null }) {

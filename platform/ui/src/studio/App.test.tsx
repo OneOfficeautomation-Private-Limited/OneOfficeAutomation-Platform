@@ -39,7 +39,7 @@ describe("new Studio", () => {
   it("shows the Command Center menu in four sections, with links to Command Center pages", async () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    for (const s of ["BUILD", "MONITOR", "AI", "ADMINISTRATION"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["BUILD", "MANAGE", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/?page=queues"));
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
   });
@@ -119,7 +119,7 @@ describe("new Studio", () => {
     const { api } = fakeServer();
     const { unmount } = render(<App api={api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    fireEvent.click(within(menu).getByRole("button", { name: "MONITOR" }));
+    fireEvent.click(within(menu).getByRole("button", { name: "MANAGE" }));
     expect(within(menu).queryByRole("link", { name: "Work queues" })).toBeNull();
     fireEvent.click(within(menu).getByRole("button", { name: "Collapse menu" }));
     expect(within(menu).queryByRole("button", { name: "Automation" })).toBeNull();
@@ -129,7 +129,7 @@ describe("new Studio", () => {
     render(<App api={api} />);
     const again = await screen.findByRole("navigation", { name: "Command Center" });
     expect(within(again).getByRole("button", { name: "Expand menu" }).getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(within(again).getByRole("button", { name: "MONITOR" }));   // an icon opens the menu at its section
+    fireEvent.click(within(again).getByRole("button", { name: "MANAGE" }));   // an icon opens the menu at its section
     expect(await within(again).findByRole("link", { name: "Work queues" })).toBeTruthy();
   });
 

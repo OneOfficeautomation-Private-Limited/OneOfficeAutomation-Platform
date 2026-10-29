@@ -65,9 +65,9 @@ seam now means the cloud designer needs no second rebuild.
 | Center menu  | library     | Toolbar: Undo Redo Cut Copy Paste   | Triggers (tabs)           |
 | Home         | (search,    |-------------------------------------|                           |
 | BUILD        | toolkits    | Steps: numbered rows, coloured      | Labels beside fields,     |
-| MONITOR      | with        | toolkit icons, guide lines for      | sections Input, Output,   |
-| AI           | coloured    | blocks                              | If unsure                 |
-| ADMINISTRATION icons)      |-------------------------------------|                           |
+| MANAGE       | with        | toolkit icons, guide lines for      | sections Input, Output,   |
+| ADMINISTRATION coloured    | blocks                              | If unsure                 |
+| AI           | icons)      |-------------------------------------|                           |
 |              |             | Problems · Run output · Debug values|                           |
 +--------------+-------------+-------------------------------------+---------------------------+
 ```
@@ -76,9 +76,9 @@ The design canvas https://claude.ai/artifact/HafD989gNmovYiwHkHmZrB has four cli
 2026-10-29: the workbench, Automation with Create, the AI agent editor and the model connection wizard.
 
 **Layout, as in AA's Control Room and bot editor**
-- The left menu is the Command Center's own: Home, then four sections, BUILD (Automation, Templates, Workflows,
-  Forms), MONITOR (Activity, Runners, Schedules and triggers, Work queues, Task inbox), AI (Model connections, Prompt
-  Skills, AI governance) and ADMINISTRATION (Users and roles, Vault, Audit, Licenses, Settings). Headings are bold
+- The left menu is the Command Center's own: Home, then four sections in this order, BUILD (Automation, Templates,
+  Workflows, Forms), MANAGE (Activity, Runners, Schedules and triggers, Work queues, Task inbox), ADMINISTRATION
+  (Users and roles, Vault, Audit, Licenses, Settings) and AI (Model connections, Prompt Skills, AI governance). Headings are bold
   white capitals with a coloured icon and a divider; items are indented under a guide line; the current one is solid
   blue. The menu can be collapsed.
 - Actions on the left; Properties, Variables and Triggers as tabs on the right.
@@ -108,8 +108,8 @@ New and changed screens from the V6 gap list that live in Studio:
 | V6.5 Model connections | Wizard with dropdowns: service, region, model, separate vault keys, test on the server, default use, on or off |
 | V6.7 Filters and saved views | Explorer, action library and run history |
 | V6.11 Wizards with drafts | New agent from template, new connection, new trigger |
-| V6.1 Menu | Command Center menu in four sections: BUILD, MONITOR, AI, ADMINISTRATION |
-| V6.2 Work for people | Forms and workflows under BUILD; the Task inbox under MONITOR |
+| V6.1 Menu | Command Center menu in four sections: BUILD, MANAGE, ADMINISTRATION, AI |
+| V6.2 Work for people | Forms and workflows under BUILD; the Task inbox under MANAGE |
 
 ## 5. Moving over without a big bang
 
