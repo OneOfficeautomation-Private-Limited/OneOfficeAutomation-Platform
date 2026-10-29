@@ -1,10 +1,12 @@
-import { useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import type { Flow, FlowStep, FlowVariable, PackageManifest, Problem } from "../api/client";
+import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import type { DebugCommand, Flow, FlowStep, FlowVariable, PackageManifest, Problem, StudioApi } from "../api/client";
 import { Button, Field, IconTile, Select, SidePanel, TabPanel, Tabs, TextInput, usePersistent } from "../components";
 import {
   duplicateSteps, isBlock, moveStep, moveTo, putVariable, removeSteps, removeVariable, setArg, setNote, setOut, toggleDisabledMany, type Place,
 } from "./flowEdit";
+import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { StepForm } from "./StepForm";
+import { TriggersPanel } from "./TriggersPanel";
 import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
@@ -65,14 +67,20 @@ function placeFor(e: DragEvent, step: FlowStep): Place {
  * shortcuts for the selected steps, drag and drop, the settings of the selected step, the agent's variables, and the
  * problems the last save found. Ctrl+click adds a step to the selection, Shift+click a range.
  */
-export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo }:
-  { flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
+export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
+  run, breakpoints, onToggleBreakpoint, onStop, onDebug }:
+  { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place) => void;
-    problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void }) {
+    problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
+    run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void }) {
   const rows = useMemo(() => stepRows(flow.steps), [flow]);
   const [rightTab, setRightTab] = useState("properties");
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
   const [drop, setDrop] = useState<{ id: string | null; where: Place } | null>(null);
+  const [bottomTab, setBottomTab] = useState("problems");
+  useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
+  const at = runningStep(run);
+  const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
   const ids = rows.flatMap((r) => r.kind === "step" ? [r.step.id] : []);
   const chosen = ids.filter((id) => selected.includes(id));   // in the agent's order
   const one = chosen.length === 1 ? rows.find((r) => r.kind === "step" && r.step.id === chosen[0]) : undefined;
@@ -113,6 +121,7 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert
     else if (e.key === "ArrowUp" && i > 0) onSelect([ids[i - 1]]);
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") act.duplicate();
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") onSelect(ids);
+    else if (e.key === "F9" && chosen.length) chosen.forEach(onToggleBreakpoint);
     else return;
     e.preventDefault();
   };
@@ -139,6 +148,7 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert
             <Button kind="plain" onClick={act.down} disabled={chosen.length !== 1} title="Alt+Down">Move down</Button>
             <Button kind="plain" onClick={act.duplicate} disabled={!chosen.length} title="Ctrl+D">Duplicate</Button>
             <Button kind="plain" onClick={act.disable} disabled={!chosen.length}>{allOff ? "Switch on" : "Switch off"}</Button>
+            <Button kind="plain" onClick={() => chosen.forEach(onToggleBreakpoint)} disabled={!chosen.length} title="Stop here when debugging (F9)">Breakpoint</Button>
             <span className="st-steps-meta">{chosen.length > 1 ? `${chosen.length} of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
           </div>
           <div className="st-marker st-start">START</div>
@@ -147,7 +157,8 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert
               if (r.kind === "section") return <li key={"s" + i} className="st-section" style={{ paddingLeft: 46 + r.depth * 22 }}>{r.label}</li>;
               const info = describeAction(r.step.action, packages);
               const isSel = selected.includes(r.step.id);
-              const hint = drop?.id === r.step.id ? " drop-" + drop.where : "";
+              const hint = (drop?.id === r.step.id ? " drop-" + drop.where : "") + (at === r.step.id ? " is-running" : "");
+              const bp = breakpoints.includes(r.step.id);
               return (
                 <li key={r.step.id}>
                   <button type="button" className={`st-step${isSel ? " is-selected" : ""}${r.step.disabled ? " is-disabled" : ""}${hint}`} aria-pressed={isSel}
@@ -155,7 +166,7 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert
                     onDragOver={(e) => { e.preventDefault(); const where = placeFor(e, r.step); if (drop?.id !== r.step.id || drop.where !== where) setDrop({ id: r.step.id, where }); }}
                     onDragLeave={() => setDrop(null)} onDrop={(e) => dropOn(e, r.step.id, placeFor(e, r.step))}
                     onClick={(e) => click(e, r.step.id)}>
-                    <span className="st-step-n">{r.n}</span>
+                    <span className="st-step-n">{bp && <span className="st-bp" title="Breakpoint" aria-label="breakpoint" />}{r.n}</span>
                     <span className="st-guides" style={{ width: r.depth * 22 }} />
                     <IconTile name={info.mark.icon} color={info.mark.color} size={24} />
                     <strong>{info.name}</strong>
@@ -191,26 +202,35 @@ export function AgentView({ flow, packages, selected, onSelect, onEdit, onInsert
             </TabPanel>
             <TabPanel value="variables"><Variables flow={flow} onEdit={onEdit} /></TabPanel>
             <TabPanel value="triggers">
-              <p className="st-pad">Triggers start this agent automatically (new email, a file arriving, a schedule). They are set in Classic Studio until P3.</p>
+              <TriggersPanel api={api} path={path} />
             </TabPanel>
           </Tabs>
         </SidePanel>
       </div>
 
-      <section className="st-problems" aria-label="Problems">
-        <div className="st-problems-head"><strong>Problems</strong>{problems.length > 0 && <span className="st-check">{problems.length}</span>}</div>
-        {!checked ? <p className="st-muted st-pad">Save to check the agent.</p>
-          : problems.length === 0 ? <p className="st-pad">No problems found at the last save.</p>
-          : <ul className="st-problem-list">{problems.map((p, i) => {
-              const row = rows.find((r) => r.kind === "step" && r.step.id === p.stepId);
-              return (
-                <li key={i}>
-                  <span className="st-check">CHECK</span>
-                  <span>{row?.kind === "step" ? `Line ${row.n}: ` : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
-                  {row?.kind === "step" && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Go to line {row.n}</Button>}
-                </li>
-              );
-            })}</ul>}
+      <section className="st-bottom" aria-label="Output">
+        <Tabs label="Output" value={bottomTab} onChange={setBottomTab}
+          tabs={[{ value: "problems", label: <>Problems{problems.length > 0 && <span className="st-check st-tab-count">{problems.length}</span>}</> },
+            { value: "run", label: "Run output" }, { value: "values", label: "Debug values" }]}>
+          <TabPanel value="problems">
+            <div role="region" aria-label="Problems">
+              {!checked ? <p className="st-muted st-pad">Save to check the agent.</p>
+                : problems.length === 0 ? <p className="st-pad">No problems found at the last save.</p>
+                : <ul className="st-problem-list">{problems.map((p, i) => {
+                    const row = rows.find((r) => r.kind === "step" && r.step.id === p.stepId);
+                    return (
+                      <li key={i}>
+                        <span className="st-check">CHECK</span>
+                        <span>{row?.kind === "step" ? `Line ${row.n}: ` : ""}{p.message}{p.suggestedFix ? ` (${p.suggestedFix})` : ""}</span>
+                        {row?.kind === "step" && <Button kind="plain" onClick={() => { onSelect([p.stepId!]); setRightTab("properties"); }}>Go to line {row.n}</Button>}
+                      </li>
+                    );
+                  })}</ul>}
+            </div>
+          </TabPanel>
+          <TabPanel value="run"><RunOutput run={run} stepName={lineOf} onStop={onStop} onDebug={onDebug} /></TabPanel>
+          <TabPanel value="values"><DebugValues run={run} /></TabPanel>
+        </Tabs>
       </section>
     </div>
   );

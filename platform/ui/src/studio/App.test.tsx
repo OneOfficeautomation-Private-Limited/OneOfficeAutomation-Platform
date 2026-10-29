@@ -40,13 +40,33 @@ function fakeServer() {
     "POST files/bot": (b) => { created.push(b); return { path: b.parent + "/" + b.name + ".flow.json" }; },
     "POST files/folder": (b) => { created.push(b); return { path: b.parent + "/" + b.name }; },
   };
+  // a run: the first poll is running (or stopped at a breakpoint when debugging), the next ones finished
+  let polls = 0, debugging = false, triggers: any[] = [];
+  const runs: any[] = [];
+  routes["POST runs"] = (b) => { runs.push(b); polls = 0; debugging = !!b.debug; return { run_id: "run_0123456789abcdef" }; };
+  routes["GET runs/run_0123456789abcdef"] = () => {
+    polls++;
+    if (debugging && polls < 3) return { run_id: "x", state: "debugging", elapsed_ms: 10, events: [],
+      debug: { stepId: "loop", action: "core/loop", reason: "breakpoint", variables: { workbook: "C:/in.xlsx", count: 2 } } };
+    if (polls < 2) return { run_id: "x", state: "running", elapsed_ms: 5, events: [
+      { seq: 1, type: "run.started", data: { totalSteps: 3 } }, { seq: 2, type: "step.started", stepId: "open" }] };
+    return { run_id: "x", state: "success", elapsed_ms: 20, events: polls === 2 ? [
+      { seq: 3, type: "step.finished", stepId: "open", data: { durationMs: 4 } },
+      { seq: 4, type: "log", stepId: "log", data: { level: "info", message: "row" } },
+      { seq: 5, type: "run.finished", data: { status: "success" } }] : [],
+      result: { status: "success", outputs: { total: 1250 }, error: null } };
+  };
+  routes["POST runs/run_0123456789abcdef/debug"] = (b) => { runs.push({ command: b.command }); debugging = false; return { ok: true }; };
+  routes["POST runs/run_0123456789abcdef/stop"] = () => ({ ok: true });
+  routes["GET triggers"] = () => ({ triggers, log: [] });
+  routes["PUT triggers"] = (b) => { triggers = b.map((t: any) => ({ enabled: true, ...t })); return { triggers }; };
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
     const handler = routes[`${init.method} ${route}`];
     if (!handler) return new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "No route " + route } }), { status: 404 });
     return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 });
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created };
+  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers };
 }
 
 describe("new Studio", () => {
@@ -359,5 +379,55 @@ describe("new Studio", () => {
     await act(async () => { fireEvent.keyDown(path, { key: "s", ctrlKey: true }); await new Promise((r) => setTimeout(r, 20)); });
     const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
     expect(saved.steps[0].args.path).toBe("D:/typed.xlsx");
+  });
+
+  it("runs the agent with its inputs and shows the output and outputs", async () => {
+    const { api, runs } = fakeServer();
+    render(<App api={api} />);
+    await openIntake();
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    const dialog = await screen.findByRole("dialog", { name: "Run Invoice intake" });
+    fireEvent.change(within(dialog).getByLabelText("$workbook (File)"), { target: { value: "C:/in.xlsx" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Run" })); });
+    expect(runs[0].inputs).toEqual({ workbook: "C:/in.xlsx" });
+    expect(runs[0].flow.steps.map((x: any) => x.id)).toEqual(["open", "loop"]);   // the flow as it is in the editor
+    expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.getByText(/Line 1 Open workbook · done in 4 ms/)).toBeTruthy();
+    expect(screen.getByText("Finished")).toBeTruthy();
+    expect(screen.getByText("$total").closest("tr")!.textContent).toContain("1250");
+  });
+
+  it("debugs: stops at a breakpoint, shows the values there, and continues", async () => {
+    const { api, runs } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Loop"));
+    fireEvent.click(within(steps).getByRole("button", { name: "Breakpoint" }));
+    expect(stepButton(steps, "Loop").querySelector(".st-bp")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Debug" }));
+    const dialog = await screen.findByRole("dialog", { name: "Debug Invoice intake" });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Debug" })); });
+    expect(runs[0]).toMatchObject({ debug: true, breakpoints: ["loop"], stopAtStart: false });
+    expect(await screen.findByText("Stopped at a step", {}, { timeout: 3000 })).toBeTruthy();
+    expect(stepButton(steps, "Loop").classList.contains("is-running")).toBe(true);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Debug values" }));
+    expect((await screen.findByText("$workbook")).closest("tr")!.textContent).toContain("C:/in.xlsx");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Run output" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Continue" })); });
+    expect(runs[1]).toEqual({ command: "continue" });
+    expect(await screen.findByText("Run finished", {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it("adds a schedule trigger for this agent only", async () => {
+    const { api, triggers } = fakeServer();
+    render(<App api={api} />);
+    await openIntake();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Triggers" }));
+    expect(await screen.findByText("No triggers yet.")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Every (minutes)"), { target: { value: "15" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Add trigger" })); });
+    expect(triggers()).toHaveLength(1);
+    expect(triggers()[0]).toMatchObject({ bot: "Finance/Invoices/Invoice intake.flow.json", type: "schedule", every_minutes: 15 });
+    expect(screen.getByText("Every 15 minutes")).toBeTruthy();
   });
 });

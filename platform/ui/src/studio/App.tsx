@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, StudioApi, type Blueprint, type Flow, type NewItemKind, type PackageManifest, type Problem, type StudioInfo, type WorkspaceNode,
+  ApiFailure, StudioApi, type Blueprint, type DebugCommand, type Flow, type NewItemKind, type PackageManifest, type Problem, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView } from "./Editor";
-import { addStep, insertAt, newStep, type Place } from "./flowEdit";
+import { addStep, insertAt, newStep, parseLoose, type Place } from "./flowEdit";
+import { isFinished, type LiveRun } from "./RunPanel";
 import { allInstalled } from "./toolkits";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
  * history, the selected step, and what the last save's check found.
  */
-type OpenTab = { path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean };
+type OpenTab = {
+  path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean;
+  run: LiveRun | null; breakpoints: string[];
+};
 const MAX_TABS = 10;
 const MAX_UNDO = 100;
 const isDirty = (t: OpenTab) => JSON.stringify(t.flow) !== t.saved;
@@ -34,6 +38,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [newFolderIn, setNewFolderIn] = useState<string | null>(null);
   const [closing, setClosing] = useState<string | null>(null);   // a tab with unsaved changes being closed
   const [search, setSearch] = useState("");
+  const [asking, setAsking] = useState<{ path: string; debug: boolean } | null>(null);   // the run dialog, for an agent with inputs
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => api.tree().then(setTree).catch(fail), [api]);
@@ -116,7 +121,7 @@ export function App({ api: given }: { api?: StudioApi }) {
       try {
         const flow = await api.bot(n.path);
         setTabs((t) => [...t, { path: n.path, name: flow.name || n.name, flow, saved: JSON.stringify(flow), past: [], future: [],
-          selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false }]);
+          selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
       } catch (e) { fail(e); return; }
     }
     setActive(n.path);
@@ -141,6 +146,47 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (kind === "TaskBot" || kind === "ApiTask") await open({ name, path, type: "bot" });
   };
 
+  // ---- running and debugging the open agent, on this computer ----
+  const inputsOf = (f: Flow) => (f.variables ?? []).filter((v) => v.direction === "input" || v.direction === "both");
+  const startRun = (debug: boolean) => {
+    if (!current) return;
+    if (inputsOf(current.flow).length) setAsking({ path: current.path, debug }); else go(current.path, {}, debug);
+  };
+  const go = async (path: string, inputs: Record<string, unknown>, debug: boolean) => {
+    const tab = tabsRef.current.find((t) => t.path === path);
+    if (!tab) return;
+    try {
+      const id = await api.startRun(tab.flow, inputs, debug ? { debug: true, breakpoints: tab.breakpoints, stopAtStart: !tab.breakpoints.length } : {});
+      patch(path, (t) => ({ ...t, run: { id, debug, state: "running", events: [], elapsed: 0 } }));
+      follow(path, id);
+    } catch (e) { fail(e); }
+  };
+  /** Reads what the run reports until it ends: new events only, a little slower while it waits at a breakpoint. */
+  const follow = async (path: string, id: string) => {
+    let after = 0;
+    for (;;) {
+      try {
+        const st = await api.runState(id, after);
+        after = st.events.reduce((m, e) => Math.max(m, e.seq), after);
+        patch(path, (t) => t.run?.id !== id ? t : { ...t, run: { ...t.run, state: st.state, events: [...t.run.events, ...st.events], result: st.result,
+          stopped: st.debug, elapsed: st.elapsed_ms } });
+        if (["success", "failed", "cancelled", "stopped", "timeout"].includes(st.state)) return;
+        const tab = tabsRef.current.find((t) => t.path === path);
+        if (!tab || (tab.run && tab.run.id !== id)) return;   // the agent was closed, or a newer run replaced this one
+        await new Promise((r) => setTimeout(r, st.debug ? 600 : 350));
+      } catch (e) { fail(e); return; }
+    }
+  };
+  const stopRun = () => { if (current?.run) api.runControl(current.run.id, "stop").catch(fail); };
+  const debugCommand = (c: DebugCommand) => { if (current?.run) api.debug(current.run.id, c).catch(fail); };
+  const toggleBreakpoint = (id: string) => {
+    if (!current) return;
+    const next = current.breakpoints.includes(id) ? current.breakpoints.filter((x) => x !== id) : [...current.breakpoints, id];
+    patch(current.path, (t) => ({ ...t, breakpoints: next }));
+    if (current.run?.debug && !isFinished(current.run)) api.setBreakpoints(current.run.id, next).catch(fail);   // also for the run in progress
+  };
+  const running = !!current?.run && !isFinished(current.run);
+
   const dirty = current ? isDirty(current) : false;
   const closingTab = tabs.find((t) => t.path === closing) ?? null;
 
@@ -161,6 +207,12 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current
             ? <>
                 <Button kind="primary" icon="save" onClick={() => save(current.path)} title="Save (Ctrl+S)">Save</Button>
+                {running
+                  ? <Button kind="light" onClick={stopRun}>Stop run</Button>
+                  : <>
+                      <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer">Run</Button>
+                      <Button kind="debug" icon="bug" onClick={() => startRun(true)} title="Run and stop at breakpoints (or at the first step)">Debug</Button>
+                    </>}
                 <Button kind="light" icon="close" onClick={() => close(current.path)}>Close</Button>
               </>
             : <a className="st-classic" href="../">Classic Studio</a>}
@@ -189,7 +241,8 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current
             ? <AgentView key={current.path} flow={current.flow} packages={packages} selected={current.selected}
                 onSelect={(ids) => patch(current.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
-                problems={current.problems} checked={current.checked}
+                problems={current.problems} checked={current.checked} api={api} path={current.path}
+                run={current.run} breakpoints={current.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
                 canUndo={current.past.length > 0} canRedo={current.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree
               ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} />
@@ -199,6 +252,12 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       <NewFolderDialog parent={newFolderIn} onClose={() => setNewFolderIn(null)}
         onCreate={async (name) => { await api.createFolder(newFolderIn ?? "", name); await reloadTree(); setNewFolderIn(null); }} />
+
+      {asking && (() => {
+        const tab = tabs.find((t) => t.path === asking.path);
+        return tab ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
+          onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug); }} /> : null;
+      })()}
 
       {closingTab && (
         <Dialog open onClose={() => setClosing(null)} title={"Save changes to " + closingTab.name + "?"} width={480}
@@ -228,6 +287,32 @@ function NewFolderDialog({ parent, onClose, onCreate }: { parent: string | null;
       <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="st-form">
         <Field label="Name" hint={"In " + (parent || "Workspace")}>{(id) => <TextInput id={id} autoFocus value={name} onChange={(e) => setName(e.target.value)} />}</Field>
         {error && <p role="alert" className="st-error">{error}</p>}
+      </form>
+    </Dialog>
+  );
+}
+
+/** The agent's inputs for one run: each with its type, description and default. Empty means "use the default". */
+function RunDialog({ name, debug, inputs, onRun, onClose }:
+  { name: string; debug: boolean; inputs: Flow["variables"] & object; onRun: (values: Record<string, unknown>) => void; onClose: () => void }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const run = () => {
+    const out: Record<string, unknown> = {};
+    for (const v of inputs) { const x = parseLoose(values[v.name] ?? ""); if (x !== undefined) out[v.name] = x; }
+    onRun(out);
+  };
+  return (
+    <Dialog open onClose={onClose} title={(debug ? "Debug " : "Run ") + name} width={520}
+      footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button>
+        <Button kind={debug ? "debug" : "run"} icon={debug ? "bug" : "play"} onClick={run}>{debug ? "Debug" : "Run"}</Button></>}>
+      <form className="st-form" onSubmit={(e) => { e.preventDefault(); run(); }}>
+        <p className="st-muted">The agent runs on this computer, as it is in the editor (saved or not).</p>
+        {inputs.map((v) => (
+          <Field key={v.name} label={"$" + v.name + " (" + v.type + ")"} hint={v.description}>{(id) =>
+            <TextInput id={id} value={values[v.name] ?? ""} placeholder={v.default !== undefined ? "Default: " + String(v.default) : ""}
+              onChange={(e) => setValues({ ...values, [v.name]: e.target.value })} />}</Field>
+        ))}
+        <button type="submit" hidden />
       </form>
     </Dialog>
   );

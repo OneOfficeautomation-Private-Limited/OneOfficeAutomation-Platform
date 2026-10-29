@@ -42,6 +42,22 @@ export type Blueprint = { id: string; name: string; description: string; variabl
 /** Something the check on save found: the step, the field, what is wrong and how to fix it. */
 export type Problem = { stepId?: string; path?: string; message: string; suggestedFix?: string };
 
+/** One thing a run reported: a step started, finished or failed, a log line, a variable set, the run ended. */
+export type RunEvent = { seq: number; type: string; stepId?: string | null; ts?: string; data?: Record<string, unknown> };
+export type RunError = { code: string; message: string; suggestedFix?: string | null; stepId?: string };
+export type RunResult = { status: string; outputs?: Record<string, unknown>; error?: RunError | null; durationMs?: number; stepsExecuted?: number };
+/** Where a debugged run is stopped, and the values it holds there. */
+export type DebugState = { stepId: string; action: string; reason?: string; variables?: Record<string, unknown> };
+export type RunState = { run_id: string; state: string; debug?: DebugState; elapsed_ms: number; events: RunEvent[]; result?: RunResult };
+export type RunOptions = { debug?: boolean; breakpoints?: string[]; stopAtStart?: boolean };
+export type DebugCommand = "continue" | "stepOver" | "stepInto" | "stepOut";
+
+/** Starts an agent on its own: a file arriving in a folder, a schedule, or a call to a webhook address. */
+export type Trigger = {
+  id: string; name?: string; bot: string; type: "file" | "schedule" | "webhook"; enabled?: boolean;
+  folder?: string; pattern?: string; every_minutes?: number; daily_at?: string; secret?: string;
+};
+
 export type StudioInfo = { product: string; edition: string; workspace: string; controlRoom: string | null };
 
 /** The kinds of item that "Create" makes, as the Studio API names them. */
@@ -73,6 +89,19 @@ export class StudioApi {
   async bot(path: string) { return (await this.call<{ flow: Flow }>("GET", "bot?path=" + encodeURIComponent(path))).flow; }
   /** Saves an agent; the server checks it and returns what it found (an empty list when nothing is wrong). */
   async saveBot(path: string, flow: Flow) { return this.call<{ saved: string; problems: Problem[] }>("PUT", "bot?path=" + encodeURIComponent(path), flow); }
+  /** Runs the flow as it is in the editor (saved or not), on this computer. */
+  async startRun(flow: Flow, inputs: Record<string, unknown>, options: RunOptions = {}) {
+    return (await this.call<{ run_id: string }>("POST", "runs", { flow, inputs, ...options })).run_id;
+  }
+  runState(id: string, after: number) { return this.call<RunState>("GET", "runs/" + id + "?after=" + after); }
+  runControl(id: string, what: "stop" | "pause" | "resume") { return this.call<{ ok: boolean }>("POST", "runs/" + id + "/" + what); }
+  debug(id: string, command: DebugCommand) { return this.call<{ ok: boolean }>("POST", "runs/" + id + "/debug", { command }); }
+  setBreakpoints(id: string, ids: string[]) { return this.call<{ ok: boolean }>("POST", "runs/" + id + "/breakpoints", { ids }); }
+  async triggers() { return (await this.call<{ triggers: Trigger[] }>("GET", "triggers")).triggers; }
+  /** Replaces every trigger of the workspace (the server checks each one: folder, schedule, secret). */
+  async saveTriggers(list: Trigger[]) { return (await this.call<{ triggers: Trigger[] }>("PUT", "triggers", list)).triggers; }
+  runTrigger(id: string) { return this.call<{ result: RunResult }>("POST", "triggers/" + id + "/run"); }
+
   async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
   async createFolder(parent: string, name: string) { return (await this.call<{ path: string }>("POST", "files/folder", { parent, name })).path; }
 
