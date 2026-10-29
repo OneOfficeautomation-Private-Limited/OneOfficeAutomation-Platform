@@ -205,3 +205,26 @@
 .st-trigger-list li { padding: 8px 0; border-bottom: 1px solid var(--ui-divider); display: flex; flex-direction: column; gap: 4px; }
 .st-trigger-actions { display: flex; flex-wrap: wrap; gap: 2px; }
 .st-secret { margin: 8px 12px; padding: 8px; border-radius: var(--ui-radius); background: var(--ui-selected); word-break: break-all; }
+
+/* P4: item editors (forms, workflows, document types, Prompt Skills, scripts) */
+.st-item-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.st-item-bar { margin-bottom: 0; }
+.st-item { flex: 1; display: flex; min-height: 0; }
+.st-item-main { flex: 1; min-width: 0; overflow: auto; padding-bottom: 16px; }
+.st-item-props { display: flex; flex-direction: column; }
+.st-item-fields { overflow: auto; }
+.st-add-part { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.st-add-part .ui-select { width: 190px; }
+.st-check-line { display: inline-flex; align-items: center; gap: 8px; }
+.st-doc { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.st-card { border: 1px solid var(--ui-border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #ffffff; }
+.st-card h2 { margin: 0; font-size: 15px; }
+.st-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.st-chips { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.st-chips legend { font-weight: 600; margin-bottom: 6px; }
+.st-doc-fields td { padding: 4px 8px; height: auto; }
+.st-center { text-align: center; }
+.st-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.st-code { flex: 1; }
+.st-code-area { flex: 1; min-height: 360px; line-height: 1.5; white-space: pre; tab-size: 4; }
+.st-item-wrap .st-alert { margin: 8px 16px 0; }

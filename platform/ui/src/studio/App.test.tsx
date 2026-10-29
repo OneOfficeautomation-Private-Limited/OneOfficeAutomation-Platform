@@ -13,7 +13,10 @@ function fakeServer() {
       { name: "Finance", path: "Finance", type: "folder", children: [
         { name: "Invoices", path: "Finance/Invoices", type: "folder", children: [
           { name: "Invoice intake.flow.json", path: "Finance/Invoices/Invoice intake.flow.json", type: "bot", kind: "TaskBot", modified: "2026-10-29T09:12:00Z" },
-          { name: "Invoice check.form.json", path: "Finance/Invoices/Invoice check.form.json", type: "form", modified: "2026-10-28T09:12:00Z" }] }] }],
+          { name: "Invoice check.form.json", path: "Finance/Invoices/Invoice check.form.json", type: "form", modified: "2026-10-28T09:12:00Z" },
+          { name: "Approve.process.json", path: "Finance/Invoices/Approve.process.json", type: "process", modified: "2026-10-28T09:12:00Z" },
+          { name: "clean.py", path: "Finance/Invoices/clean.py", type: "script", modified: "2026-10-28T09:12:00Z" },
+          { name: "Broken.doc.json", path: "Finance/Invoices/Broken.doc.json", type: "document", modified: "2026-10-28T09:12:00Z" }] }] }],
   };
   const flow = { kind: "TaskBot", id: "invoice_intake", name: "Invoice intake",
     variables: [{ name: "workbook", type: "File", direction: "input" }],
@@ -39,10 +42,19 @@ function fakeServer() {
     },
     "POST files/bot": (b) => { created.push(b); return { path: b.parent + "/" + b.name + ".flow.json" }; },
     "POST files/folder": (b) => { created.push(b); return { path: b.parent + "/" + b.name }; },
+    "POST files/item": (b) => { created.push(b); return { path: "Finance/Invoices/Invoice check.form.json" }; },
   };
   // a run: the first poll is running (or stopped at a breakpoint when debugging), the next ones finished
   let polls = 0, debugging = false, triggers: any[] = [];
   const runs: any[] = [];
+  const items: Record<string, { type: string; text: string }> = {
+    "Finance/Invoices/Invoice check.form.json": { type: "form", text: JSON.stringify({ id: "check", name: "Invoice check", fields: [{ id: "number", type: "text", label: "Invoice number", required: true }], submitLabel: "Submit" }, null, 2) },
+    "Finance/Invoices/Approve.process.json": { type: "process", text: JSON.stringify({ id: "approve", name: "Approve", stages: [] }, null, 2) },
+    "Finance/Invoices/clean.py": { type: "script", text: "print('hello')\n" },
+    "Finance/Invoices/Broken.doc.json": { type: "document", text: "{ not json" },
+  };
+  const savedItems: Record<string, string> = {};
+  routes["GET item"] = () => { throw new Error("use itemFor"); };
   routes["POST runs"] = (b) => { runs.push(b); polls = 0; debugging = !!b.debug; return { run_id: "run_0123456789abcdef" }; };
   routes["GET runs/run_0123456789abcdef"] = () => {
     polls++;
@@ -62,11 +74,17 @@ function fakeServer() {
   routes["PUT triggers"] = (b) => { triggers = b.map((t: any) => ({ enabled: true, ...t })); return { triggers }; };
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
+    if (route === "item") {
+      const path = decodeURIComponent(url.replace(/^.*[?&]path=/, ""));
+      if (init.method === "GET") return new Response(JSON.stringify({ path, ...items[path] }), { status: 200 });
+      savedItems[path] = JSON.parse(init.body as string).text;
+      return new Response(JSON.stringify({ saved: path }), { status: 200 });
+    }
     const handler = routes[`${init.method} ${route}`];
     if (!handler) return new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "No route " + route } }), { status: 404 });
     return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 });
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers };
+  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems };
 }
 
 describe("new Studio", () => {
@@ -429,5 +447,75 @@ describe("new Studio", () => {
     expect(triggers()).toHaveLength(1);
     expect(triggers()[0]).toMatchObject({ bot: "Finance/Invoices/Invoice intake.flow.json", type: "schedule", every_minutes: 15 });
     expect(screen.getByText("Every 15 minutes")).toBeTruthy();
+  });
+
+  const openItem = async (name: string) => {
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: name } });
+    fireEvent.click(await screen.findByRole("button", { name }));
+  };
+
+  it("edits a form: add a drop-down, rename it, give it options, save the form file", async () => {
+    const { api, savedItems } = fakeServer();
+    render(<App api={api} />);
+    await openItem("Invoice check");
+    const fields = await screen.findByRole("region", { name: "Form fields" });
+    expect(within(fields).getByText("Invoice number")).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Actions" })).toBeNull();   // the action library is for agents only
+    fireEvent.change(screen.getByLabelText("Add a field"), { target: { value: "dropdown" } });
+    fireEvent.click(within(fields).getByRole("button", { name: "Add" }));
+    const label = screen.getByLabelText("Label") as HTMLInputElement;
+    fireEvent.change(label, { target: { value: "Currency" } });
+    fireEvent.blur(label);
+    const options = screen.getByLabelText("Options, one per line");
+    fireEvent.change(options, { target: { value: "EUR\nUSD\n" } });
+    fireEvent.blur(options);
+    expect(screen.getByText("Unsaved")).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    const form = JSON.parse(savedItems["Finance/Invoices/Invoice check.form.json"]);
+    expect(form.fields[1]).toEqual({ id: "dropdown_field", type: "dropdown", label: "Currency", options: ["EUR", "USD"] });
+    expect(form.submitLabel).toBe("Submit");
+  });
+
+  it("edits a workflow: an agent task chosen from the workspace's agents", async () => {
+    const { api, savedItems } = fakeServer();
+    render(<App api={api} />);
+    await openItem("Approve");
+    const stages = await screen.findByRole("region", { name: "Workflow stages" });
+    fireEvent.click(within(stages).getByRole("button", { name: "Add" }));
+    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "Finance/Invoices/Invoice intake.flow.json" } });
+    expect(within(stages).getByText(/Agent task · Finance\/Invoices\/Invoice intake.flow.json/)).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(JSON.parse(savedItems["Finance/Invoices/Approve.process.json"]).stages).toEqual([
+      { id: "bot", type: "bot", name: "Agent task 1", bot: "Finance/Invoices/Invoice intake.flow.json" }]);
+  });
+
+  it("edits a script as text with undo, and opens a broken JSON file as text with a warning", async () => {
+    const { api, savedItems } = fakeServer();
+    render(<App api={api} />);
+    await openItem("clean.py");
+    const code = await screen.findByLabelText("Python script") as HTMLTextAreaElement;
+    fireEvent.change(code, { target: { value: "print('changed')\n" } });
+    fireEvent.blur(code);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect((screen.getByLabelText("Python script") as HTMLTextAreaElement).value).toBe("print('hello')\n");
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(savedItems["Finance/Invoices/clean.py"]).toBe("print('changed')\n");
+
+    await openItem("Broken");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/not valid JSON/);
+    expect((screen.getByLabelText("Text") as HTMLTextAreaElement).value).toBe("{ not json");
+  });
+
+  it("opens a newly created form in its editor", async () => {
+    const { api } = fakeServer();
+    render(<App api={api} />);
+    const create = await screen.findByRole("button", { name: "Create ▾" });
+    await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Form,/ }));
+    const dialog = await screen.findByRole("dialog", { name: "New form" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice check" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
+    expect(await screen.findByRole("region", { name: "Form fields" })).toBeTruthy();
   });
 });

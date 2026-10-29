@@ -102,6 +102,10 @@ export class StudioApi {
   async saveTriggers(list: Trigger[]) { return (await this.call<{ triggers: Trigger[] }>("PUT", "triggers", list)).triggers; }
   runTrigger(id: string) { return this.call<{ result: RunResult }>("POST", "triggers/" + id + "/run"); }
 
+  /** A form, workflow, document type, Prompt Skill or script, as its text (JSON items are checked on save). */
+  item(path: string) { return this.call<{ path: string; type: WorkspaceNode["type"]; text: string }>("GET", "item?path=" + encodeURIComponent(path)); }
+  saveItem(path: string, text: string) { return this.call<{ saved: string }>("PUT", "item?path=" + encodeURIComponent(path), { text }); }
+
   async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
   async createFolder(parent: string, name: string) { return (await this.call<{ path: string }>("POST", "files/folder", { parent, name })).path; }
 

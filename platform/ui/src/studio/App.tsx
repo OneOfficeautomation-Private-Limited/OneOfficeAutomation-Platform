@@ -4,6 +4,8 @@ import {
 } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
+import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
+import { displayName } from "./itemTypes";
 import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView } from "./Editor";
 import { addStep, insertAt, newStep, parseLoose, type Place } from "./flowEdit";
@@ -12,15 +14,20 @@ import { allInstalled } from "./toolkits";
 
 /**
  * One open agent: the flow being edited, the last saved copy (to know about unsaved changes), undo and redo
- * history, the selected step, and what the last save's check found.
+ * history, the selected step, what the last save's check found, its run and its breakpoints.
  */
-type OpenTab = {
-  path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean;
+type AgentTab = {
+  kind: "agent"; path: string; name: string; flow: Flow; saved: string; past: Flow[]; future: Flow[]; selected: string[]; problems: Problem[]; checked: boolean;
   run: LiveRun | null; breakpoints: string[];
 };
+/** One open form, workflow, document type, Prompt Skill or script: its text, the saved text, and undo and redo history. */
+type ItemTab = { kind: "item"; path: string; name: string; itemType: WorkspaceNode["type"]; text: string; saved: string; past: string[]; future: string[] };
+type OpenTab = AgentTab | ItemTab;
 const MAX_TABS = 10;
 const MAX_UNDO = 100;
-const isDirty = (t: OpenTab) => JSON.stringify(t.flow) !== t.saved;
+const EDITABLE: WorkspaceNode["type"][] = ["form", "process", "document", "skill", "script"];
+const isDirty = (t: OpenTab) => t.kind === "agent" ? JSON.stringify(t.flow) !== t.saved : t.text !== t.saved;
+const SCRIPT_LANGUAGE: Record<string, string> = { py: "Python script", ps1: "PowerShell script", vbs: "VBScript", js: "JavaScript" };
 
 /** The new Studio (docs/architecture/12-ui-redesign.md): Command Center menu, Automation page, agents in tabs. */
 export function App({ api: given }: { api?: StudioApi }) {
@@ -50,30 +57,41 @@ export function App({ api: given }: { api?: StudioApi }) {
   }, [api, reloadTree]);
 
   const current = tabs.find((t) => t.path === active) ?? null;
+  const agent = current?.kind === "agent" ? current : null;
+  const item = current?.kind === "item" ? current : null;
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
-  const patch = (path: string, change: (t: OpenTab) => OpenTab) => setTabs((all) => all.map((t) => t.path === path ? change(t) : t));
+  const patch = (path: string, change: (t: AgentTab) => AgentTab) => setTabs((all) => all.map((t) => t.path === path && t.kind === "agent" ? change(t) : t));
+  const patchItem = (path: string, change: (t: ItemTab) => ItemTab) => setTabs((all) => all.map((t) => t.path === path && t.kind === "item" ? change(t) : t));
 
   // ---- editing: every change keeps the previous flow for Undo ----
   const edit = (next: Flow, select?: string[]) => {
-    if (!current || next === current.flow) return;   // nothing changed (a drop on itself, a move past the end)
-    patch(current.path, (t) => ({ ...t, flow: next, past: [...t.past, t.flow].slice(-MAX_UNDO), future: [],
+    if (!agent || next === agent.flow) return;   // nothing changed (a drop on itself, a move past the end)
+    patch(agent.path, (t) => ({ ...t, flow: next, past: [...t.past, t.flow].slice(-MAX_UNDO), future: [],
       selected: select ?? t.selected }));
   };
-  const undo = () => current && current.past.length &&
-    patch(current.path, (t) => ({ ...t, flow: t.past[t.past.length - 1], past: t.past.slice(0, -1), future: [t.flow, ...t.future] }));
-  const redo = () => current && current.future.length &&
-    patch(current.path, (t) => ({ ...t, flow: t.future[0], future: t.future.slice(1), past: [...t.past, t.flow] }));
+  const editItem = (text: string) => {
+    if (!item || text === item.text) return;
+    patchItem(item.path, (t) => ({ ...t, text, past: [...t.past, t.text].slice(-MAX_UNDO), future: [] }));
+  };
+  const undo = () => {
+    if (agent?.past.length) patch(agent.path, (t) => ({ ...t, flow: t.past[t.past.length - 1], past: t.past.slice(0, -1), future: [t.flow, ...t.future] }));
+    if (item?.past.length) patchItem(item.path, (t) => ({ ...t, text: t.past[t.past.length - 1], past: t.past.slice(0, -1), future: [t.text, ...t.future] }));
+  };
+  const redo = () => {
+    if (agent?.future.length) patch(agent.path, (t) => ({ ...t, flow: t.future[0], future: t.future.slice(1), past: [...t.past, t.flow] }));
+    if (item?.future.length) patchItem(item.path, (t) => ({ ...t, text: t.future[0], future: t.future.slice(1), past: [...t.past, t.text] }));
+  };
   const add = (action: string) => {
-    if (!current) return;
-    const step = newStep(action, current.flow, packages);
-    edit(addStep(current.flow, current.selected[current.selected.length - 1] ?? null, step), [step.id]);
+    if (!agent) return;
+    const step = newStep(action, agent.flow, packages);
+    edit(addStep(agent.flow, agent.selected[agent.selected.length - 1] ?? null, step), [step.id]);
   };
   // an action dragged from the library onto a place in the steps
   const insert = (action: string, targetId: string | null, where: Place) => {
-    if (!current) return;
-    const step = newStep(action, current.flow, packages);
-    edit(insertAt(current.flow, step, targetId, where), [step.id]);
+    if (!agent) return;
+    const step = newStep(action, agent.flow, packages);
+    edit(insertAt(agent.flow, step, targetId, where), [step.id]);
   };
   const save = async (path: string) => {
     // a field still being typed in (Ctrl+S without leaving it) commits first, then the latest flow is saved
@@ -81,6 +99,14 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (focused?.closest?.("input, textarea, select")) { focused.blur(); await new Promise((r) => setTimeout(r, 0)); }
     const tab = tabsRef.current.find((t) => t.path === path);
     if (!tab) return false;
+    if (tab.kind === "item") {
+      try {
+        await api.saveItem(path, tab.text);
+        patchItem(path, (t) => ({ ...t, saved: tab.text }));
+        setNotice(`Saved ${tab.name}.`);
+        return true;
+      } catch (e) { fail(e); return false; }
+    }
     try {
       const r = await api.saveBot(path, tab.flow);
       patch(path, (t) => ({ ...t, saved: JSON.stringify(tab.flow), problems: r.problems ?? [], checked: true }));
@@ -115,13 +141,18 @@ export function App({ api: given }: { api?: StudioApi }) {
   }, [anyDirty]);
 
   const open = async (n: WorkspaceNode) => {
-    if (n.type !== "bot") return;
+    if (n.type !== "bot" && !EDITABLE.includes(n.type)) return;
     if (!tabs.some((t) => t.path === n.path)) {
       if (tabs.length >= MAX_TABS) { setError(`Up to ${MAX_TABS} items can be open. Close one first.`); return; }
       try {
-        const flow = await api.bot(n.path);
-        setTabs((t) => [...t, { path: n.path, name: flow.name || n.name, flow, saved: JSON.stringify(flow), past: [], future: [],
-          selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
+        if (n.type === "bot") {
+          const flow = await api.bot(n.path);
+          setTabs((t) => [...t, { kind: "agent", path: n.path, name: flow.name || n.name, flow, saved: JSON.stringify(flow), past: [], future: [],
+            selected: flow.steps[0] ? [flow.steps[0].id] : [], problems: [], checked: false, run: null, breakpoints: [] }]);
+        } else {
+          const it = await api.item(n.path);
+          setTabs((t) => [...t, { kind: "item", path: n.path, name: displayName(n), itemType: it.type, text: it.text, saved: it.text, past: [], future: [] }]);
+        }
       } catch (e) { fail(e); return; }
     }
     setActive(n.path);
@@ -143,18 +174,21 @@ export function App({ api: given }: { api?: StudioApi }) {
       await api.saveBot(path, { ...flow, description: from.description, variables: structuredClone(from.variables), steps: structuredClone(from.steps) });
     }
     await reloadTree();
-    if (kind === "TaskBot" || kind === "ApiTask") await open({ name, path, type: "bot" });
+    // the new item opens in a tab, ready to edit
+    const type = ({ TaskBot: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", skill: "skill",
+      "script-python": "script", "script-powershell": "script" } as const)[kind];
+    await open({ name: path.split("/").pop()!, path, type });
   };
 
   // ---- running and debugging the open agent, on this computer ----
   const inputsOf = (f: Flow) => (f.variables ?? []).filter((v) => v.direction === "input" || v.direction === "both");
   const startRun = (debug: boolean) => {
-    if (!current) return;
-    if (inputsOf(current.flow).length) setAsking({ path: current.path, debug }); else go(current.path, {}, debug);
+    if (!agent) return;
+    if (inputsOf(agent.flow).length) setAsking({ path: agent.path, debug }); else go(agent.path, {}, debug);
   };
   const go = async (path: string, inputs: Record<string, unknown>, debug: boolean) => {
     const tab = tabsRef.current.find((t) => t.path === path);
-    if (!tab) return;
+    if (!tab || tab.kind !== "agent") return;
     try {
       const id = await api.startRun(tab.flow, inputs, debug ? { debug: true, breakpoints: tab.breakpoints, stopAtStart: !tab.breakpoints.length } : {});
       patch(path, (t) => ({ ...t, run: { id, debug, state: "running", events: [], elapsed: 0 } }));
@@ -172,20 +206,20 @@ export function App({ api: given }: { api?: StudioApi }) {
           stopped: st.debug, elapsed: st.elapsed_ms } });
         if (["success", "failed", "cancelled", "stopped", "timeout"].includes(st.state)) return;
         const tab = tabsRef.current.find((t) => t.path === path);
-        if (!tab || (tab.run && tab.run.id !== id)) return;   // the agent was closed, or a newer run replaced this one
+        if (!tab || tab.kind !== "agent" || (tab.run && tab.run.id !== id)) return;   // the agent was closed, or a newer run replaced this one
         await new Promise((r) => setTimeout(r, st.debug ? 600 : 350));
       } catch (e) { fail(e); return; }
     }
   };
-  const stopRun = () => { if (current?.run) api.runControl(current.run.id, "stop").catch(fail); };
-  const debugCommand = (c: DebugCommand) => { if (current?.run) api.debug(current.run.id, c).catch(fail); };
+  const stopRun = () => { if (agent?.run) api.runControl(agent.run.id, "stop").catch(fail); };
+  const debugCommand = (c: DebugCommand) => { if (agent?.run) api.debug(agent.run.id, c).catch(fail); };
   const toggleBreakpoint = (id: string) => {
-    if (!current) return;
-    const next = current.breakpoints.includes(id) ? current.breakpoints.filter((x) => x !== id) : [...current.breakpoints, id];
-    patch(current.path, (t) => ({ ...t, breakpoints: next }));
-    if (current.run?.debug && !isFinished(current.run)) api.setBreakpoints(current.run.id, next).catch(fail);   // also for the run in progress
+    if (!agent) return;
+    const next = agent.breakpoints.includes(id) ? agent.breakpoints.filter((x) => x !== id) : [...agent.breakpoints, id];
+    patch(agent.path, (t) => ({ ...t, breakpoints: next }));
+    if (agent.run?.debug && !isFinished(agent.run)) api.setBreakpoints(agent.run.id, next).catch(fail);   // also for the run in progress
   };
-  const running = !!current?.run && !isFinished(current.run);
+  const running = !!agent?.run && !isFinished(agent.run);
 
   const dirty = current ? isDirty(current) : false;
   const closingTab = tabs.find((t) => t.path === closing) ?? null;
@@ -207,7 +241,7 @@ export function App({ api: given }: { api?: StudioApi }) {
           {current
             ? <>
                 <Button kind="primary" icon="save" onClick={() => save(current.path)} title="Save (Ctrl+S)">Save</Button>
-                {running
+                {!agent ? null : running
                   ? <Button kind="light" onClick={stopRun}>Stop run</Button>
                   : <>
                       <Button kind="run" icon="play" onClick={() => startRun(false)} title="Run the agent as it is in the editor, on this computer">Run</Button>
@@ -224,7 +258,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       <div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
-        {current && <ActionsPanel packages={packages} onAdd={add} />}
+        {agent && <ActionsPanel packages={packages} onAdd={add} />}
         <main className="st-main">
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
@@ -238,12 +272,14 @@ export function App({ api: given }: { api?: StudioApi }) {
               ))}
             </div>
           )}
-          {current
-            ? <AgentView key={current.path} flow={current.flow} packages={packages} selected={current.selected}
-                onSelect={(ids) => patch(current.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
-                problems={current.problems} checked={current.checked} api={api} path={current.path}
-                run={current.run} breakpoints={current.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
-                canUndo={current.past.length > 0} canRedo={current.future.length > 0} onUndo={undo} onRedo={redo} />
+          {agent
+            ? <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected}
+                onSelect={(ids) => patch(agent.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
+                problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
+                run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
+                canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo} />
+            : item
+            ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree
               ? <Automation view={view} tree={tree} search={search} blueprints={blueprints.filter((b) => allInstalled(b.steps, packages))} onOpen={open} onCreated={created} onNewFolder={(p) => setNewFolderIn(p)} />
               : <p className="st-pad">Loading the workspace…</p>}
@@ -255,7 +291,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       {asking && (() => {
         const tab = tabs.find((t) => t.path === asking.path);
-        return tab ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
+        return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
           onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug); }} /> : null;
       })()}
 
@@ -315,5 +351,33 @@ function RunDialog({ name, debug, inputs, onRun, onClose }:
         <button type="submit" hidden />
       </form>
     </Dialog>
+  );
+}
+
+/**
+ * A form, workflow, document type, Prompt Skill or script in its editor. JSON items are edited as data and written
+ * back with two-space indents (as the server writes them); a file that is not valid JSON opens as text to repair.
+ */
+function ItemView({ tab, tree, onChange, canUndo, canRedo, onUndo, onRedo }:
+  { tab: ItemTab; tree: WorkspaceNode | null; onChange: (text: string) => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void }) {
+  let data: Record<string, unknown> | null = null;
+  if (tab.itemType !== "script") { try { data = JSON.parse(tab.text); } catch { data = null; } }
+  const set = (d: Record<string, unknown>) => onChange(JSON.stringify(d, null, 2));
+  const ext = tab.path.split(".").pop()?.toLowerCase() ?? "";
+  return (
+    <div className="st-item-wrap">
+      <div role="toolbar" aria-label="Edit" className="st-edit-bar st-item-bar">
+        <Button kind="plain" onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">Undo</Button>
+        <Button kind="plain" onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Y)">Redo</Button>
+        <span className="st-steps-meta">{{ form: "Form", process: "Workflow", document: "Document type", skill: "Prompt Skill", script: SCRIPT_LANGUAGE[ext] ?? "Script" }[tab.itemType as string] ?? "File"}</span>
+      </div>
+      {tab.itemType === "script" || !data
+        ? <>{!data && tab.itemType !== "script" && <p className="st-alert" role="alert">This file is not valid JSON, so it opens as text. Repair it and save.</p>}
+            <TextEditor text={tab.text} onChange={onChange} language={tab.itemType === "script" ? SCRIPT_LANGUAGE[ext] ?? "Script" : "Text"} /></>
+        : tab.itemType === "form" ? <FormEditor data={data} onChange={set} />
+        : tab.itemType === "process" ? <WorkflowEditor data={data} onChange={set} tree={tree} />
+        : tab.itemType === "document" ? <DocumentEditor data={data} onChange={set} />
+        : <SkillEditor data={data} onChange={set} name={tab.path.split("/").pop()!.replace(/\.json$/i, "")} />}
+    </div>
   );
 }

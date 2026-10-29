@@ -11,6 +11,9 @@ const VIEW_TITLE: Record<StudioView, [string, (n: WorkspaceNode) => boolean]> = 
 
 const folderTree = (n: WorkspaceNode): TreeNode => ({ id: n.path, label: n.name, children: (n.children ?? []).filter((c) => c.type === "folder").map(folderTree) });
 
+/** What opens in an editor here: agents and the other items; data files stay as they are. */
+const OPENS: WorkspaceNode["type"][] = ["bot", "form", "process", "document", "skill", "script"];
+
 const everything = (n: WorkspaceNode): WorkspaceNode[] => (n.children ?? []).flatMap((c) => [c, ...everything(c)]);
 
 function find(n: WorkspaceNode, path: string): WorkspaceNode | null {
@@ -68,7 +71,7 @@ export function Automation({ view, tree, search = "", blueprints = [], onOpen, o
             <tbody>
               {items.map((n) => (
                 <tr key={n.path} onDoubleClick={() => onOpen(n)}>
-                  <td>{n.type === "bot"
+                  <td>{OPENS.includes(n.type)
                     ? <button type="button" className="st-link" onClick={() => onOpen(n)}>{displayName(n)}</button>
                     : <span>{displayName(n)}</span>}</td>
                   <td>{typeLabel(n)}</td>
