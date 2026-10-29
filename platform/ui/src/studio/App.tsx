@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type NewItemKind, type PackageManifest, type Problem, type StudioInfo, type WorkspaceNode,
+  ApiFailure, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
@@ -49,7 +49,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [newFolderIn, setNewFolderIn] = useState<string | null>(null);
   const [closing, setClosing] = useState<string | null>(null);   // a tab with unsaved changes being closed
   const [search, setSearch] = useState("");
-  const [asking, setAsking] = useState<{ path: string; debug: boolean } | null>(null);   // the run dialog, for an agent with inputs
+  const [asking, setAsking] = useState<{ path: string; debug: boolean; from?: RunOptions } | null>(null);   // the run dialog, for an agent with inputs
   const [deleting, setDeleting] = useState<WorkspaceNode[] | null>(null);   // items or folders waiting for "Move to trash"
   const [agents, setAgents] = useState<AgentSummary[]>([]);   // for AI agents' tools
   const [connections, setConnections] = useState<ModelConnections | null>(null);
@@ -210,11 +210,19 @@ export function App({ api: given }: { api?: StudioApi }) {
     if (!agent) return;
     if (inputsOf(agent.flow).length) setAsking({ path: agent.path, debug }); else go(agent.path, {}, debug);
   };
-  const go = async (path: string, inputs: Record<string, unknown>, debug: boolean) => {
+  /** Run from here, with the last run's values or the defaults, or Run this step only, from the step menu. */
+  const runFrom = (stepId: string, only: boolean, defaults: boolean) => {
+    if (!agent) return;
+    const from: RunOptions = only ? { only_step: stepId } : { start_at: stepId };
+    if (defaults) from.carry_over = false;
+    setNotice(only ? "Running only the chosen step." : "Running from the chosen step; the steps before it are skipped" + (defaults ? ", and their variables keep their default values." : "."));
+    if (inputsOf(agent.flow).length) setAsking({ path: agent.path, debug: false, from }); else go(agent.path, {}, false, from);
+  };
+  const go = async (path: string, inputs: Record<string, unknown>, debug: boolean, from: RunOptions = {}) => {
     const tab = tabsRef.current.find((t) => t.path === path);
     if (!tab || tab.kind !== "agent") return;
     try {
-      const id = await api.startRun(tab.flow, inputs, debug ? { debug: true, breakpoints: tab.breakpoints, stopAtStart: !tab.breakpoints.length } : {});
+      const id = await api.startRun(tab.flow, inputs, debug ? { debug: true, breakpoints: tab.breakpoints, stopAtStart: !tab.breakpoints.length } : from);
       patch(path, (t) => ({ ...t, run: { id, debug, state: "running", events: [], elapsed: 0 } }));
       follow(path, id);
     } catch (e) { fail(e); }
@@ -308,7 +316,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
                 canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo}
-                clipboard={clipboard} onClipboard={setClipboard} /></>
+                clipboard={clipboard} onClipboard={setClipboard} onRunFrom={runFrom} /></>
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree
@@ -324,7 +332,7 @@ export function App({ api: given }: { api?: StudioApi }) {
       {asking && (() => {
         const tab = tabs.find((t) => t.path === asking.path);
         return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
-          onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug); }} /> : null;
+          onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug, asking.from); }} /> : null;
       })()}
 
       {wizard && connections && <ConnectionWizard api={api} existing={connections} onClose={() => setWizard(false)}

@@ -1031,4 +1031,23 @@ describe("new Studio", () => {
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.servicenow/create_record", connection: "snow-prod" });
   });
+
+  it("runs from a step, from a step with default values, or only one step, from the step menu", async () => {
+    const { api, runs } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    const runVia = async (step: string, item: string) => {
+      fireEvent.contextMenu(stepButton(steps, step));
+      fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: new RegExp("^" + item + "($|,)") }));
+      const dialog = await screen.findByRole("dialog", { name: "Run Invoice intake" });   // the agent has an input
+      await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Run" })); });
+      await act(async () => { await new Promise((r) => setTimeout(r, 900)); });   // until this run has finished
+      return runs[runs.length - 1];
+    };
+    expect(await runVia("Loop", "Run from here")).toMatchObject({ start_at: "loop" });
+    expect(runs[runs.length - 1].only_step).toBeUndefined();
+    expect(runs[runs.length - 1].carry_over).toBeUndefined();
+    expect(await runVia("Loop", "Run from here with default values")).toMatchObject({ start_at: "loop", carry_over: false });
+    expect(await runVia("Write to log", "Run this step only")).toMatchObject({ only_step: "log" });
+  }, 15000);
 });

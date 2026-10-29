@@ -82,12 +82,13 @@ export type StepsClipboard = Clip & { system: boolean };
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
 export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
-  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard }:
+  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom }:
   { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
-    clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void }) {
+    clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
+    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void }) {
   const folded = useMemo(() => foldedSet(flow), [flow]);
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
@@ -119,6 +120,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const problemSteps = new Set(problems.map((p) => p.stepId).filter(Boolean));
   const allOff = chosen.length > 0 && chosen.every((id) => rows.some((r) => r.kind === "step" && r.step.id === id && r.step.disabled));
   const blocks = blockIds(flow);
+  const running = !!run && !["success", "failed", "cancelled", "stopped", "timeout"].includes(run.state);
 
   // keyboard focus follows the selection when it is in the steps list (arrow keys, Delete, paste)
   useEffect(() => {
@@ -243,6 +245,12 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       { key: "down", label: "Move down", shortcut: "Alt+↓", onSelect: act.down },
       { key: "note", label: step.note ? "Edit note" : "Add note", separatorBefore: true, onSelect: act.note },
       { key: "breakpoint", label: breakpoints.includes(step.id) ? "Remove breakpoint" : "Breakpoint", shortcut: "F9", onSelect: () => chosen.forEach(onToggleBreakpoint) },
+    );
+    // run part of the agent: the skipped steps' variables keep the values the last run here had at this step
+    if (!running && chosen.length === 1) items.push(
+      { key: "from", label: "Run from here", description: "Earlier steps are skipped; their values come from the last run", separatorBefore: true, onSelect: () => onRunFrom(step.id, false, false) },
+      { key: "from-defaults", label: "Run from here with default values", onSelect: () => onRunFrom(step.id, false, true) },
+      { key: "only", label: "Run this step only", onSelect: () => onRunFrom(step.id, true, false) },
     );
     if (innerLists(step).length) items.push({ key: "fold", label: folded.has(step.id) ? "Unfold" : "Fold", onSelect: () => act.fold([step.id], !folded.has(step.id)) });
     return items;
