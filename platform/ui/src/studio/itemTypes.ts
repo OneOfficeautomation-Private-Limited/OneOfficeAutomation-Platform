@@ -1,11 +1,12 @@
 import type { NewItemKind, WorkspaceNode } from "../api/client";
 import type { IconName } from "../components";
 
-/** What Create offers, in plain words, with each type's mark. The AI agent type arrives with the AI agent editor (P5). */
+/** What Create offers, in plain words, with each type's mark. */
 export type ItemType = { kind: NewItemKind; name: string; description: string; icon: IconName; color: string };
 
 export const ITEM_TYPES: ItemType[] = [
   { kind: "TaskBot", name: "Agent", description: "Steps in apps, files and websites", icon: "bolt", color: "#2f6fde" },
+  { kind: "AiAgent", name: "AI agent", description: "A goal; the model picks which of your agents to use", icon: "spark", color: "#7c3aed" },
   { kind: "process", name: "Workflow", description: "Agents, people and approvals", icon: "process", color: "#0f766e" },
   { kind: "form", name: "Form", description: "A screen people fill in or approve", icon: "form", color: "#0f766e" },
   { kind: "document", name: "Document type", description: "Fields to read from documents", icon: "doc", color: "#7c3aed" },

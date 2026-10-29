@@ -34,7 +34,7 @@ export type FlowStep = {
   id: string; action: string; args?: Record<string, unknown>; out?: Record<string, string>; disabled?: boolean; note?: string;
   children?: FlowStep[]; elseIf?: { condition?: unknown; children?: FlowStep[] }[]; else?: FlowStep[]; catch?: { codes?: string[]; as?: string; children?: FlowStep[] }[]; finally?: FlowStep[];
 };
-export type Flow = { kind: string; id: string; name: string; description?: string; variables?: FlowVariable[]; steps: FlowStep[] };
+export type Flow = { kind: string; id: string; name: string; description?: string; tags?: string[]; variables?: FlowVariable[]; steps: FlowStep[] };
 
 /** An agent to start from (Create > Start from): its variables and steps are copied into the new agent. */
 export type Blueprint = { id: string; name: string; description: string; variables: FlowVariable[]; steps: FlowStep[] };
@@ -58,10 +58,20 @@ export type Trigger = {
   folder?: string; pattern?: string; every_minutes?: number; daily_at?: string; secret?: string;
 };
 
+/** An agent of the workspace, by the id other agents and AI agents call it with. */
+export type AgentSummary = { path: string; id: string; name: string; variables: FlowVariable[] };
+/**
+ * A model connection: a provider, model and address kept in one place, used by name. The key is never in the file:
+ * an environment variable name, or a vault reference {"$credential": "folder/credential/attribute"}.
+ */
+export type ModelConnection = { name: string; provider: string; model?: string; base_url?: string; api_key_env?: string; api_key?: { $credential: string }; description?: string };
+export type ModelConnections = { default: string; connections: ModelConnection[] };
+
 export type StudioInfo = { product: string; edition: string; workspace: string; controlRoom: string | null };
 
 /** The kinds of item that "Create" makes, as the Studio API names them. */
-export type NewItemKind = "TaskBot" | "ApiTask" | "form" | "process" | "document" | "skill" | "script-python" | "script-powershell";
+/** AiAgent is an agent file made from the AI agent template (one Run AI agent step); see studio/aiAgent.ts. */
+export type NewItemKind = "TaskBot" | "AiAgent" | "ApiTask" | "form" | "process" | "document" | "skill" | "script-python" | "script-powershell";
 
 export function defaultBase(href = location.href): string {
   // the new Studio is served at <base>/next/, its API at <base>/api/
@@ -106,6 +116,10 @@ export class StudioApi {
   item(path: string) { return this.call<{ path: string; type: WorkspaceNode["type"]; text: string }>("GET", "item?path=" + encodeURIComponent(path)); }
   saveItem(path: string, text: string) { return this.call<{ saved: string }>("PUT", "item?path=" + encodeURIComponent(path), { text }); }
 
+  async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
+  modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }
+  saveModelConnections(c: ModelConnections) { return this.call<ModelConnections>("PUT", "model-connections", c); }
+
   async blueprints() { return (await this.call<{ blueprints: Blueprint[] }>("GET", "blueprints")).blueprints; }
   /** Moves an item or folder to the workspace's .trash folder (it can be moved back); returns where it went. */
   async remove(path: string) { return (await this.call<{ path: string }>("POST", "files/delete", { path })).path; }
@@ -113,8 +127,8 @@ export class StudioApi {
 
   /** Creates an item in a folder and returns its path. */
   async create(kind: NewItemKind, parent: string, name: string) {
-    const r = kind === "TaskBot" || kind === "ApiTask"
-      ? await this.call<{ path: string }>("POST", "files/bot", { parent, name, kind })
+    const r = kind === "TaskBot" || kind === "ApiTask" || kind === "AiAgent"
+      ? await this.call<{ path: string }>("POST", "files/bot", { parent, name, kind: kind === "ApiTask" ? "ApiTask" : "TaskBot" })
       : await this.call<{ path: string }>("POST", "files/item", { parent, name, type: kind });
     return r.path;
   }

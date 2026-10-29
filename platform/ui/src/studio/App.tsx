@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ApiFailure, StudioApi, type Blueprint, type DebugCommand, type Flow, type NewItemKind, type PackageManifest, type Problem, type StudioInfo, type WorkspaceNode,
+  ApiFailure, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type NewItemKind, type PackageManifest, type Problem, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
 import { Button, Dialog, Field, Icon, TextInput } from "../components";
 import { Automation } from "./Automation";
@@ -10,6 +10,9 @@ import { CommandMenu, type StudioView } from "./CommandMenu";
 import { ActionsPanel, AgentView } from "./Editor";
 import { addStep, insertAt, newStep, parseLoose, type Place } from "./flowEdit";
 import { isFinished, type LiveRun } from "./RunPanel";
+import { aiAgentTemplate, isAiAgent } from "./aiAgent";
+import { AiAgentEditor } from "./AiAgentEditor";
+import { ConnectionWizard } from "./ConnectionWizard";
 import { allInstalled } from "./toolkits";
 
 /**
@@ -47,9 +50,17 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [search, setSearch] = useState("");
   const [asking, setAsking] = useState<{ path: string; debug: boolean } | null>(null);   // the run dialog, for an agent with inputs
   const [deleting, setDeleting] = useState<WorkspaceNode | null>(null);   // an item or folder waiting for "Move to trash"
+  const [agents, setAgents] = useState<AgentSummary[]>([]);   // for AI agents' tools
+  const [connections, setConnections] = useState<ModelConnections | null>(null);
+  const [wizard, setWizard] = useState(false);
+  const [asSteps, setAsSteps] = useState<string[]>([]);   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
-  const reloadTree = useCallback(() => api.tree().then(setTree).catch(fail), [api]);
+  const reloadTree = useCallback(() => {
+    api.agents().then(setAgents).catch(() => setAgents([]));
+    api.modelConnections().then(setConnections).catch(() => setConnections(null));
+    return api.tree().then(setTree).catch(fail);
+  }, [api]);
   useEffect(() => {
     api.info().then(setInfo).catch(fail);
     api.packages().then(setPackages).catch(fail);
@@ -169,6 +180,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   };
   const created = async (kind: NewItemKind, parent: string, name: string, from: Blueprint | null) => {
     const path = await api.create(kind, parent, name);
+    if (kind === "AiAgent") await api.saveBot(path, aiAgentTemplate(await api.bot(path)));
     if (from) {
       // the new agent keeps its own id and name; the blueprint gives its description, variables and steps
       const flow = await api.bot(path);
@@ -176,7 +188,7 @@ export function App({ api: given }: { api?: StudioApi }) {
     }
     await reloadTree();
     // the new item opens in a tab, ready to edit
-    const type = ({ TaskBot: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", skill: "skill",
+    const type = ({ TaskBot: "bot", AiAgent: "bot", ApiTask: "bot", form: "form", process: "process", document: "document", skill: "skill",
       "script-python": "script", "script-powershell": "script" } as const)[kind];
     await open({ name: path.split("/").pop()!, path, type });
   };
@@ -259,7 +271,7 @@ export function App({ api: given }: { api?: StudioApi }) {
 
       <div className="st-body">
         <CommandMenu view={current ? null : view} editing={!!current} controlRoom={info?.controlRoom ?? null} onView={(v) => { setView(v); setActive(null); }} />
-        {agent && <ActionsPanel packages={packages} onAdd={add} />}
+        {agent && !(isAiAgent(agent.flow) && !asSteps.includes(agent.path)) && <ActionsPanel packages={packages} onAdd={add} />}
         <main className="st-main">
           {tabs.length > 0 && (
             <div className="st-tabs" role="tablist" aria-label="Open items">
@@ -273,12 +285,18 @@ export function App({ api: given }: { api?: StudioApi }) {
               ))}
             </div>
           )}
-          {agent
-            ? <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected}
+          {agent && isAiAgent(agent.flow) && !asSteps.includes(agent.path)
+            ? <AiAgentEditor key={agent.path} api={api} flow={agent.flow} onEdit={(f) => edit(f)} agents={agents} connections={connections}
+                onNewConnection={() => setWizard(true)} run={agent.run} onTry={(request) => go(agent.path, { request }, false)}
+                onShowSteps={() => setAsSteps([...asSteps, agent.path])} />
+            : agent
+            ? <>{isAiAgent(agent.flow) && <div className="st-ai-note"><span>This is an AI agent, shown as its steps.</span>
+                <Button kind="secondary" icon="spark" onClick={() => setAsSteps(asSteps.filter((p) => p !== agent.path))}>Open in the AI agent editor</Button></div>}
+              <AgentView key={agent.path} flow={agent.flow} packages={packages} selected={agent.selected}
                 onSelect={(ids) => patch(agent.path, (t) => ({ ...t, selected: ids }))} onEdit={edit} onInsert={insert}
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
-                canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo} />
+                canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo} /></>
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree
@@ -295,6 +313,9 @@ export function App({ api: given }: { api?: StudioApi }) {
         return tab?.kind === "agent" ? <RunDialog name={tab.name} debug={asking.debug} inputs={inputsOf(tab.flow)} onClose={() => setAsking(null)}
           onRun={(values) => { setAsking(null); go(tab.path, values, asking.debug); }} /> : null;
       })()}
+
+      {wizard && connections && <ConnectionWizard api={api} existing={connections} onClose={() => setWizard(false)}
+        onSaved={(c) => setConnections(c)} />}
 
       {deleting && (() => {
         const inside = (t: OpenTab) => t.path === deleting.path || t.path.startsWith(deleting.path + "/");

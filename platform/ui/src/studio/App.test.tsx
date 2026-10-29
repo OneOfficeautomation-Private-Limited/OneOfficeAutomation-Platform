@@ -8,6 +8,7 @@ afterEach(() => { cleanup(); localStorage.clear(); });
 /** A fake Studio server: a workspace with Finance/Invoices, one agent, the Excel toolkit; records what is created. */
 function fakeServer() {
   const created: unknown[] = [];
+  let lastSaved: any = null;
   const tree = {
     name: "Workspace", path: "", type: "folder", children: [
       { name: "Finance", path: "Finance", type: "folder", children: [
@@ -30,13 +31,13 @@ function fakeServer() {
         { id: "if", name: "If", inputs: { properties: { condition: { "x-ooa-label": "Condition" } } } },
         { id: "loop", name: "Loop", inputs: { properties: { iterator: { enum: ["list", "while"] }, condition: { "x-ooa-visible-when": { iterator: ["while"] } } } } },
         { id: "log", name: "Write to log", inputs: { properties: { message: {} } } }] }] }),
-    "GET bot": () => ({ path: "x", flow }),
+    "GET bot": () => ({ path: "x", flow: lastSaved ?? flow }),
     "GET blueprints": () => ({ blueprints: [
       { id: "excel_rows", name: "Loop through Excel rows", description: "Open a workbook and handle each row.", variables: [{ name: "workbook", type: "File", direction: "input" }],
         steps: [{ id: "s1", action: "ooa.excel/open", args: { path: "$workbook" } }] },
       { id: "needs_sap", name: "SAP order", description: "Needs a toolkit that is not installed.", variables: [], steps: [{ id: "s1", action: "ooa.sap/connect" }] }] }),
     "PUT bot": (b) => {
-      created.push({ saved: b });
+      created.push({ saved: b }); lastSaved = b;
       const close = (b.steps ?? []).find((x: any) => x.action === "ooa.excel/close");
       return { saved: "x", problems: close ? [{ stepId: close.id, path: "args/session", message: "Close needs the workbook session", suggestedFix: "Use excel" }] : [] };
     },
@@ -63,6 +64,10 @@ function fakeServer() {
       debug: { stepId: "loop", action: "core/loop", reason: "breakpoint", variables: { workbook: "C:/in.xlsx", count: 2 } } };
     if (polls < 2) return { run_id: "x", state: "running", elapsed_ms: 5, events: [
       { seq: 1, type: "run.started", data: { totalSteps: 3 } }, { seq: 2, type: "step.started", stepId: "open" }] };
+    const action = runs[runs.length - 1]?.flow?.steps?.[0]?.action;
+    if (action === "ooa.ai_agent/run" || action === "ooa.genai/prompt") return { run_id: "x", state: "success", elapsed_ms: 20, events: [],
+      result: { status: "success", outputs: action === "ooa.genai/prompt" ? { answer: "OK" }
+        : { answer: "Queued for payment.", status: "completed", trace: [{ tool: "lookup_order", status: "ok" }] } } };
     return { run_id: "x", state: "success", elapsed_ms: 20, events: polls === 2 ? [
       { seq: 3, type: "step.finished", stepId: "open", data: { durationMs: 4 } },
       { seq: 4, type: "log", stepId: "log", data: { level: "info", message: "row" } },
@@ -72,6 +77,12 @@ function fakeServer() {
   routes["POST runs/run_0123456789abcdef/debug"] = (b) => { runs.push({ command: b.command }); debugging = false; return { ok: true }; };
   routes["POST runs/run_0123456789abcdef/stop"] = () => ({ ok: true });
   routes["GET triggers"] = () => ({ triggers, log: [] });
+  let connections: any = { default: "", connections: [] };
+  routes["GET agents"] = () => ({ agents: [
+    { path: "Finance/Invoices/Invoice intake.flow.json", id: "invoice_intake", name: "Invoice intake", variables: [] },
+    { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", variables: [] }] });
+  routes["GET model-connections"] = () => connections;
+  routes["PUT model-connections"] = (b) => { connections = b; return b; };
   routes["PUT triggers"] = (b) => { triggers = b.map((t: any) => ({ enabled: true, ...t })); return { triggers }; };
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
@@ -85,7 +96,7 @@ function fakeServer() {
     if (!handler) return new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "No route " + route } }), { status: 404 });
     return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 });
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems };
+  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections };
 }
 
 describe("new Studio", () => {
@@ -541,5 +552,68 @@ describe("new Studio", () => {
     const ask2 = await screen.findByRole("dialog", { name: "Delete folder Finance?" });
     await act(async () => { fireEvent.click(within(ask2).getByRole("button", { name: "Move to trash" })); });
     expect(created).toContainEqual({ deleted: "Finance" });
+  });
+
+  it("creates an AI agent and edits it in the AI agent editor: tools, approval, role, then tries it", async () => {
+    const { api, created, runs } = fakeServer();
+    render(<App api={api} />);
+    const create = await screen.findByRole("button", { name: "Create ▾" });
+    await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^AI agent,/ }));
+    const dialog = await screen.findByRole("dialog", { name: "New ai agent" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Invoice analyst" } });
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
+    expect(await screen.findByRole("region", { name: "Describe the agent" })).toBeTruthy();
+    expect(screen.queryByRole("complementary", { name: "Actions" })).toBeNull();
+
+    const role = screen.getByLabelText("Role");
+    fireEvent.change(role, { target: { value: "Accounts payable assistant" } });
+    fireEvent.blur(role);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tools/ }));
+    const pick = await screen.findByRole("combobox", { name: "Add an agent as a tool" });
+    act(() => pick.focus());
+    fireEvent.change(pick, { target: { value: "look" } });
+    fireEvent.keyDown(pick, { key: "Enter" });
+    fireEvent.click(screen.getByLabelText("Ask a person before each use of Look up order"));
+    // Save first finishes the field that has focus, then saves: give it a moment
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); await new Promise((r) => setTimeout(r, 30)); });
+    const saved = (created.filter((c: any) => c.saved).pop() as any).saved;
+    expect(saved.tags).toContain("ai-agent");
+    expect(saved.steps[0]).toMatchObject({ action: "ooa.ai_agent/run", args: { goal: "${request}", tools: ["lookup_order"], sensitive_tools: ["lookup_order"], role: "Accounts payable assistant" } });
+
+    const tryIt = screen.getByRole("complementary", { name: "Try it" });
+    fireEvent.change(within(tryIt).getByLabelText("Request"), { target: { value: "Invoice 42 from Acme" } });
+    await act(async () => { fireEvent.click(within(tryIt).getByRole("button", { name: "Run a test" })); });
+    expect(runs[runs.length - 1].inputs).toEqual({ request: "Invoice 42 from Acme" });
+    expect(await within(tryIt).findByText("Queued for payment.", {}, { timeout: 3000 })).toBeTruthy();
+    expect(within(tryIt).getByText("Used lookup_order · ok")).toBeTruthy();
+  });
+
+  it("adds a model connection in four steps, with the key only as a vault reference, and tests it", async () => {
+    const { api, connections } = fakeServer();
+    render(<App api={api} />);
+    const create = await screen.findByRole("button", { name: "Create ▾" });
+    await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^AI agent,/ }));
+    const d = await screen.findByRole("dialog", { name: "New ai agent" });
+    fireEvent.change(within(d).getByLabelText("Name"), { target: { value: "Helper" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Create and edit" })); });
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Model" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New connection" }));
+    const w = await screen.findByRole("dialog", { name: "New model connection" });
+    fireEvent.click(within(w).getByRole("button", { name: "Next" }));
+    expect(within(w).getByRole("alert").textContent).toMatch(/Give it a name/);
+    fireEvent.change(within(w).getByLabelText("AI service"), { target: { value: "anthropic" } });
+    fireEvent.change(within(w).getByLabelText("Name"), { target: { value: "company-claude" } });
+    fireEvent.click(within(w).getByRole("button", { name: "Next" }));
+    expect((within(w).getByLabelText("Model") as HTMLInputElement).value).toBe("claude-sonnet-4-5");
+    fireEvent.click(within(w).getByRole("button", { name: "Next" }));
+    fireEvent.change(within(w).getByLabelText("Vault reference"), { target: { value: "ai/anthropic/api_key" } });
+    fireEvent.click(within(w).getByRole("button", { name: "Next" }));
+    await act(async () => { fireEvent.click(within(w).getByRole("button", { name: "Save connection" })); });
+    expect(connections()).toEqual({ default: "company-claude", connections: [
+      { name: "company-claude", provider: "anthropic", model: "claude-sonnet-4-5", api_key: { $credential: "ai/anthropic/api_key" } }] });
+    await act(async () => { fireEvent.click(within(w).getByRole("button", { name: "Test it" })); await new Promise((r) => setTimeout(r, 500)); });
+    expect(await within(w).findByText("Connected. The model answered: OK", {}, { timeout: 3000 })).toBeTruthy();
   });
 });
