@@ -1076,8 +1076,11 @@ function restoreWorkspace() {
       children: [{ id: "n3", action: "core/run_bot", args: { automation: "nav_child" } }] }] }));
   w.eval("state.dirty = false; openBot('My Agents/nav_parent.flow.json')");
   await until(() => w.eval("state.file") === "My Agents/nav_parent.flow.json" && stepById("n3"));
-  // the name comes from the workspace's agent list, which a slow machine (CI) can take several seconds to read
-  check("a Run agent step shows the name of the agent it runs", await until(() => stepById("n3").querySelector(".summary").textContent.includes("Nav child"), 10000));
+  // the name comes from the workspace's agent list: read it again now that nav_child exists (a list read earlier can lack it)
+  w.eval("loadAgents(true).then((l) => { state.agents = l; renderSteps(); })");
+  check("a Run agent step shows the name of the agent it runs", await until(() => stepById("n3") && stepById("n3").querySelector(".summary").textContent.includes("Nav child"), 10000),
+    (stepById("n3") ? stepById("n3").querySelector(".summary").textContent : "no step n3") + " | agents: " + JSON.stringify((w.eval("state.agents") || []).map((a) => a.id)));
+  if (!stepById("n3")) throw new Error("the parent agent did not open");
   stepById("n3").dispatchEvent(new w.MouseEvent("contextmenu", { bubbles: true, clientX: 300, clientY: 200 }));
   click([...d.getElementById("ctx-menu").querySelectorAll("button")].find((b) => b.dataset.item === "Open the agent it runs"));
   check("Open the agent it runs opens the child with a breadcrumb back to the step", await until(() => w.eval("state.file") === "My Agents/nav_child.flow.json"
