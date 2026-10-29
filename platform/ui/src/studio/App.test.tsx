@@ -176,11 +176,23 @@ describe("new Studio", () => {
     await act(async () => { create.focus(); fireEvent.keyDown(create, { key: "ArrowDown" }); });
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Agent, Steps in apps/ }));
     const dialog = await screen.findByRole("dialog", { name: "New agent" });
-    const start = within(dialog).getByLabelText("Start from") as HTMLSelectElement;
-    expect([...start.options].map((o) => o.text)).toEqual(["Blank agent", "Loop through Excel rows"]);
-    fireEvent.change(start, { target: { value: "excel_rows" } });
+    const start = within(dialog).getByRole("combobox", { name: "Start from" });
+    act(() => start.focus());
+    expect(within(dialog).getAllByRole("option").map((o) => o.querySelector("strong")!.textContent)).toEqual(["Blank agent", "Loop through Excel rows"]);
+    // type to search (name or description), nothing matches shows a message, then pick with the keyboard
+    fireEvent.keyDown(start, { key: "Escape" });   // Esc closes the list, not the dialog
+    expect(within(dialog).queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "New agent" })).toBeTruthy();
+    act(() => { start.blur(); start.focus(); });
+    fireEvent.change(start, { target: { value: "zzz" } });
+    expect(within(dialog).getByText("Nothing matches “zzz”.")).toBeTruthy();
+    fireEvent.change(start, { target: { value: "workbook" } });
+    expect(within(dialog).getAllByRole("option").map((o) => o.querySelector("strong")!.textContent)).toEqual(["Loop through Excel rows"]);
+    fireEvent.keyDown(start, { key: "Enter" });
+    expect(within(dialog).queryByRole("listbox")).toBeNull();
+    expect((start as HTMLInputElement).value).toBe("Loop through Excel rows");
     expect((within(dialog).getByLabelText("Name") as HTMLInputElement).value).toBe("Loop through Excel rows");
-    expect(within(dialog).getByText("Open a workbook and handle each row.")).toBeTruthy();
+    expect(within(dialog).getByText(/^Open a workbook and handle each row./)).toBeTruthy();
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: "Create and edit" })); });
 
     const saved = (created.find((c: any) => c.saved) as any).saved;

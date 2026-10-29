@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ApiFailure, type Blueprint, type NewItemKind } from "../api/client";
-import { Button, Dialog, Field, IconTile, Select, TextInput } from "../components";
+import { Button, Dialog, Field, IconTile, SearchSelect, TextInput } from "../components";
 import type { ItemType } from "./itemTypes";
 
 /**
@@ -37,12 +37,12 @@ export function CreateDialog({ type, folderPath, blueprints = [], onCreate, onCl
         <Field label="Name">{(id) => <TextInput id={id} value={name} placeholder={"For example: Invoice intake Germany"}
           onChange={(e) => setName(e.target.value)} aria-invalid={!!error} />}</Field>
         {offers.length > 0 && (
-          <Field label="Start from" hint={from ? from.description : "An empty agent."}>{(id) =>
-            <Select id={id} value={start} onChange={(e) => {
-              const b = offers.find((x) => x.id === e.target.value);
-              setStart(e.target.value);
+          <Field label="Start from" hint={(from ? from.description : "An empty agent.") + " Type to search."}>{(id) =>
+            <SearchSelect id={id} value={start} placeholder="Search blueprints" onChange={(v) => {
+              const b = offers.find((x) => x.id === v);
+              setStart(v);
               if (b && !name.trim()) setName(b.name);   // a sensible name to start with; it can be changed
-            }} options={[{ value: "", label: "Blank agent" }, ...offers.map((b) => ({ value: b.id, label: b.name }))]} />}</Field>
+            }} options={[{ value: "", label: "Blank agent", description: "An empty agent." }, ...offers.map((b) => ({ value: b.id, label: b.name, description: b.description }))]} />}</Field>
         )}
         <Field label="Folder">{(id) => (
           <div className="st-folder-line" id={id}>

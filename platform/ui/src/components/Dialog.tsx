@@ -18,7 +18,12 @@ export function Dialog({ open, onClose, title, icon, children, footer, width = 5
     <RadixDialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="ui-overlay" />
-        <RadixDialog.Content className="ui-dialog" style={{ maxWidth: width }} aria-describedby={undefined} onOpenAutoFocus={focusFirstField}>
+        <RadixDialog.Content className="ui-dialog" style={{ maxWidth: width }} aria-describedby={undefined} onOpenAutoFocus={focusFirstField}
+          onEscapeKeyDown={(e) => {
+            // Esc in an open search list closes the list only; the next Esc closes the dialog
+            const f = document.activeElement;
+            if (f?.getAttribute("role") === "combobox" && f.getAttribute("aria-expanded") === "true") e.preventDefault();
+          }}>
           <div className="ui-dialog-head">
             {icon}
             <RadixDialog.Title className="ui-dialog-title">{title}</RadixDialog.Title>
