@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, PackageManifest, Problem, StudioApi } from "../api/client";
-import { Button, Field, Icon, IconTile, Menu, SidePanel, TabPanel, Tabs, TextInput, usePersistent, type MenuItem } from "../components";
+import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
+import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shortenRecordedNames, type Captured } from "./capture";
+import { WhereDialog } from "./CaptureEditor";
+import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, TabPanel, Tabs, TextInput, usePersistent, type MenuItem } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
 import {
   addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
@@ -11,7 +13,15 @@ import { DebugValues, RunOutput, runningStep, type LiveRun } from "./RunPanel";
 import { CommitInput, StepForm } from "./StepForm";
 import { TriggersPanel } from "./TriggersPanel";
 import { lastValues } from "./variables";
-import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx } from "./VariablesPanel";
+import { VariableDialog, VariablesPanel, VarsContext, type NewVariable, type VarsCtx, type WhereChoice } from "./VariablesPanel";
+
+/** The address of the agent's first Open page step, to suggest when a capture opens a new page. */
+const openUrl = (flow: Flow): string | undefined => {
+  const find = (list: FlowStep[]): string | undefined => { for (const s of list) {
+    if (s.action === "ooa.browser/open" && typeof s.args?.url === "string" && !s.args.url.startsWith("$")) return s.args.url;
+    const inner = find([...(s.children ?? []), ...(s.else ?? [])]); if (inner) return inner; } return undefined; };
+  return find(flow.steps);
+};
 import { describeAction, stepRows, summarize, toolkitMark } from "./toolkits";
 
 /** Drag data: a step being moved, or an action from the library being added. */
@@ -82,13 +92,13 @@ export type StepsClipboard = Clip & { system: boolean };
  * selection, Shift+click (or Shift+Up/Down) a range.
  */
 export function AgentView({ api, path, flow, packages, selected, onSelect, onEdit, onInsert, problems, checked, canUndo, canRedo, onUndo, onRedo,
-  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom }:
+  run, breakpoints, onToggleBreakpoint, onStop, onDebug, clipboard, onClipboard, onRunFrom, onNotice, onError }:
   { api: StudioApi; path: string; flow: Flow; packages: PackageManifest[]; selected: string[]; onSelect: (ids: string[]) => void;
     onEdit: (next: Flow, select?: string[]) => void; onInsert: (action: string, targetId: string | null, where: Place, part?: Part) => void;
     problems: Problem[]; checked: boolean; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void;
     run: LiveRun | null; breakpoints: string[]; onToggleBreakpoint: (id: string) => void; onStop: () => void; onDebug: (c: DebugCommand) => void;
     clipboard: StepsClipboard | null; onClipboard: (c: StepsClipboard) => void;
-    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void }) {
+    onRunFrom: (stepId: string, only: boolean, defaults: boolean) => void; onNotice: (text: string) => void; onError: (e: unknown) => void }) {
   const folded = useMemo(() => foldedSet(flow), [flow]);
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
@@ -106,7 +116,66 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const loadBuiltins = () => { api.builtins().then(setBuiltins, () => {}); };
   useEffect(() => { loadBuiltins(); api.agents().then(setAgents, () => {}); }, [api]);
   const last = useMemo(() => lastValues(run?.events), [run?.events]);
-  const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); } };
+  // Capture and Record: which window (an open browser tab, a new page, a desktop application), then the work itself
+  const [whereAsk, setWhereAsk] = useState<{ mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; resolve: (c: WhereChoice | null) => void } | null>(null);
+  const [recording, setRecording] = useState<{ count: number } | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  const where = async (mode: "capture" | "record", named?: { title?: string; url?: string }): Promise<WhereChoice | null> => {
+    let tabs: OpenWindow[] = [];
+    try { tabs = (await api.windows()).filter((w) => (w.source ?? "browser") === "browser" && (mode === "record" ? w.connector : w.endpoint || w.connector) && (w.title || w.url)); } catch { tabs = []; }
+    const same = named?.title ? tabs.find((t) => t.title === named.title) : undefined;
+    if (same && mode === "capture") return same.connector || same.tab_id !== undefined ? { tab_id: same.tab_id, browser: same.browser || "edge" }
+      : { endpoint: same.endpoint, tab_title: same.title, tab_url: same.url, browser: same.browser || "edge" };
+    return new Promise((resolve) => setWhereAsk({ mode, tabs, url: named?.url ?? openUrl(flow), resolve }));
+  };
+  const insertSteps = (f: Flow, steps: FlowStep[]) => { const p = pasteSteps(f, { steps, variables: [] }, spotFor(f, selected, false)); onEdit(p.flow, p.ids); };
+  const captureStep = async (desktop: boolean) => {
+    setCapturing(true);
+    try {
+      if (desktop) {
+        onNotice("Hover over the control in the application (a red frame follows the pointer), then press Ctrl+Shift+C.");
+        const r = await api.captureDesktop({ timeout_seconds: 60, screenshot: true, highlight: true });
+        const object = (r.object ?? r) as Captured;
+        const type = String((object.properties ?? []).find((x) => x.name === "ControlType")?.value ?? "");
+        const name = String((object.properties ?? []).find((x) => x.name === "Name")?.value ?? "");
+        insertSteps(flow, [{ id: "new", action: "ooa.desktop_ui/object_action", args: { object, action: desktopActionFor(object) },
+          note: "Captured " + (type || "control") + (name ? ": " + name.slice(0, 30) : "") }]);
+        onNotice("Captured " + (type || "a control") + ".");
+        return;
+      }
+      const choice = await where("capture");
+      if (!choice) return;
+      onNotice("Click the element in the browser window (Esc cancels).");
+      const r = await api.capture(choice);
+      const object = r.object as Captured | undefined;
+      const step: FlowStep = { id: "new", action: "ooa.browser/element_action", args: object ? { object, action: actionFor(r.element) } : { selector: r.selector, action: actionFor(r.element) },
+        note: "Captured " + (r.element?.tag ?? "element") + (r.element?.text ? ": " + r.element.text.slice(0, 30) : "") };
+      insertSteps(object ? fillWindowFromCapture(flow, step, object, true) : flow, [step]);
+      onNotice("Captured " + (r.element?.tag ?? "an element") + " with " + (object?.properties?.length ?? 0) + " properties.");
+    } catch (e) { onError(e); }
+    finally { setCapturing(false); }
+  };
+  const record = async () => {
+    const choice = await where("record");
+    if (!choice) return;
+    setRecording({ count: 0 });
+    onNotice(choice.target === "desktop" ? "Recording desktop actions. Work in the application, then press Stop recording on the bar at the top right of the screen."
+      : "Recording in the browser. Press Stop recording there (or close the browser) when you are done.");
+    const poll = setInterval(() => { api.recordProgress().then((p) => setRecording((r) => r && { count: p.count || 0 }), () => {}); }, 800);
+    try {
+      const res = await api.record(choice);
+      if (res.cancelled) { onNotice("Recording cancelled; nothing was added."); return; }
+      const steps = res.steps ?? [];
+      const v = recordedVariables(flow, steps);
+      insertSteps(v.flow, steps);
+      onNotice("Added " + steps.length + " recorded steps" + (v.made.length ? " and " + v.made.length + " variable" + (v.made.length === 1 ? "" : "s") + ": " + v.made.map((n) => "$" + n).join(", ") : "") + ".");
+    } catch (e) { onError(e); }
+    finally { clearInterval(poll); setRecording(null); }
+  };
+  const longNames = longRecordedVariables(flow).length;
+  const [noRename, setNoRename] = useState(false);
+  const vars: VarsCtx = { api, flow, builtins, agents, edit: (next) => onEdit(next), newVariable: (preset) => { setNewVar(preset); setRightHidden(false); },
+    notice: onNotice, fail: onError, where };
   useEffect(() => { if (run) setBottomTab("run"); }, [run?.id]);   // a new run: show its output
   const at = runningStep(run);
   const lineOf = (id: string) => { const r = rows.find((x) => x.kind === "step" && x.step.id === id); return r?.kind === "step" ? `Line ${r.n} ${describeAction(r.step.action, packages).name}` : id; };
@@ -282,8 +351,20 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               ...(blocks.length ? [{ key: "fold", label: "Fold all blocks", separatorBefore: true, onSelect: () => act.fold(blocks, true) }] : []),
               ...(folded.size ? [{ key: "unfold", label: "Unfold all", onSelect: () => onEdit(setFolded(flow, [...folded], false)) }] : []),
             ]} trigger={<Button kind="plain" icon="chevronDown">More</Button>} />
+            <span className="st-bar-gap" />
+            <Button kind="plain" className="st-record-btn" onClick={record} disabled={!!recording} title="Record actions in a web browser or a Windows application">
+              <span className="st-rec-dot" aria-hidden="true" />{recording ? "Recording…" : "Record"}</Button>
+            <Menu label="Capture" align="start" items={[
+              { key: "web", label: "Capture a web element", description: "Click it in a browser; adds an action for it", onSelect: () => captureStep(false) },
+              { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
+            ]} trigger={<Button kind="plain" icon="chevronDown" disabled={capturing}>{capturing ? "Capturing…" : "Capture"}</Button>} />
             <span className="st-steps-meta" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
           </div>
+          {longNames > 0 && !noRename && <div className="st-offer" role="status">
+            <span>{longNames} recorded variable{longNames === 1 ? " has a long name" : "s have long names"} (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?</span>
+            <Button kind="primary" onClick={() => { onEdit(shortenRecordedNames(flow)); onNotice("Renamed the recorded variables to short numbered names. Undo with Ctrl+Z."); }}>Rename</Button>
+            <Button kind="plain" onClick={() => setNoRename(true)}>Not now</Button>
+          </div>}
           <ol className="st-step-list" ref={list}>
             <li>
               <button type="button" data-key={START} className={`st-marker-row${selected.includes(START) ? " is-selected" : ""}${drop?.key === START ? " drop-inside" : ""}`}
@@ -399,6 +480,13 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           <TabPanel value="values"><DebugValues run={run} /></TabPanel>
         </Tabs>
       </section>
+      {whereAsk && <WhereDialog mode={whereAsk.mode} tabs={whereAsk.tabs} url={whereAsk.url}
+        onChoose={(c) => { whereAsk.resolve(c); setWhereAsk(null); }} onClose={() => { whereAsk.resolve(null); setWhereAsk(null); }} />}
+      {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}
+        footer={<Button kind="secondary" onClick={() => { api.recordCancel().catch(() => {}); }}>Cancel</Button>}>
+        <p role="status">Recording actions (<strong>{recording.count}</strong>)…</p>
+        <p className="st-muted">Press Stop recording in the browser or on the bar at the top right of the screen when you are done.</p>
+      </Dialog>}
       {newVar && <VariableDialog flow={flow} preset={newVar} onClose={() => setNewVar(null)}
         onSave={(next, name) => { setNewVar(null); onEdit(newVar.then ? newVar.then(name, next) : next); }} />}
     </div>

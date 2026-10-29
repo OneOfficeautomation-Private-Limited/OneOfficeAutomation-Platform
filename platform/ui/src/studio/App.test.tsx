@@ -30,12 +30,15 @@ function fakeServer() {
         { id: "count_rows", name: "Count rows", outputs: { properties: { count: { "x-ooa-type": "Number", "x-ooa-label": "Row count" } } } }] },
       { id: "ooa.browser", name: "Browser", version: "1.0.0", actions: [{ id: "type_text", name: "Type text", inputs: { properties: { text: {} } } },
         { id: "element_action", name: "Element action", inputs: { properties: {
-          window: { type: "object", "x-ooa-type": "Dictionary" }, object: { type: "object", "x-ooa-type": "Dictionary" },
+          window: { type: "object", "x-ooa-type": "Dictionary" }, object: { type: "object", "x-ooa-type": "Dictionary" }, selector: { type: "string", "x-ooa-type": "String" },
           action: { type: "string", enum: ["click", "set_text", "get_selected_index", "select_by_text"] }, value: { "x-ooa-type": "Any" },
           click_method: { type: "string", enum: ["mouse", "javascript"], default: "mouse" }, typing: { type: "string", enum: ["fill", "keystrokes"], default: "fill" },
           timeout_ms: { type: "number", "x-ooa-type": "Number", default: 30000 }, wait_for_page_ms: { type: "number", "x-ooa-type": "Number", default: 0 },
           if_not_found: { type: "string", enum: ["error", "continue"], default: "error" } } },
           "x-ooa-panel": { main: ["window", "object", "action", "value"], more: ["typing", "click_method", "timeout_ms", "wait_for_page_ms", "if_not_found"] } }] },
+      { id: "ooa.desktop_ui", name: "Desktop objects", version: "1.0.0", actions: [{ id: "object_action", name: "Desktop object action", inputs: { properties: {
+        object: { type: "object", "x-ooa-type": "Dictionary" }, action: { type: "string", enum: ["click", "set_text", "check", "uncheck", "toggle"], default: "click" },
+        text: { "x-ooa-type": "Any" }, click_type: { type: "string", enum: ["left", "right"], default: "left" } } } }] },
       { id: "ooa.servicenow", name: "ServiceNow", version: "1.0.0", actions: ["create_record", "get_record", "update_record"].map((id) => ({ id, name: id.replace("_", " "),
         inputs: { properties: { instance: { "x-ooa-type": "String" }, user: { "x-ooa-type": "String" }, password: { "x-ooa-type": "Credential" },
           ...(id === "create_record" ? { table: { "x-ooa-type": "String" } } : {}) } } })) },
@@ -111,6 +114,16 @@ function fakeServer() {
     { path: "Finance/lookup.flow.json", id: "lookup_order", name: "Look up order", variables: [
       { name: "order_id", type: "Number", direction: "input", required: true, description: "The order to look up." },
       { name: "status", type: "String", direction: "output" }] }] });
+  routes["POST capture"] = (b) => { created.push({ capture: b }); return { selector: "#save", element: { tag: "button", text: "Save" }, object: { technology: "web", search_by: "properties", index: 0,
+    page: { url: b.url ?? "https://example.com/", title: "Example" },
+    properties: [{ name: "tag", value: "button", match: "equals", use: true }, { name: "id", value: "save-123", match: "equals", use: false }, { name: "text", value: "Save", match: "equals", use: true }] } }; };
+  routes["POST capture-desktop"] = () => ({ object: { technology: "desktop", index: 0,
+    window: { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad", path: "C:\\Apps\\notepad.exe", size: { width: 1440, height: 740 } },
+    properties: [{ name: "ControlType", value: "CheckBox", match: "equals", use: true }, { name: "Name", value: "Word wrap", match: "equals", use: true }] } });
+  routes["POST record"] = (b) => { created.push({ record: b }); return { steps: [
+    { id: "r1", action: "ooa.browser/type_text", args: { window: { source: "browser", title: "Web form", title_match: "equals", link: "https://x.test/form", browser: "edge" }, text: "tomsmith",
+      object: { properties: [{ name: "label", value: "Username" }] } } }] }; };
+  routes["GET record/progress"] = () => ({ recording: true, count: 1 });
   routes["GET windows"] = () => ({ windows: [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }] });
   routes["GET connections"] = () => ({ connections: [{ name: "snow-prod", package: "ooa.servicenow" }, { name: "sf", package: "ooa.salesforce" }] });
   routes["GET builtins"] = () => ({ sys: { today: "2026-10-30" }, global: { company: "One Office" } });
@@ -1050,4 +1063,93 @@ describe("new Studio", () => {
     expect(await runVia("Loop", "Run from here with default values")).toMatchObject({ start_at: "loop", carry_over: false });
     expect(await runVia("Write to log", "Run this step only")).toMatchObject({ only_step: "log" });
   }, 15000);
+
+  const captureWeb = async (steps: HTMLElement) => {
+    fireEvent.keyDown(within(steps).getByRole("button", { name: "Capture" }), { key: "Enter" });
+    fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Capture a web element/ }));
+    const where = await screen.findByRole("dialog", { name: "Capture in which window?" });
+    fireEvent.change(within(where).getByLabelText("Web address"), { target: { value: "https://example.com/" } });
+    await act(async () => { fireEvent.click(within(where).getByRole("button", { name: "Open and capture" })); });
+  };
+  const capRows = () => screen.getByRole("table", { name: "Captured properties" }).querySelectorAll("tbody tr");
+
+  it("captures a web element into a new step with a window variable, and edits its captured properties", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    await captureWeb(steps);
+    expect(created).toContainEqual({ capture: { url: "https://example.com/", browser: "edge" } });
+    expect(await screen.findByText("Example")).toBeTruthy();   // the page it was captured on
+    // only the ticked properties at first, with readable names (the stored name on hover)
+    expect(capRows()).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Show all properties (1 more)" }));
+    expect(capRows()).toHaveLength(3);
+    expect([...document.querySelectorAll(".st-cap-name")].map((x) => x.textContent)).toEqual(["HTML tag", "HTML ID", "Inner text"]);
+    expect(screen.getByText("2 selected of 3")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Search by HTML ID"));
+    fireEvent.change(screen.getByLabelText("Match for HTML ID"), { target: { value: "regex" } });
+    expect([...(screen.getByLabelText("Search by") as HTMLSelectElement).options].map((o) => o.value)).toEqual(["properties", "css", "xpath"]);
+    expect(screen.getByRole("button", { name: "Recapture" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Test" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    expect(screen.getByLabelText("Property name")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Anchor" }));
+    expect(screen.getByRole("button", { name: "Capture anchor" })).toBeTruthy();
+    const saved = await saveAndGet(created);
+    const step = saved.steps[1];
+    expect(step).toMatchObject({ action: "ooa.browser/element_action", args: { action: "click", window: "$Window_1" } });
+    expect(step.args.object.properties[1]).toMatchObject({ name: "id", use: true, match: "regex" });
+    expect(saved.variables).toContainEqual(expect.objectContaining({ name: "Window_1", type: "Dictionary",
+      default: { source: "browser", title: "Example", title_match: "equals", link: "https://example.com/", browser: "edge" } }));
+  });
+
+  it("offers Capture on an element action, and a selector with its own Capture on request", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    addFromLibrary(/^Browser/, "Element action");
+    expect(await screen.findByText("Nothing captured yet.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Capture element" })).toBeTruthy();
+    expect(screen.queryByLabelText("Selector")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Use a selector instead" }));
+    expect(await screen.findByLabelText("Selector")).toBeTruthy();
+    expect(screen.queryByText("Nothing captured yet.")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Capture" }).length).toBeGreaterThan(1);   // beside the selector, and on the toolbar
+    fireEvent.click(screen.getByRole("button", { name: "Capture the element instead" }));
+    expect(await screen.findByText("Nothing captured yet.")).toBeTruthy();
+  });
+
+  it("captures a desktop control: the action suits it, and its window has presets and a size", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    fireEvent.keyDown(within(steps).getByRole("button", { name: "Capture" }), { key: "Enter" });
+    await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Capture a desktop control/ })); });
+    expect(await screen.findByText(/C:\\Apps\\notepad.exe/)).toBeTruthy();
+    expect([...(screen.getByLabelText("Window preset") as HTMLSelectElement).options].map((o) => o.value)).toEqual(["", "active", "desktop", "taskbar"]);
+    fireEvent.click(screen.getByLabelText("Resize window"));
+    expect(screen.getByLabelText("Window width")).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.desktop_ui/object_action", args: { action: "check", object: { window: { resize: { width: 1440, height: 740 } } } } });
+  });
+
+  it("records in a new page and adds the steps with a window variable and a Text_1 input", async () => {
+    const { api, created } = fakeServer();
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    fireEvent.click(within(steps).getByRole("button", { name: /Record/ }));
+    const where = await screen.findByRole("dialog", { name: "Record in which window?" });
+    expect(within(where).getByRole("button", { name: "Desktop application…" })).toBeTruthy();
+    fireEvent.click(within(where).getByRole("button", { name: "Open a new page…" }));
+    fireEvent.change(within(where).getByLabelText("Web address"), { target: { value: "https://x.test/form" } });
+    await act(async () => { fireEvent.click(within(where).getByRole("button", { name: "Open and record" })); });
+    expect(created).toContainEqual({ record: { url: "https://x.test/form", browser: "edge" } });
+    expect(await screen.findByText(/Added 1 recorded steps and 2 variables: \$Window_1, \$Text_1/)).toBeTruthy();
+    const saved = await saveAndGet(created);
+    expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { window: "$Window_1", text: "$Text_1" } });
+    expect(saved.variables).toContainEqual(expect.objectContaining({ name: "Text_1", default: "tomsmith", direction: "input" }));
+  });
 });

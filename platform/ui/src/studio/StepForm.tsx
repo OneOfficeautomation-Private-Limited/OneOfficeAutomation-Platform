@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { FieldSpec, Flow, FlowStep, PackageManifest } from "../api/client";
-import { Field, Select } from "../components";
+import { Button, Field, Select } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
 import { fieldOrder, findAction, parseLoose, setArg, showValue } from "./flowEdit";
+import { CaptureEditor } from "./CaptureEditor";
 import { ConnectionField, ElementActionSelect, WindowEditor } from "./KindFields";
 import {
   connectionInputs, EACH_KINDS, elementFields, helpText, isElementAction, LOOP_LABELS, loopIsMore, loopMode, outcomeOf, shownWhen, TIMEOUT_FIELDS,
@@ -20,6 +21,8 @@ const typedText = (step: FlowStep, name: string) => (step.action === "ooa.browse
 
 // the Basic / Advanced choice of the time-out box is kept while Studio is open, as in Classic
 let timeoutAdvanced = false;
+// steps whose element is found by a selector the person asked for, instead of a captured object
+const bySelectorAsked = new Set<string>();
 
 /**
  * The selected step's settings, with labels beside the fields (as in AA) and help behind an ⓘ: the fields that apply
@@ -36,6 +39,10 @@ export function StepForm({ step, packages, onArg, onNote }:
   const required = spec?.inputs?.required ?? [];
   const [showConn, setShowConn] = useState(false);
   const [advanced, setAdvanced] = useState(timeoutAdvanced);
+  const [, redraw] = useState(0);
+  // one element field: the captured object, or the selector when the step uses one (or the person asks for it)
+  const capturable = "object" in props && step.action.startsWith("ooa.desktop_ui/") || ("object" in props && "selector" in props && step.action.startsWith("ooa.browser/"));
+  const bySelector = capturable && step.action.startsWith("ooa.browser/") && step.args?.object === undefined && (step.args?.selector !== undefined || bySelectorAsked.has(step.id));
   const conn = connectionInputs(pkg);
   const connNames = Object.keys(props).filter((n) => conn.has(n));
   const only = elementFields(step);
@@ -45,12 +52,21 @@ export function StepForm({ step, packages, onArg, onNote }:
   // shows the inputs of its chosen action; a saved connection hides the inputs it supplies
   const applies = (name: string) => shownWhen(props[name]?.["x-ooa-visible-when"], (o) => step.args?.[o] ?? props[o]?.default)
     && (!only || only.has(name)) && !(step.connection && conn.has(name) && !showConn)
-    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index")));
+    && !(isLoop && (name === "iterator" || (mode === "times" && name === "index")))
+    && !(capturable && ((name === "selector" && !bySelector) || (name === "object" && bySelector)));
   const order = fieldOrder(spec);
   const timeouts = TIMEOUT_FIELDS.filter((n) => n in props && applies(n));
   const boxed = timeouts.length >= 2 ? new Set(timeouts) : new Set<string>();
   let main = order.main.filter((n) => applies(n) && !boxed.has(n)), more = order.more.filter((n) => applies(n) && !boxed.has(n));
   if (isLoop) { const all = [...main, ...more]; main = all.filter((n) => !loopIsMore(n)); more = all.filter(loopIsMore); }
+  // web actions: the window first, then the element, as when choosing a window and then capturing in it
+  if (step.action.startsWith("ooa.browser/") && "window" in props) main = [...main.filter((n) => n === "window"), ...main.filter((n) => n !== "window")];
+  if (capturable) { const el = bySelector ? "selector" : "object"; if (more.includes(el)) { more = more.filter((n) => n !== el); main = [...main.filter((n) => n === "window"), el, ...main.filter((n) => n !== "window")]; } }
+  const elementSwitch = capturable && step.action.startsWith("ooa.browser/") ? <button type="button" className="st-link" onClick={() => {
+    if (bySelector) { bySelectorAsked.delete(step.id); if (vars && step.args?.selector !== undefined) vars.edit(setArg(vars.flow, step.id, "selector", undefined)); }
+    else bySelectorAsked.add(step.id);
+    redraw((n) => n + 1);
+  }}>{bySelector ? "Capture the element instead" : "Use a selector instead"}</button> : null;
   const outputs: [string, FieldSpec][] = Object.entries(spec?.outputs?.properties ?? {});
   const outcome = isElementAction(step.action) ? outcomeOf(String(step.args?.action ?? "click")) : null;
   if (outcome && !outputs.some(([n]) => n === "result")) outputs.push(["result", { "x-ooa-type": outcome.type, "x-ooa-label": "Result" }]);
@@ -70,6 +86,13 @@ export function StepForm({ step, packages, onArg, onNote }:
     if (isElementAction(step.action) && name === "action") return <Field key={step.id + ":action"} layout="beside"
       label="Action" info="The actions that suit the captured control come first; the rest are under Other actions.">{(id) =>
       <ElementActionSelect id={id} step={step} all={(props.action?.enum ?? []).map(String)} />}</Field>;
+    if (capturable && name === "object") return <Field key={step.id + ":object"} label={step.action.startsWith("ooa.desktop_ui/") ? "Captured control" : "Captured element"}
+      info="Tick the properties to search by and choose how each one must match. Values can use $variables. Test opens the page and outlines what matches.">{() => <>
+        <CaptureEditor step={step} value={step.args?.object} onChange={(o) => onArg("object", o)} />{elementSwitch}</>}</Field>;
+    if (capturable && name === "selector") return <Field key={step.id + ":selector"} label="Selector" layout="beside" info={props.selector?.description}>{(id) => <>
+      <div className="st-row-tight"><CommitInput key={String(step.args?.selector ?? "")} id={id} mono want="String" initial={String(step.args?.selector ?? "")} placeholder="#submit or //button[text()='Save']"
+        onCommit={(t) => onArg("selector", t || undefined)} />
+        <SelectorCapture onSelector={(sel) => onArg("selector", sel)} /></div>{elementSwitch}</>}</Field>;
     if (name === "window" && step.action.startsWith("ooa.browser/") && props.window?.["x-ooa-type"] === "Dictionary") return <Field key={step.id + ":window"}
       label="Window" info="The browser tab or application window the action works in.">{() => <WindowEditor step={step} />}</Field>;
     if (typedText(step, name)) return <Field key={step.id + ":" + name} label={labelOf(name) + (req(name) ? " *" : "")}
@@ -167,4 +190,19 @@ function InputField({ name, label, spec, required, value, onCommit, apply }:
         onCommit={(t) => onCommit(parseValue(t, spec))} want={spec["x-ooa-type"] ?? "Any"} apply={apply} nameHint={name} />;
     }}</Field>
   );
+}
+
+/** Capture beside a selector: click the element in a browser and keep its selector. */
+function SelectorCapture({ onSelector }: { onSelector: (selector: string) => void }) {
+  const vars = useVars();
+  const [busy, setBusy] = useState(false);
+  if (!vars?.where) return null;
+  return <Button kind="secondary" disabled={busy} onClick={async () => {
+    const where = await vars.where!("capture");
+    if (!where) return;
+    setBusy(true);
+    try { vars.notice?.("Click the element in the browser window (Esc cancels)."); const r = await vars.api.capture(where); if (r.selector) onSelector(r.selector); }
+    catch (e) { vars.fail?.(e); }
+    finally { setBusy(false); }
+  }}>{busy ? "Capturing…" : "Capture"}</Button>;
 }

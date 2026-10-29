@@ -316,7 +316,7 @@ export function App({ api: given }: { api?: StudioApi }) {
                 problems={agent.problems} checked={agent.checked} api={api} path={agent.path}
                 run={agent.run} breakpoints={agent.breakpoints} onToggleBreakpoint={toggleBreakpoint} onStop={stopRun} onDebug={debugCommand}
                 canUndo={agent.past.length > 0} canRedo={agent.future.length > 0} onUndo={undo} onRedo={redo}
-                clipboard={clipboard} onClipboard={setClipboard} onRunFrom={runFrom} /></>
+                clipboard={clipboard} onClipboard={setClipboard} onRunFrom={runFrom} onNotice={setNotice} onError={fail} /></>
             : item
             ? <ItemView key={item.path} tab={item} tree={tree} onChange={editItem} canUndo={item.past.length > 0} canRedo={item.future.length > 0} onUndo={undo} onRedo={redo} />
             : tree

@@ -33,7 +33,9 @@ export type PackageManifest = { id: string; name: string; version: string; descr
 export type FlowVariable = { name: string; type: string; direction?: "input" | "output" | "in_out" | "local"; default?: unknown; description?: string;
   required?: boolean; enum?: unknown[]; kpi?: boolean };
 export type SavedConnection = { name: string; package: string; description?: string };
-export type OpenWindow = { title?: string; url?: string; browser?: string; source?: "browser" | "application"; process?: string };
+/** An open window: a browser tab (with the extension's tab id, or a debugging endpoint) or an application window. */
+export type OpenWindow = { title?: string; url?: string; browser?: string; source?: "browser" | "application"; process?: string;
+  tab_id?: number; connector?: boolean; endpoint?: string };
 /** Values every agent can read: $sys.* from the platform, $global.* shared by all agents. */
 export type Builtins = { sys: Record<string, unknown>; global: Record<string, unknown> };
 export type FlowStep = {
@@ -138,6 +140,22 @@ export class StudioApi {
   async connections() { return (await this.call<{ connections?: SavedConnection[] }>("GET", "connections")).connections ?? []; }
   /** Windows open on this computer now, for the window editor. */
   async windows() { return (await this.call<{ windows?: OpenWindow[] }>("GET", "windows")).windows ?? []; }
+  /** Capture: the person clicks an element in a browser (a new page at url, or an open tab); gives its object and selector. */
+  capture(req: { url?: string; browser?: string; tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string }) {
+    return this.call<{ selector?: string; element?: { tag?: string; type?: string; text?: string }; object?: Record<string, unknown> }>("POST", "capture", req);
+  }
+  /** Opens the page and outlines every element the captured object matches; gives how many match. */
+  captureTest(url: string, object: unknown) { return this.call<{ count?: number }>("POST", "capture/test", { url, object, browser: "edge" }); }
+  /** A control in a Windows application: the person hovers it and presses Ctrl+Shift+C. */
+  captureDesktop(req: { timeout_seconds?: number; screenshot?: boolean; highlight?: boolean } = {}) {
+    return this.call<{ object?: Record<string, unknown> } & Record<string, unknown>>("POST", "capture-desktop", req);
+  }
+  /** Records actions until the person stops (or Cancel); gives the recorded steps. */
+  record(req: { target?: "desktop"; url?: string; browser?: string; tab_id?: number }) {
+    return this.call<{ steps?: FlowStep[]; cancelled?: boolean }>("POST", "record", req);
+  }
+  recordProgress() { return this.call<{ recording: boolean; count: number }>("GET", "record/progress"); }
+  recordCancel() { return this.call<{ ok: boolean }>("POST", "record/cancel", {}); }
   async agents() { return (await this.call<{ agents: AgentSummary[] }>("GET", "agents")).agents; }
   modelConnections() { return this.call<ModelConnections>("GET", "model-connections"); }
   saveModelConnections(c: ModelConnections) { return this.call<ModelConnections>("PUT", "model-connections", c); }

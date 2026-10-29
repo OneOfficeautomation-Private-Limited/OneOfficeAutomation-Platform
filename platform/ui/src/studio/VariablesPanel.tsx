@@ -18,7 +18,13 @@ export type NewVariable = { type?: string; name?: string; direction?: Direction;
  * The open agent's variables for every field below it: the {x} picker, the output and credential choosers, and
  * "+ New variable" (which opens the variable editor and hands the new name back).
  */
-export type VarsCtx = { api: StudioApi; flow: Flow; builtins: Builtins; agents: AgentSummary[]; edit: (next: Flow) => void; newVariable: (preset: NewVariable) => void };
+export type VarsCtx = { api: StudioApi; flow: Flow; builtins: Builtins; agents: AgentSummary[]; edit: (next: Flow) => void; newVariable: (preset: NewVariable) => void;
+  /** A message under the top bar; an error when something failed. */
+  notice?: (text: string) => void; fail?: (e: unknown) => void;
+  /** Asks where to capture or record (an open browser tab, a new page, a desktop application); null when cancelled. */
+  where?: (mode: "capture" | "record", named?: { title?: string; url?: string }) => Promise<WhereChoice | null> };
+/** Where a capture or a recording happens. */
+export type WhereChoice = { tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string; url?: string; browser?: string; target?: "desktop" };
 export const VarsContext = createContext<VarsCtx | null>(null);
 export const useVars = () => useContext(VarsContext);
 
