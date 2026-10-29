@@ -4,12 +4,13 @@ import { Icon, IconTile, usePersistent, type IconName } from "../components";
  * The Command Center menu (approved look): Home, then four sections: BUILD, MANAGE, ADMINISTRATION, AI. Studio's own pages are views; the rest are links.
  * The whole menu folds to a column of icons, and each section opens and closes on its heading; both are remembered.
  */
-export type StudioView = "automation" | "workflows" | "forms";
+// BUILD holds only Automation: workflows, forms and the rest are made there (Create) and called from agents' steps.
+export type StudioView = "automation";
 
 type Entry = { label: string; view?: StudioView; page?: string };
 const SECTIONS: { label: string; color: string; icon: IconName; items: Entry[] }[] = [
   { label: "BUILD", color: "#2f6fde", icon: "folder", items: [
-    { label: "Automation", view: "automation" }, { label: "Workflows", view: "workflows" }, { label: "Forms", view: "forms" }, { label: "Templates", page: "templates" }] },
+    { label: "Automation", view: "automation" }] },
   { label: "MANAGE", color: "#0f766e", icon: "pulse", items: [
     { label: "Activity", page: "activity" }, { label: "Runners", page: "devices" }, { label: "Schedules and triggers", page: "schedules" },
     { label: "Work queues", page: "queues" }, { label: "Task inbox", page: "inbox" }] },

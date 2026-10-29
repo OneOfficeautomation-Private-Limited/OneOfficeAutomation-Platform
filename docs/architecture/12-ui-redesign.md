@@ -76,8 +76,8 @@ The design canvas https://claude.ai/artifact/HafD989gNmovYiwHkHmZrB has four cli
 2026-10-29: the workbench, Automation with Create, the AI agent editor and the model connection wizard.
 
 **Layout, as in AA's Control Room and bot editor**
-- The left menu is the Command Center's own: Home, then four sections in this order, BUILD (Automation, Templates,
-  Workflows, Forms), MANAGE (Activity, Runners, Schedules and triggers, Work queues, Task inbox), ADMINISTRATION
+- The left menu is the Command Center's own: Home, then four sections in this order, BUILD (Automation only:
+  workflows, forms and the rest are made there with Create and called from agents' steps), MANAGE (Activity, Runners, Schedules and triggers, Work queues, Task inbox), ADMINISTRATION
   (Users and roles, Vault, Audit, Licenses, Settings) and AI (Model connections, Prompt Skills, AI governance). Headings are bold
   white capitals with a coloured icon and a divider; items are indented under a guide line; the current one is solid
   blue. The menu can be collapsed.
@@ -109,7 +109,7 @@ New and changed screens from the V6 gap list that live in Studio:
 | V6.7 Filters and saved views | Explorer, action library and run history |
 | V6.11 Wizards with drafts | New agent from template, new connection, new trigger |
 | V6.1 Menu | Command Center menu in four sections: BUILD, MANAGE, ADMINISTRATION, AI |
-| V6.2 Work for people | Forms and workflows under BUILD; the Task inbox under MANAGE |
+| V6.2 Work for people | Forms and workflows made in Automation and called from agents; the Task inbox under MANAGE |
 
 ## 5. Moving over without a big bang
 

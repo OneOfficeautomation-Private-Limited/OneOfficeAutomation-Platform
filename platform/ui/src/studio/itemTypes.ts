@@ -15,6 +15,12 @@ export const ITEM_TYPES: ItemType[] = [
   { kind: "script-powershell", name: "PowerShell script", description: "Called from agents", icon: "code", color: "#334155" },
 ];
 
+/** An item's name without the file ending that marks its type (the Type column says it); scripts and files keep theirs. */
+export function displayName(n: WorkspaceNode): string {
+  const ending = { bot: /\.flow\.json$/i, form: /\.form\.json$/i, process: /\.process\.json$/i, document: /\.doc\.json$/i, skill: /\.json$/i } as Record<string, RegExp>;
+  return ending[n.type] ? n.name.replace(ending[n.type], "") : n.name;
+}
+
 /** A workspace file's type in words, for the items table. */
 export function typeLabel(n: WorkspaceNode): string {
   if (n.type === "bot") return n.kind === "ApiTask" ? "API agent" : "Agent";

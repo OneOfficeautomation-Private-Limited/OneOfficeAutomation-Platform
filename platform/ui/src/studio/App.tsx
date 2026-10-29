@@ -59,7 +59,7 @@ export function App({ api: given }: { api?: StudioApi }) {
         <div className="st-brand"><span className="st-logo" />One Agent Studio</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current ? current.path.split("/").slice(0, -1).map((p, i) => <span key={i}>{p}<span aria-hidden="true"> › </span></span>) : null}
-          <span className="st-crumb-current">{current ? current.name : view === "automation" ? "Automation" : view === "workflows" ? "Workflows" : "Forms"}</span>
+          <span className="st-crumb-current">{current ? current.name : "Automation"}</span>
           <span className="st-preview-tag">New Studio preview</span>
         </nav>
         <label className="st-search"><Icon name="search" size={14} /><input aria-label="Search items" placeholder="Search items in the workspace" value={search}

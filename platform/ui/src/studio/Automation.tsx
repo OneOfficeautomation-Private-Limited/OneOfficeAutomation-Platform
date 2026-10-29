@@ -3,12 +3,10 @@ import type { NewItemKind, WorkspaceNode } from "../api/client";
 import { Button, Icon, IconTile, Menu, SidePanel, Tree, usePersistent, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
-import { ITEM_TYPES, typeLabel, type ItemType } from "./itemTypes";
+import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
 
 const VIEW_TITLE: Record<StudioView, [string, (n: WorkspaceNode) => boolean]> = {
   automation: ["Automation", (n) => n.type !== "folder"],
-  workflows: ["Workflows", (n) => n.type === "process"],
-  forms: ["Forms", (n) => n.type === "form"],
 };
 
 const folderTree = (n: WorkspaceNode): TreeNode => ({ id: n.path, label: n.name, children: (n.children ?? []).filter((c) => c.type === "folder").map(folderTree) });
@@ -70,8 +68,8 @@ export function Automation({ view, tree, search = "", onOpen, onCreated, onNewFo
               {items.map((n) => (
                 <tr key={n.path} onDoubleClick={() => onOpen(n)}>
                   <td>{n.type === "bot"
-                    ? <button type="button" className="st-link" onClick={() => onOpen(n)}>{n.name.replace(/\.flow\.json$/, "")}</button>
-                    : <span>{n.name}</span>}</td>
+                    ? <button type="button" className="st-link" onClick={() => onOpen(n)}>{displayName(n)}</button>
+                    : <span>{displayName(n)}</span>}</td>
                   <td>{typeLabel(n)}</td>
                   <td>{n.modified ? new Date(n.modified).toLocaleString() : ""}</td>
                 </tr>

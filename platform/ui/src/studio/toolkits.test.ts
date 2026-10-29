@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { displayName } from "./itemTypes";
 import { conditionText, describeAction, plainValue, stepRows, summarize, toolkitMark } from "./toolkits";
 
 const packages = [{ id: "ooa.excel", name: "Excel", version: "1.0.0", actions: [{ id: "open", name: "Open workbook" }] }];
@@ -39,5 +40,13 @@ describe("steps view", () => {
     expect(plainValue({ source: "credential", name: "sap/password" })).toBe("credential sap/password");
     expect(summarize({ id: "i", action: "core/if", args: { condition: { op: "gt", left: "$days", right: "$policy.window_days" } } }))
       .toBe("$days is greater than $policy.window_days");
+  });
+
+  it("shows item names without the file ending that marks their type", () => {
+    expect(displayName({ name: "Invoice intake.flow.json", path: "", type: "bot" })).toBe("Invoice intake");
+    expect(displayName({ name: "Approve.process.json", path: "", type: "process" })).toBe("Approve");
+    expect(displayName({ name: "Check.form.json", path: "", type: "form" })).toBe("Check");
+    expect(displayName({ name: "Invoice.doc.json", path: "", type: "document" })).toBe("Invoice");
+    expect(displayName({ name: "clean.py", path: "", type: "script" })).toBe("clean.py");
   });
 });
