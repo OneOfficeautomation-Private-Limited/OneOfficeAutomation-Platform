@@ -34,7 +34,7 @@ and firewall rules. For network, firewall, PKI and security teams.
 | Command Center | Identity provider | HTTPS 443 | OpenID Connect discovery, tokens and keys; SAML metadata is served by the Command Center | `sso_issuer` |
 | Command Center | External vaults, Git remote, AI model providers, IMAP, Microsoft Graph, ServiceNow, polled URLs, callback URLs, promotion targets | Their own ports, usually HTTPS 443 (IMAP 993) | Features configured by administrators | Each feature's settings; outgoing proxy |
 | Command Center | Key store at start | HTTPS 443 and metadata endpoints | Vault key from Azure Key Vault (`login.microsoftonline.com`, `*.vault.azure.net`, `169.254.169.254`), AWS Secrets Manager (`secretsmanager.REGION.amazonaws.com`, `169.254.169.254`, `169.254.170.2`), Google (`metadata.google.internal`, `secretmanager.googleapis.com`) | `OOA_MASTER_KEY_SOURCE` |
-| Command Center | Template catalogue | HTTPS 443 | `https://oneofficeautomation-private-limited.github.io/OOA_Customer_Build/templates.json` by default | `template_catalog_url` (or `off`) |
+| Command Center | Template catalogue | HTTPS 443 | `https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/templates.json` by default | `template_catalog_url` (or `off`) |
 | Runner (agents) | Applications they automate | Any | Whatever the agents do | Agent design |
 | Studio, local runner | Command Center on the same computer | Loopback | See section 11 | - |
 
