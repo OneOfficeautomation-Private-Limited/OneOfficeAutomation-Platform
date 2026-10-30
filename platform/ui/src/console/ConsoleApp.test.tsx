@@ -28,6 +28,7 @@ const runs = [
 
 function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[], sso = false } = {}) {
   let user = signedIn;
+  let logsAsked = false;
   const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
   const f = (async (url: string, init: RequestInit) => {
     const route = url.replace(/^\/api\//, "").replace(/\?.*$/, "");
@@ -61,10 +62,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "devices" && init.method === "PATCH") return ok({ updated: (body.ids as string[]).length, changes: 1 });
     if (route === "devices") return ok({ devices: [
       { id: "d1", name: "Runner A", hostname: "PC-A", os: "Windows 11", enabled: true, status: "online", device_type: "single_user", lifespan: "persistent", log_level: "info",
-        default_users: ["admin"], running: 1, agent_version: "1.4.0", up_to_date: true, last_seen: new Date().toISOString(), registered: "2026-10-01T08:00:00Z", registered_by: "admin" },
+        default_users: ["admin"], running: 1, agent_version: "1.4.0", up_to_date: true, last_seen: new Date().toISOString(), registered: "2026-10-01T08:00:00Z", registered_by: "admin",
+        cpu_pct: 93, mem_pct: 40, cpu_limit: 80, mem_limit: 0, over_limit: "CPU use 93% is above its limit of 80%" },
       { id: "d2", name: "Runner B", hostname: "VDI-7", os: "Windows Server 2022", enabled: true, status: "offline", device_type: "multi_user", lifespan: "temporary", log_level: "debug",
         default_users: [], running: 0, agent_version: "1.3.0", up_to_date: false, registered: "2026-10-02T08:00:00Z" }] });
     if (/^devices\/d\d$/.test(route)) return ok({ ok: true });
+    if (route === "devices/maintenance") return ok({ updated: (body.ids as string[]).length, runs_stopped: body.mode === "stop" ? 1 : 0 });
+    if (/^devices\/d\d\/logs$/.test(route) && init.method === "POST") { logsAsked = true; return ok({ requested: true }); }
+    if (/^devices\/d\d\/(logs|screen)$/.test(route)) return ok(logsAsked && route.endsWith("logs") ? { taken: "2026-10-30T09:00:00Z", requested_by: "admin", content: "== Runner log ==\nstarted" } : {});
     if (route === "pools" && init.method === "POST") return ok({ id: "p2" });
     if (route === "pools") return ok({ pools: [{ id: "p1", name: "Finance pool", description: "Month end", devices: ["d1"], created_by: "admin" }] });
     if (route === "runs") {
@@ -205,16 +210,34 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(settings).getByLabelText("Log level"), { target: { value: "warning" } });
     await act(async () => { fireEvent.click(within(settings).getByRole("button", { name: "Save" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "devices", body: { ids: ["d2"], log_level: "warning" } }));
-    // out of service: no new work, as AA's maintenance and Blue Prism's retire
+    // above its CPU limit: busy, taking no new work
+    expect(within(list).getByText("Busy")).toBeTruthy();
+    // maintenance: no new work; the runs going on now are stopped (as UiPath's), or finish
     fireEvent.click(await within(list).findByLabelText("Select Runner B"));
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Take out of service" })); });
+    fireEvent.click(screen.getByRole("button", { name: "Maintenance" }));
+    const mt = await screen.findByRole("dialog", { name: "Maintenance" });
+    fireEvent.click(within(mt).getByLabelText(/Stop the runs going on now/));
+    await act(async () => { fireEvent.click(within(mt).getByRole("button", { name: "Start maintenance" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "devices/maintenance", body: { ids: ["d2"], mode: "stop" } }));
+    expect(await screen.findByText("Maintenance on 1 runner; stopping 1 run.")).toBeTruthy();
+    fireEvent.click(await within(list).findByLabelText("Select Runner B"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Disable" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "devices/d2", body: { enabled: false } }));
-    expect(await screen.findByText("Took out of service 1 runner.")).toBeTruthy();
+    expect(await screen.findByText("Disabled 1 runner.")).toBeTruthy();
     // a runner's details by topic
     fireEvent.click(within(list).getByText("Runner B"));
     const details = await screen.findByRole("dialog", { name: "Runner Runner B" });
     expect(within(details).getByText(/Temporary: removed by itself/)).toBeTruthy();
     expect(within(details).getByText("Update available")).toBeTruthy();
+    // its logs on request
+    const logs = within(details).getByRole("region", { name: "Logs" });
+    await act(async () => { fireEvent.click(within(logs).getByRole("button", { name: "Collect logs" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "devices/d2/logs" }));
+    expect(await within(logs).findByRole("button", { name: "Download logs" })).toBeTruthy();
+    expect(within(details).getByRole("region", { name: "Screen" })).toBeTruthy();
+    fireEvent.change(within(details).getByLabelText("Nickname"), { target: { value: "Night shift" } });
+    await act(async () => { fireEvent.click(within(details).getByRole("button", { name: "Save details" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PATCH", route: "devices/d2", body: { nickname: "Night shift", description: "" } }));
     fireEvent.click(within(details).getByRole("button", { name: "Close" }));
     // a pool made from the selected runners
     fireEvent.click(await within(list).findByLabelText("Select Runner A"));
@@ -222,10 +245,25 @@ describe("rebuilt Command Center console", () => {
     const pool = await screen.findByRole("dialog", { name: "New runner pool" });
     expect((within(pool).getByLabelText(/Runner A/) as HTMLInputElement).checked).toBe(true);
     fireEvent.change(within(pool).getByLabelText("Name"), { target: { value: "HR pool" } });
+    fireEvent.change(within(pool).getByLabelText(/^Users/), { target: { value: "bot_runner" } });
     await act(async () => { fireEvent.click(within(pool).getByRole("button", { name: "Save" })); });
-    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "pools", body: { name: "HR pool", description: "", devices: ["d1"] } }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "pools", body: { name: "HR pool", description: "", devices: ["d1"], owners: [], consumers: ["bot_runner"] } }));
     fireEvent.click(screen.getByRole("tab", { name: /Runner pools/ }));
     expect(within(await screen.findByRole("table", { name: "Runner pools list" })).getByText("1 of 1")).toBeTruthy();
+  });
+
+  it("asks the server once at start, with its own client: no request loop", async () => {
+    const { calls, api } = fakeServer({ signedIn: admin });
+    const real = globalThis.fetch;
+    // the console's own client (no api given) uses the page's fetch
+    globalThis.fetch = ((url: string, init?: RequestInit) => (api as unknown as { fetcher: typeof fetch }).fetcher(url, init ?? {})) as typeof fetch;
+    try {
+      render(<ConsoleApp />);
+      expect(await screen.findByRole("navigation", { name: "Command Center" })).toBeTruthy();
+      await new Promise((r) => setTimeout(r, 300));
+      expect(calls.filter((c) => c.route === "auth/me").length).toBe(1);
+      expect(calls.filter((c) => c.route === "dashboard").length).toBeLessThanOrEqual(1);
+    } finally { globalThis.fetch = real; }
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

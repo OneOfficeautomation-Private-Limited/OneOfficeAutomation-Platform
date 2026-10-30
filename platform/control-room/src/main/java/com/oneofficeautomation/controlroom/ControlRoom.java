@@ -66,6 +66,7 @@ public final class ControlRoom {
     public final Cluster cluster;
     public final ProductionApproval approvals;
     public final RunnerUpdates runnerUpdates;
+    public final RunnerCare runnerCare;
     public final GitSync gitSync;
     final Saml saml;
     public final Backups backups;
@@ -136,6 +137,7 @@ public final class ControlRoom {
         this.mfa = new Mfa(this);
         this.approvals = new ProductionApproval(this);
         this.runnerUpdates = new RunnerUpdates(this);
+        this.runnerCare = new RunnerCare(this);
         this.gitSync = new GitSync(this, dataDir);
         this.saml = new Saml(this);
         this.backups = new Backups(this);
@@ -1145,8 +1147,13 @@ public final class ControlRoom {
         List<Map<String, Object>> out = new ArrayList<>();
         Map<String, List<String>> defaults = new HashMap<>();
         for (Map<String, Object> u : db.query("SELECT username, device_id FROM user_devices ORDER BY username")) defaults.computeIfAbsent((String) u.get("device_id"), k -> new ArrayList<>()).add((String) u.get("username"));
-        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, update_requested, lifespan, toolkits FROM devices ORDER BY name")) {
+        for (Map<String, Object> d : db.query("SELECT id, name, hostname, os, agent_version, enabled, last_seen, registered, registered_by, log_level, device_type, session_state, after_run, build, "
+                + "update_requested, lifespan, toolkits, nickname, description, maintenance, maintenance_since, maintenance_by, cpu_pct, mem_pct, cpu_max, mem_max FROM devices ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(d);
+            String why = runnerCare.whyNoWork(d);
+            if (why != null && d.get("maintenance") == null) m.put("over_limit", why);
+            m.put("cpu_limit", runnerCare.limit(d.get("cpu_max"), "runner_cpu_max"));
+            m.put("mem_limit", runnerCare.limit(d.get("mem_max"), "runner_mem_max"));
             if (m.get("log_level") == null) m.put("log_level", "info");
             if (m.get("after_run") == null) m.put("after_run", "nothing");
             Map<String, Object> mf = runnerUpdates.manifest();
@@ -1203,6 +1210,8 @@ public final class ControlRoom {
         if (type != null && !type.equals("single_user") && !type.equals("multi_user")) throw new OoaException("CR.BAD_INPUT", "The runner type is single_user or multi_user");
         String after = b.get("after_run") == null ? null : String.valueOf(b.get("after_run"));
         if (after != null && !AFTER_RUN.contains(after)) throw new OoaException("CR.BAD_INPUT", "After a run the runner does one of " + AFTER_RUN);
+        // CPU and memory limits in %: 1-100, or 0 for the Command Center's setting
+        Integer cpuMax = limitIn(b, "cpu_max"), memMax = limitIn(b, "mem_max");
         int n = db.tx(() -> {
             int k = 0;
             for (String id : ids) {
@@ -1212,6 +1221,8 @@ public final class ControlRoom {
                 if (level != null) k += db.update("UPDATE devices SET log_level = ? WHERE id = ?", level, id);
                 if (type != null) k += db.update("UPDATE devices SET device_type = ? WHERE id = ?", type, id);
                 if (after != null) k += db.update("UPDATE devices SET after_run = ? WHERE id = ?", after, id);
+                if (cpuMax != null) k += db.update("UPDATE devices SET cpu_max = ? WHERE id = ?", cpuMax == 0 ? null : cpuMax, id);
+                if (memMax != null) k += db.update("UPDATE devices SET mem_max = ? WHERE id = ?", memMax == 0 ? null : memMax, id);
             }
             return k;
         });
@@ -1219,8 +1230,16 @@ public final class ControlRoom {
         if (level != null) changes.put("log_level", level);
         if (type != null) changes.put("device_type", type);
         if (after != null) changes.put("after_run", after);
+        if (cpuMax != null) changes.put("cpu_max", cpuMax);
+        if (memMax != null) changes.put("mem_max", memMax);
         audit.record(by.username(), "device.update", "device", String.join(",", ids), changes, "ok", ip);
         return Map.of("updated", ids.size(), "changes", n);
+    }
+
+    private static Integer limitIn(Map<String, Object> b, String key) {
+        if (b.get(key) == null) return null;
+        if (!(b.get(key) instanceof Number n) || n.intValue() < 0 || n.intValue() > 100) throw new OoaException("CR.BAD_INPUT", "A limit is 1 to 100 %, or 0 for the Command Center's setting");
+        return n.intValue();
     }
 
     public void setDeviceEnabled(User by, String deviceId, boolean enabled, String ip) {
@@ -1259,6 +1278,7 @@ public final class ControlRoom {
         Map<String, Object> update = runnerUpdates.forHeartbeat(d, build, !cancel.isEmpty() || !pause.isEmpty() || !resume.isEmpty());
         if (update != null) out.put("update", update);
         if (secretDue(d)) out.put("rotate", true);
+        runnerCare.heartbeat(d, info, out);
         if (d.get("toolkits") == null && !(info.get("toolkits") instanceof List)) out.put("send_toolkits", true);   // runners send their toolkit list when asked
         return out;
     }
@@ -1309,6 +1329,7 @@ public final class ControlRoom {
             }
         }
         if ((deviceId == null || deviceId.isBlank()) && poolId != null && !poolId.isBlank()) {
+            platform.requirePoolUse(requestedBy, role, poolId);
             deviceId = platform.pickDevice(poolId);
             if (deviceId == null) throw new OoaException("CR.NO_RUNNER", "No runner of the pool is online", "Start a runner of the pool, or pick another pool.", true, null);
         }
@@ -1435,6 +1456,7 @@ public final class ControlRoom {
                 if (devs.remove(deviceId)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
             }
             db.update("DELETE FROM license_assignments WHERE principal_type = 'device' AND principal = ?", deviceId);   // its seat is free again
+            db.update("DELETE FROM runner_files WHERE device_id = ?", deviceId);
             db.update("DELETE FROM devices WHERE id = ?", deviceId);
             return null;
         });
@@ -1458,6 +1480,7 @@ public final class ControlRoom {
                     if (devs.remove(id)) db.update("UPDATE device_pools SET devices = ? WHERE id = ?", String.join(",", devs), p.get("id"));
                 }
                 db.update("DELETE FROM license_assignments WHERE principal_type = 'device' AND principal = ?", id);
+                db.update("DELETE FROM runner_files WHERE device_id = ?", id);
                 db.update("DELETE FROM devices WHERE id = ?", id);
                 return null;
             });
@@ -1571,6 +1594,7 @@ public final class ControlRoom {
         // a runner newer than this Command Center gets no work until the Command Center is updated
         Map<String, Object> ver = db.one("SELECT agent_version FROM devices WHERE id = ?", did);
         if (ver != null && !"ok".equals(versionStatus(ver.get("agent_version")))) return null;
+        if (!runnerCare.takesWork(did)) return null;   // in maintenance, or above its CPU or memory limit
         for (Map<String, Object> r : db.query("SELECT id FROM runs WHERE device_id = ? AND status = 'queued' ORDER BY COALESCE(priority, 0) DESC, created LIMIT 5", did)) {
             if (db.update("UPDATE runs SET status = 'running', started = ? WHERE id = ? AND status = 'queued'", now(), r.get("id")) != 1) continue;
             Map<String, Object> run = db.one("SELECT * FROM runs WHERE id = ?", r.get("id"));

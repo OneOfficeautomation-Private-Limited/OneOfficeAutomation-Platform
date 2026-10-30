@@ -58,6 +58,9 @@ public final class Platform {
         DEFAULTS.put("mfa_required", 0);
         DEFAULTS.put("production_approval", 0);
         DEFAULTS.put("runner_auto_update", 0);
+        DEFAULTS.put("runner_cpu_max", 0);          // a runner above this CPU use (%) takes no new work; 0: no limit
+        DEFAULTS.put("runner_mem_max", 0);          // the same for memory use (%)
+        DEFAULTS.put("runner_screen_pictures", 0);  // administrators may ask a runner for a picture of its screen
         DEFAULTS.put("git_remote_url", "");
         DEFAULTS.put("git_branch", "main");
         DEFAULTS.put("git_username", "");
@@ -110,6 +113,9 @@ public final class Platform {
         Map.entry("mfa_required", new long[] { 0, 2 }),
         Map.entry("production_approval", new long[] { 0, 1 }),
         Map.entry("runner_auto_update", new long[] { 0, 1 }),
+        Map.entry("runner_cpu_max", new long[] { 0, 100 }),
+        Map.entry("runner_mem_max", new long[] { 0, 100 }),
+        Map.entry("runner_screen_pictures", new long[] { 0, 1 }),
         Map.entry("git_auto_push", new long[] { 0, 1 }),
         Map.entry("temporary_runner_hours", new long[] { 1, 720 }),
         Map.entry("audit_retention_days", new long[] { 0, 36500 }),
@@ -366,26 +372,69 @@ public final class Platform {
         for (Map<String, Object> p : db.query("SELECT * FROM device_pools ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(p);
             m.put("devices", csv(p.get("devices")));
+            m.put("owners", csv(p.get("owners")));
+            m.put("consumers", csv(p.get("consumers")));
+            m.put("can_manage", cr.can(by, "pools.manage") || csv(p.get("owners")).contains(by.username()));
             out.add(m);
         }
         return out;
     }
 
     public Map<String, Object> savePool(User by, String poolId, String name, String description, Object devices, String ip) {
-        cr.require(by, "pools.manage", "manage runner pools");
+        return savePool(by, poolId, name, description, devices, null, null, ip);
+    }
+
+    /**
+     * Creates or changes a runner pool. Owners (people) may change and delete their pool without pools.manage; only
+     * someone with pools.manage chooses the owners. Users (roles) limit who may send runs to the pool; none: anyone
+     * who may start runs. {@code owners} or {@code consumers} null: kept as they are.
+     */
+    public Map<String, Object> savePool(User by, String poolId, String name, String description, Object devices, Object owners, Object consumers, String ip) {
+        boolean isNew = poolId == null || poolId.isBlank();
+        Map<String, Object> old = isNew ? null : db.one("SELECT owners FROM device_pools WHERE id = ?", poolId);
+        if (!isNew && old == null) throw notFound("Pool");
+        boolean manager = cr.can(by, "pools.manage");
+        if (!manager && (isNew || !csv(old.get("owners")).contains(by.username()))) throw denied("manage runner pools");
+        if (!manager && owners != null && !new HashSet<>(csv(owners)).equals(new HashSet<>(csv(old.get("owners"))))) throw denied("choose the owners of a runner pool");
         if (name == null || name.isBlank() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "Pool names have 1 to 120 characters");
         List<String> ids = csv(devices);
         for (String d : ids) if (db.one("SELECT id FROM devices WHERE id = ?", d) == null) throw notFound("Runner " + d);
-        String pid = poolId == null || poolId.isBlank() ? id("pool") : poolId;
-        if (poolId == null || poolId.isBlank())
-            db.update("INSERT INTO device_pools (id, name, description, devices, created_by, created) VALUES (?,?,?,?,?,?)", pid, name.trim(), description, String.join(",", ids), by.username(), now());
-        else if (db.update("UPDATE device_pools SET name = ?, description = ?, devices = ? WHERE id = ?", name.trim(), description, String.join(",", ids), pid) == 0) throw notFound("Pool");
-        cr.audit.record(by.username(), "pool.save", "pool", pid, Map.of("name", name, "devices", ids), "ok", ip);
+        if (owners != null) for (String o : csv(owners)) if (db.one("SELECT id FROM users WHERE username = ?", o) == null) throw notFound("User " + o);
+        if (consumers != null) {
+            Set<String> known = new HashSet<>(Rbac.ROLES);
+            known.addAll(cr.customRoles.keySet());
+            for (String c : csv(consumers)) if (!known.contains(c)) throw notFound("Role " + c);
+        }
+        String pid = isNew ? id("pool") : poolId;
+        if (isNew)
+            db.update("INSERT INTO device_pools (id, name, description, devices, created_by, created, owners, consumers) VALUES (?,?,?,?,?,?,?,?)", pid, name.trim(), description,
+                String.join(",", ids), by.username(), now(), owners == null ? null : String.join(",", csv(owners)), consumers == null ? null : String.join(",", csv(consumers)));
+        else {
+            db.update("UPDATE device_pools SET name = ?, description = ?, devices = ? WHERE id = ?", name.trim(), description, String.join(",", ids), pid);
+            if (owners != null) db.update("UPDATE device_pools SET owners = ? WHERE id = ?", String.join(",", csv(owners)), pid);
+            if (consumers != null) db.update("UPDATE device_pools SET consumers = ? WHERE id = ?", String.join(",", csv(consumers)), pid);
+        }
+        Map<String, Object> details = new LinkedHashMap<>(Map.of("name", name, "devices", ids));
+        if (owners != null) details.put("owners", csv(owners));
+        if (consumers != null) details.put("users", csv(consumers));
+        cr.audit.record(by.username(), "pool.save", "pool", pid, details, "ok", ip);
         return Map.of("id", pid);
     }
 
+    /** Whether this person may send runs to the pool: it has no users set, or they hold one of its roles, own it or manage pools. */
+    public void requirePoolUse(String username, String role, String poolId) {
+        Map<String, Object> p = db.one("SELECT owners, consumers FROM device_pools WHERE id = ?", poolId);
+        if (p == null) throw notFound("Runner pool");
+        List<String> users = csv(p.get("consumers"));
+        if (users.isEmpty() || csv(p.get("owners")).contains(username)) return;
+        List<String> mine = cr.rolesOf(username, role);
+        if (mine.stream().anyMatch(users::contains) || mine.stream().anyMatch(r -> cr.allowed(r, "pools.manage"))) return;
+        throw new OoaException("CR.FORBIDDEN", "You may not send runs to this runner pool", "Ask an owner of the pool to add one of your roles to its users.");
+    }
+
     public void deletePool(User by, String poolId, String ip) {
-        cr.require(by, "pools.manage", "manage runner pools");
+        Map<String, Object> own = db.one("SELECT owners FROM device_pools WHERE id = ?", poolId);
+        if (!(own != null && csv(own.get("owners")).contains(by.username()))) cr.require(by, "pools.manage", "manage runner pools");
         if (db.one("SELECT id FROM queues WHERE pool_id = ?", poolId) != null) throw new OoaException("CR.CONFLICT", "A work queue still uses this pool", "Change the queue first.");
         if (db.update("DELETE FROM device_pools WHERE id = ?", poolId) == 0) throw notFound("Pool");
         cr.audit.record(by.username(), "pool.delete", "pool", poolId, null, "ok", ip);
@@ -409,9 +458,10 @@ public final class Platform {
         String best = null;
         long bestLoad = Long.MAX_VALUE;
         for (String d : csv(p.get("devices"))) {
-            Map<String, Object> dev = db.one("SELECT enabled, last_seen FROM devices WHERE id = ?", d);
+            Map<String, Object> dev = db.one("SELECT enabled, last_seen, maintenance, cpu_pct, mem_pct, cpu_max, mem_max FROM devices WHERE id = ?", d);
             if (dev == null || !Boolean.TRUE.equals(dev.get("enabled")) || dev.get("last_seen") == null
                     || Instant.parse(String.valueOf(dev.get("last_seen"))).isBefore(now().minus(ONLINE))) continue;
+            if (cr.runnerCare.whyNoWork(dev) != null) continue;   // in maintenance, or above its CPU or memory limit
             long load = cr.count("SELECT COUNT(*) AS n FROM runs WHERE device_id = ? AND status IN ('queued', 'running')", d);
             if (load < bestLoad) { best = d; bestLoad = load; }
         }

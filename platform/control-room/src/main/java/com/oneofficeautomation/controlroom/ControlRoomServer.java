@@ -443,6 +443,7 @@ public final class ControlRoomServer {
                 Map<String, Object> b = map(body(ex));
                 sendJson(ex, 200, b.get("event") instanceof Map<?, ?> e ? cr.localFired(d, (String) b.get("trigger_id"), (Map<String, Object>) e) : cr.fileFired(d, (String) b.get("trigger_id"), (String) b.get("file")));
             }
+            else if (m.equals("POST") && (route.equals("agent/logs") || route.equals("agent/screen"))) { cr.runnerCare.receive(d, seg[1], map(body(ex))); sendJson(ex, 200, Map.of("ok", true)); }
             else if (m.equals("POST") && route.equals("agent/trigger-status")) { Map<String, Object> b = map(body(ex)); cr.localTriggerStatus(d, (String) b.get("trigger_id"), (String) b.get("error")); sendJson(ex, 200, Map.of("ok", true)); }
             else sendJson(ex, 404, Map.of("error", Map.of("code", "CR.NOT_FOUND", "message", "Unknown agent route")));
             return;
@@ -574,8 +575,8 @@ public final class ControlRoomServer {
             case "pools" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, Map.of("pools", cr.platform.pools(u)));
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.platform.pools(u).stream().filter(p0 -> seg[1].equals(p0.get("id"))).findFirst().orElseThrow(() -> ControlRoom.notFound("Runner pool")));
-                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), ip)); }
-                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), ip)); }
+                else if (m.equals("POST") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, null, (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
+                else if (m.equals("PUT") && seg.length == 2) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.platform.savePool(u, seg[1], (String) b.get("name"), (String) b.get("description"), b.get("devices"), b.get("owners"), b.get("consumers"), ip)); }
                 else if (m.equals("DELETE") && seg.length == 2) { cr.platform.deletePool(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else notFound(ex);
             }
@@ -804,6 +805,9 @@ public final class ControlRoomServer {
                 else if (m.equals("GET") && seg.length == 2) sendJson(ex, 200, cr.deviceDetail(u, seg[1]));
                 else if (m.equals("DELETE") && seg.length == 2) { cr.deleteDevice(u, seg[1], ip); sendJson(ex, 200, Map.of("ok", true)); }
                 else if (m.equals("PATCH") && seg.length == 1) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.updateDevices(u, ControlRoom.csv(b.get("ids")), b, ip)); }
+                else if (m.equals("POST") && route.equals("devices/maintenance")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.runnerCare.setMaintenance(u, ControlRoom.csv(b.get("ids")), (String) b.get("mode"), ip)); }
+                else if (m.equals("POST") && seg.length == 3 && (seg[2].equals("logs") || seg[2].equals("screen"))) sendJson(ex, 200, cr.runnerCare.request(u, seg[1], seg[2], ip));
+                else if (m.equals("GET") && seg.length == 3 && (seg[2].equals("logs") || seg[2].equals("screen"))) sendJson(ex, 200, cr.runnerCare.file(u, seg[1], seg[2]));
                 else if (m.equals("POST") && route.equals("devices/update")) sendJson(ex, 200, cr.runnerUpdates.request(u, ControlRoom.csv(map(body(ex)).get("ids")), ip));
                 else if (m.equals("GET") && route.equals("devices/update")) { Map<String, Object> mf = cr.runnerUpdates.manifest(); sendJson(ex, 200, mf == null ? Map.of("available", false) : Map.of("available", true, "build", mf.get("build"), "version", mf.get("version"), "auto", cr.platform.intSetting("runner_auto_update") == 1)); }
                 else if (m.equals("POST") && route.equals("devices/registration-key")) { Map<String, Object> b = map(body(ex)); sendJson(ex, 200, cr.createRegistrationKey(u, ((Number) b.getOrDefault("hours", 24)).intValue(), Boolean.TRUE.equals(b.get("temporary")), ip)); }
@@ -811,7 +815,8 @@ public final class ControlRoomServer {
                     Map<String, Object> b = map(body(ex));
                     if (b.containsKey("name")) cr.renameDevice(u, seg[1], (String) b.get("name"), ip);
                     if (b.containsKey("enabled")) cr.setDeviceEnabled(u, seg[1], Boolean.TRUE.equals(b.get("enabled")), ip);
-                    if (b.containsKey("log_level") || b.containsKey("device_type") || b.containsKey("after_run")) cr.updateDevices(u, List.of(seg[1]), b, ip);
+                    if (b.containsKey("nickname") || b.containsKey("description")) cr.runnerCare.describe(u, seg[1], (String) b.get("nickname"), (String) b.get("description"), ip);
+                    if (b.containsKey("log_level") || b.containsKey("device_type") || b.containsKey("after_run") || b.containsKey("cpu_max") || b.containsKey("mem_max")) cr.updateDevices(u, List.of(seg[1]), b, ip);
                     sendJson(ex, 200, Map.of("ok", true));
                 }
                 else notFound(ex);

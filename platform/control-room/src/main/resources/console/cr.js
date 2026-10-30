@@ -951,6 +951,8 @@ const VIEWS = {
       const prodApproval = h("input", { type: "checkbox", checked: Number(st.production_approval) === 1 });
       const autoUpdate = h("input", { type: "checkbox", checked: Number(st.runner_auto_update) === 1 });
       const tempHours = num("temporary_runner_hours", 1, 720), secretDays = num("runner_secret_days", 0, 365);
+      const cpuMax = num("runner_cpu_max", 0, 100), memMax = num("runner_mem_max", 0, 100);
+      const screenPics = h("input", { type: "checkbox", checked: Number(st.runner_screen_pictures) === 1 });
       const repoShared = txt("repo_files_folder", "\\\\fileserver\\ooa\\repo-files (for several nodes)");
       const tplUrl = txt("template_catalog_url", "(empty: ONEOFFICEAUTOMATION's catalogue; off: none)");
       const nodesBox = h("div", { class: "muted" });
@@ -1031,7 +1033,10 @@ const VIEWS = {
           h("label", { class: "check" }, prodApproval, "Approval before production: a second person approves every version before it goes live"),
           h("label", { class: "check" }, autoUpdate, "Update runners automatically to this Command Center's version when they are idle"),
           h("label", {}, "Remove temporary runners after this many hours without contact", tempHours),
-          h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays)),
+          h("label", {}, "Give runners a new secret every (days, 0 = never)", secretDays),
+          h("label", {}, "A runner above this CPU use takes no new work (%, 0 = no limit; a runner can have its own)", cpuMax),
+          h("label", {}, "A runner above this memory use takes no new work (%, 0 = no limit)", memMax),
+          h("label", { class: "check" }, screenPics, "Administrators may ask a runner for a picture of its screen (each picture is recorded in the audit log)")),
         h("label", {}, "IP allow list (addresses or CIDR ranges, separated by commas)", allowList),
         h("label", {}, "Trusted proxies: load balancers whose X-Forwarded-For names the client (addresses or ranges)", trustedProxies),
         h("p", { class: "muted", text: "Switch off built-in roles you do not use: they then give no permissions and cannot be given to anyone. People who still have one keep only their other roles." }),
@@ -1093,7 +1098,7 @@ const VIEWS = {
               sso_client_secret_ref: ssoSecret.value.trim(), sso_default_role: ssoRole.value.trim(), sso_group_roles: ssoGroups.value.trim(), sso_label: ssoLabel.value.trim(), mcp_agents: mcpAgents.value.trim(), mcp_runner: mcpRunner.value.trim(),
               mcp_timeout_seconds: Number(mcpTimeout.value), mcp_oauth_audience: mcpAud.value.trim(), mcp_oauth_scope: mcpScope.value.trim(), run_retention_days: Number(keepRuns.value), run_log_retention_days: Number(keepLogs.value), audit_retention_days: Number(keepAudit.value), backup_hours: Number(bkHours.value), backup_keep_days: Number(bkKeep.value), backup_folder: bkFolder.value.trim(), repo_files_folder: repoShared.value.trim(), template_catalog_url: tplUrl.value.trim(),
               max_sessions_per_user: Number(maxSessions.value), password_min_length: Number(pwMin.value), password_history: Number(pwHist.value), password_max_days: Number(pwDays.value),
-              ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value),
+              ai_call_retention_days: Number(keepAi.value), work_item_retention_days: Number(keepItems.value), block_executable_uploads: blockExe.checked ? 1 : 0, mfa_required: Number(mfaReq.value), production_approval: prodApproval.checked ? 1 : 0, runner_auto_update: autoUpdate.checked ? 1 : 0, temporary_runner_hours: Number(tempHours.value), runner_secret_days: Number(secretDays.value), runner_cpu_max: Number(cpuMax.value), runner_mem_max: Number(memMax.value), runner_screen_pictures: screenPics.checked ? 1 : 0,
               saml_idp_sso_url: samlUrl.value.trim(), saml_idp_entity_id: samlIdp.value.trim(), saml_sp_entity_id: samlSp.value.trim(), saml_label: samlLabel.value.trim(), saml_idp_certificate: samlCert.value.trim(),
               git_remote_url: gitUrl.value.trim(), git_branch: gitBranch.value.trim(), git_username: gitUser.value.trim(), git_token_ref: gitToken.value.trim(), git_auto_push: gitAuto.checked ? 1 : 0,
               ip_allow_list: allowList.value.trim(), trusted_proxies: trustedProxies.value.trim(), syslog_target: syslogTarget.value.trim(), syslog_protocol: syslogProto.value, ...mailSettings(),

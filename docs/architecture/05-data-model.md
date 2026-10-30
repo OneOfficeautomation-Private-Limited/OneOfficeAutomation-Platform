@@ -6,7 +6,7 @@ This document describes the Command Center's database: the supported engines, ho
 upgraded, every table grouped by business area with its purpose and key columns, what is kept outside the database,
 and how a SaaS region gives each tenant its own schema. It is for database administrators, developers adding features
 and security reviewers who need to know where sensitive data is stored. Table and column names come from
-`control-room/.../Db.java` (schema versions 1 to 24), `Tenants.java` and `RegionDirectory.java`.
+`control-room/.../Db.java` (schema versions 1 to 25), `Tenants.java` and `RegionDirectory.java`.
 
 ## Contents
 
@@ -92,6 +92,7 @@ and a **runtime** account with data read/write rights only.
 | 22 | kpi_values, dashboards |
 | 23 | toolkit_publishers, custom_toolkits |
 | 24 | defer_until on queue_items; missed_runs and overlap on schedules |
+| 25 | Looking after runners: nickname, description, maintenance, CPU and memory use and limits, logs and screen requests on devices; runner_files; owners and users (roles) on device_pools |
 
 ## 4. Tables by area
 
@@ -126,9 +127,10 @@ and a **runtime** account with data read/write rights only.
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `devices` | Runners | `id`, `name`, `hostname`, `os`, `agent_version`, `build`, `secret_hash`, `secret_prev_hash`, `secret_prev_until`, `secret_set`, `enabled`, `last_seen`, `log_level`, `device_type`, `session_state`, `after_run`, `lifespan` (temporary), `update_requested`, `toolkits` |
+| `devices` | Runners | `id`, `name`, `hostname`, `os`, `agent_version`, `build`, `secret_hash`, `secret_prev_hash`, `secret_prev_until`, `secret_set`, `enabled`, `last_seen`, `log_level`, `device_type`, `session_state`, `after_run`, `lifespan` (temporary), `update_requested`, `toolkits`, `nickname`, `description`, `maintenance`, `maintenance_since`, `maintenance_by`, `cpu_pct`, `mem_pct`, `cpu_max`, `mem_max`, `logs_requested`, `screen_requested` |
 | `registration_keys` | One-time runner keys | `key_hash`, `created_by`, `expires`, `used_by`, `temporary` |
-| `device_pools` | Runner pools | `id`, `name`, `devices` (list) |
+| `device_pools` | Runner pools | `id`, `name`, `devices` (list), `owners` (user names), `consumers` (roles) |
+| `runner_files` | The latest logs and screen picture a runner sent when asked | `device_id`, `kind` (logs, screen; key together), `taken`, `requested_by`, `error`, `content` |
 | `user_devices` | Each run-as user's default runner | `username`, `device_id` |
 | `runs` | Every run | `id`, `bot_path`, `version`, `device_id`, `status` (queued, running, success, failed, stopped), `inputs`, `outputs`, `error`, `requested_by`, `run_as`, `run_mode`, `source`, `priority`, `queue_item_id`, `callback_url`, `cancel_requested`, `pause_requested`, `created`, `started`, `finished`, `duration_ms`, `steps` |
 | `run_events` | Event stream per run | `run_id`, `seq`, `event` (JSON, cut at 19,000 characters) |

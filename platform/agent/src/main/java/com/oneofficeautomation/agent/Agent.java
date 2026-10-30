@@ -222,7 +222,25 @@ public final class Agent {
 
     void log(String level, String msg) {
         if (LEVELS.indexOf(level) > LEVELS.indexOf(logLevel)) return;
-        System.err.println(LocalDateTime.now().withNano(0) + "  " + (level.equals("info") ? "" : level.toUpperCase(Locale.ROOT) + "  ") + msg);
+        String line = LocalDateTime.now().withNano(0) + "  " + (level.equals("info") ? "" : level.toUpperCase(Locale.ROOT) + "  ") + msg;
+        System.err.println(line);
+        health.remember(line);
+    }
+
+    /** CPU and memory use, recent log lines and a screen picture, for the Command Center's Runners page. */
+    final RunnerHealth health = new RunnerHealth();
+    /** Maintenance set in Command Center (drain or stop), or null; the runner takes no new work meanwhile. */
+    volatile String maintenance;
+
+    /** Sends what the Command Center asked for: the logs, or a picture of the screen (or why there is none). */
+    void send(String kind) {
+        Map<String, Object> b = new HashMap<>();
+        try {
+            if (kind.equals("logs")) b.put("text", health.logs(workspace));
+            else b.put("image", RunnerHealth.screen(DesktopSession.state()));
+        } catch (IOException | RuntimeException e) { b.put("error", e.getMessage() == null ? e.toString() : e.getMessage()); }
+        try { client.post(kind, b); log(kind.equals("logs") ? "Sent the logs Command Center asked for" : "Sent the screen picture Command Center asked for"); }
+        catch (OoaException e) { log("warning", "Could not send the " + kind + " Command Center asked for: " + e.getMessage()); }
     }
 
     // ---------------- main loop ----------------
@@ -258,6 +276,7 @@ public final class Agent {
             Map<String, Object> beat = new HashMap<>(Map.of("agent_version", VERSION, "hostname", hostname(), "os", System.getProperty("os.name"),
                     "running", w == null ? List.of() : List.of(w.runId), "session", DesktopSession.state(), "build", build == null ? "" : build));
             if (!toolkitsSent) beat.put("toolkits", TOOLKITS);
+            beat.putAll(health.usage());
             Map<String, Object> r = client.post("heartbeat", beat);
             toolkitsSent = !Boolean.TRUE.equals(r.get("send_toolkits"));
             if (r.get("update") instanceof Map<?, ?> u && w == null && !updating) { updating = true; io.submit(() -> update((Map<String, Object>) u)); }
@@ -270,6 +289,10 @@ public final class Agent {
             if (r.get("log_level") instanceof String lv && LEVELS.contains(lv) && !lv.equals(logLevel)) { logLevel = lv; log("Log level set to " + lv + " by Command Center"); }
             if (r.get("after_run") instanceof String ar && !ar.equals(afterRun)) { afterRun = ar; log("After unattended runs: " + ar + " (set in Command Center)"); }
             if (Boolean.TRUE.equals(r.get("rotate"))) rotateSecret();
+            String mt = r.get("maintenance") instanceof String x ? x : null;
+            if (!Objects.equals(mt, maintenance)) { maintenance = mt; log(mt == null ? "Maintenance ended in Command Center" : "In maintenance (" + mt + ", set in Command Center): no new work"); }
+            if (Boolean.TRUE.equals(r.get("send_logs"))) io.submit(() -> send("logs"));
+            if (Boolean.TRUE.equals(r.get("send_screen"))) io.submit(() -> send("screen"));
         } catch (OoaException e) { log("warning", "Heartbeat failed: " + e.getMessage()); }
         catch (RuntimeException e) { log("error", "Heartbeat error: " + e); }
     }

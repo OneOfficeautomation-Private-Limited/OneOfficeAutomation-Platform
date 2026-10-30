@@ -205,13 +205,29 @@ whose addresses you trust.
 | Online | Enabled and heard from within the last 60 seconds (runners send a heartbeat every 10 seconds) |
 | Offline | Enabled but not heard from for 60 seconds |
 | Disabled | Switched off by an administrator; runs cannot be started on it (`CR.DEVICE_DISABLED`) |
+| Maintenance | Connected, but takes no new work (Runners > Maintenance, `devices.manage`); see below |
+| Busy | Online, but above its CPU or memory limit, so it takes no new work until its use falls |
+
+**Maintenance** (as UiPath's maintenance mode; AA and Blue Prism have only disabling and retiring): choose whether the
+runs going on now **finish** (`drain`) or are **stopped** after their current step (`stop`). Runs already queued for
+the runner wait until maintenance ends; pools send new runs to their other runners. Unlike a disabled runner, it stays
+connected, so its logs and screen can still be asked for. Starting and ending it are audited
+(`device.maintenance`, `device.maintenance_end`).
+
+**CPU and memory limits** (as AA's threshold settings): each runner reports its CPU and memory use (an average of about
+the last 30 seconds) with its heartbeat. Above its limit it takes no new work and pools pass it by. The limits are
+Settings `runner_cpu_max` and `runner_mem_max` (%, 0: none, the default), or the runner's own (Update runners).
 
 Runs already queued on an offline runner wait for it. A running run whose runner is silent for 2 minutes fails
 (`AGENT.LOST`).
 
 ## 12. Runner pools
 
-- A pool (Runners > Runner pools, `pools.manage`) is a named group of runners.
+- A pool (Runners > Runner pools, `pools.manage`) is a named group of runners. **Make a pool** creates one from the
+  ticked runners.
+- **Owners** (people, chosen by someone with `pools.manage`) may change and delete their pool without `pools.manage`.
+- **Users** (roles) limit who may send runs to the pool, including by schedule, trigger or API (`CR.FORBIDDEN`
+  otherwise); with none, anyone who may start runs. Owners and holders of `pools.manage` always may.
 - A run, schedule, test, API task or workflow stage sent to a pool goes to its **least busy online, enabled runner**
   (fewest queued and running runs) at the moment it starts. With none online the start fails with `CR.NO_RUNNER`.
 - Work queues process items only on **idle** pool runners (nothing queued or running).
@@ -260,6 +276,16 @@ the user out). The runner picks the setting up with its next heartbeat and appli
 | Log level | error, warning, info (default), debug | Next heartbeat |
 | After unattended runs | nothing, lock, sign out | Next heartbeat |
 | Runner type | single-user, multi-user | At once |
+| CPU and memory limits | 50-95 %, or the Command Center's setting | At once |
+
+Each runner also has a **nickname** and **description** (its details).
+
+**Logs and screen on request** (`devices.manage`): in a runner's details, **Collect logs** asks the runner, with its
+next heartbeat, for its recent log lines (the last 2,000) and the end of its 3 newest run logs; **Take a screen
+picture** asks for a JPEG picture of its screens, when someone is signed in and the screen is unlocked. Pictures are off
+until Settings `runner_screen_pictures` allows them. The latest of each is kept; every request and answer is audited
+(`device.logs_request`, `device.screen_request`, `device.logs`, `device.screen`). A runner that does not answer within
+2 minutes is shown as not answering.
 
 - **Runner secrets** are replaced automatically every `runner_secret_days` (0-365, default 30; 0 turns it off). The old
   secret keeps working for a short while in case saving the new one is interrupted.

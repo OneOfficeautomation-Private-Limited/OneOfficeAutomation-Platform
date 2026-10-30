@@ -20,7 +20,9 @@ const TODAY = "../";
  * Studio, and Home. A page that is not rebuilt yet opens in today's console from the menu, so nothing here is a
  * placeholder; both consoles share the session, so no second sign-in is needed.
  */
-export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
+export function ConsoleApp({ api: given }: { api?: CrApi }) {
+  // one client for the life of the page: a new one on each render would re-run every effect that depends on it
+  const [api] = useState(() => given ?? new CrApi());
   const [user, setUser] = useState<CrUser | null | undefined>(undefined);   // undefined: still asking
   const [page, setPageState] = useState(() => pageOf(location.hash));
   const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
