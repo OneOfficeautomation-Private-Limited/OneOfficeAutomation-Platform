@@ -22,7 +22,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     { id: "operations", label: "Operations", perm: "analytics.view" }, { id: "dashboards", label: "Dashboards", perm: "analytics.view" }] },
   { id: "administration", label: "ADMINISTRATION", color: "#475569", icon: "gear", pages: [
     { id: "users", label: "Users", perm: "users.manage" }, { id: "roles", label: "Roles", perm: "users.manage" },
-    { id: "teams", label: "Teams", perm: "teams.manage|team_lead" }, { id: "credentials", label: "One Agent Vault" },
+    { id: "teams", label: "Teams", perm: "teams.manage|team_lead" }, { id: "credentials", label: "Agent credential vault" },
     { id: "audit", label: "One Audit Trail", perm: "audit.view" }, { id: "licenses", label: "Licenses", perm: "users.manage|settings.manage" },
     { id: "settings", label: "Settings", perm: "settings.manage" }] },
   { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [

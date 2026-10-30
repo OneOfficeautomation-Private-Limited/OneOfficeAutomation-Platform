@@ -2,7 +2,7 @@
 
 ## What this covers
 
-One Agent Vault keeps the secrets agents use. This document specifies vault folders and the four member places
+Agent credential vault keeps the secrets agents use. This document specifies vault folders and the four member places
 (owner, manager, participant, consumer), credentials and their attributes, people's own values and credential
 requests, how a running agent receives a secret, external vaults, the vault key and its rotation, and the two related
 stores that hold no secrets themselves: saved connections and shared values (global values).

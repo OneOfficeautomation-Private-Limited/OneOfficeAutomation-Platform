@@ -17,7 +17,7 @@ administrator-only permissions are `repo.production`, `repo.approve`, `repo.perm
 4. [Teams](#4-teams)
 5. [Sign-in and security](#5-sign-in-and-security)
 6. [API keys and tokens](#6-api-keys-and-tokens)
-7. [One Agent Vault](#7-one-agent-vault)
+7. [Agent credential vault](#7-one-agent-vault)
 8. [Shared values and Connections](#8-shared-values-and-connections)
 9. [Toolkits](#9-toolkits)
 10. [The agent repository: folders, approvals, Git, code analysis](#10-the-agent-repository-folders-approvals-git-code-analysis)
@@ -216,9 +216,9 @@ For other systems that prefer short-lived tokens: `POST /api/auth/token` with `{
 session token (8 hours, extended while used); `POST /api/auth/refresh` replaces it; `GET /api/auth/token` tells
 whether a token is valid, for whom and until when.
 
-## 7. One Agent Vault
+## 7. Agent credential vault
 
-**Administration > One Agent Vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
+**Administration > Agent credential vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
 are handed to an agent only while it runs, and every use is audited. Agents refer to a value as
 `folder/credential/attribute`, for example `finance/erp/password`.
 
@@ -446,7 +446,7 @@ workflow event is recorded and hash-chained.
 
 1. **New connection**: **Name**, **Provider** (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI,
    Amazon SageMaker endpoint, Hugging Face, OpenAI-compatible), **Model**, **Type** (standard or fine-tuned),
-   **Endpoint**, **API key from the One Agent Vault** (a vault reference), **Roles that may use it** (empty = every
+   **Endpoint**, **API key from the Agent credential vault** (a vault reference), **Roles that may use it** (empty = every
    role) and **Description**. A help line explains each provider's model and endpoint.
 2. **Privacy and safety**: a **Microsoft Presidio analyzer** address for extra masking, and **Content check** with the
    provider's moderation endpoint (`AI.CONTENT_FLAGGED` when an answer is flagged).

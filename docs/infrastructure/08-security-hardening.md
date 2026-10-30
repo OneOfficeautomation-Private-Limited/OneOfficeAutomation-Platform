@@ -64,7 +64,7 @@ secrets, the audit chain key and the install id. It is looked up in this order:
 
 ## 3. Rotating the vault key
 
-The console's **Rotate key** (Administration > One Agent Vault > Vault key) works when the key comes from the key
+The console's **Rotate key** (Administration > Agent credential vault > Vault key) works when the key comes from the key
 file. It writes the new key next to the old one, re-encrypts in one transaction every credential, people's own
 values, external-vault sign-in secrets, the audit chain key, two-step secrets and the install id, re-encrypts the
 database and TLS passwords in the configuration files (keeping `.before-rotate` copies), replaces `master.key` and

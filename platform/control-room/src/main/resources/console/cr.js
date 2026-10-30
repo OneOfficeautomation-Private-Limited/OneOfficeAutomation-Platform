@@ -197,7 +197,7 @@ const PAGES = [
   ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["templates", "Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
   ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
   ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
-  ["credentials", "One Agent Vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
+  ["credentials", "Agent credential vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
@@ -909,7 +909,7 @@ const VIEWS = {
     const ADMIN_TITLES = {
       settings: ["Settings", "Settings for everyone: announcement, sign-in, single sign-on, AI assistants (MCP), uploads and value tracking."],
       roles: ["Roles", "Built-in and custom roles, and the permissions each one grants."],
-      connections: ["One Model Connections", "Named AI model connections agents use; keys stay in the One Agent Vault."],
+      connections: ["One Model Connections", "Named AI model connections agents use; keys stay in the Agent credential vault."],
       toolkits: ["Toolkits", "Every toolkit, how many agents use it, and switching it on or off."] };
     const head = header(ADMIN_TITLES[tab][0], ADMIN_TITLES[tab][1]);
     if (tab === "settings") {
@@ -1087,7 +1087,7 @@ const VIEWS = {
               h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete role " + x.name + "?")) { try { await api("DELETE", "roles/" + encodeURIComponent(x.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else if (tab === "connections") {
       const r = await api("GET", "connections");
-      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the One Prompt Skill, AI agent and generative AI actions. Keys stay in the One Agent Vault; agents receive only the reference." }),
+      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the One Prompt Skill, AI agent and generative AI actions. Keys stay in the Agent credential vault; agents receive only the reference." }),
         h("div", { class: "toolbar" }, h("span", { class: "spacer" }), h("button", { type: "button", class: "primary", onclick: () => connectionDialog() }, "New connection")),
         dataTable({ rows: r.connections, search: "Search connections", exportName: "model-connections", empty: "No model connections yet.",
           columns: [
@@ -1228,7 +1228,7 @@ const VIEWS = {
       box.replaceChildren(...(lockers.length ? lockers : [h("p", { class: "muted", text: r.lockers.length ? "No matches." : "No vault folders you own or consume yet." })]));
     };
     q.addEventListener("input", render);
-    main.replaceChildren(...header("One Agent Vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
+    main.replaceChildren(...header("Agent credential vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
       h("button", { type: "button", onclick: credentialRequestsDialog }, "Credential requests", req.requests.length ? h("span", { class: "count", text: String(req.requests.length) }) : null),
       can("lockers.manage") ? h("button", { type: "button", onclick: vaultKeyDialog }, ic("key", "#475569", "sm"), "Vault key") : null,
       can("lockers.manage") || can("lockers.own") ? h("button", { type: "button", class: "primary", onclick: lockerDialog }, "New vault folder") : null), h("div", { class: "toolbar" }, q), box);
@@ -1255,7 +1255,7 @@ const VIEWS = {
     const [r, k] = await Promise.all([api("GET", "saved-connections"), api("GET", "connection-kinds")]);
     S.connKinds = k.kinds;
     const kindName = (pkg) => (S.connKinds.find((x) => x.package === pkg) || { name: pkg }).name;
-    main.replaceChildren(...header("Connections", "A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in One Agent Vault; a connection keeps only their references.",
+    main.replaceChildren(...header("Connections", "A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in Agent credential vault; a connection keeps only their references.",
       can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => savedConnDialog(null) }, "New connection") : null),
       dataTable({ rows: r.connections, search: "Search connections", exportName: "connections", empty: "No connections yet. Create one so agent steps do not repeat an address and sign-in.",
         columns: [
@@ -2240,7 +2240,7 @@ function savedConnDialog(c) {
   kind.addEventListener("change", () => { for (const k of Object.keys(inputs)) delete inputs[k]; draw(); });
   draw();
   modal(c ? "Edit " + c.name : "New connection", [h("label", {}, "Name", name), h("label", {}, "Toolkit", kind), h("label", {}, "Description", desc), box,
-    h("p", { class: "muted", text: "Leave a setting empty to set it on each step instead. Secrets are references to One Agent Vault, read when the agent runs, as the person it runs as." })],
+    h("p", { class: "muted", text: "Leave a setting empty to set it on each step instead. Secrets are references to Agent credential vault, read when the agent runs, as the person it runs as." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       const values = {}, credentials = {};
       for (const [n, x] of Object.entries(inputs)) { const v = x.el.value.trim(); if (v) (x.credential ? credentials : values)[n] = v; }
@@ -2987,7 +2987,7 @@ function connectionDialog(c) {
     pii_analyzer_url: analyzer.value.trim() || null, content_check: contentCheck.value });
   modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
     help, h("label", {}, "Endpoint", base),
-    h("label", {}, "API key from the One Agent Vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
+    h("label", {}, "API key from the Agent credential vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
     h("h3", { text: "Privacy and safety" }),
     h("div", { class: "grid2" }, h("label", {}, "Microsoft Presidio analyzer (masks names, places and IDs before the model sees them, with Hide personal data)", analyzer),
       h("label", {}, "Content check", contentCheck)),

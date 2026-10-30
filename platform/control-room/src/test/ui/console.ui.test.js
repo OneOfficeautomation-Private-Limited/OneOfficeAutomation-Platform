@@ -56,7 +56,7 @@ async function page() {
   check("an administrator sees Home and all 26 pages, each once", navItems.length === 27 && new Set(navItems).size === 27 && navItems.includes("Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
-  check("Administration holds users, roles, the vault, licenses, audit and settings", ["Users", "Roles", "Teams", "One Agent Vault", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
+  check("Administration holds users, roles, the vault, licenses, audit and settings", ["Users", "Roles", "Teams", "Agent credential vault", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
   const manage = [...d.querySelectorAll('#nav .nav-section[aria-label="Manage"] .nav-fly button')].map((b) => b.textContent);
   check("Manage holds the runs, the task inbox, runners, schedules, triggers and queues", ["Task inbox", "Runners", "Schedules", "Triggers", "Work queues"].every((x) => manage.includes(x)), manage.join(","));
   const insights = [...d.querySelectorAll('#nav .nav-section[aria-label="Insights"] .nav-fly button')].map((b) => b.textContent);
@@ -75,7 +75,7 @@ async function page() {
   check("and closes again", await until(() => !d.querySelector('#nav .nav-section[aria-label="Manage"] .nav-items')));
   const find = d.querySelector("#nav .nav-search input");
   find.value = "vault"; find.dispatchEvent(new P.w.Event("input", { bubbles: true }));
-  check("Find a page lists the matching pages", await until(() => [...d.querySelectorAll("#nav .nav-items button")].map((b) => b.textContent).join() === "One Agent Vault"));
+  check("Find a page lists the matching pages", await until(() => [...d.querySelectorAll("#nav .nav-items button")].map((b) => b.textContent).join() === "Agent credential vault"));
   const find2 = d.querySelector("#nav .nav-search input");
   find2.value = ""; find2.dispatchEvent(new P.w.Event("input", { bubbles: true }));
   click(d.querySelector("#nav .nav-collapse"));
@@ -123,7 +123,7 @@ async function page() {
   check("device registration shows the agent command with a one-time key", await until(() => !d.getElementById("modal").hidden && d.getElementById("modal-body").textContent.includes("agent register --url " + BASE + " --key ooareg_")));
   click(btn("Close"));
 
-  nav("One Agent Vault");
+  nav("Agent credential vault");
   await until(() => btn("New vault folder"));
   click(btn("New vault folder"));
   await until(() => !d.getElementById("modal").hidden);
@@ -228,7 +228,7 @@ async function page() {
   check("One Workflow explains how to publish workflows", await until(() => d.getElementById("main").textContent.includes("No workflows are checked in yet") && d.getElementById("main").textContent.includes("No workflow runs yet")));
   nav("AI governance");
   check("AI governance shows totals by model and agent", await until(() => d.getElementById("main").textContent.includes("AI calls") && d.getElementById("main").textContent.includes("By model") && btn("Export CSV")));
-  nav("One Agent Vault");
+  nav("Agent credential vault");
   await until(() => btn("Link an external vault"));
   click(btn("Link an external vault"));
   check("a vault folder can be linked to an external vault", await until(() => !d.getElementById("modal").hidden && d.getElementById("modal-body").textContent.includes("HashiCorp Vault") && d.getElementById("modal-body").textContent.includes("Token")));
@@ -288,7 +288,7 @@ async function page() {
   check("an agent builder sees work queues but not Administration", carolNav.includes("Work queues") && !carolNav.includes("Settings") && !carolNav.includes("Roles"), carolNav.join(","));
   check("everyone has a task inbox; AI governance is for auditors", carolNav.includes("Task inbox") && carolNav.includes("One Workflow") && !carolNav.includes("AI governance"), carolNav.join(","));
   check("other users see the announcement", await until(() => !d.getElementById("announcement").hidden && d.getElementById("announcement").textContent.includes("Maintenance")));
-  nav("One Agent Vault");
+  nav("Agent credential vault");
   check("a consumer sees the locker but cannot manage it", await until(() => d.getElementById("main").textContent.includes("finance")) && !btn("Add or update credential"));
 
   const csrf = await fetch(BASE + "/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });

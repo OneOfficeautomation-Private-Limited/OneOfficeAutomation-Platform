@@ -41,7 +41,7 @@ console where they are changed.
 | One Command Center | The central server and its web console: repository, runs, runners, schedules, triggers, queues, workflows, vault, users, audit, settings. Its API is under `/api/`. |
 | One Agent Studio | The browser-based designer for agents and other automation items, served at `/studio/` by `ooa server`, working on a private workspace on the designer's computer. |
 | One Runner | The service on each machine that takes runs from the Command Center and runs each agent in its own worker process. Called "runner" or "device" in the API. |
-| One Agent Vault | The encrypted credential store of the Command Center. |
+| Agent credential vault | The encrypted credential store of the Command Center. |
 | One Workflow | The workflow designer (in Studio) and runtime (in the Command Center) with the Task inbox. |
 | One Model Connections | Named connections to AI model providers. |
 | One Audit Trail | The hash-chained record of every sign-in, change, run and credential use. |

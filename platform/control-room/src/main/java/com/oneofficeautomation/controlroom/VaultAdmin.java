@@ -13,7 +13,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * One Agent Vault administration beyond single attribute values: whole credentials (details, owner, delete), vault
+ * Agent credential vault administration beyond single attribute values: whole credentials (details, owner, delete), vault
  * folder members (owners, managers, participants, consumers) and deleting a folder, user-provided attributes (each
  * person keeps their own value; a run reads the value of the person it runs as), and the master key (status and
  * rotation, which re-encrypts every stored value with a new key).

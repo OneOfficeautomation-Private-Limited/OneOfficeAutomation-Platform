@@ -180,7 +180,7 @@ at the bottom makes the menu narrow (icons only) or full again.
 | **Build** | Agent repository, Templates, One Agent Studio (opens a new tab), API tasks, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
 | **Manage** | Agent Runs, Task inbox, Runners, Schedules, Triggers, Work queues, One Workflow, Shared values, Connections, Toolkits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows and the shared settings agents use |
 | **Insights** | Operations, Dashboards | How agents and work queues are doing |
-| **Administration** | Users, Roles, Teams, One Agent Vault, One Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
+| **Administration** | Users, Roles, Teams, Agent credential vault, One Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
 | **AI** | One Model Connections, Prompt Skills, AI governance | Model connections, AI prompts and the record of AI use |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,

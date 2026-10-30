@@ -2340,7 +2340,7 @@ public final class ControlRoom {
             Map<String, Object> uv = db.one("SELECT ciphertext FROM credential_user_values WHERE locker = ? AND name = ? AND attribute = ? AND username = ?", p[0], p[1], p[2], who);
             if (uv == null) {
                 audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "user_value", true), "not_found", null);
-                throw new OoaException("VAULT.NOT_FOUND", who + " has not stored their own value for '" + ref + "'", "Ask " + who + " to enter it in One Agent Vault (My value).");
+                throw new OoaException("VAULT.NOT_FOUND", who + " has not stored their own value for '" + ref + "'", "Ask " + who + " to enter it in Agent credential vault (My value).");
             }
             audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "user_value", true), "ok", null);
             return vault.decrypt((String) uv.get("ciphertext"), VaultAdmin.userBound(ref, who));
@@ -2473,7 +2473,7 @@ public final class ControlRoom {
             if (e.getValue() instanceof Map || e.getValue() instanceof List) throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' must be text, a number or true/false");
         for (var e : creds.entrySet())
             if (!(e.getValue() instanceof String ref) || !ref.matches("^[^/]{1,120}/[^/]{1,120}/[^/]{1,120}$"))
-                throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from One Agent Vault.");
+                throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from Agent credential vault.");
         String desc = body.get("description") instanceof String d ? d.strip() : null;
         String jv = JsonLite.write(values), jc = JsonLite.write(creds);
         db.tx(() -> {

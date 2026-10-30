@@ -71,7 +71,7 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "One Agent Vault" }).getAttribute("href")).toBe("../?page=credentials");
+    expect(within(menu).getByRole("link", { name: "Agent credential vault" }).getAttribute("href")).toBe("../?page=credentials");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One Agent Studio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("link", { name: "Today's console" }).getAttribute("href")).toBe("../");

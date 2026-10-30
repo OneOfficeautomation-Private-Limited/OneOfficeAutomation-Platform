@@ -46,7 +46,7 @@ Instead of repeating the provider, model and key on every step, name the setting
 2. Click **+ Connection**. For each connection set:
    - a **name** (for example `gpt`), and **Default** for the one used when a step names none;
    - **Provider** and **Model** (for example `gpt-4o-mini`);
-   - **API key from**: *Environment variable* (its name, such as `OPENAI_API_KEY`), *One Agent Vault credential*
+   - **API key from**: *Environment variable* (its name, such as `OPENAI_API_KEY`), *Agent credential vault credential*
      (`vault folder/credential/attribute`) or *No key (local model)*;
    - **Endpoint (optional)**: for Azure or a local server.
 3. Click **Save**. The settings go to `model-connections.json` in your workspace; keys are never stored there, only where

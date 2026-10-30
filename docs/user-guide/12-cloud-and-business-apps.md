@@ -30,7 +30,7 @@ and AWS EC2 virtual machines.
 Every cloud toolkit needs some form of sign-in: an access token, an API token, a user name and password, or a key pair.
 In ONEOFFICEAUTOMATION:
 
-- the **secret** is a **Credential**: a reference to One Agent Vault, never the value itself;
+- the **secret** is a **Credential**: a reference to Agent credential vault, never the value itself;
 - the **address** of the system (instance URL, site URL, region) is ordinary text;
 - the toolkit's sign-in fields are usually the first fields of each action, so you see at once what it needs.
 
@@ -216,7 +216,7 @@ for `EC2` to find it quickly) has: **Connect**,
 ### 14.1 Prepare
 
 1. In AWS, create an access key for a user or role that may describe, start and stop the instance.
-2. In One Agent Vault, store it as credential `aws/test-server` with attributes `access_key_id` and
+2. In Agent credential vault, store it as credential `aws/test-server` with attributes `access_key_id` and
    `secret_access_key`.
 3. Note the instance id, for example `i-0abc1234def567890`, and its region, for example `eu-west-1`.
 

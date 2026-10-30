@@ -107,7 +107,7 @@ recorded in the **One Audit Trail**.
 | Runner pool | A named group of runners; work sent to a pool goes to its least busy online runner. |
 | Run | One execution of an agent on a runner. |
 | Run-as user | The person a run acts as: their vault values and default runner are used. |
-| Vault folder | A folder in One Agent Vault holding encrypted credentials. Agents refer to values as `folder/credential/attribute`. |
+| Vault folder | A folder in Agent credential vault holding encrypted credentials. Agents refer to values as `folder/credential/attribute`. |
 | Toolkit | A package of actions (Excel, Browser, Email, ...). Administrators can switch toolkits on and off. |
 | Seat | A licence right given to a person (Developer, Citizen Developer, Attended Runner) or to a runner (Unattended Runner). |
 

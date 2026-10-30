@@ -28,7 +28,7 @@ in workflows; and team leads who approve what goes live.
 | Who sees it | Only you | Everyone allowed by roles and folder permissions |
 | History | The file as it is now | Every version, with author, date and comment |
 | Runs | Your test runs in Studio | Runs on runners, schedules, triggers, work queues, workflows, API calls |
-| Secrets | Environment variables for local tests | One Agent Vault |
+| Secrets | Environment variables for local tests | Agent credential vault |
 
 Moving an agent from one to the other is called **check-in**. Taking a repository agent into your workspace to change
 it is **check-out**; it locks the agent for you so nobody else changes it at the same time.

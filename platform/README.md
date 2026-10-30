@@ -146,7 +146,7 @@ agents read them.
   Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka), plus generative AI, AI agents and Prompt Skills.
   See `../docs/COMMAND_CATALOG.md`.
 - **One Command Center**: agent repository, Agent Runs, runners and runner pools, schedules with holiday calendars,
-  triggers, work queues, One Workflow with a Task inbox, One Agent Vault with external vaults, shared values, users,
+  triggers, work queues, One Workflow with a Task inbox, Agent credential vault with external vaults, shared values, users,
   custom roles, API keys, single sign-on, AI governance, an MCP server for AI assistants, and the One Audit Trail.
 
 ## Next slices
