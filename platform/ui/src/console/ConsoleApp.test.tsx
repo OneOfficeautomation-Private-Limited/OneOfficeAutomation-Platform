@@ -58,8 +58,29 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     }
     if (route === "dashboard") return ok(dashboard);
     if (route === "plugins") return ok({ plugins });
-    if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json", production_version: 3 }, { path: "HR/Onboard.flow.json", production_version: 1 },
-      { path: "Finance/Purchase approval.process.json", production_version: 2 }] });
+    if (route === "repo" && url.includes("deleted=true")) return ok({ bots: [{ path: "HR/Old offboard.flow.json", latest_version: 2, deleted_at: "2026-10-20T08:00:00Z", deleted_by: "admin" }] });
+    if (route === "repo") {
+      const folder = new URLSearchParams(url.split("?")[1]).get("folder");
+      const bots = [
+        { path: "Finance/Invoice intake.flow.json", bot_id: "inv-1", description: "Reads invoices", latest_version: 3, production_version: 3, access: "manage",
+          labels: [{ label: "UAT", version: 3 }], updated: "2026-10-30T08:00:00Z", updated_by: "admin" },
+        { path: "HR/Onboard.flow.json", latest_version: 2, production_version: 1, locked_by: "vic", access: "edit", updated: "2026-10-29T08:00:00Z" },
+        { path: "Finance/Purchase approval.process.json", latest_version: 2, production_version: 2, access: "manage", updated: "2026-10-28T08:00:00Z" }];
+      return ok({ bots: folder ? bots.filter((b) => b.path.startsWith(folder + "/")) : bots });
+    }
+    if (route === "repo/folders") return ok({ folders: [{ path: "Finance", agents: 2, has_permissions: true, access: "manage" }, { path: "HR", agents: 1, access: "edit" }] });
+    if (route === "repo/permissions" && (init.method ?? "GET") === "GET") return ok({ folder: "Finance", permissions: [{ principal: "role:bot_runner", access: "run" }] });
+    if (route === "repo/production-requests") return ok({ approval_on: true, requests: url.includes("status=pending") ? [
+      { id: "q1", path: "HR/Onboard.flow.json", version: 2, requested_by: "vic", requested: "2026-10-31T07:00:00Z", comment: "New laptop step", status: "pending", can_decide: true }] : [
+      { id: "q0", path: "Finance/Invoice intake.flow.json", version: 3, requested_by: "vic", status: "approved", decided_by: "admin", decided: "2026-10-30T08:00:00Z" }] });
+    if (route === "repo/versions") return ok({ versions: [{ version: 3, labels: ["UAT"], comment: "Faster", author: "admin", created: "2026-10-30T08:00:00Z" },
+      { version: 2, labels: [], comment: "First fix", author: "vic", created: "2026-10-20T08:00:00Z" }] });
+    if (route === "repo/bot") return ok({ flow: { id: "inv-1", kind: "agent", steps: url.includes("version=2") ? [{ id: "s1" }] : [{ id: "s1" }, { id: "s2" }],
+      variables: [{ name: "vendor", type: "String", direction: "input", required: true, description: "Who sent it" }, { name: "total", type: "Number", direction: "output" }] } });
+    if (route === "repo/dependencies") return ok({ path: "Finance/Invoice intake.flow.json", agents: [{ bot_id: "pdf-1", path: "Shared/Read PDF.flow.json", found: true }], called_by: [], toolkits: ["ooa.excel"] });
+    if (route === "repo/production") return ok({ production_request: { id: "q2" } });
+    if (route === "runs" && init.method === "POST") return ok({ run_id: "r9", version: 3 });
+    if (/^repo\/(permissions|recover|delete|move|copy|labels|undo-checkout|folders|folders\/rename)$/.test(route) || /^repo\/production-requests\/q\d\/\w+$/.test(route)) return ok({ ok: true, path: "Finance", agents: 0 });
     if (route === "devices" && init.method === "PATCH") return ok({ updated: (body.ids as string[]).length, changes: 1 });
     if (route === "devices") return ok({ devices: [
       { id: "d1", name: "Runner A", hostname: "PC-A", os: "Windows 11", enabled: true, status: "online", device_type: "single_user", lifespan: "persistent", log_level: "info",
@@ -259,7 +280,7 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
-    expect(within(menu).getByRole("link", { name: "Agent Repository" }).getAttribute("href")).toBe("../?page=automation");
+    expect(within(menu).getByRole("link", { name: "Operations" }).getAttribute("href")).toBe("../?page=operations");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -871,6 +892,59 @@ describe("rebuilt Command Center console", () => {
     await waitFor(() => expect((within(sh).getByLabelText("Agent") as HTMLSelectElement).value).toBe("Finance/Invoice intake.flow.json"));
     await act(async () => { fireEvent.click(within(sh).getByRole("button", { name: "Share" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "templates/share", body: { path: "Finance/Invoice intake.flow.json", name: "Invoice intake", description: "", category: "Finance" } }));
+  });
+
+  it("shows the Agent Repository as AA's public workspace: a folder tree, folder permissions, an agent's versions compared, a version asked to go live, a run, approvals, recovery", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "repo.checkin", "repo.delete", "repo.permissions", "runs.start"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Repository" }));
+    const list = await screen.findByRole("table", { name: "Agents list" });
+    expect(await within(list).findByText("Checked out by vic")).toBeTruthy();
+    expect(within(list).getByText("Workflow")).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Folders" })).getByRole("button", { name: /^Finance/ }));
+    await waitFor(() => expect(within(list).queryByText("Onboard")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Folder permissions" }));
+    const perm = await screen.findByRole("dialog", { name: "Permissions of Finance" });
+    expect(await within(perm).findByText("Role bot_runner")).toBeTruthy();
+    fireEvent.change(within(perm).getByLabelText("Or a user name"), { target: { value: "vic" } });
+    fireEvent.change(within(perm).getByLabelText("Access"), { target: { value: "edit" } });
+    fireEvent.click(within(perm).getByRole("button", { name: "Add" }));
+    await act(async () => { fireEvent.click(within(perm).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "repo/permissions", body: { folder: "Finance",
+      permissions: [{ principal: "role:bot_runner", access: "run" }, { principal: "user:vic", access: "edit" }] } }));
+
+    fireEvent.click(within(list).getByText("Invoice intake"));
+    const d = await screen.findByRole("dialog", { name: "Invoice intake" });
+    expect(await within(d).findByText("Who sent it")).toBeTruthy();
+    expect(await within(d).findByText("ooa.excel")).toBeTruthy();
+    const versions = within(d).getByRole("table", { name: "Versions" });
+    fireEvent.click(await within(versions).findByLabelText("Select v2"));
+    fireEvent.click(within(versions).getByLabelText("Select v3"));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Compare" })); });
+    expect(await screen.findByText(/line\(s\) added, 0 removed/)).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "v2 to v3 of Invoice intake" })).getByRole("button", { name: /close/i }));
+    fireEvent.click(within(versions).getByRole("button", { name: "Ask to make live" }));
+    fireEvent.change(within(d).getByLabelText(/Ask for v2 to go live/), { target: { value: "Roll back" } });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Ask" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/production", body: { path: "Finance/Invoice intake.flow.json", version: 2, comment: "Roll back" } }));
+
+    fireEvent.click(within(list).getByText("Invoice intake"));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Invoice intake" })).getByRole("button", { name: "Run" }));
+    const run = await screen.findByRole("dialog", { name: "Run Invoice intake" });
+    fireEvent.change(await within(run).findByLabelText(/^vendor/), { target: { value: "Acme" } });
+    await waitFor(() => expect((within(run).getByLabelText("Run on") as HTMLSelectElement).value).toBe("d:d1"));
+    await act(async () => { fireEvent.click(within(run).getByRole("button", { name: "Run" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs", body: { bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", inputs: { vendor: "Acme" } } }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Production approvals (1 waiting)" }));
+    const ap = await screen.findByRole("dialog", { name: "Production approvals" });
+    await act(async () => { fireEvent.click(await within(ap).findByRole("button", { name: "Approve" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/production-requests/q1/approve" }));
+    fireEvent.click(within(ap).getByRole("button", { name: /close/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Deleted agents" }));
+    const del = await screen.findByRole("dialog", { name: "Deleted agents" });
+    await act(async () => { fireEvent.click(await within(del).findByRole("button", { name: "Recover" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "repo/recover", body: { path: "HR/Old offboard.flow.json" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

@@ -20,6 +20,7 @@ import { Roles } from "./Roles";
 import { Schedules } from "./Schedules";
 import { Settings } from "./Settings";
 import { Skills } from "./Skills";
+import { Repository } from "./Repository";
 import { Teams } from "./Teams";
 import { Templates } from "./Templates";
 import { Tests } from "./Tests";
@@ -30,7 +31,7 @@ import { Vault } from "./Vault";
 import { Workflows } from "./Workflows";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "apitasks", "audit", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
+const LOCAL = new Set<string>(["activity", "apitasks", "audit", "automation", "connections", "credentials", "devices", "docautomation", "globals", "governance", "inbox", "licenses", "queues", "roles", "savedconn", "schedules", "settings", "skills", "teams", "templates", "tests", "toolkits", "triggers", "workflows", "users"]);
 /** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -109,6 +110,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "skills" && <Skills api={api} user={user} onNotice={setNotice} />}
           {page === "governance" && <Governance api={api} onNotice={setNotice} />}
           {page === "apitasks" && <AgentApis api={api} user={user} onNotice={setNotice} />}
+          {page === "automation" && <Repository api={api} user={user} onNotice={setNotice} />}
           {page === "tests" && <Tests api={api} user={user} onNotice={setNotice} />}
           {page === "templates" && <Templates api={api} user={user} onNotice={setNotice} />}
         </main>

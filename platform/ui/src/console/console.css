@@ -136,3 +136,10 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-tpl h3 { margin: 0; font-size: 15px; }
 .cc-tpl p { margin: 0; }
 .cc-tpl button { justify-self: start; }
+/* Agent Repository: the folder tree beside the agents */
+.cc-repo { display: grid; grid-template-columns: 240px 1fr; align-items: start; }
+.cc-repo-tree { display: grid; gap: 1px; padding: 10px 8px; position: sticky; top: 0; max-height: calc(100vh - 120px); overflow-y: auto; border-right: 1px solid var(--ui-divider); background: var(--ui-bg); }
+.cc-repo-tree .cc-settings-tab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-log li.cc-add { color: var(--ui-success); }
+.cc-log li.cc-del { color: var(--ui-error-text); }
+@media (max-width: 760px) { .cc-repo { grid-template-columns: 1fr; } .cc-repo-tree { position: static; max-height: none; border-right: 0; } }

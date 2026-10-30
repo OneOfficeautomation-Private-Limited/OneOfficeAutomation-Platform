@@ -110,6 +110,13 @@ export type AgentApi = { id: string; name: string; bot_path: string; device_id?:
   created_by?: string; created?: string; last_used?: string | null; calls: number; url: string };
 export type TestRunSummary = { id: string; started: string; finished?: string | null; total: number; passed: number; status: string; version?: number };
 export type TestSet = { id: string; name: string; description?: string | null; bot_path: string; cases: { name: string; inputs?: Record<string, unknown>; expect?: Record<string, unknown> }[]; last_run?: TestRunSummary | null };
+export type RepoAgent = { path: string; bot_id?: string; name?: string; description?: string | null; latest_version: number; production_version?: number | null; locked_by?: string | null;
+  updated?: string; updated_by?: string; folder?: string; access?: string; labels?: { label: string; version: number }[]; deleted_at?: string; deleted_by?: string };
+export type RepoFolder = { path: string; description?: string | null; agents: number; has_permissions?: boolean; access?: string };
+export type RepoVersion = { version: number; comment?: string | null; author?: string; created?: string; labels: string[] };
+export type ProductionRequest = { id: string; path: string; version: number; requested_by: string; requested?: string; comment?: string | null; status: string;
+  can_decide?: boolean; decided_by?: string | null; decided?: string | null; note?: string | null };
+export type FlowVariable = { name: string; type?: string; direction?: string; required?: boolean; description?: string; default?: unknown; enum?: unknown[] };
 export type AgentTemplate = { id: string; source: string; name: string; description?: string; category: string; publisher: string; agents: string[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
@@ -384,6 +391,35 @@ export class CrApi {
   runTestSet(id: string, where: { device_id?: string; pool_id?: string }) { return this.call<{ test_run_id: string; started: number; cases: number }>("POST", "test-sets/" + encodeURIComponent(id) + "/run", where); }
   async testHistory(id: string) { return (await this.call<{ runs?: TestRunSummary[] }>("GET", "test-sets/" + encodeURIComponent(id) + "/history")).runs ?? []; }
   testRun(id: string) { return this.call<TestRunSummary & { bot_path: string; version: number; started_by?: string; results: { case_name: string; status: string; passed: boolean; detail?: string; run_id?: string }[] }>("GET", "test-sets/runs/" + encodeURIComponent(id)); }
+  // ---- Agent Repository: folders and their permissions, agents with versions, labels, live production and approvals ----
+  async repo(folder?: string) { return (await this.call<{ bots?: RepoAgent[] }>("GET", "repo" + (folder ? "?folder=" + encodeURIComponent(folder) : ""))).bots ?? []; }
+  async deletedAgents() { return (await this.call<{ bots?: RepoAgent[] }>("GET", "repo?deleted=true")).bots ?? []; }
+  async repoFolders() { return (await this.call<{ folders?: RepoFolder[] }>("GET", "repo/folders")).folders ?? []; }
+  createFolder(path: string, description: string) { return this.call<{ path: string }>("POST", "repo/folders", { path, description }); }
+  renameFolder(from: string, to: string) { return this.call<{ path: string; agents: number }>("POST", "repo/folders/rename", { from, to }); }
+  async deleteFolder(path: string) { await this.call("DELETE", "repo/folders?path=" + encodeURIComponent(path)); }
+  async folderPermissions(folder: string) { return (await this.call<{ permissions?: { principal: string; access: string }[] }>("GET", "repo/permissions?folder=" + encodeURIComponent(folder))).permissions ?? []; }
+  async saveFolderPermissions(folder: string, permissions: { principal: string; access: string }[]) { await this.call("PUT", "repo/permissions", { folder, permissions }); }
+  moveAgent(path: string, folder: string) { return this.call<{ path: string }>("POST", "repo/move", { path, folder }); }
+  copyAgent(path: string, to: string) { return this.call<{ path?: string }>("POST", "repo/copy", { path, to }); }
+  deleteAgent(path: string) { return this.call<{ deleted: string; called_by?: string[] }>("POST", "repo/delete", { path }); }
+  async recoverAgent(path: string) { await this.call("POST", "repo/recover", { path }); }
+  async undoCheckout(path: string) { await this.call("POST", "repo/undo-checkout", { path }); }
+  async agentVersions(path: string) { return (await this.call<{ versions?: RepoVersion[] }>("GET", "repo/versions?path=" + encodeURIComponent(path))).versions ?? []; }
+  agentFlow(path: string, version: number | "production" | "latest") {
+    return this.call<{ flow: { id?: string; kind?: string; steps?: unknown[]; variables?: FlowVariable[] } & Record<string, unknown> }>("GET", "repo/bot?path=" + encodeURIComponent(path) + "&version=" + version);
+  }
+  dependencies(path: string) {
+    return this.call<{ agents: { bot_id: string; path?: string | null; found: boolean }[]; called_by: string[]; toolkits: string[] }>("GET", "repo/dependencies?path=" + encodeURIComponent(path));
+  }
+  async setLabel(path: string, label: string, version: number) { await this.call("PUT", "repo/labels", { path, label, version }); }
+  async removeLabel(path: string, label: string) { await this.call("DELETE", "repo/labels?path=" + encodeURIComponent(path) + "&label=" + encodeURIComponent(label)); }
+  setProduction(path: string, version: number, comment?: string) { return this.call<{ production_request?: unknown }>("POST", "repo/production", { path, version, comment }); }
+  productionRequests(status?: string) {
+    return this.call<{ requests: ProductionRequest[]; approval_on: boolean }>("GET", "repo/production-requests" + (status ? "?status=" + status : ""));
+  }
+  async decideRequest(id: string, how: "approve" | "reject" | "withdraw", note: string) { await this.call("POST", "repo/production-requests/" + encodeURIComponent(id) + "/" + how, { note }); }
+  startRun(b: { bot_path: string; device_id?: string; pool_id?: string; inputs: Record<string, unknown> }) { return this.call<{ run_id: string }>("POST", "runs", b); }
   // ---- Agent Templates: ready-made agents to install, share to the region, or load from a signed catalogue file ----
   templates() { return this.call<{ templates: AgentTemplate[]; categories: string[]; can_share?: boolean; problem?: string | null }>("GET", "templates"); }
   installTemplate(source: string, id: string, folder: string) {
