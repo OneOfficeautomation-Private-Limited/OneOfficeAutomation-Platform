@@ -16,7 +16,7 @@ const dashboard = { running: 2, queued: 1, success_24h: 40, failed_24h: 3, succe
   days: [{ date: "2026-10-29", success: 5, failed: 1, stopped: 0, active: 0 }, { date: "2026-10-30", success: 3, failed: 0, stopped: 1, active: 1 }] };
 
 /** A Command Center with one session cookie: signed out at first; asks for a code when mfa is on. */
-function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true } = {}) {
+function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[] } = {}) {
   let user = signedIn;
   const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
   const f = (async (url: string, init: RequestInit) => {
@@ -36,6 +36,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "auth/me") return ok(user);
     if (route === "auth/logout") { user = null; return ok({ ok: true }); }
     if (route === "dashboard") return ok(dashboard);
+    if (route === "plugins") return ok({ plugins });
     return no(404, "CR.NOT_FOUND", "Unknown API route " + route);
   }) as unknown as typeof fetch;
   return { api: new CrApi("/api/", f), calls };
@@ -85,10 +86,23 @@ describe("rebuilt Command Center console", () => {
     expect(within(menu).queryByText("ADMINISTRATION")).not.toBeNull();   // the vault is for everyone
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
     expect(within(menu).queryByText("INSIGHTS")).toBeNull();   // no page in it is open to a viewer
-    expect(within(menu).queryByText("AI")).toBeNull();
+    expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // AI shows only what a viewer may open
+    expect(within(menu).queryByRole("link", { name: "One Model Connections" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Account: Vic Viewer" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Sign out" })); });
     expect(await screen.findByRole("form", { name: "Sign in" })).toBeTruthy();
+  });
+
+  it("shows AI > Document Automation as a plug-in page: what it does when not installed, the module's page when it is", async () => {
+    render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
+    const menu = await screen.findByRole("navigation", { name: "Command Center" });
+    fireEvent.click(within(menu).getByRole("button", { name: "Document Automation" }));
+    expect(await screen.findByRole("heading", { name: "Not installed on this Command Center" })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: "Document Automation" }).getAttribute("aria-current")).toBe("page");
+    cleanup();
+    render(<ConsoleApp api={fakeServer({ signedIn: admin, plugins: [{ id: "document-automation", name: "Document Automation", description: "Learning instances and validation.", path: "/plugins/document-automation/" }] }).api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Document Automation" }));
+    expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
   });
 
   it("names a step sign-in still needs, done in today's console", async () => {

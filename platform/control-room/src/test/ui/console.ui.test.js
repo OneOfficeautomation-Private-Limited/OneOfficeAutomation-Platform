@@ -53,7 +53,7 @@ async function page() {
   const navItems = menuPages();
   const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
   check("the menu has short sections by task: Build, Manage, Insights, Administration, AI", groups.join("|") === "Build|Manage|Insights|Administration|AI", groups.join("|"));
-  check("an administrator sees Home and all 26 pages, each once", navItems.length === 27 && new Set(navItems).size === 27 && navItems.includes("Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
+  check("an administrator sees Home and all 27 pages, each once", navItems.length === 28 && new Set(navItems).size === 28 && navItems.includes("Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
   check("Administration holds users, roles, the vault, licenses, audit and settings", ["Users", "Roles", "Teams", "Agent credential vault", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
@@ -61,6 +61,11 @@ async function page() {
   check("Manage holds the runs, the task inbox, runners, schedules, triggers and queues", ["Task inbox", "Runners", "Schedules", "Triggers", "Work queues"].every((x) => manage.includes(x)), manage.join(","));
   const insights = [...d.querySelectorAll('#nav .nav-section[aria-label="Insights"] .nav-fly button')].map((b) => b.textContent);
   check("Insights holds Operations and Dashboards", insights.join("|") === "Operations|Dashboards", insights.join("|"));
+  const ai = [...d.querySelectorAll('#nav .nav-section[aria-label="AI"] .nav-fly button')].map((b) => b.textContent);
+  check("AI holds model connections, Prompt Skills, Document Automation and AI governance", ai.join("|") === "One Model Connections|Prompt Skills|Document Automation|AI governance", ai.join("|"));
+  nav("Document Automation");
+  check("Document Automation is a plug-in page: without the module it says what it does and that it is not installed",
+    await until(() => d.getElementById("main").textContent.includes("Not installed on this Command Center") && d.getElementById("main").textContent.includes("learning instance")));
   nav("Licenses");
   check("Licenses says no license is installed and lists seats, people and runners", await until(() => { const t = d.getElementById("main").textContent; return t.includes("No license installed") && t.includes("Unattended Runner") && t.includes("Install license"); }),
     d.getElementById("main").textContent.slice(0, 300));

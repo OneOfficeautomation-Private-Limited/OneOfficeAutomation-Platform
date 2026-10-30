@@ -3,10 +3,11 @@ import { CrApi, CrFailure, type CrUser } from "../api/cr";
 import { Button, Field, Icon, Menu, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
+import { DocumentAutomation } from "./DocumentAutomation";
 import { Home } from "./Home";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>([]);
+const LOCAL = new Set<string>(["docautomation"]);
 /** Today's console, which this one is served beside (at <base>/next/). */
 const TODAY = "../";
 
@@ -56,6 +57,7 @@ export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
           offTitle="Agent Studio runs beside the Command Center (ooa server), on the same computer" />
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
+          {page === "docautomation" && <DocumentAutomation api={api} />}
         </main>
       </div>
     </div>

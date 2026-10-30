@@ -27,6 +27,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     { id: "settings", label: "Settings", perm: "settings.manage" }] },
   { id: "ai", label: "AI", color: "#7c3aed", icon: "spark", pages: [
     { id: "connections", label: "One Model Connections", perm: "connections.manage" }, { id: "skills", label: "Prompt Skills", perm: "skills.view" },
+    { id: "docautomation", label: "Document Automation", perm: "repo.view" },
     { id: "governance", label: "AI governance", perm: "audit.view" }] },
 ];
 

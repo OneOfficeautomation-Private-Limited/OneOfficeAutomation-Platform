@@ -201,7 +201,7 @@ const PAGES = [
   ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
   ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
   ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
-  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
+  ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["docautomation", "Document Automation", "repo.view", "form", "#6d28d9"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
   ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
@@ -216,7 +216,7 @@ const NAV_GROUPS = [
   ["manage", "Manage", "desktop", ["activity", "inbox", "devices", "schedules", "triggers", "queues", "workflows", "globals", "savedconn", "toolkits"]],
   ["insights", "Insights", "percent", ["operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "credentials", "audit", "licenses", "settings"]],
-  ["ai", "AI", "shieldai", ["connections", "skills", "governance"]],
+  ["ai", "AI", "shieldai", ["connections", "skills", "docautomation", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
@@ -872,6 +872,28 @@ const VIEWS = {
     if (main.isConnected) S.timer = every(() => { if (S.page === "workflows" && $("modal").hidden && $("drawer").hidden) go("workflows"); }, 5000);
   },
 
+  /**
+   * AI > Document Automation, as in AA's Control Room: a plug-in page. An optional module fills it (it lists itself
+   * as a ConsolePlugin on the server); without it, the page says what the module does and that it is not installed.
+   */
+  async docautomation(main) {
+    const r = await api("GET", "plugins");
+    const p = (r.plugins || []).find((x) => x.id === "document-automation");
+    const head = header("Document Automation", "Reads documents such as invoices, receipts and forms, and pulls their fields out with AI, for agents to use.");
+    if (p) {
+      main.replaceChildren(...head, h("div", { class: "card" }, h("p", { text: p.description }),
+        h("a", { class: "btn primary", href: p.path, text: "Open Document Automation" })));
+      return;
+    }
+    main.replaceChildren(...head, h("div", { class: "card" },
+      h("h2", { text: "Not installed on this Command Center" }),
+      h("p", { text: "Document Automation is an add-on module. Once it is installed, its pages open here, and agents can use it." }),
+      h("ul", {},
+        h("li", { text: "A learning instance for each kind of document: the fields to extract, how text is read, and the AI model that extracts it." }),
+        h("li", { text: "Results checked by people in a validation queue before agents use them." }),
+        h("li", { text: "Accuracy measured on sample documents before it goes live." })),
+      h("p", { class: "muted", text: "Ask your administrator about the module. It works on premises and in the cloud." })));
+  },
   async governance(main) {
     S.govDays = S.govDays || 30;
     const g = await api("GET", "governance?days=" + S.govDays);

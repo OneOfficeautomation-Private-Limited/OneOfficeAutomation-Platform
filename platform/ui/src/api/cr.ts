@@ -15,6 +15,8 @@ export type Dashboard = {
   days?: { date: string; success: number; failed: number; stopped: number; active: number }[];
 };
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
+/** A page an optional module adds (Document Automation, for one): where its own pages are. */
+export type ConsolePlugin = { id: string; name: string; description: string; path: string };
 
 export class CrFailure extends Error {
   constructor(readonly status: number, readonly error: CrError) { super(error.message); }
@@ -43,6 +45,8 @@ export class CrApi {
   async logout() { await this.call("POST", "auth/logout"); }
   /** Whether Agent Studio is offered on this computer (it lives beside the Command Center under ooa server). */
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
+  /** The optional modules installed, each filling a page of the menu. */
+  async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }

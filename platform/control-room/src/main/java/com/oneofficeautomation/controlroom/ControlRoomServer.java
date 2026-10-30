@@ -478,6 +478,8 @@ public final class ControlRoomServer {
         ControlRoom.User u = user(ex, false);
         switch (seg[0]) {
             case "dashboard" -> sendJson(ex, 200, cr.dashboard(u, q.get("tz")));
+            // pages optional modules add (Document Automation): what is installed, for the menu's plug-in pages
+            case "plugins" -> sendJson(ex, 200, Map.of("plugins", ConsolePlugin.installed()));
             case "changes" -> sendJson(ex, 200, cr.changes(u, q.get("since"), ControlRoom.intOr(q.get("wait"), 0)));
             case "license" -> {
                 if (m.equals("GET") && seg.length == 1) sendJson(ex, 200, cr.platform.license(u));

@@ -181,7 +181,7 @@ at the bottom makes the menu narrow (icons only) or full again.
 | **Manage** | Agent Runs, Task inbox, Runners, Schedules, Triggers, Work queues, One Workflow, Shared values, Connections, Toolkits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows and the shared settings agents use |
 | **Insights** | Operations, Dashboards | How agents and work queues are doing |
 | **Administration** | Users, Roles, Teams, Agent credential vault, One Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
-| **AI** | One Model Connections, Prompt Skills, AI governance | Model connections, AI prompts and the record of AI use |
+| **AI** | One Model Connections, Prompt Skills, Document Automation, AI governance | Model connections, AI prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
 schedules, triggers, shared values, work queues, Operations, Dashboards and Prompt Skills, but cannot change anything.
