@@ -1074,8 +1074,17 @@ function restoreWorkspace() {
   fs.writeFileSync(path.join(WS, "My Agents", "nav_parent.flow.json"), JSON.stringify({ kind: "TaskBot", id: "nav_parent", name: "Nav parent", description: "", variables: [],
     steps: [{ id: "n1", action: "core/comment", args: { text: "first" } }, { id: "n2", action: "core/if", args: { condition: { op: "eq", left: 1, right: 1 } },
       children: [{ id: "n3", action: "core/run_bot", args: { automation: "nav_child" } }] }] }));
-  w.eval("state.dirty = false; openBot('My Agents/nav_parent.flow.json')");
-  await until(() => w.eval("state.file") === "My Agents/nav_parent.flow.json" && stepById("n3"));
+  // open the parent; on CI this has once failed to open with no trace, so a failed open is kept (window.__navError) and
+  // tried once more, and the check says what was open and what Studio last said
+  const openParent = () => w.eval("state.dirty = false; window.__navError = ''; openBot('My Agents/nav_parent.flow.json').catch((e) => { window.__navError = String(e && e.message || e); })");
+  const parentOpen = () => w.eval("state.file") === "My Agents/nav_parent.flow.json" && stepById("n3");
+  openParent();
+  if (!await until(parentOpen, 10000)) {
+    console.log("  note: the parent agent did not open at first (" + (w.eval("window.__navError") || "no error") + "; open: " + w.eval("state.file") + "); trying again");
+    openParent();
+  }
+  check("the parent agent opens", await until(parentOpen, 10000),
+    "open: " + w.eval("state.file") + " | error: " + (w.eval("window.__navError") || "none") + " | last message: " + lastToast);
   // the name comes from the workspace's agent list: read it again now that nav_child exists (a list read earlier can lack it)
   w.eval("loadAgents(true).then((l) => { state.agents = l; renderSteps(); })");
   check("a Run agent step shows the name of the agent it runs", await until(() => stepById("n3") && stepById("n3").querySelector(".summary").textContent.includes("Nav child"), 10000),
