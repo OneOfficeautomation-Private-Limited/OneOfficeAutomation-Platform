@@ -37,7 +37,12 @@ import com.oneofficeautomation.controlroom.ControlRoom.User;
  */
 public final class Templates {
     static final String FORMAT = "ooa-templates-1";
-    static final String DEFAULT_URL = "https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/templates.json";
+    /**
+     * No catalogue is published at the moment (the customer repository was emptied on 2026-10-30), so an empty setting
+     * means none. When releases are published again, this becomes
+     * https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/templates.json.
+     */
+    static final String DEFAULT_URL = "off";
     static final int MAX_FEED_BYTES = 20 * 1024 * 1024;
     static final List<String> CATEGORIES = List.of("Finance", "Human resources", "Sales", "Customer service", "IT", "Operations", "Documents", "Other");
 

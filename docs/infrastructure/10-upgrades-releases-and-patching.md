@@ -36,6 +36,10 @@ Upgrades need a short downtime of the Command Center (no rolling upgrades).
 
 ## 2. Where releases are published
 
+> **Since 2026-10-30** the customer repository is empty: the releases page and template catalogue are offline until the
+> next release is published (releases v0.1.0 and v0.1.1 stay under the repository's Releases). The steps below publish
+> them again.
+
 Releases are on the public releases page `https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/`, which lists every
 release newest first (previews marked) with each file's download link, size and SHA-256, and `releases.json` for
 scripts. Checksums appear only for releases whose signed manifest checks out; drafts are not listed, and only
