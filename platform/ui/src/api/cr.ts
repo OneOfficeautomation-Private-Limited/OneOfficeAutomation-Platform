@@ -76,6 +76,10 @@ export type HumanTask = { id: string; title: string; description?: string | null
 export type Schedule = { id: string; name: string; bot_path: string; device_id?: string | null; pool_id?: string | null; run_as?: string | null; kind: "every" | "daily" | "weekly";
   every_minutes?: number | null; at_time?: string | null; days?: string | null; time_zone: string; holiday_calendar?: string | null; missed_runs?: string | null; overlap?: string | null;
   created_by?: string; next_run?: string | null; last_run?: string | null; enabled: boolean; inputs?: string | Record<string, unknown> | null };
+/** A trigger: an event that starts an agent, watched on a runner or checked by the Command Center (evaluated_on). */
+export type Trigger = { id: string; name: string; kind: string; bot_path: string; device_id?: string | null; run_as?: string | null; created_by?: string; enabled: boolean;
+  status?: string | null; evaluated_on?: "runner" | "server" | null; windows_only?: boolean; fire_count?: number; last_fired?: string | null; last_error?: string | null;
+  folder?: string | null; pattern?: string | null; config?: Record<string, unknown> | null };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -246,6 +250,15 @@ export class CrApi {
   async deleteCalendar(name: string) { await this.call("DELETE", "calendars/" + encodeURIComponent(name)); }
   /** Agents with their live (production) version, for choosing what a schedule, trigger or queue runs. */
   async liveAgents() { return ((await this.call<{ bots?: { path: string; production_version?: number | null }[] }>("GET", "repo")).bots ?? []).filter((b) => b.production_version && b.path.endsWith(".flow.json")); }
+  // ---- Triggers: events on a runner (files, windows, processes, services, hotkeys) or checked by the Command Center ----
+  async triggers() { return (await this.call<{ triggers?: Trigger[] }>("GET", "triggers")).triggers ?? []; }
+  /** A webhook trigger answers with its address and secret, shown once. */
+  createTrigger(b: Record<string, unknown>) { return this.call<{ id: string; url?: string; secret?: string }>("POST", "triggers", b); }
+  async updateTrigger(id: string, b: Record<string, unknown>) { await this.call("PUT", "triggers/" + encodeURIComponent(id), b); }
+  async pauseTrigger(id: string, pause: boolean) { await this.call("POST", "triggers/" + encodeURIComponent(id) + (pause ? "/pause" : "/resume")); }
+  /** Checks a Command Center trigger now instead of waiting for its interval. */
+  pollTrigger(id: string) { return this.call<{ fired?: number; error?: string }>("POST", "triggers/" + encodeURIComponent(id) + "/poll"); }
+  async deleteTrigger(id: string) { await this.call("DELETE", "triggers/" + encodeURIComponent(id)); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

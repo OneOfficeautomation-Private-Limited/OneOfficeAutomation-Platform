@@ -93,6 +93,13 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "triggers" && init.method === "POST") return ok(body.kind === "webhook" ? { id: "t9", url: "/api/hooks/t9", secret: "whsec-1" } : { id: "t8" });
+    if (route === "triggers") return ok({ triggers: [
+      { id: "g1", name: "New invoices", kind: "file", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", enabled: true, evaluated_on: "runner", folder: "C:\\In", pattern: "*.pdf", fire_count: 3, last_fired: "2026-10-31T08:00:00Z", created_by: "admin" },
+      { id: "g2", name: "Support mail", kind: "email", bot_path: "HR/Onboard.flow.json", device_id: "d1", enabled: true, evaluated_on: "server", status: "error", last_error: "Sign-in failed",
+        config: { host: "imap.example.com", username: "support", mail_folder: "INBOX", interval_seconds: 60 }, created_by: "admin" }] });
+    if (/^triggers\/g\d\/poll$/.test(route)) return ok({ fired: 2 });
+    if (/^triggers\/g\d(\/(pause|resume))?$/.test(route)) return ok({ ok: true });
     if (route === "schedules" && init.method === "POST") return ok({ id: "s9", next_run: "2026-11-01T08:30:00Z" });
     if (route === "schedules") return ok({ schedules: [
       { id: "s1", name: "Nightly invoices", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "daily", at_time: "02:00", time_zone: "Asia/Kolkata", enabled: true,
@@ -188,7 +195,7 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Triggers" }).getAttribute("href")).toBe("../?page=triggers");
+    expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -582,6 +589,28 @@ describe("rebuilt Command Center console", () => {
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create schedule" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules", body: expect.objectContaining({
       name: "Nightly invoices (copy)", bot_path: "Finance/Invoice intake.flow.json", kind: "weekly", at_time: "02:00", days: "MON,TUE,WED,THU", device_id: "d1", pool_id: null, holiday_calendar: "India 2026" }) }));
+  });
+
+  it("shows Triggers as AA's event triggers: where each listens, its health, Check now; a webhook created shows its secret once", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "triggers.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Triggers" }));
+    const list = await screen.findByRole("table", { name: "Triggers list" });
+    expect(await within(list).findByText("The Command Center")).toBeTruthy();
+    expect(within(list).getByText("Error")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Health"), { target: { value: "error" } });
+    await waitFor(() => expect(within(list).queryByText("New invoices")).toBeNull());
+    await act(async () => { fireEvent.click(within(list).getByRole("button", { name: "Check now" })); });
+    expect(await screen.findByText("Checked Support mail: 2 new.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create trigger" }));
+    const c = await screen.findByRole("dialog", { name: "Create trigger" });
+    fireEvent.change(within(c).getByLabelText("Event"), { target: { value: "webhook" } });
+    fireEvent.change(within(c).getByLabelText("Name"), { target: { value: "Orders hook" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create trigger" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "triggers", body: { name: "Orders hook", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "webhook" } }));
+    const hook = await screen.findByRole("dialog", { name: "Webhook created" });
+    expect(within(hook).getByText("whsec-1")).toBeTruthy();
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
