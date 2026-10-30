@@ -34,10 +34,70 @@
   --ui-frame-text: #ffffff;
   --ui-frame-text-2: #c7cedb;  /* 10.8:1 on the menu */
 
+  --ui-soft: #f6f8fb;          /* section rows, code boxes */
+  --ui-tint: #f2f7ff;
+  --ui-pill-text: #1b4fae;     /* on --ui-selected: 6.6:1 */
+  --ui-error-text: #9f1239;
+  --ui-error-bg: #fdecec;
+  --ui-error-line: #f3b4b4;
+  --ui-ok-text: #14532d;
+  --ui-ok-bg: #e6f4ea;
+  --ui-running-bg: #fdf3e1;
+  --ui-ai-bg: #f3effe;
+  --ui-ai-text: #3b0764;
+  --ui-offer-bg: #fff7e6;
+  --ui-guide: #9aa4b2;         /* block guides and diagram lines */
+
   --ui-h: 32px;                /* tabs, fields, buttons */
   --ui-row: 34px;
+  --ui-step: 36px;             /* a step line */
+  --ui-bar: 40px;              /* panel and tab bars */
   --ui-radius: 6px;
-  --ui-focus: 0 0 0 2px #ffffff, 0 0 0 4px var(--ui-accent);
+  --ui-focus: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-accent);
+  color-scheme: light;
+}
+
+/*
+ * Dark theme (Display menu): the same tokens on dark panels. The frame, solid buttons and icon tiles stay as they
+ * are; every text colour is still at least 4.5:1 on the surface it sits on (tools/check-contrast.mjs).
+ */
+:root[data-theme="dark"] {
+  --ui-text: #e8edf4;
+  --ui-text-2: #c9d1dc;
+  --ui-text-3: #aab4c3;
+  --ui-bg: #1b2230;
+  --ui-row-hover: #253044;
+  --ui-selected: #243c66;
+  --ui-divider: #2e3849;
+  --ui-border: #445066;
+  --ui-field: #7d899c;
+  --ui-accent-text: #8fb6ff;
+  --ui-warning-text: #f5c26b;
+  --ui-success: #1d7a46;
+  --ui-variable: #c9adff;
+  --ui-soft: #222b3b;
+  --ui-tint: #1f2c45;
+  --ui-pill-text: #cfe0ff;
+  --ui-error-text: #ffa3b4;
+  --ui-error-bg: #3d1a22;
+  --ui-error-line: #7a2f3d;
+  --ui-ok-text: #93e2b0;
+  --ui-ok-bg: #173826;
+  --ui-running-bg: #3b3018;
+  --ui-ai-bg: #2c2147;
+  --ui-ai-text: #e2d4ff;
+  --ui-offer-bg: #3b3018;
+  --ui-guide: #5d6a80;
+  color-scheme: dark;
+}
+
+/* Compact density (Display menu): shorter lines and bars, so more steps fit on screen */
+:root[data-density="compact"] {
+  --ui-size: 12.5px;
+  --ui-h: 28px;
+  --ui-row: 28px;
+  --ui-step: 28px;
+  --ui-bar: 34px;
 }
 
 * { box-sizing: border-box; }

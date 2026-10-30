@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
 import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
-import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, TabPanel, Tabs, TextInput, usePersistent, type MenuItem } from "../components";
+import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, type MenuItem } from "../components";
 import { ConditionEditor } from "./ConditionEditor";
 import {
   addBranch, blockIds, CLIP_KEY, copySteps, duplicateSteps, foldedSet, innerLists, isBlock, locate, moveManyTo, moveSelection, partList, parseSection,
@@ -38,6 +38,8 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
   const [open, setOpen] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
   const [hidden, setHidden] = usePersistent("panel.actions.hidden", false);
+  const [width, setWidth] = usePanelSize("actions");
+  const panel = useRef<HTMLElement | null>(null);
   const total = packages.reduce((n, p) => n + p.actions.length, 0);
   // Enter in the search adds the best match: same name, then a name starting with the words, then the first found
   const best = () => {
@@ -47,7 +49,8 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
   const list = packages.map((p) => ({ p, actions: q ? p.actions.filter((a) => a.name.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)) : p.actions }))
     .filter((x) => x.actions.length).sort((a, b) => a.p.name.localeCompare(b.p.name));
   return (
-    <SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions">
+    <><SidePanel title="Actions" side="left" collapsed={hidden} onToggle={() => setHidden(!hidden)} className="st-actions"
+      style={width ? { width } : undefined} panelRef={(el) => { panel.current = el; }}>
       <div className="st-panel-search"><TextInput aria-label="Search actions" placeholder={`Search ${total.toLocaleString()} actions`} value={query} onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && q) { e.preventDefault(); const b = best(); if (b) onAdd(b); } }} /></div>
       <p className="st-panel-hint">Click an action to add it after the selected step, or drag it to where it goes. Enter adds the best match.</p>
@@ -70,6 +73,8 @@ export function ActionsPanel({ packages, onAdd }: { packages: PackageManifest[];
         })}
       </ul>
     </SidePanel>
+    {!hidden && <Splitter label="Resize the actions panel" axis="x" grow={1} value={width} min={200} max={520}
+      measure={() => panel.current?.getBoundingClientRect().width ?? 272} onChange={setWidth} />}</>
   );
 }
 
@@ -105,6 +110,29 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
   const [rightHidden, setRightHidden] = usePersistent("panel.details.hidden", false);
+  const [rightWidth, setRightWidth] = usePanelSize("details");
+  // the output panel: at the bottom, on the right or floating (moved by its grip), or minimised to a bar
+  const [outAt, setOutAt] = usePersistent<"bottom" | "right" | "float">("output.at", "bottom");
+  const [outMin, setOutMin] = usePersistent("output.min", false);
+  const [outHeight, setOutHeight] = usePanelSize("output");
+  const [outWidth, setOutWidth] = usePanelSize("output.right");
+  const [outPos, setOutPos] = usePersistent<{ x: number; y: number } | null>("output.float", null);
+  const outPanel = useRef<HTMLElement | null>(null);
+  const moveOutput = (e: ReactPointerEvent<HTMLElement>) => {
+    const box = outPanel.current?.getBoundingClientRect();
+    if (!box || e.button !== 0) return;
+    e.preventDefault();
+    const el = e.currentTarget, dx = e.clientX - box.left, dy = e.clientY - box.top;
+    el.setPointerCapture?.(e.pointerId);
+    const at = (ev: { clientX: number; clientY: number }) => ({ x: Math.round(Math.max(0, Math.min(window.innerWidth - 120, ev.clientX - dx))),
+      y: Math.round(Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - dy))) });
+    const move = (ev: PointerEvent) => { const p = at(ev); if (outPanel.current) { outPanel.current.style.left = p.x + "px"; outPanel.current.style.top = p.y + "px"; } };
+    const up = (ev: PointerEvent) => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); setOutPos(at(ev)); };
+    el.addEventListener("pointermove", move); el.addEventListener("pointerup", up);
+  };
+  const outStyle: CSSProperties | undefined = outAt === "float" ? (outPos ? { left: outPos.x, top: outPos.y, right: "auto", bottom: "auto" } : undefined)
+    : outAt === "right" ? (outWidth ? { width: outWidth } : undefined) : outHeight ? { height: outHeight } : undefined;
+  const rightPanel = useRef<HTMLElement | null>(null);
   const [drop, setDrop] = useState<{ key: string | null; where: Place } | null>(null);
   const [bottomTab, setBottomTab] = useState("problems");
   const [anchor, setAnchor] = useState<string | null>(null);   // where a Shift range starts
@@ -334,7 +362,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
 
   return (
     <VarsContext.Provider value={vars}>
-    <div className="st-agent-wrap">
+    <div className={`st-agent-wrap is-out-${outMin ? "min" : outAt}`}>
       <div className="st-agent">
         <section className="st-steps" aria-label="Agent steps" onKeyDown={onKeys} onPaste={onPaste}>
           <div role="toolbar" aria-label="Edit steps" className="st-edit-bar">
@@ -444,8 +472,11 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           </ol>}
         </section>
 
+        {!rightHidden && <Splitter label="Resize the details panel" axis="x" grow={-1} value={rightWidth} min={260} max={680}
+          measure={() => rightPanel.current?.getBoundingClientRect().width ?? 340} onChange={setRightWidth} />}
         <SidePanel title="Details" label="Properties, variables and triggers" side="right" collapsed={rightHidden}
-          onToggle={() => setRightHidden(!rightHidden)} className="st-right">
+          onToggle={() => setRightHidden(!rightHidden)} className="st-right" style={rightWidth ? { width: rightWidth } : undefined}
+          panelRef={(el) => { rightPanel.current = el; }}>
           <Tabs label="Right panel" value={rightTab} onChange={setRightTab}
             tabs={[{ value: "properties", label: "Properties" }, { value: "variables", label: "Variables" }, { value: "triggers", label: "Triggers" }, { value: "deps", label: "Dependencies" }]}>
             <TabPanel value="properties">
@@ -474,8 +505,27 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
         </SidePanel>
       </div>
 
-      <section className="st-bottom" aria-label="Output">
+      {outMin
+        ? <div className="st-out-mini" role="region" aria-label="Output">
+            <strong>Output</strong>
+            {checked && problems.length > 0 && <span className="st-check">{problems.length} problem{problems.length > 1 ? "s" : ""}</span>}
+            {run && <span className={`st-run-state is-${run.state}`}>Run: {run.state}</span>}
+            <Button kind="plain" onClick={() => setOutMin(false)}>Show output</Button>
+          </div>
+        : <>
+      {outAt !== "float" && <Splitter label="Resize the output panel" axis={outAt === "right" ? "x" : "y"} grow={-1}
+        value={outAt === "right" ? outWidth : outHeight} min={outAt === "right" ? 280 : 120} max={outAt === "right" ? 820 : Math.max(240, window.innerHeight - 220)}
+        measure={() => { const r = outPanel.current?.getBoundingClientRect(); return (outAt === "right" ? r?.width : r?.height) ?? 260; }}
+        onChange={outAt === "right" ? setOutWidth : setOutHeight} />}
+      <section className="st-bottom" aria-label="Output" ref={outPanel} style={outStyle}>
         <Tabs label="Output" value={bottomTab} onChange={setBottomTab}
+          actions={<>
+            {outAt === "float" && <span className="st-out-grip" onPointerDown={moveOutput} title="Drag to move the output panel">⠿ Move</span>}
+            <select className="ui-input st-out-place" aria-label="Place the output panel" value={outAt} onChange={(e) => setOutAt(e.target.value as typeof outAt)}>
+              <option value="bottom">Bottom</option><option value="right">Right</option><option value="float">Floating</option>
+            </select>
+            <Button kind="plain" onClick={() => setOutMin(true)} title="Fold the output panel to a bar">Minimise</Button>
+          </>}
           tabs={[{ value: "problems", label: <>Problems{problems.length > 0 && <span className="st-check st-tab-count">{problems.length}</span>}</> },
             { value: "run", label: "Run output" }, { value: "values", label: "Debug values" }]}>
           <TabPanel value="problems">
@@ -497,7 +547,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           <TabPanel value="run"><RunOutput run={run} stepName={lineOf} onStop={onStop} onDebug={onDebug} /></TabPanel>
           <TabPanel value="values"><DebugValues run={run} /></TabPanel>
         </Tabs>
-      </section>
+      </section></>}
       {assistant && <AssistantDialog api={api} flow={flow} packages={packages} initial={assistant} onClose={() => setAssistant(null)}
         onNewConnection={() => { setAssistant(null); onNewConnection(); }}
         onInsert={(proposal) => {

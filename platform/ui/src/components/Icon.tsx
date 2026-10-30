@@ -17,6 +17,7 @@ export const ICONS = {
   home: "M3 11l9-8 9 8M5 10v10h14V10",
   pulse: "M3 12h4l3-8 4 16 3-8h4",
   gear: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3",
+  sliders: "M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4",
   search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4",
   close: "M6 6l12 12M18 6L6 18",
   play: "M6 4l14 8-14 8z",

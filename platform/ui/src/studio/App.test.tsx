@@ -1342,4 +1342,61 @@ describe("new Studio", () => {
     expect(await screen.findByText(/Checked in Finance\/Invoice intake.flow.json as version 3; it is now the live version/)).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("resizes the side panels with the arrow keys and remembers the size; a double-click puts it back", async () => {
+    render(<App api={fakeServer().api} />);
+    const folders = await screen.findByRole("separator", { name: "Resize the folders panel" });
+    fireEvent.keyDown(folders, { key: "End" });
+    expect((screen.getByRole("complementary", { name: "Folders" }) as HTMLElement).style.flex).toBe("0 0 520px");
+    await openIntake();
+    const actions = screen.getByRole("separator", { name: "Resize the actions panel" });
+    fireEvent.keyDown(actions, { key: "Home" });
+    fireEvent.keyDown(actions, { key: "ArrowRight" });
+    expect(screen.getByRole("complementary", { name: "Actions" }).style.width).toBe("216px");
+    expect(localStorage.getItem("ooa.studio.size.actions")).toBe("216");
+    const details = screen.getByRole("separator", { name: "Resize the details panel" });
+    fireEvent.keyDown(details, { key: "Home" });
+    fireEvent.keyDown(details, { key: "ArrowLeft" });   // the details panel is on the right: left makes it wider
+    expect(screen.getByRole("complementary", { name: "Properties, variables and triggers" }).style.width).toBe("276px");
+    fireEvent.doubleClick(details);
+    expect(screen.getByRole("complementary", { name: "Properties, variables and triggers" }).style.width).toBe("");
+  });
+
+  it("puts the output panel at the bottom, on the right or floating, and minimises it to a bar", async () => {
+    render(<App api={fakeServer().api} />);
+    const steps = await openIntake();
+    const wrap = () => steps.closest(".st-agent-wrap")!;
+    expect(wrap().className).toContain("is-out-bottom");
+    fireEvent.keyDown(screen.getByRole("separator", { name: "Resize the output panel" }), { key: "Home" });
+    expect(screen.getByRole("region", { name: "Output" }).style.height).toBe("120px");
+    fireEvent.change(screen.getByLabelText("Place the output panel"), { target: { value: "right" } });
+    expect(wrap().className).toContain("is-out-right");
+    expect(screen.getByRole("separator", { name: "Resize the output panel" }).getAttribute("aria-orientation")).toBe("vertical");
+    fireEvent.change(screen.getByLabelText("Place the output panel"), { target: { value: "float" } });
+    expect(wrap().className).toContain("is-out-float");
+    expect(screen.queryByRole("separator", { name: "Resize the output panel" })).toBeNull();   // a floating panel is resized at its corner
+    expect(screen.getByTitle("Drag to move the output panel")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Minimise" }));
+    const bar = screen.getByRole("region", { name: "Output" });
+    expect(within(bar).queryByRole("tab")).toBeNull();
+    fireEvent.click(within(bar).getByRole("button", { name: "Show output" }));
+    expect(screen.getByRole("tab", { name: /Run output/ })).toBeTruthy();
+    expect(wrap().className).toContain("is-out-float");   // back where it was
+  });
+
+  it("switches to the dark theme and compact density from the Display menu, and remembers them", async () => {
+    render(<App api={fakeServer().api} />);
+    const pick = async (name: string) => {
+      fireEvent.pointerDown(await screen.findByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
+      fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp("^" + name) }));
+    };
+    expect(document.documentElement.dataset.theme).toBe("light");
+    await pick("Dark theme");
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
+    await pick("Compact density");
+    await waitFor(() => expect(document.documentElement.dataset.density).toBe("compact"));
+    expect(localStorage.getItem("ooa.studio.display.theme")).toBe('"dark"');
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
+    expect((await screen.findByRole("menuitem", { name: /^Dark theme, In use/ }))).toBeTruthy();
+  });
 });

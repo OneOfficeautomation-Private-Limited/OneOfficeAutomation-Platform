@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiFailure, type CrStatus, StudioApi, type AgentSummary, type Blueprint, type DebugCommand, type ModelConnections, type Flow, type FlowStep, type NewItemKind, type PackageManifest, type Problem, type RunOptions, type StudioInfo, type WorkspaceNode,
 } from "../api/client";
-import { Button, Dialog, Field, Icon, TextInput } from "../components";
+import { Button, Dialog, Field, Icon, Menu, TextInput, usePersistent, type MenuItem } from "../components";
 import { Automation } from "./Automation";
 import { CheckInDialog, PublicRepository } from "./ControlRoom";
 import { DocumentEditor, FormEditor, SkillEditor, TextEditor, WorkflowEditor } from "./ItemEditors";
@@ -64,7 +64,19 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [wizard, setWizard] = useState(false);
   const [asSteps, setAsSteps] = useState<string[]>([]);
   const [cr, setCr] = useState<CrStatus>({ connected: false });   // the Command Center sign-in, for the Public tab and Check in
-  const [checkingIn, setCheckingIn] = useState(false);   // AI agents shown as plain steps instead of in the AI agent editor
+  const [checkingIn, setCheckingIn] = useState(false);
+  // Display menu: light or dark, standard or compact; kept in this browser and set on the page root for theme.css
+  const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
+  const [density, setDensity] = usePersistent<"standard" | "compact">("display.density", "standard");
+  useEffect(() => { document.documentElement.dataset.theme = theme; document.documentElement.dataset.density = density; }, [theme, density]);
+  const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
+    ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
+  const displayItems = [
+    choice("light", "Light theme", theme === "light", () => setTheme("light"), "White panels in a dark frame"),
+    choice("dark", "Dark theme", theme === "dark", () => setTheme("dark"), "Dark panels, easier on the eyes in a dim room"),
+    choice("standard", "Standard density", density === "standard", () => setDensity("standard"), "The usual line height", true),
+    choice("compact", "Compact density", density === "compact", () => setDensity("compact"), "Shorter lines: more steps on screen"),
+  ];   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
   const reloadTree = useCallback(() => {
@@ -381,6 +393,8 @@ export function App({ api: given }: { api?: StudioApi }) {
         </nav>
         <label className="st-search"><Icon name="search" size={14} /><input aria-label="Search items" placeholder="Search items in the workspace" value={search}
           onChange={(e) => { setSearch(e.target.value); setActive(null); }} /></label>
+        <Menu label="Display" title="Display" items={displayItems}
+          trigger={<button type="button" className="st-top-icon" aria-label="Display: theme and density" title="Display: theme and density"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
           {current

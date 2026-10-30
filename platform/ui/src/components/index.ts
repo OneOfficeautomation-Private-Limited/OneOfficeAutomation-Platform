@@ -5,6 +5,7 @@ export { Field, TextInput, TextArea, Select } from "./Field";
 export { Icon, IconTile, ICONS, type IconName } from "./Icon";
 export { Menu, type MenuItem } from "./Menu";
 export { SearchSelect, type SearchOption } from "./SearchSelect";
+export { Splitter, usePanelSize } from "./Splitter";
 export { Tabs, TabPanel } from "./Tabs";
 export { Tree, type TreeNode } from "./Tree";
 export { usePersistent } from "./usePersistent";

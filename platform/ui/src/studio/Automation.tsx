@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { Blueprint, NewItemKind, StudioApi, WorkspaceNode } from "../api/client";
-import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, TextInput, Tree, usePersistent, type MenuItem, type TreeNode } from "../components";
+import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TextInput, Tree, usePanelSize, usePersistent, type MenuItem, type TreeNode } from "../components";
 import { CreateDialog } from "./CreateDialog";
 import type { StudioView } from "./CommandMenu";
 import { ITEM_TYPES, displayName, typeLabel, type ItemType } from "./itemTypes";
@@ -44,6 +44,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
   const [expanded, setExpanded] = useState(() => new Set([""]));
   const [creating, setCreating] = useState<ItemType | null>(null);
   const [foldersHidden, setFoldersHidden] = usePersistent("panel.folders.hidden", false);
+  const [foldersWidth, setFoldersWidth] = usePanelSize("folders");
+  const foldersPanel = useRef<HTMLElement | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [anchor, setAnchor] = useState<string | null>(null);
   const [clip, setClip] = useState<{ paths: string[]; cut: boolean } | null>(null);
@@ -179,6 +181,7 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
       </div>}
       {isPublic ? publicView : <div className="st-page-body">
         <SidePanel title="Folders" side="left" collapsed={foldersHidden} onToggle={() => setFoldersHidden(!foldersHidden)} className="st-folders"
+          style={foldersWidth ? { flex: `0 0 ${foldersWidth}px` } : undefined} panelRef={(el) => { foldersPanel.current = el; }}
           actions={<>
             <button type="button" className="ui-panel-toggle" aria-label={"New folder in " + folderName} title={"New folder in " + folderName}
               onClick={() => onNewFolder(folder)}><Icon name="plus" size={14} stroke={2.6} /></button>
@@ -193,6 +196,8 @@ export function Automation({ api, view, tree, search = "", blueprints = [], publ
             renderIcon={(_, sel) => <span style={{ color: sel ? "#ffffff" : "#a16207", display: "inline-flex" }}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill={sel ? "#ffffff" : "#f5c451"} stroke="currentColor" strokeWidth="1.8"><path d="M3 7h6l2 2h10v10H3z" /></svg></span>} /></div>
         </SidePanel>
+        {!foldersHidden && <Splitter label="Resize the folders panel" axis="x" grow={1} value={foldersWidth} min={180} max={520}
+          measure={() => foldersPanel.current?.getBoundingClientRect().width ?? 260} onChange={setFoldersWidth} />}
         <div className="st-items">
           <div role="toolbar" aria-label="Selected items" className="st-items-bar">
             <span className="st-items-count" aria-live="polite">{chosen.length ? chosen.length + " selected" : count(rows.length)}</span>

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "build": "vite build",
     "licenses": "node tools/check-licenses.mjs",
-    "check": "npm run typecheck && npm run test && npm run licenses && npm run peers && npm run build",
+    "contrast": "node tools/check-contrast.mjs",
+    "check": "npm run typecheck && npm run test && npm run contrast && npm run licenses && npm run peers && npm run build",
     "audit": "npm audit --omit=optional --audit-level=high",
     "peers": "node tools/check-peers.mjs"
   },
