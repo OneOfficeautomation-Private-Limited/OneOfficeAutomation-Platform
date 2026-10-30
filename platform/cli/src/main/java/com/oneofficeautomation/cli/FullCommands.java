@@ -89,7 +89,7 @@ final class FullCommands {
         }
 
         c.command("release page", "Write the public releases page from a repository's GitHub releases.", a -> ReleasePage.run(a.o()))
-            .required("--repo", "OWNER/NAME", "The release repository on GitHub (OWNER/NAME; ours is the organisation's OOA_Customer_Build).")
+            .required("--repo", "OWNER/NAME", "The release repository on GitHub (OWNER/NAME; ours is the organisation's OneOfficeAutomation-Customer-Build).")
             .required("--out", "DIR", "Where to write index.html and releases.json.")
             .opt("--token-env", "VAR", "The environment variable with a GitHub token (for a private repository).")
             .opt("--api", "URL", "The GitHub API address (default https://api.github.com).");

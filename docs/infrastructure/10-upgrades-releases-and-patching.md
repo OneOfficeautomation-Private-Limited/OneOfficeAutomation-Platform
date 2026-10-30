@@ -36,13 +36,17 @@ Upgrades need a short downtime of the Command Center (no rolling upgrades).
 
 ## 2. Where releases are published
 
-Releases are on the public releases page `https://oneofficeautomation-private-limited.github.io/OOA_Customer_Build/`, which lists every
+> **Since 2026-10-30** the customer repository is empty: the releases page and template catalogue are offline until the
+> next release is published (releases v0.1.0 and v0.1.1 stay under the repository's Releases). The steps below publish
+> them again.
+
+Releases are on the public releases page `https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/`, which lists every
 release newest first (previews marked) with each file's download link, size and SHA-256, and `releases.json` for
 scripts. Checksums appear only for releases whose signed manifest checks out; drafts are not listed, and only
 `https` links are made. Licence files are never published; each customer receives its own `.lic` file directly from
 the vendor, and a new install without one runs the 60-day evaluation.
 
-The files themselves are GitHub releases of the public repository `OneOfficeautomation-Private-Limited/OOA_Customer_Build`, tagged
+The files themselves are GitHub releases of the public repository `OneOfficeautomation-Private-Limited/OneOfficeAutomation-Customer-Build`, tagged
 `v<version>` (a sandbox preview: `v<version>-preview`, marked as a pre-release). That repository also holds the
 customer-facing `README.md`, `INSTALL.md` and `RELEASES.md` (what changed in each release). Source code, tests and the
 vendor's licence tools stay in the development repository and are never published.
@@ -196,14 +200,14 @@ This section is for ONEOFFICEAUTOMATION's own release manager. Customers do not 
 | --- | --- |
 | A source checkout | The development repository, with the vendor build (`gradlew :cli:installDist`) working |
 | The vendor signing key | `%USERPROFILE%\OOA License Keys\private.key`, the same key that signs licences (see [functional/13](../functional/13-licensing-and-editions.md), section 11). It never leaves the vendor's computer. Another place: `-SigningKey FILE`. |
-| GitHub access | Git on this computer must already be signed in to GitHub with an account that may publish releases to `OneOfficeautomation-Private-Limited/OOA_Customer_Build` (push once from this computer; Git Credential Manager keeps the sign-in). The script reads that sign-in; it stores and prints nothing. |
-| GitHub Pages | In `OOA_Customer_Build`: Settings > Pages > Deploy from a branch, branch `main`, folder `/docs` |
+| GitHub access | Git on this computer must already be signed in to GitHub with an account that may publish releases to `OneOfficeautomation-Private-Limited/OneOfficeAutomation-Customer-Build` (push once from this computer; Git Credential Manager keeps the sign-in). The script reads that sign-in; it stores and prints nothing. |
+| GitHub Pages | In `OneOfficeAutomation-Customer-Build`: Settings > Pages > Deploy from a branch, branch `main`, folder `/docs` |
 
 ### Publishing a release
 
 1. Raise `version` in `platform\build.gradle.kts` (for example from `0.2.0` to `0.3.0`). The product's own version
    comes from this line. A version can be published only once: the script refuses a tag that exists already.
-2. Write what changed at the top of `RELEASES.md` in `OOA_Customer_Build`, then commit and push that repository.
+2. Write what changed at the top of `RELEASES.md` in `OneOfficeAutomation-Customer-Build`, then commit and push that repository.
 3. From the `platform` folder run:
    ```
    powershell -ExecutionPolicy Bypass -File scripts\publish-customer-release.ps1 -Notes "What changed in one line"
@@ -217,7 +221,7 @@ This section is for ONEOFFICEAUTOMATION's own release manager. Customers do not 
 | `-Preview` | Publishes `v<version>-preview` as a GitHub pre-release, the sandbox preview (section 6), about three weeks before the final release of the same version |
 | `-PageOnly` | Only refreshes the releases page and template catalogue |
 | `-SigningKey FILE` | Another place for the vendor key |
-| `-Repository OWNER/NAME` | Another release repository (default `OneOfficeautomation-Private-Limited/OOA_Customer_Build`) |
+| `-Repository OWNER/NAME` | Another release repository (default `OneOfficeautomation-Private-Limited/OneOfficeAutomation-Customer-Build`) |
 
 What the script does, in order:
 
@@ -239,7 +243,7 @@ What the script does, in order:
 The script (and `-PageOnly`) runs, in the vendor build:
 
 ```
-ooa release page --repo OneOfficeautomation-Private-Limited/OOA_Customer_Build --out DIR [--token-env VAR] [--api URL]
+ooa release page --repo OneOfficeautomation-Private-Limited/OneOfficeAutomation-Customer-Build --out DIR [--token-env VAR] [--api URL]
 ooa release templates --dir <repository>\templates --key private.key --out DIR\templates.json
 ```
 
@@ -248,8 +252,8 @@ release's signed manifest with the key built into the product and shows sizes an
 checks out; drafts are left out. `release templates` signs the template catalogue from the `templates` folder (one
 folder per template with `template.json` and its agents); Command Centers read it as the ONEOFFICEAUTOMATION template
 catalogue ([functional/08](../functional/08-repository-versions-and-templates.md)). The script then
-puts `docs/index.html`, `docs/releases.json` and `docs/templates.json` on the `main` branch of `OOA_Customer_Build`,
-which GitHub Pages serves at `https://oneofficeautomation-private-limited.github.io/OOA_Customer_Build/`.
+puts `docs/index.html`, `docs/releases.json` and `docs/templates.json` on the `main` branch of `OneOfficeAutomation-Customer-Build`,
+which GitHub Pages serves at `https://oneofficeautomation-private-limited.github.io/OneOfficeAutomation-Customer-Build/`.
 
 To refresh the page alone (for example after publishing a draft by hand):
 

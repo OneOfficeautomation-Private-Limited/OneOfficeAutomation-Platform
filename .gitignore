@@ -15,3 +15,7 @@ __pycache__/
 
 # Personal notes with passwords: never commit
 platform/scripts/PW reset.txt
+
+
+# what running the use-case samples writes (results, downloads)
+examples/use-cases/output/

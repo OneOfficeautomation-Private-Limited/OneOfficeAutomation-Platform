@@ -297,7 +297,7 @@ Write the public releases page from a repository's GitHub releases.
   -h, --help              Show this help.
       --out=DIR           Where to write index.html and releases.json.
       --repo=OWNER/NAME   The release repository on GitHub (OWNER/NAME; ours is
-                            the organisation's OOA_Customer_Build).
+                            the organisation's OneOfficeAutomation-Customer-Build).
       --token-env=VAR     The environment variable with a GitHub token (for a
                             private repository).
 ```
