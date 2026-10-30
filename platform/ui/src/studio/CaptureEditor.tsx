@@ -50,7 +50,7 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
       }
       if (!o) return;
       if (forAnchor && obj) {
-        delete o.screenshot; if (desktop) delete o.window;   // the anchor is looked for in the same window
+        delete o.screenshot; delete o.window_shot; if (desktop) delete o.window;   // the anchor is looked for in the same window
         const next = withAnchorOffset({ ...obj, anchor: o });
         put(next);
         vars.notice?.("Anchor captured" + (next.anchor?.offset ? ` (${next.anchor.offset.dx}, ${next.anchor.offset.dy} px from the ${desktop ? "control" : "element"})` : "") + ".");
@@ -169,7 +169,7 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
           {k === "main" ? "Main" : "Anchor" + (obj.anchor ? " ✓" : "")}</button>)}
       </div>}
       {!nested && tab === "anchor" ? anchorPane : <>
-        {obj.screenshot && <figure className="st-cap-shot"><figcaption>Preview</figcaption><img alt="Captured element" src={"data:image/png;base64," + obj.screenshot} /></figure>}
+        <CapturePicture obj={obj} desktop={desktop} />
         {table}
         {options}
         {!desktop && Array.isArray(obj.frames) && obj.frames.length > 0 && <p className="st-muted">Inside iframe: <code>{obj.frames.join("  ›  ")}</code></p>}
@@ -177,6 +177,32 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
         {desktop && <DesktopWindowDetails obj={obj} put={put} nested={!!nested} />}
       </>}
     </div>
+  );
+}
+
+/**
+ * The capture's picture, as AA shows it: the whole window with the element outlined (opens larger), and the element
+ * itself. A capture from before window pictures shows the element alone.
+ */
+function CapturePicture({ obj, desktop }: { obj: Captured; desktop: boolean }) {
+  const [big, setBig] = useState(false);
+  const ws = obj.window_shot;
+  const element = obj.screenshot ? <img className="st-cap-el" alt={desktop ? "Captured control" : "Captured element"} src={"data:image/png;base64," + obj.screenshot} /> : null;
+  if (!ws?.image) return element && <figure className="st-cap-shot"><figcaption>Preview</figcaption>{element}</figure>;
+  const pct = (v: number) => (Math.max(0, Math.min(1, Number(v) || 0)) * 100).toFixed(2) + "%";
+  const picture = (
+    <span className="st-cap-win">
+      <img alt={"The window when it was captured, with the " + (desktop ? "control" : "element") + " outlined"} src={"data:image/jpeg;base64," + ws.image} />
+      <span className="st-cap-win-box" aria-hidden="true" style={{ left: pct(ws.left), top: pct(ws.top), width: pct(ws.width), height: pct(ws.height) }} />
+    </span>
+  );
+  return (
+    <figure className="st-cap-shot">
+      <figcaption>Captured {desktop ? "control" : "element"} in its window</figcaption>
+      <button type="button" className="st-cap-win-btn" aria-label="View larger" title="View larger" onClick={() => setBig(true)}>{picture}</button>
+      {element && <div className="st-cap-el-row"><span className="st-muted">{desktop ? "Control" : "Element"}:</span>{element}</div>}
+      {big && <Dialog open title={"Captured " + (desktop ? "control" : "element") + " in its window"} width={1000} onClose={() => setBig(false)} footer={null}><div className="st-cap-win-big">{picture}</div></Dialog>}
+    </figure>
   );
 }
 

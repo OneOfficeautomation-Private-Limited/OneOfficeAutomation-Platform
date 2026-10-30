@@ -13,8 +13,10 @@ export type Captured = {
   technology?: "web" | "desktop"; search_by?: string; index?: number; ignore_case?: boolean; self_heal?: boolean;
   properties?: CapturedProperty[]; page?: { url?: string; title?: string; url_match?: string; title_match?: string; browser?: string };
   window?: DesktopWindow | string; anchor?: Captured & { offset?: { dx: number; dy: number } }; frames?: string[];
-  rect?: { left: number; top: number }; screenshot?: string; [k: string]: unknown;
+  rect?: { left: number; top: number }; screenshot?: string; window_shot?: WindowShot; [k: string]: unknown;
 };
+/** The whole window when captured (a JPEG) and where the element sits in it, as fractions of its size. */
+export type WindowShot = { image: string; left: number; top: number; width: number; height: number };
 export type DesktopWindow = { title?: string; title_match?: string; process?: string; path?: string; preset?: string;
   size?: { width: number; height: number }; resize?: { width: number; height: number } };
 

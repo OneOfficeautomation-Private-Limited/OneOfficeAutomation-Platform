@@ -333,12 +333,37 @@
       if (textInput(t) || t.tagName === "SELECT") return;
       send("click", t, { label: (t.innerText || t.value || "").trim().slice(0, 40), checked: t.checked });
     };
+    // a field's text, once per change (a key step records it first, the change event then finds it recorded)
+    const typed = (t) => {
+      if (!textInput(t)) return;
+      const v = t.isContentEditable ? t.innerText : t.value;
+      if (v === t.__ooaTyped) return;
+      t.__ooaTyped = v;
+      send("type", t, { value: t.type === "password" ? null : v, password: t.type === "password" });
+    };
     const change = (e) => {
       const t = e.target;
       if (t.tagName === "SELECT") send("select", t, { value: t.value, option: t.selectedIndex >= 0 ? (t.options[t.selectedIndex].text || "").trim() : null });
-      else if (textInput(t)) send("type", t, { value: t.type === "password" ? null : (t.isContentEditable ? t.innerText : t.value), password: t.type === "password" });
+      else typed(t);
     };
-    document.addEventListener("click", click, true); document.addEventListener("change", change, true);
+    const NAMES = { Escape: "ESCAPE", ArrowUp: "UP", ArrowDown: "DOWN", ArrowLeft: "LEFT", ArrowRight: "RIGHT", PageUp: "PAGE_UP", PageDown: "PAGE_DOWN", " ": "SPACE" };
+    const keyName = (e) => [e.ctrlKey && "CTRL", e.altKey && "ALT", e.metaKey && "WIN", e.shiftKey && (e.ctrlKey || e.altKey || e.metaKey || e.key.length > 1) && "SHIFT",
+      NAMES[e.key] || e.key.toUpperCase()].filter(Boolean).join("+");
+    // keys that are not typing (Enter, Tab, Esc, arrows, page keys, F-keys) and shortcuts (Ctrl or Alt with a key) are
+    // steps of their own, as AA records keystrokes; text typed in the field before is recorded first, in order
+    const key = (e) => {
+      if (e.repeat || /^(Control|Alt|Shift|Meta|CapsLock|Dead|Unidentified|Process)$/.test(e.key)) return;
+      const t = e.target && e.target.nodeType === 1 ? e.target : document.body;
+      if (t.closest && t.closest("#__ooa_rec_bar")) return;
+      const mod = e.ctrlKey || e.altKey || e.metaKey, field = textInput(t), area = t.tagName === "TEXTAREA" || t.isContentEditable, list = t.tagName === "SELECT";
+      if (!mod && !/^(Enter|Tab|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|PageUp|PageDown|F[0-9]{1,2})$/.test(e.key)) return;   // typing: recorded as the field's text
+      if (!mod && (field || list) && /^(ArrowLeft|ArrowRight)$/.test(e.key)) return;   // moving in the text
+      if (!mod && (area || list) && /^(Enter|ArrowUp|ArrowDown|PageUp|PageDown)$/.test(e.key)) return;   // a new line, or choosing (recorded as the choice)
+      if (mod && field && !e.altKey && /^[acvxyz]$/i.test(e.key)) return;   // copy, paste, undo in a field: its text is recorded
+      typed(t);
+      send("key", t, { key: keyName(e), label: keyName(e) });
+    };
+    document.addEventListener("click", click, true); document.addEventListener("change", change, true); document.addEventListener("keydown", key, true);
     let bar = null;
     if (window.top === window) {
       bar = document.createElement("div"); bar.id = "__ooa_rec_bar";
@@ -350,11 +375,11 @@
       stop.onclick = () => chrome.runtime.sendMessage({ event: "record_stopped", token });
       bar.append(dot, label, stop); document.documentElement.append(bar);
     }
-    rec = { click, change, bar, box, move, scroll };
+    rec = { click, change, key, bar, box, move, scroll };
   }
   function recordOff() {
     if (!rec) return;
-    document.removeEventListener("click", rec.click, true); document.removeEventListener("change", rec.change, true);
+    document.removeEventListener("click", rec.click, true); document.removeEventListener("change", rec.change, true); document.removeEventListener("keydown", rec.key, true);
     document.removeEventListener("mousemove", rec.move, true); removeEventListener("scroll", rec.scroll, true);
     rec.box.remove();
     if (rec.bar) rec.bar.remove();

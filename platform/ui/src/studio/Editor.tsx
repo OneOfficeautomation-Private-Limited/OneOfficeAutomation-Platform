@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ClipboardEvent, type PointerEvent as ReactPointerEvent, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import type { AgentSummary, Builtins, DebugCommand, Flow, FlowStep, OpenWindow, PackageManifest, Problem, StudioApi } from "../api/client";
-import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shortenRecordedNames, type Captured } from "./capture";
+import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, recordedVariables, shareDesktopWindow, shortenRecordedNames, type Captured } from "./capture";
 import { WhereDialog } from "./CaptureEditor";
 import { AssistantDialog, DependenciesPanel, FlowDiagram } from "./AgentsTogether";
 import { Button, Dialog, Field, Icon, IconTile, Menu, SidePanel, Splitter, TabPanel, Tabs, TextInput, usePanelSize, usePersistent, type MenuItem } from "../components";
@@ -165,12 +165,14 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
       if (desktop) {
         onNotice("Hover over the control in the application (a red frame follows the pointer), then press Ctrl+Shift+C.");
         const r = await api.captureDesktop({ timeout_seconds: 60, screenshot: true, highlight: true });
-        const object = (r.object ?? r) as Captured;
-        const type = String((object.properties ?? []).find((x) => x.name === "ControlType")?.value ?? "");
-        const name = String((object.properties ?? []).find((x) => x.name === "Name")?.value ?? "");
-        insertSteps(flow, [{ id: "new", action: "ooa.desktop_ui/object_action", args: { object, action: desktopActionFor(object) },
+        const captured = (r.object ?? r) as Captured;
+        const type = String((captured.properties ?? []).find((x) => x.name === "ControlType")?.value ?? "");
+        const name = String((captured.properties ?? []).find((x) => x.name === "Name")?.value ?? "");
+        // the window goes into a numbered window variable, shared by the steps in that window, as AA's Capture does
+        const shared = shareDesktopWindow(flow, captured);
+        insertSteps(shared.flow, [{ id: "new", action: "ooa.desktop_ui/object_action", args: { object: shared.obj, action: desktopActionFor(captured) },
           note: "Captured " + (type || "control") + (name ? ": " + name.slice(0, 30) : "") }]);
-        onNotice("Captured " + (type || "a control") + ".");
+        onNotice("Captured " + (type || "a control") + (shared.name ? "; the window is in $" + shared.name : "") + ".");
         return;
       }
       const choice = await where("capture");

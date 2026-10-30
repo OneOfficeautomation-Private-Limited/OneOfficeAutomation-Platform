@@ -63,7 +63,7 @@ public final class BrowserPackage {
     static Object onElement(ActionContext ctx, ExtensionBridge.TabSession t, Object object, String sel, String action, Object value, double timeoutMs, Map<String, Object> opts) {
         UiGuard.before(ctx);
         Map<String, Object> a = new LinkedHashMap<>(opts);
-        if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); a.put("object", o); }
+        if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); o.remove("window_shot"); a.put("object", o); }
         else if (sel != null && !sel.isBlank()) a.put("selector", sel);
         else throw new ActionException("BROWSER.NO_ELEMENT", "Give the captured object or a selector", "Use Capture in Agent Studio, or type a selector.");
         a.put("action", action);
@@ -1134,7 +1134,7 @@ public final class BrowserPackage {
         session = BrowserWindows.use(ctx, session, window, timeout);
         if (tab(ctx, session) != null) {
             Map<String, Object> el = new LinkedHashMap<>();
-            if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); el.put("object", o); } else el.put("selector", sel);
+            if (object != null) { Map<String, Object> o = new LinkedHashMap<>(WebObjects.object(object)); o.remove("screenshot"); o.remove("window_shot"); el.put("object", o); } else el.put("selector", sel);
             el.put("timeout_ms", BigDecimal.valueOf((long) Math.min(timeout, 30000)));
             @SuppressWarnings("unchecked")
             Map<String, Object> d = (Map<String, Object>) onTab(tab(ctx, session), "download_click", Map.of("element", el, "timeout_ms", BigDecimal.valueOf((long) timeout)), timeout);
@@ -1485,6 +1485,31 @@ public final class BrowserPackage {
           }, true);
           addEventListener('scroll', () => { const h = document.getElementById('__ooa_hl'); if (h) h.style.display = 'none'; }, true);
           const flash = () => { const h = document.getElementById('__ooa_hl'); if (!h) return; h.style.borderColor = '#1d7a46'; setTimeout(() => { h.style.borderColor = '#a371ed'; }, 400); };
+          // a field's text, once per change (a key step records it first, the change event then finds it recorded)
+          const typed = (t) => {
+            if (!textInput(t) || t.value === t.__ooaTyped) return false;
+            t.__ooaTyped = t.value;
+            window.__ooaRecord(Object.assign({ kind: 'type', selector: sel(t), value: t.type === 'password' ? null : t.value, password: t.type === 'password' }, cap(t)));
+            return true;
+          };
+          const NAMES = { Escape: 'ESCAPE', ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', PageUp: 'PAGE_UP', PageDown: 'PAGE_DOWN', ' ': 'SPACE' };
+          const keyName = (e) => [e.ctrlKey && 'CTRL', e.altKey && 'ALT', e.metaKey && 'WIN', e.shiftKey && (e.ctrlKey || e.altKey || e.metaKey || e.key.length > 1) && 'SHIFT',
+            NAMES[e.key] || e.key.toUpperCase()].filter(Boolean).join('+');
+          // keys that are not typing (Enter, Tab, Esc, arrows, page keys, F-keys) and shortcuts (Ctrl or Alt with a key)
+          // are steps of their own, as AA records keystrokes; text typed in the field before is recorded first, in order
+          document.addEventListener('keydown', (e) => {
+            if (window.__ooaRecOff || e.repeat || /^(Control|Alt|Shift|Meta|CapsLock|Dead|Unidentified|Process)$/.test(e.key)) return;
+            const t = e.target && e.target.nodeType === 1 ? e.target : document.body;
+            if (t.closest && t.closest('#__ooa_bar')) return;
+            const mod = e.ctrlKey || e.altKey || e.metaKey, field = textInput(t), area = t.tagName === 'TEXTAREA' || t.isContentEditable, list = t.tagName === 'SELECT';
+            if (!mod && !/^(Enter|Tab|Escape|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|PageUp|PageDown|F[0-9]{1,2})$/.test(e.key)) return;   // typing: recorded as the field's text
+            if (!mod && (field || list) && /^(ArrowLeft|ArrowRight)$/.test(e.key)) return;   // moving in the text
+            if (!mod && (area || list) && /^(Enter|ArrowUp|ArrowDown|PageUp|PageDown)$/.test(e.key)) return;   // a new line, or choosing (recorded as the choice)
+            if (mod && field && !e.altKey && /^[acvxyz]$/i.test(e.key)) return;   // copy, paste, undo in a field: its text is recorded
+            typed(t);
+            window.__ooaRecord(Object.assign({ kind: 'key', key: keyName(e), selector: sel(t), label: keyName(e) }, cap(t)));
+            flash();
+          }, true);
           document.addEventListener('click', (e) => {
             if (window.__ooaRecOff) return;
             if (e.target.closest && e.target.closest('#__ooa_bar')) return;
@@ -1498,7 +1523,7 @@ public final class BrowserPackage {
             const t = e.target;
             if (t.tagName === 'SELECT') { window.__ooaRecord(Object.assign({ kind: 'select', selector: sel(t), value: t.value,
               option: t.selectedIndex >= 0 ? (t.options[t.selectedIndex].text || '').trim() : null }, cap(t))); flash(); }
-            else if (textInput(t)) { window.__ooaRecord(Object.assign({ kind: 'type', selector: sel(t), value: t.type === 'password' ? null : t.value, password: t.type === 'password' }, cap(t))); flash(); }
+            else if (typed(t)) flash();
           }, true);
           const bar = () => {
             if (document.getElementById('__ooa_bar') || !document.body) return;
@@ -1548,12 +1573,13 @@ public final class BrowserPackage {
             BrowserContext c = b.newContext();
             List<Frame> eventFrames = Collections.synchronizedList(new ArrayList<>());
             c.exposeBinding("__ooaRecord", (source, args) -> {
-                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add(withShot(source, (Map<String, Object>) m)); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { Map<String, Object> ev = new LinkedHashMap<>((Map<String, Object>) m); events.add(ev); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); withShot(source, ev); }
                 return null; });
             c.exposeBinding("__ooaStop", (source, args) -> { stopped[0] = true; return null; });
             c.addInitScript(RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS));
             Page p = c.newPage();
             p.navigate(url);
+            watchAddressBar(ctx, p, events, eventFrames);
             long end = System.currentTimeMillis() + minutes * 60_000L;
             while (!stopped[0] && System.currentTimeMillis() < end) {
                 ctx.checkCancelled();
@@ -1609,12 +1635,13 @@ public final class BrowserPackage {
             String js = RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS);
             c.exposeBinding("__ooaRecord", (source, args) -> {
                 if (source.page() != page) return null;   // only the recording window
-                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add(withShot(source, (Map<String, Object>) m)); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { Map<String, Object> ev = new LinkedHashMap<>((Map<String, Object>) m); events.add(ev); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); withShot(source, ev); }
                 return null; });
             c.exposeBinding("__ooaStop", (source, args) -> { if (source.page() == page) stopped[0] = true; return null; });
             page.addInitScript(js);
             for (Frame f : page.frames()) { try { f.evaluate("() => { " + js + " }"); } catch (PlaywrightException ignored) { /* a frame that is still loading gets it from the init script */ } }
             page.bringToFront();
+            watchAddressBar(ctx, page, events, eventFrames);
             long end = System.currentTimeMillis() + minutes * 60_000L;
             while (!stopped[0] && System.currentTimeMillis() < end && !page.isClosed()) {
                 ctx.checkCancelled();
@@ -1651,6 +1678,16 @@ public final class BrowserPackage {
         boolean password = false;
         for (Map<String, Object> e : events) {
             String kind = String.valueOf(e.get("kind")), sel = String.valueOf(e.get("selector"));
+            Map<String, Object> w = inTab ? recordedWindow(e, which) : null;
+            if (kind.equals("navigate")) {
+                // an address typed in the address bar: a new window goes there; a window of the person's own browser is
+                // named by the page it left, as the other steps name theirs
+                lastType = null;
+                String to = String.valueOf(e.get("url"));
+                steps.add(w != null ? stepMap("ooa.browser/open", new LinkedHashMap<>(Map.of("open_in", "existing_tab", "window", w, "url", to)), "Recorded: go to " + to + " (typed in the address bar)")
+                        : stepMap("ooa.browser/navigate", new LinkedHashMap<>(Map.of("url", to)), "Recorded: go to " + to + " (typed in the address bar)"));
+                continue;
+            }
             // Each step gets the full captured object (every property, editable in Studio); typed text is not a property to match.
             Map<String, Object> target = new LinkedHashMap<>();
             if (e.get("props") instanceof Map<?, ?> pm) {
@@ -1660,16 +1697,14 @@ public final class BrowserPackage {
                 picked.put("props", props);
                 target.put("object", capturedObject(picked));
             } else target.put("selector", sel);
-            if (inTab && e.get("page") instanceof Map<?, ?> pg) {
-                // recorded in the person's own browser: each step names the window it happened in, as Capture does
-                Map<String, Object> w = new LinkedHashMap<>();
-                w.put("source", "browser");
-                if (pg.get("title") != null && !String.valueOf(pg.get("title")).isBlank()) { w.put("title", String.valueOf(pg.get("title"))); w.put("title_match", "equals"); }
-                if (pg.get("url") != null) w.put("link", String.valueOf(pg.get("url")));
-                w.put("browser", which);
-                if (w.containsKey("title")) target.put("window", w);
-            }
-            if (kind.equals("type")) {
+            if (w != null) target.put("window", w);
+            if (kind.equals("key")) {
+                lastType = null;
+                Map<String, Object> args = new LinkedHashMap<>(target);
+                args.put("action", "press_key");
+                args.put("value", String.valueOf(e.get("key")));
+                steps.add(stepMap("ooa.browser/element_action", args, "Recorded key " + e.get("key")));
+            } else if (kind.equals("type")) {
                 boolean pwd = Boolean.TRUE.equals(e.get("password"));
                 password |= pwd;
                 Object text = pwd ? "$password" : String.valueOf(e.getOrDefault("value", ""));
@@ -1690,6 +1725,46 @@ public final class BrowserPackage {
         }
         ctx.info("Recorded " + (steps.size() - (url != null ? 1 : 0)) + " action(s)" + (password ? "; password fields use the variable $password" : ""));
         return Map.of("steps", steps, "count", BigDecimal.valueOf(steps.size()));
+    }
+
+    /** Recorded in the person's own browser: the window a step happened in (the page's title), as Capture names it; null without a title. */
+    private static Map<String, Object> recordedWindow(Map<String, Object> e, String which) {
+        if (!(e.get("page") instanceof Map<?, ?> pg) || pg.get("title") == null || String.valueOf(pg.get("title")).isBlank()) return null;
+        Map<String, Object> w = new LinkedHashMap<>();
+        w.put("source", "browser");
+        w.put("title", String.valueOf(pg.get("title"))); w.put("title_match", "equals");
+        if (pg.get("url") != null) w.put("link", String.valueOf(pg.get("url")));
+        w.put("browser", which);
+        return w;
+    }
+
+    /** How the browser says a page was reached by typing in the address bar (or a bookmark, or a search from it). */
+    static final Set<String> TYPED = Set.of("typed", "address_bar", "auto_bookmark", "generated", "keyword", "keyword_generated");
+
+    /**
+     * A page opened from the address bar while recording becomes a "go to" event: the browser's own history says how
+     * each page was reached (a link or a form is recorded by its click or key instead). The event names the page left.
+     */
+    static void watchAddressBar(ActionContext ctx, Page page, List<Map<String, Object>> events, List<Frame> eventFrames) {
+        CDPSession cdp;
+        try { cdp = page.context().newCDPSession(page); } catch (PlaywrightException e) { return; }   // not Chromium: no history to read
+        String[] last = {page.url(), ""};
+        try { last[1] = page.title(); } catch (PlaywrightException ignored) { }
+        page.onLoad(p -> { try { last[1] = p.title(); } catch (PlaywrightException ignored) { } });
+        page.onFrameNavigated(f -> {
+            if (f != page.mainFrame()) return;
+            try {
+                com.google.gson.JsonObject h = cdp.send("Page.getNavigationHistory");
+                String how = h.getAsJsonArray("entries").get(h.get("currentIndex").getAsInt()).getAsJsonObject().get("transitionType").getAsString();
+                if (TYPED.contains(how) && !f.url().equals(last[0]) && events.size() < 500) {
+                    Map<String, Object> ev = new LinkedHashMap<>();
+                    ev.put("kind", "navigate"); ev.put("url", f.url()); ev.put("page", Map.of("title", last[1], "url", last[0]));
+                    events.add(ev); eventFrames.add(null);
+                    ctx.info("Recorded step " + events.size() + ": go to " + f.url());
+                }
+            } catch (RuntimeException ignored) { /* the page went away */ }
+            last[0] = f.url();
+        });
     }
 
     /** Records in an open tab through the browser connector until Stop recording is pressed on the page (or the time runs out). */
@@ -2320,7 +2395,7 @@ public final class BrowserPackage {
                         frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
                 } catch (PlaywrightException ignored) { /* the frame went away; the object still works on the page */ }
                 picked[0].put("frames", frames);
-                if (frames.isEmpty() && !c.pages().isEmpty()) { String shot = elementShot(c.pages().get(0), picked[0].get("rect")); if (shot != null) picked[0].put("screenshot", shot); }
+                if (frames.isEmpty() && !c.pages().isEmpty()) addShots(c.pages().get(0), picked[0].get("rect"), picked[0]);
             }
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Picking an element"); }
@@ -2328,7 +2403,7 @@ public final class BrowserPackage {
         Object alternatives = picked[0].get("alternatives") instanceof Map<?, ?> m ? m : Map.of();
         Map<String, Object> object = capturedObject(picked[0]);
         Map<String, Object> element = new LinkedHashMap<>(picked[0]);
-        element.remove("screenshot"); element.remove("props");
+        element.remove("screenshot"); element.remove("window_shot"); element.remove("props");
         return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", element, "alternatives", alternatives, "object", object);
     }
 
@@ -2361,7 +2436,7 @@ public final class BrowserPackage {
         } catch (ActionException ignored) { }
         Map<String, Object> object = capturedObject(picked);
         Map<String, Object> element = new LinkedHashMap<>(picked);
-        element.remove("screenshot"); element.remove("props"); element.remove("token"); element.remove("event");
+        element.remove("screenshot"); element.remove("window_shot"); element.remove("props"); element.remove("token"); element.remove("event");
         return Map.of("selector", String.valueOf(picked.get("selector")), "element", element, "alternatives", Map.of(), "object", object);
     }
 
@@ -2403,7 +2478,7 @@ public final class BrowserPackage {
                         frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
                 } catch (PlaywrightException ignored) { }
                 picked[0].put("frames", frames);
-                if (frames.isEmpty()) { String shot = elementShot(page, picked[0].get("rect")); if (shot != null) picked[0].put("screenshot", shot); }
+                if (frames.isEmpty()) addShots(page, picked[0].get("rect"), picked[0]);
             }
             // Playwright closing here only disconnects: the browser and its windows stay open.
         } catch (PlaywrightException e) { throw pw(e, "Picking an element in the open browser"); }
@@ -2411,26 +2486,68 @@ public final class BrowserPackage {
         Object alternatives = picked[0].get("alternatives") instanceof Map<?, ?> m ? m : Map.of();
         Map<String, Object> object = capturedObject(picked[0]);
         Map<String, Object> element = new LinkedHashMap<>(picked[0]);
-        element.remove("screenshot"); element.remove("props");
+        element.remove("screenshot"); element.remove("window_shot"); element.remove("props");
         return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", element, "alternatives", alternatives, "object", object);
     }
 
-    /** A PNG (base64) of the element at this rectangle of the page's view, with a small margin; null when there is none to take. */
-    static String elementShot(Page page, Object rect) {
+    /**
+     * Pictures of a picked or recorded element at this rectangle of the page's view, from one screenshot: the element
+     * ("screenshot", a PNG with a small margin) and the whole view with where the element sits in it ("window_shot"),
+     * as AA shows a capture. Nothing is added when there is no picture to take.
+     */
+    static void addShots(Page page, Object rect, Map<String, Object> into) {
         if (page == null || !(rect instanceof Map<?, ?> r) || !(r.get("x") instanceof Number x) || !(r.get("y") instanceof Number y)
-                || !(r.get("width") instanceof Number w) || !(r.get("height") instanceof Number h) || w.doubleValue() < 2 || h.doubleValue() < 2) return null;
+                || !(r.get("width") instanceof Number w) || !(r.get("height") instanceof Number h) || w.doubleValue() < 2 || h.doubleValue() < 2) return;
         try {
-            byte[] png = page.screenshot(new Page.ScreenshotOptions().setTimeout(3000).setClip(Math.max(0, x.doubleValue() - 4), Math.max(0, y.doubleValue() - 4),
-                    Math.min(w.doubleValue() + 8, 1200), Math.min(h.doubleValue() + 8, 600)));
-            return png.length < 300_000 ? Base64.getEncoder().encodeToString(png) : null;
-        } catch (PlaywrightException e) { return null; }   // a picture is a nice-to-have (the page may be moving on)
+            byte[] png = page.screenshot(new Page.ScreenshotOptions().setTimeout(3000).setScale(com.microsoft.playwright.options.ScreenshotScale.CSS));
+            java.awt.image.BufferedImage view = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(png));
+            if (view == null) return;
+            int vw = view.getWidth(), vh = view.getHeight();
+            int ex = (int) Math.max(0, Math.floor(x.doubleValue() - 4)), ey = (int) Math.max(0, Math.floor(y.doubleValue() - 4));
+            int ew = (int) Math.min(Math.min(vw - ex, Math.ceil(w.doubleValue() + 8)), 1200), eh = (int) Math.min(Math.min(vh - ey, Math.ceil(h.doubleValue() + 8)), 600);
+            if (ex < vw && ey < vh && ew >= 2 && eh >= 2) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                javax.imageio.ImageIO.write(view.getSubimage(ex, ey, ew, eh), "png", out);
+                if (out.size() < 300_000) into.put("screenshot", Base64.getEncoder().encodeToString(out.toByteArray()));
+            }
+            into.put("window_shot", windowShot(view, x.doubleValue() / vw, y.doubleValue() / vh, w.doubleValue() / vw, h.doubleValue() / vh));
+        } catch (java.io.IOException | RuntimeException e) { /* a picture is a nice-to-have (the page may be moving on) */ }
     }
 
-    /** A recorded event with a picture of its element, as Capture keeps one (in the top frame: a frame's rectangle is not the page's). */
-    static Map<String, Object> withShot(com.microsoft.playwright.options.BindingCallback.Source source, Map<String, Object> event) {
-        Map<String, Object> e = new LinkedHashMap<>(event);
+    /** The whole view as a JPEG at most 960 px wide (base64), with the element's box in it as fractions of its size. */
+    static Map<String, Object> windowShot(java.awt.image.BufferedImage view, double left, double top, double width, double height) throws java.io.IOException {
+        double k = Math.min(1, 960.0 / view.getWidth());
+        int nw = Math.max(1, (int) Math.round(view.getWidth() * k)), nh = Math.max(1, (int) Math.round(view.getHeight() * k));
+        java.awt.image.BufferedImage small = new java.awt.image.BufferedImage(nw, nh, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = small.createGraphics();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.drawImage(view, 0, 0, nw, nh, null);
+        g.dispose();
+        javax.imageio.ImageWriter writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpeg").next();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (javax.imageio.stream.ImageOutputStream ios = javax.imageio.ImageIO.createImageOutputStream(out)) {
+            javax.imageio.ImageWriteParam p = writer.getDefaultWriteParam();
+            p.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            p.setCompressionQuality(0.7f);
+            writer.setOutput(ios);
+            writer.write(null, new javax.imageio.IIOImage(small, null, null), p);
+        } finally { writer.dispose(); }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("image", Base64.getEncoder().encodeToString(out.toByteArray()));
+        m.put("left", round4(left)); m.put("top", round4(top)); m.put("width", round4(width)); m.put("height", round4(height));
+        return m;
+    }
+
+    private static BigDecimal round4(double v) { return BigDecimal.valueOf(Math.max(0, Math.min(1, v))).setScale(4, java.math.RoundingMode.HALF_UP); }
+
+    /**
+     * Adds pictures of its element to a recorded event, as Capture keeps them (in the top frame: a frame's rectangle is
+     * not the page's). The event is already in its place in the list: steps recorded while the pictures are taken (the
+     * page goes on reporting meanwhile) come after it.
+     */
+    static Map<String, Object> withShot(com.microsoft.playwright.options.BindingCallback.Source source, Map<String, Object> e) {
         Frame f = source.frame();
-        if (f != null && f.parentFrame() == null) { String shot = elementShot(source.page(), e.get("rect")); if (shot != null) e.put("screenshot", shot); }
+        if (f != null && f.parentFrame() == null) addShots(source.page(), e.get("rect"), e);
         e.remove("rect");
         return e;
     }
@@ -2504,6 +2621,7 @@ public final class BrowserPackage {
         o.put("properties", props);
         if (picked.get("page_rect") instanceof Map<?, ?> r) o.put("rect", r);
         if (picked.get("screenshot") != null) o.put("screenshot", picked.get("screenshot"));
+        if (picked.get("window_shot") instanceof Map<?, ?> ws) o.put("window_shot", ws);
         return o;
     }
 

@@ -732,6 +732,38 @@ public static class Bridge {
         }
     }
 
+    /** The whole window as a JPEG at most 960 px wide (base64), with where the control sits in it as fractions, as AA shows a capture. */
+    static Dictionary<string, object> WindowShot(System.Windows.Rect win, System.Windows.Rect el) {
+        if (win.IsEmpty || el.IsEmpty || win.Width < 20 || win.Height < 20 || win.Width > 8000 || win.Height > 8000) return null;
+        try {
+            int w = (int)win.Width, h = (int)win.Height;
+            double k = Math.Min(1.0, 960.0 / w);
+            int nw = Math.Max(1, (int)(w * k)), nh = Math.Max(1, (int)(h * k));
+            using (System.Drawing.Bitmap full = new System.Drawing.Bitmap(w, h))
+            using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(full))
+            using (System.Drawing.Bitmap small = new System.Drawing.Bitmap(nw, nh))
+            using (System.Drawing.Graphics s = System.Drawing.Graphics.FromImage(small))
+            using (MemoryStream ms = new MemoryStream()) {
+                g.CopyFromScreen((int)win.X, (int)win.Y, 0, 0, new System.Drawing.Size(w, h));
+                s.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                s.DrawImage(full, 0, 0, nw, nh);
+                System.Drawing.Imaging.ImageCodecInfo jpeg = null;
+                foreach (System.Drawing.Imaging.ImageCodecInfo c in System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders()) if (c.FormatID == System.Drawing.Imaging.ImageFormat.Jpeg.Guid) jpeg = c;
+                if (jpeg == null) return null;
+                System.Drawing.Imaging.EncoderParameters p = new System.Drawing.Imaging.EncoderParameters(1);
+                p.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 70L);
+                small.Save(ms, jpeg, p);
+                Dictionary<string, object> d = new Dictionary<string, object>();
+                d["image"] = Convert.ToBase64String(ms.ToArray());
+                d["left"] = Frac((el.X - win.X) / win.Width); d["top"] = Frac((el.Y - win.Y) / win.Height);
+                d["width"] = Frac(el.Width / win.Width); d["height"] = Frac(el.Height / win.Height);
+                return d;
+            }
+        } catch (Exception) { return null; }   // a picture is a nice-to-have
+    }
+
+    static double Frac(double v) { return Math.Round(Math.Max(0, Math.Min(1, v)), 4); }
+
     /** The top-level window an element belongs to (the element itself for a window). */
     static AutomationElement TopOf(AutomationElement e) {
         TreeWalker w = TreeWalker.ControlViewWalker;
@@ -839,6 +871,7 @@ public static class Bridge {
         Dictionary<string, object> d = new Dictionary<string, object>();
         d["element"] = props; d["window"] = win; d["path"] = path;
         d["screenshot"] = shot ? Screenshot(e.Current.BoundingRectangle) : "";
+        if (shot) { Dictionary<string, object> ws = WindowShot(tr, e.Current.BoundingRectangle); if (ws != null) d["window_shot"] = ws; }
         d["point"] = new int[] { x, y };
         return d;
     }

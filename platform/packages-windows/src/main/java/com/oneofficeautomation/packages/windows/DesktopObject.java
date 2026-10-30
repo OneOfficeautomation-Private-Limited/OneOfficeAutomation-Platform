@@ -331,6 +331,7 @@ public final class DesktopObject {
         o.put("index", BigDecimal.ZERO);
         Object shot = raw.get("screenshot");
         if (shot != null && !String.valueOf(shot).isEmpty()) o.put("screenshot", String.valueOf(shot));
+        if (raw.get("window_shot") instanceof Map<?, ?> ws) o.put("window_shot", ws);
         return o;
     }
 }

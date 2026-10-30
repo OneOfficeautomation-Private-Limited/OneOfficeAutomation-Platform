@@ -122,7 +122,7 @@ function fakeServer() {
       { name: "order_id", type: "Number", direction: "input", required: true, description: "The order to look up." },
       { name: "status", type: "String", direction: "output" }] }] });
   routes["POST capture"] = (b) => { created.push({ capture: b }); return { selector: "#save", element: { tag: "button", text: "Save" }, object: { technology: "web", search_by: "properties", index: 0,
-    page: { url: b.url ?? "https://example.com/", title: "Example" },
+    page: { url: b.url ?? "https://example.com/", title: "Example" }, screenshot: "iVBORw0KGgo=", window_shot: { image: "/9j/AA==", left: 0.1, top: 0.25, width: 0.3, height: 0.05 },
     properties: [{ name: "tag", value: "button", match: "equals", use: true }, { name: "id", value: "save-123", match: "equals", use: false }, { name: "text", value: "Save", match: "equals", use: true }] } }; };
   routes["POST capture-desktop"] = () => ({ object: { technology: "desktop", index: 0,
     window: { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad", path: "C:\\Apps\\notepad.exe", size: { width: 1440, height: 740 } },
@@ -1108,6 +1108,13 @@ describe("new Studio", () => {
     await captureWeb(steps);
     expect(created).toContainEqual({ capture: { url: "https://example.com/", browser: "edge" } });
     expect(await screen.findByText("Example")).toBeTruthy();   // the page it was captured on
+    // the window as it was, with the element outlined, as AA shows a capture; it opens larger
+    expect(screen.getByRole("img", { name: /^The window when it was captured/ })).toBeTruthy();
+    expect((document.querySelector(".st-cap-win-box") as HTMLElement).style.left).toBe("10%");
+    expect(screen.getByRole("img", { name: "Captured element" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View larger" }));
+    const big = await screen.findByRole("dialog", { name: "Captured element in its window" });
+    fireEvent.click(within(big).getByRole("button", { name: "Close" }));
     // only the ticked properties at first, with readable names (the stored name on hover)
     expect(capRows()).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Show all properties (1 more)" }));
@@ -1147,19 +1154,23 @@ describe("new Studio", () => {
     expect(await screen.findByText("Nothing captured yet.")).toBeTruthy();
   });
 
-  it("captures a desktop control: the action suits it, and its window has presets and a size", async () => {
+  it("captures a desktop control: the action suits it, its window goes into a window variable, and a window of its own has presets and a size", async () => {
     const { api, created } = fakeServer();
     render(<App api={api} />);
     const steps = await openIntake();
     fireEvent.click(stepButton(steps, "Open workbook"));
     fireEvent.keyDown(within(steps).getByRole("button", { name: "Capture" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Capture a desktop control/ })); });
+    expect(await screen.findByText(/the window is in \$Window_1/)).toBeTruthy();
+    expect(screen.getByText(/The window in \$Window_1, shared with other steps/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Use a window of this step only" }));
     expect(await screen.findByText(/C:\\Apps\\notepad.exe/)).toBeTruthy();
     expect([...(screen.getByLabelText("Window preset") as HTMLSelectElement).options].map((o) => o.value)).toEqual(["", "active", "desktop", "taskbar"]);
     fireEvent.click(screen.getByLabelText("Resize window"));
     expect(screen.getByLabelText("Window width")).toBeTruthy();
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.desktop_ui/object_action", args: { action: "check", object: { window: { resize: { width: 1440, height: 740 } } } } });
+    expect(saved.variables).toContainEqual(expect.objectContaining({ name: "Window_1", type: "Dictionary", default: expect.objectContaining({ title: "Untitled - Notepad", process: "notepad" }) }));
   });
 
   it("records in a new page and adds the steps with a window variable and a Text_1 input", async () => {
