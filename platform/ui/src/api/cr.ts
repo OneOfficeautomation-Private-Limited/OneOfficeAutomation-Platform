@@ -92,6 +92,7 @@ export type WorkflowRun = { id: string; path: string; version: number; status: s
   updated?: string; finished?: string | null; error?: { code?: string; message?: string } | null; data?: Record<string, unknown>;
   history?: { event: string; stage?: string; ts: string; detail?: Record<string, unknown> | null }[];
   tasks?: { id: string; stage?: string; kind: string; title: string; assignee?: string; status: string; claimed_by?: string | null; outcome?: string | null; created?: string; completed?: string | null }[] };
+export type GlobalValue = { name: string; value: unknown; changeable: boolean; my_value?: unknown; updated?: string; updated_by?: string };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -305,6 +306,12 @@ export class CrApi {
   workflowForm(path: string) { return this.call<{ form?: { fields?: TaskFormField[] } | null }>("GET", "workflows/form?path=" + encodeURIComponent(path)); }
   startWorkflow(path: string, data: Record<string, unknown>, reference: string | null) { return this.call<{ id: string; reference?: string }>("POST", "workflows/start", { path, data, reference }); }
   async cancelWorkflow(id: string) { await this.call("POST", "workflows/runs/" + encodeURIComponent(id) + "/cancel"); }
+  // ---- Shared Global values ($global.name), and each person's own value where people may change them ----
+  async globals() { return (await this.call<{ globals?: GlobalValue[] }>("GET", "globals")).globals ?? []; }
+  async saveGlobal(name: string, value: unknown, changeable: boolean) { await this.call("PUT", "globals/" + encodeURIComponent(name), { value, changeable }); }
+  async deleteGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name)); }
+  async setMyGlobal(name: string, value: unknown) { await this.call("PUT", "globals/" + encodeURIComponent(name) + "/mine", { value }); }
+  async clearMyGlobal(name: string) { await this.call("DELETE", "globals/" + encodeURIComponent(name) + "/mine"); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

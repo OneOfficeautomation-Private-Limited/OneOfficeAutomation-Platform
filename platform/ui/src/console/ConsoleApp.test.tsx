@@ -94,6 +94,10 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "globals") return ok({ globals: [
+      { name: "reports_folder", value: "D:/Reports", changeable: true, my_value: "C:/Mine", updated: "2026-10-30T08:00:00Z", updated_by: "admin" },
+      { name: "max_amount", value: 1000, changeable: false, updated: "2026-10-30T08:00:00Z", updated_by: "admin" }] });
+    if (/^globals\/\w+(\/mine)?$/.test(route)) return ok({ ok: true });
     if (route === "workflows/runs") return ok({ runs: [
       { id: "w1", path: "Finance/Purchase approval.process.json", version: 2, status: "waiting", stage: "Manager approval", reference: "PO-42", started_by: "vic", created: "2026-10-31T08:00:00Z", updated: "2026-10-31T08:01:00Z" },
       { id: "w2", path: "Finance/Purchase approval.process.json", version: 2, status: "completed", stage: "Pay", reference: "PO-41", started_by: "vic", created: "2026-10-30T08:00:00Z", finished: "2026-10-30T09:00:00Z" }] });
@@ -676,6 +680,29 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(st).getByLabelText(/^Reference/), { target: { value: "PO-43" } });
     await act(async () => { fireEvent.click(within(st).getByRole("button", { name: "Start" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "workflows/start", body: { path: "Finance/Purchase approval.process.json", data: { amount: 500 }, reference: "PO-43" } }));
+  });
+
+  it("shows Shared Global values with types, your own value, and a typed value created", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "globals.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Shared Global values" }));
+    const list = await screen.findByRole("table", { name: "Shared values list" });
+    expect(await within(list).findByText("$global.max_amount")).toBeTruthy();
+    expect(within(list).getByText("Number")).toBeTruthy();
+    fireEvent.click(within(list).getByRole("button", { name: "My value" }));
+    const mine = await screen.findByRole("dialog", { name: "Your value of reports_folder" });
+    await act(async () => { fireEvent.click(within(mine).getByRole("button", { name: "Use the shared one" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "DELETE", route: "globals/reports_folder/mine" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create value" }));
+    const c = await screen.findByRole("dialog", { name: "Create shared value" });
+    fireEvent.change(within(c).getByLabelText(/^Name/), { target: { value: "retries" } });
+    fireEvent.change(within(c).getByLabelText("Type"), { target: { value: "number" } });
+    fireEvent.change(within(c).getByLabelText("Value"), { target: { value: "x" } });
+    fireEvent.click(within(c).getByRole("button", { name: "Create value" }));
+    expect(within(c).getByText("The value is not a number.")).toBeTruthy();
+    fireEvent.change(within(c).getByLabelText("Value"), { target: { value: "3" } });
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create value" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "globals/retries", body: { value: 3, changeable: false } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
