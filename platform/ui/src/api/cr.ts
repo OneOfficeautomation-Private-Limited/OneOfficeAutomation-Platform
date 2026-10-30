@@ -206,6 +206,18 @@ export class CrApi {
   async installLicense(content: string) { await this.call("POST", "license", { content }); }
   /** Gives a seat to a person (user name) or a runner (device id), or takes it back. */
   async assignSeat(licenseType: string, principal: string, assigned: boolean) { await this.call("PUT", "license/assignments", { license_type: licenseType, principal, assigned }); }
+  // ---- Settings: every setting by key; saving sends only the ones changed ----
+  settings() { return this.call<Record<string, string | number | null>>("GET", "settings"); }
+  async saveSettings(changes: Record<string, string | number>) { await this.call("PUT", "settings", changes); }
+  async syslogTest() { await this.call("POST", "settings/syslog-test"); }
+  mailTest(to: string) { return this.call<{ to: string }>("POST", "settings/mail-test", { to }); }
+  gitStatus() { return this.call<{ configured: boolean; state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("GET", "git/status"); }
+  gitSync() { return this.call<{ state?: string; at?: string; agents?: number; changed?: boolean; commit?: string; error?: string }>("POST", "git/sync"); }
+  backups() { return this.call<{ folder: string; backups: { file?: string; created: string; size_mb: number }[]; state?: string; error?: string; key_note?: string }>("GET", "backups"); }
+  backupNow() { return this.call<{ file: string; size_mb: number }>("POST", "backups"); }
+  cluster() { return this.call<{ nodes: { node_id: string; leader?: boolean; this_node?: boolean }[] }>("GET", "cluster"); }
+  purgeRuns(runDays: number, logDays: number) { return this.call<{ runs_removed: number; log_lines_removed: number }>("POST", "runs/purge", { run_days: runDays, log_days: logDays }); }
+  database() { return this.call<Record<string, string | number | boolean | null>>("GET", "database"); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

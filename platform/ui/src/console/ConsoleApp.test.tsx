@@ -93,6 +93,9 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "settings" && init.method === "PUT") return ok({ ok: true });
+    if (route === "settings") return ok({ announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "" });
+    if (route === "settings/mail-test") return ok({ to: body.to });
     if (route === "audit") {
       const q = new URLSearchParams(url.split("?")[1]);
       calls.push({ method: "GET", route: "audit?" + q.toString() });
@@ -171,7 +174,7 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Settings" }).getAttribute("href")).toBe("../?page=settings");
+    expect(within(menu).getByRole("link", { name: "Schedules" }).getAttribute("href")).toBe("../?page=schedules");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -491,6 +494,30 @@ describe("rebuilt Command Center console", () => {
     await waitFor(() => expect(within(holders).queryByText("Asha Admin")).toBeNull());
     await act(async () => { fireEvent.click(within(holders).getByRole("button", { name: "Take back" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "license/assignments", body: { license_type: "developer", principal: "old", assigned: false } }));
+  });
+
+  it("shows Settings as AA's: sections, only the changed values saved, a search across settings, a section's own test", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Settings" }));
+    const nav = await screen.findByRole("navigation", { name: "Settings sections" });
+    fireEvent.click(within(nav).getByRole("button", { name: "Sign-in and security" }));
+    const sec = screen.getByRole("region", { name: "Sign-in and security" });
+    fireEvent.change(within(sec).getByLabelText("Sign-in session length (hours)"), { target: { value: "10" } });
+    fireEvent.change(within(sec).getByLabelText("Two-step sign-in"), { target: { value: "1" } });
+    fireEvent.click(within(sec).getByLabelText("Switch off Viewer"));
+    expect(within(nav).getByTitle("Changed, not saved yet").textContent).toBe("3");
+    await act(async () => { fireEvent.click(within(sec).getByRole("button", { name: "Save Sign-in and security" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "settings", body: { session_hours: 10, mfa_required: 1, switched_off_roles: "viewer" } }));
+    // search across every section
+    fireEvent.change(screen.getByLabelText("Search settings"), { target: { value: "syslog" } });
+    const found = await screen.findByRole("region", { name: "Settings found" });
+    expect(within(found).getByLabelText(/Syslog target/)).toBeTruthy();
+    fireEvent.click(within(found).getAllByRole("button", { name: "E-mail, proxy and SIEM" })[0]);
+    const mail = await screen.findByRole("region", { name: "E-mail, proxy and SIEM" });
+    fireEvent.change(within(mail).getByLabelText("Send a test e-mail to"), { target: { value: "me@example.com" } });
+    await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

@@ -10,12 +10,13 @@ import { DocumentAutomation } from "./DocumentAutomation";
 import { Home } from "./Home";
 import { Licenses } from "./Licenses";
 import { Roles } from "./Roles";
+import { Settings } from "./Settings";
 import { Teams } from "./Teams";
 import { Users } from "./Users";
 import { Vault } from "./Vault";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["activity", "audit", "credentials", "devices", "docautomation", "licenses", "roles", "teams", "users"]);
+const LOCAL = new Set<string>(["activity", "audit", "credentials", "devices", "docautomation", "licenses", "roles", "settings", "teams", "users"]);
 /** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
 const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
@@ -81,6 +82,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
           {page === "credentials" && <Vault api={api} user={user} onNotice={setNotice} />}
           {page === "audit" && <Audit api={api} onNotice={setNotice} />}
           {page === "licenses" && <Licenses api={api} user={user} onNotice={setNotice} />}
+          {page === "settings" && <Settings api={api} onNotice={setNotice} />}
         </main>
       </div>
     </div>

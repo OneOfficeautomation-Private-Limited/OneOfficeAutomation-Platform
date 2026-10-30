@@ -112,3 +112,15 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-meter > span.is-high { background: var(--ui-warning-text); }
 .cc-meter > span.is-full { background: var(--ui-error-text); }
 .cc-install { display: grid; gap: 6px; max-width: 640px; margin-top: 12px; }
+.cc-settings { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
+.cc-settings-nav { display: grid; gap: 2px; position: sticky; top: 0; }
+.cc-settings-tab { text-align: left; padding: 7px 10px; border: 0; border-radius: var(--ui-radius); background: transparent; cursor: pointer; color: var(--ui-text); }
+.cc-settings-tab:hover { background: var(--ui-soft); }
+.cc-settings-tab[aria-current="page"] { background: var(--ui-selected); font-weight: 600; }
+.cc-settings-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.cc-settings-fields > .st-check-line, .cc-settings-fields > div:has(textarea) { grid-column: 1 / -1; }
+.cc-changed { box-shadow: inset 3px 0 0 var(--ui-accent); padding-left: 6px; }
+.cc-found { display: grid; grid-template-columns: 180px 1fr; gap: 8px; align-items: center; border-bottom: 1px solid var(--ui-divider); padding: 4px 0; }
+@media (max-width: 760px) { .cc-settings, .cc-settings-fields, .cc-found { grid-template-columns: 1fr; } }
+.cc-roles-off { grid-column: 1 / -1; border: 0; padding: 0; margin: 6px 0; }
+.cc-roles-off legend { padding: 0; margin-bottom: 4px; }
