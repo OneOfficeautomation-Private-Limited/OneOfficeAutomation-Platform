@@ -106,3 +106,4 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-tag { margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 11px; background: var(--ui-soft); border: 1px solid var(--ui-divider); }
 .cc-myvalue { margin: 4px 0; }
 .cc-test { margin-top: 8px; flex-wrap: wrap; }
+.cc-clip { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

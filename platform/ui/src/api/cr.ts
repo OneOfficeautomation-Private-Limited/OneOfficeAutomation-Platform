@@ -55,6 +55,9 @@ export type VaultCredential = { locker: string; name: string; owner?: string | n
 export type VaultRequest = { locker: string; name: string; attribute: string; description?: string | null; credential_description?: string | null; password_only?: boolean };
 export type VaultStatus = { key_source: string; key_source_detail?: string; key_fingerprint: string; vault_folders: number; values: number; personal_values: number;
   external_links: number; can_rotate: boolean };
+/** One audit record: who did what to which object, with what result, from where; hash-chained. */
+export type AuditRecord = { seq: number; ts: string; actor: string; action: string; object_type?: string | null; object_id?: string | null;
+  details?: string | null; result: string; ip?: string | null };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -178,6 +181,17 @@ export class CrApi {
   }
   vaultStatus() { return this.call<VaultStatus>("GET", "vault/status"); }
   rotateVaultKey() { return this.call<{ re_encrypted: number; key_fingerprint: string }>("POST", "vault/rotate"); }
+  /** The audit trail: q, actor, action (a trailing "." matches a prefix), object_type, object_id, result, from, to, sort, limit, offset. */
+  audit(params: Record<string, string>) { return this.call<{ records: AuditRecord[]; total: number }>("GET", "audit?" + new URLSearchParams(params).toString()); }
+  /** The same search as CSV (up to 50,000 records); the export is itself audited. */
+  async auditCsv(params: Record<string, string>) {
+    const res = await this.fetcher(this.base + "audit/export?" + new URLSearchParams(params).toString(), { method: "GET", credentials: "same-origin" });
+    const text = await res.text();
+    if (!res.ok) { let e: CrError = { code: "HTTP." + res.status, message: res.statusText || "Export failed" }; try { e = JSON.parse(text).error ?? e; } catch { /* not JSON */ } throw new CrFailure(res.status, e); }
+    return text;
+  }
+  /** Checks the hash chain: valid, how many records, and where it breaks when it does. */
+  auditVerify() { return this.call<{ valid: boolean; records: number; broken_at?: number }>("GET", "audit/verify"); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

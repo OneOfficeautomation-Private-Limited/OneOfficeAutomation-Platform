@@ -84,6 +84,17 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^users\/u\d\/(unlock|reset-mfa|default-device)$/.test(route)) return ok({ ok: true });
     if (route === "devices/runasusers") return ok({ users: [{ username: "admin", device_id: "d1", device_name: "Runner A" }] });
     if (/^roles\/[a-z_]+$/.test(route)) return ok({ ok: true });
+    if (route === "audit") {
+      const q = new URLSearchParams(url.split("?")[1]);
+      calls.push({ method: "GET", route: "audit?" + q.toString() });
+      const all = [
+        { seq: 12, ts: "2026-10-31T09:00:00Z", actor: "admin", action: "user.create", object_type: "user", object_id: "ravi", details: JSON.stringify({ role: "bot_creator" }), result: "ok", ip: "10.0.0.5" },
+        { seq: 11, ts: "2026-10-31T08:00:00Z", actor: "vic", action: "auth.login", object_type: "user", object_id: "vic", details: null, result: "failed", ip: "10.0.0.9" }];
+      const list = all.filter((a) => (!q.get("result") || a.result === q.get("result")) && (!q.get("object_id") || a.object_id === q.get("object_id")));
+      return ok({ records: list, total: list.length });
+    }
+    if (route === "audit/verify") return ok({ valid: true, records: 12 });
+    if (route === "audit/export") return new Response("seq,actor\n12,admin\n", { status: 200 });
     if (route === "lockers" && (init.method ?? "GET") === "GET") return ok({ lockers: [
       { name: "finance", description: "Bank and ERP", owners: "admin", consumers: "role:bot_runner", managers: [], participants: ["team:finance"], my_role: "owner", can_manage: true,
         external: null, credentials: [{ name: "erp", attribute: "username", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }, { name: "erp", attribute: "password", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }],
@@ -428,6 +439,28 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(await screen.findByLabelText("Your pin for finance/bank"), { target: { value: "1234" } });
     await act(async () => { fireEvent.click(within(screen.getByRole("table", { name: "My requests list" })).getByRole("button", { name: "Save" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/my-value", body: { locker: "finance", name: "bank", attribute: "pin", value: "1234" } }));
+  });
+
+  it("shows the Audit Trail as AA's audit log: last 24 hours first, filters, a record in full, related records, export, history check", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Audit Trail" }));
+    const list = await screen.findByRole("table", { name: "Audit records" });
+    expect(await within(list).findByText("role: bot_creator")).toBeTruthy();
+    expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("from="))).toBe(true);   // the last 24 hours
+    fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
+    await waitFor(() => expect(within(list).queryByText("user.create")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    fireEvent.click(await within(list).findByText("user.create"));
+    const d = await screen.findByRole("dialog", { name: "Audit record 12" });
+    expect(within(d).getByText("10.0.0.5")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("button", { name: "Every record about this user" }));
+    await waitFor(() => expect(calls.some((c) => c.route.startsWith("audit?") && c.route.includes("object_id=ravi"))).toBe(true));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Check history" })); });
+    expect(await screen.findByText("History intact: 12 records checked.")).toBeTruthy();
+    URL.createObjectURL = (() => "blob:x") as typeof URL.createObjectURL;
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
+    expect(calls.some((c) => c.route === "audit/export")).toBe(true);
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
