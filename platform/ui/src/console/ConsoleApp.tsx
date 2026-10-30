@@ -3,11 +3,14 @@ import { CrApi, CrFailure, type CrUser } from "../api/cr";
 import { Button, Field, Icon, Menu, TextInput, usePersistent } from "../components";
 import { CommandMenu } from "../shell/CommandMenu";
 import { MENU_SECTIONS } from "../shell/menu";
+import { Activity } from "./Activity";
 import { DocumentAutomation } from "./DocumentAutomation";
 import { Home } from "./Home";
 
 /** The pages this console shows itself so far; every other page opens in today's console. */
-const LOCAL = new Set<string>(["docautomation"]);
+const LOCAL = new Set<string>(["activity", "docautomation"]);
+/** The page in the address (#/activity), so a page can be linked to and the browser's Back works. */
+const pageOf = (hash: string) => { const id = hash.replace(/^#\/?/, ""); return LOCAL.has(id) ? id : "home"; };
 /** Today's console, which this one is served beside (at <base>/next/). */
 const TODAY = "../";
 
@@ -18,7 +21,10 @@ const TODAY = "../";
  */
 export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
   const [user, setUser] = useState<CrUser | null | undefined>(undefined);   // undefined: still asking
-  const [page, setPage] = useState("home");
+  const [page, setPageState] = useState(() => pageOf(location.hash));
+  const setPage = (id: string) => { location.hash = id === "home" ? "" : "/" + id; setPageState(id); };
+  useEffect(() => { const on = () => setPageState(pageOf(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
+  const [notice, setNotice] = useState<string | null>(null);
   const [studio, setStudio] = useState(false);
   const [theme] = usePersistent<"light" | "dark">("display.theme", "light");
   const [density] = usePersistent<"standard" | "compact">("display.density", "standard");
@@ -32,7 +38,7 @@ export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
   if (user === null) return <SignIn api={api} onIn={setUser} />;
 
   const signOut = async () => { try { await api.logout(); } catch { /* already signed out */ } setUser(null); setPage("home"); };
-  const hrefFor = (id: string) => id === "studio" ? (studio ? "../studio/" : undefined) : TODAY + "?page=" + id;
+  const hrefFor = (id: string) => id === "studio" ? (studio ? "../studio/" : undefined) : LOCAL.has(id) ? "#/" + id : TODAY + "?page=" + id;
   // the steps signing in still needs (a new password, two-step sign-in) are done in today's console
   const pending = user.must_change ? "Change your password before you go on." : user.mfa_setup_required ? "Set up two-step sign-in before you go on." : null;
 
@@ -50,6 +56,7 @@ export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
       </header>
       {user.announcement && <div className="st-notice" role="status"><span>{user.announcement}</span></div>}
       {user.license_banner && <div className="st-alert" role="alert"><span>{user.license_banner}</span></div>}
+      {notice && <div className="st-notice" role="status"><span>{notice}</span><Button kind="secondary" onClick={() => setNotice(null)}>OK</Button></div>}
       {pending && <div className="st-alert" role="alert"><span>{pending}</span><a className="ui-btn ui-btn-secondary" href={TODAY}>Open today's console</a></div>}
       <div className="st-body">
         <CommandMenu sections={MENU_SECTIONS} current={page} local={LOCAL} onLocal={setPage} hrefFor={hrefFor}
@@ -57,6 +64,7 @@ export function ConsoleApp({ api = new CrApi() }: { api?: CrApi }) {
           offTitle="Agent Studio runs beside the Command Center (ooa server), on the same computer" />
         <main className="st-main cc-main">
           {page === "home" && <Home api={api} user={user} pageHref={hrefFor} />}
+          {page === "activity" && <Activity api={api} user={user} onNotice={setNotice} />}
           {page === "docautomation" && <DocumentAutomation api={api} />}
         </main>
       </div>

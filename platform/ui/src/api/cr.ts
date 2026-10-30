@@ -15,6 +15,13 @@ export type Dashboard = {
   days?: { date: string; success: number; failed: number; stopped: number; active: number }[];
 };
 export type CrError = { code: string; message: string; hint?: string; suggestedFix?: string };
+/** A run of an agent, as the runs list gives it; a running run carries its progress. */
+export type Run = { id: string; bot_path: string; version?: number; device_id?: string; device_name?: string | null; status: string;
+  requested_by?: string; run_as?: string | null; run_mode?: string; source?: string; created?: string; started?: string | null; finished?: string | null;
+  duration_ms?: number | null; error?: string | null; pause_requested?: boolean; cancel_requested?: boolean; steps?: number | null;
+  progress?: { total: number; finished: number; action?: string; step_id?: string } };
+/** One event a run reported (step started, finished or failed, a log line, a variable set). */
+export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
 export type ConsolePlugin = { id: string; name: string; description: string; path: string };
 
@@ -47,6 +54,16 @@ export class CrApi {
   async studio() { return !!(await this.call<{ studio?: string }>("GET", "health")).studio; }
   /** The optional modules installed, each filling a page of the menu. */
   async plugins() { return (await this.call<{ plugins?: ConsolePlugin[] }>("GET", "plugins")).plugins ?? []; }
+  /** Runs: filter=active (queued, running) or history (finished), with status, bot, device, user, source, q, from, to, limit, offset. */
+  runs(params: Record<string, string>) { return this.call<{ runs: Run[]; total: number }>("GET", "runs?" + new URLSearchParams(params).toString()); }
+  /** One run with its events. */
+  run(id: string) { return this.call<Run & { events: RunEvent[] }>("GET", "runs/" + encodeURIComponent(id)); }
+  /** Pause, resume or stop a run (stop ends a queued run at once, a running one after its current step). */
+  async control(id: string, action: "pause" | "resume" | "stop") { await this.call("POST", "runs/" + encodeURIComponent(id) + "/" + action); }
+  async rerun(id: string) { await this.call("POST", "runs/" + encodeURIComponent(id) + "/rerun"); }
+  /** The agents in the repository and the runners, for the filters. */
+  async agents() { return (await this.call<{ bots?: { path: string }[] }>("GET", "repo")).bots ?? []; }
+  async runners() { return (await this.call<{ devices?: { id: string; name: string }[] }>("GET", "devices")).devices ?? []; }
   /** Home's figures; the runs-per-day chart counts days in the given time zone. */
   dashboard(timeZone?: string) { return this.call<Dashboard>("GET", "dashboard" + (timeZone ? "?tz=" + encodeURIComponent(timeZone) : "")); }
 }

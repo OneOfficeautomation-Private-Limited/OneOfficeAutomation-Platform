@@ -51,3 +51,31 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 .cc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; font-size: 12px; color: var(--ui-text-2); }
 .cc-legend .cc-seg { width: 10px; height: 10px; border-radius: 2px; }
 .cc-pad { padding: 16px 20px; }
+
+/* Agent Runs (Activity) */
+.cc-count { margin-left: 6px; padding: 0 6px; border-radius: 9px; background: var(--ui-selected); color: var(--ui-pill-text); font-size: 12px; }
+.cc-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 20px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-divider); }
+.cc-filters .ui-input { width: auto; min-width: 150px; }
+.cc-filters input[type="search"] { min-width: 260px; }
+.cc-date { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-text-2); }
+.cc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 20px; }
+.cc-chosen { font-weight: 600; }
+.cc-table-wrap { margin: 0 20px; overflow-x: auto; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg); }
+.cc-table td, .cc-table th { white-space: nowrap; padding: 0 10px; }
+.cc-table tbody tr { cursor: pointer; }
+.cc-check { width: 34px; }
+.cc-status { font-weight: 600; }
+.cc-status.is-failed, .cc-err { color: var(--ui-error-text); }
+.cc-status.is-success { color: var(--ui-success); }
+.cc-err { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.cc-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 20px; }
+.cc-cols { display: flex; flex-direction: column; gap: 6px; }
+.cc-facts { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; margin: 0; }
+.cc-facts dt { color: var(--ui-text-2); }
+.cc-facts dd { margin: 0; word-break: break-word; }
+.cc-log-title { margin: 14px 0 6px; font-size: 14px; }
+.cc-log { margin: 0; padding: 8px 10px; max-height: 320px; overflow: auto; list-style: none; background: var(--ui-soft); border: 1px solid var(--ui-divider);
+  border-radius: var(--ui-radius); font-family: var(--ui-mono); font-size: 12px; }
+.cc-log li { padding: 1px 0; }
+.cc-log li.is-bad { color: var(--ui-error-text); font-weight: 600; }
+.cc-log-step { display: inline-block; min-width: 60px; color: var(--ui-text-2); }

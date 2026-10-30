@@ -16,6 +16,16 @@ const dashboard = { running: 2, queued: 1, success_24h: 40, failed_24h: 3, succe
   days: [{ date: "2026-10-29", success: 5, failed: 1, stopped: 0, active: 0 }, { date: "2026-10-30", success: 3, failed: 0, stopped: 1, active: 1 }] };
 
 /** A Command Center with one session cookie: signed out at first; asks for a code when mfa is on. */
+const runs = [
+  { id: "r1", bot_path: "Finance/Invoice intake.flow.json", version: 3, device_id: "d1", device_name: "Runner A", status: "running", requested_by: "admin", source: "schedule:s1",
+    created: "2026-10-30T08:00:00Z", started: "2026-10-30T08:00:05Z", progress: { total: 8, finished: 2, action: "ooa.excel/open" } },
+  { id: "r2", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "queued", requested_by: "vic", source: "manual", created: "2026-10-30T08:01:00Z" },
+  { id: "r3", bot_path: "Finance/Invoice intake.flow.json", version: 3, device_id: "d1", device_name: "Runner A", status: "failed", requested_by: "admin", source: "manual",
+    created: "2026-10-30T07:00:00Z", started: "2026-10-30T07:00:02Z", finished: "2026-10-30T07:01:02Z", duration_ms: 60000, steps: 3,
+    error: JSON.stringify({ code: "EXCEL.NOT_FOUND", message: "No such file" }) },
+  { id: "r4", bot_path: "HR/Onboard.flow.json", version: 1, device_id: "d1", device_name: "Runner A", status: "success", requested_by: "vic", source: "trigger:t1",
+    created: "2026-10-29T07:00:00Z", started: "2026-10-29T07:00:02Z", finished: "2026-10-29T07:00:32Z", duration_ms: 30000, steps: 5 }];
+
 function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mfa = false, studio = true, plugins = [] as unknown[] } = {}) {
   let user = signedIn;
   const calls: { method: string; route: string; body?: unknown; headers?: Record<string, string> }[] = [];
@@ -37,6 +47,20 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (route === "auth/logout") { user = null; return ok({ ok: true }); }
     if (route === "dashboard") return ok(dashboard);
     if (route === "plugins") return ok({ plugins });
+    if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json" }, { path: "HR/Onboard.flow.json" }] });
+    if (route === "devices") return ok({ devices: [{ id: "d1", name: "Runner A" }] });
+    if (route === "runs") {
+      const q = new URLSearchParams(url.split("?")[1]);
+      calls.push({ method: "GET", route: "runs?" + q.toString() });
+      const list = runs.filter((r) => (q.get("filter") === "active" ? ["queued", "running"] : ["success", "failed", "stopped"]).includes(r.status)
+        && (!q.get("status") || r.status === q.get("status")));
+      return ok({ runs: list.slice(0, Number(q.get("limit") ?? 100)), total: list.length });
+    }
+    const m = /^runs\/([^/]+)(?:\/(\w+))?$/.exec(route);
+    if (m && !m[2]) return ok({ ...runs.find((r) => r.id === m[1]), events: [
+      { seq: 1, type: "step.started", stepId: "s1", data: { action: "ooa.excel/open" } },
+      { seq: 2, type: "step.failed", stepId: "s1", data: { action: "ooa.excel/open", code: "EXCEL.NOT_FOUND", message: "No such file" } }] });
+    if (m && m[2]) return ok({ ok: true });
     return no(404, "CR.NOT_FOUND", "Unknown API route " + route);
   }) as unknown as typeof fetch;
   return { api: new CrApi("/api/", f), calls };
@@ -103,6 +127,41 @@ describe("rebuilt Command Center console", () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin, plugins: [{ id: "document-automation", name: "Document Automation", description: "Learning instances and validation.", path: "/plugins/document-automation/" }] }).api} />);
     fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Document Automation" }));
     expect((await screen.findByRole("link", { name: "Open Document Automation" })).getAttribute("href")).toBe("/plugins/document-automation/");
+  });
+
+  it("shows Agent Runs as AA's Activity: In progress and Completed, filters, selected runs stopped or run again, columns, details, CSV", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "runs.stop", "runs.start"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Agent Runs" }));
+    const live = await screen.findByRole("table", { name: "Runs in progress" });
+    expect(await within(live).findByText("Step 3 of 8: ooa.excel/open")).toBeTruthy();
+    expect(within(live).getByText("Schedule")).toBeTruthy();
+    expect(within(live).getByText("Waiting for the runner")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: /In progress/ }).textContent).toContain("2");
+    fireEvent.click(within(live).getByLabelText("Select the run of Onboard"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Stop" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "runs/r2/stop" }));
+    expect(await screen.findByText("Stop asked for 1 run (after the current step).")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Completed/ }));
+    const done = await screen.findByRole("table", { name: "Completed runs" });
+    expect(await within(done).findByText("EXCEL.NOT_FOUND: No such file")).toBeTruthy();
+    expect(calls.some((c) => c.route.startsWith("runs?") && c.route.includes("filter=history") && c.route.includes("from="))).toBe(true);   // the last 90 days
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "failed" } });
+    await waitFor(() => expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Onboard v1")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Columns" })).getByLabelText("Duration"));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(within(screen.getByRole("table", { name: "Completed runs" })).queryByText("Duration")).toBeNull();
+    fireEvent.click(within(screen.getByRole("table", { name: "Completed runs" })).getByText("EXCEL.NOT_FOUND: No such file"));
+    const details = await screen.findByRole("dialog", { name: "Run of Invoice intake" });
+    expect(await within(details).findByText("Failed ooa.excel/open: EXCEL.NOT_FOUND No such file")).toBeTruthy();
+    fireEvent.click(within(details).getByRole("button", { name: "Close" }));
+    const made: string[] = [];
+    URL.createObjectURL = (() => { made.push("csv"); return "blob:x"; }) as typeof URL.createObjectURL;
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Export CSV" })); });
+    expect(made).toEqual(["csv"]);
+    expect(await screen.findByText("Exported 1 run.")).toBeTruthy();
   });
 
   it("names a step sign-in still needs, done in today's console", async () => {
