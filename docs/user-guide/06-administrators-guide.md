@@ -218,7 +218,7 @@ whether a token is valid, for whom and until when.
 
 ## 7. One Agent Vault
 
-**Manage > One Agent Vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
+**Administration > One Agent Vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
 are handed to an agent only while it runs, and every use is audited. Agents refer to a value as
 `folder/credential/attribute`, for example `finance/erp/password`.
 

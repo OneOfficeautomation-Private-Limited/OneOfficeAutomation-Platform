@@ -34,7 +34,7 @@ You need an account in One Command Center (ask your administrator). You see only
 ## 2. The Task inbox
 
 1. Open One Command Center in your browser and sign in.
-2. Choose **Task inbox** in the menu (under **Operations**), or click the **Tasks waiting for you** tile on **Home**.
+2. Choose **Task inbox** in the menu (under **Manage**), or click the **Tasks waiting for you** tile on **Home**.
 
 **What you see:**
 

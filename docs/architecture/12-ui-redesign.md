@@ -110,7 +110,7 @@ New and changed screens from the V6 gap list that live in Studio:
 | V6.5 Model connections | Wizard with dropdowns: service, region, model, separate vault keys, test on the server, default use, on or off |
 | V6.7 Filters and saved views | Explorer, action library and run history |
 | V6.11 Wizards with drafts | New agent from template, new connection, new trigger |
-| V6.1 Menu | Command Center menu in four sections: BUILD, MANAGE, ADMINISTRATION, AI |
+| V6.1 Menu | Command Center menu by task: BUILD, MANAGE, INSIGHTS, ADMINISTRATION, AI. **Done in today's console 2026-10-30** (the user chose Insights as its own section; the Vault under Administration, runs, schedules, triggers and queues under Manage); the rebuilt console keeps it |
 | V6.2 Work for people | Forms and workflows made in Automation and called from agents; the Task inbox under MANAGE |
 
 ## 5. Moving over without a big bang

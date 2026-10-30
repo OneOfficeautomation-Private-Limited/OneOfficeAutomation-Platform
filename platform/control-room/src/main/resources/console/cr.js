@@ -206,15 +206,17 @@ const PAGES = [
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
 /**
- * The menu: Home, then short sections: Build, Manage, Operations, Administration, AI (shown in capitals). The section of the current page is open, and the one opened last; the others show only their name.
+ * The menu (V6.1), grouped by task as Studio's is: Home, then Build (make agents), Manage (run them and what they
+ * use), Insights (how they do), Administration (people, the vault, audit, licences, settings) and AI, shown in
+ * capitals. The section of the current page is open, and the one opened last; the others show only their name.
  * Pages not listed here (admin) are reached from inside other pages.
  */
 const NAV_GROUPS = [
-  ["automation", "Build", "bot", ["automation", "templates", "studio", "workflows", "apitasks", "tests"]],
-  ["manage", "Manage", "desktop", ["devices", "credentials", "globals", "savedconn", "toolkits"]],
-  ["operations", "Operations", "pulse", ["activity", "inbox", "schedules", "triggers", "queues", "operations", "dashboards"]],
-  ["administration", "Administration", "gear", ["users", "roles", "teams", "licenses", "audit", "settings"]],
-  ["ai", "AI", "shieldai", ["skills", "connections", "governance"]],
+  ["automation", "Build", "bot", ["automation", "templates", "studio", "apitasks", "tests"]],
+  ["manage", "Manage", "desktop", ["activity", "inbox", "devices", "schedules", "triggers", "queues", "workflows", "globals", "savedconn", "toolkits"]],
+  ["insights", "Insights", "percent", ["operations", "dashboards"]],
+  ["administration", "Administration", "gear", ["users", "roles", "teams", "credentials", "audit", "licenses", "settings"]],
+  ["ai", "AI", "shieldai", ["connections", "skills", "governance"]],
 ];
 const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }

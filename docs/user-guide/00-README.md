@@ -115,7 +115,7 @@ recorded in the **One Audit Trail**.
 
 - **Bold** text is a page name, button, field or menu exactly as it appears on screen, for example **Agent Runs** or
   **Register a runner**.
-- A path such as **Operations > Schedules** means: open the **Operations** section of the menu on the left, then the
+- A path such as **Manage > Schedules** means: open the **Manage** section of the menu on the left, then the
   **Schedules** page.
 - `Code font` is something you type: a command, a value or a vault reference.
 - Commands are shown as `ooa ...`. On an installed computer run them from the install's `bin` folder as

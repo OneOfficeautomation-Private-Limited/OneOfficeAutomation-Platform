@@ -28,14 +28,14 @@ work on work queue items. Creating schedules, triggers, work queues and API task
 ## 1. Your working day at a glance
 
 1. Open **Home**. Check **Failed (24 h)**, **Recent failures** and **Runners online**.
-2. Open **Operations > Agent Runs**: the **Live** tab shows what runs now and what waits.
-3. Look at **Operations > Work queues** for items past their service level (a red "overdue" pill).
-4. Look at **Operations > Triggers** for any trigger whose **Status** is **error**.
+2. Open **Manage > Agent Runs**: the **Live** tab shows what runs now and what waits.
+3. Look at **Manage > Work queues** for items past their service level (a red "overdue" pill).
+4. Look at **Manage > Triggers** for any trigger whose **Status** is **error**.
 5. Deal with failures (section 13), then rerun what needs rerunning.
 
 ## 2. Agent Runs: what is running and what ran
 
-**Operations > Agent Runs** (needs `runs.view`) has two tabs, each with a count.
+**Manage > Agent Runs** (needs `runs.view`) has two tabs, each with a count.
 
 ### The Live tab
 
@@ -165,7 +165,7 @@ With `pools.manage`, **New runner pool** asks for a name, description and the ru
 
 ## 5. Schedules
 
-**Operations > Schedules** (needs `schedules.view`; changing needs `schedules.manage`).
+**Manage > Schedules** (needs `schedules.view`; changing needs `schedules.manage`).
 
 ### Create a schedule
 
@@ -208,7 +208,7 @@ Several at once: tick schedules, then **Enable selected**, **Disable selected** 
 
 ## 6. Triggers
 
-**Operations > Triggers** (needs `triggers.view`; changing needs `triggers.manage`) start an agent when something
+**Manage > Triggers** (needs `triggers.view`; changing needs `triggers.manage`) start an agent when something
 happens.
 
 ### Create a trigger
@@ -254,7 +254,7 @@ Columns: **Trigger**, **Kind** ("Checked by the Command Center" or "Watched on t
 
 ## 7. Work queues
 
-**Operations > Work queues** (needs `queues.view`) hold items such as invoices, tickets or orders that an agent works
+**Manage > Work queues** (needs `queues.view`) hold items such as invoices, tickets or orders that an agent works
 one by one on a runner pool, with retries and a service level.
 
 ### Set up a queue (`queues.manage`)
@@ -305,7 +305,7 @@ required fields, right types, no unknown fields.
 
 ## 8. One Workflow and the Task inbox
 
-**Build > One Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
+**Manage > One Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
 (running, waiting, completed, failed, cancelled), **Current stage**, **Started by**, **Started** and **Updated**.
 
 To start one (`runs.start`): press **Start a workflow**, choose the **Workflow (live production version)**, fill in
@@ -316,7 +316,7 @@ Click a run to monitor it: **Reference**, **Status**, **Current stage**, **Start
 **Timeline** of events (agent started, finished or failed, task created or completed, approved, rejected, decided,
 notified) with **Open agent run** links, and the workflow **Data**. **Cancel run** withdraws its open tasks.
 
-People's steps arrive in **Operations > Task inbox** (tabs **To do** and **Done**). Administrators can tick
+People's steps arrive in **Manage > Task inbox** (tabs **To do** and **Done**). Administrators can tick
 **Everyone's tasks** to see who is holding what. Each task can be taken (**Take it**), given back (**Give back**),
 filled in and submitted, approved or rejected, or marked as read. See [14 Business users](14-business-users.md).
 
@@ -346,7 +346,7 @@ runners, toolkits or connected systems.
 
 ## 11. Operations: how agents ran
 
-**Operations > Operations** (needs `analytics.view`) summarises a period (**Last 24 hours**, **7 days**, **30 days**,
+**Insights > Operations** (needs `analytics.view`) summarises a period (**Last 24 hours**, **7 days**, **30 days**,
 **90 days**, **Last year**) for **All agents** or one:
 
 - figures for **Runs**, **Success rate** (succeeded, failed, stopped), **Run time** (total and average) and
@@ -363,7 +363,7 @@ agents you may see are counted.
 
 ## 12. Dashboards and business figures (KPIs)
 
-**Operations > Dashboards** (needs `analytics.view`) shows figures your agents record. A builder ticks **Business
+**Insights > Dashboards** (needs `analytics.view`) shows figures your agents record. A builder ticks **Business
 figure (KPI)** on an output in Studio; each successful run then records its value.
 
 1. Press **New dashboard**. Give a **Name**, **Share with** (`role:viewer`, `team:finance`, `user:jane`, `*` for

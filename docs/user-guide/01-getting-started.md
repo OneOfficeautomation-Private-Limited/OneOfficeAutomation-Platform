@@ -177,11 +177,11 @@ at the bottom makes the menu narrow (icons only) or full again.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
-| **Build** | Agent repository, Templates, One Agent Studio (opens a new tab), One Workflow, API tasks, Agent tests | Find and run agents, install ready-made ones, start workflows, publish agents as web services, test agents |
-| **Manage** | Runners, One Agent Vault, Shared values, Connections, Toolkits | The machines, the secrets and the shared settings agents use |
-| **Operations** | Agent Runs, Task inbox, Schedules, Triggers, Work queues, Operations, Dashboards | Daily running and monitoring |
-| **Administration** | Users, Roles, Teams, Licenses, One Audit Trail, Settings | People, access, licences, audit and system settings |
-| **AI** | Prompt Skills, One Model Connections, AI governance | AI prompts, model connections and the record of AI use |
+| **Build** | Agent repository, Templates, One Agent Studio (opens a new tab), API tasks, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
+| **Manage** | Agent Runs, Task inbox, Runners, Schedules, Triggers, Work queues, One Workflow, Shared values, Connections, Toolkits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows and the shared settings agents use |
+| **Insights** | Operations, Dashboards | How agents and work queues are doing |
+| **Administration** | Users, Roles, Teams, One Agent Vault, One Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
+| **AI** | One Model Connections, Prompt Skills, AI governance | Model connections, AI prompts and the record of AI use |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
 schedules, triggers, shared values, work queues, Operations, Dashboards and Prompt Skills, but cannot change anything.
@@ -232,7 +232,7 @@ waits for a second person to approve it (**Build > Agent repository > Production
 4. Fill in the input `name`, for example `Command Center`.
 5. Optional: open **Run mode, priority and result callback** to choose **Attended**, **Unattended** or **Headless**,
    a priority, or a callback URL. Leave the defaults for now.
-6. Press **Run now**. The Command Center opens **Operations > Agent Runs** on the **Live** tab and the run's details.
+6. Press **Run now**. The Command Center opens **Manage > Agent Runs** on the **Live** tab and the run's details.
 
 ### 6.4 Look at the result
 

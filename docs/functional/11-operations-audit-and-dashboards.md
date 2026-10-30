@@ -96,7 +96,7 @@ and average.
 
 - In Studio, an output variable of type Number, String or Boolean can be ticked **Business figure (KPI)**. Each
   successful run records its value.
-- Operations > **Dashboards** holds dashboards of widgets:
+- Insights > **Dashboards** holds dashboards of widgets:
 
 | Widget property | Values |
 | --- | --- |

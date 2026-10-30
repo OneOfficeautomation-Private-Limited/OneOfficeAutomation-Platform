@@ -26,7 +26,7 @@ Triggers that live inside an agent (trigger loops, interrupt rules) are in [docu
 
 ## 1. Schedules
 
-A schedule (Operations > Schedules) starts the live production version of one agent at set times.
+A schedule (Manage > Schedules) starts the live production version of one agent at set times.
 
 | Field | Rule |
 | --- | --- |
@@ -94,7 +94,7 @@ from that moment; disabling clears it.
 
 ## 5. Triggers: common rules
 
-A trigger (Operations > Triggers) starts the live production version of an agent when an event happens.
+A trigger (Manage > Triggers) starts the live production version of an agent when an event happens.
 
 | Field | Rule |
 | --- | --- |

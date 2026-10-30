@@ -52,11 +52,15 @@ async function page() {
   const menuPages = () => [...d.querySelectorAll("#nav > button:not(.nav-collapse), #nav .nav-fly button")].map((b) => b.textContent);
   const navItems = menuPages();
   const groups = [...d.querySelectorAll("#nav .nav-group")].map((b) => b.textContent.trim());
-  check("the menu has short sections: Build, Manage, Operations, Administration, AI", groups.join("|") === "Build|Manage|Operations|Administration|AI", groups.join("|"));
+  check("the menu has short sections by task: Build, Manage, Insights, Administration, AI", groups.join("|") === "Build|Manage|Insights|Administration|AI", groups.join("|"));
   check("an administrator sees Home and all 26 pages, each once", navItems.length === 27 && new Set(navItems).size === 27 && navItems.includes("Templates") && navItems.includes("Agent tests") && navItems.includes("Dashboards") && navItems.includes("Task inbox") && navItems.includes("One Workflow") && navItems.includes("AI governance")
     && ["Settings", "Roles", "Toolkits", "One Model Connections", "Connections"].every((x) => navItems.includes(x)) && !navItems.includes("Administration"), navItems.join(","));
   const admin = [...d.querySelectorAll('#nav .nav-section[aria-label="Administration"] .nav-fly button')].map((b) => b.textContent);
-  check("Administration holds users, roles, licenses, audit and settings", ["Users", "Roles", "Teams", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
+  check("Administration holds users, roles, the vault, licenses, audit and settings", ["Users", "Roles", "Teams", "One Agent Vault", "Licenses", "Settings", "One Audit Trail"].every((x) => admin.includes(x)), admin.join(","));
+  const manage = [...d.querySelectorAll('#nav .nav-section[aria-label="Manage"] .nav-fly button')].map((b) => b.textContent);
+  check("Manage holds the runs, the task inbox, runners, schedules, triggers and queues", ["Task inbox", "Runners", "Schedules", "Triggers", "Work queues"].every((x) => manage.includes(x)), manage.join(","));
+  const insights = [...d.querySelectorAll('#nav .nav-section[aria-label="Insights"] .nav-fly button')].map((b) => b.textContent);
+  check("Insights holds Operations and Dashboards", insights.join("|") === "Operations|Dashboards", insights.join("|"));
   nav("Licenses");
   check("Licenses says no license is installed and lists seats, people and runners", await until(() => { const t = d.getElementById("main").textContent; return t.includes("No license installed") && t.includes("Unattended Runner") && t.includes("Install license"); }),
     d.getElementById("main").textContent.slice(0, 300));
@@ -66,7 +70,7 @@ async function page() {
   await until(() => d.querySelectorAll("#main .tile").length >= 6);
   check("on Home only the sections show, no section is open", !d.querySelector("#nav .nav-items"));
   click(d.querySelector('#nav .nav-group[data-group="manage"]'));
-  check("a section opens to show its pages", await until(() => [...d.querySelectorAll('#nav .nav-section[aria-label="Manage"] .nav-items button')].map((b) => b.textContent).includes("One Agent Vault")));
+  check("a section opens to show its pages", await until(() => [...d.querySelectorAll('#nav .nav-section[aria-label="Manage"] .nav-items button')].map((b) => b.textContent).includes("Runners")));
   click(d.querySelector('#nav .nav-group[data-group="manage"]'));
   check("and closes again", await until(() => !d.querySelector('#nav .nav-section[aria-label="Manage"] .nav-items')));
   const find = d.querySelector("#nav .nav-search input");
