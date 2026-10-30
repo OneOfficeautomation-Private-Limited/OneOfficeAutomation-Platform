@@ -43,6 +43,18 @@ export type CrRole = { name: string; builtin: boolean; description?: string | nu
 /** A team: named team:NAME in folder permissions, vault folders and work queues. */
 export type CrTeam = { id: string; name: string; description?: string | null; created?: string; created_by?: string;
   members: { username: string; team_role: "member" | "lead" }[]; used_in?: string[] };
+/** A vault folder (AA: locker) as the caller sees it: their place in it, members, credentials, an external vault link. */
+export type VaultFolder = { name: string; description?: string | null; owners: string; consumers?: string | null; managers: string[]; participants: string[];
+  my_role: "owner" | "manager" | "participant" | "consumer"; can_manage: boolean; created_by?: string;
+  external?: { provider: string; url?: string; region?: string; [k: string]: string | undefined } | null;
+  credentials: { name: string; attribute: string; updated?: string; updated_by?: string }[];
+  credential_info?: { name: string; owner?: string | null; user_attributes?: string[]; my_values?: string[] }[] };
+export type VaultCredential = { locker: string; name: string; owner?: string | null; description?: string | null; can_change: boolean; my_values: string[];
+  attributes: { attribute: string; user_provided: boolean; description?: string | null; masked?: boolean; password_only?: boolean; updated?: string; updated_by?: string }[] };
+/** A value the person must fill in themselves (a user-provided attribute of a credential their runs use). */
+export type VaultRequest = { locker: string; name: string; attribute: string; description?: string | null; credential_description?: string | null; password_only?: boolean };
+export type VaultStatus = { key_source: string; key_source_detail?: string; key_fingerprint: string; vault_folders: number; values: number; personal_values: number;
+  external_links: number; can_rotate: boolean };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -141,6 +153,31 @@ export class CrApi {
   saveTeam(id: string | null, name: string, description: string) { return this.call<{ id: string; name: string }>(id ? "PUT" : "POST", "teams" + (id ? "/" + encodeURIComponent(id) : ""), { name, description }); }
   async deleteTeam(id: string) { await this.call("DELETE", "teams/" + encodeURIComponent(id)); }
   async setTeamMembers(id: string, members: { username: string; role: "member" | "lead" }[]) { await this.call("PUT", "teams/" + encodeURIComponent(id) + "/members", { members }); }
+  // ---- Credential vault: folders (AA's lockers), credentials, people's own values, external vaults, the master key ----
+  async vaultFolders() { return (await this.call<{ lockers?: VaultFolder[] }>("GET", "lockers")).lockers ?? []; }
+  async vaultRequests() { return (await this.call<{ requests?: VaultRequest[] }>("GET", "vault/requests")).requests ?? []; }
+  credential(folder: string, name: string) { return this.call<VaultCredential>("GET", "vault/credential?" + new URLSearchParams({ locker: folder, name })); }
+  async saveCredentialDetails(folder: string, name: string, b: { description?: string; owner?: string; user_attributes?: string[];
+    attributes_info?: Record<string, { description: string; masked: boolean; password_only: boolean }> }) { await this.call("PUT", "vault/credential?" + new URLSearchParams({ locker: folder, name }), b); }
+  async deleteCredential(folder: string, name: string) { await this.call("DELETE", "vault/credential?" + new URLSearchParams({ locker: folder, name })); }
+  /** Stores one attribute's value, encrypted; it is never shown again (masked values). */
+  async setCredentialValue(folder: string, name: string, attribute: string, value: string) {
+    await this.call("PUT", "lockers/" + encodeURIComponent(folder) + "/" + encodeURIComponent(name) + "/" + encodeURIComponent(attribute), { value });
+  }
+  /** An unmasked (not secret) value, for owners and managers; audited. */
+  credentialValue(folder: string, name: string, attribute: string) { return this.call<{ value: string }>("GET", "vault/value?" + new URLSearchParams({ locker: folder, name, attribute })); }
+  async setMyValue(folder: string, name: string, attribute: string, value: string) { await this.call("PUT", "vault/my-value", { locker: folder, name, attribute, value }); }
+  async clearMyValue(folder: string, name: string, attribute: string) { await this.call("DELETE", "vault/my-value?" + new URLSearchParams({ locker: folder, name, attribute })); }
+  async createVaultFolder(name: string, description: string, consumers: string) { await this.call("POST", "lockers", { name, description, consumers }); }
+  async deleteVaultFolder(name: string) { await this.call("DELETE", "lockers/" + encodeURIComponent(name)); }
+  async setVaultMembers(name: string, b: { owners: string; managers: string; participants: string; consumers: string }) { await this.call("PUT", "lockers/" + encodeURIComponent(name) + "/members", b); }
+  async linkExternalVault(name: string, b: Record<string, string>) { await this.call("PUT", "lockers/" + encodeURIComponent(name) + "/external", b); }
+  async unlinkExternalVault(name: string) { await this.call("DELETE", "lockers/" + encodeURIComponent(name) + "/external"); }
+  testExternalVault(name: string, credential: string, attribute: string) {
+    return this.call<{ ok: boolean; length?: number; code?: string; message?: string }>("POST", "lockers/" + encodeURIComponent(name) + "/test", { credential, attribute });
+  }
+  vaultStatus() { return this.call<VaultStatus>("GET", "vault/status"); }
+  rotateVaultKey() { return this.call<{ re_encrypted: number; key_fingerprint: string }>("POST", "vault/rotate"); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

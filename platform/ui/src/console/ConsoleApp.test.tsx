@@ -84,6 +84,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     if (/^users\/u\d\/(unlock|reset-mfa|default-device)$/.test(route)) return ok({ ok: true });
     if (route === "devices/runasusers") return ok({ users: [{ username: "admin", device_id: "d1", device_name: "Runner A" }] });
     if (/^roles\/[a-z_]+$/.test(route)) return ok({ ok: true });
+    if (route === "lockers" && (init.method ?? "GET") === "GET") return ok({ lockers: [
+      { name: "finance", description: "Bank and ERP", owners: "admin", consumers: "role:bot_runner", managers: [], participants: ["team:finance"], my_role: "owner", can_manage: true,
+        external: null, credentials: [{ name: "erp", attribute: "username", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }, { name: "erp", attribute: "password", updated: "2026-10-30T08:00:00Z", updated_by: "admin" }],
+        credential_info: [{ name: "erp", owner: "admin", user_attributes: [], my_values: [] }, { name: "bank", owner: "admin", user_attributes: ["pin"], my_values: [] }] }] });
+    if (route === "vault/requests") return ok({ requests: [{ locker: "finance", name: "bank", attribute: "pin", description: "Your bank PIN" }] });
+    if (route === "vault/credential" && (init.method ?? "GET") === "GET") return ok({ locker: "finance", name: "erp", owner: "admin", description: "", can_change: true, my_values: [],
+      attributes: [{ attribute: "password", user_provided: false, masked: true }, { attribute: "username", user_provided: false, masked: true }] });
+    if (route === "vault/credential" || route === "vault/my-value" || /^lockers\//.test(route)) return ok({ ok: true });
     if (route === "teams" && init.method === "POST") return ok({ id: "t2", name: body.name });
     if (route === "teams") return ok({ teams: [
       { id: "t1", name: "finance", description: "Finance people", members: [{ username: "vic", team_role: "lead" }, { username: "old", team_role: "member" }], used_in: ["agent folder Finance", "vault folder Bank"] },
@@ -143,7 +151,7 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Credential vault" }).getAttribute("href")).toBe("../?page=credentials");
+    expect(within(menu).getByRole("link", { name: "Licenses" }).getAttribute("href")).toBe("../?page=licenses");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -378,6 +386,48 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(c).getByLabelText(/^Name/), { target: { value: "hr" } });
     await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create team" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "teams", body: { name: "hr", description: "" } }));
+  });
+
+  it("shows the Credential vault as AA's: credentials, vault folders, my requests; flags saved, a credential created, members changed", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "lockers.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Credential vault" }));
+    const list = await screen.findByRole("table", { name: "Credentials list" });
+    expect(await within(list).findByText("pin (yours missing)")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Needs my own value"));
+    await waitFor(() => expect(within(list).queryByText("erp")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    // a credential: clear Masked on the user name, so owners can look it up
+    fireEvent.click(await within(list).findByText("erp"));
+    const d = await screen.findByRole("dialog", { name: "Credential finance/erp" });
+    fireEvent.click(await within(d).findByLabelText("Masked: username"));
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Save details" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/credential", body: expect.objectContaining({
+      attributes_info: { password: { description: "", masked: true, password_only: false }, username: { description: "", masked: false, password_only: false } } }) }));
+    fireEvent.click(within(d).getByRole("button", { name: "Close" }));
+    // create a credential: a shared user name and each person's own password
+    fireEvent.click(screen.getByRole("button", { name: "Create credential" }));
+    const c = await screen.findByRole("dialog", { name: "Create credential" });
+    fireEvent.change(within(c).getByLabelText("Credential name"), { target: { value: "crm" } });
+    fireEvent.change(within(c).getByLabelText("Value of attribute 1"), { target: { value: "svc-crm" } });
+    fireEvent.click(within(c).getByLabelText("Attribute 2 is each person's own"));
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create credential" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "lockers/finance/crm/username", body: { value: "svc-crm" } }));
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/credential", body: { description: "", user_attributes: ["password"] } }));
+    // vault folders: members by place
+    fireEvent.click(screen.getByRole("tab", { name: /Vault folders/ }));
+    fireEvent.click(within(await screen.findByRole("table", { name: "Vault folders list" })).getByText("finance"));
+    const f = await screen.findByRole("dialog", { name: "Vault folder finance" });
+    fireEvent.change(within(f).getByLabelText(/^Managers/), { target: { value: "user:vic" } });
+    await act(async () => { fireEvent.click(within(f).getByRole("button", { name: "Save members" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "lockers/finance/members",
+      body: { owners: "admin", managers: "user:vic", participants: "team:finance", consumers: "role:bot_runner" } }));
+    fireEvent.click(within(f).getByRole("button", { name: "Close" }));
+    // my requests: a person's own value
+    fireEvent.click(screen.getByRole("tab", { name: /My requests/ }));
+    fireEvent.change(await screen.findByLabelText("Your pin for finance/bank"), { target: { value: "1234" } });
+    await act(async () => { fireEvent.click(within(screen.getByRole("table", { name: "My requests list" })).getByRole("button", { name: "Save" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "vault/my-value", body: { locker: "finance", name: "bank", attribute: "pin", value: "1234" } }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
