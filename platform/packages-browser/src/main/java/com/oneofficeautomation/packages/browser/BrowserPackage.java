@@ -1753,17 +1753,19 @@ public final class BrowserPackage {
         page.onLoad(p -> { try { last[1] = p.title(); } catch (PlaywrightException ignored) { } });
         page.onFrameNavigated(f -> {
             if (f != page.mainFrame()) return;
+            // the page left, noted first: while the browser is asked below, a quick page can load and change last[]
+            String leftUrl = last[0], leftTitle = last[1];
+            last[0] = f.url();
             try {
                 com.google.gson.JsonObject h = cdp.send("Page.getNavigationHistory");
                 String how = h.getAsJsonArray("entries").get(h.get("currentIndex").getAsInt()).getAsJsonObject().get("transitionType").getAsString();
-                if (TYPED.contains(how) && !f.url().equals(last[0]) && events.size() < 500) {
+                if (TYPED.contains(how) && !f.url().equals(leftUrl) && events.size() < 500) {
                     Map<String, Object> ev = new LinkedHashMap<>();
-                    ev.put("kind", "navigate"); ev.put("url", f.url()); ev.put("page", Map.of("title", last[1], "url", last[0]));
+                    ev.put("kind", "navigate"); ev.put("url", f.url()); ev.put("page", Map.of("title", leftTitle, "url", leftUrl));
                     events.add(ev); eventFrames.add(null);
                     ctx.info("Recorded step " + events.size() + ": go to " + f.url());
                 }
             } catch (RuntimeException ignored) { /* the page went away */ }
-            last[0] = f.url();
         });
     }
 
