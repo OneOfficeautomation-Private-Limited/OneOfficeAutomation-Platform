@@ -28,7 +28,7 @@ dependencies, code analysis, the Git mirror, moving agents between Command Cente
 
 ## 1. Workspace and repository
 
-| | Studio workspace (My Workspace) | Agent repository |
+| | Studio workspace (My Workspace) | Agent Repository |
 | --- | --- | --- |
 | Where | The designer's computer | The Command Center database |
 | Who sees it | Only the designer | Everyone allowed by role and folder permissions |
@@ -90,7 +90,7 @@ refused until it is recovered (`CR.DELETED`).
 
 ## 6. The live production version
 
-- One version of each item can be live. Runs, schedules, triggers, work queues, API tasks, tests and workflows always
+- One version of each item can be live. Runs, schedules, triggers, work queues, Agent APIs, tests and workflows always
   use it; child agents use their own live version unless the step names another.
 - Setting it needs `repo.production` and folder access manage. An item without one cannot run (`CR.NO_PRODUCTION`).
 - Changes are audited (`repo.set_production`) and reported to the Git mirror.
@@ -121,7 +121,7 @@ When **Approval before production** is on (Administration > Settings > Security,
 | --- | --- |
 | Delete | Removes the item from the list and stops it running; versions are kept. Refused while someone else has it checked out, or while a schedule, trigger, work queue or API task uses it (`CR.IN_USE`, listing them, for example "API task NAME"). The answer names agents that call it. |
 | Deleted agents / Recover | Lists deleted items and brings one back with its versions (needs `repo.delete`) |
-| Move | Moves one item to another folder with its versions, labels, analysis reports, the schedules, triggers, queues and API tasks that run it, its run history and workflow runs. Refused while someone else has it checked out, when an item exists at the target, or while a workflow names it by path. Needs edit access on both folders. |
+| Move | Moves one item to another folder with its versions, labels, analysis reports, the schedules, triggers, queues and Agent APIs that run it, its run history and workflow runs. Refused while someone else has it checked out, when an item exists at the target, or while a workflow names it by path. Needs edit access on both folders. |
 | Copy | Makes a new item from the latest version: version 1, not live, agent id = old id + `_copy` (numbered if taken), name "Copy of …". The kind of file is kept. Schedules and history are not copied. |
 | Rename folder | Renames or moves a folder with everything in it and below, including files, permissions and run history. Refused while someone else has an item in it checked out, or a workflow names an item in it by path. |
 | Delete folder | Only an empty folder (no items, deleted ones included, and no files) |
@@ -144,7 +144,7 @@ toolkits it uses.
 
 ## 11. Code analysis
 
-**Agent repository > Code analysis** sets the policy: a set of rules, each on or off and an error or a warning.
+**Agent Repository > Code analysis** sets the policy: a set of rules, each on or off and an error or a warning.
 
 | Rule |
 | --- |
@@ -232,5 +232,5 @@ permission changes, file uploads and deletes.
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [10 Users, roles, teams and security](10-users-roles-teams-and-security-features.md)
 - [13 Licensing and editions](13-licensing-and-editions.md)
-- [14 One Agent Studio](14-studio-features.md)
+- [14 One AgentStudio](14-studio-features.md)
 - [Command Center and runner, sections 4 and 10i](../user-guide/00-README.md)

@@ -49,9 +49,9 @@ The other collections cover different ground:
 
 | Name in the product | Name in the code | Meaning |
 | --- | --- | --- |
-| One Command Center | `control-room` module, `ControlRoom`, `ControlRoomServer` | The shared server: repository, runs, users, vault, schedules, audit |
-| One Agent Studio | `cli` module, `StudioServer`, `studio.js` | The browser-based designer, served on this computer only |
-| One Runner | `agent` module, `Agent`, `RunWorker` | The worker that runs agents on a machine |
+| One CommandCenter | `control-room` module, `ControlRoom`, `ControlRoomServer` | The shared server: repository, runs, users, vault, schedules, audit |
+| One AgentStudio | `cli` module, `StudioServer`, `studio.js` | The browser-based designer, served on this computer only |
+| OneRunner | `agent` module, `Agent`, `RunWorker` | The worker that runs agents on a machine |
 | Runner engine | `runner` module, `Runner` | The interpreter for an agent definition |
 | Agent | a Flow JSON file (`*.flow.json`); "bot" in older code | One automation |
 | Toolkit | a package class annotated `@OoaPackage` | A set of actions, conditions and loop iterators |

@@ -1,15 +1,15 @@
-# One Agent Studio basics
+# One AgentStudio basics
 
 **Audience:** everyone who builds agents: new builders, business analysts who automate their own work, and
 developers who are new to ONEOFFICEAUTOMATION.
 
-**You will learn to:** open One Agent Studio, find your way around its screen, create and organise agents and other
+**You will learn to:** open One AgentStudio, find your way around its screen, create and organise agents and other
 items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 ## Contents
 
-1. [What One Agent Studio is](#1-what-one-agent-studio-is)
-2. [Open One Agent Studio](#2-open-one-agent-studio)
+1. [What One AgentStudio is](#1-what-one-agent-studio-is)
+2. [Open One AgentStudio](#2-open-one-agent-studio)
 3. [The Automation home](#3-the-automation-home)
 4. [The screen when an agent is open](#4-the-screen-when-an-agent-is-open)
 5. [Create agents, folders and other items](#5-create-agents-folders-and-other-items)
@@ -23,9 +23,9 @@ items in your workspace, upload files, and work faster with keyboard shortcuts.
 
 ---
 
-## 1. What One Agent Studio is
+## 1. What One AgentStudio is
 
-One Agent Studio is the place where you build, test and debug agents. It runs in your web browser (Chrome or Edge),
+One AgentStudio is the place where you build, test and debug agents. It runs in your web browser (Chrome or Edge),
 but it only works on your own computer: it reads and writes your private workspace, called **My Workspace**.
 
 - An **agent** is a list of **steps**. Each step runs one **action**, such as *Open workbook*, *Send email* or *Click
@@ -37,15 +37,15 @@ but it only works on your own computer: it reads and writes your private workspa
 Besides agents, the workspace holds **forms**, **workflows**, **document intelligence** items, **Prompt Skills**,
 **scripts** (Python, PowerShell, VBScript, JavaScript) and ordinary files such as workbooks and CSV files.
 
-## 2. Open One Agent Studio
+## 2. Open One AgentStudio
 
 1. Make sure ONEOFFICEAUTOMATION is running on your computer (see [Getting started](01-getting-started.md)).
 2. Open Chrome or Edge and go to **http://localhost:8720/studio/**.
-   - If One Command Center runs on the same computer, Studio uses the sign-in you already have there.
+   - If One CommandCenter runs on the same computer, Studio uses the sign-in you already have there.
    - If Studio runs on its own, the window that started it shows its address (`Open: http://localhost:<port>`).
 3. The **Automation** home opens.
 
-**What you see:** a dark bar across the top with the ONEOFFICEAUTOMATION logo and the words **One Agent Studio**, a
+**What you see:** a dark bar across the top with the ONEOFFICEAUTOMATION logo and the words **One AgentStudio**, a
 narrow rail of icons on the left, and the list of everything in your workspace in the middle.
 
 > **Tip:** Studio only answers browsers on the same computer. Opening it from another machine gives
@@ -90,9 +90,9 @@ Open an agent (click it on the home page or in the Explorer). The screen fills w
 | Breadcrumb | **Automation / folder / agent name**. When you opened this agent from a parent agent, it shows the way back (see [Child agents](09-child-agents.md)). A **Run by** note lists agents that run this one. |
 | ✕ (Close) | Closes the item and returns to the home page; asks to save changes first. |
 | **Unsaved** | Appears when you have changes that are not saved. |
-| **One Command Center** | Opens One Command Center in another tab (shown when Studio runs together with it). |
+| **One CommandCenter** | Opens One CommandCenter in another tab (shown when Studio runs together with it). |
 | Panel toggles | Three small buttons: **Left panel**, **Run dock**, **Action settings**. Each shows or hides that panel. |
-| Theme and density (sun icon) | **Theme**, **Language**, **Density**, plus **One Model Connections…** and **Connectors…**. |
+| Theme | **Light** or **Dark**. |
 | **Save** | Saves the open item (Ctrl+S). |
 | **Validate** | Checks the agent and shows the result in the **Problems** tab. |
 | **Assistant** | Builds steps from a description, or explains the agent in plain words (see [AI in agents](13-ai-in-agents.md)). |
@@ -107,7 +107,7 @@ The rail on the far left switches the side panel:
 | --- | --- |
 | **Explorer** (folder) | Your workspace as a tree, with **+ Create**, **+ Folder**, **Rename**, **Delete**, **↻** (Refresh) and **Agent check-in**. Below the tree: the workspace folder path and the **Command Center** section. |
 | **Actions** (four squares) | Every action you can add, in groups under section headings (Flow and control, Data and variables, Office documents, Web and desktop, APIs and databases, AI and so on). |
-| **Variables** (braces) | The open agent's variables, grouped as **Inputs**, **Outputs**, **Inside the agent**, plus **System variables** and **Shared values**. |
+| **Variables** (braces) | The open agent's variables, grouped as **Inputs**, **Outputs**, **Inside the agent**, plus **System variables** and **Shared Global values**. |
 | **Triggers** (lightning) | Local triggers that start agents while Studio runs. |
 
 Click the active rail button again to hide the side panel.

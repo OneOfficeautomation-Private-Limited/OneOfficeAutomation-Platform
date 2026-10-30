@@ -117,10 +117,11 @@ describe("rebuilt Command Center console", () => {
   it("shows the menu by task; pages not rebuilt yet open in today's console, Studio in its own tab", async () => {
     render(<ConsoleApp api={fakeServer({ signedIn: admin }).api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    for (const s of ["BUILD", "MANAGE", "INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Agent credential vault" }).getAttribute("href")).toBe("../?page=credentials");
-    await waitFor(() => expect(within(menu).getByRole("link", { name: /One Agent Studio/ }).getAttribute("href")).toBe("../studio/"));
+    expect(within(menu).getByRole("link", { name: "Credential vault" }).getAttribute("href")).toBe("../?page=credentials");
+    await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
+    expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("link", { name: "Today's console" }).getAttribute("href")).toBe("../");
   });
@@ -129,12 +130,12 @@ describe("rebuilt Command Center console", () => {
     const { api } = fakeServer({ signedIn: viewer });
     render(<ConsoleApp api={api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    expect(within(menu).getByRole("button", { name: "Runners" })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: "Runner Machines" })).toBeTruthy();
     expect(within(menu).queryByText("ADMINISTRATION")).not.toBeNull();   // the vault is for everyone
     expect(within(menu).queryByRole("link", { name: "Users" })).toBeNull();
-    expect(within(menu).queryByText("INSIGHTS")).toBeNull();   // no page in it is open to a viewer
+    expect(within(menu).queryByText("OPERATIONAL INSIGHTS")).toBeNull();   // no page in it is open to a viewer
     expect(within(menu).getByRole("button", { name: "Document Automation" })).toBeTruthy();   // AI shows only what a viewer may open
-    expect(within(menu).queryByRole("link", { name: "One Model Connections" })).toBeNull();
+    expect(within(menu).queryByRole("link", { name: "Model Connections" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Account: Vic Viewer" }), { key: "Enter" });
     await act(async () => { fireEvent.click(within(await screen.findByRole("menu")).getByRole("menuitem", { name: "Sign out" })); });
     expect(await screen.findByRole("form", { name: "Sign in" })).toBeTruthy();
@@ -190,7 +191,7 @@ describe("rebuilt Command Center console", () => {
   it("shows Runners as AA's Devices: search in a chosen field, filters, settings for selected runners, out of service, details, pools", async () => {
     const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "devices.manage", "pools.manage"] } as typeof admin });
     render(<ConsoleApp api={api} />);
-    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Runners" }));
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Runner Machines" }));
     const list = await screen.findByRole("table", { name: "Runners list" });
     expect(await within(list).findByText("Runner B")).toBeTruthy();
     expect(within(list).getByText("Finance pool")).toBeTruthy();

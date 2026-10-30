@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 
 /**
  * Custom connectors saved in the workspace as {@code connectors/<name>.connector.json}. Used by the {@code ooa.connector}
- * actions (with the run's working folder as the workspace) and by One Agent Studio.
+ * actions (with the run's working folder as the workspace) and by One AgentStudio.
  */
 public final class ConnectorStore {
     private ConnectorStore() {}
@@ -56,7 +56,7 @@ public final class ConnectorStore {
     public static Map<String, Object> load(Path workspace, String name) {
         Path p = file(workspace, name);
         if (!Files.isRegularFile(p)) throw new ActionException("CONNECTOR.NOT_FOUND", "There is no connector named '" + name + "'",
-                "Import the API description first (Connectors in One Agent Studio, or the import_connector action).");
+                "Import the API description first (Connectors in One AgentStudio, or the import_connector action).");
         return read(p);
     }
 

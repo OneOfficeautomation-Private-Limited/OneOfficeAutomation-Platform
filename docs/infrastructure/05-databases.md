@@ -209,7 +209,7 @@ ooa db copy --from "%USERPROFILE%\OOA Command Center"
 `copy` copies every table in one transaction, then compares row counts table by table (exit code 2 on a mismatch).
 It refuses a target that already holds rows unless `--replace` is given. Vault values and the audit chain are copied
 as they are, so keep the same vault key (copy `master.key` into the new data folder or set `OOA_MASTER_KEY`; the
-command reminds you) and run One Audit Trail > Verify integrity afterwards.
+command reminds you) and run Audit Trail > Verify integrity afterwards.
 
 Between two databases of the same kind, the database's own backup and restore also works; between engines use
 `ooa backup now` and `ooa backup restore` (see [07](07-backup-restore-and-disaster-recovery.md)).

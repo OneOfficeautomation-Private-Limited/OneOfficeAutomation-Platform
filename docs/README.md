@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION documentation
 
-Documentation for ONEOFFICEAUTOMATION (OOA) 0.2.0: One Command Center, One Agent Studio, One Runner and the toolkits.
+Documentation for ONEOFFICEAUTOMATION (OOA) 0.2.0: One CommandCenter, One AgentStudio, OneRunner and the toolkits.
 It is in five collections, each for a different reader. Start with the one that matches what you need to do.
 
 | Collection | For | What it answers |
@@ -29,7 +29,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | --- | --- |
 | [Index of the user guides](user-guide/00-README.md) | All |
 | [Getting started](user-guide/01-getting-started.md) | All |
-| [One Agent Studio basics](user-guide/02-studio-basics.md) | Builder |
+| [One AgentStudio basics](user-guide/02-studio-basics.md) | Builder |
 | [Building agents](user-guide/03-studio-building-agents.md) | Builder |
 | [Running and debugging agents](user-guide/04-studio-running-and-debugging.md) | Builder |
 | [Operator's guide](user-guide/05-operators-guide.md) | Operator |
@@ -42,7 +42,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [Cloud and business applications](user-guide/12-cloud-and-business-apps.md) (with an AWS EC2 example) | Builder |
 | [AI in agents](user-guide/13-ai-in-agents.md) | Builder |
 | [For business users](user-guide/14-business-users.md) | Business user |
-| [Publishing to One Command Center](user-guide/15-publishing-to-command-center.md) | Builder |
+| [Publishing to One CommandCenter](user-guide/15-publishing-to-command-center.md) | Builder |
 
 ## Functional specification
 
@@ -54,7 +54,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [Runs, runners and devices](functional/03-runs-runners-and-devices.md) | Run states, runner kinds, pools |
 | [Schedules and triggers](functional/04-schedules-and-triggers.md) | Schedules, calendars, triggers |
 | [Work queues](functional/05-work-queues.md) | Queues, work items, service levels |
-| [Workflows and human tasks](functional/06-workflows-and-human-tasks.md) | One Workflow, task inbox |
+| [Workflows and human tasks](functional/06-workflows-and-human-tasks.md) | Workflow, task inbox |
 | [Vault, credentials and connections](functional/07-vault-credentials-and-connections.md) | Lockers, credentials, shared values |
 | [Repository, versions and templates](functional/08-repository-versions-and-templates.md) | Check-in, versions, production, templates |
 | [AI features](functional/09-ai-features.md) | Model connections, governance, AI steps |
@@ -62,7 +62,7 @@ It is in five collections, each for a different reader. Start with the one that 
 | [Operations, audit and dashboards](functional/11-operations-audit-and-dashboards.md) | Run pages, audit trail, KPIs |
 | [Agent tests](functional/12-agent-tests.md) | Test sets and scoring |
 | [Licensing and editions](functional/13-licensing-and-editions.md) | Evaluation, licences, seats |
-| [One Agent Studio](functional/14-studio-features.md) | Editor, run, debug, Run from here |
+| [One AgentStudio](functional/14-studio-features.md) | Editor, run, debug, Run from here |
 
 ## Architecture
 

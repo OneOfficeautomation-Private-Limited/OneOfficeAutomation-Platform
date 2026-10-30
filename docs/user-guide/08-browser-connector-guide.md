@@ -25,7 +25,7 @@ No administrator rights are needed: the connector is installed per Windows user.
 ## 1. What the connector does
 
 Without the connector, an agent's web steps use a browser the agent starts itself (Playwright): a clean window with
-no cookies and no sign-ins. With the connector, agents and One Agent Studio can also work **in your own Edge, Chrome
+no cookies and no sign-ins. With the connector, agents and One AgentStudio can also work **in your own Edge, Chrome
 or Firefox**: the windows and tabs you already have open, signed in as you. That matters when:
 
 - a site needs your single sign-on, a smart card or a session you already have;

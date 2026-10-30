@@ -108,7 +108,7 @@ and a **runtime** account with data read/write rights only.
 | `teams`, `team_members` | Teams with members and leads | `team_id`, `username`, `team_role` |
 | `auth_pending` | Sign-ins in progress shared by nodes | `token` (kind:token), `kind`, `data`, `expires` |
 
-### 4.2 Agent repository
+### 4.2 Agent Repository
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
@@ -155,10 +155,10 @@ and a **runtime** account with data read/write rights only.
 | Table | Purpose | Key columns |
 | --- | --- | --- |
 | `lockers` | Vault folders | `name`, `owners`, `managers`, `participants`, `consumers`, `external` (link config), `external_secret` (vault-encrypted sign-in secret) |
-| `credentials` | Shared values | `locker`, `name`, `attribute`, `ciphertext` (AES-256-GCM, bound to `locker/name/attribute`) |
+| `credentials` | Shared Global values | `locker`, `name`, `attribute`, `ciphertext` (AES-256-GCM, bound to `locker/name/attribute`) |
 | `credential_meta` | Credential details | `owner`, `description`, `user_attributes`, `attributes_info` (masked, password fields only) |
 | `credential_user_values` | Each person's own value | `locker`, `name`, `attribute`, `username`, `ciphertext` |
-| `global_values` | Shared values | `name`, `json_value`, `changeable` |
+| `global_values` | Shared Global values | `name`, `json_value`, `changeable` |
 | `user_global_values` | A person's own shared value | `name`, `username`, `json_value` |
 | `connections` | Saved connections for toolkits | `name`, `package`, `json_values`, `json_credentials` (vault references) |
 | `settings` | Settings, plus internal keys such as `audit_chain_key` (vault-encrypted) | `name`, `json_value` |

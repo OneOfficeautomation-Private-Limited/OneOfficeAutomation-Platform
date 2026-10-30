@@ -143,7 +143,7 @@ final class Folders {
 
     /**
      * Renames or moves a folder with everything in it: agents (every version, label and analysis report), the
-     * schedules, triggers, queues and API tasks that run them, their run history, sub-folders and folder permissions.
+     * schedules, triggers, queues and Agent APIs that run them, their run history, sub-folders and folder permissions.
      * Refused when an agent in it is checked out by someone else, or when a workflow names an agent or form in it by path
      * (change the workflow first, so it never points at a missing path).
      */

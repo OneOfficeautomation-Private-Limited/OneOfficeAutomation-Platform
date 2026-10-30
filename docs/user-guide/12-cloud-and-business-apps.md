@@ -30,7 +30,7 @@ and AWS EC2 virtual machines.
 Every cloud toolkit needs some form of sign-in: an access token, an API token, a user name and password, or a key pair.
 In ONEOFFICEAUTOMATION:
 
-- the **secret** is a **Credential**: a reference to Agent credential vault, never the value itself;
+- the **secret** is a **Credential**: a reference to Credential vault, never the value itself;
 - the **address** of the system (instance URL, site URL, region) is ordinary text;
 - the toolkit's sign-in fields are usually the first fields of each action, so you see at once what it needs.
 
@@ -39,7 +39,7 @@ steps use. Others take a token directly on every step.
 
 ## 2. Keeping secrets in the vault
 
-1. In One Command Center, an administrator or folder owner creates a vault folder and a credential in **One Agent
+1. In One CommandCenter, an administrator or folder owner creates a vault folder and a credential in **One Agent
    Vault**, for example folder `crm`, credential `salesforce`, attributes `client_id` and `client_secret`. The agent's
    runs must be allowed to use the folder (they are **consumers**).
 2. In Studio, create a **Credential** variable for each secret, usually as an input: `sf_client_secret`.
@@ -60,12 +60,12 @@ it by name. When a connection is chosen, the fields it supplies are hidden; **Se
 shows them again.
 
 - Local runs read saved connections from `connections.json` in your workspace.
-- Runs from One Command Center use its **Connections** page (Manage > Connections).
+- Runs from One CommandCenter use its **Connections** page (Manage > Connections).
 
 **Manage connections…** opens the list of the workspace's saved connections, where you can add, change and delete
 them; the **Connection** list on a step shows the same connections.
 
-**One Model Connections** (for AI) are a different thing: see [AI in agents](13-ai-in-agents.md).
+**Model Connections** (for AI) are a different thing: see [AI in agents](13-ai-in-agents.md).
 
 ## 4. Microsoft 365
 
@@ -119,7 +119,7 @@ Record fields go in **Fields** as a Dictionary, for example `{"LastName": "Jones
   **Update record**, **Delete record**, **Add comment or work note**, **Attach file**, **List attachments**,
   **Download attachment**, **Delete attachment**, **List changed records** (since a time).
 
-One Command Center can also start agents when ServiceNow records change (a server trigger).
+One CommandCenter can also start agents when ServiceNow records change (a server trigger).
 
 ## 8. Jira
 
@@ -216,7 +216,7 @@ for `EC2` to find it quickly) has: **Connect**,
 ### 14.1 Prepare
 
 1. In AWS, create an access key for a user or role that may describe, start and stop the instance.
-2. In Agent credential vault, store it as credential `aws/test-server` with attributes `access_key_id` and
+2. In Credential vault, store it as credential `aws/test-server` with attributes `access_key_id` and
    `secret_access_key`.
 3. Note the instance id, for example `i-0abc1234def567890`, and its region, for example `eu-west-1`.
 
@@ -276,7 +276,7 @@ system and instance health checks.
 ### 14.4 Schedule it
 
 1. Check the agent in (see [Publishing to Command Center](15-publishing-to-command-center.md)).
-2. In One Command Center > **Schedules**, create two **Weekly** schedules for the agent on a runner (or runner pool), in
+2. In One CommandCenter > **Schedules**, create two **Weekly** schedules for the agent on a runner (or runner pool), in
    your time zone, with Monday to Friday ticked:
    - at 07:30 with `action` = `start`;
    - at 19:00 with `action` = `stop`;
@@ -303,7 +303,7 @@ system and instance health checks.
 | `EC2.INSTANCE_NOT_FOUND` / a bad instance id | The id is wrong, or the instance is in another region. |
 | REST answers with a 4xx/5xx status and the step fails | Read **body** in the Run log; turn off **Fail on error** to handle the status yourself. Add **Retries on temporary errors** for 429 and 5xx answers. |
 | An imported connector has no server | Give **Server** when importing, or set the **Base url** on the step. |
-| A toolkit is missing from the Actions panel | It is switched off in One Command Center (Toolkits) or not installed. Ask your administrator. |
+| A toolkit is missing from the Actions panel | It is switched off in One CommandCenter (Toolkits) or not installed. Ask your administrator. |
 
 ## Related guides
 

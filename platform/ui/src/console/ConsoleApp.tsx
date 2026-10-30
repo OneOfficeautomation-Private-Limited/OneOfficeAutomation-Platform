@@ -30,8 +30,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [studio, setStudio] = useState(false);
   const [theme] = usePersistent<"light" | "dark">("display.theme", "light");
-  const [density] = usePersistent<"standard" | "compact">("display.density", "standard");
-  useEffect(() => { document.documentElement.dataset.theme = theme; document.documentElement.dataset.density = density; }, [theme, density]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
     api.me().then(setUser, () => setUser(null));
     api.studio().then(setStudio, () => setStudio(false));
@@ -49,7 +48,7 @@ export function ConsoleApp({ api: given }: { api?: CrApi }) {
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo" />One Command Center</div>
+        <div className="st-brand"><span className="st-logo" />One CommandCenter</div>
         <span className="cc-preview">New console (preview)</span>
         <div className="st-top-actions">
           <a className="ui-btn ui-btn-light" href={TODAY}>Today's console</a>
@@ -107,7 +106,7 @@ function SignIn({ api, onIn }: { api: CrApi; onIn: (u: CrUser) => void }) {
   return (
     <div className="cc-signin">
       <form className="cc-signin-card" onSubmit={submit} aria-label="Sign in">
-        <div className="st-brand cc-signin-brand"><span className="st-logo" />One Command Center</div>
+        <div className="st-brand cc-signin-brand"><span className="st-logo" />One CommandCenter</div>
         {mfaToken
           ? <Field label="Code from your authenticator app">{(id) => <TextInput id={id} value={code} inputMode="numeric" autoComplete="one-time-code" onChange={(e) => setCode(e.target.value)} />}</Field>
           : <>
@@ -146,7 +145,7 @@ function ChangePassword({ api, onDone }: { api: CrApi; onDone: (u: CrUser) => vo
   return (
     <div className="cc-signin">
       <form className="cc-signin-card" onSubmit={submit} aria-label="Choose your password">
-        <div className="st-brand cc-signin-brand"><span className="st-logo" />One Command Center</div>
+        <div className="st-brand cc-signin-brand"><span className="st-logo" />One CommandCenter</div>
         <p>Choose your own password before you go on.</p>
         <Field label="Current password">{(id) => <TextInput id={id} type="password" value={current} autoComplete="current-password" onChange={(e) => setCurrent(e.target.value)} />}</Field>
         <Field label="New password">{(id) => <TextInput id={id} type="password" value={next} autoComplete="new-password" onChange={(e) => setNext(e.target.value)} />}</Field>
@@ -178,14 +177,14 @@ function TwoStepSetup({ api, onDone }: { api: CrApi; onDone: (u: CrUser) => void
     <div className="cc-signin">
       {recovery ? (
         <div className="cc-signin-card" role="region" aria-label="Recovery codes">
-          <div className="st-brand cc-signin-brand"><span className="st-logo" />One Command Center</div>
+          <div className="st-brand cc-signin-brand"><span className="st-logo" />One CommandCenter</div>
           <p>Two-step sign-in is on. Keep these recovery codes somewhere safe: each one signs you in once if you lose your phone. They are shown only now.</p>
           <pre className="cc-codes">{recovery.join("\n")}</pre>
           <Button kind="primary" onClick={async () => onDone(await api.me())}>I have saved them</Button>
         </div>
       ) : (
         <form className="cc-signin-card" onSubmit={submit} aria-label="Set up two-step sign-in">
-          <div className="st-brand cc-signin-brand"><span className="st-logo" />One Command Center</div>
+          <div className="st-brand cc-signin-brand"><span className="st-logo" />One CommandCenter</div>
           <p>Your administrator requires a code from an authenticator app as well as your password.</p>
           <p>1. In an authenticator app (Microsoft Authenticator, Google Authenticator or another time-based app), add an account with this key:</p>
           {key ? <><code className="cc-key">{key.secret}</code><a className="cc-signin-alt" href={key.otpauth_uri}>On a phone: open it in the app</a></> : !error && <p className="st-muted" role="status">Loading...</p>}

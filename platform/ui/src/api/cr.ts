@@ -24,7 +24,7 @@ export type Run = { id: string; bot_path: string; version?: number; device_id?: 
 export type RunEvent = { seq: number; type: string; ts?: number | string; stepId?: string; data?: Record<string, unknown> };
 /** A page an optional module adds (Document Automation, for one): where its own pages are. */
 export type ConsolePlugin = { id: string; name: string; description: string; path: string };
-/** A machine running the One Runner (AA: a device), as GET devices gives it. */
+/** A machine running the OneRunner (AA: a device), as GET devices gives it. */
 export type Runner = { id: string; name: string; hostname?: string; os?: string; agent_version?: string; enabled: boolean;
   status: "online" | "offline" | "disabled"; last_seen?: string | null; registered?: string; registered_by?: string; log_level?: string;
   device_type?: string; session_state?: string | null; after_run?: string; lifespan?: string; up_to_date?: boolean; update_requested?: boolean | string | null;

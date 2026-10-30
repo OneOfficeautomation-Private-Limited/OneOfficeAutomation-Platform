@@ -8,7 +8,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Agent Studio's debugger (breakpoints, stepping, call stack, variable edits) and One Model Connections, through the HTTP API. */
+/** Agent Studio's debugger (breakpoints, stepping, call stack, variable edits) and Model Connections, through the HTTP API. */
 class DebuggerTest {
     @SuppressWarnings("unchecked")
     static Map<String, Object> call(String base, String method, String path, Object body) throws Exception {

@@ -2,7 +2,7 @@
 
 ## What this covers
 
-Agent credential vault keeps the secrets agents use. This document specifies vault folders and the four member places
+Credential vault keeps the secrets agents use. This document specifies vault folders and the four member places
 (owner, manager, participant, consumer), credentials and their attributes, people's own values and credential
 requests, how a running agent receives a secret, external vaults, the vault key and its rotation, and the two related
 stores that hold no secrets themselves: saved connections and shared values (global values).
@@ -20,7 +20,7 @@ stores that hold no secrets themselves: saved connections and shared values (glo
 9. External vaults
 10. The vault key
 11. Saved connections
-12. Shared values
+12. Shared Global values
 13. Permissions and audit
 
 ## 1. Principles
@@ -30,7 +30,7 @@ stores that hold no secrets themselves: saved connections and shared values (glo
 - A secret is never shown again after it is stored, never written into settings, steps, schedules or inputs (only vault
   references `folder/credential/attribute` are), and is masked as `****` in every log, event, variable view and error.
 - A secret is handed to an agent only while its run is running, only on the runner the run is on, and only when the
-  run's user may use the folder. Every read is recorded in the One Audit Trail, including refusals.
+  run's user may use the folder. Every read is recorded in the Audit Trail, including refusals.
 
 ## 2. Vault folders
 
@@ -151,9 +151,9 @@ A saved connection (Manage > Connections, and in Studio) keeps a connector's add
 references for its secrets, under a name. The rules are in [document 02, section 5](02-toolkits-and-actions.md). They
 hold references only, so seeing them never reveals a secret.
 
-## 12. Shared values
+## 12. Shared Global values
 
-Shared values (Manage > Shared values; called global values in the API and `$global.NAME` in agents) are named values
+Shared Global values (Manage > Shared Global values; called global values in the API and `$global.NAME` in agents) are named values
 every run receives.
 
 | Rule | Detail |
@@ -164,7 +164,7 @@ every run receives.
 | **People may set their own value** | When ticked (Edit), each person can keep **My value** (up to 100,000 characters). Their runs, and runs as them, use it instead of the shared one. Turning the option off removes everyone's own values. |
 | My value refused | When the value is not changeable (`CR.FORBIDDEN`, "Everyone uses the same value of NAME") |
 
-Shared values are not encrypted secrets; keep secrets in the vault.
+Shared Global values are not encrypted secrets; keep secrets in the vault.
 
 ## 13. Permissions and audit
 

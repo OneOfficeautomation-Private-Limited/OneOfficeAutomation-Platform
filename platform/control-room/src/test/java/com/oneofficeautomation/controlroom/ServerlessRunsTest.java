@@ -10,7 +10,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** C7: API tasks that run inside the Command Center with no runner, limited to web and data toolkits and their own workspace. */
+/** C7: Agent APIs that run inside the Command Center with no runner, limited to web and data toolkits and their own workspace. */
 class ServerlessRunsTest {
 
     @SuppressWarnings("unchecked")
@@ -48,7 +48,7 @@ class ServerlessRunsTest {
             assertEquals(Boolean.TRUE, cr.apiTasks.list(admin).get(0).get("serverless"));
             assertFalse(Files.exists(data.resolve("serverless").resolve((String) done.getValue().get("run_id"))), "the workspace is removed afterwards");
 
-            // the virtual runner takes nothing but serverless API tasks
+            // the virtual runner takes nothing but serverless Agent APIs
             assertEquals("CR.BAD_INPUT", assertThrows(OoaException.class, () -> cr.startRun("admin", "admin", "Api/Greet.flow.json", ServerlessRuns.DEVICE, Map.of(), "manual", null)).code());
 
             // files stay inside the run's own workspace

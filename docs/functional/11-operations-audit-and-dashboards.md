@@ -4,7 +4,7 @@
 
 What the Command Center shows and keeps about the work it does: the console menu and live updates, Home, the Agent
 Runs pages (Live and History) and run details, the Operations analytics, dashboards built on business figures (KPIs),
-the One Audit Trail with its integrity check, export and forwarding, retention of runs, logs, AI calls, work items and
+the Audit Trail with its integrity check, export and forwarding, retention of runs, logs, AI calls, work items and
 audit records, e-mail from the Command Center, backups, and the Command Center details page.
 
 ## Contents
@@ -15,7 +15,7 @@ audit records, e-mail from the Command Center, backups, and the Command Center d
 4. Agent Runs: History and run details
 5. Operations
 6. Business figures (KPIs) and dashboards
-7. One Audit Trail
+7. Audit Trail
 8. Retention
 9. E-mail from the Command Center
 10. Backups
@@ -28,11 +28,11 @@ The menu has **Home** and five sections; a person sees only the pages their perm
 
 | Section | Pages (permission) |
 | --- | --- |
-| Build | Agent repository (`repo.view`), Templates (`repo.view`), One Agent Studio (new tab), One Workflow (`runs.view`), API tasks (`apitasks.manage`), Agent tests (`repo.view`) |
-| Manage | Runners (`devices.view`), Agent credential vault (members), Shared values (`globals.view`), Connections (`globals.view`), Toolkits (`toolkits.manage`) |
+| Build | Agent Repository (`repo.view`), Templates (`repo.view`), One AgentStudio (new tab), Workflow (`runs.view`), Agent APIs (`apitasks.manage`), Agent tests (`repo.view`) |
+| Manage | Runners (`devices.view`), Credential vault (members), Shared Global values (`globals.view`), Connections (`globals.view`), Toolkits (`toolkits.manage`) |
 | Operations | Agent Runs (`runs.view`), Task inbox (everyone), Schedules (`schedules.view`), Triggers (`triggers.view`), Work queues (`queues.view`), Operations (`analytics.view`), Dashboards (`analytics.view`) |
-| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), One Audit Trail (`audit.view`), Settings (`settings.manage`) |
-| AI | Prompt Skills (`skills.view`), One Model Connections (`connections.manage`), AI governance (`audit.view`) |
+| Administration | Users (`users.manage`), Roles (`users.manage`), Teams (`teams.manage`, or anyone who leads a team), Licenses (`users.manage` or `settings.manage`; installing a licence needs `settings.manage`), Audit Trail (`audit.view`), Settings (`settings.manage`) |
+| AI | Prompt Skills (`skills.view`), Model Connections (`connections.manage`), AI governance (`audit.view`) |
 
 The section of the current page is open; the menu can be narrowed to icons. Pages redraw themselves within about a
 second of a change: the console keeps one request open (`GET /api/changes?since=TOKEN&wait=25`) that answers as soon as
@@ -110,7 +110,7 @@ and average.
 - API: `/api/dashboards` (GET lists, POST makes, `PUT`/`DELETE /api/dashboards/{id}`), `GET /api/dashboards/{id}/data?tz=`
   (the widgets' figures, with days in that time zone) and `GET /api/dashboards/kpis` (the KPIs that can be chosen).
 
-## 7. One Audit Trail
+## 7. Audit Trail
 
 - Every sign-in, change, run, credential use, task and workflow event is recorded with time, actor, action, object
   type and id, details, result (`ok`, `failed`, `denied`, `not_found`) and address.
@@ -170,7 +170,7 @@ within about 30 seconds.
 | --- | --- |
 | Agent Runs and run details | `runs.view` |
 | Operations, dashboards | `analytics.view` |
-| One Audit Trail, export, verify | `audit.view` |
+| Audit Trail, export, verify | `audit.view` |
 | Retention, e-mail, backups, syslog, nodes | `settings.manage` |
 
 ## Related documents

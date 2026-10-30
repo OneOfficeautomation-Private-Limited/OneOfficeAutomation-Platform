@@ -33,7 +33,7 @@ inside another packaged app. For operations and support teams.
 | Backups | Settings > Backups status, audit trail | Last backup older than `backup_hours` + margin |
 | Certificate expiry | `ooa check` (WARN under 30 days), `ooa tls show` | Under 30 days |
 | Licence | Licenses page, reminder e-mails (30, 15, 7, 3, 2, 1 days) | Expiring |
-| Audit integrity | One Audit Trail > Verify integrity | Not valid |
+| Audit integrity | Audit Trail > Verify integrity | Not valid |
 | Service state | Windows Services / `systemctl` / orchestrator | Restarting repeatedly |
 
 ## 2. Health endpoints

@@ -14,7 +14,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** One Command Center platform features: API keys, roles, settings, runner pools, work queues, callbacks, calendars, toolkits. */
+/** One CommandCenter platform features: API keys, roles, settings, runner pools, work queues, callbacks, calendars, toolkits. */
 class PlatformTest {
     static UnifiedServerTest.Res call(String base, String method, String path, Object body, String bearer) throws Exception {
         return UnifiedServerTest.call(base, method, path, body, bearer, null);

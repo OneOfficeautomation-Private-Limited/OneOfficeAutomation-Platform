@@ -7,7 +7,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 /**
- * The kinds of trigger, where each is evaluated and what each needs. Runner kinds are watched by the One Runner on
+ * The kinds of trigger, where each is evaluated and what each needs. Runner kinds are watched by the OneRunner on
  * the trigger's runner (local machine events); server kinds are polled by the Command Center (remote systems).
  * Validation turns a request body into the stored config; secrets are never stored, only vault references.
  */

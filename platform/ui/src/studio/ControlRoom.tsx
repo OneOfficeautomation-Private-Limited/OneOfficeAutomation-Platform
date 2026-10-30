@@ -79,7 +79,7 @@ export function PublicRepository({ api, status, home, onStatus, onCheckOut, onNo
   const localOf = (path: string) => Object.keys(list?.mapping ?? {}).find((k) => list!.mapping[k] === path);
   return (
     <div className="st-cr">
-      <div role="toolbar" aria-label="Agent repository" className="st-items-bar">
+      <div role="toolbar" aria-label="Agent Repository" className="st-items-bar">
         <span className="st-items-count">{status.url} · signed in as {me}</span>
         <input className="ui-input st-cr-search" type="search" aria-label="Search the agent repository" placeholder="Search the agent repository" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button kind="plain" onClick={reload}>Refresh</Button>

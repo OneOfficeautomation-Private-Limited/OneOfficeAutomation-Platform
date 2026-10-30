@@ -44,7 +44,7 @@ Life cycle:
   days are disabled automatically.
 - Rules that protect the Command Center: nobody can disable themselves or remove their own administrator role, and at
   least one enabled administrator must remain.
-- **Delete** a user is refused while they own schedules, triggers, API tasks, running work queues or vault folders
+- **Delete** a user is refused while they own schedules, triggers, Agent APIs, running work queues or vault folders
   where they are the only owner (`CR.IN_USE`, listing them); hand those over or disable the user instead. Deleting
   removes their sign-ins, API keys, default runner, team places, own vault values and every rule that names them; the
   audit trail keeps their name. Nobody can delete themselves.
@@ -92,15 +92,15 @@ Permissions marked "admin only" belong to administrators unless a custom role gr
 | `lockers.own` | Create vault folders (and own them) |
 | `lockers.manage` (admin only) | Administer every vault folder; vault key status and rotation |
 | `analytics.view` | Operations, dashboards, Home figures |
-| `apitasks.manage` | Manage API tasks |
+| `apitasks.manage` | Manage Agent APIs |
 | `skills.view` | See and use Prompt Skills |
 | `skills.manage` | Create and change own Prompt Skills |
 | `skills.all` (admin only) | Change anyone's Prompt Skills |
-| `connections.manage` (admin only) | Manage and test One Model Connections |
+| `connections.manage` (admin only) | Manage and test Model Connections |
 | `toolkits.manage` (admin only) | Switch toolkits on and off, upload own toolkits, trusted publishers |
 | `users.manage` (admin only) | Manage users and roles, default runners, licence seats, act on any task |
 | `teams.manage` (admin only) | Create teams and change any team |
-| `audit.view` (admin only) | One Audit Trail and AI governance |
+| `audit.view` (admin only) | Audit Trail and AI governance |
 | `settings.manage` (admin only) | Settings, licences, backups, retention, Git sync, code analysis policy, template catalogue, nodes |
 
 Every API call checks one permission; the console hides pages and buttons a person cannot use. A refused call answers

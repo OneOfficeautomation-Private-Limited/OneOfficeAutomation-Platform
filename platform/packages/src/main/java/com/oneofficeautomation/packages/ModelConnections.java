@@ -9,8 +9,8 @@ import java.util.*;
 import java.util.function.Supplier;
 
 /**
- * One Model Connections: named language-model settings (provider, model, endpoint, API key reference) that AI actions,
- * Prompt Skills and AI agents use by name. They come from the "model_connections" service (One Command Center hands
+ * Model Connections: named language-model settings (provider, model, endpoint, API key reference) that AI actions,
+ * Prompt Skills and AI agents use by name. They come from the "model_connections" service (One CommandCenter hands
  * them to its runners) or from model-connections.json in the workspace:
  * {"default": "gpt", "connections": [{"name": "gpt", "provider": "openai", "model": "gpt-4o-mini",
  *   "api_key_env": "OPENAI_API_KEY"} or {"api_key": {"$credential": "ai/openai/key"}}]}. Keys themselves are never stored here.
@@ -29,7 +29,7 @@ final class ModelConnections {
         Path p = ctx.workDir().resolve("model-connections.json");
         if (!Files.isRegularFile(p)) return Map.of();
         try { Object v = JsonLite.parse(Files.readString(p)); return v instanceof Map ? (Map<String, Object>) v : Map.of(); }
-        catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in One Agent Studio."); }
+        catch (Exception e) { throw new ActionException("AI.BAD_CONNECTIONS", "model-connections.json is not valid JSON: " + e.getMessage(), "Fix the file, or edit connections in One AgentStudio."); }
     }
 
     /** The named connection, or the default one when the name is "default"; null when name is empty. */
@@ -40,7 +40,7 @@ final class ModelConnections {
         String wanted = "default".equals(name) && all.get("default") instanceof String d ? d : name;
         for (Object o : (List<Object>) all.getOrDefault("connections", List.of()))
             if (o instanceof Map<?, ?> c && wanted.equals(c.get("name"))) return (Map<String, Object>) c;
-        throw new ActionException("AI.NO_CONNECTION", "There is no model connection named '" + name + "'", "Create it under One Model Connections, or pick another name.");
+        throw new ActionException("AI.NO_CONNECTION", "There is no model connection named '" + name + "'", "Create it under Model Connections, or pick another name.");
     }
 
     /** Settings for one call: the connection supplies provider, model, endpoint and key; values set on the action win. */
@@ -56,7 +56,7 @@ final class ModelConnections {
                                    Object accessKeyId, String region) {
         Map<String, Object> c = find(ctx, connection);
         if (c != null && c.get("blocked") instanceof String why)
-            throw new ActionException("AI.BUDGET_REACHED", why, "An administrator raises the budget in One Model Connections, or the budget starts again next month.");
+            throw new ActionException("AI.BUDGET_REACHED", why, "An administrator raises the budget in Model Connections, or the budget starts again next month.");
         if (c != null) {
             provider = String.valueOf(c.getOrDefault("provider", provider));
             if (model == null || model.isBlank()) model = (String) c.get("model");
@@ -103,7 +103,7 @@ final class ModelConnections {
             int made = PER_RUN.merge(ctx.runId() + "|" + name, 1, Integer::sum);
             if (made > n.intValue())
                 throw new ActionException("AI.CALL_LIMIT", "This run reached the limit of " + n.intValue() + " calls through the model connection '" + name + "'",
-                    "An administrator raises Calls a run in One Model Connections.");
+                    "An administrator raises Calls a run in Model Connections.");
         }
         if (c.get("calls_per_minute") instanceof Number n && n.intValue() > 0) {
             Deque<Long> times = RECENT.computeIfAbsent(ctx.runId() + "|" + name, k -> new ArrayDeque<>());

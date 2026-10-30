@@ -1,5 +1,5 @@
 /* =====================================================================================================================
-   One Command Center: application layout and page styles.
+   One CommandCenter: application layout and page styles.
    Loaded after /ooa-tokens.css (design tokens) and /ooa-components.css (shared buttons, inputs, tables, cards, pills,
    tabs, menus, dialogs, drawer, toasts and states). Use semantic tokens only; see docs/DESIGN_SYSTEM.md.
    Sections:  1. sign-in         2. frame: top bar  3. frame: menu     4. work area      5. page header

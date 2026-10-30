@@ -2,7 +2,7 @@
 
 ## What this covers / who it is for
 
-This document opens up One Command Center (module `control-room`): how the server is started, how a request is
+This document opens up One CommandCenter (module `control-room`): how the server is started, how a request is
 handled, which API families exist (REST for people and programs, the runner API with long polling, webhooks, API
 tasks, MCP), the background clock (schedules, triggers, work queues, workflows, housekeeping), how runs are dispatched
 to runners and pools, serverless runs, the leader lease for several nodes, and how runner updates are distributed. It
@@ -20,7 +20,7 @@ is for developers changing the Command Center and for architects sizing or clust
 8. [Schedules and triggers](#8-schedules-and-triggers)
 9. [Work queues](#9-work-queues)
 10. [Workflows and human tasks](#10-workflows-and-human-tasks)
-11. [API tasks and serverless runs](#11-api-tasks-and-serverless-runs)
+11. [Agent APIs and serverless runs](#11-api-tasks-and-serverless-runs)
 12. [Several nodes and the leader lease](#12-several-nodes-and-the-leader-lease)
 13. [Runner updates](#13-runner-updates)
 14. [Repository services](#14-repository-services)
@@ -37,7 +37,7 @@ is for developers changing the Command Center and for architects sizing or clust
 | `Platform` | Settings (`DEFAULTS`), custom roles, API keys, runner pools, work queues and item models, model connections, holiday calendars, toolkit switches, AI governance, retention purges, outbound proxy |
 | `ControlRoomServer` | HTTP server, static files, routing of `/api/*`, cookies, security headers, background clock |
 | `Db`, `DbConfig`, `SqlServerDialect` | Database pool, transactions, migrations, dialect translation (see [05-data-model.md](05-data-model.md)) |
-| `Workflows` | One Workflow engine and the task inbox |
+| `Workflows` | Workflow engine and the task inbox |
 | `TriggerKinds`, `TriggerPollers`, `ImapMailSource`, `GraphMailSource`, `PollHttp`, `JsonPath` | Trigger definitions and server-side polling |
 | `ApiTasks`, `ServerlessRuns` | Agents behind their own URL; agents run inside the server |
 | `McpServer` | Model Context Protocol endpoint |
@@ -191,7 +191,7 @@ runner to send a heartbeat at once, which carries the instruction back.
 
 ```mermaid
 sequenceDiagram
-    participant R as One Runner
+    participant R as OneRunner
     participant C as Command Center
     participant W as RunWorker
     R->>C: POST agent/register {key, name, hostname, os, agent_version}
@@ -293,9 +293,9 @@ Stage results are stored under the stage id and merged into the data, so later s
 `$stage_id.name`. People claim and complete tasks in the **Task inbox** (`tasks` routes); answers are checked against
 the form. Completing a task or finishing a run calls `resume`, and `tick()` moves waiting runs on.
 
-## 11. API tasks and serverless runs
+## 11. Agent APIs and serverless runs
 
-**API tasks** (`ApiTasks`, table `api_tasks`) put an agent behind its own address:
+**Agent APIs** (`ApiTasks`, table `api_tasks`) put an agent behind its own address:
 
 - `POST /api/apitasks/{id}/run` with `X-OOA-Task-Token` and `{inputs}` runs the live version on the task's runner or
   the least busy runner of its pool, as the person who created the task.

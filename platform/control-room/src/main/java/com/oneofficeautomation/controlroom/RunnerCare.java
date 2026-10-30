@@ -96,7 +96,9 @@ public final class RunnerCare {
         if (!kind.equals("logs") && !kind.equals("screen")) throw notFound("Runner file " + kind);
         if (kind.equals("screen") && cr.platform.intSetting("runner_screen_pictures") != 1)
             throw new OoaException("CR.SCREEN_OFF", "Screen pictures of runners are off", "An administrator can allow them in Settings (Runners).");
-        if (db.update("UPDATE devices SET " + (kind.equals("logs") ? "logs_requested" : "screen_requested") + " = ? WHERE id = ?", now(), id) == 0) throw notFound("Runner");
+        int n = kind.equals("logs") ? db.update("UPDATE devices SET logs_requested = ? WHERE id = ?", now(), id)
+            : db.update("UPDATE devices SET screen_requested = ? WHERE id = ?", now(), id);
+        if (n == 0) throw notFound("Runner");
         db.update("UPDATE runner_files SET requested_by = ? WHERE device_id = ? AND kind = ?", by.username(), id, kind);
         pendingBy.put(id + "/" + kind, by.username());
         cr.wake(id, true);
@@ -138,8 +140,9 @@ public final class RunnerCare {
     /** What the runner sends back: its logs ({text}) or a screen picture ({image: Base64 JPEG}); or {error} when it could not. */
     public void receive(Map<String, Object> d, String kind, Map<String, Object> b) {
         String id = (String) d.get("id");
-        String column = kind.equals("logs") ? "logs_requested" : "screen_requested";
-        Map<String, Object> asked = db.one("SELECT " + column + " AS asked FROM devices WHERE id = ?", id);
+        boolean logs = kind.equals("logs");
+        Map<String, Object> asked = logs ? db.one("SELECT logs_requested AS asked FROM devices WHERE id = ?", id)
+            : db.one("SELECT screen_requested AS asked FROM devices WHERE id = ?", id);
         if (asked == null || asked.get("asked") == null) throw new OoaException("CR.NOT_ASKED", "Nothing was asked of this runner");
         String error = b.get("error") instanceof String e && !e.isBlank() ? e.substring(0, Math.min(e.length(), 1000)) : null;
         String content = null;
@@ -155,7 +158,8 @@ public final class RunnerCare {
         db.tx(() -> {
             db.update("DELETE FROM runner_files WHERE device_id = ? AND kind = ?", id, kind);
             db.update("INSERT INTO runner_files (device_id, kind, taken, requested_by, error, content) VALUES (?,?,?,?,?,?)", id, kind, now(), who, error, c);
-            db.update("UPDATE devices SET " + column + " = NULL WHERE id = ?", id);
+            if (logs) db.update("UPDATE devices SET logs_requested = NULL WHERE id = ?", id);
+            else db.update("UPDATE devices SET screen_requested = NULL WHERE id = ?", id);
             return null;
         });
         cr.audit.record("agent:" + d.get("name"), kind.equals("logs") ? "device.logs" : "device.screen", "device", id, error == null ? null : Map.of("error", error), error == null ? "ok" : "failed", null);

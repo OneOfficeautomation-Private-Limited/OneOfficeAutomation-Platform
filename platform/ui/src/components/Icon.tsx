@@ -29,6 +29,8 @@ export const ICONS = {
   chevronDown: "M6 9l6 6 6-6",
   chevronRight: "M9 6l6 6-6 6",
   chevronLeft: "M15 6l-6 6 6 6",
+  expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+  shrink: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
   more: "M12 5h.01M12 12h.01M12 19h.01",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
 } as const;

@@ -79,7 +79,7 @@ final class DbCommand {
         }
         try {
             Files.createDirectories(file.getParent());
-            List<String> lines = new ArrayList<>(List.of("# One Command Center database connection (ooa db configure). Passwords: ooa db set-password [--setup]."));
+            List<String> lines = new ArrayList<>(List.of("# One CommandCenter database connection (ooa db configure). Passwords: ooa db set-password [--setup]."));
             for (var e : v.entrySet()) lines.add(e.getKey() + "=" + e.getValue().replace("\\", "\\\\"));   // a properties file reads \ as an escape (paths, DOMAIN\account)
             Files.write(file, lines);
         } catch (java.io.IOException e) { throw new OoaException("CR.DB_CONFIG", "Cannot write " + file + ": " + e.getMessage()); }
@@ -202,7 +202,7 @@ final class DbCommand {
     }
 
     static int script(String engine) {
-        System.out.println("-- One Command Center schema, version " + Db.LATEST + ", for " + engine + ". Run it in the OOA database with an account that may create tables.");
+        System.out.println("-- One CommandCenter schema, version " + Db.LATEST + ", for " + engine + ". Run it in the OOA database with an account that may create tables.");
         for (String s : Db.script(engine)) System.out.println(s + ";");
         return 0;
     }

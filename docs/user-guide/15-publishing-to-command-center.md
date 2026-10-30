@@ -1,4 +1,4 @@
-# Publishing agents to One Command Center
+# Publishing agents to One CommandCenter
 
 **Audience:** agent builders who are ready to share agents with their team and run them on runners, on schedules and
 in workflows; and team leads who approve what goes live.
@@ -6,7 +6,7 @@ in workflows; and team leads who approve what goes live.
 ## Contents
 
 1. [My Workspace and the agent repository](#1-my-workspace-and-the-agent-repository)
-2. [Connect Studio to One Command Center](#2-connect-studio-to-one-command-center)
+2. [Connect Studio to One CommandCenter](#2-connect-studio-to-one-command-center)
 3. [Before you check in](#3-before-you-check-in)
 4. [Check in an agent](#4-check-in-an-agent)
 5. [Publish workflows and forms](#5-publish-workflows-and-forms)
@@ -23,22 +23,22 @@ in workflows; and team leads who approve what goes live.
 
 ## 1. My Workspace and the agent repository
 
-| | My Workspace (Studio) | Agent repository (One Command Center) |
+| | My Workspace (Studio) | Agent Repository (One CommandCenter) |
 | --- | --- | --- |
 | Who sees it | Only you | Everyone allowed by roles and folder permissions |
 | History | The file as it is now | Every version, with author, date and comment |
 | Runs | Your test runs in Studio | Runs on runners, schedules, triggers, work queues, workflows, API calls |
-| Secrets | Environment variables for local tests | Agent credential vault |
+| Secrets | Environment variables for local tests | Credential vault |
 
 Moving an agent from one to the other is called **check-in**. Taking a repository agent into your workspace to change
 it is **check-out**; it locks the agent for you so nobody else changes it at the same time.
 
-## 2. Connect Studio to One Command Center
+## 2. Connect Studio to One CommandCenter
 
 The **Command Center** section is at the bottom of the Explorer. Its heading shows who you are connected as, or
 "(not connected)".
 
-**When Studio and One Command Center run together** (Studio opened from One Command Center, at `/studio/`):
+**When Studio and One CommandCenter run together** (Studio opened from One CommandCenter, at `/studio/`):
 
 1. Studio says "Agent Studio and Command Center run together here. Sign in to Command Center in this browser and Agent
    Studio uses that sign-in for check-in and check-out."
@@ -75,7 +75,7 @@ Once connected, the section shows the address, **Search the agent repository**, 
 
 | Tick | What happens | Toast |
 | --- | --- | --- |
-| Off (default) | A new version only. The live version stays as it was. Make it live later in One Command Center (section 7). | "Checked in <path> as version n; the live version is unchanged" |
+| Off (default) | A new version only. The live version stays as it was. Make it live later in One CommandCenter (section 7). | "Checked in <path> as version n; the live version is unchanged" |
 | On | The new version becomes the **live production version** at once. Schedules, triggers and workflows use it from their next run. Needs manage access on the folder. | "…; it is now the live version" |
 | On, with approval before production | A **production request** instead (see section 8) | "…; sent for approval before it goes live" |
 
@@ -98,7 +98,7 @@ Workflows and forms are published from their designers:
 3. Type what changed and press OK. The toast says "Published <path> as version n".
 
 Publish the forms a workflow uses and check in the agents it runs as well. People then start the workflow from **One
-Workflow** in One Command Center, and get their steps in the Task inbox (see [Business users](14-business-users.md)).
+Workflow** in One CommandCenter, and get their steps in the Task inbox (see [Business users](14-business-users.md)).
 
 ## 6. Check out, edit and check in again
 
@@ -127,7 +127,7 @@ Every check-in is a new version. Only one version is **live in production** at a
 work queues and workflows always use it. A check-in changes the live version only when you tick **Make this the live
 version** (agents) or publish a workflow or form.
 
-In One Command Center (**Agent repository**, an agent > **Versions**):
+In One CommandCenter (**Agent Repository**, an agent > **Versions**):
 
 - each version with its **Labels**, **Author**, **Date** and **Comment**; "(production)" marks the live one;
 - **Set as production** makes an older or newer version live (or **Ask to make live**, when approval is on);
@@ -144,9 +144,9 @@ When an administrator switches on approval before production (Administration > S
 1. Your check-in with **Make this the live version** ticked (or **Ask to make live**, or **Publish to Command
    Center**) creates a **production request** instead of changing the live version. The
    toast says "…; sent for approval before it goes live" (or "Sent for approval: vn").
-2. A second person with the approval right opens **Production approvals** in the Agent repository and clicks **Approve**
+2. A second person with the approval right opens **Production approvals** in the Agent Repository and clicks **Approve**
    (the version becomes live: "vn is live") or **Reject**, with an optional note.
-3. Nobody can decide their own request. Every step is in One Audit Trail.
+3. Nobody can decide their own request. Every step is in Audit Trail.
 
 Until then, runs keep using the version that was live before.
 
@@ -154,7 +154,7 @@ Until then, runs keep using the version that was live before.
 
 Workbooks, templates and lists that your agent opens must be on the runner too:
 
-1. In One Command Center's Agent repository, open the folder and use **Upload file** (up to 25 MB; uploading again makes
+1. In One CommandCenter's Agent Repository, open the folder and use **Upload file** (up to 25 MB; uploading again makes
    a new version).
 2. The agent lists the files it needs (its `requires.files`, for example `Finance/Templates/invoice.xlsx`). Before each
    run, the runner places each file at the same path in its workspace, so the agent opens it by that path.
@@ -163,15 +163,15 @@ Keep the same folder layout in My Workspace so the agent works the same in Studi
 
 ## 10. Run what you published
 
-From One Command Center (details in the [Operators guide](05-operators-guide.md)):
+From One CommandCenter (details in the [Operators guide](05-operators-guide.md)):
 
-- **Agent repository > Run**: choose a runner, a runner pool or run-as users, and give the inputs. Credential inputs are
+- **Agent Repository > Run**: choose a runner, a runner pool or run-as users, and give the inputs. Credential inputs are
   vault references.
 - **Schedules**: every N minutes, daily or weekly, in a time zone, with a holiday calendar.
 - **Triggers**: files, windows, processes, hotkeys on runners; email, ServiceNow and web polling on the server;
   webhooks.
 - **Work queues**: one run per work item.
-- **One Workflow**: agents as stages beside people's tasks and approvals.
+- **Workflow**: agents as stages beside people's tasks and approvals.
 - **Agent Runs > Live** and **History**: follow and inspect every run, with the step timeline, the log, the variables
   and the error with its suggested fix.
 
@@ -179,7 +179,7 @@ People can also start agents from the assistant in the notification area (see [B
 
 ## 11. Templates
 
-**Build > Templates** in One Command Center lists ready-made agents to install into the repository and adapt:
+**Build > Templates** in One CommandCenter lists ready-made agents to install into the repository and adapt:
 
 - *Sort support tickets with AI* (Customer service)
 - *Collect invoice emails*, *Invoice summary in Excel*, *Overdue invoice report* (Finance)

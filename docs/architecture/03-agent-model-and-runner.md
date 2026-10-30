@@ -347,7 +347,7 @@ Runner.builder(registry)
 | --- | --- |
 | Studio (`StudioServer`) | In the Studio process; vault from environment variables (`EnvVault`) or the linked Command Center; debugger and value trail |
 | Run worker (`RunWorker`) | One JVM per job. Line protocol with the runner: stdin carries the job, then `credential` answers and `cancel`/`pause`/`resume`; stdout carries `event` lines, `credential` requests (`{id, ref}`) and the final `result`. Secrets arrive only on request and live only in memory |
-| Command Center (`ServerlessRuns`) | Serverless API tasks on the virtual runner `dev_serverless`, with a limited toolkit list, paths confined to the run's temporary workspace (`confine_paths`), 4 at once, 5 minutes each |
+| Command Center (`ServerlessRuns`) | Serverless Agent APIs on the virtual runner `dev_serverless`, with a limited toolkit list, paths confined to the run's temporary workspace (`confine_paths`), 4 at once, 5 minutes each |
 | Command line | `ooa run FILE` with a console sink; `ooa validate`; `ooa conformance DIR` |
 
 ## 16. Python reference runner and conformance

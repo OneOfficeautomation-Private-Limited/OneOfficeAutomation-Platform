@@ -49,7 +49,7 @@ Customers' runners stay in their own networks and connect out to their tenant ad
 | The server connects only to public addresses on a tenant's behalf (mail, syslog, mailboxes, trigger sources, external vaults, identity provider, callbacks, promotion targets, Git remote). Loopback, private, link-local (cloud metadata), carrier-grade NAT, unique-local and multicast addresses and `*.internal`/`localhost` names are refused. | `SAAS.ADDRESS_BLOCKED` |
 | Git remotes must be `https://` or SSH | - |
 | No custom toolkit uploads (no tenant code in the server) | `SAAS.NOT_AVAILABLE` |
-| Serverless API tasks off unless the region sets `serverless=true` | - |
+| Serverless Agent APIs off unless the region sets `serverless=true` | - |
 | Backup folder and repository folder cannot be changed | `SAAS.NOT_AVAILABLE` |
 | The outgoing proxy setting has no effect | - |
 | Licence files cannot be installed (seats come from the operator) | - |

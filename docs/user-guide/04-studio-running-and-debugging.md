@@ -1,4 +1,4 @@
-# Running and debugging agents in One Agent Studio
+# Running and debugging agents in One AgentStudio
 
 **Audience:** agent builders who want to test their agents in Studio, follow a run step by step, find out why a step
 fails, and fix it quickly.
@@ -96,7 +96,7 @@ so you can watch the agent while it works in other programs. It is not shown for
 - **Stop** ends the run ("Stopping the run"). **Finally** sections still run. The result is **stopped**.
 
 An agent can also pause itself with the **Pause agent** action, for example to let you check something; resume it from
-Studio (or One Command Center) or let its timeout expire.
+Studio (or One CommandCenter) or let its timeout expire.
 
 ## 5. Read the result, the log and the variables
 
@@ -112,7 +112,7 @@ When the run ends:
 - The step that failed stays marked on the canvas.
 
 > **Tip:** Use **Log message** steps (with `${…}` text) to write what the agent is doing; they appear in the Run log here
-> and in One Command Center's run details.
+> and in One CommandCenter's run details.
 
 ## 6. Debug with breakpoints
 
@@ -205,7 +205,7 @@ The **Triggers** panel (lightning icon) starts agents automatically while Studio
 2. Click **Add trigger**.
 3. Each trigger has an **On** tick, **Run now** (test it) and **Delete**. **Recent activity** lists what fired.
 
-Triggers for production belong in One Command Center (see [Publishing to Command Center](15-publishing-to-command-center.md)).
+Triggers for production belong in One CommandCenter (see [Publishing to Command Center](15-publishing-to-command-center.md)).
 
 ## 11. If it goes wrong
 
@@ -214,7 +214,7 @@ Triggers for production belong in One Command Center (see [Publishing to Command
 | The run does not start; "FLOW.INVALID: n problem(s): fix them before running" | Open **Problems**, fix each one. |
 | "Four runs are already in progress" | Wait for a run to finish or stop one. |
 | "A run is already in progress." | Run from here and Run this step only wait until the current run ends. |
-| "VAULT.NOT_FOUND: Credential '…' not found" | For local runs set the environment variable named in the fix (`OOA_SECRET_…`) before starting ONEOFFICEAUTOMATION, or run from One Command Center. |
+| "VAULT.NOT_FOUND: Credential '…' not found" | For local runs set the environment variable named in the fix (`OOA_SECRET_…`) before starting ONEOFFICEAUTOMATION, or run from One CommandCenter. |
 | The run window shows **Failed** with a code | Read the code, message and **Fix:** line; click the step id. Check the Run log for the lines before the failure. |
 | A step waits and then fails with a timeout | The element, window or file did not appear in time. Raise **Timeout (seconds)** or the action's wait, or add a **Wait for …** step. |
 | "Unknown or expired run" | Studio forgets finished runs after ten minutes, or the server was restarted. Run again. |

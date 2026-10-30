@@ -29,7 +29,7 @@ and `pools.manage` for runner pools.
 
 ## 1. What a runner is
 
-One Runner is the program that runs agents. It registers once with a Command Center, then:
+OneRunner is the program that runs agents. It registers once with a Command Center, then:
 
 - sends a heartbeat every few seconds (a runner is **online** when it checked in during the last minute);
 - keeps one request open so that queued work, and stop or pause requests, reach it at once;
@@ -252,7 +252,7 @@ notification area. It runs as the signed-in person.
    in `%APPDATA%\ONEOFFICEAUTOMATION\assistant.json`, protected for your Windows user with DPAPI.
 3. Right-click the icon. The menu has **Signed in as ...**, **Run an agent** (the agents with a live version you may
    see; it asks for each input and starts the agent on your default runner, as you), **Task inbox** (with a count of
-   open workflow tasks), **My runs**, **Open One Command Center**, **Refresh**, **Sign out** and **Exit**.
+   open workflow tasks), **My runs**, **Open One CommandCenter**, **Refresh**, **Sign out** and **Exit**.
 4. A notice appears when a new task arrives and when one of your runs finishes, fails or is stopped; click it to open
    the page.
 

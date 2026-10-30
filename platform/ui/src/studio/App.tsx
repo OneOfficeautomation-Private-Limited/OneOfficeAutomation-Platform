@@ -65,17 +65,14 @@ export function App({ api: given }: { api?: StudioApi }) {
   const [asSteps, setAsSteps] = useState<string[]>([]);
   const [cr, setCr] = useState<CrStatus>({ connected: false });   // the Command Center sign-in, for the Public tab and Check in
   const [checkingIn, setCheckingIn] = useState(false);
-  // Display menu: light or dark, standard or compact; kept in this browser and set on the page root for theme.css
+  // Theme menu: light or dark only (one density, kept simple); kept in this browser and set on the page root for theme.css
   const [theme, setTheme] = usePersistent<"light" | "dark">("display.theme", "light");
-  const [density, setDensity] = usePersistent<"standard" | "compact">("display.density", "standard");
-  useEffect(() => { document.documentElement.dataset.theme = theme; document.documentElement.dataset.density = density; }, [theme, density]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   const choice = (key: string, label: string, on: boolean, pick: () => void, description: string, separatorBefore = false): MenuItem =>
     ({ key, label, description: on ? "In use. " + description : description, icon: <span className="st-menu-tick" aria-hidden="true">{on ? "✓" : ""}</span>, separatorBefore, onSelect: pick });
   const displayItems = [
     choice("light", "Light theme", theme === "light", () => setTheme("light"), "White panels in a dark frame"),
     choice("dark", "Dark theme", theme === "dark", () => setTheme("dark"), "Dark panels, easier on the eyes in a dim room"),
-    choice("standard", "Standard density", density === "standard", () => setDensity("standard"), "The usual line height", true),
-    choice("compact", "Compact density", density === "compact", () => setDensity("compact"), "Shorter lines: more steps on screen"),
   ];   // AI agents shown as plain steps instead of in the AI agent editor
 
   const fail = (e: unknown) => setError(e instanceof ApiFailure ? e.error.message : String(e));
@@ -376,7 +373,7 @@ export function App({ api: given }: { api?: StudioApi }) {
   return (
     <div className="st-app">
       <header className="st-top">
-        <div className="st-brand"><span className="st-logo" />One Agent Studio</div>
+        <div className="st-brand"><span className="st-logo" />One AgentStudio</div>
         <nav aria-label="Breadcrumb" className="st-crumbs">
           {current?.kind === "agent" && current.trail?.length
             ? current.trail.map((t, i) => <span key={i}><button type="button" className="st-crumb-link" title={"Back to " + t.name + ", at the Run agent step (line " + t.line + ")"}
@@ -393,7 +390,7 @@ export function App({ api: given }: { api?: StudioApi }) {
         <label className="st-search"><Icon name="search" size={14} /><input aria-label="Search items" placeholder="Search items in the workspace" value={search}
           onChange={(e) => { setSearch(e.target.value); setActive(null); }} /></label>
         <Menu label="Display" title="Display" items={displayItems}
-          trigger={<button type="button" className="st-top-icon" aria-label="Display: theme and density" title="Display: theme and density"><Icon name="sliders" size={16} /></button>} />
+          trigger={<button type="button" className="st-top-icon" aria-label="Theme" title="Theme: light or dark"><Icon name="sliders" size={16} /></button>} />
         <div className="st-top-actions">
           {/* only what works today, never faded buttons: Run and Debug join here in P3 */}
           {current && <>

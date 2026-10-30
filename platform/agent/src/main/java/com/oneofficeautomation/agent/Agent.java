@@ -245,7 +245,7 @@ public final class Agent {
 
     // ---------------- main loop ----------------
     public void run() {
-        log("ONEOFFICEAUTOMATION One Runner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
+        log("ONEOFFICEAUTOMATION OneRunner " + VERSION + " for runner '" + config.get("name") + "' connected to " + config.get("url"));
         log("Workspace: " + workspace);
         ScheduledExecutorService hb = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "ooa-agent-heartbeat"); t.setDaemon(true); return t; });
         hb.scheduleWithFixedDelay(this::heartbeat, 0, heartbeatMs, TimeUnit.MILLISECONDS);

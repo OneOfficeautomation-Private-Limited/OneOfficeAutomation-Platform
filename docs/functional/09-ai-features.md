@@ -2,14 +2,14 @@
 
 ## What this covers
 
-The AI capabilities of ONEOFFICEAUTOMATION and the controls around them: One Model Connections (providers, roles,
+The AI capabilities of ONEOFFICEAUTOMATION and the controls around them: Model Connections (providers, roles,
 budgets and limits, personal-data masking, content check, connection test), AI governance, the AI calls of a run,
 Prompt Skills, the generative AI, AI agent and web goal agent actions, Knowledge Q&A, document extraction with
 confidence, the Studio assistant, and AI assistants connecting over the Model Context Protocol (MCP).
 
 ## Contents
 
-1. One Model Connections
+1. Model Connections
 2. Budgets and call limits
 3. Personal-data masking and the content check
 4. Testing a connection
@@ -25,9 +25,9 @@ confidence, the Studio assistant, and AI assistants connecting over the Model Co
 14. AI assistants over MCP
 15. Retention, permissions and audit
 
-## 1. One Model Connections
+## 1. Model Connections
 
-One Model Connections (AI > One Model Connections, `connections.manage`) are named AI model connections that agents
+Model Connections (AI > Model Connections, `connections.manage`) are named AI model connections that agents
 choose by name in the Prompt Skill, AI agent, generative AI, knowledge and web goal agent actions.
 
 | Field | Rule |
@@ -78,7 +78,7 @@ only, and shows the answer and the time. The tester must be a consumer of the ke
 
 When a runner claims a run, it receives the connections the run's user may use (by role), with keys as vault references
 only, plus their limits, analyzer address and content check. The first allowed connection is the default. Keys are
-fetched just in time as the run's user. Studio test runs use Studio's own One Model Connections (Studio top bar).
+fetched just in time as the run's user. Studio test runs use Studio's own Model Connections (Studio top bar).
 
 ## 6. AI calls of a run and AI governance
 
@@ -116,7 +116,7 @@ Permissions: `skills.view` to see and use, `skills.manage` to create and change,
 ## 8. Generative AI actions
 
 The generative AI toolkit (`ooa.genai`) sends prompts to a connection for tasks such as summarising, classifying,
-extracting, translating and analysing sentiment, entities and language. Every call goes through One Model Connections,
+extracting, translating and analysing sentiment, entities and language. Every call goes through Model Connections,
 so roles, budgets, limits, masking, content checks and the AI calls record apply.
 
 ## 9. AI agents
@@ -160,7 +160,7 @@ The Knowledge Q&A toolkit (`ooa.knowledge`) answers questions from a company's o
 
 Keep the index as a repository file so runs that need it receive it; rebuild it when documents change.
 
-Embedding and answer calls go through One Model Connections, so their budgets, masking and the run's AI calls apply.
+Embedding and answer calls go through Model Connections, so their budgets, masking and the run's AI calls apply.
 Build the index with a saved connection for the embeddings: the index remembers its name, so Search and Ask reach the
 same embedding model by themselves. An index built with a model set up on the step needs its key given again on
 Search and Ask (**API key**, or an **Embedding connection**); without it they warn and search by words only.

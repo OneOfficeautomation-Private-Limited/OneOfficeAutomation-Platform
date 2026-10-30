@@ -225,7 +225,7 @@ Signed toolkits written with the SDK can be added by people with `toolkits.manag
 
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [07 Vault, credentials and connections](07-vault-credentials-and-connections.md)
-- [14 One Agent Studio](14-studio-features.md)
+- [14 One AgentStudio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
 - [Toolkit reference](../reference/toolkits/)
 - [Command Center and runner, sections 9a and 9b](../user-guide/00-README.md)

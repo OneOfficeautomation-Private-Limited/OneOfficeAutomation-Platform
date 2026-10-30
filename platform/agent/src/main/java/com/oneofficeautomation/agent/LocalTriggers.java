@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Command Center triggers that the One Runner evaluates on its own machine, by polling: files and folders
+ * Command Center triggers that the OneRunner evaluates on its own machine, by polling: files and folders
  * (arrive, change, delete; folders created or deleted), windows opened or closed, processes started or stopped,
  * Windows services started or stopped, and global hotkeys. The first look at the machine only records what is
  * there; later looks fire for the differences. Operating-system access goes through {@link OsProbe} and
@@ -88,7 +88,7 @@ final class LocalTriggers {
             case "process_started", "process_stopped" -> new CountWatch(id, kind, "process", processMatcher(String.valueOf(cfg.get("process"))), os::processNames, kind.endsWith("started"));
             case "service_started", "service_stopped" -> new ServiceWatch(id, kind, String.valueOf(cfg.get("service")));
             case "hotkey" -> new HotkeyWatch(id, String.valueOf(cfg.get("hotkey")));
-            default -> throw new IllegalArgumentException("This One Runner does not know the trigger kind '" + kind + "'; update the runner");
+            default -> throw new IllegalArgumentException("This OneRunner does not know the trigger kind '" + kind + "'; update the runner");
         };
     }
 

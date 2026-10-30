@@ -91,15 +91,6 @@
   color-scheme: dark;
 }
 
-/* Compact density (Display menu): shorter lines and bars, so more steps fit on screen */
-:root[data-density="compact"] {
-  --ui-size: 12.5px;
-  --ui-h: 28px;
-  --ui-row: 28px;
-  --ui-step: 28px;
-  --ui-bar: 34px;
-}
-
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body { font-family: var(--ui-font); font-size: var(--ui-size); color: var(--ui-text); background: var(--ui-bg); }

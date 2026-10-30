@@ -10,7 +10,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * API tasks: an agent behind its own address and token, for other systems to call like a web service. A call runs the
+ * Agent APIs: an agent behind its own address and token, for other systems to call like a web service. A call runs the
  * agent's live version on its runner (or the least busy runner of its pool) as the person who made the task, waits
  * for the result up to the task's time limit and answers with the outputs. When the limit passes, or many calls are
  * already waiting, the answer is 202 with the run id, and the caller asks again with the same token. The token is
@@ -26,7 +26,7 @@ public final class ApiTasks {
     ApiTasks(ControlRoom cr) { this.cr = cr; this.db = cr.db; }
 
     public List<Map<String, Object>> list(User by) {
-        cr.require(by, "apitasks.manage", "manage API tasks");
+        cr.require(by, "apitasks.manage", "manage Agent APIs");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> t : db.query("SELECT id, name, bot_path, device_id, pool_id, timeout_seconds, enabled, created_by, created, last_used, calls FROM api_tasks ORDER BY name")) {
             Map<String, Object> m = new LinkedHashMap<>(t);
@@ -39,14 +39,14 @@ public final class ApiTasks {
 
     @SuppressWarnings("unchecked")
     public Map<String, Object> create(User by, Map<String, Object> b, String ip) {
-        cr.require(by, "apitasks.manage", "manage API tasks");
+        cr.require(by, "apitasks.manage", "manage Agent APIs");
         cr.require(by, "runs.start", "start runs");
         String name = String.valueOf(b.getOrDefault("name", "")).trim();
         if (name.isEmpty() || name.length() > 120) throw new OoaException("CR.BAD_INPUT", "API task names have 1 to 120 characters");
         String path = (String) b.get("bot_path");
         if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.BAD_INPUT", "Choose an agent");
         cr.content(path, "production");
-        cr.folders.require(by, path, "run", "make API tasks for agents");
+        cr.folders.require(by, path, "run", "make Agent APIs for agents");
         String device = b.get("device_id") instanceof String d && !d.isBlank() ? d : null, pool = b.get("pool_id") instanceof String p && !p.isBlank() ? p : null;
         if (Boolean.TRUE.equals(b.get("serverless")) || ServerlessRuns.DEVICE.equals(device)) {
             // run inside the Command Center: only agents that keep to web services and data toolkits
@@ -74,7 +74,7 @@ public final class ApiTasks {
 
     /** A new token; the old one stops working at once. */
     public Map<String, Object> newToken(User by, String id, String ip) {
-        cr.require(by, "apitasks.manage", "manage API tasks");
+        cr.require(by, "apitasks.manage", "manage Agent APIs");
         task(id);
         String token = "ooat_" + Security.token(32);
         db.update("UPDATE api_tasks SET token_hash = ? WHERE id = ?", Security.sha256(token), id);
@@ -83,14 +83,14 @@ public final class ApiTasks {
     }
 
     public void setEnabled(User by, String id, boolean on, String ip) {
-        cr.require(by, "apitasks.manage", "manage API tasks");
+        cr.require(by, "apitasks.manage", "manage Agent APIs");
         task(id);
         db.update("UPDATE api_tasks SET enabled = ? WHERE id = ?", on, id);
         cr.audit.record(by.username(), on ? "apitask.enable" : "apitask.disable", "apitask", id, null, "ok", ip);
     }
 
     public void delete(User by, String id, String ip) {
-        cr.require(by, "apitasks.manage", "manage API tasks");
+        cr.require(by, "apitasks.manage", "manage Agent APIs");
         if (db.update("DELETE FROM api_tasks WHERE id = ?", id) == 0) throw notFound("API task");
         cr.audit.record(by.username(), "apitask.delete", "apitask", id, null, "ok", ip);
     }

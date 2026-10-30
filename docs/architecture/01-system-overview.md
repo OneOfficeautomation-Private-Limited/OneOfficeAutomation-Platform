@@ -38,7 +38,7 @@ database, in containers, or as a multi-tenant service in several regions.
 
 | Role | What they do | Main part they use |
 | --- | --- | --- |
-| Agent builder (developer, citizen developer) | Designs, tests and debugs agents, forms, workflows and Prompt Skills; checks them in | One Agent Studio |
+| Agent builder (developer, citizen developer) | Designs, tests and debugs agents, forms, workflows and Prompt Skills; checks them in | One AgentStudio |
 | Agent operator | Starts agents, watches runs, works on work-queue items | Command Center console, desktop assistant |
 | Business user | Completes human tasks and approvals in workflows; starts agents they are allowed to run | Task inbox, desktop assistant |
 | Administrator | Manages people, roles, runners, vault, settings, licences, toolkits, model connections | Command Center console, `ooa` command line |
@@ -66,12 +66,12 @@ database, in containers, or as a multi-tenant service in several regions.
 
 ```mermaid
 flowchart LR
-    builder([Agent builder]) --> studio[One Agent Studio]
+    builder([Agent builder]) --> studio[One AgentStudio]
     operator([Operator / business user]) --> console[Command Center console]
     operator --> tray[Desktop assistant]
     admin([Administrator]) --> console
     admin --> cli[ooa command line]
-    studio -- check-in / check-out --> cc[(One Command Center)]
+    studio -- check-in / check-out --> cc[(One CommandCenter)]
     console --> cc
     tray --> cc
     extclient([REST / MCP clients]) --> cc
@@ -80,7 +80,7 @@ flowchart LR
     cc --> xvault[External vaults]
     cc --> siem[SIEM]
     cc --> git[Git remote]
-    runner[One Runner] -- HTTPS, outbound only --> cc
+    runner[OneRunner] -- HTTPS, outbound only --> cc
     runner --> apps[Business apps, browsers, desktops]
     runner --> cloud[Cloud services, databases]
     runner --> llm[Model providers]
@@ -90,10 +90,10 @@ flowchart LR
 
 | Part | Module | Purpose |
 | --- | --- | --- |
-| **One Command Center** | `control-room` | The shared server. Holds the agent repository with versions and the live production version, users, roles, teams, the vault, runners and pools, schedules, triggers, work queues, workflows and the task inbox, API tasks, dashboards, the audit trail and AI governance. Serves the web console (`cr.js`) and the REST API under `/api/`. |
-| **One Agent Studio** | `cli` (`StudioServer`, `studio.js`) | The designer. Edits agents and other items in a private folder (My Workspace), validates them, runs and debugs them on the same computer, records and captures web and desktop elements, and checks items in and out of the Command Center. Answers only browsers on the same computer. |
-| **One Runner** | `agent` (`Agent`, `RunWorker`) | The worker on each machine. Registers once with a one-time key, sends a heartbeat every 10 seconds, waits for work with a long poll, and runs each job in its own Java process. Also watches the machine for runner-side triggers. |
-| **Runner engine** | `runner` (`Runner`) | The interpreter for an agent definition. Used by Studio, by every run worker and, for serverless API tasks, inside the Command Center. |
+| **One CommandCenter** | `control-room` | The shared server. Holds the agent repository with versions and the live production version, users, roles, teams, the vault, runners and pools, schedules, triggers, work queues, workflows and the task inbox, Agent APIs, dashboards, the audit trail and AI governance. Serves the web console (`cr.js`) and the REST API under `/api/`. |
+| **One AgentStudio** | `cli` (`StudioServer`, `studio.js`) | The designer. Edits agents and other items in a private folder (My Workspace), validates them, runs and debugs them on the same computer, records and captures web and desktop elements, and checks items in and out of the Command Center. Answers only browsers on the same computer. |
+| **OneRunner** | `agent` (`Agent`, `RunWorker`) | The worker on each machine. Registers once with a one-time key, sends a heartbeat every 10 seconds, waits for work with a long poll, and runs each job in its own Java process. Also watches the machine for runner-side triggers. |
+| **Runner engine** | `runner` (`Runner`) | The interpreter for an agent definition. Used by Studio, by every run worker and, for serverless Agent APIs, inside the Command Center. |
 | **Toolkits** | `packages` and the optional `packages-*` modules | 79 toolkits with 1,057 actions, 47 conditions and 12 loop types, the AWS EC2 toolkit (`ooa.aws_ec2`) included. The [toolkit reference](../reference/toolkits/README.md) lists them all. |
 | **Browser connector** | `browser-extension`, `NativeHost`, `ExtensionBridge` | Lets agents and Studio work in the person's own Edge, Chrome or Firefox tabs instead of a browser started by Playwright. |
 | **Assistants** | Studio AI assistant (`assistant/build`), desktop assistant (`ooa assistant`) | The Studio assistant drafts agents from a description using the toolkit manifests. The desktop assistant sits in the Windows notification area, starts agents for the signed-in person and tells them about tasks and finished runs. |
@@ -109,7 +109,7 @@ flowchart LR
 sequenceDiagram
     participant S as Studio
     participant C as Command Center
-    participant R as One Runner
+    participant R as OneRunner
     participant W as RunWorker (child JVM)
     S->>S: build, validate, run and debug locally
     S->>C: POST /api/repo/checkin (agent JSON)
@@ -130,18 +130,18 @@ sequenceDiagram
   credentials over HTTP(S). This lets runners sit behind firewalls and in customers' networks, including for the SaaS
   service.
 - **Every run gets its own process.** A crashing agent or toolkit cannot stop the runner (`RunWorker`).
-- **Production runs use the live version.** Schedules, triggers, queues, workflows and API tasks run the version marked
+- **Production runs use the live version.** Schedules, triggers, queues, workflows and Agent APIs run the version marked
   as production, never a draft.
 - **Secrets arrive just in time.** The job carries vault references, not values. The worker asks for a value when a
   step needs it, and the Command Center checks that the run's user may consume that vault folder.
-- **Same engine everywhere.** Studio, the runners and serverless API tasks all use the same `Runner` class.
+- **Same engine everywhere.** Studio, the runners and serverless Agent APIs all use the same `Runner` class.
 
 ## 5. Deployment shapes
 
 | Shape | How it is started | What runs where | Typical use |
 | --- | --- | --- | --- |
 | **Single computer** | `ooa server` (or `scripts\start-ooa.bat`) | Command Center at `/`, Studio at `/studio/` and a local runner, all in one Java process on port 8720; embedded H2 database | Evaluation, personal automation, development |
-| **On-premises server plus runners** | `ooa control-room` (often as a Windows service: `ooa service install`), `ooa agent register` / `ooa agent start` on each runner | One Command Center on a server with SQL Server or PostgreSQL; runners on desktops, VDI or servers; Studio on developers' machines | The usual enterprise install |
+| **On-premises server plus runners** | `ooa control-room` (often as a Windows service: `ooa service install`), `ooa agent register` / `ooa agent start` on each runner | One CommandCenter on a server with SQL Server or PostgreSQL; runners on desktops, VDI or servers; Studio on developers' machines | The usual enterprise install |
 | **Several nodes** | Two or more Command Centers with the same database and master key behind a load balancer | Every node serves console, API and runners; one leader node runs background work (lease in `cluster_lease`) | High availability; disaster recovery with a standby site |
 | **Container** | `docker/Dockerfile` (base `eclipse-temurin:21-jre-jammy`, user `ooa`, volume `/data`, port 8720); `docker/compose.yaml` with SQL Server 2022 | Command Center in a container; runners on Windows machines outside | Cloud or Kubernetes hosting of a single organisation |
 | **Multi-tenant SaaS** | `ooa region start` per region, optional `ooa directory start` | One region serves many tenants on one port, each with its own PostgreSQL schema, data folder and vault key; customers' runners connect out to `https://<tenant>.<region-domain>` | The hosted service in India, US and EU regions |

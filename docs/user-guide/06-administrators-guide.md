@@ -1,6 +1,6 @@
 # Administrator's guide
 
-**Audience:** administrators of One Command Center: the people who set it up, give people access, keep secrets safe,
+**Audience:** administrators of One CommandCenter: the people who set it up, give people access, keep secrets safe,
 manage licences and answer to auditors.
 
 **You need:** the **Administrator** role, or a custom role with the permissions named in each section. The
@@ -17,14 +17,14 @@ administrator-only permissions are `repo.production`, `repo.approve`, `repo.perm
 4. [Teams](#4-teams)
 5. [Sign-in and security](#5-sign-in-and-security)
 6. [API keys and tokens](#6-api-keys-and-tokens)
-7. [Agent credential vault](#7-one-agent-vault)
-8. [Shared values and Connections](#8-shared-values-and-connections)
+7. [Credential vault](#7-one-agent-vault)
+8. [Shared Global values and Connections](#8-shared-values-and-connections)
 9. [Toolkits](#9-toolkits)
 10. [The agent repository: folders, approvals, Git, code analysis](#10-the-agent-repository-folders-approvals-git-code-analysis)
 11. [Templates](#11-templates)
 12. [Settings](#12-settings)
 13. [Licences and seats](#licences-and-seats)
-14. [One Audit Trail](#14-one-audit-trail)
+14. [Audit Trail](#14-one-audit-trail)
 15. [AI: model connections, Prompt Skills and AI governance](#15-ai-model-connections-prompt-skills-and-ai-governance)
 16. [Languages](#16-languages)
 17. [If it goes wrong](#17-if-it-goes-wrong)
@@ -103,7 +103,7 @@ password, Disabled), **Default runner** (a drop-down), **Last sign-in**.
 - **Disable**/**Enable**: a disabled person cannot sign in, and schedules they own stop running.
 - **Reset password**: makes a new temporary password (shown once); the account is also unlocked.
 - **Reset two-step**: for a lost phone. Their sign-ins end and they set two-step sign-in up again.
-- **Delete**: allowed when they own no schedules, triggers, API tasks, running queues or single-owner vault folders.
+- **Delete**: allowed when they own no schedules, triggers, Agent APIs, running queues or single-owner vault folders.
   Their sign-ins, API keys, team places, own vault values and every rule naming them go; the audit trail keeps their
   name.
 - Click a person (with `audit.view`) to see their details and **Recent activity** from the audit trail.
@@ -118,7 +118,7 @@ of users.
 | Built-in role | Id | Can |
 | --- | --- | --- |
 | Administrator | `admin` | Everything |
-| Agent builder | `bot_creator` | View, check in and delete agents; start and stop runs; manage schedules, triggers, work queues, API tasks and Prompt Skills; own vault folders; view runners, shared values and Operations |
+| Agent builder | `bot_creator` | View, check in and delete agents; start and stop runs; manage schedules, triggers, work queues, Agent APIs and Prompt Skills; own vault folders; view runners, shared values and Operations |
 | Agent operator | `bot_runner` | View agents, start and stop runs, work on work queue items; view runners, schedules, triggers, shared values, Operations and Prompt Skills |
 | Viewer | `viewer` | Read only: agents, runs, runners, schedules, triggers, shared values, work queues, Operations, Prompt Skills |
 
@@ -216,9 +216,9 @@ For other systems that prefer short-lived tokens: `POST /api/auth/token` with `{
 session token (8 hours, extended while used); `POST /api/auth/refresh` replaces it; `GET /api/auth/token` tells
 whether a token is valid, for whom and until when.
 
-## 7. Agent credential vault
+## 7. Credential vault
 
-**Administration > Agent credential vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
+**Administration > Credential vault** holds credentials, encrypted with AES-256-GCM. Values are never shown again after saving,
 are handed to an agent only while it runs, and every use is audited. Agents refer to a value as
 `folder/credential/attribute`, for example `finance/erp/password`.
 
@@ -278,9 +278,9 @@ Agents still ask for `folder/credential/attribute`; the credential name is the s
 field (`value` for single-value secrets). The value is read live. **Test reading** checks access without showing the
 value. **Unlink** removes the link.
 
-## 8. Shared values and Connections
+## 8. Shared Global values and Connections
 
-**Manage > Shared values** (view `globals.view`, change `globals.manage`): values every agent reads as
+**Manage > Shared Global values** (view `globals.view`, change `globals.manage`): values every agent reads as
 `$global.name`, such as a reports folder. **New shared value**: a **Name** and a **Value (JSON)** (`"D:/Reports"`,
 `1000`, `{"a": 1}`). Tick **People may set their own value** to let each person keep a **My value** that their runs
 use; turning it off removes everyone's own values.
@@ -325,7 +325,7 @@ the runner's rights: trust only code you would install yourself.
 
 ## 10. The agent repository: folders, approvals, Git, code analysis
 
-These are in **Build > Agent repository**; builders use it daily (see
+These are in **Build > Agent Repository**; builders use it daily (see
 [15 Publishing](15-publishing-to-command-center.md)). Administrator tasks:
 
 - **Folder permissions** (needs `repo.permissions`): choose a folder, press **Folder permissions**, add roles
@@ -427,9 +427,9 @@ take back. **Export CSV** downloads the list.
 Once e-mail is set up, administrators with an e-mail address (and the extra addresses in Settings) get reminders at 30,
 15, 7, 3, 2 and 1 days, and when it expired.
 
-## 14. One Audit Trail
+## 14. Audit Trail
 
-**Administration > One Audit Trail** (needs `audit.view`). Every sign-in, change, run, credential use, task and
+**Administration > Audit Trail** (needs `audit.view`). Every sign-in, change, run, credential use, task and
 workflow event is recorded and hash-chained.
 
 - Search with **Search everything**, **Who**, **Action** (a prefix such as `repo.` or an exact action like
@@ -442,11 +442,11 @@ workflow event is recorded and hash-chained.
 
 ## 15. AI: model connections, Prompt Skills and AI governance
 
-**AI > One Model Connections** (needs `connections.manage`):
+**AI > Model Connections** (needs `connections.manage`):
 
 1. **New connection**: **Name**, **Provider** (OpenAI, Azure OpenAI, Anthropic, Amazon Bedrock, Google Vertex AI,
    Amazon SageMaker endpoint, Hugging Face, OpenAI-compatible), **Model**, **Type** (standard or fine-tuned),
-   **Endpoint**, **API key from the Agent credential vault** (a vault reference), **Roles that may use it** (empty = every
+   **Endpoint**, **API key from the Credential vault** (a vault reference), **Roles that may use it** (empty = every
    role) and **Description**. A help line explains each provider's model and endpoint.
 2. **Privacy and safety**: a **Microsoft Presidio analyzer** address for extra masking, and **Content check** with the
    provider's moderation endpoint (`AI.CONTENT_FLAGGED` when an answer is flagged).

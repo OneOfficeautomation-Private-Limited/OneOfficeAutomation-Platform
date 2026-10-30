@@ -58,7 +58,7 @@ public final class Tenants implements AutoCloseable {
     private final Supplier<PackageRegistry> registries;
     private final FlowSchemaValidator schema;
     private final Map<String, Tenant> open = new ConcurrentHashMap<>();
-    /** Whether tenants may run agents in the Command Center (serverless API tasks): off unless the region's network allows it. */
+    /** Whether tenants may run agents in the Command Center (serverless Agent APIs): off unless the region's network allows it. */
     public volatile boolean serverless = false;
     /** The global directory (several regions): a name is reserved there first, so it is used in one region only. */
     public volatile RegionDirectory.Client directory;

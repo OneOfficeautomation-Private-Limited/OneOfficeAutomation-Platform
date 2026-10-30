@@ -13,7 +13,7 @@ import java.util.concurrent.Callable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Runner-side triggers end to end: a real Command Center and a real One Runner. Folder triggers fire on the runner,
+ * Runner-side triggers end to end: a real Command Center and a real OneRunner. Folder triggers fire on the runner,
  * the agent runs with the event as input, and the trigger shows its fire count; a missing folder shows as an error.
  */
 class TriggerRunnerE2ETest {

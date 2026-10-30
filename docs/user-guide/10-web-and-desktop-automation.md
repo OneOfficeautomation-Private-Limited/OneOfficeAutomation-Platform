@@ -340,7 +340,7 @@ them.
 | "The Browser module is not installed" / "The Desktop objects toolkit is not installed" | The optional module is missing. Ask your administrator. |
 | Capture desktop does nothing | Hover the control and press **Ctrl+Shift+C** within a minute; Studio must run on Windows. |
 | Recorded typing goes into the wrong field | Check the window and object of the step; recapture if the page layout changed. |
-| `RUN.NEEDS_PERSON` in One Command Center | A message box or prompt has no timeout in an unattended run. Give it a timeout or run attended. |
+| `RUN.NEEDS_PERSON` in One CommandCenter | A message box or prompt has no timeout in an unattended run. Give it a timeout or run attended. |
 
 ## Related guides
 

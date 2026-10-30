@@ -41,7 +41,7 @@ Command Center's agent repository. The file name ending decides how the reposito
 Rules that follow from the file kind:
 
 - Only `.flow.json` items can be run, scheduled, triggered, queued or put behind an API task. Starting a run of
-  anything else is refused with `CR.NOT_AN_AGENT` ("Start workflows from One Workflow; forms run inside workflows").
+  anything else is refused with `CR.NOT_AN_AGENT` ("Start workflows from Workflow; forms run inside workflows").
 - Workflows and forms are versioned, checked out and given a live production version like agents, but they are
   validated by the workflow rules ([document 06](06-workflows-and-human-tasks.md)), not by the agent validator.
 - A workflow's or form's repository id is made from its path (`workflow:Folder/Name`, `form:Folder/Name`). An agent's
@@ -216,7 +216,7 @@ Besides the Command Center's triggers ([document 04](04-schedules-and-triggers.m
 - The Studio workspace holds one working copy of each item. Saving in Studio does not create a version.
 - **Agent check-in** stores a new numbered version (1, 2, 3 …) in the repository with a comment, author, time and
   SHA-256 checksum. Versions are never changed or removed by later check-ins.
-- One version can be the **live production version**. Runs, schedules, triggers, work queues, API tasks and workflows
+- One version can be the **live production version**. Runs, schedules, triggers, work queues, Agent APIs and workflows
   always use it; an item without one cannot be run (`CR.NO_PRODUCTION`). A check-in sets it only when asked to
   (Studio: the tick **Make this the live version**; an agent's first Studio check-in always does, and publishing a
   workflow or form always does).
@@ -246,6 +246,6 @@ At check-in, the repository's code analysis policy is applied as well ([document
 - [02 Toolkits and actions](02-toolkits-and-actions.md)
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [08 Repository, versions and templates](08-repository-versions-and-templates.md)
-- [14 One Agent Studio](14-studio-features.md)
+- [14 One AgentStudio](14-studio-features.md)
 - [Command catalogue](../COMMAND_CATALOG.md)
 - [Architecture](../architecture/README.md)

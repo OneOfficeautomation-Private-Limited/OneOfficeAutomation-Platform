@@ -42,17 +42,17 @@ Instead of repeating the provider, model and key on every step, name the setting
 
 **In Studio (for your local runs):**
 
-1. Open the **Theme and density** menu (sun icon) in the top bar and choose **One Model Connections…**.
+1. Open the **Theme and density** menu (sun icon) in the top bar and choose **Model Connections…**.
 2. Click **+ Connection**. For each connection set:
    - a **name** (for example `gpt`), and **Default** for the one used when a step names none;
    - **Provider** and **Model** (for example `gpt-4o-mini`);
-   - **API key from**: *Environment variable* (its name, such as `OPENAI_API_KEY`), *Agent credential vault credential*
+   - **API key from**: *Environment variable* (its name, such as `OPENAI_API_KEY`), *Credential vault credential*
      (`vault folder/credential/attribute`) or *No key (local model)*;
    - **Endpoint (optional)**: for Azure or a local server.
 3. Click **Save**. The settings go to `model-connections.json` in your workspace; keys are never stored there, only where
    to find them.
 
-**In One Command Center (for runs on runners):** AI > **One Model Connections**. Administrators also set which roles may
+**In One CommandCenter (for runs on runners):** AI > **Model Connections**. Administrators also set which roles may
 use each connection, monthly token budgets, call limits, personal-data detection and content checks. Runs receive the
 connections they are allowed to use.
 
@@ -107,7 +107,7 @@ A Prompt Skill is a prompt that someone has written and reviewed once, kept as a
 
 API keys never go into skill files: give the step a **Connection**, or an **API key** credential.
 
-In One Command Center (AI > **Prompt Skills**), skills are shared, versioned and can start from templates. A skill kept
+In One CommandCenter (AI > **Prompt Skills**), skills are shared, versioned and can start from templates. A skill kept
 there wins over a file of the same name in a runner's workspace.
 
 ## 5. AI agents that use your agents as tools
@@ -130,7 +130,7 @@ which tools to call, in which order, with which inputs, until the goal is reache
 3. Outputs: **answer**, **status** (`completed`, `limit_reached` or `stopped`; with output fields also `failed` or
    `cancelled`), **outputs**, **trace** (each model turn and tool call, for review) and **tokens**.
 
-Check the tool agents in to One Command Center too. In unattended runs, approvals of sensitive tools are refused.
+Check the tool agents in to One CommandCenter too. In unattended runs, approvals of sensitive tools are refused.
 
 ## 6. The web goal agent
 
@@ -164,7 +164,7 @@ Answer questions from your company's documents:
 3. **Ask**: **Index file**, **Question**, **Model to answer with**: the model answers from the passages only, cites them
    like `[1]`, and says when the documents do not cover the question. When nothing matches, the model is not called.
 
-Keep the index file in One Command Center's repository files so runners get it with the run.
+Keep the index file in One CommandCenter's repository files so runners get it with the run.
 
 ## 8. Document extraction with validation
 
@@ -201,7 +201,7 @@ Set **Min confidence** (More options of Extract fields), for example `0.8`:
 - **validation** holds the values, the confidence and the threshold.
 
 When the agent runs from a work queue and returns `validation` as an output named `validation`, the item waits as
-**To validate** in One Command Center. A person opens **Validate**, sees the unsure fields in red, corrects them and
+**To validate** in One CommandCenter. A person opens **Validate**, sees the unsure fields in red, corrects them and
 **Approve**s (the item goes back to the agent with `validated_fields`) or **Reject**s it.
 
 ## 9. The Studio assistant
@@ -224,13 +224,13 @@ The assistant needs a model connection; without one it offers **Set up a One Mod
   Administrators can add a Presidio analyzer for names, places and IDs.
 - **Send only what is needed.** Extract the relevant part of a document before prompting; never send whole mailboxes.
 - **Keep keys in the vault.** Use connections or Credential variables, never keys in steps or skill files.
-- **Mind the budget.** Connections in One Command Center have monthly token budgets and call limits; past them, steps
+- **Mind the budget.** Connections in One CommandCenter have monthly token budgets and call limits; past them, steps
   fail with `AI.BUDGET_REACHED` or `AI.CALL_LIMIT`. Set **Max tokens**, **Max steps** and **Max tokens total**.
 - **Make answers predictable.** Use temperature 0, **Classify** with fixed labels, **Extract fields** with clear
   descriptions, or JSON answers, rather than free text that later steps must parse.
 - **Check before acting.** Use Min confidence and work-queue validation, approvals for sensitive tools, and **If**
   steps that check a value is sensible before it is used.
-- **Test with variety.** One Command Center's **Agent tests** can check outputs with `contains`, `one_of`, `approx` or
+- **Test with variety.** One CommandCenter's **Agent tests** can check outputs with `contains`, `one_of`, `approx` or
   `not_empty`, which suit answers worded differently each time.
 - **Audit.** Every AI call of a run is listed in its **AI calls** tab and in **AI governance**; prompts and answers are
   never stored, only fingerprints.
@@ -239,7 +239,7 @@ The assistant needs a model connection; without one it offers **Set up a One Mod
 
 | What you see | Cause and fix |
 | --- | --- |
-| The assistant says it needs a language model | Set up a connection in **One Model Connections…**. |
+| The assistant says it needs a language model | Set up a connection in **Model Connections…**. |
 | "API keys are never stored in connections" when saving | Point to an environment variable or a vault credential instead of typing the key. |
 | An authorisation error from the provider | The key is wrong or expired, or the environment variable is not set for ONEOFFICEAUTOMATION. |
 | `AI.BUDGET_REACHED` / `AI.CALL_LIMIT` | The connection's monthly budget or per-run limit is used up. Ask your administrator. |

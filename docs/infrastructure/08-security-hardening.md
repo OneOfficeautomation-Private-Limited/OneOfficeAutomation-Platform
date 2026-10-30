@@ -64,7 +64,7 @@ secrets, the audit chain key and the install id. It is looked up in this order:
 
 ## 3. Rotating the vault key
 
-The console's **Rotate key** (Administration > Agent credential vault > Vault key) works when the key comes from the key
+The console's **Rotate key** (Administration > Credential vault > Vault key) works when the key comes from the key
 file. It writes the new key next to the old one, re-encrypts in one transaction every credential, people's own
 values, external-vault sign-in secrets, the audit chain key, two-step secrets and the install id, re-encrypts the
 database and TLS passwords in the configuration files (keeping `.before-rotate` copies), replaces `master.key` and
@@ -175,7 +175,7 @@ Single sign-on users follow the identity provider's MFA policy; enforce it there
 - Every sign-in, change, run, credential use, task and workflow event is recorded and chained with HMAC-SHA-256.
 - Every hour (on the leader) a checkpoint line, `<time> <sequence> <hash>`, is appended to
   `DATA\audit-checkpoints.log`. **Copy it to write-once storage or your log collector**; the product does not do
-  this itself. One Audit Trail > Verify integrity compares the database with it, so deleting the newest records is
+  this itself. Audit Trail > Verify integrity compares the database with it, so deleting the newest records is
   detected.
 - **SIEM**: set `syslog_target` (`host:port`) and `syslog_protocol` (`udp` default, or `tcp` with octet counting).
   Every audit entry is sent as RFC 5424 syslog, facility 13 (log audit), severity notice for success and warning

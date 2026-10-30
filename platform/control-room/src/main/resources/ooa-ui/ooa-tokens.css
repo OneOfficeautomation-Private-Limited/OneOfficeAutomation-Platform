@@ -1,6 +1,6 @@
 /* =====================================================================================================================
    ONEOFFICEAUTOMATION design tokens
-   One file, shared by One Command Center (/ooa-tokens.css) and One Agent Studio (studio/ooa-tokens.css).
+   One file, shared by One CommandCenter (/ooa-tokens.css) and One AgentStudio (studio/ooa-tokens.css).
    Layers:  1. primitives (raw palette, never used directly by components)
             2. semantic tokens (what components use: surfaces, text, borders, accent, status, frame)
             3. scales (space, radius, shadow, type, size, layer, motion)

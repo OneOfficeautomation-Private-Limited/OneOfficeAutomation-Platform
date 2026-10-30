@@ -82,7 +82,7 @@ public final class ControlRoomServer {
      */
     private static String continuePage(Map<String, Object> r) {
         String to = esc(ControlRoom.safeReturn(r.get("return") instanceof String s ? s : "/"));
-        return "<meta http-equiv=\"refresh\" content=\"0;url=" + to + "\"></head><body><p>Signed in. <a href=\"" + to + "\">Continue to One Command Center</a></p></body></html>";
+        return "<meta http-equiv=\"refresh\" content=\"0;url=" + to + "\"></head><body><p>Signed in. <a href=\"" + to + "\">Continue to One CommandCenter</a></p></body></html>";
     }
 
     /** Serves another application under a path prefix on the same port (used by `ooa server` for Studio at /studio). Call before start(). */
@@ -282,7 +282,7 @@ public final class ControlRoomServer {
 
     private Map<String, Object> device(HttpExchange ex) {
         Map<String, Object> d = cr.device(ex.getRequestHeaders().getFirst("X-OOA-Device"), ex.getRequestHeaders().getFirst("X-OOA-Device-Secret"));
-        if (d == null) throw new OoaException("CR.UNAUTHENTICATED", "Unknown or disabled runner", "Re-register the One Runner with a new registration key.");
+        if (d == null) throw new OoaException("CR.UNAUTHENTICATED", "Unknown or disabled runner", "Re-register the OneRunner with a new registration key.");
         return d;
     }
 

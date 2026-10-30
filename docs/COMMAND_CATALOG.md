@@ -93,7 +93,7 @@ Built from the Command Catalog sheet of the AA feature map. **Built** = in the p
 | AI, workload & process | Web goal agent | ooa.web_agent | Built | Start session, Reach a goal (an AI model works the page: click, type, select, scroll, go to, finish), End session; allowed sites; vault secrets typed through placeholders the model never sees; password-only check |
 | AI, workload & process | Analyze | ooa.insights | Built | Tagged business values; dashboards in the Insights phase |
 | AI, workload & process | Workload | ooa.workload | Built | Local queues with retries and deferral; central queues and SLAs with Control Room |
-| AI, workload & process | Process / Co-Pilot | One Workflow (Studio designer, Command Center runtime, Task inbox) | Built | Agent tasks, human tasks with forms, approvals, decisions and notifications; timeline, cancel, due times |
+| AI, workload & process | Process / Co-Pilot | Workflow (Studio designer, Command Center runtime, Task inbox) | Built | Agent tasks, human tasks with forms, approvals, decisions and notifications; timeline, cancel, due times |
 | AI, workload & process | Bot Store packages | - | Planned | Needs the Hub marketplace; not a command |
 | AI, workload & process | Run context | ooa.run_context | Built |  |
 
@@ -115,10 +115,10 @@ packages (read only, nothing changed). In our own words. Most are in the table a
 - **Same toolkit, other name**: Logging (Log to file), Text file (CSV/TXT), Wait and Delay (Delay / Wait), Datetime
   (DateTime), Credential and Credential Manager (Credential / Vault, Windows Credential Manager), Interactive forms
   (ooa.forms), Process Composer, Process Any/Event/Form/Swimlane/Table/Tasks/UserGroup, Conditional and Process trigger
-  (One Workflow), Gmail and G-Suite Apps (ooa.google), Microsoft 365 Calendar/Excel/OneDrive/Outlook (ooa.microsoft365),
+  (Workflow), Gmail and G-Suite Apps (ooa.google), Microsoft 365 Calendar/Excel/OneDrive/Outlook (ooa.microsoft365),
   JSON utilities, JSON Object Manager and JSONParser (ooa.json), Word and MSWordPackage (ooa.word), Ping and SNMP
   (ooa.network), Service (ooa.services), Image Recognition (ooa.image), OpenAI (ooa.genai model connection), API Task
-  and Python script for API Task (Command Center API tasks), SAP BAPI (ooa.sap, BAPI needs the customer's SAP JCo).
+  and Python script for API Task (Command Center Agent APIs), SAP BAPI (ooa.sap, BAPI needs the customer's SAP JCo).
 - **Built but missing from the table above**: PowerPoint (ooa.powerpoint) and Interrupt handler (ooa.interrupts: a
   block that answers unexpected pop-ups during UI steps). Both added below.
 - **Triggers** (Email, File Folder, Hot key, Interface, Service, Universal web, Window, Microsoft 365 Outlook, and the
@@ -141,7 +141,7 @@ The rest:
 | Aisera | Sends content to Aisera and asks questions of it (2 actions) | ooa.knowledge does the same with our own store | Covered in purpose; a direct Aisera action only if a customer asks |
 | AI (4 actions) | Calls machine-learning and generative models | ooa.genai (Hugging Face, AWS Bedrock and other connections) | Covered |
 | AI Agent (Local) | Runs an AI agent on a chosen runner (1 action) | ooa.ai_agent on any runner | Covered |
-| EnterpriseClaw | Autonomous agents next to the data; on this Control Room only as an outside vendor's package, switched off | ooa.ai_agent and API tasks | Covered in purpose |
+| EnterpriseClaw | Autonomous agents next to the data; on this Control Room only as an outside vendor's package, switched off | ooa.ai_agent and Agent APIs | Covered in purpose |
 | UI Agent - Web | Web automation from a plain-language goal (3 actions) | ooa.web_agent | Covered; a desktop version (Windows UI Automation) could follow |
 | AISense, Legacy AISense | Recording on remote and virtual desktops by screen analysis | ooa.image, ooa.ocr (Citrix / remote desktop row) | Partial, as in that row |
 | Process Discovery | Starts AA's process recorder and window capture for its discovery product | Nothing | **Not needed**: tied to AA's own discovery product |

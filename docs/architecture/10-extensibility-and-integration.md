@@ -3,7 +3,7 @@
 ## What this covers / who it is for
 
 This document lists the ways other systems and developers can integrate with and extend ONEOFFICEAUTOMATION: the REST
-API (with authentication, starting runs, reading results and the live change feed), API tasks for calling one agent
+API (with authentication, starting runs, reading results and the live change feed), Agent APIs for calling one agent
 like a web service, the MCP endpoint for AI assistants, incoming webhooks and outgoing run callbacks, custom toolkits
 built with the SDK, custom connectors imported from API descriptions, saved connections, the Git mirror of the agent
 repository, lifecycle export, import and promotion between environments, the templates catalogue, and the command line
@@ -13,7 +13,7 @@ for automation pipelines. It is for integration developers, DevOps engineers and
 
 1. [Integration points at a glance](#1-integration-points-at-a-glance)
 2. [REST API](#2-rest-api)
-3. [API tasks](#3-api-tasks)
+3. [Agent APIs](#3-api-tasks)
 4. [MCP for AI assistants](#4-mcp-for-ai-assistants)
 5. [Webhooks in, callbacks out](#5-webhooks-in-callbacks-out)
 6. [Triggers from other systems](#6-triggers-from-other-systems)
@@ -82,7 +82,7 @@ Every call checks a permission of the caller's role and folder permissions. Erro
 
 `GET /api/catalog` returns the names of all actions; Studio's `GET /studio/api/packages` returns the full manifests.
 
-## 3. API tasks
+## 3. Agent APIs
 
 An API task (`ApiTasks`) puts one agent behind its own address and token, for systems that should not hold a user's
 API key:

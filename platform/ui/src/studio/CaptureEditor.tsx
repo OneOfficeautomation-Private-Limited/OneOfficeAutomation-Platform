@@ -291,7 +291,7 @@ export const browserOf = (w: OpenWindow) => w.browser || (/^msedge$/i.test(w.pro
  * window, where only that application's clicks and typing are recorded; or a new page at an address. A browser
  * window Studio cannot reach says how to connect it, and offers a new recording window or desktop recording instead.
  */
-export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "One Agent Studio" }:
+export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "One AgentStudio" }:
   { mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; onChoose: (c: WhereChoice) => void; onClose: () => void;
     onRefresh?: () => Promise<OpenWindow[]>; ownTitle?: string }) {
   const [all, setAll] = useState(given);

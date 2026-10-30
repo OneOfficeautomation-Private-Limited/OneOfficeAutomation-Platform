@@ -90,7 +90,7 @@ Notes:
   [06. High availability and scaling](06-high-availability-and-scaling.md).
 - Waiting runners hold one request open each (up to 25 seconds). The server serves every request on a virtual
   thread, so a waiting runner costs very little memory.
-- Serverless API tasks run inside the Command Center: at most 4 at once per node, 5 minutes each. Plan CPU for them
+- Serverless Agent APIs run inside the Command Center: at most 4 at once per node, 5 minutes each. Plan CPU for them
   if you use them.
 - A cloud Windows virtual machine starts at 4 vCPU and 16 GB ([02](02-installation-windows.md), section 13).
 

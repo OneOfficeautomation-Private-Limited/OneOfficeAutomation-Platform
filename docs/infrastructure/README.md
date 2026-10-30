@@ -18,9 +18,9 @@ folders, and the CI workflow). Where an older document says something different,
 
 | Part | What it is | Where it runs | Network |
 | --- | --- | --- | --- |
-| **One Command Center** | The central Java server: web console, REST API, the runner API, webhooks, API tasks, the MCP endpoint, schedules, triggers, work queues, vault, audit trail | Windows Server, or Linux (package or container) | Listens on TCP 8720 by default (HTTP or HTTPS) |
-| **One Agent Studio** | The agent editor, served by the Command Center at `/studio/` when started with `ooa server`, or on its own with `ooa studio` (port 8710) | The builder's own computer | Loopback (127.0.0.1) only |
-| **One Runner** | The process that takes work from the Command Center and runs agents, each in its own worker process | Windows (desktop or service); headless runners also on Linux and macOS | Outbound only, to the Command Center |
+| **One CommandCenter** | The central Java server: web console, REST API, the runner API, webhooks, Agent APIs, the MCP endpoint, schedules, triggers, work queues, vault, audit trail | Windows Server, or Linux (package or container) | Listens on TCP 8720 by default (HTTP or HTTPS) |
+| **One AgentStudio** | The agent editor, served by the Command Center at `/studio/` when started with `ooa server`, or on its own with `ooa studio` (port 8710) | The builder's own computer | Loopback (127.0.0.1) only |
+| **OneRunner** | The process that takes work from the Command Center and runs agents, each in its own worker process | Windows (desktop or service); headless runners also on Linux and macOS | Outbound only, to the Command Center |
 | **Database** | Everything the Command Center keeps: users, agents, runs, schedules, vault values, audit trail | SQL Server 2019+, PostgreSQL 14+, or the embedded H2 for evaluation | The Command Center connects out to it |
 | **Data folder** | Configuration files, the vault key file (if used), repository files, backups, logs, audit checkpoints | Local disk, or shared storage for several nodes | - |
 | **Browser connector** | Extension plus a native messaging host so agents can drive the user's own Edge, Chrome or Firefox | Runner and builder computers | Local only |
@@ -52,7 +52,7 @@ next with a backup and restore (see [07](07-backup-restore-and-disaster-recovery
 | Need | Topology | Database | How to install |
 | --- | --- | --- | --- |
 | Try the product, build first agents on one PC | **A. Single computer, all in one** (`ooa server`: Command Center, Studio and a local runner in one process) | Embedded H2 | Setup package, guided, or `START-OOA.cmd` |
-| A pilot or a small team, a few runners | **B. One Command Center server, separate runners** | SQL Server or PostgreSQL (needed for a licence) | Setup package `-Service -DbServer ...`, or MSI and `ooa db` commands |
+| A pilot or a small team, a few runners | **B. One CommandCenter server, separate runners** | SQL Server or PostgreSQL (needed for a licence) | Setup package `-Service -DbServer ...`, or MSI and `ooa db` commands |
 | Production in one data centre | **C. Two or more Command Center nodes behind a load balancer** | SQL Server (Always On) or PostgreSQL with high availability | As B on each node, shared repository folder, same vault key |
 | Production with a second site | **D. Active site plus a cold standby site** | SQL Server availability group with an asynchronous replica, log shipping, or PostgreSQL streaming replication | As C on both sites, standby nodes stopped |
 | Your own cloud account (AWS, Azure, Google Cloud) | **B or C on cloud machines or containers** | Managed SQL Server or PostgreSQL | Windows VM with the MSI ([02](02-installation-windows.md), section 13), Linux package with systemd, or the container image ([03](03-installation-linux-and-containers.md)) |
@@ -65,7 +65,7 @@ next with a backup and restore (see [07](07-backup-restore-and-disaster-recovery
 | The screen (keyboard, mouse, windows, images, desktop dialogs) | A Windows computer with a signed-in, unlocked session, started at sign-in (`ooa agent install-task`). A Windows service has no desktop. |
 | Only web services, files and data (no screen) | A Windows service (`ooa service install --mode agent`, or the MSI with `ROLE=Runner`), or a headless runner on Linux or macOS |
 | Pooled virtual desktops or short-lived machines | Register with **Temporary runner** ticked; offline runners are removed after `temporary_runner_hours` (8 by default) |
-| Calls to web services only, no runner at all | Serverless API tasks inside the Command Center (at most 4 at once per node, 5 minutes each) |
+| Calls to web services only, no runner at all | Serverless Agent APIs inside the Command Center (at most 4 at once per node, 5 minutes each) |
 
 ### Step 3: which constraints apply?
 

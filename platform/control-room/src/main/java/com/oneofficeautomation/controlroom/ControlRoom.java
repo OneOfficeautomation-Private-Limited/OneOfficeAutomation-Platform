@@ -104,7 +104,7 @@ public final class ControlRoom {
     public final String tenant;
 
     /**
-     * Whether serverless API tasks may run in this Command Center. Always on premises; for a SaaS tenant only when the
+     * Whether serverless Agent APIs may run in this Command Center. Always on premises; for a SaaS tenant only when the
      * region allows them (its network then limits where the server may connect, docs/infrastructure/09-saas-and-multi-region-operations.md).
      */
     public volatile boolean serverlessAllowed = true;
@@ -482,7 +482,7 @@ public final class ControlRoom {
     /**
      * Local recovery for a forgotten password, run from the console of the Command Center machine (`ooa reset-admin`):
      * gives the user a new one-time password, re-enables and unlocks the account, ends its sessions and records it in
-     * the One Audit Trail. Only someone who can open the data folder can run it.
+     * the Audit Trail. Only someone who can open the data folder can run it.
      */
     public String recoverUser(String username) {
         Map<String, Object> r = db.one("SELECT id, role FROM users WHERE username = ?", username);
@@ -580,7 +580,7 @@ public final class ControlRoom {
 
     /**
      * Deletes a user: their sign-ins, API keys, default runner, team places, personal vault values and every rule that
-     * names them go. Refused while they own schedules, triggers, API tasks, vault folders or running queues, so nothing
+     * names them go. Refused while they own schedules, triggers, Agent APIs, vault folders or running queues, so nothing
      * stops working unseen. The audit trail keeps their name.
      */
     public void deleteUser(User by, String idOrName, String ip) {
@@ -1316,7 +1316,7 @@ public final class ControlRoom {
     public Map<String, Object> startRun(String requestedBy, String role, String path, String deviceId, String poolId, Map<String, Object> inputs, String source, String ip,
                                         int priority, String callbackUrl, String runAs, String mode, String queueItemId) {
         if (rolesOf(requestedBy, role).stream().noneMatch(r -> allowed(r, "runs.start"))) throw denied("start runs");
-        if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from One Workflow; forms run inside workflows.");
+        if (path == null || !path.endsWith(".flow.json")) throw new OoaException("CR.NOT_AN_AGENT", path + " is not an agent", "Start workflows from Workflow; forms run inside workflows.");
         folders.require(requestedBy, role, path, "run", "run agents");
         String runMode = mode == null || mode.isBlank() ? "unattended" : mode;
         if (!RUN_MODES.contains(runMode)) throw new OoaException("CR.BAD_INPUT", "The run mode is unattended, attended or headless");
@@ -1336,7 +1336,7 @@ public final class ControlRoom {
         if (deviceId == null || deviceId.isBlank()) throw new OoaException("CR.BAD_INPUT", "Choose a runner or a runner pool");
         boolean serverlessRun = ServerlessRuns.DEVICE.equals(deviceId);
         if (serverlessRun && (source == null || !source.startsWith("api_task:")))
-            throw new OoaException("CR.BAD_INPUT", "Only serverless API tasks run on " + ServerlessRuns.NAME, "Choose a runner.");
+            throw new OoaException("CR.BAD_INPUT", "Only serverless Agent APIs run on " + ServerlessRuns.NAME, "Choose a runner.");
         if (callbackUrl != null && !callbackUrl.isBlank() && !callbackUrl.matches("^https?://\\S+$")) throw new OoaException("CR.BAD_INPUT", "The callback must be an http(s) URL");
         Map<String, Object> c = content(path, "production");
         Map<String, Object> flow = (Map<String, Object>) c.get("flow");
@@ -1894,7 +1894,7 @@ public final class ControlRoom {
         Instant cutoff = now().minus(Duration.ofMinutes(2));
         for (Map<String, Object> r : db.query("SELECT r.id FROM runs r JOIN devices d ON d.id = r.device_id WHERE r.status = 'running' AND (d.last_seen IS NULL OR d.last_seen < ?)", cutoff)) {
             db.update("UPDATE runs SET status = 'failed', finished = ?, error = ? WHERE id = ? AND status = 'running'", now(),
-                    JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The runner stopped reporting while the agent was running", "suggestedFix", "Check the runner is on and the One Runner is running.")), r.get("id"));
+                    JsonLite.write(Map.of("code", "AGENT.LOST", "message", "The runner stopped reporting while the agent was running", "suggestedFix", "Check the runner is on and the OneRunner is running.")), r.get("id"));
             audit.record("system", "run.lost", "run", (String) r.get("id"), null, "failed", null);
             platform.itemFinished((String) r.get("id"), "failed", Map.of("code", "AGENT.LOST"), null);
         }
@@ -2411,7 +2411,7 @@ public final class ControlRoom {
             Map<String, Object> uv = db.one("SELECT ciphertext FROM credential_user_values WHERE locker = ? AND name = ? AND attribute = ? AND username = ?", p[0], p[1], p[2], who);
             if (uv == null) {
                 audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "user_value", true), "not_found", null);
-                throw new OoaException("VAULT.NOT_FOUND", who + " has not stored their own value for '" + ref + "'", "Ask " + who + " to enter it in Agent credential vault (My value).");
+                throw new OoaException("VAULT.NOT_FOUND", who + " has not stored their own value for '" + ref + "'", "Ask " + who + " to enter it in Credential vault (My value).");
             }
             audit.record(actor, "credential.read", "credential", ref, Map.of("run", runId, "user_value", true), "ok", null);
             return vault.decrypt((String) uv.get("ciphertext"), VaultAdmin.userBound(ref, who));
@@ -2544,7 +2544,7 @@ public final class ControlRoom {
             if (e.getValue() instanceof Map || e.getValue() instanceof List) throw new OoaException("CR.BAD_INPUT", "Setting '" + e.getKey() + "' must be text, a number or true/false");
         for (var e : creds.entrySet())
             if (!(e.getValue() instanceof String ref) || !ref.matches("^[^/]{1,120}/[^/]{1,120}/[^/]{1,120}$"))
-                throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from Agent credential vault.");
+                throw new OoaException("CR.BAD_INPUT", "Credential '" + e.getKey() + "' must be a vault reference folder/credential/attribute", "Pick it from Credential vault.");
         String desc = body.get("description") instanceof String d ? d.strip() : null;
         String jv = JsonLite.write(values), jc = JsonLite.write(creds);
         db.tx(() -> {

@@ -11,7 +11,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 import com.oneofficeautomation.controlroom.ControlRoom.User;
 
 /**
- * One Command Center platform services added in Part 4: settings, custom roles, API keys, runner pools, work queues,
+ * One CommandCenter platform services added in Part 4: settings, custom roles, API keys, runner pools, work queues,
  * central model connections, holiday calendars and the toolkit manager. Every method checks a permission and writes
  * the audit trail, like ControlRoom.
  */
@@ -1204,7 +1204,7 @@ public final class Platform {
     /** What this Command Center is and holds: the edition from the license (or the evaluation) and what it has in use. */
     public Map<String, Object> license(User by) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("product", "ONEOFFICEAUTOMATION One Command Center");
+        m.put("product", "ONEOFFICEAUTOMATION One CommandCenter");
         Map<String, Object> lic = cr.licensing.status(by);
         String state = String.valueOf(lic.get("state"));
         boolean licensed = List.of("active", "expiring", "grace", "expired").contains(state);

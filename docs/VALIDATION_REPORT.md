@@ -145,7 +145,7 @@ repository with check-in/check-out) gets its own report.
 ## Known limitations (tracked)
 
 - Processes were designed and saved, but running them needed the task inbox, then still planned. (Since built: One
-  Workflow runs them on One Command Center.)
+  Workflow runs them on One CommandCenter.)
 - Document automation generates an extraction bot for PDF and text files; scanned images need an OCR step first.
 - The PGP test needs the Windows `gpg`; run the Java tests from PowerShell or cmd, not Git Bash.
 - Activity refreshes by polling every 2 to 2.5 seconds; a push channel can replace it when Control Room moves to the production stack.
@@ -156,11 +156,11 @@ repository with check-in/check-out) gets its own report.
 
 | Item | Result |
 | --- | --- |
-| Enterprise look | Light and dark themes in One Agent Studio and One Command Center, remembered per browser. |
-| One-branded agentic naming | Agents, Headless API agents, One Agent Studio, One Command Center, One Runner, Agent repository (Public / My Workspace), Agent check-in/check-out, Live production version, Agent Runs (Live/History), One Agent Vault, Shared values, One Workflow, One Document Intelligence, One Prompt Skill, One Audit Trail; roles Administrator, Agent builder, Agent operator, Viewer. |
-| Studio editor | Debugger (breakpoints also in child agents, step into/over/out, call stack, variable edits), Quick add, flow view, AI assistant that builds and explains agents, One Model Connections, custom connectors from OpenAPI/Swagger/Postman, Publish to Command Center for workflows and forms. |
+| Enterprise look | Light and dark themes in One AgentStudio and One CommandCenter, remembered per browser. |
+| One-branded agentic naming | Agents, Headless API agents, One AgentStudio, One CommandCenter, OneRunner, Agent Repository (Public / My Workspace), Agent check-in/check-out, Live production version, Agent Runs (Live/History), One Agent Vault, Shared Global values, Workflow, One Document Intelligence, One Prompt Skill, Audit Trail; roles Administrator, Agent builder, Agent operator, Viewer. |
+| Studio editor | Debugger (breakpoints also in child agents, step into/over/out, call stack, variable edits), Quick add, flow view, AI assistant that builds and explains agents, Model Connections, custom connectors from OpenAPI/Swagger/Postman, Publish to Command Center for workflows and forms. |
 | Toolkits | From 328 to 875 actions in 72 toolkits. New: PowerPoint, GitHub, Azure DevOps, Asana, Zendesk, Okta, Box, DocuSign, Snowflake, Databricks, Kafka, custom connectors, fuzzy match, currency, trigger loop, Windows Credential Manager, interrupts; large additions to Excel, Word, Microsoft 365, Google Workspace, email, data, system, database, REST, FTP, PDF, browser, window, SAP GUI, Active Directory, terminal, Jira, Slack, Salesforce, Workday and ServiceNow; Hugging Face and SageMaker AI providers. |
-| One Command Center | Work queues (SLA, priority, retries, CSV/JSON import), runner pools, run priority and result callbacks, holiday calendars and schedule ownership, custom roles, API keys, settings and announcement, toolkit manager with "used by", hours saved, external vaults (HashiCorp, Azure Key Vault, AWS Secrets Manager, CyberArk), AI governance, MCP server for AI assistants, single sign-on (OpenID Connect), One Workflow runtime with a Task inbox. |
+| One CommandCenter | Work queues (SLA, priority, retries, CSV/JSON import), runner pools, run priority and result callbacks, holiday calendars and schedule ownership, custom roles, API keys, settings and announcement, toolkit manager with "used by", hours saved, external vaults (HashiCorp, Azure Key Vault, AWS Secrets Manager, CyberArk), AI governance, MCP server for AI assistants, single sign-on (OpenID Connect), Workflow runtime with a Task inbox. |
 | Triggers and resilience | Runner triggers (file/folder changes, window, process, service, hotkey) and server triggers (IMAP, Outlook, ServiceNow, universal poller) with pause/resume and monitoring; interrupt rules and self-healing locators for UI agents. |
 
 ## Automated results
@@ -170,7 +170,7 @@ repository with check-in/check-out) gets its own report.
 | All Java tests (PowerShell, `JAVA_TOOL_OPTIONS=-Djava.awt.headless=true`) | 314 tests, 0 failed, 1 skipped (a Linux/macOS-only Credential Manager case) |
 | New end-to-end tests | `EnterpriseFeaturesTest` (external vault read at run time, AI governance, MCP initialize/list/call, OpenID Connect sign-in with PKCE and forged-token refusal, workflow with form, decision, approval, agent and notification), `PlatformTest` (API keys, custom roles, settings, pools, callbacks, queues with retries, calendars, toolkits), `DebuggerTest`, trigger API/poller/runner tests, UI resilience tests, a gap test class per toolkit |
 | Studio browser tests | 131 passed, 0 failed |
-| Command Center console in a browser engine | 58 passed, 0 failed (queues, pools, calendars, administration, roles, model connections, toolkits, API keys, task inbox, One Workflow, AI governance, external vault dialog, trigger kinds, announcement for other users) |
+| Command Center console in a browser engine | 58 passed, 0 failed (queues, pools, calendars, administration, roles, model connections, toolkits, API keys, task inbox, Workflow, AI governance, external vault dialog, trigger kinds, announcement for other users) |
 
 ## Issues found and fixed during Part 4 validation
 
@@ -221,7 +221,7 @@ repository with check-in/check-out) gets its own report.
 - Left out on purpose (reasons in the tables): EWS, .msg export, password-protected zip, NTLM, SNMP v3, ODBC, MP3, terminal types other than 3270, weak PDF encryption.
 
 
-# Validation report: Part 6 (One Agent Studio usability)
+# Validation report: Part 6 (One AgentStudio usability)
 
 ## What was added
 
@@ -259,7 +259,7 @@ repository with check-in/check-out) gets its own report.
 
 | Item | Result |
 | --- | --- |
-| Command Center menu | Home plus three collapsible groups: Build, Run & Monitor, Govern; Settings, Roles, Toolkits and One Model Connections are their own pages |
+| Command Center menu | Home plus three collapsible groups: Build, Run & Monitor, Govern; Settings, Roles, Toolkits and Model Connections are their own pages |
 | Window choice for web actions | `window` input on every element action: Browser (tab by title/address, wildcards and variables), Application (browser window by desktop title), Variable (session); `open_for_automation`, `attach`, `list_windows`; Studio `GET windows` and the window editor |
 | Final results (merged) | Java 465 tests, 0 failed (1 skipped); Studio UI 205; console UI 61; checked by eye in a real Studio and Command Center |
 
@@ -469,7 +469,7 @@ From docs/research/aa-platform-gap-list.md, items 1 to 4.
 | Repository folders and permissions | `Folders.java`. Explicit folders, and permissions per folder for roles and users (view, run, edit, manage); the nearest folder with permissions decides. These are enforced on list, view, versions, check-out, check-in, live version, labels, run, schedule, trigger, delete, export and import. Also: delete and recover agents (refused while schedules, triggers or queues use them), version labels (runs and exports accept a label), dependencies and called-by. |
 | Run-as users | `user_devices` holds each user's default runner. Runs can name a run-as user: the run goes to that user's runner and reads credentials as them. One call can deploy to several users and runners. Run mode is unattended, attended or headless (headless refuses agents that need a desktop). Runners can be deleted. |
 | Work queues | Work item models with typed, required fields that items are checked against; a model in use cannot lose or change fields. Get and edit one item, delete items, CSV import (typed) and export (formula-safe). Queue members: owners, participants, consumers. `queues.all` lets someone see every queue. |
-| Command Center screens | Agent repository: folder filter, New folder, Folder permissions, Delete folder, Deleted agents (recover), Delete, labels in Versions, dependencies in the agent's details, Export / promote and Import. Run dialog: run-as users and run mode. Users: default runner. Runners: Remove. Work queues: Work item models, the model in the queue settings, Members, item editor, Delete selected, Export CSV. Runs show "admin as jane". |
+| Command Center screens | Agent Repository: folder filter, New folder, Folder permissions, Delete folder, Deleted agents (recover), Delete, labels in Versions, dependencies in the agent's details, Export / promote and Import. Run dialog: run-as users and run mode. Users: default runner. Runners: Remove. Work queues: Work item models, the model in the queue settings, Members, item editor, Delete selected, Export CSV. Runs show "admin as jane". |
 
 Tests:
 
@@ -507,7 +507,7 @@ Tests:
 - **Java suites:** 478 tests and 1 skipped; all pass after one SQL layout fix that the architecture guard caught. `EnterpriseFeaturesTest` (AI governance count) failed once in the full run and passed on its own. It is the same intermittent test noted earlier, outside this change.
 
 
-# Validation report: platform gaps 9 to 14 (tokens, uniform API, scheduler extras, code analysis, process composer, API tasks)
+# Validation report: platform gaps 9 to 14 (tokens, uniform API, scheduler extras, code analysis, process composer, Agent APIs)
 
 | Gap | Built |
 | --- | --- |
@@ -516,8 +516,8 @@ Tests:
 | Scheduler extras | Run-as users on schedules (with or without a runner of their own) and triggers. Bulk enable, disable and change owner (`POST /api/schedules/bulk`). Edit a trigger's name, owner and run-as user (`PUT /api/triggers/{id}`). |
 | Code analysis | `CodeAnalysis.java`: an 11-rule policy, each rule switchable with its severity and settings. Analysis runs at check-in (blocking errors when enforced), on demand, and on a flow that is not stored. Reports are stored per version; a repository report is available as CSV. |
 | Process composer helpers | Workflow `start_form` (data checked like a submitted form), a reference on workflow runs, get a run by id or reference (with its tasks), and get the start form. |
-| API tasks | `ApiTasks.java`: a task per agent with its own token (hash stored, shown once, replaceable), runner or pool, and time limit. A call waits for the result (200) or returns 202 to poll. At most 8 calls wait at once, so the HTTP threads never all wait. |
-| Screens | API tasks page (create, address and token shown once with a curl example, switch on/off, new token, delete). Schedules: run-as user, ticks with Enable/Disable/Change owner. Triggers: Edit (name, owner, run as). Users: Delete. Agent repository: Code analysis (policy, report CSV) and each agent's report. Workflow start: start form fields and reference. |
+| Agent APIs | `ApiTasks.java`: a task per agent with its own token (hash stored, shown once, replaceable), runner or pool, and time limit. A call waits for the result (200) or returns 202 to poll. At most 8 calls wait at once, so the HTTP threads never all wait. |
+| Screens | Agent APIs page (create, address and token shown once with a curl example, switch on/off, new token, delete). Schedules: run-as user, ticks with Enable/Disable/Change owner. Triggers: Edit (name, owner, run as). Users: Delete. Agent Repository: Code analysis (policy, report CSV) and each agent's report. Workflow start: start form fields and reference. |
 
 Tests:
 
@@ -529,7 +529,7 @@ Tests:
   - user delete refused, then cleaned up;
   - code analysis findings, the enforced policy blocking and allowing a check-in, a forbidden toolkit, and the CSV;
   - start form checks and lookup by reference;
-  - API tasks over HTTP: 200 with outputs from a simulated runner, 202 past the limit, wrong or foreign token, replaced token, switched off.
+  - Agent APIs over HTTP: 200 with outputs from a simulated runner, 202 past the limit, wrong or foreign token, replaced token, switched off.
 - **Command Center in the browser:** API task created and listed with its address; an agent's code analysis report; schedule bulk buttons; the policy saved through its dialog.
 - **Intermittent `EnterpriseFeaturesTest` explained and fixed.** The runner sent a run's result once. When the connection was dropped (an IOException with no message), the result, with its AI calls, was lost, and in production the run would have stayed "running". `Agent.reportResult` now tries up to 6 times with backoff; repeating is harmless because the Command Center ignores a result for a run that is no longer running. The Command Center also records a run's AI calls before marking it finished. **Java suites:** 483 tests, 0 failed, 1 skipped.
 
@@ -538,7 +538,7 @@ Tests:
 
 | Item | Built |
 | --- | --- |
-| Rename repository folders | `Folders.rename`: moves the agents with their versions, labels and reports. It also updates the schedules, triggers, queues, API tasks, run history, workflow runs, sub-folders and folder permissions that refer to them. Refused while someone else has an agent checked out, or while a workflow names a path inside the folder. |
+| Rename repository folders | `Folders.rename`: moves the agents with their versions, labels and reports. It also updates the schedules, triggers, queues, Agent APIs, run history, workflow runs, sub-folders and folder permissions that refer to them. Refused while someone else has an agent checked out, or while a workflow names a path inside the folder. |
 | Work items from Excel | `importXlsx` (Apache POI, already used by the Office toolkit). It reads a named or the first sheet; formulas are evaluated and dates come as ISO. Items are checked against the work item model. The console sends the workbook as Base64. |
 | Queue definition export and import | `exportQueue` (settings, model, members, optionally the waiting items; the pool by name) and `importQueue` (reuses a matching model, links the agent and pool when present, leaves out unknown members with a note, keeps the importer as owner). |
 | Toolkit version usage and bulk update | `toolkitVersions` (agents, required range, whether the installed version fits) and `updateToolkitRange` (a new version of each agent with the range, not made live, after checking that the installed version fits the range). |
@@ -565,12 +565,12 @@ The gaps from `docs/research/aa-community-edition-check.md`, built in our own wo
 
 | Group | Built |
 | --- | --- |
-| Repository | `RepoFiles`: files next to agents, under the same folder permissions; content-addressed store (`repo-files/<sha256>`), one version per upload, 25 MB a file. `requires.files` in the agent contract; `claimNext` sends them (base64, 50 MB a run) and `RunWorker.writeFiles` places them in the workspace, refusing paths that leave it. `moveBot` (with versions, labels, reports, schedules, triggers, queues, API tasks, runs; refused when checked out by someone else or named by a workflow) and `copyBot` (version 1, new agent id). Folder rename and delete count files. |
+| Repository | `RepoFiles`: files next to agents, under the same folder permissions; content-addressed store (`repo-files/<sha256>`), one version per upload, 25 MB a file. `requires.files` in the agent contract; `claimNext` sends them (base64, 50 MB a run) and `RunWorker.writeFiles` places them in the workspace, refusing paths that leave it. `moveBot` (with versions, labels, reports, schedules, triggers, queues, Agent APIs, runs; refused when checked out by someone else or named by a workflow) and `copyBot` (version 1, new agent id). Folder rename and delete count files. |
 | AI | `LlmClient`: content as text or parts with pictures (OpenAI-style `image_url`, Anthropic `image` blocks, Bedrock `image`, Vertex `inlineData`); Amazon Bedrock Converse (SigV4, service `bedrock`, tools, tool results); Google Vertex AI `generateContent` (service-account JWT signed with RS256, exchanged and kept 50 minutes, or an access token; function declarations without the schema keywords Vertex rejects); `generateImages` for OpenAI/compatible, Azure OpenAI, Vertex Imagen and Bedrock (Titan/Nova Canvas, Stability). New actions: Prompt with pictures, Chat with pictures, Generate picture, Detect language, Key phrases, Named entities. `ooa.web_agent` (Start session, Reach a goal, End session) through the public `AiBridge`. |
 | Model connections | Type (standard or fine-tuned), roles that may use it (runs of other roles do not receive it), Test connection (`ModelProbe`, the key read from the vault for that request only, audited). Studio and the console list Bedrock and Vertex AI. |
 | Vault | Attribute description, Masked (default; unmasked values can be shown to owners and managers, audited) and Password fields only (sent to the runner with the value; `SecureString.passwordOnly`, checked by the browser's Set text and the web goal agent). Credential requests: the user-provided values a person still has to fill in. |
 | People | Further roles (`user_roles`): permissions are the union, principals include `role:` for each role (folders, vault, queues, workflow tasks, connections); admin only as a main role. First name, last name, description. |
-| Shared values | `changeable`: people keep their own value (`user_global_values`); `claimNext` gives the run's person their value; turning it off removes them. |
+| Shared Global values | `changeable`: people keep their own value (`user_global_values`); `claimNext` gives the run's person their value; turning it off removes them. |
 | Runners | Log level (sent with each heartbeat; the runner filters its own log), runner type (single-user: one person's default runner), default users listed; Update runners for several at once. |
 | Prompt Skills | `PromptSkills`: private until shared, every save a version with a comment, built-in and administrator templates, the console page; `claimNext` sends the skills an agent names (or all usable ones when the name is a variable); `ooa.ai_skills` reads them before workspace files. |
 

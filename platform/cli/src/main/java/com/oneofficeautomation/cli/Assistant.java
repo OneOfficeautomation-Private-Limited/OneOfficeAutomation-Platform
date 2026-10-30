@@ -79,7 +79,7 @@ final class Assistant {
     static int run(Map<String, String> o) throws Exception {
         if (o.containsKey("sign-out")) { Files.deleteIfExists(settingsFile()); System.out.println("Signed out: " + settingsFile() + " removed."); return 0; }
         if (GraphicsEnvironment.isHeadless() || !SystemTray.isSupported()) {
-            System.err.println("The assistant needs a desktop with a notification area (Windows). Runs for this person can still be started from One Command Center.");
+            System.err.println("The assistant needs a desktop with a notification area (Windows). Runs for this person can still be started from One CommandCenter.");
             return 1;
         }
         Map<String, Object> s = loadSettings();
@@ -103,7 +103,7 @@ final class Assistant {
     static String[] askSignIn(String url) {
         JTextField address = new JTextField(url == null ? "https://" : url, 30);
         JPasswordField key = new JPasswordField(30);
-        Object[] form = {"Command Center address", address, "Your API key (One Command Center > your name > API keys)", key};
+        Object[] form = {"Command Center address", address, "Your API key (One CommandCenter > your name > API keys)", key};
         if (JOptionPane.showConfirmDialog(null, form, "Sign in to ONEOFFICEAUTOMATION", JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return null;
         return new String[]{address.getText().strip(), new String(key.getPassword()).strip()};
     }
@@ -134,7 +134,7 @@ final class Assistant {
             MenuItem runs = new MenuItem("My runs");
             runs.addActionListener(e -> open("activity"));
             menu.add(runs);
-            MenuItem cc = new MenuItem("Open One Command Center");
+            MenuItem cc = new MenuItem("Open One CommandCenter");
             cc.addActionListener(e -> open(""));
             menu.add(cc);
             MenuItem refresh = new MenuItem("Refresh");

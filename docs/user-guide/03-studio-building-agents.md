@@ -1,4 +1,4 @@
-# Building agents in One Agent Studio
+# Building agents in One AgentStudio
 
 **Audience:** agent builders who know the Studio screen (see [Studio basics](02-studio-basics.md)) and want to build
 real agents: adding steps, filling in settings, working with variables, conditions, loops and error handling.
@@ -178,7 +178,7 @@ Lists, dictionaries, records and tables get small editors (**+ Item**, **+ Key**
 - Each row shows the type, default and how often it is used ("3 uses" or "unused").
 - **→** inserts `$name` into the field you edited last; **⧉** duplicates; **✕** deletes (Studio warns when it is in use).
 - **System variables** (`$sys.…`) are read-only values from the platform, such as today's date or the machine name.
-- **Shared values** (`$global.…`) are shared by all agents. They are managed in One Command Center > Shared values (or
+- **Shared Global values** (`$global.…`) are shared by all agents. They are managed in One CommandCenter > Shared Global values (or
   `global-values.json` in the workspace for local runs). **Refresh** reloads both lists.
 
 ### 4.3 Credentials
@@ -192,7 +192,7 @@ Never type a password or token into a step. Use a **Credential** variable instea
    `finance/erp/password`. The secret is fetched only while the step runs and is masked in every log.
 
 > **Tip:** For local test runs in Studio, the reference `finance/erp/password` is read from the environment variable
-> `OOA_SECRET_FINANCE_ERP_PASSWORD`, set before ONEOFFICEAUTOMATION starts. Runs in One Command Center read One Agent
+> `OOA_SECRET_FINANCE_ERP_PASSWORD`, set before ONEOFFICEAUTOMATION starts. Runs in One CommandCenter read One Agent
 > Vault.
 
 ## 5. Values, `$variables` and `${...}` text

@@ -172,7 +172,7 @@ not move between regions; to move one, export it, create it in the other region 
 | --- | --- | --- |
 | Outgoing connections from the server (mail, syslog, external vaults, identity provider, trigger sources, run callbacks, promotion targets, Git remote) | Any address | Public addresses only; loopback, private, link-local (cloud metadata), carrier-grade NAT, unique-local and multicast are refused with `SAAS.ADDRESS_BLOCKED`; the Git remote must be `https://` or SSH |
 | Custom toolkit upload | Allowed | Refused (`SAAS.NOT_AVAILABLE`); custom code runs only on customers' runners |
-| Serverless API tasks | Allowed | Only when the region sets `serverless=true` |
+| Serverless Agent APIs | Allowed | Only when the region sets `serverless=true` |
 | Backup folder and repository-file folder | Configurable | Fixed to the tenant's folder |
 | Outbound proxy setting | Applied (process-wide) | Ignored; the region's network decides |
 | Licence | Signed licence file | Seats from the operator; licence files refused |

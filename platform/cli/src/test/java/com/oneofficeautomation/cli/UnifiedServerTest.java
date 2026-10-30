@@ -63,7 +63,7 @@ class UnifiedServerTest {
             assertTrue(call(base, "GET", "/ooa-tokens.css", null, null, null).body().contains("--surface-canvas"));
             assertEquals("/", call(base, "GET", "/studio/api/info", null, null, null).json().get("controlRoom"));
             assertEquals("/studio/", call(base, "GET", "/api/health", null, null, null).json().get("studio"), "Control Room links to Studio for browsers on this computer");
-            assertTrue(call(base, "GET", "/", null, null, null).body().contains("One Command Center"));
+            assertTrue(call(base, "GET", "/", null, null, null).body().contains("One CommandCenter"));
             assertEquals(404, call(base, "GET", "/studio-other", null, null, null).status());
 
             // ---- blueprints (Create > Start from), one shared list for both Studios ----
@@ -99,7 +99,7 @@ class UnifiedServerTest {
             assertEquals("/next/", call(base, "GET", "/next", null, null, null).headers().firstValue("Location").orElse(""));
             Res console = call(base, "GET", "/next/", null, null, null);
             assertEquals(200, console.status());
-            assertTrue(console.body().contains("<title>One Command Center</title>"), "the console's own page, not Studio's");
+            assertTrue(console.body().contains("<title>One CommandCenter</title>"), "the console's own page, not Studio's");
             java.util.regex.Matcher cnonce = java.util.regex.Pattern.compile("style-src 'self' 'nonce-([A-Za-z0-9+/=]{24})'").matcher(console.headers().firstValue("Content-Security-Policy").orElse(""));
             assertTrue(cnonce.find(), console.headers().toString());
             assertTrue(console.body().contains("content=\"" + cnonce.group(1) + "\""), "the page carries the same nonce");

@@ -7,7 +7,7 @@ session: what the draft contains, what is still open, and how to run and test it
 
 ## What this version contains
 
-ONEOFFICEAUTOMATION is One Command Center, Agent Studio, and the One Runner. They are started together on this PC by
+ONEOFFICEAUTOMATION is One CommandCenter, Agent Studio, and the OneRunner. They are started together on this PC by
 `platform/scripts/start-ooa.bat`. The code layout is described in [ONEOFFICEAUTOMATION architecture collection](architecture/README.md), and every
 command is listed in [COMMAND_CATALOG.md](COMMAND_CATALOG.md).
 

@@ -4,7 +4,7 @@
 step; business users and operators can skip the install part if someone has already set the Command Center up.
 
 **What you will have at the end:** ONEOFFICEAUTOMATION running on one computer, your own administrator password, a
-tour of the menu, and a first agent that you built in One Agent Studio, checked in to the Command Center, ran on a
+tour of the menu, and a first agent that you built in One AgentStudio, checked in to the Command Center, ran on a
 runner and looked at in **Agent Runs**.
 
 ## Contents
@@ -76,7 +76,7 @@ Start it from the Start menu (**ONEOFFICEAUTOMATION**), with `START-OOA.cmd`, or
 
 What happens:
 
-1. A console window opens. It starts **One Command Center**, **One Agent Studio** (at `/studio/`) and a **One
+1. A console window opens. It starts **One CommandCenter**, **One AgentStudio** (at `/studio/`) and a **One
    Runner** for this computer, all on `http://localhost:8720`.
 2. The runner for this computer registers itself, so you need no registration key on this computer.
 3. Your browser opens the Command Center sign-in page.
@@ -88,7 +88,7 @@ ONEOFFICEAUTOMATION is running.
   Open:             http://localhost:8720
   Command Center:   http://localhost:8720/
   Agent Studio:     http://localhost:8720/studio/   (this computer only)
-  One Runner:       this computer, connected
+  OneRunner:       this computer, connected
   My Workspace:     C:\Users\<you>\OOA Workspace
   Database:         ...
 ```
@@ -128,7 +128,7 @@ that folder is used instead, so an upgrade never starts empty. Back this folder 
 ## 4. Signing in for the first time
 
 1. On the very first start, the console window prints a **one-time password** for the user `admin`. Copy it.
-2. On the **One Command Center** sign-in page enter **User name** `admin` and the one-time password, then press
+2. On the **One CommandCenter** sign-in page enter **User name** `admin` and the one-time password, then press
    **Sign in**.
 3. The **Choose a new password** page appears. Enter the one-time password as **Current password**, then a **New
    password** twice. It must have at least 12 characters, with letters and digits (an administrator can make the rule
@@ -161,7 +161,7 @@ password.
 
 ### The top bar
 
-- **Open One Agent Studio** opens the designer in a new tab (shown when Studio runs with this Command Center).
+- **Open One AgentStudio** opens the designer in a new tab (shown when Studio runs with this Command Center).
 - The half-moon button switches between a light and a dark theme.
 - Your name opens the user menu: **API keys**, **Change password**, **Two-step sign-in**, **Language** (English,
   Deutsch, Français, Español, 日本語) and **Sign out**.
@@ -177,11 +177,11 @@ at the bottom makes the menu narrow (icons only) or full again.
 
 | Section | Pages | What you do there |
 | --- | --- | --- |
-| **Build** | Agent repository, Templates, One Agent Studio (opens a new tab), API tasks, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
-| **Manage** | Agent Runs, Task inbox, Runners, Schedules, Triggers, Work queues, One Workflow, Shared values, Connections, Toolkits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows and the shared settings agents use |
+| **Build** | Agent Repository, Templates, One AgentStudio (opens a new tab), Agent APIs, Agent tests | Find and run agents, install ready-made ones, publish agents as web services, test agents |
+| **Manage** | Agent Runs, Task inbox, Runners, Schedules, Triggers, Work queues, Workflow, Shared Global values, Connections, Toolkits | Daily running: runs, tasks for people, the machines, when agents start, queues, workflows and the shared settings agents use |
 | **Insights** | Operations, Dashboards | How agents and work queues are doing |
-| **Administration** | Users, Roles, Teams, Agent credential vault, One Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
-| **AI** | One Model Connections, Prompt Skills, Document Automation, AI governance | Model connections, AI prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
+| **Administration** | Users, Roles, Teams, Credential vault, Audit Trail, Licenses, Settings | People, access, secrets, audit, licences and system settings |
+| **AI** | Model Connections, Prompt Skills, Document Automation, AI governance | Model connections, AI prompts, reading documents with AI (an add-on module; the page says when it is not installed) and the record of AI use |
 
 You only see the pages your role allows. For example, a **Viewer** sees the agent repository, runs, runners,
 schedules, triggers, shared values, work queues, Operations, Dashboards and Prompt Skills, but cannot change anything.
@@ -194,9 +194,9 @@ browser remembers it) and **Export CSV**.
 
 You will build an agent that takes a name and writes a greeting to the run log, then run it from the Command Center.
 
-### 6.1 Build it in One Agent Studio
+### 6.1 Build it in One AgentStudio
 
-1. In the Command Center, click **Open One Agent Studio** (or **Build > One Agent Studio**). Studio opens in a new tab.
+1. In the Command Center, click **Open One AgentStudio** (or **Build > One AgentStudio**). Studio opens in a new tab.
 2. In the **Explorer** on the left, press **+ Create** and choose **Agent**. Give it the name `Hello`.
 3. Open the **Variables** panel (the `{ }` button on the left rail) and add a variable `name`, type **String**,
    direction **input**. Add a second one, `greeting`, type **String**, direction **output**.
@@ -221,11 +221,11 @@ You will build an agent that takes a name and writes a greeting to the run log, 
 Without the tick, a check-in stores a new version only and the live version stays as it was; a new agent then has no
 live version and cannot run from the Command Center yet. With the tick, the new version becomes the **live production
 version** straight away, unless your administrator has turned on **Approval before production**; then the version
-waits for a second person to approve it (**Build > Agent repository > Production approvals**).
+waits for a second person to approve it (**Build > Agent Repository > Production approvals**).
 
 ### 6.3 Run it from the Command Center
 
-1. In the Command Center open **Build > Agent repository**. The `Hello` agent shows **Latest** `v1` and
+1. In the Command Center open **Build > Agent Repository**. The `Hello` agent shows **Latest** `v1` and
    **Live production** `v1`.
 2. Press **Run** on its row. The **Run Hello** dialog opens.
 3. **Run on**: leave **A runner** and choose your computer's runner (it shows as online).

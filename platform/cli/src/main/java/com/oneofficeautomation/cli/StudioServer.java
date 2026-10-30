@@ -75,7 +75,7 @@ public final class StudioServer {
         server.createContext("/", this::handle);
         server.start();
         startServices();
-        System.out.println("ONEOFFICEAUTOMATION One Agent Studio (preview) is running.");
+        System.out.println("ONEOFFICEAUTOMATION One AgentStudio (preview) is running.");
         System.out.println("  Open:      http://localhost:" + port);
         System.out.println("  Workspace: " + workspace);
         System.out.println("  Press Ctrl+C to stop.");
@@ -178,7 +178,7 @@ public final class StudioServer {
     private void api(HttpExchange ex, String method, String route) throws IOException {
         if (method.equals("GET") && route.equals("info")) {
             Map<String, Object> info = new LinkedHashMap<>();
-            info.put("product", "ONEOFFICEAUTOMATION One Agent Studio");
+            info.put("product", "ONEOFFICEAUTOMATION One AgentStudio");
             info.put("edition", "preview");
             info.put("workspace", workspace.toString());
             info.put("controlRoom", sameServerControlRoom == null ? null : "/");
@@ -267,7 +267,7 @@ public final class StudioServer {
                 sendJson(ex, 200, Map.of("saved", ws.writeItem(rel, text, json::parse)));
             } else send(ex, 405, "text/plain", "Method not allowed");
         } else if (route.equals("model-connections") && method.equals("GET")) {
-            // One Model Connections (model-connections.json); "connections" are the saved connector connections below
+            // Model Connections (model-connections.json); "connections" are the saved connector connections below
             Path f = ws.root.resolve("model-connections.json");
             sendJson(ex, 200, Files.isRegularFile(f) ? json.parse(Files.readString(f)) : Map.of("default", "", "connections", List.of()));
         } else if (route.equals("model-connections") && method.equals("PUT")) {

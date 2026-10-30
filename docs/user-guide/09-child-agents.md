@@ -13,7 +13,7 @@ ERP" agent or a "book one invoice" agent that several parent agents use.
 6. [Open the child, and find the way back](#6-open-the-child-and-find-the-way-back)
 7. [Which agents run this one: the "Run by" note](#7-which-agents-run-this-one-the-run-by-note)
 8. [Test child agents](#8-test-child-agents)
-9. [Child agents in One Command Center](#9-child-agents-in-one-command-center)
+9. [Child agents in One CommandCenter](#9-child-agents-in-one-command-center)
 10. [If it goes wrong](#10-if-it-goes-wrong)
 11. [Related guides](#related-guides)
 
@@ -89,7 +89,7 @@ Run Agent has more settings under **More options** (labels as Studio shows them)
 
 | Setting | What it does |
 | --- | --- |
-| **Version** | Which version runs in One Command Center: a version number, or `production` (the live production version, the default). |
+| **Version** | Which version runs in One CommandCenter: a version number, or `production` (the live production version, the default). |
 | **Timeout seconds** | Stops the child with `CHILD.TIMEOUT` when one run takes longer; empty means no limit. |
 | **Same session** | Shares the parent's open sessions (workbooks, browsers, connections) with the child; sessions the child opens stay open for the parent. |
 | **Fail on error** | On by default: when the child fails, this step fails. Turn it off to carry on and read **status** and **error** yourself. |
@@ -143,9 +143,9 @@ calls) and **Used by** (the agents that call it). Click a row to open it.
 4. **Run this step only** on the Run Agent step runs just the child with the inputs the step gives, using the values the
    parent's last run had at that step. See [Running and debugging](04-studio-running-and-debugging.md).
 
-## 9. Child agents in One Command Center
+## 9. Child agents in One CommandCenter
 
-- When a parent runs in One Command Center, it calls the child **by its agent id**, in the version you chose
+- When a parent runs in One CommandCenter, it calls the child **by its agent id**, in the version you chose
   (`production` by default).
 - So **check in every child agent** as well as the parent, and make sure each has a live version (tick **Make this
   the live version** at check-in, or set it in the repository). The **Dependencies** tab of the parent lists them and reminds
@@ -158,12 +158,12 @@ calls) and **Used by** (the agents that call it). Click a row to open it.
 | What you see | Cause and fix |
 | --- | --- |
 | "Choose the agent to run first." | **Agent to run** is empty. |
-| "Agent … is not in this workspace." | The child was deleted, renamed with a new id, or is only in One Command Center. Check it out or pick another agent. |
+| "Agent … is not in this workspace." | The child was deleted, renamed with a new id, or is only in One CommandCenter. Check it out or pick another agent. |
 | The list says "No other agents in this workspace" | Create the child first, then click **↻**. |
 | **Input values** shows "Loading the agent's variables…" for a long time | Click **↻** next to **Agent to run**. |
 | The parent fails with a `CHILD.` error | Open the child and run it with the same inputs to see where it fails. |
 | A new output of the child is missing from **Save outputs to** | Save the child, then click **↻** in the parent. |
-| In One Command Center the parent cannot find the child | Check in the child, and make sure it has a live production version (or set **Version**). |
+| In One CommandCenter the parent cannot find the child | Check in the child, and make sure it has a live production version (or set **Version**). |
 
 ## Related guides
 

@@ -109,6 +109,20 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     onOpenChild: (stepId: string) => void; onOpenPath: (path: string) => void; onNewConnection: () => void;
     /** The problems a check without saving found. */
     onChecked: (problems: Problem[]) => void; dirty: boolean }) {
+  // Full screen: only the canvas (its toolbar, the steps and the details panel); the browser's own full screen when it
+  // allows it, else the page area. Esc, or the button again, brings everything back.
+  const [full, setFull] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = () => { if (!document.fullscreenElement) setFull(false); };
+    document.addEventListener("fullscreenchange", on);
+    return () => document.removeEventListener("fullscreenchange", on);
+  }, []);
+  const toggleFull = () => {
+    if (full) { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); setFull(false); return; }
+    setFull(true);
+    wrapRef.current?.requestFullscreen?.().catch(() => {});   // refused or not offered: the page area is used
+  };
   const folded = useMemo(() => foldedSet(flow), [flow]);
   const rows = useMemo(() => stepRows(flow.steps, folded), [flow, folded]);
   const [rightTab, setRightTab] = useState("properties");
@@ -380,7 +394,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
 
   return (
     <VarsContext.Provider value={vars}>
-    <div className={`st-agent-wrap is-out-${outMin ? "min" : outAt}`}>
+    <div className={`st-agent-wrap is-out-${outMin ? "min" : outAt}${full ? " is-full" : ""}`} ref={wrapRef}
+      onKeyDown={(e) => { if (e.key === "Escape" && full && !document.fullscreenElement) setFull(false); }}>
       <div className="st-agent">
         <section className="st-steps" aria-label="Agent steps" onKeyDown={onKeys} onPaste={onPaste}>
           <div role="toolbar" aria-label="Edit steps" className="st-edit-bar">
@@ -419,6 +434,9 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
               { key: "desktop", label: "Capture a desktop control", description: "Hover it in a Windows application and press Ctrl+Shift+C", onSelect: () => captureStep(true) },
             ]} trigger={<Button kind="plain" icon="chevronDown" disabled={capturing}>{capturing ? "Capturing…" : "Capture"}</Button>} />
             <span className="st-steps-meta" aria-live="polite">{chosen.length > 1 ? `${chosen.length} selected of ` : ""}{ids.length} steps{problems.length ? ` · ${problems.length} problem${problems.length > 1 ? "s" : ""}` : ""}</span>
+            <button type="button" className="ui-icon-btn st-full-btn" aria-pressed={full} onClick={() => toggleFull()}
+              aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen: only the canvas"}>
+              <Icon name={full ? "shrink" : "expand"} size={16} stroke={2.2} /></button>
           </div>
           {longNames > 0 && !noRename && <div className="st-offer" role="status">
             <span>{longNames} recorded variable{longNames === 1 ? " has a long name" : "s have long names"} (made from page titles or field labels). Rename to Window_1, Text_1, Choice_1 …?</span>

@@ -29,11 +29,11 @@ members who start agents themselves from their desktop.
 | You want to start an agent yourself | **Run an agent** in the ONEOFFICEAUTOMATION assistant |
 | An agent you started finishes or fails | A notification on your desktop from the assistant |
 
-You need an account in One Command Center (ask your administrator). You see only what your role allows.
+You need an account in One CommandCenter (ask your administrator). You see only what your role allows.
 
 ## 2. The Task inbox
 
-1. Open One Command Center in your browser and sign in.
+1. Open One CommandCenter in your browser and sign in.
 2. Choose **Task inbox** in the menu (under **Manage**), or click the **Tasks waiting for you** tile on **Home**.
 
 **What you see:**
@@ -71,7 +71,7 @@ entered.
 3. Click **Approve** or **Reject**. The toast says "Done" or "Rejected".
 
 What happens after a rejection was decided by whoever designed the workflow: it ends, carries on anyway, or goes back to
-an earlier stage (for example back to the requester to correct the form). Every decision is recorded in One Audit Trail
+an earlier stage (for example back to the requester to correct the form). Every decision is recorded in Audit Trail
 with your name.
 
 ## 5. Take a task, or give it back
@@ -90,16 +90,16 @@ A **Notice** tells you that something happened, for example "Order PO-1001 appro
 **Mark as read** to move it to **Done**.
 
 When a workflow sends a notice to an email address instead of a user or role, it arrives as an ordinary email (once
-email is set up in One Command Center).
+email is set up in One CommandCenter).
 
 ## 7. The assistant in the notification area
 
 The **ONEOFFICEAUTOMATION assistant** is a small Windows app that sits in the notification area (next to the clock).
-It runs as you, so it can only do what you may do in One Command Center.
+It runs as you, so it can only do what you may do in One CommandCenter.
 
 **Set it up once:**
 
-1. In One Command Center, open the user menu (your name) > **API keys** and create a key. Copy it; it is shown once.
+1. In One CommandCenter, open the user menu (your name) > **API keys** and create a key. Copy it; it is shown once.
 2. Start the assistant: your IT department may have put it in your Startup folder; otherwise run `ooa assistant` from
    the installation's `bin` folder (or ask IT for a shortcut).
 3. In **Sign in to ONEOFFICEAUTOMATION**, enter the **Command Center address** and **Your API key**, and press OK.
@@ -112,8 +112,8 @@ It runs as you, so it can only do what you may do in One Command Center.
 | **Signed in as …** | Shows who you are |
 | **Run an agent** | The agents you may run (those with a live production version) |
 | **Task inbox** / **Task inbox (n)** | Opens the Task inbox; n is the number of open tasks for you |
-| **My runs** | Opens your runs in One Command Center |
-| **Open One Command Center** | Opens the console |
+| **My runs** | Opens your runs in One CommandCenter |
+| **Open One CommandCenter** | Opens the console |
 | **Refresh** | Reloads the agent list and tasks now |
 | **Sign out** | Forgets the address and key |
 
@@ -141,7 +141,7 @@ The assistant checks every 30 seconds and shows a Windows notification when:
 - **New task**: a task arrives in your inbox (with its title);
 - **Agent finished**, **Agent failed** or **Agent stopped**: one of your runs ends.
 
-Click the notification (or the icon) to open the matching page in One Command Center: the Task inbox, or the runs.
+Click the notification (or the icon) to open the matching page in One CommandCenter: the Task inbox, or the runs.
 
 ## 10. If it goes wrong
 
@@ -153,7 +153,7 @@ Click the notification (or the icon) to open the matching page in One Command Ce
 | "Not started: <input> is required" | Run the agent again and give that input. |
 | "Not started" with another reason | You may not run that agent, or you have no default runner. Ask your administrator. |
 | **Run an agent** shows "(no agents you may run)" | No agent with a live production version is shared with you. Ask the agent's owner. |
-| "The assistant needs a desktop with a notification area (Windows)." | The assistant runs only on Windows desktops; use One Command Center in the browser. |
+| "The assistant needs a desktop with a notification area (Windows)." | The assistant runs only on Windows desktops; use One CommandCenter in the browser. |
 | The assistant stops working after a while | Your API key may have expired or been revoked. **Sign out**, create a new key, and sign in again. |
 
 ## Related guides

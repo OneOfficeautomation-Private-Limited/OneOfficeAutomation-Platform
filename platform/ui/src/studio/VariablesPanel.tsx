@@ -93,7 +93,7 @@ export function VarPicker({ want, onPick, onNew, onClose, nameHint, anchor }:
         {good.map((v) => item("$" + v.name, v.type, v.direction && v.direction !== "local" ? usedAs(v).toLowerCase() : ""))}
         {sys.length > 0 && <div className="st-vp-head">System</div>}
         {sys.map(([k, val]) => item("$sys." + k, guessType(val), preview(val)))}
-        {glob.length > 0 && <div className="st-vp-head">Shared values</div>}
+        {glob.length > 0 && <div className="st-vp-head">Shared Global values</div>}
         {glob.map(([k, val]) => item("$global." + k, guessType(val), preview(val)))}
         {!good.length && !sys.length && !glob.length && <p className="st-vp-empty">{typed && !all ? "No " + typed + " variables yet." : "No variables match."}</p>}
       </div>
@@ -219,7 +219,7 @@ export function VariableDialog({ flow, existing, preset, onSave, onClose }:
 
 /**
  * The agent's variables, grouped by use (inputs, inputs and outputs, outputs, inside the agent), each with its type,
- * default or last value, and how often it is used; then the platform's System values and the Shared values.
+ * default or last value, and how often it is used; then the platform's System values and the Shared Global values.
  */
 export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
   { flow: Flow; builtins: Builtins; last: Map<string, unknown>; onEdit: (next: Flow) => void; onRefresh: () => void }) {
@@ -283,7 +283,7 @@ export function VariablesPanel({ flow, builtins, last, onEdit, onRefresh }:
         );
       })}
       {builtin("System variables", "$sys.", builtins.sys, "Read-only values from the platform at run time, such as today's date or the machine name.")}
-      {builtin("Shared values", "$global.", builtins.global, "Shared by all agents; managed in Command Center under Shared values.")}
+      {builtin("Shared Global values", "$global.", builtins.global, "Shared by all agents; managed in Command Center under Shared Global values.")}
       <div className="st-pad"><Button kind="plain" onClick={onRefresh}>Refresh system and shared values</Button></div>
       {editing && <VariableDialog flow={flow} existing={editing} onClose={() => setEditing(null)} onSave={(next) => { onEdit(next); setEditing(null); }} />}
     </div>

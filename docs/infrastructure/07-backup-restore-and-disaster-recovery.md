@@ -101,7 +101,7 @@ encrypted; the same vault key is still required.
 | Accidental data change | Restore a database copy side by side and recover the rows, or restore a built-in backup into a separate test install to inspect |
 | Container lost | Start a new container with the same volume (or restore into a new one with `backup restore`) and the same key |
 
-After any restore: sign in, check Runners shows them online, run a test agent, and run One Audit Trail > Verify
+After any restore: sign in, check Runners shows them online, run a test agent, and run Audit Trail > Verify
 integrity.
 
 ## 7. Moving a Command Center to new servers or a cloud

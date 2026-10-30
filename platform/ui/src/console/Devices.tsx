@@ -112,12 +112,12 @@ export function Devices({ api, user, onNotice }: { api: CrApi; user: CrUser; onN
   return (
     <section className="st-page cc-home" aria-labelledby="cc-dev-title">
       <header className="st-page-head">
-        <div><h1 id="cc-dev-title">Runners</h1>
-          <p>Machines running the One Runner. A runner is online when it checked in during the last minute.{runners ? " " + online + " of " + runners.length + " online." : ""}</p></div>
+        <div><h1 id="cc-dev-title">Runner Machines</h1>
+          <p>Machines running the OneRunner. A runner is online when it checked in during the last minute.{runners ? " " + online + " of " + runners.length + " online." : ""}</p></div>
         {tab === "runners" && manage && <Button kind="primary" onClick={() => setDialog({ kind: "register" })}>Register a runner</Button>}
         {tab === "pools" && can("pools.manage") && <Button kind="primary" onClick={() => setDialog({ kind: "pool", pool: null })}>New runner pool</Button>}
       </header>
-      <div className="st-page-tabs" role="tablist" aria-label="Runners">
+      <div className="st-page-tabs" role="tablist" aria-label="Runner Machines">
         {(["runners", "pools"] as const).map((t) => <button key={t} type="button" role="tab" className="st-page-tab" aria-selected={tab === t} onClick={() => { setTab(t); setSelected([]); }}>
           {t === "runners" ? "Runners" : "Runner pools"}{runners && <span className="cc-count">{t === "runners" ? runners.length : pools.length}</span>}</button>)}
       </div>

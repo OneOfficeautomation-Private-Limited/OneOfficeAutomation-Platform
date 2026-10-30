@@ -1,4 +1,4 @@
-// Interface languages for One Command Center and One Agent Studio (K3). The pages are written in English; this script
+// Interface languages for One CommandCenter and One AgentStudio (K3). The pages are written in English; this script
 // swaps each visible text, placeholder, tooltip and accessible name for the chosen language as the page draws it, from
 // ooa-i18n-<language>.json. A text missing from the catalog stays in English. Texts built from parts use keys with {}
 // ("Delete {}?", "{} runs, {} failed"). Names, ids and code (elements with class mono, code, pre, textarea) are never translated.

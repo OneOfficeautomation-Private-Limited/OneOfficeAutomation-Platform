@@ -207,7 +207,7 @@ disabled runner …) keeps the error ("Could not start the agent: …").
 
 ## 12. Studio's local triggers
 
-One Agent Studio has its own Triggers panel for development, separate from the Command Center's: file arrives in a
+One AgentStudio has its own Triggers panel for development, separate from the Command Center's: file arrives in a
 folder (with a pattern), schedule (every N minutes or daily at HH:mm), and local webhook (a secret shown once). They
 start agents of the workspace only while Studio is running, can be switched on and off, test-run, and show their
 recent activity.

@@ -7,10 +7,10 @@ import java.nio.file.*;
 import java.util.*;
 
 /**
- * Shared values read by many bots (for example a reports folder or an approval threshold). In Studio they live in
+ * Shared Global values read by many bots (for example a reports folder or an approval threshold). In Studio they live in
  * global-values.json in the workspace; in Control Center they are managed centrally with permissions.
  */
-@OoaPackage(id = "ooa.global_values", name = "Shared values", version = "1.0.0", description = "Read shared values that many agents use, such as folders, thresholds or URLs.")
+@OoaPackage(id = "ooa.global_values", name = "Shared Global values", version = "1.0.0", description = "Read shared values that many agents use, such as folders, thresholds or URLs.")
 public final class GlobalValuesPackage {
     static final String FILE = "global-values.json";
 
@@ -31,7 +31,7 @@ public final class GlobalValuesPackage {
         } catch (IllegalArgumentException e) { throw new ActionException("GLOBALS.INVALID", FILE + " is not valid JSON: " + e.getMessage(), "Fix the file in the workspace."); }
     }
 
-    @Action(id = "get", name = "Get shared value", category = "Shared values", idempotent = true, description = "Read one shared value by name.",
+    @Action(id = "get", name = "Get shared value", category = "Shared Global values", idempotent = true, description = "Read one shared value by name.",
             panel = "name, [Use a fallback when it is not defined: default] | type")
     @Output(name = "value", description = "The value.")
     public Map<String, Object> get(ActionContext ctx,
@@ -59,7 +59,7 @@ public final class GlobalValuesPackage {
         return load(ctx).containsKey(name);
     }
 
-    @Action(id = "get_all", name = "Get all shared values", category = "Shared values", idempotent = true, description = "Read every shared value as a dictionary.",
+    @Action(id = "get_all", name = "Get all shared values", category = "Shared Global values", idempotent = true, description = "Read every shared value as a dictionary.",
             panel = "prefix")
     @Output(name = "values", type = OoaType.DICTIONARY, description = "Name to value.")
     public Map<String, Object> getAll(ActionContext ctx,

@@ -5,7 +5,7 @@ happens and deal with failures. Builders and administrators will find it useful 
 
 **You need:** an account with the **Agent operator** role (or a custom role with the permissions named below). The
 built-in Agent operator may view agents, start and stop runs, see runners, schedules, triggers and shared values, and
-work on work queue items. Creating schedules, triggers, work queues and API tasks needs the **Agent builder** role
+work on work queue items. Creating schedules, triggers, work queues and Agent APIs needs the **Agent builder** role
 (or `schedules.manage`, `triggers.manage`, `queues.manage`, `apitasks.manage`); runner pools need `pools.manage`.
 
 ## Contents
@@ -17,8 +17,8 @@ work on work queue items. Creating schedules, triggers, work queues and API task
 5. [Schedules](#5-schedules)
 6. [Triggers](#6-triggers)
 7. [Work queues](#7-work-queues)
-8. [One Workflow and the Task inbox](#8-one-workflow-and-the-task-inbox)
-9. [API tasks](#9-api-tasks)
+8. [Workflow and the Task inbox](#8-one-workflow-and-the-task-inbox)
+9. [Agent APIs](#9-api-tasks)
 10. [Agent tests](#10-agent-tests)
 11. [Operations: how agents ran](#11-operations-how-agents-ran)
 12. [Dashboards and business figures (KPIs)](#12-dashboards-and-business-figures-kpis)
@@ -99,7 +99,7 @@ the version that ran). The toast tells you the new run id and version.
 
 ## 3. Running an agent: runners, pools and run-as users
 
-Agents run from **Build > Agent repository** (needs `runs.start`). Only agents with a live production version have a
+Agents run from **Build > Agent Repository** (needs `runs.start`). Only agents with a live production version have a
 **Run** button; workflows have **Start**.
 
 1. Press **Run** on the agent's row (or in its details panel, or **Run an agent here** in a runner's details).
@@ -135,7 +135,7 @@ Agents run from **Build > Agent repository** (needs `runs.start`). Only agents w
   without a window.
 
 **Deploying an agent** therefore means: make sure the version you want is the live production version (see
-[15 Publishing](15-publishing-to-command-center.md)), then point runs, schedules, triggers, work queues or API tasks
+[15 Publishing](15-publishing-to-command-center.md)), then point runs, schedules, triggers, work queues or Agent APIs
 at a runner or a pool. You never copy agent files to runners: the runner receives the live version, the repository
 files it lists under `requires.files` (up to 50 MB per run) and any custom toolkit it needs, with every run.
 
@@ -202,7 +202,7 @@ Several at once: tick schedules, then **Enable selected**, **Disable selected** 
 ### Rules to remember
 
 - Scheduled runs use the **owner's** permissions (or the run-as user's vault access).
-- A schedule whose owner is disabled does not run; this is written to the One Audit Trail. Hand schedules to another
+- A schedule whose owner is disabled does not run; this is written to the Audit Trail. Hand schedules to another
   owner before someone leaves.
 - Schedules always run the live production version.
 
@@ -303,9 +303,9 @@ required fields, right types, no unknown fields.
 - **Members**: owners manage the queue, participants add and change items, consumers start processing and retry.
   Without members, roles alone decide. People with `queues.all` see every queue.
 
-## 8. One Workflow and the Task inbox
+## 8. Workflow and the Task inbox
 
-**Manage > One Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
+**Manage > Workflow** (needs `runs.view`) lists every workflow run with **Workflow** (and version), **Status**
 (running, waiting, completed, failed, cancelled), **Current stage**, **Started by**, **Started** and **Updated**.
 
 To start one (`runs.start`): press **Start a workflow**, choose the **Workflow (live production version)**, fill in
@@ -320,9 +320,9 @@ People's steps arrive in **Manage > Task inbox** (tabs **To do** and **Done**). 
 **Everyone's tasks** to see who is holding what. Each task can be taken (**Take it**), given back (**Give back**),
 filled in and submitted, approved or rejected, or marked as read. See [14 Business users](14-business-users.md).
 
-## 9. API tasks
+## 9. Agent APIs
 
-**Build > API tasks** (needs `apitasks.manage`) put an agent behind its own web address and token for other systems.
+**Build > Agent APIs** (needs `apitasks.manage`) put an agent behind its own web address and token for other systems.
 
 1. Press **New API task**: **Name**, **Agent**, and either a **Runner** / **Or a runner pool**, or tick **Run on the
    Command Center, with no runner (serverless)** for agents that only call web services and work on data (at most 5

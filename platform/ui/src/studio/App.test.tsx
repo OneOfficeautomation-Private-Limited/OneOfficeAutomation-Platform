@@ -190,7 +190,7 @@ describe("new Studio", () => {
   it("shows the Command Center menu in five sections by task, with links to Command Center pages", async () => {
     render(<App api={fakeServer().api} />);
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
-    for (const s of ["BUILD", "MANAGE", "INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
+    for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     await waitFor(() => expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("/?page=queues"));
     expect(within(menu).getByRole("button", { name: "Automation" }).getAttribute("aria-current")).toBe("page");
     for (const gone of ["Workflows", "Forms", "Templates"]) expect(within(menu).queryByText(gone)).toBeNull();   // made from Create, called from agents
@@ -231,6 +231,21 @@ describe("new Studio", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(created).toEqual([]);
+  });
+
+  it("shows only the canvas in full screen, and Esc or the button brings everything back", async () => {
+    render(<App api={fakeServer().api} />);
+    fireEvent.change(await screen.findByLabelText("Search items"), { target: { value: "intake" } });
+    fireEvent.click(await screen.findByRole("button", { name: "Invoice intake" }));
+    const steps = await screen.findByRole("region", { name: "Agent steps" });
+    const wrap = steps.closest(".st-agent-wrap")!;
+    fireEvent.click(within(steps).getByRole("button", { name: "Full screen" }));
+    expect(wrap.classList.contains("is-full")).toBe(true);
+    fireEvent.keyDown(steps, { key: "Escape" });
+    expect(wrap.classList.contains("is-full")).toBe(false);
+    fireEvent.click(within(steps).getByRole("button", { name: "Full screen" }));
+    fireEvent.click(within(steps).getByRole("button", { name: "Exit full screen" }));
+    expect(wrap.classList.contains("is-full")).toBe(false);
   });
 
   it("opens an agent in a tab with numbered steps, properties and variables, and Close returns to Automation", async () => {
@@ -426,7 +441,7 @@ describe("new Studio", () => {
     const group = await screen.findByRole("region", { name: "Inputs and outputs" });
     expect(within(group).getByText("$codes")).toBeTruthy();
     expect(within(group).getByText(/= A1, 42/)).toBeTruthy();
-    // the System and Shared values from the platform are listed too
+    // the System and Shared Global values from the platform are listed too
     expect(screen.getByText("$sys.today")).toBeTruthy();
     expect(screen.getByText("$global.company")).toBeTruthy();
     const saved = await saveAndGet(created);
@@ -1483,20 +1498,19 @@ describe("new Studio", () => {
     expect(wrap().className).toContain("is-out-float");   // back where it was
   });
 
-  it("switches to the dark theme and compact density from the Display menu, and remembers them", async () => {
+  it("offers two themes only, light and dark, and remembers the choice", async () => {
     render(<App api={fakeServer().api} />);
     const pick = async (name: string) => {
-      fireEvent.pointerDown(await screen.findByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
+      fireEvent.pointerDown(await screen.findByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
       fireEvent.click(await screen.findByRole("menuitem", { name: new RegExp("^" + name) }));
     };
     expect(document.documentElement.dataset.theme).toBe("light");
     await pick("Dark theme");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
-    await pick("Compact density");
-    await waitFor(() => expect(document.documentElement.dataset.density).toBe("compact"));
     expect(localStorage.getItem("ooa.studio.display.theme")).toBe('"dark"');
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Theme" }), { button: 0, ctrlKey: false });
     expect((await screen.findByRole("menuitem", { name: /^Dark theme, In use/ }))).toBeTruthy();
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toHaveLength(2);
   });
 
   it("asks which window to record in, as AA does: browser tabs, application windows, and browsers that are not connected", async () => {
@@ -1505,7 +1519,7 @@ describe("new Studio", () => {
       { source: "browser", title: "Search - Firefox tab", url: "https://www.example.com/search", browser: "firefox", tab_id: 1, connector: true },
       { source: "browser", title: "Google", url: "https://www.google.com/", browser: "edge", endpoint: "http://127.0.0.1:9222" },
       { source: "application", title: "Untitled - Notepad", process: "notepad", browser: "" },
-      { source: "application", title: "One Agent Studio - Google Chrome", process: "chrome", browser: "chrome" },
+      { source: "application", title: "One AgentStudio - Google Chrome", process: "chrome", browser: "chrome" },
       { source: "application", title: "Guide.pdf - Personal - Microsoft Edge", process: "msedge", browser: "edge" },
       { source: "application", title: "Google - Microsoft​ Edge", process: "msedge", browser: "edge" },   // the agents' window: its tab is listed
       { source: "application", title: "Sticky Notes", process: "ApplicationFrameHost", browser: "" },   // a Store app's frame and its program

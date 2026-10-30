@@ -24,7 +24,7 @@ and firewall rules. For network, firewall, PKI and security teams.
 
 | From | To | Port / protocol | Purpose | Configurable |
 | --- | --- | --- | --- | --- |
-| Browsers, API clients, AI assistants (MCP) | Command Center | TCP 8720, HTTP or HTTPS | Console, REST API, `/api/mcp`, webhooks (`/api/hooks/...`), API tasks | `--port`, `-Port`, `PORT`, `OOA_PORT` |
+| Browsers, API clients, AI assistants (MCP) | Command Center | TCP 8720, HTTP or HTTPS | Console, REST API, `/api/mcp`, webhooks (`/api/hooks/...`), Agent APIs | `--port`, `-Port`, `PORT`, `OOA_PORT` |
 | Runners | Command Center | TCP 8720 (or 443 through a load balancer), HTTPS recommended | Registration, heartbeats, work (long poll), events, results, credentials, update files | The runner's URL |
 | Load balancer | Command Center nodes | TCP 8720 | Traffic and health probes (`/api/health`, `/api/health/ready`) | - |
 | Command Center | SQL Server | TCP 1433 (or the instance's port) | Database | `ooa db configure --port`, `--instance` |

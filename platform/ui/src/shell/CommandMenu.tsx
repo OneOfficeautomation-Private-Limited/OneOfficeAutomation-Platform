@@ -62,7 +62,7 @@ export function CommandMenu({ sections, current, local, onLocal, hrefFor, home, 
                   const href = hrefFor(it.id);
                   const external = it.id === "studio";
                   return <li key={it.id}>{href
-                    ? <a className="st-menu-item" href={href} target={external ? "ooa-studio" : undefined} title={external ? it.label + " (opens in a new tab)" : undefined}>{it.label}{external && " ↗"}</a>
+                    ? <a className="st-menu-item" href={href} target={external ? "_blank" : undefined} rel={external ? "noopener" : undefined} title={external ? it.label + " (opens in a new tab)" : undefined}>{it.label}{external && " ↗"}</a>
                     : <span className="st-menu-item is-off" aria-disabled="true" title={offTitle}>{it.label}</span>}</li>;
                 })}
               </ul>

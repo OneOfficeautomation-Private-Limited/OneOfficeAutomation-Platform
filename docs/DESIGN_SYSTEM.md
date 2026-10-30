@@ -1,6 +1,6 @@
 # ONEOFFICEAUTOMATION design system
 
-One visual language for **One Command Center** (the console) and **One Agent Studio**. It is plain CSS: no framework,
+One visual language for **One CommandCenter** (the console) and **One AgentStudio**. It is plain CSS: no framework,
 no build step, no external fonts or CDNs (the console's content-security policy is `default-src 'self'`).
 
 The new Studio (`platform/ui`, [architecture/12-ui-redesign.md](architecture/12-ui-redesign.md)) uses the denser,

@@ -23,15 +23,15 @@ ONEOFFICEAUTOMATION has three parts:
 
 | Part | What it is | Who uses it |
 | --- | --- | --- |
-| **One Agent Studio** | The designer. You build agents (automations), forms, workflows, Prompt Skills and document intelligence items in your own private workspace, and test them on your computer. | Builders |
-| **One Command Center** | The web console and server. It keeps the shared agent repository, runs agents on runners, holds schedules, triggers, work queues, the vault, users, licences and the audit trail. | Operators, administrators, business users, builders |
-| **One Runner** | The program on each computer that runs agents. It registers with the Command Center, takes work and reports back every step. | Runner owners (and, indirectly, everyone) |
+| **One AgentStudio** | The designer. You build agents (automations), forms, workflows, Prompt Skills and document intelligence items in your own private workspace, and test them on your computer. | Builders |
+| **One CommandCenter** | The web console and server. It keeps the shared agent repository, runs agents on runners, holds schedules, triggers, work queues, the vault, users, licences and the audit trail. | Operators, administrators, business users, builders |
+| **OneRunner** | The program on each computer that runs agents. It registers with the Command Center, takes work and reports back every step. | Runner owners (and, indirectly, everyone) |
 
 A typical life of an agent: a builder creates it in Studio, tests it, and presses **Agent check-in**, ticking **Make
 this the live version** when it is ready for production. The agent is now in the Command Center's **Agent
 repository**, with a version number. An operator runs it on a runner, schedules it,
 or connects it to a trigger or a work queue. Every run is visible in **Agent Runs**, and every action anyone takes is
-recorded in the **One Audit Trail**.
+recorded in the **Audit Trail**.
 
 ## All guides
 
@@ -39,7 +39,7 @@ recorded in the **One Audit Trail**.
 | --- | --- | --- | --- |
 | 00 | This page | Everyone | The list of guides and where to start |
 | 01 | [Getting started](01-getting-started.md) | Everyone | First install on one computer, first sign-in, the menu, building and running a first agent end to end |
-| 02 | [Studio basics](02-studio-basics.md) | Builders | One Agent Studio's screen, workspace, explorer, actions, variables |
+| 02 | [Studio basics](02-studio-basics.md) | Builders | One AgentStudio's screen, workspace, explorer, actions, variables |
 | 03 | [Building agents in Studio](03-studio-building-agents.md) | Builders | Steps, conditions, loops, error handling, inputs and outputs, good practice |
 | 04 | [Running and debugging in Studio](04-studio-running-and-debugging.md) | Builders | Run, Debug, breakpoints, the run console, problems |
 | 05 | [Operator's guide](05-operators-guide.md) | Operators | Agent Runs, running and deploying agents, schedules, triggers, work queues, workflows, Operations, dashboards, handling failures |
@@ -98,16 +98,16 @@ recorded in the **One Audit Trail**.
 
 | Word | Meaning |
 | --- | --- |
-| Agent | An automation: a list of steps that One Runner carries out. Saved as a `.flow.json` file. |
+| Agent | An automation: a list of steps that OneRunner carries out. Saved as a `.flow.json` file. |
 | Workflow | A chain of agents, people (forms, approvals) and decisions, run by the Command Center. Saved as `.process.json`. |
 | Form | A set of fields people fill in, used by workflows. Saved as `.form.json`. |
-| Agent repository | The Command Center's shared store of agents, with every version. Your Studio workspace is private; the repository is shared. |
+| Agent Repository | The Command Center's shared store of agents, with every version. Your Studio workspace is private; the repository is shared. |
 | Live production version | The version of an agent that runs, schedules, triggers, work queues and workflows use. |
-| Runner | A computer with One Runner registered to a Command Center. |
+| Runner | A computer with OneRunner registered to a Command Center. |
 | Runner pool | A named group of runners; work sent to a pool goes to its least busy online runner. |
 | Run | One execution of an agent on a runner. |
 | Run-as user | The person a run acts as: their vault values and default runner are used. |
-| Vault folder | A folder in Agent credential vault holding encrypted credentials. Agents refer to values as `folder/credential/attribute`. |
+| Vault folder | A folder in Credential vault holding encrypted credentials. Agents refer to values as `folder/credential/attribute`. |
 | Toolkit | A package of actions (Excel, Browser, Email, ...). Administrators can switch toolkits on and off. |
 | Seat | A licence right given to a person (Developer, Citizen Developer, Attended Runner) or to a runner (Unattended Runner). |
 

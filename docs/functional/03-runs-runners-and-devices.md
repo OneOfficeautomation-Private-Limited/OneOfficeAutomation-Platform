@@ -3,7 +3,7 @@
 ## What this covers
 
 What a run is, how it is started, which checks it passes, the states it moves through and what ends it; priorities,
-run-as users, the three run modes, serverless API tasks; and everything about runners (called devices in the API):
+run-as users, the three run modes, serverless Agent APIs; and everything about runners (called devices in the API):
 registration, online state, pools, default runners per user, single-user and multi-user runners, temporary runners,
 the screen state, what a runner does after an unattended run, runner settings, secrets and updates.
 
@@ -17,7 +17,7 @@ the screen state, what a runner does after an unattended run, runner settings, s
 6. Priorities and the order of work on a runner
 7. Run-as users and deploying to several targets
 8. Run modes: attended, unattended, headless
-9. API tasks and serverless API tasks
+9. Agent APIs and serverless Agent APIs
 10. Runners: registration and identity
 11. Online, offline and disabled runners
 12. Runner pools
@@ -36,7 +36,7 @@ runner, its inputs, its status and, when it ends, its duration, steps run, outpu
 
 | Source (as stored) | Started by |
 | --- | --- |
-| `manual` | A person, from Agent repository > Run, or the API (`POST /api/runs`) |
+| `manual` | A person, from Agent Repository > Run, or the API (`POST /api/runs`) |
 | `api` | Deployment to several targets through the API with `source: "api"` |
 | `schedule:ID` | A schedule, or its **Run now** |
 | `trigger:ID`, `file:ID`, `webhook:ID` | A trigger |
@@ -61,7 +61,7 @@ In this order; the first failing check refuses the run and nothing is queued:
 | The mode is `unattended`, `attended` or `headless` | `CR.BAD_INPUT` |
 | A run-as user exists and is enabled; without a runner or pool, they have a default runner | `CR.NOT_FOUND`, `CR.NO_DEFAULT_RUNNER` |
 | A pool has an online runner | `CR.NO_RUNNER` (temporary error) |
-| Only serverless API tasks may use the Command Center's virtual runner | `CR.BAD_INPUT` |
+| Only serverless Agent APIs may use the Command Center's virtual runner | `CR.BAD_INPUT` |
 | A callback URL is `http(s)://` | `CR.BAD_INPUT` |
 | The agent has a live production version and is not deleted | `CR.NO_PRODUCTION`, `CR.DELETED` |
 | No switched-off toolkit is used | `CR.TOOLKIT_DISABLED` |
@@ -70,7 +70,7 @@ In this order; the first failing check refuses the run and nothing is queued:
 | The licence allows the run on that runner ([document 13](13-licensing-and-editions.md)) | `CR.LICENSE_REQUIRED`, `CR.LICENSE_EXPIRED` |
 | Every input is a declared input; Credential inputs are vault references | `CR.BAD_INPUT` |
 
-The start is recorded in the One Audit Trail (`run.start`) and the runner is woken at once.
+The start is recorded in the Audit Trail (`run.start`) and the runner is woken at once.
 
 ## 3. Run states and transitions
 
@@ -154,9 +154,9 @@ answers as soon as a run of that runner is queued, paused, resumed or stopped.
 | Attended | Someone is at the runner | Wait for the person as usual | Required for screen agents |
 | Headless | No desktop at all | As unattended | None: agents that require the desktop are refused at start; browsers open without a window |
 
-## 9. API tasks and serverless API tasks
+## 9. Agent APIs and serverless Agent APIs
 
-An API task (Build > API tasks, `apitasks.manage`) puts an agent behind its own address and token.
+An API task (Build > Agent APIs, `apitasks.manage`) puts an agent behind its own address and token.
 
 | Property | Rule |
 | --- | --- |
@@ -170,8 +170,8 @@ An API task (Build > API tasks, `apitasks.manage`) puts an agent behind its own 
 | Call | `POST /api/apitasks/{id}/run` with header `X-OOA-Task-Token` and `{"inputs": {...}}` |
 | Answer | 200 with `{status, run_id, outputs, error}` when the run finished in time; 202 with the run id otherwise (also at once when 8 calls are already waiting on that Command Center node); then `GET /api/apitasks/{id}/runs/{run_id}` with the same token |
 
-**Serverless API tasks** (tick **Run on the Command Center**) run inside the Command Center on the virtual runner
-"Command Center (serverless)", made with the first such task and usable only by serverless API tasks.
+**Serverless Agent APIs** (tick **Run on the Command Center**) run inside the Command Center on the virtual runner
+"Command Center (serverless)", made with the first such task and usable only by serverless Agent APIs.
 
 | Rule | Detail |
 | --- | --- |
@@ -312,7 +312,7 @@ uses it (`CR.IN_USE`, listing them). Removal takes it off pools and default runn
 | Register, enable, disable, update, remove runners | `devices.manage` |
 | Manage pools | `pools.manage` |
 | Set default runners | `users.manage` |
-| Manage API tasks | `apitasks.manage` |
+| Manage Agent APIs | `apitasks.manage` |
 
 ## Related documents
 

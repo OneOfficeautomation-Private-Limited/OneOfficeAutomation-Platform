@@ -72,7 +72,7 @@ values and `$variable` references; Credential fields take a credential from the 
 | [SAP GUI](ooa-sap.md) | `ooa.sap` | 30 | 0 | 0 | Log on to SAP, run transactions, set and read fields, press buttons, read grids and the status bar through SAP GUI Scripting. |
 | [Scripts](ooa-script.md) | `ooa.script` | 7 | 0 | 0 | Run PowerShell, Python, JavaScript and VBScript with arguments and captured output. |
 | [ServiceNow](ooa-servicenow.md) | `ooa.servicenow` | 13 | 0 | 0 | Query, create and update ServiceNow records (incidents, requests, any table), add comments and attachments. |
-| [Shared values](ooa-global_values.md) | `ooa.global_values` | 2 | 1 | 0 | Read shared values that many agents use, such as folders, thresholds or URLs. |
+| [Shared Global values](ooa-global_values.md) | `ooa.global_values` | 2 | 1 | 0 | Read shared values that many agents use, such as folders, thresholds or URLs. |
 | [Slack](ooa-slack.md) | `ooa.slack` | 10 | 0 | 0 | Post messages to Slack channels and users. |
 | [Snowflake](ooa-snowflake.md) | `ooa.snowflake` | 11 | 0 | 0 | Run SQL in Snowflake, read results into data tables, browse databases, schemas and tables, and load rows. |
 | [SOAP Web Service](ooa-soap.md) | `ooa.soap` | 2 | 0 | 0 | Read a service's WSDL, call SOAP 1.1/1.2 web services and read the response as a dictionary. |

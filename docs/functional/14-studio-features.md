@@ -1,13 +1,13 @@
-# 14 One Agent Studio
+# 14 One AgentStudio
 
 ## What this covers
 
-The feature specification of One Agent Studio, the browser-based designer served at `/studio/`: the layout and the
+The feature specification of One AgentStudio, the browser-based designer served at `/studio/`: the layout and the
 Automation home, the Explorer and the private workspace, the editor views of an agent, the canvas and its editing
 commands, the Actions and Variables panels, the step settings panel (choices, tick boxes, More options, error
 handling), validation and the Problems tab, running and the Run window, debugging with breakpoints, Run from here (with
 the last run's values or with default values) and Run this step only, opening child agents with breadcrumbs and the
-"Run by" note, recording and capture, the assistant, local triggers, and the link to One Command Center (connect,
+"Run by" note, recording and capture, the assistant, local triggers, and the link to One CommandCenter (connect,
 check-out, check-in).
 
 ## Contents
@@ -30,7 +30,7 @@ check-out, check-in).
 16. Connectors and connections
 17. The assistant
 18. Local triggers
-19. One Command Center link
+19. One CommandCenter link
 20. Other item editors
 21. Preferences and keyboard
 
@@ -38,7 +38,7 @@ check-out, check-in).
 
 | Area | Contents |
 | --- | --- |
-| Top bar | Automation home, breadcrumbs of the open item, Close, "Unsaved" marker, One Command Center link (opens the console in another tab), toggles for the left panel, Run dock and Action settings, theme and density, One Model Connections…, Connectors…, Save, Validate, Assistant, Debug, Run |
+| Top bar | Automation home, breadcrumbs of the open item, Close, "Unsaved" marker, One CommandCenter link (opens the console in another tab), toggles for the left panel, Run dock and Action settings, theme (light or dark), Model Connections…, Connectors…, Save, Validate, Assistant, Debug, Run |
 | Left rail | Explorer, Actions, Variables, Triggers |
 | Centre | The Automation home, the agent editor, or another item's editor |
 | Right | Action settings of the selected step (collapsible) |
@@ -214,7 +214,7 @@ Rules for both:
 - **Connectors…** imports an OpenAPI, Swagger or Postman file as a custom connector, lists its operations (with a
   filter) and inserts a call step with its parameters filled from defaults.
 - Saved connections of the workspace can be listed, created, edited and deleted (secrets as vault references).
-- **One Model Connections…** keeps Studio's own named model settings used by AI actions, Prompt Skills and the assistant.
+- **Model Connections…** keeps Studio's own named model settings used by AI actions, Prompt Skills and the assistant.
 
 ## 17. The assistant
 
@@ -228,9 +228,9 @@ The Triggers panel keeps Studio's own triggers: file arrives in a folder (patter
 at HH:mm), local webhook (secret shown once). Each can be switched on or off, test-run and deleted; recent activity is
 listed. They work only while Studio runs ([document 04](04-schedules-and-triggers.md)).
 
-## 19. One Command Center link
+## 19. One CommandCenter link
 
-- **Connect** at the bottom of the Explorer (One Command Center section) with the address, user name, password and, for
+- **Connect** at the bottom of the Explorer (One CommandCenter section) with the address, user name, password and, for
   two-step accounts, a code; or by using the console's own sign-in when Studio is served by the same server. The session
   token stays in the Studio process, never in the browser.
 - The section lists the repository (searchable) with each agent's state; **Check out** copies the latest version into the
@@ -253,7 +253,7 @@ text files open in their own editors in the centre area, with Save and, for scri
 
 ## 21. Preferences and keyboard
 
-Theme and density (top bar), language (view menu: English, Deutsch, Français, Español, 日本語), panel and dock
+Theme, light or dark only (top bar); a full-screen button at the top right of the canvas (Esc leaves it); language (view menu: English, Deutsch, Français, Español, 日本語), panel and dock
 visibility, and the Run window position are remembered in the browser. Keys: Ctrl+S save, Ctrl+Z/Y undo/redo, Ctrl+C/X/V,
 Ctrl+D, Del, Ctrl+/, Alt+Up/Down, Ctrl+A, Ctrl+K or `/` Quick add, F9 breakpoint, F5/F10/F11/Shift+F11 while debugging,
 Esc closes menus.

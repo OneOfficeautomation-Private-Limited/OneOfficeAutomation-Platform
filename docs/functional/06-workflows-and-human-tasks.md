@@ -2,7 +2,7 @@
 
 ## What this covers
 
-One Workflow chains agents, people and decisions into one long-running process. This document specifies the
+Workflow chains agents, people and decisions into one long-running process. This document specifies the
 workflow definition and its stages, start forms and references, the workflow run and its states, how data flows
 between stages, the Task inbox (assignment, taking and giving back tasks, completing forms and approvals), due times,
 notifications by inbox and e-mail, cancellation, and the permissions involved.
@@ -26,7 +26,7 @@ notifications by inbox and e-mail, cancellation, and the permissions involved.
 
 ## 1. Workflows and forms as repository items
 
-- A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in One Agent Studio (Create >
+- A workflow is a `Name.process.json` item and a form a `Name.form.json` item, designed in One AgentStudio (Create >
   Workflow, Create > Form) and published with **Publish to Command Center**, which checks them in as the live
   production version.
 - Like agents they have versions, check-out and a live production version. A workflow run uses the live version of the
@@ -69,7 +69,7 @@ A form must have a `fields` list.
 
 ## 4. Starting a workflow
 
-- From **One Workflow** (or Start in the agent repository), or `POST` to the workflow API, with optional starting data
+- From **Workflow** (or Start in the agent repository), or `POST` to the workflow API, with optional starting data
   (for example `{"amount": 1200}`).
 - **Start form**: a workflow can name a start form. Its fields are asked when the workflow starts, and data from the API
   is checked against them like a submitted form. `GET /api/workflows/form?path=` returns the start form.
@@ -207,5 +207,5 @@ Audited: `workflow.start`, `workflow.completed`, `workflow.failed`, `workflow.ca
 - [01 Agents and automation items](01-agents-and-automation-items.md)
 - [03 Runs, runners and devices](03-runs-runners-and-devices.md)
 - [11 Operations, audit and dashboards](11-operations-audit-and-dashboards.md) (e-mail settings)
-- [14 One Agent Studio](14-studio-features.md)
+- [14 One AgentStudio](14-studio-features.md)
 - [Command Center and runner, section 7](../user-guide/00-README.md)

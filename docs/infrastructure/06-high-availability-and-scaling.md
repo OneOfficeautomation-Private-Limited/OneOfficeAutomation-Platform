@@ -16,7 +16,7 @@ platform engineers designing a production installation.
 6. Load balancer settings
 7. Database high availability
 8. Scaling runners and runner pools
-9. Scaling serverless API tasks
+9. Scaling serverless Agent APIs
 10. Planned maintenance on a cluster
 11. Limits
 
@@ -26,11 +26,11 @@ Two or more Command Centers can share one SQL Server or PostgreSQL database.
 
 | Work | Done by |
 | --- | --- |
-| Console, REST API, runner API (heartbeats, long polls, results), webhooks, API tasks, MCP | Every node |
+| Console, REST API, runner API (heartbeats, long polls, results), webhooks, Agent APIs, MCP | Every node |
 | Sign-ins in progress (two-step codes, SAML, OpenID Connect state) | Kept in the database, so any node can finish them |
 | Schedules, run dispatch, work queues, workflows, server triggers, housekeeping (lost runs, temporary runners, inactive users, retention), audit checkpoints, scheduled backups, licence e-mails | The **leader** only |
 | Outgoing proxy setting | Each node re-reads it every minute |
-| Serverless API tasks | Each node, up to 4 at once |
+| Serverless Agent APIs | Each node, up to 4 at once |
 
 No sticky sessions are needed.
 
@@ -131,9 +131,9 @@ Size the database for `pool.max` x number of nodes connections.
 Plan runner capacity as: items per day x average minutes per item / (60 x working hours per day), plus headroom for
 retries and peaks.
 
-## 9. Scaling serverless API tasks
+## 9. Scaling serverless Agent APIs
 
-Serverless API tasks run on the virtual runner "Command Center (serverless)", at most 4 at once on each node, 5
+Serverless Agent APIs run on the virtual runner "Command Center (serverless)", at most 4 at once on each node, 5
 minutes each. More nodes give more serverless capacity. A run cut off by a stopped node is failed once it is past the
 longest time a run may take.
 

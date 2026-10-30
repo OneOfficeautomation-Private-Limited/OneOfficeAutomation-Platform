@@ -363,7 +363,7 @@ public final class Db implements AutoCloseable {
 
     /**
      * Version 6: run-as users for schedules and triggers, workflow run references, the code analysis policy and stored
-     * reports, and API tasks (an agent behind its own URL and token).
+     * reports, and Agent APIs (an agent behind its own URL and token).
      */
     private static final String[] SCHEMA_V6 = {
         "ALTER TABLE schedules ADD COLUMN run_as VARCHAR(80)",

@@ -200,7 +200,7 @@ to `cli/build/generated/ui/studio-next` and into the jar; the npm packages that 
   [02-components-and-modules.md](02-components-and-modules.md#4-dependencies-between-modules)).
 - **Secrets:** never take a secret as plain text (use Credential inputs or vault references), never log one, never
   return a stored secret to the browser.
-- Every user-facing text uses the product names (agent, One Runner, Command Center), never "bot".
+- Every user-facing text uses the product names (agent, OneRunner, Command Center), never "bot".
 - Every action and input has a description; ids are snake case; secret inputs are `OoaType.CREDENTIAL`.
 - No new library without need. A new one must have a permissive licence (Apache-2.0, MIT or similar) and, when heavy,
   goes into an optional module.

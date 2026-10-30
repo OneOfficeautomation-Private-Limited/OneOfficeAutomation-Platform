@@ -35,7 +35,7 @@ Scope, set-up, test cases and known gaps for a formal review are in section 14.
 flowchart LR
     B[Browser] -- cookie ooa_cr + X-OOA-Request --> CC[Command Center]
     API[API client / MCP] -- Bearer session, ooak_ key or OAuth JWT --> CC
-    R[One Runner] -- X-OOA-Device + X-OOA-Device-Secret --> CC
+    R[OneRunner] -- X-OOA-Device + X-OOA-Device-Secret --> CC
     R -- stdin/stdout pipe --> W[RunWorker]
     CC -- OIDC / SAML --> IDP[Identity provider]
     CC -- vault sign-in secret --> XV[External vaults]
@@ -327,9 +327,9 @@ the repository root.
 
 | Component | What it is | Network exposure |
 | --- | --- | --- |
-| One Command Center | Java server: web console, REST API, runner API, webhooks, API tasks, MCP endpoint | TCP 8720 (configurable), HTTP or HTTPS; with HTTPS also a plain-HTTP listener on 127.0.0.1 for this machine's own runner and Studio |
-| One Agent Studio | Web designer at `/studio/` | Same port; this computer only (loopback) |
-| One Runner | Java process (sign-in task or Windows service) that polls the Command Center and runs agents | Outbound only, to the Command Center |
+| One CommandCenter | Java server: web console, REST API, runner API, webhooks, Agent APIs, MCP endpoint | TCP 8720 (configurable), HTTP or HTTPS; with HTTPS also a plain-HTTP listener on 127.0.0.1 for this machine's own runner and Studio |
+| One AgentStudio | Web designer at `/studio/` | Same port; this computer only (loopback) |
+| OneRunner | Java process (sign-in task or Windows service) that polls the Command Center and runs agents | Outbound only, to the Command Center |
 | Run workers | One Java process per run, started by the runner | None (stdin and stdout pipe to the runner) |
 | Browser connector | Edge, Chrome or Firefox extension plus a native messaging host | 127.0.0.1 with a random token |
 | Installers | Setup package (`Install.cmd`) and the MSI | Local |

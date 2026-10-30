@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.oneofficeautomation.controlroom.ControlRoom.*;
 
 /**
- * Serverless API tasks (C7): agents that only call web services and work on data run inside the Command Center, with
+ * Serverless Agent APIs (C7): agents that only call web services and work on data run inside the Command Center, with
  * no runner. They run on a virtual runner, "Command Center (serverless)", so they are queued, logged, audited, licensed
  * and finished like any other run. Only the toolkits below may be used (no desktop, browser, programs, scripts or
  * databases), every file path stays inside the run's own temporary workspace, at most four run at once, and a run

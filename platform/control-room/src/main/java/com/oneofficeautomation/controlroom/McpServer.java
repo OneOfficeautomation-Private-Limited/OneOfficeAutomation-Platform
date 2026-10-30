@@ -11,7 +11,7 @@ import static com.oneofficeautomation.controlroom.ControlRoom.*;
 /**
  * Model Context Protocol server over HTTP (JSON-RPC 2.0 on POST /api/mcp). Outside AI assistants list the agents an
  * administrator exposed (Settings: mcp_agents) as tools and run them as the calling user, with that user's role and
- * vault access. Each call starts a normal run (source "mcp"), so it shows in Agent Runs and the One Audit Trail.
+ * vault access. Each call starts a normal run (source "mcp"), so it shows in Agent Runs and the Audit Trail.
  */
 final class McpServer {
     static final String PROTOCOL = "2025-06-18";
@@ -32,7 +32,7 @@ final class McpServer {
             return switch (method) {
                 case "initialize" -> result(id, Map.of("protocolVersion", params.get("protocolVersion") instanceof String v ? v : PROTOCOL,
                         "capabilities", Map.of("tools", Map.of("listChanged", false)),
-                        "serverInfo", Map.of("name", "ONEOFFICEAUTOMATION One Command Center", "version", "0.2.0"),
+                        "serverInfo", Map.of("name", "ONEOFFICEAUTOMATION One CommandCenter", "version", "0.2.0"),
                         "instructions", "Each tool runs a live production agent of ONEOFFICEAUTOMATION as the signed-in user. Tool results are the agent's outputs."));
                 case "ping" -> result(id, Map.of());
                 case "tools/list" -> result(id, Map.of("tools", tools(u)));

@@ -171,7 +171,7 @@ public final class Ooa {
         String tls = useTls(server, s);
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { server.stop(); s.db().close(); }));
-        System.out.println("ONEOFFICEAUTOMATION One Command Center is running.");
+        System.out.println("ONEOFFICEAUTOMATION One CommandCenter is running.");
         System.out.println("  Open:     " + (server.https() ? "https://" : "http://") + (host.equals("0.0.0.0") ? "localhost" : host) + ":" + port);
         System.out.println("  Database: " + s.dbLabel());
         System.out.println("  Vault key: " + s.cr().vault.keySource);
@@ -205,13 +205,13 @@ public final class Ooa {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { if (agent != null) agent.stop(); server.stop(); s.db().close(); }));
         String open = (server.https() ? "https" : "http") + "://localhost:" + port;
         System.out.println("ONEOFFICEAUTOMATION is running.");
-        System.out.println("  Open:             " + open);
-        System.out.println("  Command Center:   " + open + "/");
-        System.out.println("  Agent Studio:     " + open + "/studio/   (this computer only)");
-        System.out.println("  One Runner:       " + (agent == null ? "not started (--no-agent)" : "this computer, connected"));
-        System.out.println("  My Workspace:     " + studio.workspaceRoot());
-        System.out.println("  Database:         " + s.dbLabel());
-        if (tls != null) System.out.println("  HTTPS:            " + tls);
+        System.out.println("  Open:              " + open);
+        System.out.println("  One CommandCenter: " + open + "/");
+        System.out.println("  One AgentStudio:  " + open + "/studio/   (this computer only)");
+        System.out.println("  OneRunner:        " + (agent == null ? "not started (--no-agent)" : "this computer, connected"));
+        System.out.println("  My Workspace:      " + studio.workspaceRoot());
+        System.out.println("  Database:          " + s.dbLabel());
+        if (tls != null) System.out.println("  HTTPS:             " + tls);
         if (!host.equals("127.0.0.1") && !host.equals("localhost") && !server.https())
             System.out.println("  WARNING: Command Center listens on " + host + " without TLS; set up HTTPS (ooa tls) or a reverse proxy before other machines use it.");
         printFirstStart(s);

@@ -194,15 +194,15 @@ function showApp() {
 }
 
 const PAGES = [
-  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent repository", "repo.view", "bot", "#6d28d9"], ["templates", "Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
-  ["devices", "Runners", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
-  ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "One Workflow", "runs.view", "process", "#7c3aed"],
-  ["credentials", "Agent credential vault", null, "lock", "#dc2626"], ["globals", "Shared values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
-  ["audit", "One Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
-  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Toolkits", "toolkits.manage", "bolt", "#0d9488"],
-  ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "API tasks", "apitasks.manage", "code", "#2563eb"],
+  ["home", "Home", null, "home", "#2563eb"], ["inbox", "Task inbox", null, "tasks", "#0d9488"], ["automation", "Agent Repository", "repo.view", "bot", "#6d28d9"], ["templates", "Agent Templates", "repo.view", "download", "#0d9488"], ["activity", "Agent Runs", "runs.view", "pulse", "#ea580c"],
+  ["devices", "Runner Machines", "devices.view", "desktop", "#0891b2"], ["schedules", "Schedules", "schedules.view", "clock", "#059669"], ["triggers", "Triggers", "triggers.view", "bolt", "#d97706"],
+  ["queues", "Work queues", "queues.view", "inbox", "#9333ea"], ["workflows", "Workflow", "runs.view", "process", "#7c3aed"],
+  ["credentials", "Credential vault", null, "lock", "#dc2626"], ["globals", "Shared Global values", "globals.view", "globe", "#0284c7"], ["savedconn", "Connections", "globals.view", "link", "#0891b2"], ["users", "Users", "users.manage", "users", "#7c3aed"],
+  ["audit", "Audit Trail", "audit.view", "shield", "#475569"], ["governance", "AI governance", "audit.view", "shieldai", "#be185d"],
+  ["roles", "Roles", "users.manage", "users", "#6d28d9"], ["teams", "Teams", "teams.manage|team_lead", "users", "#0d9488"], ["toolkits", "Agent ToolKits", "toolkits.manage", "bolt", "#0d9488"],
+  ["operations", "Operations", "analytics.view", "percent", "#0891b2"], ["apitasks", "Agent APIs", "apitasks.manage", "code", "#2563eb"],
   ["skills", "Prompt Skills", "skills.view", "shieldai", "#be185d"], ["docautomation", "Document Automation", "repo.view", "form", "#6d28d9"], ["tests", "Agent tests", "repo.view", "check", "#16a34a"], ["dashboards", "Dashboards", "analytics.view", "percent", "#0891b2"],
-  ["connections", "One Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
+  ["connections", "Model Connections", "connections.manage", "shieldai", "#7c3aed"], ["settings", "Settings", "settings.manage", "gear", "#334155"],
   ["admin", "Administration", "settings.manage", "gear", "#334155"], ["licenses", "Licenses", "users.manage|settings.manage", "key", "#b45309"]];
 
 /**
@@ -214,7 +214,7 @@ const PAGES = [
 const NAV_GROUPS = [
   ["automation", "Build", "bot", ["automation", "templates", "studio", "apitasks", "tests"]],
   ["manage", "Manage", "desktop", ["activity", "inbox", "devices", "schedules", "triggers", "queues", "workflows", "globals", "savedconn", "toolkits"]],
-  ["insights", "Insights", "percent", ["operations", "dashboards"]],
+  ["insights", "Operational Insights", "percent", ["operations", "dashboards"]],
   ["administration", "Administration", "gear", ["users", "roles", "teams", "credentials", "audit", "licenses", "settings"]],
   ["ai", "AI", "shieldai", ["connections", "skills", "docautomation", "governance"]],
 ];
@@ -222,13 +222,13 @@ const NAV_OPEN_KEY = "ooa.cc.navOpen", NAV_MINI_KEY = "ooa.cc.navMini";
 function store(key, value) { try { localStorage.setItem(key, value); } catch (_) { /* storage unavailable */ } }
 function stored(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
 function groupOf(page) { return NAV_GROUPS.find((g) => g[3].includes(page)) || null; }
-function pageLabel(id) { if (id === "studio") return "One Agent Studio"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
+function pageLabel(id) { if (id === "studio") return "One AgentStudio"; const p = PAGES.find((x) => x[0] === id); return p ? p[1] : id; }
 
 function navButton(id) {
   if (id === "studio") {
     if (!S.studioAvailable) return null;
-    const a = h("a", { class: "nav-link", href: "/studio/", target: "ooa-studio", "aria-label": "One Agent Studio", title: "Build and test agents in One Agent Studio (opens in a new tab)" },
-      ic("code", "#2563eb"), h("span", { class: "nav-label", text: "One Agent Studio" }), h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
+    const a = h("a", { class: "nav-link", href: "/studio/", target: "_blank", rel: "noopener", "aria-label": "One AgentStudio", title: "Build and test agents in One AgentStudio (opens in a new tab)" },
+      ic("code", "#2563eb"), h("span", { class: "nav-label", text: "One AgentStudio" }), h("span", { class: "nav-ext", "aria-hidden": "true", text: "\u2197" }));
     return a;
   }
   const page = PAGES.find((x) => x[0] === id);
@@ -495,7 +495,7 @@ async function loadRefs() {
   S.bots = b.bots; S.devices = d.devices;
 }
 const botSelect = (val) => { const s = h("select", {}, S.bots.filter((b) => b.production_version && isAgent(b.path)).map((b) => h("option", { value: b.path, text: botName(b.path) }))); if (val) s.value = val; return s; };
-// the serverless virtual runner takes only serverless API tasks, so it is not offered as a runner
+// the serverless virtual runner takes only serverless Agent APIs, so it is not offered as a runner
 const deviceSelect = (val) => { const s = h("select", {}, S.devices.filter((d) => d.enabled && d.device_type !== "serverless").map((d) => h("option", { value: d.id, text: d.name + " (" + d.status + ")" }))); if (val) s.value = val; return s; };
 function parseJson(text, fallback) { if (!text.trim()) return fallback; try { return JSON.parse(text); } catch (e) { throw new Error("Invalid JSON: " + e.message); } }
 const deviceName = (id) => (S.devices.find((d) => d.id === id) || {}).name || id;
@@ -598,7 +598,7 @@ const VIEWS = {
         : [h("p", { class: "muted", text: l.templates.length ? "No template matches." : "No templates yet." })]));
     };
     q.addEventListener("input", draw); cat.addEventListener("change", draw);
-    main.replaceChildren(...header("Templates", "Ready-made agents to install into your agent repository and adapt: from ONEOFFICEAUTOMATION" + (l.can_share ? " and shared in your region" : "") + ".",
+    main.replaceChildren(...header("Agent Templates", "Ready-made agents to install into your agent repository and adapt: from ONEOFFICEAUTOMATION" + (l.can_share ? " and shared in your region" : "") + ".",
       l.can_share ? h("button", { type: "button", onclick: () => shareTemplateDialog() }, "Share an agent") : null,
       can("settings.manage") ? h("button", { type: "button", onclick: () => uploadCatalogueDialog() }, "Upload a catalogue file") : null),
       l.problem ? h("p", { class: "error", text: l.problem }) : null,
@@ -630,7 +630,7 @@ const VIEWS = {
       S.repoFolder && can("repo.delete") && cur && inside === 0 ? h("button", { type: "button", class: "danger", onclick: async () => {
         if (!confirm("Delete the empty folder " + S.repoFolder + "?")) return;
         try { await api("DELETE", "repo/folders?path=" + encodeURIComponent(S.repoFolder)); S.repoFolder = ""; go("automation"); } catch (e) { toast(e.message, true); } } }, "Delete folder") : null].filter(Boolean);
-    main.replaceChildren(...header("Agent repository", "The public agent repository: agents checked in from One Agent Studio, with every version. Run the live production version on any runner.",
+    main.replaceChildren(...header("Agent Repository", "The public agent repository: agents checked in from One AgentStudio, with every version. Run the live production version on any runner.",
       can("repo.checkin") ? h("button", { type: "button", onclick: () => newFolderDialog() }, "New folder") : null,
       can("lifecycle.export") ? h("button", { type: "button", onclick: () => exportDialog(r.bots) }, ic("download", "#475569", "sm"), "Export / promote") : null,
       can("lifecycle.import") ? h("button", { type: "button", onclick: () => importDialog() }, "Import") : null,
@@ -764,7 +764,7 @@ const VIEWS = {
     const actions = can("devices.manage") ? [h("button", { type: "button", class: "primary", onclick: () => registerRunnerDialog() }, "Register a runner")] : [];
     const online = r.devices.filter((d) => d.status === "online").length;
     if (can("devices.manage") && r.devices.length) actions.unshift(h("button", { type: "button", onclick: () => runnerSettingsDialog(r.devices) }, "Update runners"));
-    main.replaceChildren(...header("Runners", "Machines running the One Runner. A runner is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
+    main.replaceChildren(...header("Runner Machines", "Machines running the OneRunner. A runner is online when it checked in during the last minute. " + online + " of " + r.devices.length + " online.", ...actions),
       tabStrip([["runners", "Runners"], ["pools", "Runner pools"]], "runners", (t) => { S.devTab = t; go("devices"); }),
       dataTable({ rows: r.devices, search: "Search runners", exportName: "devices", onRow: openDevice, empty: "No runners yet. Register one, or start ooa server on this computer.",
         columns: [
@@ -794,7 +794,7 @@ const VIEWS = {
   async pools(main) {
     const [r, d] = await Promise.all([api("GET", "pools"), api("GET", "devices")]);
     S.devices = d.devices; S.pools = r.pools;
-    main.replaceChildren(...header("Runners", "Runner pools share work between several runners: a run sent to a pool goes to its least busy online runner.",
+    main.replaceChildren(...header("Runner Machines", "Runner pools share work between several runners: a run sent to a pool goes to its least busy online runner.",
       can("pools.manage") ? h("button", { type: "button", class: "primary", onclick: () => poolDialog() }, "New runner pool") : null),
       tabStrip([["runners", "Runners"], ["pools", "Runner pools"]], "pools", (t) => { S.devTab = t; go("devices"); }),
       dataTable({ rows: r.pools, search: "Search runner pools", exportName: "runner-pools", empty: "No runner pools yet.",
@@ -858,9 +858,9 @@ const VIEWS = {
     const r = await api("GET", "workflows/runs");
     const defs = S.bots.filter((b) => /\.process\.json$/.test(b.path) && b.production_version);
     const stLabel = { running: "running", waiting: "waiting", completed: "success", failed: "failed", cancelled: "stopped" };
-    main.replaceChildren(...header("One Workflow", "Workflows chain agents, people and decisions. Design them in One Agent Studio, check them in, then start them here; people get their steps in the Task inbox.",
+    main.replaceChildren(...header("Workflow", "Workflows chain agents, people and decisions. Design them in One AgentStudio, check them in, then start them here; people get their steps in the Task inbox.",
       can("runs.start") && defs.length ? h("button", { type: "button", class: "primary", onclick: () => startWorkflowDialog() }, "Start a workflow") : null),
-      defs.length ? null : h("p", { class: "muted", text: "No workflows are checked in yet. In One Agent Studio create a Workflow, then press Publish to Command Center." }),
+      defs.length ? null : h("p", { class: "muted", text: "No workflows are checked in yet. In One AgentStudio create a Workflow, then press Publish to Command Center." }),
       dataTable({ rows: r.runs, search: "Search workflow runs", exportName: "workflow-runs", onRow: openWorkflowRun, empty: "No workflow runs yet.",
         columns: [
           { label: "Workflow", value: (w) => botName(w.path), render: (w) => h("div", { class: "name-cell" }, ic("process", "#7c3aed", "sm"), h("div", {}, h("strong", { text: botName(w.path) + " v" + w.version }), h("div", { class: "muted small mono", text: w.id }))) },
@@ -931,8 +931,8 @@ const VIEWS = {
     const ADMIN_TITLES = {
       settings: ["Settings", "Settings for everyone: announcement, sign-in, single sign-on, AI assistants (MCP), uploads and value tracking."],
       roles: ["Roles", "Built-in and custom roles, and the permissions each one grants."],
-      connections: ["One Model Connections", "Named AI model connections agents use; keys stay in the Agent credential vault."],
-      toolkits: ["Toolkits", "Every toolkit, how many agents use it, and switching it on or off."] };
+      connections: ["Model Connections", "Named AI model connections agents use; keys stay in the Credential vault."],
+      toolkits: ["Agent ToolKits", "Every toolkit, how many agents use it, and switching it on or off."] };
     const head = header(ADMIN_TITLES[tab][0], ADMIN_TITLES[tab][1]);
     if (tab === "settings") {
       const st = await api("GET", "settings");
@@ -1117,7 +1117,7 @@ const VIEWS = {
               h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete role " + x.name + "?")) { try { await api("DELETE", "roles/" + encodeURIComponent(x.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else if (tab === "connections") {
       const r = await api("GET", "connections");
-      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the One Prompt Skill, AI agent and generative AI actions. Keys stay in the Agent credential vault; agents receive only the reference." }),
+      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the One Prompt Skill, AI agent and generative AI actions. Keys stay in the Credential vault; agents receive only the reference." }),
         h("div", { class: "toolbar" }, h("span", { class: "spacer" }), h("button", { type: "button", class: "primary", onclick: () => connectionDialog() }, "New connection")),
         dataTable({ rows: r.connections, search: "Search connections", exportName: "model-connections", empty: "No model connections yet.",
           columns: [
@@ -1258,7 +1258,7 @@ const VIEWS = {
       box.replaceChildren(...(lockers.length ? lockers : [h("p", { class: "muted", text: r.lockers.length ? "No matches." : "No vault folders you own or consume yet." })]));
     };
     q.addEventListener("input", render);
-    main.replaceChildren(...header("Agent credential vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
+    main.replaceChildren(...header("Credential vault", "Encrypted vault folders. Values are never shown again after saving; agents get them only while running, and every use is audited.",
       h("button", { type: "button", onclick: credentialRequestsDialog }, "Credential requests", req.requests.length ? h("span", { class: "count", text: String(req.requests.length) }) : null),
       can("lockers.manage") ? h("button", { type: "button", onclick: vaultKeyDialog }, ic("key", "#475569", "sm"), "Vault key") : null,
       can("lockers.manage") || can("lockers.own") ? h("button", { type: "button", class: "primary", onclick: lockerDialog }, "New vault folder") : null), h("div", { class: "toolbar" }, q), box);
@@ -1267,7 +1267,7 @@ const VIEWS = {
 
   async globals(main) {
     const r = await api("GET", "globals");
-    main.replaceChildren(...header("Shared values", "Shared values every agent can read as $global.name. Where people may change a value, their runs use their own value.", can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => globalDialog() }, "New shared value") : null),
+    main.replaceChildren(...header("Shared Global values", "Shared Global values every agent can read as $global.name. Where people may change a value, their runs use their own value.", can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => globalDialog() }, "New shared value") : null),
       dataTable({ rows: r.globals, search: "Search shared values", exportName: "global-values", empty: "No shared values yet.",
         columns: [
           { label: "Name", value: (g) => "$global." + g.name, render: (g) => h("code", { text: "$global." + g.name }) },
@@ -1285,7 +1285,7 @@ const VIEWS = {
     const [r, k] = await Promise.all([api("GET", "saved-connections"), api("GET", "connection-kinds")]);
     S.connKinds = k.kinds;
     const kindName = (pkg) => (S.connKinds.find((x) => x.package === pkg) || { name: pkg }).name;
-    main.replaceChildren(...header("Connections", "A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in Agent credential vault; a connection keeps only their references.",
+    main.replaceChildren(...header("Connections", "A connector's address and sign-in, kept once and chosen by name on agent steps. Secrets stay in Credential vault; a connection keeps only their references.",
       can("globals.manage") ? h("button", { type: "button", class: "primary", onclick: () => savedConnDialog(null) }, "New connection") : null),
       dataTable({ rows: r.connections, search: "Search connections", exportName: "connections", empty: "No connections yet. Create one so agent steps do not repeat an address and sign-in.",
         columns: [
@@ -1382,9 +1382,9 @@ const VIEWS = {
     await loadRefs();
     const [r, pools] = await Promise.all([api("GET", "apitasks"), can("devices.view") ? api("GET", "pools") : { pools: [] }]);
     S.pools = pools.pools;
-    main.replaceChildren(...header("API tasks", "An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.",
+    main.replaceChildren(...header("Agent APIs", "An agent behind its own address and token, for other systems to call like a web service: the call runs the agent and answers with its outputs.",
       h("button", { type: "button", class: "primary", onclick: () => apiTaskDialog() }, "New API task")),
-      dataTable({ rows: r.tasks, search: "Search API tasks", exportName: "api-tasks", empty: "No API tasks yet.",
+      dataTable({ rows: r.tasks, search: "Search Agent APIs", exportName: "api-tasks", empty: "No Agent APIs yet.",
         columns: [
           { label: "API task", value: (t) => t.name, render: (t) => h("div", {}, h("strong", { text: t.name }), h("div", { class: "muted small mono", text: "POST " + location.origin + t.url })) },
           { label: "Agent", value: (t) => botName(t.bot_path) },
@@ -1549,7 +1549,7 @@ const VIEWS = {
       status.textContent = v.valid ? "Chain intact: " + v.records + " records verified." : "TAMPERING DETECTED at record " + v.broken_at + ".";
       status.className = v.valid ? "ok-text" : "error";
     } }, "Verify integrity");
-    main.replaceChildren(...header("One Audit Trail", "Every sign-in, change, run and credential use. Records are hash-chained, so editing history is detectable."),
+    main.replaceChildren(...header("Audit Trail", "Every sign-in, change, run and credential use. Records are hash-chained, so editing history is detectable."),
       h("div", { class: "toolbar" }, q, actor, action, otype, result), h("div", { class: "toolbar" }, h("label", { class: "inline" }, "From ", from), h("label", { class: "inline" }, "To ", to), sort, exportCsv, verify, status), box);
     await render();
   },
@@ -2115,7 +2115,7 @@ async function vaultKeyDialog() {
   let st;
   try { st = await api("GET", "vault/status"); } catch (e) { toast(e.message, true); return; }
   modal("Vault key", [kv([["Key from", st.key_source === "file" ? "Key file in the data folder" : st.key_source === "environment" ? "OOA_MASTER_KEY environment variable" : st.key_source_detail], ["Key fingerprint", h("code", { text: st.key_fingerprint })],
-    ["Vault folders", String(st.vault_folders)], ["Shared values", String(st.values)], ["People's own values", String(st.personal_values)], ["External vault links", String(st.external_links)]]),
+    ["Vault folders", String(st.vault_folders)], ["Shared Global values", String(st.values)], ["People's own values", String(st.personal_values)], ["External vault links", String(st.external_links)]]),
     h("p", { class: "muted", text: st.can_rotate ? "Rotating makes a new master key and encrypts every stored value again with it, in one transaction. The old key file is kept beside the new one (master.key.old-…) until you remove it; back it up with the database." :
       "The key is kept outside the data folder, so it cannot be changed here. To change it: stop the Command Center, run ooa vault rekey --new-key-env VAR (every value is encrypted again with the new key), put the new key where the old one is kept, and start again." })],
   st.can_rotate ? [h("button", { type: "button", class: "danger", onclick: async () => {
@@ -2270,7 +2270,7 @@ function savedConnDialog(c) {
   kind.addEventListener("change", () => { for (const k of Object.keys(inputs)) delete inputs[k]; draw(); });
   draw();
   modal(c ? "Edit " + c.name : "New connection", [h("label", {}, "Name", name), h("label", {}, "Toolkit", kind), h("label", {}, "Description", desc), box,
-    h("p", { class: "muted", text: "Leave a setting empty to set it on each step instead. Secrets are references to Agent credential vault, read when the agent runs, as the person it runs as." })],
+    h("p", { class: "muted", text: "Leave a setting empty to set it on each step instead. Secrets are references to Credential vault, read when the agent runs, as the person it runs as." })],
     [h("button", { type: "button", class: "primary", onclick: async () => {
       const values = {}, credentials = {};
       for (const [n, x] of Object.entries(inputs)) { const v = x.el.value.trim(); if (v) (x.credential ? credentials : values)[n] = v; }
@@ -2387,7 +2387,7 @@ function externalVaultDialog(l) {
   const sync = () => { box.replaceChildren(...PFIELDS[provider.value].map(([k, l2, ph]) => h("label", {}, l2, f[k] || inp(k, ph)))); secretLabel.textContent = SECRET[provider.value]; };
   provider.addEventListener("change", sync); sync();
   const tName = h("input", { placeholder: "erp" }), tAttr = h("input", { value: "password" }), tOut = h("p", { class: "muted" });
-  modal("External vault for " + l.name, [h("p", { class: "muted", text: "Keep secrets in your company vault. Agents still ask this vault folder, so owners, consumers and the One Audit Trail work as before; the value is read live from the external vault." }),
+  modal("External vault for " + l.name, [h("p", { class: "muted", text: "Keep secrets in your company vault. Agents still ask this vault folder, so owners, consumers and the Audit Trail work as before; the value is read live from the external vault." }),
     h("label", {}, "Provider", provider), box, h("label", {}, secretLabel, secret),
     l.external ? h("div", { class: "card inset" }, h("h3", { text: "Test" }), h("div", { class: "grid2" }, h("label", {}, "Credential (secret name)", tName), h("label", {}, "Attribute (field)", tAttr)),
       h("button", { type: "button", onclick: async () => { try { const r = await api("POST", "lockers/" + l.name + "/test", { credential: tName.value, attribute: tAttr.value });
@@ -3017,7 +3017,7 @@ function connectionDialog(c) {
     pii_analyzer_url: analyzer.value.trim() || null, content_check: contentCheck.value });
   modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
     help, h("label", {}, "Endpoint", base),
-    h("label", {}, "API key from the Agent credential vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
+    h("label", {}, "API key from the Credential vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
     h("h3", { text: "Privacy and safety" }),
     h("div", { class: "grid2" }, h("label", {}, "Microsoft Presidio analyzer (masks names, places and IDs before the model sees them, with Hide personal data)", analyzer),
       h("label", {}, "Content check", contentCheck)),

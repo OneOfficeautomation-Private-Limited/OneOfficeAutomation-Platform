@@ -97,7 +97,7 @@ public final class RunWorker {
                 .service("global_values", (java.util.function.Supplier<Object>) () -> globals).service("bot_invoker", invoker)
                 // saved connections (address and vault references per connector) from Command Center; secrets resolve through the vault above
                 .service("connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("connections", Map.of()))
-                // One Model Connections from Command Center; their keys are vault references resolved through the vault above.
+                // Model Connections from Command Center; their keys are vault references resolved through the vault above.
                 .service("model_connections", (java.util.function.Supplier<Object>) () -> job.getOrDefault("model_connections", Map.of()))
                 // Prompt Skills kept in Command Center; a skill file in the workspace is used when Command Center sends none
                 .service("prompt_skills", (java.util.function.Supplier<Object>) () -> skills)

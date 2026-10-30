@@ -159,7 +159,7 @@ public final class GitSync {
         }
         Files.writeString(tree.resolve("ooa-repository.json"), pretty(Map.of("format", "ooa-git-sync-1", "agents", index)) + "\n", StandardCharsets.UTF_8);
         if (!Files.exists(tree.resolve("README.md")))
-            Files.writeString(tree.resolve("README.md"), "# Agent repository\n\nMirrored from a ONEOFFICEAUTOMATION Command Center. Change agents in the Command Center:"
+            Files.writeString(tree.resolve("README.md"), "# Agent Repository\n\nMirrored from a ONEOFFICEAUTOMATION Command Center. Change agents in the Command Center:"
                 + " changes made here are overwritten by the next sync.\n", StandardCharsets.UTF_8);
         return index.size();
     }

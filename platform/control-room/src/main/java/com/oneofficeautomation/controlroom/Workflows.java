@@ -11,7 +11,7 @@ import java.util.*;
 import static com.oneofficeautomation.controlroom.ControlRoom.*;
 
 /**
- * One Workflow runtime. A workflow (Name.process.json, designed in One Agent Studio and checked in like an agent) is a
+ * Workflow runtime. A workflow (Name.process.json, designed in One AgentStudio and checked in like an agent) is a
  * list of stages: agent tasks, human tasks (a form), approvals, decisions and notifications. The engine keeps each
  * workflow run's data, moves it from stage to stage, starts agent runs, puts human tasks in the task inbox and waits
  * for them. Stage results are kept under the stage id and merged into the workflow data, so later stages can use

@@ -77,7 +77,7 @@ and AI agents use by name (`ModelConnections`).
 
 | Source | Where | Notes |
 | --- | --- | --- |
-| Command Center | `model_connections` table; Administration > One Model Connections; `GET/PUT/DELETE /api/connections`, `POST /api/connections/test` | Key as a vault reference (`key_ref`); `allowed_roles`; `model_type`; budgets and limits; PII analyzer; content check |
+| Command Center | `model_connections` table; Administration > Model Connections; `GET/PUT/DELETE /api/connections`, `POST /api/connections/test` | Key as a vault reference (`key_ref`); `allowed_roles`; `model_type`; budgets and limits; PII analyzer; content check |
 | Workspace (Studio, local runs) | `model-connections.json` | `{"default": "gpt", "connections": [{name, provider, model, api_key_env}]}` or `api_key: {"$credential": ...}`; keys are never stored in the file |
 
 When a run is claimed, the Command Center sends only the connections that the run user's roles may use
@@ -190,7 +190,7 @@ starts agents for the signed-in person (with their API key, kept with Windows DP
 
 | Method | Behaviour |
 | --- | --- |
-| `initialize` | Server info "ONEOFFICEAUTOMATION One Command Center" |
+| `initialize` | Server info "ONEOFFICEAUTOMATION One CommandCenter" |
 | `ping` | Empty result |
 | `tools/list` | The agents an administrator exposed (setting `mcp_agents`) that the caller may run; tool names from paths (`Finance/Invoice worker.flow.json` → `Finance_Invoice_worker`); input schemas from the agents' input variables (Number → number, Boolean → boolean, List/Table → array, Dictionary/Record → object, others → string) |
 | `tools/call` | Starts a normal run (source `mcp`) as the calling user on the runner or pool in `mcp_runner` (or any online runner), waits up to `mcp_timeout_seconds` (default 120) and returns the outputs |
