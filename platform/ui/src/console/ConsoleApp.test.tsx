@@ -58,7 +58,7 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
     }
     if (route === "dashboard") return ok(dashboard);
     if (route === "plugins") return ok({ plugins });
-    if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json" }, { path: "HR/Onboard.flow.json" }] });
+    if (route === "repo") return ok({ bots: [{ path: "Finance/Invoice intake.flow.json", production_version: 3 }, { path: "HR/Onboard.flow.json", production_version: 1 }] });
     if (route === "devices" && init.method === "PATCH") return ok({ updated: (body.ids as string[]).length, changes: 1 });
     if (route === "devices") return ok({ devices: [
       { id: "d1", name: "Runner A", hostname: "PC-A", os: "Windows 11", enabled: true, status: "online", device_type: "single_user", lifespan: "persistent", log_level: "info",
@@ -93,6 +93,14 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "schedules" && init.method === "POST") return ok({ id: "s9", next_run: "2026-11-01T08:30:00Z" });
+    if (route === "schedules") return ok({ schedules: [
+      { id: "s1", name: "Nightly invoices", bot_path: "Finance/Invoice intake.flow.json", device_id: "d1", kind: "daily", at_time: "02:00", time_zone: "Asia/Kolkata", enabled: true,
+        next_run: "2026-11-01T20:30:00Z", last_run: "2026-10-31T20:30:00Z", created_by: "admin", holiday_calendar: "India 2026" },
+      { id: "s2", name: "Hourly onboarding", bot_path: "HR/Onboard.flow.json", pool_id: "p1", kind: "every", every_minutes: 60, time_zone: "UTC", enabled: false, created_by: "vic" }] });
+    if (route === "schedules/bulk") return ok({ changed: (body.ids as string[]).length });
+    if (/^schedules\/s\d(\/run)?$/.test(route)) return ok(route.endsWith("/run") ? { run_id: "r9" } : { ok: true });
+    if (route === "calendars") return ok({ calendars: [{ name: "India 2026", dates: ["2026-08-15", "2026-12-25"] }] });
     if (route === "tasks") return ok({ tasks: url.includes("status=completed") ? [
       { id: "k9", title: "Old approval", kind: "approval", status: "completed", assignee: "role:admin", outcome: "approved", completed_by: "admin", completed: "2026-10-30T10:00:00Z" }] : [
       { id: "k1", title: "Approve invoice 42", kind: "approval", status: "open", assignee: "role:admin", due: "2026-10-01T00:00:00Z", overdue: true, can_act: true, data: { amount: 1200, vendor: "Acme" } },
@@ -180,7 +188,7 @@ describe("rebuilt Command Center console", () => {
     const menu = await screen.findByRole("navigation", { name: "Command Center" });
     for (const s of ["BUILD", "MANAGE", "OPERATIONAL INSIGHTS", "ADMINISTRATION", "AI"]) expect(within(menu).getByText(s)).toBeTruthy();
     expect(within(menu).getByRole("link", { name: "Work queues" }).getAttribute("href")).toBe("../?page=queues");
-    expect(within(menu).getByRole("link", { name: "Schedules" }).getAttribute("href")).toBe("../?page=schedules");
+    expect(within(menu).getByRole("link", { name: "Triggers" }).getAttribute("href")).toBe("../?page=triggers");
     await waitFor(() => expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("href")).toBe("../studio/"));
     expect(within(menu).getByRole("link", { name: /One AgentStudio/ }).getAttribute("target")).toBe("_blank");   // always a new tab
     expect(within(menu).getByRole("button", { name: "Home" }).getAttribute("aria-current")).toBe("page");
@@ -552,6 +560,28 @@ describe("rebuilt Command Center console", () => {
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "tasks/k2/complete", body: { outcome: "submitted", answers: { iban: "DE89", urgent: false }, comment: "" } }));
     fireEvent.click(screen.getByRole("tab", { name: /Done/ }));
     expect(await within(await screen.findByRole("table", { name: "Tasks done" })).findByText("Approved")).toBeTruthy();
+  });
+
+  it("shows Schedules as AA's: what runs where and when, enable selected, a schedule copied for new timing, a weekly one created in AA's order", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "schedules.manage", "runs.start"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Schedules" }));
+    const list = await screen.findByRole("table", { name: "Schedules list" });
+    expect(await within(list).findByText("Daily at 02:00 (Asia/Kolkata), not on India 2026")).toBeTruthy();
+    expect(within(list).getByText("Pool Finance pool")).toBeTruthy();
+    fireEvent.click(within(list).getByLabelText("Select Hourly onboarding"));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Enable" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules/bulk", body: { ids: ["s2"], action: "enable" } }));
+    // a schedule: its timing changes by a copy
+    fireEvent.click(within(list).getByText("Nightly invoices"));
+    const e = await screen.findByRole("dialog", { name: "Schedule Nightly invoices" });
+    fireEvent.click(within(e).getByRole("button", { name: "Copy as a new schedule" }));
+    const c = await screen.findByRole("dialog", { name: "Copy of Nightly invoices" });
+    fireEvent.change(within(c).getByLabelText("Repeat"), { target: { value: "weekly" } });
+    fireEvent.click(within(c).getByLabelText("Fri"));
+    await act(async () => { fireEvent.click(within(c).getByRole("button", { name: "Create schedule" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "schedules", body: expect.objectContaining({
+      name: "Nightly invoices (copy)", bot_path: "Finance/Invoice intake.flow.json", kind: "weekly", at_time: "02:00", days: "MON,TUE,WED,THU", device_id: "d1", pool_id: null, holiday_calendar: "India 2026" }) }));
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
