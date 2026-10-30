@@ -1338,7 +1338,7 @@ describe("new Studio", () => {
     const steps = await openIntake();
     fireEvent.click(within(steps).getByRole("button", { name: "Assistant" }));
     let dialog = await screen.findByRole("dialog", { name: "Agent assistant" });
-    expect(await within(dialog).findByRole("button", { name: "Set up a One Model Connection" })).toBeTruthy();
+    expect(await within(dialog).findByRole("button", { name: "Set up a Model Connection" })).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("tab", { name: "Explain this agent" }));
     const text = within(dialog).getByText(/Steps:/).textContent!;
     expect(text).toContain("It needs: $workbook (File).");

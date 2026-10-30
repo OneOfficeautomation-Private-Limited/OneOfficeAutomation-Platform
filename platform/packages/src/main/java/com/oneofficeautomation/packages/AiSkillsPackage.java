@@ -57,7 +57,7 @@ public final class AiSkillsPackage {
     public Map<String, Object> run(ActionContext ctx,
             @Input(name = "skill", type = OoaType.STRING, example = "summarise_complaint", description = "Skill name (file name in ai-skills without .json).") String name,
             @Input(name = "values", type = OoaType.DICTIONARY, required = false, description = "Values for the skill's ${...} placeholders.") Map<String, Object> values,
-            @Input(name = "connection", type = OoaType.STRING, required = false, description = "One Model Connection to use instead of the skill's own provider and model.") String connection,
+            @Input(name = "connection", type = OoaType.STRING, required = false, description = "Model Connection to use instead of the skill's own provider and model.") String connection,
             @Input(name = "api_key", type = OoaType.CREDENTIAL, required = false, description = GenAiPackage.D_KEY) Object key,
             @Input(name = "model", type = OoaType.STRING, required = false, description = "Override the skill's model.") String model,
             @Input(name = "base_url", type = OoaType.STRING, required = false, description = GenAiPackage.D_BASE) String base,

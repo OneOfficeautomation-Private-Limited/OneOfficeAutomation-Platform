@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 final class ModelConnections {
     private ModelConnections() {}
 
-    static final String D_CONNECTION = "Name of a One Model Connection (provider, model and key managed in one place). Leave empty to set them on this action.";
+    static final String D_CONNECTION = "Name of a Model Connection (provider, model and key managed in one place). Leave empty to set them on this action.";
 
     @SuppressWarnings("unchecked")
     static Map<String, Object> all(ActionContext ctx) {
@@ -65,7 +65,7 @@ final class ModelConnections {
             if (accessKeyId == null) accessKeyId = key(ctx, c, "aws_access_key_id");
             if ((region == null || region.isBlank()) && c.get("region") instanceof String r) region = r;
         }
-        if (model == null || model.isBlank()) throw new ActionException("AI.NO_MODEL", "No model chosen", "Pick a One Model Connection, or set provider and model on this action.");
+        if (model == null || model.isBlank()) throw new ActionException("AI.NO_MODEL", "No model chosen", "Pick a Model Connection, or set provider and model on this action.");
         LlmClient.Config cfg = GenAiPackage.cfg(provider, model, key, base, temp, max, mask, accessKeyId, region);
         if (c != null) USED.put(cfg, c);
         return cfg;

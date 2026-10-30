@@ -94,6 +94,17 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "connections" && (init.method ?? "GET") === "GET") return ok({ connections: [{ name: "company-gpt", provider: "azure_openai", model: "gpt-x", key_ref: "ai/azure/key", allowed_roles: ["bot_creator"],
+      monthly_tokens: 1000000, tokens_this_month: 900000, pii_analyzer_url: "https://presidio.internal", content_check: "moderation" }] });
+    if (route === "connections/test") return ok({ ok: true, ms: 120, answer: "pong" });
+    if (/^connections\//.test(route)) return ok({ ok: true });
+    if (route === "skills") return ok({ skills: [{ name: "summarise", owner: "admin", shared: true, version: 2, description: "Short summary" }] });
+    if (route === "skills/summarise" && (init.method ?? "GET") === "GET") return ok({ name: "summarise", owner: "admin", shared: true, version: 2,
+      definition: { prompt: "Summarise ${text}", output: "text", temperature: 0.2, inputs: [{ name: "text" }] }, versions: [{ version: 2, updated_by: "admin", comment: "shorter" }, { version: 1 }] });
+    if (route === "skills/summarise") return ok({ name: "summarise", version: 3 });
+    if (route === "governance") return ok({ totals: { calls: 12, input_tokens: 1000, output_tokens: 500, masked_calls: 3, tool_calls: 1, avg_latency_ms: 800 },
+      by_model: [{ provider: "azure_openai", model: "gpt-x", calls: 12, input_tokens: 1000, output_tokens: 500 }], by_agent: [{ bot_path: "Finance/Invoice intake.flow.json", calls: 12, tokens: 1500 }],
+      recent: [{ ts: "2026-10-31T08:00:00Z", bot_path: "Finance/Invoice intake.flow.json", requested_by: "admin", purpose: "summarise", provider: "azure_openai", model: "gpt-x", input_tokens: 80, output_tokens: 40, masked: '["PERSON"]', prompt_sha256: "abcdef1234567890" }] });
     if (route === "toolkits") return ok({ toolkits: [
       { id: "core", name: "Core", version: "1.0.0", actions: 40, enabled: true, used_by: 9 },
       { id: "excel", name: "Excel", version: "2.1.0", versions: ["2.1.0", "1.4.0"], actions: 30, enabled: true, used_by: 3, publisher: "ONEOFFICEAUTOMATION" },
@@ -754,6 +765,32 @@ describe("rebuilt Command Center console", () => {
     expect(await within(v).findByText("^1.0.0")).toBeTruthy();
     await act(async () => { fireEvent.click(within(v).getByRole("button", { name: "Update agents" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "toolkits/excel/update-agents", body: { range: "^2.0.0" } }));
+  });
+
+  it("shows the AI pages: model connections with budget and test, a prompt skill saved as a new version, AI governance by model and agent", async () => {
+    const { api, calls } = fakeServer({ signedIn: { ...admin, permissions: [...admin.permissions, "skills.manage"] } as typeof admin });
+    render(<ConsoleApp api={api} />);
+    const nav = await screen.findByRole("navigation", { name: "Command Center" });
+    fireEvent.click(within(nav).getByRole("button", { name: "Model Connections" }));
+    const mc = await screen.findByRole("table", { name: "Model connections list" });
+    expect(await within(mc).findByText("Masks personal data, Checks answers")).toBeTruthy();
+    expect(within(mc).getByRole("img", { name: "90% of the budget" })).toBeTruthy();
+    fireEvent.click(within(mc).getByText("company-gpt"));
+    const d = await screen.findByRole("dialog", { name: "Model connection company-gpt" });
+    await act(async () => { fireEvent.click(within(d).getByRole("button", { name: "Test connection" })); });
+    expect(await within(d).findByText("Connected in 120 ms: pong")).toBeTruthy();
+    fireEvent.click(within(d).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(nav).getByRole("button", { name: "Prompt Skills" }));
+    fireEvent.click(await within(await screen.findByRole("table", { name: "Skills list" })).findByText("summarise"));
+    const sk = await screen.findByRole("dialog", { name: "summarise (v2)" });
+    expect(within(sk).getByText("The prompt uses: text.")).toBeTruthy();
+    fireEvent.change(within(sk).getByLabelText(/^Prompt/), { target: { value: "Summarise ${text} for ${reader}" } });
+    await act(async () => { fireEvent.click(within(sk).getByRole("button", { name: "Save as a new version" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "PUT", route: "skills/summarise", body: expect.objectContaining({
+      definition: { prompt: "Summarise ${text} for ${reader}", output: "text", temperature: 0.2, inputs: [{ name: "text" }, { name: "reader" }] } }) }));
+    fireEvent.click(within(nav).getByRole("button", { name: "AI governance" }));
+    expect(await screen.findByText("Calls with personal data masked")).toBeTruthy();
+    expect(within(screen.getByRole("table", { name: "Recent AI calls" })).getByText("PERSON")).toBeTruthy();
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {

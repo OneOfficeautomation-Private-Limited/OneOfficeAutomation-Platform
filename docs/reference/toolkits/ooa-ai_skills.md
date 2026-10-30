@@ -38,7 +38,7 @@ Fill a saved prompt template with your values and run it; returns text, or a Dic
 | --- | --- | --- | --- | --- | --- | --- |
 | Skill | `skill` | Text | Yes |  | Main | Skill name (file name in ai-skills without .json). Example: `summarise_complaint` |
 | Values | `values` | Dictionary | No |  | Main | Values for the skill's ${...} placeholders. |
-| Connection | `connection` | Text | No |  | Main | One Model Connection to use instead of the skill's own provider and model. |
+| Connection | `connection` | Text | No |  | Main | Model Connection to use instead of the skill's own provider and model. |
 | API key | `api_key` | Credential (vault) | No |  | More options | API key or access token from the vault (not needed for some self-hosted endpoints). For aws_bedrock and aws_bedrock_sagemaker: the AWS secret access key (or ACCESS_KEY_ID:SECRET). For google_vertex: a service-account JSON key or an access token. |
 | Model | `model` | Text | No |  | More options | Override the skill's model. |
 | Endpoint address | `base_url` | Text | No |  | More options | Endpoint; required for Azure OpenAI, Vertex AI (https://REGION-aiplatform.googleapis.com/v1/projects/PROJECT/locations/REGION) and self-hosted models (for a TGI server, e.g. http://tgi-host:8080/v1). |

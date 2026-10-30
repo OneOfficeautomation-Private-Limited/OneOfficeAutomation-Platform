@@ -1117,7 +1117,7 @@ const VIEWS = {
               h("button", { type: "button", class: "danger", onclick: async () => { if (confirm("Delete role " + x.name + "?")) { try { await api("DELETE", "roles/" + encodeURIComponent(x.name)); go(S.adminTab || "settings"); } catch (e) { toast(e.message, true); } } } }, "Delete")) }]}));
     } else if (tab === "connections") {
       const r = await api("GET", "connections");
-      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the One Prompt Skill, AI agent and generative AI actions. Keys stay in the Credential vault; agents receive only the reference." }),
+      main.replaceChildren(...head, tabs, h("p", { class: "muted", text: "Named AI model connections that agents use through the connection input of the Prompt Skill, AI agent and generative AI actions. Keys stay in the Credential vault; agents receive only the reference." }),
         h("div", { class: "toolbar" }, h("span", { class: "spacer" }), h("button", { type: "button", class: "primary", onclick: () => connectionDialog() }, "New connection")),
         dataTable({ rows: r.connections, search: "Search connections", exportName: "model-connections", empty: "No model connections yet.",
           columns: [
@@ -3015,7 +3015,7 @@ function connectionDialog(c) {
     allowed_roles: roles.value.split(",").map((x) => x.trim()).filter(Boolean),
     monthly_tokens: Number(monthly.value || 0), calls_per_minute: Number(perMinute.value || 0), calls_per_run: Number(perRun.value || 0),
     pii_analyzer_url: analyzer.value.trim() || null, content_check: contentCheck.value });
-  modal(c ? "Edit " + c.name : "New One Model Connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
+  modal(c ? "Edit " + c.name : "New model connection", [h("div", { class: "grid2" }, h("label", {}, "Name", name), h("label", {}, "Provider", provider), h("label", {}, "Model", model), h("label", {}, "Type", type)),
     help, h("label", {}, "Endpoint", base),
     h("label", {}, "API key from the Credential vault", key), h("label", {}, "Roles that may use it (comma-separated)", roles), h("label", {}, "Description", desc),
     h("h3", { text: "Privacy and safety" }),
@@ -3230,7 +3230,7 @@ async function skillDialog(name) {
   const mine = !s || s.owner === S.user.username || can("skills.all");
   const nm = h("input", { value: s ? s.name : "", placeholder: "summarise_complaint", disabled: !!s });
   const desc = h("input", { value: s ? s.description || "" : "" });
-  const conn = h("input", { value: d.connection || "", placeholder: "One Model Connection name (blank: the run's default)" });
+  const conn = h("input", { value: d.connection || "", placeholder: "Model Connection name (blank: the run's default)" });
   const system = h("textarea", { rows: 3, text: d.system || "" });
   const prompt = h("textarea", { rows: 6, text: d.prompt || "", placeholder: "Use ${name} for the values the agent passes in." });
   const output = h("select", {}, h("option", { value: "text", text: "Text" }), h("option", { value: "json", text: "JSON" }));

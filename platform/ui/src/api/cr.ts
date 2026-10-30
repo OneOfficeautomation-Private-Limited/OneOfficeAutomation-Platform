@@ -98,6 +98,14 @@ export type SavedConnection = { name: string; package: string; description?: str
 export type ConnectionKind = { package: string; name: string; inputs: { name: string; description?: string; credential?: boolean }[] };
 export type Toolkit = { id: string; name: string; version?: string; versions?: string[]; description?: string | null; publisher?: string | null; actions: number; conditions?: number;
   enabled: boolean; used_by: number; custom?: boolean };
+export type ModelConnection = { name: string; provider: string; model?: string | null; model_type?: string | null; base_url?: string | null; key_ref?: string | null;
+  description?: string | null; allowed_roles?: string[]; monthly_tokens?: number | null; tokens_this_month?: number; calls_per_minute?: number | null; calls_per_run?: number | null;
+  pii_analyzer_url?: string | null; content_check?: string | null; updated?: string; updated_by?: string };
+export type PromptSkill = { name: string; description?: string | null; owner: string; shared: boolean; template?: boolean; version: number; updated?: string; updated_by?: string };
+export type SkillDefinition = { prompt: string; system?: string; output: "text" | "json"; temperature: number; connection?: string; inputs: { name: string; description?: string }[] };
+export type AiGovernance = { totals?: { calls?: number; input_tokens?: number; output_tokens?: number; masked_calls?: number; tool_calls?: number; avg_latency_ms?: number | null };
+  by_model?: { provider: string; model?: string; calls: number; input_tokens: number; output_tokens: number }[]; by_agent?: { bot_path: string; calls: number; tokens: number }[];
+  recent?: { ts: string; bot_path: string; requested_by?: string; purpose?: string; provider?: string; model?: string; input_tokens?: number; output_tokens?: number; masked?: string; tool_calls?: string; prompt_sha256?: string; run_id?: string }[] };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -345,6 +353,19 @@ export class CrApi {
   async publishers() { return (await this.call<{ publishers?: { publisher: string; public_key: string; added_by?: string; added?: string }[] }>("GET", "toolkits/publishers")).publishers ?? []; }
   async trustPublisher(publisher: string, publicKey: string) { await this.call("POST", "toolkits/publishers", { publisher, public_key: publicKey }); }
   async untrustPublisher(publisher: string) { await this.call("DELETE", "toolkits/publishers/" + encodeURIComponent(publisher)); }
+  // ---- AI: model connections (provider, model, key from the vault, roles, budget, privacy) ----
+  async modelConnections() { return (await this.call<{ connections?: ModelConnection[] }>("GET", "connections")).connections ?? []; }
+  async saveModelConnection(name: string, b: Record<string, unknown>) { await this.call("PUT", "connections/" + encodeURIComponent(name), b); }
+  async deleteModelConnection(name: string) { await this.call("DELETE", "connections/" + encodeURIComponent(name)); }
+  testModelConnection(b: Record<string, unknown>) { return this.call<{ ok: boolean; ms?: number; answer?: string; message?: string }>("POST", "connections/test", b); }
+  // ---- Prompt Skills (reviewed prompt templates, versioned) and AI governance (every AI call) ----
+  async skills() { return (await this.call<{ skills?: PromptSkill[] }>("GET", "skills")).skills ?? []; }
+  skill(name: string) { return this.call<PromptSkill & { definition: SkillDefinition; versions?: { version: number; updated_by?: string; updated?: string; comment?: string | null }[] }>("GET", "skills/" + encodeURIComponent(name)); }
+  saveSkill(name: string, b: { description: string; definition: SkillDefinition; shared: boolean; template: boolean; comment: string | null }) { return this.call<{ name: string; version: number }>("PUT", "skills/" + encodeURIComponent(name), b); }
+  async deleteSkill(name: string) { await this.call("DELETE", "skills/" + encodeURIComponent(name)); }
+  async skillTemplates() { return (await this.call<{ templates?: { name: string; description?: string }[] }>("GET", "skills/templates")).templates ?? []; }
+  skillFromTemplate(template: string, name: string) { return this.call<{ name: string }>("POST", "skills/from-template", { template, name }); }
+  governance(days: number) { return this.call<AiGovernance>("GET", "governance?days=" + days); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

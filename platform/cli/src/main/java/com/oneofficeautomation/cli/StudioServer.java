@@ -705,7 +705,7 @@ public final class StudioServer {
     }
 
     /**
-     * The AI assistant: turns a description into agent steps using a One Model Connection. The model gets the action
+     * The AI assistant: turns a description into agent steps using a Model Connection. The model gets the action
      * catalog (ids, names, required inputs) and the agent's variables, answers with JSON, and the result is validated
      * before Agent Studio shows it for review.
      */

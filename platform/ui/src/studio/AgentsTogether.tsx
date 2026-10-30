@@ -150,7 +150,7 @@ export function FlowDiagram({ flow, packages, selected, onSelect, onInsert, onMo
 
 /**
  * The agent assistant: Build from a description (a language model proposes steps, checked, to insert) or Explain this
- * agent in plain words. Building needs a One Model Connection.
+ * agent in plain words. Building needs a Model Connection.
  */
 export function AssistantDialog({ api, flow, packages, initial = "build", onInsert, onNewConnection, onClose }:
   { api: StudioApi; flow: Flow; packages: PackageManifest[]; initial?: "build" | "explain"; onInsert: (p: Proposal) => void; onNewConnection: () => void; onClose: () => void }) {
@@ -185,9 +185,9 @@ export function AssistantDialog({ api, flow, packages, initial = "build", onInse
         <Field label="What should the agent do?">{(id) => <TextArea id={id} rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)}
           placeholder="Read invoices.csv, and for every row with an amount above 1000 send an email to approvals@company.com with the invoice number." />}</Field>
         {conns === null ? <p className="st-muted">Reading the model connections…</p>
-          : conns.connections.length ? <Field label="One Model Connection">{(id) => <Select id={id} value={connection} onChange={(e) => setConnection(e.target.value)}
+          : conns.connections.length ? <Field label="Model Connection">{(id) => <Select id={id} value={connection} onChange={(e) => setConnection(e.target.value)}
               options={conns.connections.map((c) => ({ value: c.name, label: c.name + " (" + c.provider + (c.model ? ", " + c.model : "") + ")" }))} />}</Field>
-          : <div className="st-alert" role="note">The assistant needs a language model. <Button kind="secondary" onClick={onNewConnection}>Set up a One Model Connection</Button> first.</div>}
+          : <div className="st-alert" role="note">The assistant needs a language model. <Button kind="secondary" onClick={onNewConnection}>Set up a Model Connection</Button> first.</div>}
         {busy && <p className="st-muted" role="status">Thinking… this can take up to a minute.</p>}
         {error && <p className="st-error" role="alert">{error}</p>}
         {proposal && <>

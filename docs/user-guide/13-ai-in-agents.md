@@ -209,13 +209,13 @@ When the agent runs from a work queue and returns `validation` as an output name
 The **Assistant** button in the top bar opens **Agent assistant** with two tabs:
 
 - **Build from a description**: describe the job ("Read invoices.csv, and for every row with amount above 1000 send an
-  email to approvals@company.com with the invoice number"), choose a **One Model Connection** and click
+  email to approvals@company.com with the invoice number"), choose a **Model Connection** and click
   **Generate steps**. Review the proposed steps and click **Insert into the agent**. They go where the canvas hint says;
   new variables come with them. Problems to fix are listed. Always review before running.
 - **Explain this agent**: the agent in plain words (what it needs, what it returns, each step). **Copy** puts it on the
   clipboard, handy for documentation or a hand-over.
 
-The assistant needs a model connection; without one it offers **Set up a One Model Connection**.
+The assistant needs a model connection; without one it offers **Set up a Model Connection**.
 
 ## 10. Good practice: masking, budgets, testing
 

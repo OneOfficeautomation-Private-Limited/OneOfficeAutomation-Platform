@@ -57,7 +57,7 @@ requirements; where a row above says Planned or Partial, this table is the curre
 | FR-STU-008 | Debugger | Built | `Runner.Debugger`, `cli/StudioDebugger` | Breakpoints (also in child agents), step into/over/out, call stack, variable edits |
 | FR-STU-001..019 | Studio UI | Built | `cli/src/main/resources/studio` | List and flow views, Quick add, AI assistant, designers for forms, workflows, documents, Prompt Skills |
 | FR-PKG-006 | Usage index | Built | `Platform.toolkits`, `toolkitUsers`, `setToolkitEnabled` | "Used by", switch off blocks check-in and runs |
-| FR-GAI-003 | Prompt templates | Built | `AiSkillsPackage` (One Prompt Skill) | Skills can name a One Model Connection |
+| FR-GAI-003 | Prompt templates | Built | `AiSkillsPackage` (Prompt Skill) | Skills can name a Model Connection |
 | FR-EXE-001..014 | Runner service | Built | `agent` module (OneRunner) | Process per run, remote stop and pause, runner pools, priority |
 | FR-CC-AUT004/005 | Check-in, versions, live production version | Built | `ControlRoom.checkin` | Agents, workflows and forms; H2 or PostgreSQL |
 | FR-CC-RES003/004 | Credentials and vault folders | Built | `ControlRoom`, `ExternalVaults` | HashiCorp Vault, Azure Key Vault, AWS Secrets Manager, CyberArk CCP |
