@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ONEOFFICEAUTOMATION Browser Connector",
   "short_name": "OOA Connector",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Lets ONEOFFICEAUTOMATION agents and Agent Studio see, capture, record and automate tabs in this browser.",
   "browser_specific_settings": { "gecko": { "id": "browser-connector@oneofficeautomation.com", "strict_min_version": "140.0",
     "data_collection_permissions": { "required": ["none"] } } },

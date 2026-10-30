@@ -299,17 +299,18 @@ async function onRequest(msg) {
   catch (e) { send({ id: msg.id, ok: false, code: e.code || "EXT.FAILED", error: String(e && e.message || e) }); }
 }
 
-// Events from content scripts: a picked element, recorded steps, the recording being stopped on the page.
+// Events from content scripts: a picked element, recorded steps, the recording being stopped on the page. A picked
+// element and each recorded step (in the top frame) get a picture of the element; events go out one after another, in
+// the order they happened, while pictures are taken.
+let events = Promise.resolve();
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg && msg.ooa === "status") { reply({ ...status, browser: BROWSER }); return; }
   if (!msg || !msg.event || !sender.tab) return;
-  (async () => {
-    const ev = Object.assign({}, msg, { tab_id: sender.tab.id, window_id: sender.tab.windowId, frame_id: sender.frameId, browser: BROWSER });
-    if (msg.event === "picked" && msg.rect && sender.frameId === 0) {
-      ev.screenshot = await crop(sender.tab, msg.rect, msg.ratio).catch(() => null);
-    }
-    send(ev);
-  })();
+  const ev = Object.assign({}, msg, { tab_id: sender.tab.id, window_id: sender.tab.windowId, frame_id: sender.frameId, browser: BROWSER });
+  const shot = (msg.event === "picked" || msg.event === "recorded") && msg.rect && sender.frameId === 0 ? crop(sender.tab, msg.rect, msg.ratio)
+    // the browser allows two pictures a second: typing ends as the next click starts, so the second one may wait
+    .catch(() => new Promise((r) => setTimeout(r, 600)).then(() => crop(sender.tab, msg.rect, msg.ratio))).catch(() => null) : null;
+  events = events.then(async () => { if (shot) ev.screenshot = await shot; send(ev); }).catch(() => {});
 });
 
 // A recording follows the tab across page loads: new pages in it start recording again.

@@ -64,6 +64,32 @@ export function windowVariable(flow: Flow, w: WebWindow): { flow: Flow; name: st
   return { flow: { ...flow, variables: [...(flow.variables ?? []), v] }, name, made: true };
 }
 
+/** The same desktop window: title and program alike, and not a preset (the window in front, the desktop, the taskbar). */
+const sameDesktopWindow = (a: unknown, w: DesktopWindow) => !!a && typeof a === "object" && !(a as DesktopWindow).preset
+  && ((a as DesktopWindow).title ?? "") === (w.title ?? "") && ((a as DesktopWindow).process ?? "") === (w.process ?? "");
+
+/** The window variable for an application window (same title and program: the same variable), made the first time a step needs it. */
+export function desktopWindowVariable(flow: Flow, w: DesktopWindow, description?: string): { flow: Flow; name: string; made: boolean } {
+  const same = (flow.variables ?? []).find((v) => v.type === "Dictionary" && /^window_/i.test(v.name) && sameDesktopWindow(v.default, w));
+  if (same) return { flow, name: same.name, made: false };
+  const name = numberedName(flow, "Window");
+  const def = structuredClone(w); delete def.resize;
+  const v: FlowVariable = { name, type: "Dictionary", direction: "local", default: def,
+    description: description ?? "Application window “" + (w.title ?? "") + "”" + (w.process ? " (" + w.process + ")" : "") + ", made by Capture; change its title here once for every step in it." };
+  return { flow: { ...flow, variables: [...(flow.variables ?? []), v] }, name, made: true };
+}
+
+/**
+ * After a desktop capture: the object's window goes into a window variable, as Capture does in AA, so steps in the same
+ * window share it. A preset window (the one in front, the desktop, the taskbar) or one without a title stays in the step.
+ */
+export function shareDesktopWindow(flow: Flow, obj: Captured): { flow: Flow; obj: Captured; name?: string } {
+  const w = obj.window;
+  if (!w || typeof w !== "object" || w.preset || !w.title) return { flow, obj };
+  const r = desktopWindowVariable(flow, w);
+  return { flow: r.flow, obj: { ...obj, window: "$" + r.name }, name: r.name };
+}
+
 /** After a web capture: the step's window becomes the captured page (title, link, browser) in a window variable, when none is set. */
 export function fillWindowFromCapture(flow: Flow, step: FlowStep, obj: Captured, hasWindowInput: boolean): Flow {
   if (!obj.page || !hasWindowInput) return flow;
@@ -113,6 +139,16 @@ export function recordedVariables(flow: Flow, steps: FlowStep[]): { flow: Flow; 
       || (st.action.endsWith("select_option") ? "choice" : "text");
   };
   for (const st of steps) {
+    // a desktop step: its object's window (one variable per application window)
+    const o = st.args?.object as Captured | undefined;
+    if (o && typeof o === "object" && o.technology === "desktop" && o.window && typeof o.window === "object" && !o.window.preset && o.window.title) {
+      const dw = o.window;
+      const r = desktopWindowVariable(f, dw, "Application window the recording worked in (“" + dw.title + "”" + (dw.process ? ", " + dw.process : "") + ").");
+      f = r.flow;
+      if (r.made) made.push(r.name);
+      st.args = { ...st.args, object: { ...o, window: "$" + r.name } };
+      continue;
+    }
     const w = st.args?.window as WebWindow | undefined;
     if (!w || typeof w !== "object" || !w.title) continue;
     const r = windowVariable(f, w);

@@ -3,7 +3,7 @@ import type { FlowStep, OpenWindow } from "../api/client";
 import { Button, Dialog, Field, Select, TextInput } from "../components";
 import { locate } from "./flowEdit";
 import {
-  DESKTOP_LABELS, fillWindowFromCapture, MATCHES, numberedName, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
+  DESKTOP_LABELS, desktopWindowVariable, fillWindowFromCapture, MATCHES, shareDesktopWindow, WEB_LABELS, WINDOW_PRESETS, withAnchorOffset, type Captured, type CapturedProperty, type DesktopWindow,
 } from "./capture";
 import { useVars, type WhereChoice } from "./VariablesPanel";
 
@@ -58,13 +58,16 @@ export function CaptureEditor({ step, value, onChange, nested, parent }:
       }
       const next = obj?.anchor ? withAnchorOffset({ ...o, anchor: obj.anchor }) : o;
       if (nested) { put(next); return; }
-      // a web capture also sets the step's window (a numbered window variable), as one change
-      const f = structuredClone(vars.flow);
-      const at = locate(f.steps, step.id);
+      // the captured window also goes into a numbered window variable (the step's window on the web, the object's on
+      // the desktop), as one change
+      let f = structuredClone(vars.flow);
+      let at = locate(f.steps, step.id);
       if (!at) return;
-      at.step.args = { ...(at.step.args ?? {}), object: next };
+      const shared = desktop ? shareDesktopWindow(f, next) : null;
+      if (shared) { f = shared.flow; at = locate(f.steps, step.id)!; }
+      at.step.args = { ...(at.step.args ?? {}), object: shared ? shared.obj : next };
       vars.edit(desktop ? f : fillWindowFromCapture(f, at.step, next, "window" in (at.step.args ?? {}) || step.action.startsWith("ooa.browser/")));
-      vars.notice?.("Captured " + (next.properties ?? []).length + " properties.");
+      vars.notice?.("Captured " + (next.properties ?? []).length + " properties" + (shared?.name ? "; the window is in $" + shared.name : "") + ".");
     } catch (e) { vars.fail?.(e); }
     finally { setBusy(false); }
   };
@@ -216,13 +219,8 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
   const share = () => {
     // one Dictionary variable holds the window; every desktop step in the same window (title and program) uses it
     const same = (x: unknown) => !!x && typeof x === "object" && ((x as DesktopWindow).title ?? "") === (w.title ?? "") && ((x as DesktopWindow).process ?? "") === (w.process ?? "") && !(x as DesktopWindow).preset;
-    const f = structuredClone(vars.flow);
-    let name = (f.variables ?? []).find((v) => v.type === "Dictionary" && same(v.default) && /^window_/i.test(v.name))?.name;
-    if (!name) {
-      name = numberedName(f, "Window");
-      const def = structuredClone(w); delete def.resize;
-      f.variables = [...(f.variables ?? []), { name, type: "Dictionary", default: def, description: "The application window that the desktop steps use; change its title here once." }];
-    }
+    const r = desktopWindowVariable(structuredClone(vars.flow), w);
+    const f = r.flow, name = r.name;
     const walk = (list: FlowStep[]) => { for (const s of list) {
       const o = s.args?.object as Captured | undefined;
       if (o && typeof o === "object" && o.technology === "desktop" && same(o.window)) s.args = { ...s.args, object: { ...o, window: "$" + name } };

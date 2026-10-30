@@ -1438,7 +1438,8 @@ public final class BrowserPackage {
           if (window.__ooaRec) { window.__ooaRecOff = false; if (window.__ooaBar) window.__ooaBar(); return; }
           window.__ooaRec = true;
           /*OOA_LIB*/
-          const cap = (t) => ({ props: __props(t), css: __cssPath(t), xpath: __absXpath(t), dom_xpath: __domXpath(t), page_rect: __rect(t),
+          const view = (t) => { const r = t.getBoundingClientRect(); return { x: r.left, y: r.top, width: r.width, height: r.height }; };
+          const cap = (t) => ({ props: __props(t), css: __cssPath(t), xpath: __absXpath(t), dom_xpath: __domXpath(t), page_rect: __rect(t), rect: view(t),
                                 page: { url: location.href, title: document.title } });
           const esc = (s) => String(s).replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
           const sel = (el) => {
@@ -1547,7 +1548,7 @@ public final class BrowserPackage {
             BrowserContext c = b.newContext();
             List<Frame> eventFrames = Collections.synchronizedList(new ArrayList<>());
             c.exposeBinding("__ooaRecord", (source, args) -> {
-                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add((Map<String, Object>) m); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add(withShot(source, (Map<String, Object>) m)); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
                 return null; });
             c.exposeBinding("__ooaStop", (source, args) -> { stopped[0] = true; return null; });
             c.addInitScript(RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS));
@@ -1608,7 +1609,7 @@ public final class BrowserPackage {
             String js = RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS);
             c.exposeBinding("__ooaRecord", (source, args) -> {
                 if (source.page() != page) return null;   // only the recording window
-                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add((Map<String, Object>) m); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
+                if (args.length > 0 && args[0] instanceof Map<?, ?> m && events.size() < 500) { events.add(withShot(source, (Map<String, Object>) m)); eventFrames.add(source.frame()); ctx.info("Recorded step " + events.size()); }
                 return null; });
             c.exposeBinding("__ooaStop", (source, args) -> { if (source.page() == page) stopped[0] = true; return null; });
             page.addInitScript(js);
@@ -2319,15 +2320,7 @@ public final class BrowserPackage {
                         frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
                 } catch (PlaywrightException ignored) { /* the frame went away; the object still works on the page */ }
                 picked[0].put("frames", frames);
-                if (frames.isEmpty() && picked[0].get("rect") instanceof Map<?, ?> r && !c.pages().isEmpty()) {
-                    try {
-                        double x = ((Number) r.get("x")).doubleValue(), y = ((Number) r.get("y")).doubleValue(), w = ((Number) r.get("width")).doubleValue(), h = ((Number) r.get("height")).doubleValue();
-                        if (w >= 2 && h >= 2) {
-                            byte[] png = c.pages().get(0).screenshot(new Page.ScreenshotOptions().setClip(Math.max(0, x - 4), Math.max(0, y - 4), Math.min(w + 8, 1200), Math.min(h + 8, 600)));
-                            if (png.length < 300_000) picked[0].put("screenshot", Base64.getEncoder().encodeToString(png));
-                        }
-                    } catch (PlaywrightException ignored) { /* a screenshot is a nice-to-have */ }
-                }
+                if (frames.isEmpty() && !c.pages().isEmpty()) { String shot = elementShot(c.pages().get(0), picked[0].get("rect")); if (shot != null) picked[0].put("screenshot", shot); }
             }
             try { b.close(); } catch (PlaywrightException ignored) { }
         } catch (PlaywrightException e) { throw pw(e, "Picking an element"); }
@@ -2410,15 +2403,7 @@ public final class BrowserPackage {
                         frames.add(0, String.valueOf(f.frameElement().evaluate(FRAME_SELECTOR_JS)));
                 } catch (PlaywrightException ignored) { }
                 picked[0].put("frames", frames);
-                if (frames.isEmpty() && picked[0].get("rect") instanceof Map<?, ?> r) {
-                    try {
-                        double x = ((Number) r.get("x")).doubleValue(), y = ((Number) r.get("y")).doubleValue(), w = ((Number) r.get("width")).doubleValue(), h = ((Number) r.get("height")).doubleValue();
-                        if (w >= 2 && h >= 2) {
-                            byte[] png = page.screenshot(new Page.ScreenshotOptions().setClip(Math.max(0, x - 4), Math.max(0, y - 4), Math.min(w + 8, 1200), Math.min(h + 8, 600)));
-                            if (png.length < 300_000) picked[0].put("screenshot", Base64.getEncoder().encodeToString(png));
-                        }
-                    } catch (PlaywrightException ignored) { }
-                }
+                if (frames.isEmpty()) { String shot = elementShot(page, picked[0].get("rect")); if (shot != null) picked[0].put("screenshot", shot); }
             }
             // Playwright closing here only disconnects: the browser and its windows stay open.
         } catch (PlaywrightException e) { throw pw(e, "Picking an element in the open browser"); }
@@ -2428,6 +2413,26 @@ public final class BrowserPackage {
         Map<String, Object> element = new LinkedHashMap<>(picked[0]);
         element.remove("screenshot"); element.remove("props");
         return Map.of("selector", String.valueOf(picked[0].get("selector")), "element", element, "alternatives", alternatives, "object", object);
+    }
+
+    /** A PNG (base64) of the element at this rectangle of the page's view, with a small margin; null when there is none to take. */
+    static String elementShot(Page page, Object rect) {
+        if (page == null || !(rect instanceof Map<?, ?> r) || !(r.get("x") instanceof Number x) || !(r.get("y") instanceof Number y)
+                || !(r.get("width") instanceof Number w) || !(r.get("height") instanceof Number h) || w.doubleValue() < 2 || h.doubleValue() < 2) return null;
+        try {
+            byte[] png = page.screenshot(new Page.ScreenshotOptions().setTimeout(3000).setClip(Math.max(0, x.doubleValue() - 4), Math.max(0, y.doubleValue() - 4),
+                    Math.min(w.doubleValue() + 8, 1200), Math.min(h.doubleValue() + 8, 600)));
+            return png.length < 300_000 ? Base64.getEncoder().encodeToString(png) : null;
+        } catch (PlaywrightException e) { return null; }   // a picture is a nice-to-have (the page may be moving on)
+    }
+
+    /** A recorded event with a picture of its element, as Capture keeps one (in the top frame: a frame's rectangle is not the page's). */
+    static Map<String, Object> withShot(com.microsoft.playwright.options.BindingCallback.Source source, Map<String, Object> event) {
+        Map<String, Object> e = new LinkedHashMap<>(event);
+        Frame f = source.frame();
+        if (f != null && f.parentFrame() == null) { String shot = elementShot(source.page(), e.get("rect")); if (shot != null) e.put("screenshot", shot); }
+        e.remove("rect");
+        return e;
     }
 
     private static final String FRAME_SELECTOR_JS = """

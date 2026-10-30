@@ -187,8 +187,9 @@ public final class StudioServer {
                 NONCES.nextBytes(r);
                 String nonce = Base64.getEncoder().encodeToString(r);
                 byte[] page = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("__CSP_NONCE__", nonce).getBytes(StandardCharsets.UTF_8);
+                // data: images: the pictures Capture and Record keep of each element (an image never runs script)
                 sendBytes(ex, 200, "text/html; charset=utf-8", page,
-                        "default-src 'self'; img-src 'self'; style-src 'self' 'nonce-" + nonce + "'; script-src 'self'; frame-ancestors 'none'");
+                        "default-src 'self'; img-src 'self' data:; style-src 'self' 'nonce-" + nonce + "'; script-src 'self'; frame-ancestors 'none'");
                 return;
             }
             String type = name.endsWith(".js") ? "text/javascript; charset=utf-8" : name.endsWith(".css") ? "text/css; charset=utf-8"
@@ -1054,7 +1055,7 @@ public final class StudioServer {
     }
 
     private static void sendBytes(HttpExchange ex, int code, String type, byte[] b) throws IOException {
-        sendBytes(ex, code, type, b, "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
+        sendBytes(ex, code, type, b, "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'");
     }
 
     private static void sendBytes(HttpExchange ex, int code, String type, byte[] b, String policy) throws IOException {

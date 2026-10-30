@@ -98,6 +98,7 @@ class UnifiedServerTest {
             assertEquals(200, js.status());
             assertTrue(js.headers().firstValue("Content-Type").orElse("").startsWith("text/javascript"));
             assertTrue(js.headers().firstValue("Content-Security-Policy").orElse("").contains("script-src 'self'"), "the same security policy as the classic Studio");
+            assertTrue(next.headers().firstValue("Content-Security-Policy").orElse("").contains("img-src 'self' data:;"), "the pictures captured elements keep are shown");
             // each page gets a fresh style nonce, in its policy and in the page; no other inline style is allowed
             java.util.regex.Matcher nonce = java.util.regex.Pattern.compile("style-src 'self' 'nonce-([A-Za-z0-9+/=]{24})'").matcher(next.headers().firstValue("Content-Security-Policy").orElse(""));
             assertTrue(nonce.find(), next.headers().toString());

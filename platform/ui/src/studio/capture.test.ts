@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Flow, FlowStep } from "../api/client";
-import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, numberedName, recordedVariables, shortenRecordedNames, withAnchorOffset } from "./capture";
+import { actionFor, desktopActionFor, fillWindowFromCapture, longRecordedVariables, numberedName, recordedVariables, shareDesktopWindow, shortenRecordedNames, withAnchorOffset } from "./capture";
 
 const flow = (variables: Flow["variables"] = []): Flow => ({ kind: "TaskBot", id: "a", name: "A", variables, steps: [] });
 const page = (title: string, url = "https://x.test/" + title) => ({ page: { title, url } });
@@ -44,6 +44,27 @@ describe("capture and recording", () => {
     expect(v("Text_1").description).toContain("Username");
     expect(v("Text_2").description).toContain("Customer name");
     expect(v("password")).toMatchObject({ type: "Credential", direction: "input" });
+  });
+
+  it("puts a captured or recorded application window in a window variable, one per window, as AA does", () => {
+    const notepad = { title: "Untitled - Notepad", title_match: "wildcard", process: "notepad", resize: { width: 800, height: 600 } };
+    const c = shareDesktopWindow(flow(), { technology: "desktop", window: { ...notepad }, properties: [] });
+    expect(c.obj.window).toBe("$Window_1");
+    expect(c.flow.variables![0]).toMatchObject({ name: "Window_1", type: "Dictionary", default: { title: "Untitled - Notepad", process: "notepad" } });
+    expect((c.flow.variables![0].default as { resize?: unknown }).resize).toBeUndefined();
+    // the window in front (a preset) stays in the step
+    const front = shareDesktopWindow(c.flow, { technology: "desktop", window: { preset: "active" }, properties: [] });
+    expect(front.flow).toBe(c.flow);
+    const obj = (title: string, process = "notepad") => ({ technology: "desktop", window: { title, process }, properties: [] });
+    const steps: FlowStep[] = [
+      { id: "a", action: "ooa.desktop_ui/object_action", args: { action: "click", object: obj("Untitled - Notepad") } },
+      { id: "b", action: "ooa.desktop_ui/object_action", args: { action: "click", object: obj("Calculator", "CalculatorApp") } },
+      { id: "c", action: "ooa.desktop_ui/object_action", args: { action: "click", object: obj("Untitled - Notepad") } },
+    ];
+    const r = recordedVariables(c.flow, steps);
+    expect(r.made).toEqual(["Window_2"]);
+    expect(steps.map((s) => (s.args!.object as { window: unknown }).window)).toEqual(["$Window_1", "$Window_2", "$Window_1"]);
+    expect(r.flow.variables![1].description).toContain("Calculator");
   });
 
   it("offers to shorten long names from older recordings, and renames their uses", () => {

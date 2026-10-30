@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The web recorder outlines the element a click would record, as Capture does, and the outline turns green when a step is
- * recorded. Runs in the installed Edge or Chrome (headless, nothing downloaded); skipped where neither starts.
+ * recorded; the recorded step keeps a picture of the element. Runs in the installed Edge or Chrome (headless, nothing downloaded); skipped where neither starts.
  */
 class RecorderOutlineTest {
     static final String PAGE = """
@@ -22,7 +22,7 @@ class RecorderOutlineTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void outlinesTheElementUnderThePointerAndFlashesWhenRecorded() {
+    void outlinesTheElementUnderThePointerFlashesAndKeepsAPictureWhenRecorded() {
         List<Map<String, Object>> events = new CopyOnWriteArrayList<>();
         try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(BrowserPackage.browserEnv(new HashMap<>(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")))))) {
             Browser b = null;
@@ -32,7 +32,7 @@ class RecorderOutlineTest {
             }
             Assumptions.assumeTrue(b != null, "No Edge or Chrome can be started here");
             BrowserContext c = b.newContext();
-            c.exposeBinding("__ooaRecord", (source, args) -> { events.add((Map<String, Object>) args[0]); return null; });
+            c.exposeBinding("__ooaRecord", (source, args) -> { events.add(BrowserPackage.withShot(source, (Map<String, Object>) args[0])); return null; });
             c.exposeBinding("__ooaStop", (source, args) -> null);
             c.addInitScript(BrowserPackage.RECORDER_JS.replace("/*OOA_LIB*/", WebObjects.LIB_JS));
             Page p = c.newPage();
@@ -51,6 +51,10 @@ class RecorderOutlineTest {
             p.waitForTimeout(50);
             assertEquals(1, events.size());
             assertEquals("click", events.get(0).get("kind"));
+            // each recorded step keeps a picture of its element, as Capture does (the view rectangle is only for that)
+            assertTrue(String.valueOf(events.get(0).get("screenshot")).length() > 100, "a picture of the button");
+            assertFalse(events.get(0).containsKey("rect"));
+            assertNotNull(BrowserPackage.capturedObject(events.get(0)).get("screenshot"));
             assertEquals("rgb(29, 122, 70)", p.evaluate("document.getElementById('__ooa_hl').style.borderColor"), "green for a moment when recorded");
             p.waitForTimeout(600);
             assertEquals("rgb(163, 113, 237)", p.evaluate("document.getElementById('__ooa_hl').style.borderColor"));
