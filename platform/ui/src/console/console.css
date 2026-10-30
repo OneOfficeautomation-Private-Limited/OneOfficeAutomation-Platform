@@ -124,3 +124,5 @@ button.st-menu-home { border: 0; background: transparent; font: inherit; cursor:
 @media (max-width: 760px) { .cc-settings, .cc-settings-fields, .cc-found { grid-template-columns: 1fr; } }
 .cc-roles-off { grid-column: 1 / -1; border: 0; padding: 0; margin: 6px 0; }
 .cc-roles-off legend { padding: 0; margin-bottom: 4px; }
+.cc-taskform { display: grid; gap: 4px; margin: 8px 0; }
+.cc-radio { border: 0; padding: 0; margin: 4px 0; }

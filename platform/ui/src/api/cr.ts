@@ -65,6 +65,13 @@ export type LicenseInfo = { state: string; customer?: string; edition?: string; 
 export type LicenseUsage = { seats: Record<string, { label: string; total: number; used: number; idle: number }>;
   holders: { name: string; principal: string; license_type: string; assigned?: string; last_active?: string | null; runs_30_days: number; idle: boolean }[];
   trend: { snap_day: string; license_type: string; used: number; total: number }[] };
+/** A field of a task's form (made in Studio's form designer). */
+export type TaskFormField = { id: string; type: string; label?: string; text?: string; placeholder?: string; options?: string[]; required?: boolean; help?: string;
+  min?: number; max?: number; default?: unknown };
+/** A task a workflow gives a person or role: fill in a form, approve, or read a notice. */
+export type HumanTask = { id: string; title: string; description?: string | null; kind: "form" | "approval" | "notification"; status: string; assignee?: string;
+  claimed_by?: string | null; completed_by?: string | null; created?: string; due?: string | null; completed?: string | null; overdue?: boolean; can_act?: boolean; outcome?: string | null;
+  form?: { fields?: TaskFormField[]; submitLabel?: string } | null; data?: Record<string, unknown>; result?: Record<string, unknown> | null; workflow_run_id?: string };
 /** Runners that share work: a run sent to a pool goes to its least busy online runner. */
 export type RunnerPool = { id: string; name: string; description?: string | null; devices: string[]; created_by?: string; created?: string;
   owners?: string[]; consumers?: string[]; can_manage?: boolean };
@@ -218,6 +225,10 @@ export class CrApi {
   cluster() { return this.call<{ nodes: { node_id: string; leader?: boolean; this_node?: boolean }[] }>("GET", "cluster"); }
   purgeRuns(runDays: number, logDays: number) { return this.call<{ runs_removed: number; log_lines_removed: number }>("POST", "runs/purge", { run_days: runDays, log_days: logDays }); }
   database() { return this.call<Record<string, string | number | boolean | null>>("GET", "database"); }
+  /** Human tasks from workflows: status open (open and claimed) or completed; all: everyone's (users.manage). */
+  async tasks(status: "open" | "completed", all = false) { return (await this.call<{ tasks?: HumanTask[] }>("GET", "tasks?status=" + status + (all ? "&all=true" : ""))).tasks ?? []; }
+  async claimTask(id: string, release = false) { await this.call("POST", "tasks/" + encodeURIComponent(id) + (release ? "/release" : "/claim")); }
+  async completeTask(id: string, outcome: string, answers: Record<string, unknown>, comment: string) { await this.call("POST", "tasks/" + encodeURIComponent(id) + "/complete", { outcome, answers, comment }); }
   async pools() { return (await this.call<{ pools?: RunnerPool[] }>("GET", "pools")).pools ?? []; }
   savePool(id: string | null, b: { name: string; description: string; devices: string[]; owners?: string[]; consumers?: string[] }) {
     return this.call<{ id: string }>(id ? "PUT" : "POST", "pools" + (id ? "/" + encodeURIComponent(id) : ""), b);

@@ -93,6 +93,12 @@ function fakeServer({ signedIn = null as typeof admin | typeof viewer | null, mf
       holders: [{ name: "Old Hand", principal: "old", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: null, runs_30_days: 0, idle: true },
         { name: "Asha Admin", principal: "admin", license_type: "developer", assigned: "2026-05-01T00:00:00Z", last_active: "2026-10-31T00:00:00Z", runs_30_days: 9, idle: false }],
       trend: [{ snap_day: "2026-10-30", license_type: "developer", used: 4, total: 5 }] });
+    if (route === "tasks") return ok({ tasks: url.includes("status=completed") ? [
+      { id: "k9", title: "Old approval", kind: "approval", status: "completed", assignee: "role:admin", outcome: "approved", completed_by: "admin", completed: "2026-10-30T10:00:00Z" }] : [
+      { id: "k1", title: "Approve invoice 42", kind: "approval", status: "open", assignee: "role:admin", due: "2026-10-01T00:00:00Z", overdue: true, can_act: true, data: { amount: 1200, vendor: "Acme" } },
+      { id: "k2", title: "Vendor details", kind: "form", status: "open", assignee: "user:admin", can_act: true,
+        form: { fields: [{ id: "iban", type: "text", label: "IBAN", required: true }, { id: "urgent", type: "checkbox", label: "Urgent" }], submitLabel: "Send" } }] });
+    if (/^tasks\/k\d\/(claim|release|complete)$/.test(route)) return ok({ ok: true });
     if (route === "settings" && init.method === "PUT") return ok({ ok: true });
     if (route === "settings") return ok({ announcement: "", session_hours: 8, mfa_required: 0, runner_auto_update: 0, switched_off_roles: "", syslog_target: "", mail_smtp_port: 587, public_url: "" });
     if (route === "settings/mail-test") return ok({ to: body.to });
@@ -518,6 +524,34 @@ describe("rebuilt Command Center console", () => {
     fireEvent.change(within(mail).getByLabelText("Send a test e-mail to"), { target: { value: "me@example.com" } });
     await act(async () => { fireEvent.click(within(mail).getByRole("button", { name: "Send a test e-mail" })); });
     expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "settings/mail-test", body: { to: "me@example.com" } }));
+  });
+
+  it("shows the Task inbox as UiPath's Action Center: to do and done, overdue filter, approve with a comment, a form with a required field", async () => {
+    const { api, calls } = fakeServer({ signedIn: admin });
+    render(<ConsoleApp api={api} />);
+    fireEvent.click(within(await screen.findByRole("navigation", { name: "Command Center" })).getByRole("button", { name: "Task inbox" }));
+    const list = await screen.findByRole("table", { name: "Tasks to do" });
+    expect(await within(list).findByText(/Overdue:/)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Overdue only"));
+    await waitFor(() => expect(within(list).queryByText("Vendor details")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    // an approval: the workflow's data, a comment, Approve
+    fireEvent.click(within(list).getByText("Approve invoice 42"));
+    const a = await screen.findByRole("dialog", { name: "Approve invoice 42" });
+    expect(within(a).getByText("Acme")).toBeTruthy();
+    fireEvent.change(within(a).getByLabelText("Comment (optional)"), { target: { value: "ok by me" } });
+    await act(async () => { fireEvent.click(within(a).getByRole("button", { name: "Approve" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "tasks/k1/complete", body: { outcome: "approved", answers: {}, comment: "ok by me" } }));
+    // a form: the required field first
+    fireEvent.click(await within(list).findByText("Vendor details"));
+    const fm = await screen.findByRole("dialog", { name: "Vendor details" });
+    fireEvent.click(within(fm).getByRole("button", { name: "Send" }));
+    expect(within(fm).getByText("Fill in: IBAN")).toBeTruthy();
+    fireEvent.change(within(fm).getByLabelText("IBAN *"), { target: { value: "DE89" } });
+    await act(async () => { fireEvent.click(within(fm).getByRole("button", { name: "Send" })); });
+    expect(calls).toContainEqual(expect.objectContaining({ method: "POST", route: "tasks/k2/complete", body: { outcome: "submitted", answers: { iban: "DE89", urgent: false }, comment: "" } }));
+    fireEvent.click(screen.getByRole("tab", { name: /Done/ }));
+    expect(await within(await screen.findByRole("table", { name: "Tasks done" })).findByText("Approved")).toBeTruthy();
   });
 
   it("asks for a new password at the first sign-in, then two-step setup when required, before anything else", async () => {
