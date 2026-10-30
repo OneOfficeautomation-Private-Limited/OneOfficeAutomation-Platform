@@ -15,5 +15,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     include: ["src/**/*.test.{ts,tsx}"],
+    // a test that renders the whole Studio takes 1 to 3 seconds here and longer on CI's Windows machines
+    testTimeout: 15000,
   },
 });
