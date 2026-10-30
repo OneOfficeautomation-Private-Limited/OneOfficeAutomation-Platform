@@ -463,3 +463,11 @@ button.st-var-main:hover { background: var(--ui-row-hover); }
   border-radius: var(--ui-radius); background: transparent; color: var(--ui-frame-text); cursor: pointer; }
 .st-top-icon:hover, .st-top-icon[data-state="open"] { background: var(--ui-frame-line); }
 .st-menu-tick { width: 16px; text-align: center; font-weight: 700; color: var(--ui-accent-text); }
+
+/* Record / Capture: which window */
+.st-where-list { max-height: 52vh; overflow: auto; margin: 0 -4px; padding: 0 4px; }
+.st-where-intro { margin: 2px 0 6px; color: var(--ui-text-2); font-size: 12.5px; }
+.st-where.is-on { border-color: var(--ui-accent); background: var(--ui-selected); }
+.st-where-help { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--ui-debug); border-radius: 8px; background: var(--ui-offer-bg); }
+.st-where-help p { margin: 0 0 8px; }
+.st-where-new { display: grid; grid-template-columns: 1fr 200px; gap: 10px; margin-top: 10px; }

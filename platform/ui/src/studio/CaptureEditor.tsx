@@ -257,32 +257,97 @@ function DesktopWindowDetails({ obj, put, nested }: { obj: Captured; put: (o: Ca
 
 const shortUrl = (u?: string) => (u ?? "").replace(/^https?:\/\//, "").slice(0, 60);
 
+const BROWSER_NAMES: Record<string, string> = { chrome: "Google Chrome", edge: "Microsoft Edge", firefox: "Mozilla Firefox" };
+/** The browser a desktop window belongs to, from its program (msedge, chrome, firefox), or "" for any other application. */
+export const browserOf = (w: OpenWindow) => w.browser || (/^msedge$/i.test(w.process ?? "") ? "edge" : /^chrome$/i.test(w.process ?? "") ? "chrome" : /^firefox$/i.test(w.process ?? "") ? "firefox" : "");
+
 /**
- * Where to capture or record: one of the open browser tabs (grouped by browser), a desktop application (recording),
- * or a new page at an address.
+ * Where to capture or record, as AA's recorder asks before it starts. Browser tabs Studio can reach (through the
+ * ONEOFFICEAUTOMATION Browser Connector, or in the browser agents keep open); for recording also every open application
+ * window, where only that application's clicks and typing are recorded; or a new page at an address. A browser
+ * window Studio cannot reach says how to connect it, and offers a new recording window or desktop recording instead.
  */
-export function WhereDialog({ mode, tabs, url, onChoose, onClose }:
-  { mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; onChoose: (c: WhereChoice) => void; onClose: () => void }) {
-  const [asking, setAsking] = useState(!tabs.length && mode === "capture");
+export function WhereDialog({ mode, tabs: given, url, onChoose, onClose, onRefresh, ownTitle = "One Agent Studio" }:
+  { mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; onChoose: (c: WhereChoice) => void; onClose: () => void;
+    onRefresh?: () => Promise<OpenWindow[]>; ownTitle?: string }) {
+  const [all, setAll] = useState(given);
+  const [refreshing, setRefreshing] = useState(false);
+  const [unreached, setUnreached] = useState<OpenWindow | null>(null);
+  const reachable = (w: OpenWindow) => (w.source ?? "browser") === "browser" && (mode === "record" ? !!w.connector || !!w.endpoint : !!w.endpoint || !!w.connector) && !!(w.title || w.url);
+  const tabs = all.filter(reachable);
+  // application windows: not Studio itself; a Store app once (its frame, ApplicationFrameHost, and its own program share
+  // the title), named by its own program; a browser window only when none of its tabs is listed above
+  const apps: OpenWindow[] = [];
+  for (const w of mode === "record" ? all : []) {
+    if (w.source !== "application" || !w.title || w.title.startsWith(ownTitle)) continue;
+    const twin = apps.findIndex((a) => a.title === w.title && (a.process === "ApplicationFrameHost" || w.process === "ApplicationFrameHost"));
+    if (twin < 0) apps.push(w);
+    else if (apps[twin].process === "ApplicationFrameHost") apps[twin] = w;
+  }
+  const tabTitles = new Set(tabs.map((t) => t.title));
+  const pageTitle = (w: OpenWindow) => (w.title ?? "").replace(/ [-–—] (Google Chrome|Microsoft\u200b? Edge|Mozilla Firefox)$/, "").replace(/ - (Personal|Work)$/, "").replace(/ and \d+ more pages?$/, "");
+  const browserWindows = apps.filter((w) => browserOf(w) && !tabTitles.has(pageTitle(w)));
+  const programs = apps.filter((w) => !browserOf(w));
+  const reachedBrowsers = new Set(tabs.map((t) => t.connector ? t.browser : "agents"));
+  const [asking, setAsking] = useState(!tabs.length && !programs.length && mode === "capture");
   const [address, setAddress] = useState(url || "https://");
+  const [browser, setBrowser] = useState<"edge" | "chrome">("edge");
   const groups = new Map<string, OpenWindow[]>();
-  for (const t of tabs) { const b = t.browser === "chrome" ? "Google Chrome" : t.browser === "edge" ? "Microsoft Edge" : "Browser"; groups.set(b, [...(groups.get(b) ?? []), t]); }
+  for (const t of tabs) {
+    const b = t.endpoint && !t.connector ? (BROWSER_NAMES[t.browser ?? ""] ?? "Browser") + " (opened by agents)" : BROWSER_NAMES[t.browser ?? ""] ?? "Browser";
+    groups.set(b, [...(groups.get(b) ?? []), t]);
+  }
   const tabChoice = (t: OpenWindow): WhereChoice => t.connector || t.tab_id !== undefined ? { tab_id: t.tab_id, browser: t.browser || "edge" }
     : { endpoint: t.endpoint, tab_title: t.title, tab_url: t.url, browser: t.browser || "edge" };
-  const go = () => { const u = address.trim(); if (u && u !== "https://") onChoose({ url: u, browser: "edge" }); };
+  const go = () => { const u = address.trim(); if (u && u !== "https://") onChoose({ url: /^[a-z]+:/i.test(u) ? u : "https://" + u, browser }); };
+  const refresh = async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    try { setAll(await onRefresh()); setUnreached(null); } finally { setRefreshing(false); }
+  };
+  const ub = unreached ? browserOf(unreached) : "";
   return (
-    <Dialog open onClose={onClose} title={mode === "capture" ? "Capture in which window?" : "Record in which window?"} width={600}
-      footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button><span className="st-bar-fill" />
-        {mode === "record" && <Button kind="secondary" onClick={() => onChoose({ target: "desktop" })}>Desktop application…</Button>}
+    <Dialog open onClose={onClose} title={mode === "capture" ? "Capture in which window?" : "Record in which window?"} width={640}
+      footer={<><Button kind="secondary" onClick={onClose}>Cancel</Button>
+        {onRefresh && <Button kind="plain" onClick={refresh} disabled={refreshing} title="Read the open windows again">{refreshing ? "Refreshing…" : "Refresh"}</Button>}
+        <span className="st-bar-fill" />
         {asking ? <Button kind="primary" onClick={go} disabled={!address.trim() || address.trim() === "https://"}>{mode === "capture" ? "Open and capture" : "Open and record"}</Button>
           : <Button kind="secondary" onClick={() => setAsking(true)}>Open a new page…</Button>}</>}>
-      {tabs.length > 0 ? <>
-        <p className="st-muted">{mode === "record" ? "Your open browser windows (through the ONEOFFICEAUTOMATION Browser Connector):" : "Open browser windows (a browser opened by an agent stays open):"}</p>
-        {[...groups].map(([b, list]) => <div key={b} className="st-where-group"><div className="st-where-head">{b} ({list.length})</div>
-          {list.map((t, i) => <button key={i} type="button" className="st-where" onClick={() => onChoose(tabChoice(t))}>
-            <strong>{t.title || "(no title)"}</strong><span>{shortUrl(t.url)}</span></button>)}</div>)}
-      </> : <p className="st-muted">{mode === "record" ? "No connected browser window is open: record a Windows application, or open a new page." : "No open browser window: open a new page."}</p>}
-      {asking && <Field label="Web address">{(id) => <TextInput id={id} value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") go(); }} />}</Field>}
+      <div className="st-where-list">
+        {tabs.length > 0 && <>
+          <p className="st-where-intro">{mode === "record" ? "Web pages: each click, typing and choice becomes a web step." : "Open browser tabs (a browser opened by an agent stays open):"}</p>
+          {[...groups].map(([b, list]) => <div key={b} className="st-where-group" role="group" aria-label={b}><div className="st-where-head">{b} ({list.length})</div>
+            {list.map((t, i) => <button key={i} type="button" className="st-where" onClick={() => onChoose(tabChoice(t))}>
+              <strong>{t.title || "(no title)"}</strong><span>{shortUrl(t.url)}</span></button>)}</div>)}
+        </>}
+        {programs.length > 0 && <div className="st-where-group" role="group" aria-label="Applications">
+          <div className="st-where-head">Applications ({programs.length})</div>
+          <p className="st-where-intro">The window comes to the front; only clicks and typing in that application (with its dialogs) are recorded.</p>
+          {programs.map((w, i) => <button key={i} type="button" className="st-where" onClick={() => onChoose({ target: "desktop", window_title: w.title, process: w.process })}>
+            <strong>{w.title}</strong>{w.process && <span>{w.process}</span>}</button>)}</div>}
+        {browserWindows.length > 0 && <div className="st-where-group" role="group" aria-label="Browser windows">
+          <div className="st-where-head">Browser windows ({browserWindows.length})</div>
+          {browserWindows.map((w, i) => <button key={i} type="button" className={`st-where${unreached === w ? " is-on" : ""}`} aria-pressed={unreached === w}
+            onClick={() => setUnreached(w)}>
+            <strong>{w.title}</strong><span>{BROWSER_NAMES[browserOf(w)]}{reachedBrowsers.has(browserOf(w)) ? " · its tabs are listed above" : " · not connected to Studio"}</span></button>)}
+        </div>}
+        {!tabs.length && !programs.length && !browserWindows.length && <p className="st-muted">{mode === "record"
+          ? "No open window was found. Open the application or page first and press Refresh, or open a new page."
+          : "No open browser window: open a new page."}</p>}
+      </div>
+      {unreached && <div className="st-where-help" role="status">
+        <p><strong>{BROWSER_NAMES[ub]} is not connected to Studio</strong>, so its pages cannot be recorded as web steps.
+          Add the ONEOFFICEAUTOMATION Browser Connector to {BROWSER_NAMES[ub]} and press Refresh: its tabs then appear above.</p>
+        <div className="st-cr-acts">
+          {ub !== "firefox" && <Button kind="primary" onClick={() => { setBrowser(ub === "chrome" ? "chrome" : "edge"); setAsking(true); setUnreached(null); }}>Record a page in a new {BROWSER_NAMES[ub]} window…</Button>}
+          <Button kind="secondary" onClick={() => onChoose({ target: "desktop", window_title: unreached.title, process: unreached.process })}>Record this window as an application</Button>
+        </div>
+      </div>}
+      {asking && <div className="st-where-new">
+        <Field label="Web address">{(id) => <TextInput id={id} value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") go(); }} />}</Field>
+        <Field label="Browser">{(id) => <Select id={id} value={browser} onChange={(e) => setBrowser(e.target.value as "edge" | "chrome")}
+          options={[{ value: "edge", label: "Microsoft Edge" }, { value: "chrome", label: "Google Chrome" }]} />}</Field>
+      </div>}
     </Dialog>
   );
 }

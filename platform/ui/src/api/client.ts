@@ -166,7 +166,7 @@ export class StudioApi {
     return this.call<{ object?: Record<string, unknown> } & Record<string, unknown>>("POST", "capture-desktop", req);
   }
   /** Records actions until the person stops (or Cancel); gives the recorded steps. */
-  record(req: { target?: "desktop"; url?: string; browser?: string; tab_id?: number }) {
+  record(req: { target?: "desktop"; url?: string; browser?: string; tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string; window_title?: string; process?: string }) {
     return this.call<{ steps?: FlowStep[]; cancelled?: boolean }>("POST", "record", req);
   }
   recordProgress() { return this.call<{ recording: boolean; count: number }>("GET", "record/progress"); }

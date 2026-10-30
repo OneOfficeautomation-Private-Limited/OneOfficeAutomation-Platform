@@ -511,8 +511,13 @@ public final class StudioServer {
             if (!desktop) {
                 args.put("url", String.valueOf(req.getOrDefault("url", "about:blank")));
                 args.put("browser", String.valueOf(req.getOrDefault("browser", "edge")));
-                // record in an open tab of a browser connected through the extension
+                // record in an open tab: of a browser connected through the extension (tab_id), or of the browser agents
+                // keep open on its debugging port (endpoint, with the tab's title and address)
                 if (req.get("tab_id") instanceof Number n) args.put("tab_id", n);
+                for (String k : List.of("endpoint", "tab_title", "tab_url")) if (req.get(k) != null && !String.valueOf(req.get(k)).isBlank()) args.put(k, String.valueOf(req.get(k)));
+            } else {
+                // the application window chosen in Studio: it comes to the front and only its clicks and typing are recorded
+                for (String k : List.of("window_title", "process")) if (req.get(k) != null && !String.valueOf(req.get(k)).isBlank()) args.put(k, String.valueOf(req.get(k)));
             }
             flow.put("steps", List.of(Map.of("id", "rec", "action", module + "/record", "args", args, "out", Map.of("steps", "steps"))));
             // the recording's progress (GET record/progress) and Cancel (POST record/cancel) while this request waits

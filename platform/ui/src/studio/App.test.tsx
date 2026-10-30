@@ -150,7 +150,8 @@ function fakeServer() {
   routes["POST cr/checkout"] = (b) => { created.push({ checkout: b.path }); locked = cr.user.username; return { local: "Command Center/Invoice intake.flow.json", path: b.path, version: 2 }; };
   routes["POST cr/undo-checkout"] = (b) => { created.push({ undo: b.path }); locked = null; return { ok: true }; };
   routes["POST cr/checkin"] = (b) => { created.push({ checkin: b }); return { path: "Finance/Invoice intake.flow.json", version: 3, local: b.local, production: b.production }; };
-  routes["GET windows"] = () => ({ windows: [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }] });
+  let windows: unknown[] = [{ title: "Orders - Acme", url: "https://acme.example/orders", browser: "edge", source: "browser" }];
+  routes["GET windows"] = () => ({ windows });
   routes["GET connections"] = () => ({ connections: [{ name: "snow-prod", package: "ooa.servicenow" }, { name: "sf", package: "ooa.salesforce" }] });
   routes["GET builtins"] = () => ({ sys: { today: "2026-10-30" }, global: { company: "One Office" } });
   routes["GET model-connections"] = () => connections;
@@ -170,7 +171,7 @@ function fakeServer() {
     try { return new Response(JSON.stringify(handler(init.body ? JSON.parse(init.body as string) : undefined)), { status: 200 }); }
     catch (e: any) { if (e?.api) return new Response(JSON.stringify({ error: e.api }), { status: 400 }); throw e; }
   }) as unknown as typeof fetch;
-  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections };
+  return { api: new StudioApi("/api/", f), created, runs, triggers: () => triggers, savedItems, connections: () => connections, setWindows: (w: unknown[]) => { windows = w; } };
 }
 
 describe("new Studio", () => {
@@ -1168,11 +1169,10 @@ describe("new Studio", () => {
     fireEvent.click(stepButton(steps, "Open workbook"));
     fireEvent.click(within(steps).getByRole("button", { name: /Record/ }));
     const where = await screen.findByRole("dialog", { name: "Record in which window?" });
-    expect(within(where).getByRole("button", { name: "Desktop application…" })).toBeTruthy();
     fireEvent.click(within(where).getByRole("button", { name: "Open a new page…" }));
     fireEvent.change(within(where).getByLabelText("Web address"), { target: { value: "https://x.test/form" } });
     await act(async () => { fireEvent.click(within(where).getByRole("button", { name: "Open and record" })); });
-    expect(created).toContainEqual({ record: { url: "https://x.test/form", browser: "edge" } });
+    expect(created).toContainEqual({ record: { url: "https://x.test/form", browser: "edge" } });   // the browser chosen beside the address (Edge first)
     expect(await screen.findByText(/Added 1 recorded steps and 2 variables: \$Window_1, \$Text_1/)).toBeTruthy();
     const saved = await saveAndGet(created);
     expect(saved.steps[1]).toMatchObject({ action: "ooa.browser/type_text", args: { window: "$Window_1", text: "$Text_1" } });
@@ -1398,5 +1398,49 @@ describe("new Studio", () => {
     expect(localStorage.getItem("ooa.studio.display.theme")).toBe('"dark"');
     fireEvent.pointerDown(screen.getByRole("button", { name: "Display: theme and density" }), { button: 0, ctrlKey: false });
     expect((await screen.findByRole("menuitem", { name: /^Dark theme, In use/ }))).toBeTruthy();
+  });
+
+  it("asks which window to record in, as AA does: browser tabs, application windows, and browsers that are not connected", async () => {
+    const { api, created, setWindows } = fakeServer();
+    setWindows([
+      { source: "browser", title: "Search - Firefox tab", url: "https://www.example.com/search", browser: "firefox", tab_id: 1, connector: true },
+      { source: "browser", title: "Google", url: "https://www.google.com/", browser: "edge", endpoint: "http://127.0.0.1:9222" },
+      { source: "application", title: "Untitled - Notepad", process: "notepad", browser: "" },
+      { source: "application", title: "One Agent Studio - Google Chrome", process: "chrome", browser: "chrome" },
+      { source: "application", title: "Guide.pdf - Personal - Microsoft Edge", process: "msedge", browser: "edge" },
+      { source: "application", title: "Google - Microsoft​ Edge", process: "msedge", browser: "edge" },   // the agents' window: its tab is listed
+      { source: "application", title: "Sticky Notes", process: "ApplicationFrameHost", browser: "" },   // a Store app's frame and its program
+      { source: "application", title: "Sticky Notes", process: "Microsoft.Notes", browser: "" },
+    ]);
+    render(<App api={api} />);
+    const steps = await openIntake();
+    fireEvent.click(stepButton(steps, "Open workbook"));
+    fireEvent.click(within(steps).getByRole("button", { name: /Record/ }));
+    let where = await screen.findByRole("dialog", { name: "Record in which window?" });
+    expect(within(within(where).getByRole("group", { name: "Mozilla Firefox" })).getByRole("button", { name: /Search - Firefox tab/ })).toBeTruthy();
+    expect(within(within(where).getByRole("group", { name: "Microsoft Edge (opened by agents)" })).getByRole("button", { name: /Google/ })).toBeTruthy();
+    const apps = within(where).getByRole("group", { name: "Applications" });
+    expect(within(apps).getAllByRole("button").map((b) => b.querySelector("strong")!.textContent)).toEqual(["Untitled - Notepad", "Sticky Notes"]);   // not Studio, not browsers; a Store app once
+    expect(within(apps).getByRole("button", { name: /Sticky Notes/ }).textContent).toContain("Microsoft.Notes");
+    expect(within(within(where).getByRole("group", { name: "Browser windows" })).getAllByRole("button")).toHaveLength(1);   // the agents' window is not offered twice
+    // a browser Studio cannot reach: how to connect it, or a new recording window, or record it as an application
+    fireEvent.click(within(within(where).getByRole("group", { name: "Browser windows" })).getByRole("button", { name: /Guide.pdf/ }));
+    expect(within(where).getByRole("status").textContent).toContain("Microsoft Edge is not connected to Studio");
+    fireEvent.click(within(where).getByRole("button", { name: "Record a page in a new Microsoft Edge window…" }));
+    expect((within(where).getByLabelText("Browser") as HTMLSelectElement).value).toBe("edge");
+    // Refresh reads the windows again
+    setWindows([{ source: "application", title: "Calculator", process: "CalculatorApp", browser: "" }]);
+    await act(async () => { fireEvent.click(within(where).getByRole("button", { name: "Refresh" })); });
+    expect(within(within(where).getByRole("group", { name: "Applications" })).getByRole("button", { name: /Calculator/ })).toBeTruthy();
+    // an application window: only that window is recorded
+    await act(async () => { fireEvent.click(within(where).getByRole("button", { name: /Calculator/ })); });
+    expect(created).toContainEqual({ record: { target: "desktop", window_title: "Calculator", process: "CalculatorApp" } });
+    expect(await screen.findByText(/Added 1 recorded steps/)).toBeTruthy();
+    // a tab of the browser agents keep open: recorded in place, by its title and address
+    setWindows([{ source: "browser", title: "Google", url: "https://www.google.com/", browser: "edge", endpoint: "http://127.0.0.1:9222" }]);
+    fireEvent.click(within(steps).getByRole("button", { name: /Record/ }));
+    where = await screen.findByRole("dialog", { name: "Record in which window?" });
+    await act(async () => { fireEvent.click(within(where).getByRole("button", { name: /Google/ })); });
+    expect(created).toContainEqual({ record: { endpoint: "http://127.0.0.1:9222", tab_title: "Google", tab_url: "https://www.google.com/", browser: "edge" } });
   });
 });

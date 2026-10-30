@@ -1495,7 +1495,7 @@ public final class BrowserPackage {
     @Action(id = "record", name = "Record web actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "browser",
             description = "Open a browser, record your clicks, typing and selections as steps, and return them when you press Stop recording or close the browser. "
                     + "Edge and Chrome stay open afterwards (on the agents' debugging port), so the page can be captured again. Passwords are never recorded.",
-            panel = "url, browser | timeout_minutes, tab_id")
+            panel = "url, browser | timeout_minutes, tab_id, endpoint, tab_title, tab_url")
     @Output(name = "steps", type = OoaType.LIST, description = "Recorded steps, ready to insert into an agent.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of steps.")
     public Map<String, Object> record(ActionContext ctx,
@@ -1503,9 +1503,14 @@ public final class BrowserPackage {
             @Input(name = "browser", type = OoaType.STRING, required = false, defaultValue = "\"edge\"", enumValues = {"edge", "chrome", "chromium"}, description = "Browser to record in.") String which,
             @Input(name = "timeout_minutes", type = OoaType.NUMBER, required = false, defaultValue = "30", description = "Stop recording automatically after this long.") int minutes,
             @Input(name = "tab_id", type = OoaType.NUMBER, required = false,
-                    description = "Record in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list) instead of a new browser.") Long tabId) {
+                    description = "Record in this open tab of a browser connected through the ONEOFFICEAUTOMATION Browser Connector (from the open-windows list) instead of a new browser.") Long tabId,
+            @Input(name = "endpoint", type = OoaType.STRING, required = false,
+                    description = "Record in an open tab of the browser on this debugging address (the one agents keep open, from the open-windows list) instead of a new window.") String endpoint,
+            @Input(name = "tab_title", type = OoaType.STRING, required = false, description = "With endpoint: the tab to record in, by its exact title.") String tabTitle,
+            @Input(name = "tab_url", type = OoaType.STRING, required = false, description = "With endpoint: the tab to record in, by its address.") String tabUrl) {
         if (tabId != null) return recordInTab(ctx, which, tabId, minutes);
-        if (!which.equals("chromium")) return recordKeptOpen(ctx, url, which, minutes);
+        if (endpoint != null && !endpoint.isBlank()) return recordKeptOpen(ctx, null, which, minutes, endpoint, tabTitle, tabUrl);
+        if (!which.equals("chromium")) return recordKeptOpen(ctx, url, which, minutes, null, null, null);
         List<Map<String, Object>> events = Collections.synchronizedList(new ArrayList<>());
         final boolean[] stopped = {false};
         Map<String, String> env = new HashMap<>();
@@ -1550,11 +1555,28 @@ public final class BrowserPackage {
      * and the page stay open, so the objects can be captured again or the agent run against the same page.
      */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> recordKeptOpen(ActionContext ctx, String url, String which, int minutes) {
+    private Map<String, Object> recordKeptOpen(ActionContext ctx, String url, String which, int minutes, String endpoint, String tabTitle, String tabUrl) {
         List<Map<String, Object>> events = Collections.synchronizedList(new ArrayList<>());
         final boolean[] stopped = {false};
         String session = "__recorder";
-        BrowserSession bs = BrowserWindows.openWindow(ctx, which, url, session, 60_000);
+        BrowserSession bs;
+        if (endpoint == null) bs = BrowserWindows.openWindow(ctx, which, url, session, 60_000);
+        else {
+            // a tab already open in that browser: the same title and address first, then the address, then the title
+            bs = BrowserWindows.attach(ctx, endpoint, which, session, 60_000);
+            boolean hasTitle = tabTitle != null && !tabTitle.isBlank(), hasUrl = tabUrl != null && !tabUrl.isBlank();
+            Page found = null;
+            for (Page p : bs.context.pages()) if (hasTitle && hasUrl && tabTitle.equals(p.title()) && p.url().equals(tabUrl)) { found = p; break; }
+            if (found == null) for (Page p : bs.context.pages()) if (hasUrl && p.url().startsWith(tabUrl)) { found = p; break; }
+            if (found == null) for (Page p : bs.context.pages()) if (hasTitle && tabTitle.equals(p.title())) { found = p; break; }
+            if (found == null) {
+                ctx.sessions().remove(session);
+                try { bs.close(); } catch (RuntimeException ignored) { }
+                throw new ActionException("BROWSER.WINDOW_NOT_FOUND", "No open tab is titled '" + tabTitle + "'" + (hasUrl ? " or at " + tabUrl : ""),
+                        "Choose the window again from the list; it may have been closed or navigated.");
+            }
+            bs.page = found;
+        }
         Page page = bs.page;
         try {
             BrowserContext c = bs.context;

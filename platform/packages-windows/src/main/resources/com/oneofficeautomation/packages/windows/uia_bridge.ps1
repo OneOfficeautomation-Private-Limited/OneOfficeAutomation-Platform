@@ -244,7 +244,8 @@ public static class Bridge {
             case "act": return Act(req);
             case "capture_at": return CaptureAt(Int(req, "x", 0), Int(req, "y", 0), Bool(req, "screenshot", true));
             case "pick": return Pick(Int(req, "timeout_ms", 60000), Bool(req, "screenshot", true), Bool(req, "highlight", true));
-            case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true));
+            case "record": return Record(req.ContainsKey("id") ? req["id"] : null, Int(req, "timeout_ms", 1800000), Bool(req, "screenshot", true),
+                Str(req, "window_title", ""), Str(req, "process", ""));
             case "resize": return Resize(Int(req, "handle", 0), Int(req, "width", 0), Int(req, "height", 0));
             case "msaa_find": return Msaa.Find(req);
             case "msaa_act": return Msaa.Act(req);
@@ -834,7 +835,39 @@ public static class Bridge {
         return e.TryGetCurrentPattern(ValuePattern.Pattern, out p) && !((ValuePattern)p).Current.IsReadOnly && ct != ControlType.Button;
     }
 
-    static List<object> Record(object reqId, int timeoutMs, bool shot) {
+    /**
+     * The processes of the window to record in, found by its exact title (else the first window of the process): the
+     * window's own process and those of its child windows (a Store app's content runs in another process than its
+     * frame). The window comes to the front, as AA's recorder does.
+     */
+    static HashSet<int> RecordTarget(string title, string process) {
+        Dictionary<string, object> chosen = null;
+        foreach (object o in Windows()) {
+            Dictionary<string, object> w = (Dictionary<string, object>)o;
+            if (title.Length > 0 && (string)w["title"] == title && (process.Length == 0 || string.Equals((string)w["process"], process, StringComparison.OrdinalIgnoreCase))) { chosen = w; break; }
+        }
+        if (chosen == null && title.Length > 0)
+            foreach (object o in Windows()) { Dictionary<string, object> w = (Dictionary<string, object>)o; if ((string)w["title"] == title) { chosen = w; break; } }
+        if (chosen == null && process.Length > 0)
+            foreach (object o in Windows()) { Dictionary<string, object> w = (Dictionary<string, object>)o; if (string.Equals((string)w["process"], process, StringComparison.OrdinalIgnoreCase) && ((string)w["title"]).Length > 0) { chosen = w; break; } }
+        if (chosen == null) throw new BridgeError("WINDOW_NOT_FOUND", "No open window is titled '" + title + "'" + (process.Length > 0 ? " (" + process + ")" : "") + "; it may have been closed or renamed");
+        IntPtr h = new IntPtr((int)chosen["handle"]);
+        HashSet<int> pids = new HashSet<int> { (int)chosen["pid"] };
+        try { foreach (AutomationElement c in AutomationElement.FromHandle(h).FindAll(TreeScope.Children, Condition.TrueCondition)) { try { pids.Add(c.Current.ProcessId); } catch (ElementNotAvailableException) { } } }
+        catch (Exception) { /* the window has no readable children: its own process is enough */ }
+        Native.Activate(h);
+        return pids;
+    }
+
+    /** Whether the point is over the recorded application (null: record everywhere). */
+    static bool InTarget(HashSet<int> pids, int x, int y) {
+        if (pids == null) return true;
+        try { return pids.Contains(AutomationElement.FromPoint(new System.Windows.Point(x, y)).Current.ProcessId); }
+        catch (Exception) { return false; }
+    }
+
+    static List<object> Record(object reqId, int timeoutMs, bool shot, string title, string process) {
+        HashSet<int> pids = title.Length > 0 || process.Length > 0 ? RecordTarget(title, process) : null;
         List<object> events = new List<object>();
         lock (Clicks) Clicks.Clear();
         KeyTyped = false; KeyFlush = false;
@@ -895,7 +928,7 @@ public static class Bridge {
             while (!bar.Stopped && DateTime.UtcNow < end && ui.IsAlive) {
                 Click c; bool has;
                 lock (Clicks) { has = Clicks.Count > 0; c = has ? Clicks.Dequeue() : default(Click); }
-                if (has && !bar.Contains(c.X, c.Y)) {
+                if (has && !bar.Contains(c.X, c.Y) && InTarget(pids, c.X, c.Y)) {   // clicks elsewhere (the taskbar, Studio) are not recorded
                     bool dbl = lastClick != null && c.Button == "left" && last.Button == "left"
                             && Math.Abs(c.X - last.X) <= 4 && Math.Abs(c.Y - last.Y) <= 4 && (c.At - last.At).TotalMilliseconds < 500;
                     last = c;
@@ -912,7 +945,8 @@ public static class Bridge {
                     KeyTyped = false;
                     try {
                         AutomationElement f = AutomationElement.FocusedElement;
-                        if (f != null && f.Current.ProcessId != Process.GetCurrentProcess().Id && TakesText(f) && (typingIn == null || !Automation.Compare(f, typingIn))) {
+                        if (f != null && f.Current.ProcessId != Process.GetCurrentProcess().Id && (pids == null || pids.Contains(f.Current.ProcessId))
+                                && TakesText(f) && (typingIn == null || !Automation.Compare(f, typingIn))) {
                             flushTyping();
                             System.Windows.Rect r = f.Current.BoundingRectangle;
                             if (!r.IsEmpty) { typingIn = f; typingCapture = CaptureAt((int)(r.X + r.Width / 2), (int)(r.Y + r.Height / 2), shot); }

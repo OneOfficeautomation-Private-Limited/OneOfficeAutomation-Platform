@@ -150,10 +150,10 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
   const [whereAsk, setWhereAsk] = useState<{ mode: "capture" | "record"; tabs: OpenWindow[]; url?: string; resolve: (c: WhereChoice | null) => void } | null>(null);
   const [recording, setRecording] = useState<{ count: number } | null>(null);
   const [capturing, setCapturing] = useState(false);
+  const openWindows = async () => { try { return (await api.windows()).filter((w) => w.title || w.url); } catch { return [] as OpenWindow[]; } };
   const where = async (mode: "capture" | "record", named?: { title?: string; url?: string }): Promise<WhereChoice | null> => {
-    let tabs: OpenWindow[] = [];
-    try { tabs = (await api.windows()).filter((w) => (w.source ?? "browser") === "browser" && (mode === "record" ? w.connector : w.endpoint || w.connector) && (w.title || w.url)); } catch { tabs = []; }
-    const same = named?.title ? tabs.find((t) => t.title === named.title) : undefined;
+    const tabs = await openWindows();
+    const same = named?.title ? tabs.find((t) => (t.source ?? "browser") === "browser" && (t.endpoint || t.connector) && t.title === named.title) : undefined;
     if (same && mode === "capture") return same.connector || same.tab_id !== undefined ? { tab_id: same.tab_id, browser: same.browser || "edge" }
       : { endpoint: same.endpoint, tab_title: same.title, tab_url: same.url, browser: same.browser || "edge" };
     return new Promise((resolve) => setWhereAsk({ mode, tabs, url: named?.url ?? openUrl(flow), resolve }));
@@ -189,8 +189,8 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
     const choice = await where("record");
     if (!choice) return;
     setRecording({ count: 0 });
-    onNotice(choice.target === "desktop" ? "Recording desktop actions. Work in the application, then press Stop recording on the bar at the top right of the screen."
-      : "Recording in the browser. Press Stop recording there (or close the browser) when you are done.");
+    onNotice(choice.target === "desktop" ? "Recording in " + (choice.window_title ? "“" + choice.window_title + "”" : "the application") + ". Work in it, then press Stop recording on the bar at the top right of the screen."
+      : "Recording in the browser. Press Stop recording on the page (or close the window) when you are done.");
     const poll = setInterval(() => { api.recordProgress().then((p) => setRecording((r) => r && { count: p.count || 0 }), () => {}); }, 800);
     try {
       const res = await api.record(choice);
@@ -556,7 +556,7 @@ export function AgentView({ api, path, flow, packages, selected, onSelect, onEdi
           onEdit(p.flow, p.ids); setAssistant(null);
           onNotice("Inserted " + p.ids.length + " step" + (p.ids.length === 1 ? "" : "s") + ". Review them before running.");
         }} />}
-      {whereAsk && <WhereDialog mode={whereAsk.mode} tabs={whereAsk.tabs} url={whereAsk.url}
+      {whereAsk && <WhereDialog mode={whereAsk.mode} tabs={whereAsk.tabs} url={whereAsk.url} onRefresh={openWindows}
         onChoose={(c) => { whereAsk.resolve(c); setWhereAsk(null); }} onClose={() => { whereAsk.resolve(null); setWhereAsk(null); }} />}
       {recording && <Dialog open title="Recording" width={460} onClose={() => { api.recordCancel().catch(() => {}); }}
         footer={<Button kind="secondary" onClick={() => { api.recordCancel().catch(() => {}); }}>Cancel</Button>}>

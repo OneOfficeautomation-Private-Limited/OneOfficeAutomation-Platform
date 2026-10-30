@@ -26,7 +26,9 @@ export type VarsCtx = { api: StudioApi; flow: Flow; builtins: Builtins; agents: 
   /** Opens the agent a Run agent step runs, with the way back. */
   openChild?: (stepId: string) => void };
 /** Where a capture or a recording happens. */
-export type WhereChoice = { tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string; url?: string; browser?: string; target?: "desktop" };
+/** Where to capture or record: a tab, a new page, or (target desktop) an application window by its title and program. */
+export type WhereChoice = { tab_id?: number; endpoint?: string; tab_title?: string; tab_url?: string; url?: string; browser?: string; target?: "desktop";
+  window_title?: string; process?: string };
 export const VarsContext = createContext<VarsCtx | null>(null);
 export const useVars = () => useContext(VarsContext);
 

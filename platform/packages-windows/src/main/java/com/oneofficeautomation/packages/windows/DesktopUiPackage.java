@@ -505,18 +505,27 @@ public final class DesktopUiPackage {
     }
 
     @Action(id = "record", name = "Record desktop actions", category = "Recorder", timeoutSeconds = 3600, capabilities = "desktop",
-            description = "Design time: records clicks and typing in any Windows application until Stop recording is pressed on the recording bar. "
-                    + "Each click or field becomes a Desktop object action step with the full captured object; password fields are never read.",
-            panel = "timeout_seconds | screenshot")
+            description = "Design time: records clicks and typing in a Windows application until Stop recording is pressed on the recording bar. "
+                    + "With a window, that window comes to the front and only clicks and typing in its application (with its dialogs) are recorded; "
+                    + "without one, everything on the desktop is. Each click or field becomes a Desktop object action step with the full captured object; password fields are never read.",
+            panel = "window_title, process | timeout_seconds, screenshot")
     @Output(name = "steps", type = OoaType.LIST, description = "The recorded steps (ooa.desktop_ui/object_action), ready to insert into an agent.")
     @Output(name = "count", type = OoaType.NUMBER, description = "Number of recorded steps.")
     @SuppressWarnings("unchecked")
     public Map<String, Object> record(ActionContext ctx,
             @Input(name = "timeout_seconds", type = OoaType.NUMBER, required = false, defaultValue = "1800", description = "The longest the recording may run, in seconds.") double timeout,
-            @Input(name = "screenshot", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include a PNG image of each control (base64) in its object.") boolean screenshot) {
+            @Input(name = "screenshot", type = OoaType.BOOLEAN, required = false, defaultValue = "true", description = "Include a PNG image of each control (base64) in its object.") boolean screenshot,
+            @Input(name = "window_title", type = OoaType.STRING, required = false, description = "The window to record in, by its exact title (from the open-windows list).") String windowTitle,
+            @Input(name = "process", type = OoaType.STRING, required = false, description = "The window's program (process name, such as notepad), to tell windows with the same title apart.") String process) {
         long ms = (long) (Math.max(5, timeout) * 1000);
-        ctx.info("Recording desktop actions: work in the application, then press Stop recording on the bar at the top right");
-        List<Object> events = (List<Object>) bridge(ctx).call("record", Map.of("timeout_ms", BigDecimal.valueOf(ms), "screenshot", screenshot),
+        String title = windowTitle == null ? "" : windowTitle, proc = process == null ? "" : process;
+        ctx.info(title.isEmpty() && proc.isEmpty() ? "Recording desktop actions: work in the application, then press Stop recording on the bar at the top right"
+                : "Recording in '" + (title.isEmpty() ? proc : title) + "': work in it, then press Stop recording on the bar at the top right");
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("timeout_ms", BigDecimal.valueOf(ms)); req.put("screenshot", screenshot);
+        if (!title.isEmpty()) req.put("window_title", title);
+        if (!proc.isEmpty()) req.put("process", proc);
+        List<Object> events = (List<Object>) bridge(ctx).call("record", req,
                 CALL_TIMEOUT_MS + 60_000, ctx::checkCancelled, p -> ctx.info("Recorded step " + p.get("count") + " (" + p.get("kind") + ")"));
         return stepsFromEvents(ctx, events);
     }
